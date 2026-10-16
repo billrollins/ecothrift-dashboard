@@ -67,9 +67,10 @@ describe('sign-in (mock)', () => {
 
 describe('email sign-in and joining (mock, owner 2026-10-15, APP D9)', () => {
   it('joins pending: the code signs in once, not ready until a register, and a confirmed email gets a sign-in email', async () => {
-    await expect(joinThriftPlus(' ', 'robin@example.com')).rejects.toMatchObject({ code: 'NAME_NEEDED' });
-    await expect(joinThriftPlus('Robin Lee', 'nope')).rejects.toMatchObject({ code: 'EMAIL_BAD' });
-    expect(await joinThriftPlus('Robin Lee', ' Robin@Example.com ')).toEqual({ status: 'sent' });
+    await expect(joinThriftPlus(' ', 'Lee', 'robin@example.com')).rejects.toMatchObject({ code: 'NAME_NEEDED' });
+    await expect(joinThriftPlus('Robin', ' ', 'robin@example.com')).rejects.toMatchObject({ code: 'NAME_NEEDED' });
+    await expect(joinThriftPlus('Robin', 'Lee', 'nope')).rejects.toMatchObject({ code: 'EMAIL_BAD' });
+    expect(await joinThriftPlus('Robin', 'Lee', ' Robin@Example.com ')).toEqual({ status: 'sent' });
     const [sent] = thriftPlusMockControls.outbox();
     expect(sent).toMatchObject({ to: 'robin@example.com', purpose: 'join' });
     expect(sent.code).toMatch(/^\d{6}$/);
@@ -80,7 +81,7 @@ describe('email sign-in and joining (mock, owner 2026-10-15, APP D9)', () => {
     expect((await getSession()).status).toBe('member');
     await expect(signInWithLink(sent.token)).rejects.toMatchObject({ code: 'LINK_USED' });
 
-    await joinThriftPlus('Robin Lee', 'robin@example.com');
+    await joinThriftPlus('Robin', 'Lee', 'robin@example.com');
     expect(thriftPlusMockControls.outbox().at(-1)?.purpose).toBe('sign_in');
   });
 

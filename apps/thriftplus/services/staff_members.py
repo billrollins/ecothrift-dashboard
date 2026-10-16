@@ -178,10 +178,12 @@ def _link_by_email(user, email: str, *, actor=None) -> Account | None:
 
 
 def _make_person(account: Account, user, email: str, *, actor=None) -> Person:
+    from apps.accounts.services.names import clean_name
+
+    first, last = clean_name(user.first_name, user.last_name)  # owner 2026-10-16: the one name rule
     person = Person.objects.create(
         account=account, role=Person.ROLE_PRIMARY,
-        first_name=((user.first_name or '').strip() or (email.split('@')[0] if email else '') or 'Staff')[:80],
-        last_name=(user.last_name or '').strip()[:80], email=email,
+        first_name=first or 'Staff', last_name=last or 'Member', email=email,
         email_verified_at=timezone.now() if email else None,  # a Dash email is trusted
     )
     members.new_member_code(person, user=actor)

@@ -27,7 +27,8 @@ export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInS
   const auth = useSignIn();
   const [params, setParams] = useSearchParams();
   const [mode, setMode] = useState<Mode>(start);
-  const [name, setName] = useState('');
+  const [first, setFirst] = useState('');
+  const [last, setLast] = useState('');
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState<SentEmail | null>(null);
   const [err, setErr] = useState(notice);
@@ -51,15 +52,15 @@ export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInS
     setErr('');
     const to = email.trim();
     try {
-      if (kind === 'join') await auth.join.mutateAsync({ name, email: to });
+      if (kind === 'join') await auth.join.mutateAsync({ first, last, email: to });
       else await auth.email.mutateAsync(to);
-      setSent({ kind, email: to, name, wait: 30 });
+      setSent({ kind, email: to, first, last, wait: 30 });
       setMode('check');
     } catch (e) {
       const p = e as { code?: string; retryAfter?: number };
       // One went to that address moments ago: wait for it (the same answer for any address).
       if (p.code === 'TOO_SOON') {
-        setSent({ kind, email: to, name, wait: p.retryAfter ?? 30 });
+        setSent({ kind, email: to, first, last, wait: p.retryAfter ?? 30 });
         setMode('check');
       } else {
         setErr(e instanceof Error && e.message ? e.message : 'Could not send the email. Try again.');
@@ -112,9 +113,11 @@ export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInS
           )}
           {mode === 'join' && (
             <JoinForm
-              name={name}
+              first={first}
+              last={last}
               email={email}
-              onName={setName}
+              onFirst={setFirst}
+              onLast={setLast}
               onEmail={setEmail}
               busy={auth.join.isPending}
               onSend={() => void send('join')}

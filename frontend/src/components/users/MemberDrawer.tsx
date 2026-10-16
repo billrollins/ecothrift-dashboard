@@ -46,7 +46,8 @@ function money(raw: string): string {
   return (Number.parseFloat(raw) || 0).toLocaleString(undefined, { style: 'currency', currency: 'USD' });
 }
 
-const EMPTY_ADD = { name: '', id_checked: false, verified_18: false, photo: null as File | null, approves: false };
+// Owner 2026-10-16: first and last name, both required, wherever a name is typed.
+const EMPTY_ADD = { first_name: '', last_name: '', id_checked: false, verified_18: false, photo: null as File | null, approves: false };
 
 function splitName(name: string): { first_name: string; last_name: string } {
   const parts = name.trim().split(/\s+/);
@@ -61,13 +62,13 @@ export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; 
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', notes: '' });
+  const [form, setForm] = useState({ first_name: '', last_name: '', email: '', phone: '', notes: '' });
   const [showQr, setShowQr] = useState(false);
   const [adding, setAdding] = useState(false);
   const [add, setAdd] = useState(EMPTY_ADD);
 
   useEffect(() => {
-    if (row) setForm({ name: row.name, email: row.email, phone: row.phone, notes: row.notes });
+    if (row) setForm({ ...splitName(row.name), email: row.email, phone: row.phone, notes: row.notes });
     setShowQr(false);
     setAdding(false);
     setAdd(EMPTY_ADD);
@@ -90,13 +91,13 @@ export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; 
 
   const off = row?.stage === 'off';
   // Owner 2026-10-16: a name, the photo ID checked and a photo; phone and email stay the main member's.
-  const addReady = Boolean(add.name.trim() && add.id_checked && add.photo && add.approves);
+  const addReady = Boolean(add.first_name.trim() && add.last_name.trim() && add.id_checked && add.photo && add.approves);
   const addPerson = (r: MemberRow) => void run(
     () => addSecondAdult(r.account_id!, {
-      ...splitName(add.name), id_checked: add.id_checked, verified_18: add.verified_18, photo: add.photo,
+      first_name: add.first_name.trim(), last_name: add.last_name.trim(), id_checked: add.id_checked, verified_18: add.verified_18, photo: add.photo,
       both_present: true, primary_approves: add.approves,
     }).then(() => { setAdding(false); setAdd(EMPTY_ADD); }),
-    `${add.name.trim()} added to the membership`, 'Could not add them',
+    `${add.first_name.trim()} ${add.last_name.trim()} added to the membership`, 'Could not add them',
   );
   return (
     <>
@@ -174,8 +175,12 @@ export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; 
                         A name, their photo ID and a photo. Phone and email stay {row.name.split(' ')[0] || 'the main member'}&apos;s.
                       </Typography>
                       <Stack spacing={1}>
-                        <TextField label="Their name" size="small" value={add.name} autoFocus
-                          onChange={(e) => setAdd({ ...add, name: e.target.value })} />
+                        <Stack direction="row" spacing={1}>
+                          <TextField label="First name" required size="small" fullWidth value={add.first_name} autoFocus
+                            onChange={(e) => setAdd({ ...add, first_name: e.target.value })} />
+                          <TextField label="Last name" required size="small" fullWidth value={add.last_name}
+                            onChange={(e) => setAdd({ ...add, last_name: e.target.value })} />
+                        </Stack>
                         <IdCheckFields value={add} onChange={(v) => setAdd({ ...add, ...v })} />
                         <PhotoField photo={add.photo} onChange={(photo) => setAdd({ ...add, photo })} />
                         <FormControlLabel
@@ -208,14 +213,19 @@ export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; 
 
               <DrawerSection title="Profile">
                 <Stack spacing={1.5} sx={{ mt: 1 }}>
-                  <TextField label="Name" size="small" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  <Stack direction="row" spacing={1}>
+                    <TextField label="First name" required size="small" fullWidth value={form.first_name}
+                      onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
+                    <TextField label="Last name" required size="small" fullWidth value={form.last_name}
+                      onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
+                  </Stack>
                   <TextField label="Email" size="small" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
                   <TextField label="Phone" size="small" value={maskPhoneInput(form.phone)} placeholder="(555) 123-4567"
                     onChange={(e) => setForm({ ...form, phone: stripPhone(e.target.value) })} />
                   <TextField label="Notes" size="small" multiline minRows={2} value={form.notes} helperText="Internal only."
                     onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                   <Button variant="outlined" disabled={busy} sx={{ alignSelf: 'flex-start' }}
-                    onClick={() => void run(() => updateMember(row.key, { ...splitName(form.name), email: form.email, phone: form.phone, notes: form.notes }), 'Saved', 'Could not save')}>
+                    onClick={() => void run(() => updateMember(row.key, { first_name: form.first_name, last_name: form.last_name, email: form.email, phone: form.phone, notes: form.notes }), 'Saved', 'Could not save')}>
                     Save profile
                   </Button>
                 </Stack>

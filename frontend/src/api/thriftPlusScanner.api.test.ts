@@ -65,8 +65,8 @@ describe('the Thrift+ scanner client', () => {
       return { data: { status: 'member', price_first: true, member: { first_name: 'Ana', ready: false, email_verified: true }, purpose } };
     });
     await scanner.continueAsGuest();
-    expect(await scanner.joinThriftPlus(' Ana Diaz ', ' ana@example.com ')).toEqual({ status: 'sent' });
-    expect(http.post).toHaveBeenCalledWith('/join/', { name: 'Ana Diaz', email: 'ana@example.com' });
+    expect(await scanner.joinThriftPlus(' Ana ', ' Diaz ', ' ana@example.com ')).toEqual({ status: 'sent' });
+    expect(http.post).toHaveBeenCalledWith('/join/', { first_name: 'Ana', last_name: 'Diaz', email: 'ana@example.com' });
     expect(await scanner.requestSignInEmail('ana@example.com ')).toEqual({ status: 'sent' });
     expect(http.post).toHaveBeenCalledWith('/session/email/', { email: 'ana@example.com' });
 
@@ -92,7 +92,7 @@ describe('the Thrift+ scanner client', () => {
     http.post.mockRejectedValueOnce(fail(400, { code: 'LINK_USED', detail: 'That link has already been used. Send a new one.' }));
     await expect(scanner.signInWithLink('old')).rejects.toMatchObject({ code: 'LINK_USED', message: 'That link has already been used. Send a new one.' });
     http.post.mockRejectedValueOnce(fail(500, {}));
-    await expect(scanner.joinThriftPlus('Ana', 'a@b.co')).rejects.toThrow('Could not send the email. Try again.');
+    await expect(scanner.joinThriftPlus('Ana', 'Diaz', 'a@b.co')).rejects.toThrow('Could not send the email. Try again.');
     http.post.mockRejectedValueOnce(Object.assign(new Error('Network Error'), { isAxiosError: true }));
     await expect(scanner.signInWithLink('t')).rejects.toThrow('Could not reach the store. Check your signal and try again.');
   });

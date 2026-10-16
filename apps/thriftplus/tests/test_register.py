@@ -469,7 +469,7 @@ class PhoneFindTests(RegisterBase):
         self.assertEqual((r.json()['thrift_plus']['member']['rering'], r.json()['thrift_plus']['collected']), (True, '35.00'))
         line_id = r.json()['lines'][0]['id']
         found = self.api.get('/api/thriftplus/returns/lookup/', {'person': ana.pk}).json()
-        self.assertEqual((found['member']['name'], found['lines'][0]['cart_line']), ('Ana', line_id))
+        self.assertEqual((found['member']['name'], found['lines'][0]['cart_line']), ('Ana Member', line_id))  # one name gets "Member" (owner 2026-10-16)
         done = self.api.post('/api/thriftplus/returns/', {'person': ana.pk, 'cart_line': line_id, 'register': 'TP-T1'}, format='json')
         self.assertEqual(done.status_code, 201, done.content)
         self.assertEqual(ReturnRecord.objects.get().person, ana)

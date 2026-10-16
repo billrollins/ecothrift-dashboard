@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.178.1] -->
-<!-- Last reviewed: 2026-10-16 (2.178.1) -->
+<!-- Line 1 release: ## [2.178.2] -->
+<!-- Last reviewed: 2026-10-16 (2.178.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.178.2] - 2026-10-16
+
+User-facing theme: **One way to join Thrift+ (ecothrift.us/join) with a required First and Last name, one name rule everywhere, no more "Customer" last names, and a Staff pill on Members (Bill, 2026-10-16).** Outside initiatives (Thrift+).
+
+### Changed
+- **Join** (ecothrift.us/join, the Thrift+ app): First name and Last name boxes, both required (rule J15). An older app's single name box still works when it has two words.
+- **One name rule** for every way a name is saved: never "Customer"; a full name in one box is split; a single name gets "Member" as the last name; all lower case or ALL CAPS is capitalized. Holds and messages keep the whole name the customer typed. A login with no name doesn't become a member.
+- **The register signs no one up:** "Thrift+ sign up" becomes **Thrift+ finish joining** (find an online join, or show the Join QR). The training register keeps practice sign-ups. **Dash → Thrift+ → Members** has no New member.
+- **ecothrift.us sign-in:** a new email is sent to Join Thrift+ instead of a separate "Create account".
+- **Dash → Users → Members:** a **Staff** pill next to State; the drawer's Edit and Add a person take First and Last name, both required, and a member's login takes the same name.
+
+### Added
+- **Superuser → Requests: "Members: fix names, delete unverified old logins"** (`members.names_cleanup`): fixes every name by the rule and deletes old ecothrift.us logins whose email was never verified, with their pending memberships. Active members and anyone with ThriftBucks history are kept.
 
 ## [2.178.1] - 2026-10-16
 

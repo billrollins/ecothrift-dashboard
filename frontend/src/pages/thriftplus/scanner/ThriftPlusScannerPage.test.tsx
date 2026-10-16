@@ -511,12 +511,16 @@ describe('Email sign-in and joining (owner 2026-10-15, APP D9)', () => {
       'We email your sign-in links, receipts and Thrift+ news; you can turn news off anytime. Terms: ecothrift.us/terms',
     );
     expect(within(form).getByTestId('join-terms')).toHaveAttribute('href', 'https://ecothrift.us/terms');
-    expect(within(form).getByLabelText('Your name')).toHaveAttribute('placeholder', 'First and last name');
-    expect(within(form).getByLabelText('Your name')).toHaveAttribute('autocomplete', 'name');
+    // Owner 2026-10-16: first and last name, both required.
+    expect(within(form).getByLabelText('First name')).toHaveAttribute('autocomplete', 'given-name');
+    expect(within(form).getByLabelText('Last name')).toHaveAttribute('autocomplete', 'family-name');
+    expect(within(form).getByLabelText('First name')).toBeRequired();
+    expect(within(form).getByLabelText('Last name')).toBeRequired();
     expect(screen.queryByRole('button', { name: 'Join Thrift+' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Scan without signing in' })).toBeInTheDocument();
 
-    await user.type(within(form).getByLabelText('Your name'), 'Robin Lee');
+    await user.type(within(form).getByLabelText('First name'), 'Robin');
+    await user.type(within(form).getByLabelText('Last name'), 'Lee');
     await user.type(within(form).getByLabelText('Email'), 'robin@example.com');
     await user.click(within(form).getByRole('button', { name: 'Email me a link' }));
     const check = await screen.findByTestId('check-email');
@@ -545,7 +549,7 @@ describe('Email sign-in and joining (owner 2026-10-15, APP D9)', () => {
   });
 
   it("a join's link lands on the Member QR (view=qr)", async () => {
-    await mockApi.joinThriftPlus('Robin Lee', 'robin@example.com');
+    await mockApi.joinThriftPlus('Robin', 'Lee', 'robin@example.com');
     const { token } = thriftPlusMockControls.outbox()[0];
     renderPage(`/scan?signin=${token}`);
     const wallet = await screen.findByTestId('wallet-sheet');

@@ -1,4 +1,5 @@
 import { Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Typography } from '@mui/material';
+import { JOIN_SHOWN, JoinQrDialog } from '../../pages/thriftplus/finalize/finalizeParts';
 import { useSnackbar } from 'notistack';
 import { useState } from 'react';
 import { createMember } from '../../api/thriftplus.api';
@@ -56,6 +57,7 @@ export default function ThriftPlusSignupDialog({ open, onClose, cart, lastSale, 
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ name: string; where: string } | null>(null);
   const [joinedOnline, setJoinedOnline] = useState(false);
+  const [joinQr, setJoinQr] = useState(false);
   const openSale = cart && cart.status === 'open' ? cart : null;
   const ready = Boolean(value.first_name.trim()) && (training || hasPhone(value.phone));
 
@@ -92,9 +94,46 @@ export default function ThriftPlusSignupDialog({ open, onClose, cart, lastSale, 
     }
   }
 
+  // Owner 2026-10-16: one way to join. A real register never signs a member up: new members join on their phone at
+  // ecothrift.us/join (first and last name, email confirmed), then the register finishes them. Practice only here.
+  if (!training) {
+    return (
+      <>
+        <Dialog open={open} onClose={close} maxWidth="xs" fullWidth>
+          <DialogTitle>Thrift+ finish joining</DialogTitle>
+          <DialogContent>
+            <Alert
+              severity="info"
+              sx={{ mt: 1 }}
+              action={<Button color="inherit" size="small" onClick={() => setJoinQr(true)}>Join QR</Button>}
+            >
+              New members join on their phone at {JOIN_SHOWN}. Show them the Join QR. Once they confirm their email,
+              find them here (or scan their app QR) and finish joining.
+            </Alert>
+            {onFinishJoin ? (
+              <Box sx={{ mt: 1 }}>
+                <ThriftPlusPendingFind
+                  autoFocus
+                  onPick={(person) => {
+                    close();
+                    onFinishJoin(person);
+                  }}
+                />
+              </Box>
+            ) : null}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={close}>Close</Button>
+          </DialogActions>
+        </Dialog>
+        <JoinQrDialog open={joinQr} onClose={() => setJoinQr(false)} />
+      </>
+    );
+  }
+
   return (
     <Dialog open={open} onClose={close} maxWidth="xs" fullWidth>
-      <DialogTitle>{training ? 'Thrift+ sign up (practice)' : 'Thrift+ sign up'}</DialogTitle>
+      <DialogTitle>Thrift+ sign up (practice)</DialogTitle>
       <DialogContent>
         {done ? (
           <Alert severity="success" sx={{ mt: 1 }} data-testid="thrift-signup-done">

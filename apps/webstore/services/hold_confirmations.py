@@ -168,10 +168,8 @@ def _link_customer_account(reservation: Reservation) -> None:
         stamp_email_verified,
     )
 
-    first_name = ''
-    if reservation.customer_name:
-        first_name = (reservation.customer_name or '').strip().split()[0]
-    user = _get_or_create_customer(reservation.email, first_name=first_name)
+    # The whole name the customer typed, split by the one name rule (owner 2026-10-16), not just its first word.
+    user = _get_or_create_customer(reservation.email, first_name=reservation.customer_name or '')
     stamp_email_verified(user)
     claim_guest_records(user)
 

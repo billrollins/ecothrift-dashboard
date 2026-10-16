@@ -93,7 +93,9 @@ export function useSignIn() {
     signOut: useMutation({ mutationFn: () => signOut(), onSuccess: setSession }),
     // Email sign-in and joining (owner 2026-10-15, APP D9): send the email, then its code or its link signs in.
     email: useMutation({ mutationFn: (email: string) => requestSignInEmail(email) }),
-    join: useMutation({ mutationFn: ({ name, email }: { name: string; email: string }) => joinThriftPlus(name, email) }),
+    join: useMutation({
+      mutationFn: ({ first, last, email }: { first: string; last: string; email: string }) => joinThriftPlus(first, last, email),
+    }),
     code: useMutation({
       mutationFn: ({ email, code }: { email: string; code: string }) => signInWithCode(email, code),
       onSuccess: (r: EmailSignIn) => setSession(sessionOf(r)),

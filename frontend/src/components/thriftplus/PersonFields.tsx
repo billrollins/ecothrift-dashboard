@@ -51,7 +51,7 @@ export default function PersonFields({ value, onChange, blankCard = true }: { va
     <Stack spacing={1.25} sx={{ mt: 1 }}>
       <Stack direction="row" spacing={1}>
         <TextField label="First name" required fullWidth value={value.first_name} onChange={(e) => onChange({ ...value, first_name: e.target.value })} />
-        <TextField label="Last name" fullWidth value={value.last_name ?? ''} onChange={(e) => onChange({ ...value, last_name: e.target.value })} />
+        <TextField label="Last name" required fullWidth value={value.last_name ?? ''} onChange={(e) => onChange({ ...value, last_name: e.target.value })} />
       </Stack>
       <TextField label="Phone" value={value.phone ?? ''} onChange={(e) => onChange({ ...value, phone: e.target.value })} slotProps={{ htmlInput: { inputMode: 'tel' } }} />
       <TextField

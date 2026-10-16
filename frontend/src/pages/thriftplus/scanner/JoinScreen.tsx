@@ -47,10 +47,12 @@ function Step({ n, title, testId, children }: { n: number; title: string; testId
   );
 }
 
-export function JoinForm({ name, email, onName, onEmail, busy, onSend, onSignIn }: {
-  name: string;
+export function JoinForm({ first, last, email, onFirst, onLast, onEmail, busy, onSend, onSignIn }: {
+  first: string;
+  last: string;
   email: string;
-  onName: (v: string) => void;
+  onFirst: (v: string) => void;
+  onLast: (v: string) => void;
   onEmail: (v: string) => void;
   busy: boolean;
   onSend: () => void;
@@ -70,12 +72,24 @@ export function JoinForm({ name, email, onName, onEmail, busy, onSend, onSignIn 
 
       <Step n={1} title="Now, from anywhere" testId="join-step-now">
         <Ask what="Name" why="So we know who you are" />
+        {/* Owner 2026-10-16: first and last name, both required, the same for every way in. */}
         <Field sx={{ mt: u(12) }}>
           <InputBase
-            value={name}
-            onChange={(e) => onName(e.target.value)}
-            placeholder="First and last name"
-            inputProps={{ 'aria-label': 'Your name', autoComplete: 'name', autoCapitalize: 'words' }}
+            value={first}
+            onChange={(e) => onFirst(e.target.value)}
+            placeholder="First name"
+            required
+            inputProps={{ 'aria-label': 'First name', autoComplete: 'given-name', autoCapitalize: 'words' }}
+            sx={{ flex: 1, fontSize: 18 }}
+          />
+        </Field>
+        <Field sx={{ mt: u(12) }}>
+          <InputBase
+            value={last}
+            onChange={(e) => onLast(e.target.value)}
+            placeholder="Last name"
+            required
+            inputProps={{ 'aria-label': 'Last name', autoComplete: 'family-name', autoCapitalize: 'words' }}
             sx={{ flex: 1, fontSize: 18 }}
           />
         </Field>

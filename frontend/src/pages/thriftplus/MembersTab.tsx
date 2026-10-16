@@ -409,7 +409,6 @@ export default function MembersTab() {
   const [q, setQ] = useState('');
   const [debounced, setDebounced] = useState('');
   const [selected, setSelected] = useState<number | null>(null);
-  const [signup, setSignup] = useState<NewMember | null>(null);
   useEffect(() => {
     const t = window.setTimeout(() => setDebounced(q.trim()), 250);
     return () => window.clearTimeout(t);
@@ -430,16 +429,6 @@ export default function MembersTab() {
     },
     onError: (err) => enqueueSnackbar(detail(err), { variant: 'error' }),
   });
-  const create = useMutation({
-    mutationFn: () => createMember(signup!),
-    onSuccess: (a) => {
-      setSignup(null);
-      setSelected(a.id);
-      queryClient.setQueryData(['thriftplus', 'account', a.id], a);
-      enqueueSnackbar('Member signed up.', { variant: 'success' });
-    },
-    onError: (err) => enqueueSnackbar(detail(err), { variant: 'error' }),
-  });
 
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '340px minmax(0, 1fr)' }, gap: 2, alignItems: 'start' }}>
@@ -455,7 +444,6 @@ export default function MembersTab() {
             aria-pressed={pendingOnly}
           />
         </Box>
-        <Button variant="contained" onClick={() => setSignup({ first_name: '', id_checked: false, verified_18: false })}>New member</Button>
         <Button variant="outlined" color="warning" disabled={practice.isPending} onClick={() => practice.mutate()}>
           Make a practice member
         </Button>
@@ -482,16 +470,8 @@ export default function MembersTab() {
           </Paper>
         ) : null}
       </Stack>
-      <Box>{selected ? <AccountDetail key={selected} id={selected} onDeleted={() => setSelected(null)} /> : <Typography color="text.secondary">Find a member, or sign up a new one.</Typography>}</Box>
+      <Box>{selected ? <AccountDetail key={selected} id={selected} onDeleted={() => setSelected(null)} /> : <Typography color="text.secondary">Find a member. New members join at ecothrift.us/join.</Typography>}</Box>
 
-      <Dialog open={signup !== null} onClose={() => setSignup(null)} fullWidth maxWidth="xs">
-        <DialogTitle>New Thrift+ member</DialogTitle>
-        <DialogContent>{signup ? <PersonFields value={signup} onChange={setSignup} blankCard={false} /> : null}</DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSignup(null)}>Cancel</Button>
-          <Button variant="contained" disabled={!signup?.first_name || create.isPending} onClick={() => create.mutate()}>Sign up</Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }

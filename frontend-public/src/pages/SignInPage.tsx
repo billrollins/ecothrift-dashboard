@@ -14,7 +14,6 @@ export default function SignInPage() {
     consumeToken,
     signInWithPassword,
     lookupEmail,
-    register,
     requestReset,
     user,
   } = useAuth()
@@ -23,7 +22,6 @@ export default function SignInPage() {
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [firstName, setFirstName] = useState('')
   // A staff login (owner 2026-10-15): staff are website customers too and sign in with their Dash password. Customers
   // have no password (owner 2026-10-16): an emailed link only, the same account as the Thrift+ app.
   const [passwordOnly, setPasswordOnly] = useState(false)
@@ -158,29 +156,12 @@ export default function SignInPage() {
     }
   }
 
-  const onRegister = async (e: FormEvent) => {
-    e.preventDefault()
-    setBusy(true)
-    setError(null)
-    try {
-      await register({
-        email: email.trim(),
-        first_name: firstName.trim(),
-      })
-      setStep('register_sent')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create account')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
     <div className="wrap">
       <div className="pagehead">
         <div className="eyebrow">Account</div>
         <h1>
-          {step === 'register' || step === 'register_sent' ? 'Create your account' : 'Sign in'}
+          {step === 'register' ? 'Join Thrift+' : step === 'register_sent' ? 'Create your account' : 'Sign in'}
         </h1>
       </div>
 
@@ -266,25 +247,15 @@ export default function SignInPage() {
 
       {step === 'register' && (
         <>
+          {/* Owner 2026-10-16: one way in. A new email joins Thrift+ at ecothrift.us/join (first and last name). */}
           <p className="lead">
-            No account yet for {email}. Add your name and we'll email you a link. No password needed. The same account
-            works in the Thrift+ app.
+            No account yet for {email}. Join Thrift+ to get one: it's free, and the same account works here and in the
+            Thrift+ app.
           </p>
-          <form className="checkout-form" onSubmit={onRegister} style={{ maxWidth: 420 }}>
-            <label className="field">
-              <span>First name *</span>
-              <input
-                required
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                disabled={busy}
-                autoComplete="given-name"
-              />
-            </label>
-            {error && <div className="formerror">{error}</div>}
-            <button className="btn btn--primary" type="submit" disabled={busy}>
-              {busy ? 'Creating…' : 'Create account'}
-            </button>
+          <div className="checkout-form" style={{ maxWidth: 420 }}>
+            <a className="btn btn--primary" href="/join">
+              Join Thrift+
+            </a>
             <button
               type="button"
               className="btn btn--ghost"
@@ -296,7 +267,7 @@ export default function SignInPage() {
             >
               Use a different email
             </button>
-          </form>
+          </div>
         </>
       )}
 

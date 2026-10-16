@@ -397,14 +397,16 @@ def _issue(person: Person, purpose: str, email: str, *, base_url: str, ip: str |
     return row
 
 
-def _split_name(name: str) -> tuple[str, str]:
-    words = (name or '').split()
-    if not words:
+def _join_name(first: str, last: str) -> tuple[str, str]:
+    """First and last name, both required (owner 2026-10-16), cleaned by the one name rule."""
+    from apps.accounts.services.names import OLD_DEFAULTS, clean_name
+
+    if not (first or '').strip() or not (last or '').strip() or (last or '').strip().lower() in OLD_DEFAULTS:
         raise AuthError('NAME_NEEDED', NAME_NEEDED_TEXT)
-    return words[0][:80], ' '.join(words[1:])[:80]
+    return clean_name(first, last)
 
 
-def join(name: str, email: str, *, base_url: str, ip: str | None = None) -> None:
+def join(first_name: str, last_name: str, email: str, *, base_url: str, ip: str | None = None) -> None:
     """Join online with a name and email (J8). A new email: a pending membership (the primary person, no phone) with
     their member code, and the join email. An email already a member's: a sign-in email instead (a pending one not yet
     confirmed: the join email again). A revoked membership's email: nothing is sent (logged). The caller answers the
@@ -412,7 +414,7 @@ def join(name: str, email: str, *, base_url: str, ip: str | None = None) -> None
     a pending join."""
     from apps.thriftplus.services import members
 
-    first, last = _split_name(name)
+    first, last = _join_name(first_name, last_name)
     address = _clean_email(email)
     if not address:
         raise AuthError('EMAIL_BAD', EMAIL_BAD_TEXT)

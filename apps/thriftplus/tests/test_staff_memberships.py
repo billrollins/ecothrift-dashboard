@@ -302,7 +302,7 @@ class StaffMembershipsApiTests(TestCase):
                                        phone='4025550111')
         body = staff_members.merge(self.bill, self.source, actor=self.owner)
         staff = Account.objects.get(staff_user=self.bill)
-        self.assertEqual(body['second_adult'], 'Dee')
+        self.assertEqual(body['second_adult'], 'Dee Member')  # one name gets "Member" (owner 2026-10-16)
         self.assertEqual(Person.objects.get(pk=dee.pk).account_id, staff.pk)
         self.assertTrue(Card.objects.filter(person=dee, status=Card.STATUS_ACTIVE).exists())
 

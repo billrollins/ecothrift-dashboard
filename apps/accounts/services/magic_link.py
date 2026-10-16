@@ -219,23 +219,23 @@ def consume_magic_link(*, token: str, request_ip: str | None = None) -> ConsumeR
     locked.used_at = timezone.now()
     locked.save(update_fields=['used_at'])
 
-    first_name = ''
+    full_name = ''  # the name the customer typed (a hold or a message), split by the one name rule
     if locked.purpose == MagicLinkToken.PURPOSE_VERIFY_HOLD and locked.hold_token:
         from apps.webstore.models import Reservation
         hold = Reservation.objects.filter(
             status_token=locked.hold_token, email__iexact=locked.email,
         ).first()
         if hold is not None:
-            first_name = (hold.customer_name or '').strip().split()[0] if hold.customer_name else ''
+            full_name = hold.customer_name or ''
     elif locked.purpose == MagicLinkToken.PURPOSE_VERIFY_THREAD and locked.thread_token:
         from apps.webstore.models import Conversation
         thread = Conversation.objects.filter(
             public_token=locked.thread_token, guest_email__iexact=locked.email,
         ).first()
         if thread is not None:
-            first_name = (thread.guest_name or '').strip().split()[0] if thread.guest_name else ''
+            full_name = thread.guest_name or ''
 
-    user = _get_or_create_customer(locked.email, first_name=first_name)
+    user = _get_or_create_customer(locked.email, first_name=full_name)
     stamp_email_verified(user)
 
     if locked.purpose == MagicLinkToken.PURPOSE_RESET_PASSWORD:
@@ -282,25 +282,30 @@ def _get_or_create_customer(
 ) -> User:
     from apps.accounts.services.staff_customer import is_staff_login
 
+    from apps.accounts.services.names import OLD_DEFAULTS, clean_name
+
     email = _normalize_email(email)
     group, _ = Group.objects.get_or_create(name='Customer')
     user = User.objects.filter(email__iexact=email).first()
     if user is not None and is_staff_login(user):
         return user  # staff are never customers (owner 2026-10-16): no profile, no Customer group
+    # Owner 2026-10-16: one name rule; never "Customer" and never the email's first part as a name. A full name in
+    # ``first_name`` is split; one word gets "Member" as the last name; no name at all stays blank.
+    first, last = clean_name(first_name, last_name)
     if user is None:
-        local = email.split('@')[0][:40] or 'Customer'
         user = User(
             email=email,
-            first_name=(first_name or local)[:150],
-            last_name=(last_name or 'Customer')[:150],
+            first_name=first[:150],
+            last_name=last[:150],
             is_staff=False,
             is_active=True,
         )
         user.set_unusable_password()
         user.save()
-    elif first_name and (not user.first_name or user.first_name == email.split('@')[0][:40]):
-        user.first_name = first_name[:150]
-        user.save(update_fields=['first_name', 'updated_at'])
+    elif first and (not user.first_name or user.first_name == email.split('@')[0][:40]
+                    or (user.last_name or '').strip().lower() in OLD_DEFAULTS):
+        user.first_name, user.last_name = first[:150], last[:150]
+        user.save(update_fields=['first_name', 'last_name', 'updated_at'])
     if not user.groups.filter(name='Customer').exists():
         user.groups.add(group)
     CustomerProfile.objects.get_or_create(
@@ -314,6 +319,7 @@ def register_customer(
     *,
     email: str,
     first_name: str,
+    last_name: str = '',
     password: str = '',
     request_ip: str | None = None,
 ) -> tuple[User, MagicLinkToken]:
@@ -331,7 +337,7 @@ def register_customer(
     if existing is not None and existing.has_usable_password():
         raise ValidationError({'detail': 'An account with this email already exists. Sign in instead.'})
 
-    user = _get_or_create_customer(email, first_name=first_name)
+    user = _get_or_create_customer(email, first_name=first_name, last_name=last_name)
     if password:
         if len(password) < 6:
             raise ValidationError({'detail': 'Password must be at least 6 characters.'})

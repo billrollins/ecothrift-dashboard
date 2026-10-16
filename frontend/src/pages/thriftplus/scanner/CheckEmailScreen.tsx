@@ -15,7 +15,8 @@ import { useSignIn } from './useThriftPlus';
 export interface SentEmail {
   kind: 'sign_in' | 'join';
   email: string;
-  name: string;
+  first: string;
+  last: string;
   wait: number;
 }
 
@@ -90,7 +91,7 @@ export function CheckEmail({ sent, onChange, onSignedIn }: {
   const resend = async () => {
     setErr('');
     try {
-      if (sent.kind === 'join') await auth.join.mutateAsync({ name: sent.name, email: sent.email });
+      if (sent.kind === 'join') await auth.join.mutateAsync({ first: sent.first, last: sent.last, email: sent.email });
       else await auth.email.mutateAsync(sent.email);
       setSends((n) => n + 1);
       restart(RESEND_SECONDS);

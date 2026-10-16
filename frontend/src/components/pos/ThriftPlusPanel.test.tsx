@@ -308,39 +308,7 @@ describe('Thrift+ at the register', () => {
 describe('Thrift+ sign up at the register (owner 2026-10-14: no card)', () => {
   const openCart = cartWith(block({ member: null, instant_offered: false }));
 
-  it('asks for no card, needs a phone, makes the member and puts them on the sale', async () => {
-    const user = userEvent.setup();
-    const onCart = vi.fn();
-    wrap(<ThriftPlusSignupDialog open onClose={() => undefined} cart={openCart} lastSale={null} onCart={onCart} />);
-    expect(screen.queryByLabelText(/blank/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/Joined online already\?/)).toHaveTextContent('find them by name or email, or scan their Thrift+ app QR, and finish joining');
-    expectNoCardWords();
-    await user.type(screen.getByLabelText(/First name/), 'Cy');
-    expect(screen.getByRole('button', { name: 'Add their phone number' })).toBeDisabled();
-    await user.type(screen.getByLabelText('Phone'), '402-555-0123');
-    await user.click(screen.getByRole('button', { name: 'Sign up' }));
-    const done = await screen.findByTestId('thrift-signup-done');
-    expect(calls.created).toHaveLength(1);
-    expect((calls.created[0] as { card_code?: string }).card_code).toBeUndefined();
-    expect(calls.attached).toEqual([[3, 9]]);
-    expect(onCart).toHaveBeenCalled();
-    expect(done).toHaveTextContent('Welcome, Cy.');
-    expect(done).toHaveTextContent('They are on this sale.');
-    expect(done).toHaveTextContent('they open the Thrift+ app at ecothrift.us/scan and show their member QR, or give their phone number');
-    expect(done.textContent).not.toMatch(/\/card/);
-    expectNoCardWords();
-  });
-
-  it('re-rings the last sale for a member who signed up after paying', async () => {
-    const user = userEvent.setup();
-    wrap(<ThriftPlusSignupDialog open onClose={() => undefined} cart={null} lastSale={{ id: 41, total: '85.60' }} onCart={() => undefined} />);
-    await user.type(screen.getByLabelText(/First name/), 'Cy');
-    await user.type(screen.getByLabelText('Phone'), '4025550123');
-    await user.click(screen.getByRole('button', { name: 'Sign up' }));
-    expect(await screen.findByTestId('thrift-signup-done')).toHaveTextContent('Re-rung for Cy: 35.00 ThriftBucks kept');
-    expect(calls.rerung).toEqual([[41, 9]]);
-  });
-
+  // Owner 2026-10-16: a real register signs no one up (one way to join: ecothrift.us/join); practice only here.
   it('makes a practice member on the training register with no phone needed', async () => {
     const user = userEvent.setup();
     wrap(<ThriftPlusSignupDialog open training onClose={() => undefined} cart={openCart} lastSale={null} onCart={() => undefined} />);

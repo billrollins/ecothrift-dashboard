@@ -350,7 +350,7 @@ class FinishJoiningTests(MailMixin, RegisterBase):
     def setUp(self):
         super().setUp()
         self.start_mail()
-        member_auth.join('Cara Joyner', 'cara@example.com', base_url='https://ecothrift.us', ip=IP)
+        member_auth.join('Cara', 'Joyner', 'cara@example.com', base_url='https://ecothrift.us', ip=IP)
         self.cara = Person.objects.get(email='cara@example.com')
         self.cara_code = Card.objects.get(person=self.cara).code
 
@@ -383,7 +383,7 @@ class FinishJoiningTests(MailMixin, RegisterBase):
         self.assertFalse(LedgerEntry.objects.filter(account=self.cara.account).exists())
 
     def test_the_cashier_finds_pending_joins_by_name_email_or_code_newest_first(self):
-        member_auth.join('Cara Two', 'cara2@example.com', base_url='https://ecothrift.us', ip='198.51.100.9')
+        member_auth.join('Cara', 'Two', 'cara2@example.com', base_url='https://ecothrift.us', ip='198.51.100.9')
         find = lambda q: self.api.post('/api/thriftplus/register/pending/', {'q': q}, format='json').json()['people']  # noqa: E731
         self.assertEqual([p['first_name'] for p in find('cara')], ['Cara', 'Cara'])
         self.assertEqual([p['last_name'] for p in find('cara')], ['Two', 'Joyner'])  # newest first
@@ -398,7 +398,7 @@ class FinishJoiningTests(MailMixin, RegisterBase):
 
     def test_finalize_lists_the_newest_online_joins_finished_ones_too(self):
         # Owner 2026-10-16: with nothing typed, Finalize lists the newest 50 online joins, each saying if it's finished.
-        member_auth.join('Cara Two', 'cara2@example.com', base_url='https://ecothrift.us', ip='198.51.100.9')
+        member_auth.join('Cara', 'Two', 'cara2@example.com', base_url='https://ecothrift.us', ip='198.51.100.9')
         recent = lambda: self.api.post('/api/thriftplus/register/pending/', {'q': '', 'recent': True}, format='json').json()['people']  # noqa: E731
         self.assertEqual([(p['last_name'], p['status']) for p in recent()], [('Two', 'pending'), ('Joyner', 'pending')])
         self.assertEqual(self._finish().status_code, 200)
@@ -570,7 +570,7 @@ class StaffEmailLinkTests(MailMixin, RegisterBase):
 
     def test_a_pending_join_finished_by_staff_link_keeps_register_rules(self):
         """Staff can resend a pending join its join email; it still has to finish at a register."""
-        member_auth.join('Cara Joyner', 'cara@example.com', base_url='https://ecothrift.us', ip=IP)
+        member_auth.join('Cara', 'Joyner', 'cara@example.com', base_url='https://ecothrift.us', ip=IP)
         cara = Person.objects.get(email='cara@example.com')
         self.skip_gap('cara@example.com')
         self.assertEqual(self._send_link(cara).json()['sent'], 'join')

@@ -1956,7 +1956,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
               {cart?.thrift_plus?.live || thriftStatus.data?.live ? (
                 <Box sx={{ mb: 1, flexShrink: 0, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
                   <Button size="small" variant="outlined" onClick={() => setThriftSignupOpen(true)}>
-                    Thrift+ sign up
+                    {todayDrawer?.register_is_training ? 'Thrift+ sign up (practice)' : 'Thrift+ finish joining'}
                   </Button>
                   <Button size="small" variant="outlined" onClick={() => setThriftReturnOpen(true)}>
                     Thrift+ 3-day return

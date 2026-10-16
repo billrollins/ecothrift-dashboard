@@ -576,14 +576,14 @@ function sendEmail(to: string, purpose: SignInPurpose): void {
 }
 
 /** Join with a name and email: a pending membership and a join email (an email already a member's gets a sign-in email). */
-export async function joinThriftPlus(name: string, email: string): Promise<{ status: 'sent' }> {
+export async function joinThriftPlus(first: string, last: string, email: string): Promise<{ status: 'sent' }> {
   await wait();
-  const who = name.replace(/\s+/g, ' ').trim();
+  const who = first.replace(/\s+/g, ' ').trim();
   const to = email.trim().toLowerCase();
-  if (!who) throw new ThriftPlusError('Enter your first and last name.', 'NAME_NEEDED');
+  if (!who || !last.trim()) throw new ThriftPlusError('Enter your first and last name.', 'NAME_NEEDED');
   if (!EMAIL_RE.test(to)) throw new ThriftPlusError('Check your email address.', 'EMAIL_BAD');
   const joined = state.joins.get(to);
-  if (!joined) state.joins.set(to, { first_name: who.split(' ')[0], verified: false });
+  if (!joined) state.joins.set(to, { first_name: who, verified: false });
   sendEmail(to, !joined || !joined.verified ? 'join' : 'sign_in');
   return { status: 'sent' };
 }

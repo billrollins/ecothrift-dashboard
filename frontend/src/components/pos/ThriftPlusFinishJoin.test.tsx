@@ -132,13 +132,16 @@ describe('Joined online? at the register (owner 2026-10-15, J8)', () => {
     expect(onCart).not.toHaveBeenCalled();
   });
 
-  it('the sign-up dialog sends a joined-online shopper to Finish joining instead of a second membership', async () => {
+  it('a real register signs no one up: it finds an online join to finish, or shows the Join QR (owner 2026-10-16)', async () => {
     const user = userEvent.setup();
     const onFinishJoin = vi.fn();
     const onClose = vi.fn();
     wrap(<ThriftPlusSignupDialog open onClose={onClose} cart={openCart} lastSale={null} onCart={() => undefined} onFinishJoin={onFinishJoin} />);
-    expect(screen.getByText(/Joined online already\?/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Find them' }));
+    expect(screen.getByText('Thrift+ finish joining')).toBeInTheDocument();
+    expect(screen.getByText(/New members join on their phone at ecothrift.us\/join/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Join QR' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sign up' })).toBeNull();
+    expect(screen.queryByLabelText(/First name/)).toBeNull();
     await user.click(await screen.findByText('Cara Joyner'));
     expect(onFinishJoin).toHaveBeenCalledWith(CARA);
     expect(onClose).toHaveBeenCalled();

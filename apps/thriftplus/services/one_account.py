@@ -112,12 +112,17 @@ def person_for_user(user, *, make: bool = True) -> Person | None:
         return person
     if not make or not email:
         return None
+    from apps.accounts.services.names import clean_name
     from apps.thriftplus.services import members
 
+    # Owner 2026-10-16: a member needs a verified email AND a name; a login with no name joins at ecothrift.us/join.
+    first, last = clean_name(user.first_name, user.last_name)
+    if not first:
+        return None
     with transaction.atomic():
         account = Account.objects.create(status=Account.STATUS_PENDING, notes=WEBSITE_NOTE)
-        person = Person.objects.create(account=account, role=Person.ROLE_PRIMARY, first_name=(user.first_name or '')[:80],
-                                       last_name=(user.last_name or '')[:80], email=email, user=user)
+        person = Person.objects.create(account=account, role=Person.ROLE_PRIMARY, first_name=first, last_name=last,
+                                       email=email, user=user)
         if getattr(getattr(user, 'customer', None), 'email_verified_at', None):
             person.email_verified_at = user.customer.email_verified_at
             person.save(update_fields=['email_verified_at', 'updated_at'])

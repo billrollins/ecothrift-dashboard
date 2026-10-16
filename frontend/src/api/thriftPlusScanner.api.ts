@@ -171,10 +171,13 @@ export async function signIn(login: string, password: string): Promise<ThriftPlu
 // No passwords for members and no texts: every email carries a link (`/scan?signin=<token>`) and a 6-digit code, each
 // works once for 15 minutes. "Sent" is the same answer whether or not the email is a member's.
 
-/** Join with a name and email. A new email gets a pending membership and a join email. */
-export async function joinThriftPlus(name: string, email: string): Promise<{ status: 'sent' }> {
+/** Join with a first name, last name (both required, owner 2026-10-16) and email. A new email gets a pending
+ * membership and a join email. */
+export async function joinThriftPlus(first: string, last: string, email: string): Promise<{ status: 'sent' }> {
   try {
-    const { data } = await http.post<{ status: 'sent' }>('/join/', { name: name.trim(), email: email.trim() });
+    const { data } = await http.post<{ status: 'sent' }>('/join/', {
+      first_name: first.trim(), last_name: last.trim(), email: email.trim(),
+    });
     return data;
   } catch (err) {
     throw problem(err, 'Could not send the email. Try again.');

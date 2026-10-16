@@ -121,7 +121,8 @@ it('See QR sits at the top of the drawer, and Add a person needs a name, the ID,
 
   await user.click(screen.getByRole('button', { name: 'Add a person' }));
   const go = screen.getByRole('button', { name: 'Add them' });
-  await user.type(screen.getByLabelText('Their name'), 'Sam Diaz');
+  await user.type(screen.getAllByLabelText(/First name/)[0], 'Sam'); // the Add a person form comes before Edit
+  await user.type(screen.getAllByLabelText(/Last name/)[0], 'Diaz');
   await user.click(screen.getByRole('checkbox', { name: 'Checked a photo ID (the name matches)' }));
   await user.click(screen.getByRole('checkbox', { name: 'Both are here, and Ana approves' }));
   expect(go).toBeDisabled(); // still needs the photo

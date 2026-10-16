@@ -1067,9 +1067,17 @@ class MemberDirectoryViewSet(viewsets.ViewSet):
                 person = primary(account)
                 if person is None:
                     return _error(MemberError('This membership has no one on it.'))
-                for f in ('first_name', 'last_name'):
-                    if f in d:
-                        setattr(person, f, str(d[f]).strip()[:80])
+                if 'first_name' in d or 'last_name' in d:
+                    from apps.accounts.services.names import OLD_DEFAULTS, clean_name
+
+                    first = str(d.get('first_name', person.first_name) or '')
+                    last = str(d.get('last_name', person.last_name) or '')
+                    if not first.strip() or not last.strip() or last.strip().lower() in OLD_DEFAULTS:
+                        raise MemberError('A first and last name are required.')  # owner 2026-10-16
+                    person.first_name, person.last_name = clean_name(first, last)
+                    if person.user_id:  # one account: the member's login carries the same name
+                        person.user.first_name, person.user.last_name = person.first_name, person.last_name
+                        person.user.save(update_fields=['first_name', 'last_name', 'updated_at'])
                 if 'phone' in d:
                     person.phone = members.normalize_phone(str(d['phone']))
                 person.save()

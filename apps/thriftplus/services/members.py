@@ -193,8 +193,13 @@ def kill_card(card: Card, *, reason: str = 'lost', user=None) -> Card:
 def _person(account: Account, role: str, *, first_name: str, last_name: str = '', phone: str = '', email: str = '',
             id_checked: bool = False, verified_18: bool = False, photo=None, user=None,
             phone_verified: bool = True) -> Person:
+    from apps.accounts.services.names import clean_name
+
+    # Owner 2026-10-16: the screens ask for both names (Join, Add a person, Edit); here the one name rule applies to
+    # every way in, so a single name is split or gets "Member", and "Customer" is never a last name.
     if not (first_name or '').strip():
         raise MemberError('A first name is required.')
+    first_name, last_name = clean_name(first_name, last_name)
     clean = ''
     if (email or '').strip():
         from apps.thriftplus.services.emails import clean_email
@@ -203,7 +208,7 @@ def _person(account: Account, role: str, *, first_name: str, last_name: str = ''
         if not clean:
             raise MemberError("That email doesn't look right.")
     person = Person(
-        account=account, role=role, first_name=first_name.strip()[:80], last_name=(last_name or '').strip()[:80],
+        account=account, role=role, first_name=first_name, last_name=last_name,
         phone=normalize_phone(phone), email=clean, id_checked=bool(id_checked),
         verified_18=bool(id_checked and verified_18),
     )

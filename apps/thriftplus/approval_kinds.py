@@ -135,3 +135,34 @@ def _legacy_apply(request: ApprovalRequest, progress: Progress) -> dict:
 register(Kind(kind='members.legacy_cleanup', label='Members: legacy cleanup (old customers, passwords, staff records)',
               preview=_legacy_preview, apply=_legacy_apply))
 
+
+
+# ── Members: names and old logins (owner 2026-10-16) ────────────────────────────
+
+def _names_preview(params: dict) -> dict:
+    from apps.thriftplus.services import member_names
+
+    p = member_names.plan()
+    return {
+        'counts': {'Old logins to delete': p['delete_logins'], 'Their pending memberships': p['delete_memberships'],
+                   'Names to fix': p['rename']},
+        'changes': [
+            f"Deletes {p['delete_logins']:,} old ecothrift.us logins whose email was never verified, with the "
+            f"{p['delete_memberships']:,} pending memberships the 10-16 merge made for them (and their holds, orders "
+            'and conversations). An active member, or one with ThriftBucks or credit history, is never deleted.',
+            f"Fixes {p['rename']:,} names by the one rule: no \"Customer\"; a full name is split into first and last; a "
+            'single name gets "Member"; all lower case or ALL CAPS is capitalized. A member\'s login takes their name.',
+            'Safe to run again. Deleted logins and memberships cannot be brought back.',
+        ],
+        'sample': [f'Delete: {n}' for n in p['delete_list']] + p['rename_list'][:60],
+    }
+
+
+def _names_apply(request: ApprovalRequest, progress: Progress) -> dict:
+    from apps.thriftplus.services import member_names
+
+    return member_names.apply(progress)
+
+
+register(Kind(kind='members.names_cleanup', label='Members: fix names, delete unverified old logins',
+              preview=_names_preview, apply=_names_apply))

@@ -141,7 +141,11 @@ export default function MembersPanel({ openKey }: { openKey?: string | null }) {
       field: 'stage', headerName: 'State / Notes', flex: 1.2, minWidth: 180,
       renderCell: ({ row }) => (
         <Box sx={{ minWidth: 0 }}>
-          <StateChip label={STAGE_LABEL[row.stage]} tone={TONE[row.stage]} />
+          {/* Owner 2026-10-16: a Staff pill when the membership is linked to a staff login. */}
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <StateChip label={STAGE_LABEL[row.stage]} tone={TONE[row.stage]} />
+            {row.staff ? <Chip size="small" label="Staff" color="info" variant="outlined" sx={{ fontWeight: 600 }} /> : null}
+          </Stack>
           <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', mt: 0.25 }}>
             {(row.notes || '').trim() || '-'}
           </Typography>

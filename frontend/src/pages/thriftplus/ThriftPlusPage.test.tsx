@@ -222,31 +222,10 @@ describe('Thrift+ member service', () => {
     expect(await screen.findByText(/Old member code stopped/)).toBeInTheDocument();
   });
 
-  it('signs up a member; the 18+ box needs an ID check first', async () => {
-    const user = userEvent.setup();
+  it('has no New member: members join at ecothrift.us/join (owner 2026-10-16)', () => {
     renderPage();
-    await user.click(screen.getByRole('button', { name: 'New member' }));
-    expect(screen.queryByLabelText(/card/i)).not.toBeInTheDocument(); // no blank card to scan
-    expect(screen.getByRole('checkbox', { name: 'The ID shows 18 or older' })).toBeDisabled();
-    await user.type(screen.getByLabelText(/First name/), 'Bo');
-    await user.click(screen.getByRole('checkbox', { name: 'Checked a photo ID (the name matches)' }));
-    await user.click(screen.getByRole('checkbox', { name: 'The ID shows 18 or older' }));
-    await user.click(screen.getByRole('button', { name: 'Sign up' }));
-    expect(created.bodies).toContainEqual(expect.objectContaining({ first_name: 'Bo', id_checked: true, verified_18: true }));
-  });
-
-  it('takes an optional email with one plain line and no boxes (T74)', async () => {
-    const user = userEvent.setup();
-    renderPage();
-    await user.click(screen.getByRole('button', { name: 'New member' }));
-    expect(await screen.findByText(/Store news emails have an unsubscribe link/)).toBeInTheDocument();
-    expect(screen.queryByRole('checkbox', { name: /email/i })).not.toBeInTheDocument();
-    await user.type(screen.getByLabelText(/First name/), 'Cy');
-    await user.type(screen.getByLabelText('Email (optional)'), 'cy@example.com');
-    await user.click(screen.getByRole('button', { name: 'Sign up' }));
-    const body = created.bodies.find((b) => (b as { first_name?: string }).first_name === 'Cy') as Record<string, unknown>;
-    expect(body.email).toBe('cy@example.com');
-    expect(Object.keys(body).some((k) => k.startsWith('emails_'))).toBe(false);
+    expect(screen.queryByRole('button', { name: 'New member' })).toBeNull();
+    expect(screen.getByText('Find a member. New members join at ecothrift.us/join.')).toBeInTheDocument();
   });
 
   it('adds an email for a register member and sends the join link (J12)', async () => {

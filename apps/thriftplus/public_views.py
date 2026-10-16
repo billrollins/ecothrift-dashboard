@@ -151,11 +151,17 @@ SENT = {'status': 'sent'}
 @authentication_classes([])
 @permission_classes([AllowAny])
 def join(request):
-    """Join online: ``{name, email}``. Always ``{status: 'sent'}`` for a valid request (a new email gets a pending
-    membership and the join email; a member's email gets a sign-in email). 400 NAME_NEEDED or EMAIL_BAD; 429 over the
-    limits."""
+    """Join online: ``{first_name, last_name, email}``, both names required (owner 2026-10-16). An older app's
+    ``{name}`` is split (a single word is not enough). Always ``{status: 'sent'}`` for a valid request (a new email gets
+    a pending membership and the join email; a member's email gets a sign-in email). 400 NAME_NEEDED or EMAIL_BAD;
+    429 over the limits."""
+    first = str(request.data.get('first_name') or '')
+    last = str(request.data.get('last_name') or '')
+    if not first.strip() and not last.strip():
+        words = str(request.data.get('name') or '').split()
+        first, last = (words[0], ' '.join(words[1:])) if words else ('', '')
     try:
-        member_auth.join(str(request.data.get('name') or ''), str(request.data.get('email') or ''),
+        member_auth.join(first, last, str(request.data.get('email') or ''),
                          base_url=_public_base(), ip=_client_ip(request))
     except member_auth.LimitError as exc:
         return _limited(exc)
