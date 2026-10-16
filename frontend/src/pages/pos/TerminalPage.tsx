@@ -2257,6 +2257,9 @@ export default function TerminalPage() {
         subtitle={deviceLabel}
         action={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {/* The Labor Day sale is retired (owner 2026-10-16): the chip shows only while a sale is actually on, so it
+                can be turned off, never on by accident. */}
+            {saleMode?.active && (
             <Chip
               size="small"
               clickable
@@ -2274,6 +2277,7 @@ export default function TerminalPage() {
                   : 'Calendar — click to toggle'
               }
             />
+            )}
             <Chip
               size="small"
               label={printStatus.online ? 'Print server online' : 'Print server offline'}

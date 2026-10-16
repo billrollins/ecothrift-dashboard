@@ -1,9 +1,9 @@
-v2.170.3 — Settings: print Thrift+ test receipts (member, non-member, training); print server 1.9.0 released
+v2.170.4 — Register: the Labor Day sale is retired (no chip to turn it on; off for good)
 
-User-facing theme: **Settings → Printing can print Thrift+ test receipts (member, non-member, training) before launch (Bill, 2026-10-16).** thrift_plus Phase 6 (launch). Print server 1.9.0 is released (Settings download).
+User-facing theme: **The Labor Day sale is retired at the register (Bill, 2026-10-16).** Outside initiatives (POS).
 
-### Added
+### Removed
 
-- **Settings → Printing:** "Test Thrift+ member receipt", "Test non-member receipt" and "Test training receipt" print the print server's own Thrift+ samples the way the register sends a sale (needs print server 1.9.0).
+- The register's "Labor Day off / on" chip: it shows only while a sale is actually on (so it can be turned off), never as a way to turn one on. Production's Labor Day setting is switched off for good, so the calendar no longer starts it each September.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

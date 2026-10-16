@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.170.3] -->
-<!-- Last reviewed: 2026-10-16 (2.170.3) -->
+<!-- Line 1 release: ## [2.170.4] -->
+<!-- Last reviewed: 2026-10-16 (2.170.4) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.170.4] - 2026-10-16
+
+User-facing theme: **The Labor Day sale is retired at the register (Bill, 2026-10-16).** Outside initiatives (POS).
+
+### Removed
+
+- The register's "Labor Day off / on" chip: it shows only while a sale is actually on (so it can be turned off), never as a way to turn one on. Production's Labor Day setting is switched off for good, so the calendar no longer starts it each September.
 
 ## [2.170.3] - 2026-10-16
 
