@@ -833,9 +833,13 @@ class RegisterViewSet(viewsets.ViewSet):
         "already a member". ``{recent: true}`` with nothing typed (Finalize, owner 2026-10-16): the newest 50 online
         joins, pending and finished, each with its ``status``."""
         q = str(request.data.get('q') or '')
-        if not q.strip() and request.data.get('recent'):
-            return Response({'people': register.recent_joins()})
-        people = register.pending(q)
+        if request.data.get('recent'):
+            # Finalize (owner 2026-10-16): the newest 50 with nothing typed; a search's pending joins with the same detail.
+            if not q.strip():
+                return Response({'people': register.recent_joins()})
+            people = register.pending(q, rows=register.finalize_row)
+        else:
+            people = register.pending(q)
         body = {'people': people}
         if not people:
             who = register.code_member(q)

@@ -408,6 +408,15 @@ class FinishJoiningTests(MailMixin, RegisterBase):
         plain = self.api.post('/api/thriftplus/register/pending/', {'q': ''}, format='json').json()['people']
         self.assertEqual([p['last_name'] for p in plain], ['Two'])
         self.assertEqual(register.RECENT_JOINS, 50)
+        # The card's line and the panel: the phone's last 4 once finished, the member number in groups of four.
+        joyner = [p for p in recent() if p['last_name'] == 'Joyner'][0]
+        self.assertEqual((joyner['phone_last4'], joyner['id_checked'], joyner['verified_18']), ('0177', True, True))
+        self.assertEqual(joyner['code_display'].replace(' ', ''), self.cara_code)
+        self.assertEqual(joyner['finished_by'], self.clerk.full_name or self.clerk.email)
+        two = [p for p in recent() if p['last_name'] == 'Two'][0]
+        self.assertEqual((two['phone_last4'], two['finished_at']), (None, None))
+        found = self.api.post('/api/thriftplus/register/pending/', {'q': 'two', 'recent': True}, format='json').json()['people']
+        self.assertEqual([(p['last_name'], p['status']) for p in found], [('Two', 'pending')])
 
     def test_finishing_verifies_the_phone_in_person_and_puts_them_on_the_sale(self):
         cart = self._cart()

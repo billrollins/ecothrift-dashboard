@@ -23,6 +23,12 @@ vi.mock('../scanner/useQrCamera', () => ({
   },
 }));
 
+// Who is signed in: a cashier, or the owner (Delete and start over is the owner's alone).
+const auth = vi.hoisted(() => ({ user: { is_superuser: false } }));
+vi.mock('../../../contexts/AuthContext', () => ({ useAuth: () => ({ user: auth.user }) }));
+const admin = vi.hoisted(() => ({ deleteMember: vi.fn(), sendMemberEmailLink: vi.fn() }));
+vi.mock('../../../api/thriftplus.api', () => admin);
+
 vi.mock('../../../services/receiving/receivingClient', () => ({
   compressImageToJpeg: vi.fn(async (f: Blob) => f),
 }));
@@ -39,6 +45,9 @@ beforeEach(() => {
   api.findPendingOrMember.mockResolvedValue({ people: [CARA] });
   api.finishThriftJoin.mockResolvedValue({ person_id: 7, account_id: 3, first_name: 'Cara', last_name: 'Joyner', status: 'active', signed: true, cart: null });
   camera.onDecode = null;
+  auth.user = { is_superuser: false };
+  admin.deleteMember.mockReset().mockResolvedValue({ items_back: 0 });
+  admin.sendMemberEmailLink.mockReset().mockResolvedValue({ sent: 'join', sent_to: 'c***@example.com' });
   // jsdom has no 2D canvas: a stand-in that takes the drawing calls, and a PNG out.
   const ctx = new Proxy({}, { get: () => vi.fn(), set: () => true });
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as never);
@@ -104,8 +113,9 @@ describe('Finalize Thrift+', () => {
     expect(await screen.findByText('Cara Joyner')).toBeInTheDocument(); // the newest joins first
     await user.type(screen.getByLabelText('Name or email'), 'joyner{Enter}');
     expect(api.findPendingOrMember).toHaveBeenNthCalledWith(1, '', { recent: true }); // the newest 50 online joins
-    expect(api.findPendingOrMember).toHaveBeenLastCalledWith('joyner', { recent: false });
+    expect(api.findPendingOrMember).toHaveBeenLastCalledWith('joyner', { recent: true });
     await user.click(await screen.findByText('Cara Joyner'));
+    await user.click(await screen.findByRole('button', { name: 'Finish now' }));
     await throughPhoneAndId(user);
 
     // The photo: taken, with Retake.
@@ -152,6 +162,7 @@ describe('Finalize Thrift+', () => {
     });
     renderPage();
     await user.click(await screen.findByText('Cara Joyner'));
+    await user.click(await screen.findByRole('button', { name: 'Finish now' }));
     await throughPhoneAndId(user);
     await user.click(screen.getByRole('button', { name: 'No photo today' }));
     sign();
@@ -203,8 +214,35 @@ describe('Finalize Thrift+', () => {
     expect(screen.getByText('Joined online, newest first · 1 to finish')).toBeInTheDocument();
     const done = screen.getByTestId('finalize-person-done');
     expect(done).toHaveTextContent(/Dee Done.*Finished/);
-    expect(done).toBeDisabled();
+    // The finished one opens its panel, with nothing to finish.
+    await user.click(done);
+    expect(await screen.findByTestId('finalize-person-sheet')).toHaveTextContent('Finished');
+    expect(screen.queryByRole('button', { name: 'Finish now' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('finalize-delete')).not.toBeInTheDocument(); // the owner only
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByTestId('finalize-person-sheet')).not.toBeInTheDocument());
+    // The line: #number · phone · when; a pending one has no phone yet.
+    expect(screen.getAllByTestId('finalize-person-line')[0]).toHaveTextContent('#1907· no phone yet');
     await user.click(screen.getByTestId('finalize-person-pending'));
+    await user.click(await screen.findByRole('button', { name: 'Finish now' }));
     expect(await screen.findByLabelText('Phone number')).toBeInTheDocument();
+  });
+
+  it('the panel resends the join email, and the owner alone may delete and start over (typing the name)', async () => {
+    const user = userEvent.setup();
+    auth.user = { is_superuser: true };
+    renderPage();
+    await user.click(await screen.findByText('Cara Joyner'));
+    await user.click(await screen.findByRole('button', { name: 'Resend join email' }));
+    expect(await screen.findByTestId('finalize-sheet-note')).toHaveTextContent('Sent the join email to c***@example.com.');
+    expect(admin.sendMemberEmailLink).toHaveBeenCalledWith(7);
+    await user.click(screen.getByTestId('finalize-delete'));
+    const del = screen.getByRole('button', { name: 'Delete' });
+    expect(del).toBeDisabled();
+    await user.type(screen.getByLabelText('Their name'), 'Cara Joyner');
+    await user.click(del);
+    expect(admin.deleteMember).toHaveBeenCalledWith(3, 'Cara Joyner');
+    await waitFor(() => expect(screen.queryByTestId('finalize-person-sheet')).not.toBeInTheDocument());
+    expect(api.findPendingOrMember).toHaveBeenLastCalledWith('', { recent: true }); // the list again
   });
 });

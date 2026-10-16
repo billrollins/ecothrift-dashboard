@@ -91,6 +91,17 @@ export interface ThriftPendingPerson {
   qr?: string | null;
   /** Finalize's newest-50 list only: `active` once they finished. */
   status?: 'pending' | 'active';
+  /** Finalize only (owner 2026-10-16): the card's line and the panel. */
+  code_display?: string;
+  phone_last4?: string | null;
+  email_verified?: boolean;
+  id_checked?: boolean;
+  verified_18?: boolean;
+  photo_url?: string | null;
+  signed_at?: string | null;
+  finished_at?: string | null;
+  finished_by?: string;
+  app_signed_in?: boolean;
 }
 
 /** Pending joins by name, email or member code, newest first (at most 10). A POST, so names stay out of request logs. */

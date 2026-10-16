@@ -857,7 +857,7 @@ def pending_person(person: Person) -> dict:
     }
 
 
-def pending(query: str = '', *, limit: int = 10) -> list[dict]:
+def pending(query: str = '', *, limit: int = 10, rows=None) -> list[dict]:
     """Pending joins by name, email or member code (their QR), newest first; with nothing typed, the newest."""
     from django.db.models import Q
 
@@ -871,7 +871,7 @@ def pending(query: str = '', *, limit: int = 10) -> list[dict]:
     elif q:
         for word in q.split():
             people = people.filter(Q(first_name__icontains=word) | Q(last_name__icontains=word) | Q(email__icontains=word))
-    return [pending_person(p) for p in people.distinct().order_by('-account__created_at', '-pk')[:limit]]
+    return [(rows or pending_person)(p) for p in people.distinct().order_by('-account__created_at', '-pk')[:limit]]
 
 
 # Finalize Thrift+'s list before anything is typed (owner 2026-10-16): the newest online joins, scrollable.
@@ -882,11 +882,36 @@ def recent_joins(limit: int = RECENT_JOINS) -> list[dict]:
     """The newest online joins, newest first, up to ``limit``: the ones still to finish and the ones already finished
     (``status`` ``pending`` or ``active``), so a cashier sees at a glance whether someone is done."""
     joined = Event.objects.filter(action='joined_online', account__isnull=False).values('account_id')
-    people = (Person.objects.select_related('account')
+    people = (Person.objects.select_related('account', 'phone_verified_by')
               .filter(account_id__in=joined, role=Person.ROLE_PRIMARY, removed_at__isnull=True,
                       account__status__in=[Account.STATUS_PENDING, Account.STATUS_ACTIVE])
               .order_by('-account__created_at', '-pk')[:limit])
-    return [{**pending_person(p), 'status': p.account.status} for p in people]
+    return [finalize_row(p) for p in people]
+
+
+def _who(user) -> str:
+    return (user.full_name or user.email) if user else ''
+
+
+def finalize_row(person: Person) -> dict:
+    """One person on Finalize (owner 2026-10-16): the card's line (name, member number, phone's last 4, when they
+    joined) and everything the panel shows when it is tapped. Staff screens only."""
+    from django.utils import timezone
+
+    from apps.thriftplus.services.cards import display
+
+    row = pending_person(person)
+    code = row['qr'][2:] if row.get('qr') else ''
+    return {
+        **row, 'status': person.account.status, 'code_display': display(code) if code else '',
+        'phone_last4': person.phone[-4:] if person.phone else None,
+        'email_verified': person.email_verified_at is not None,
+        'id_checked': person.id_checked, 'verified_18': person.verified_18,
+        'photo_url': person.photo.url if person.photo else None,
+        'signed_at': person.signed_at, 'finished_at': person.phone_verified_at,
+        'finished_by': _who(person.phone_verified_by),
+        'app_signed_in': person.sessions.filter(expires_at__gt=timezone.now()).exists(),
+    }
 
 
 def code_member(query: str) -> dict | None:
