@@ -1,10 +1,13 @@
-v2.171.0 — Finalize Thrift+ on a cashier's phone: finish an online join anywhere in the store, with the customer's signature
+v2.172.0 — A Test terminal any computer can open: practice sales on the training register
 
-User-facing theme: **Finalize Thrift+ on a cashier's phone: finish an online join anywhere in the store, with the customer's signature (Bill, 2026-10-16, launch day).** thrift_plus Phase 5 (register).
+User-facing theme: **A Test terminal any computer can open: practice sales on the training register, never touching the computer's real register setup (Bill, 2026-10-16).** Outside initiatives (POS).
 
 ### Added
 
-- **Cashier → Finalize Thrift+** (any staff phone): scan the customer's member QR or search their name or email; enter the phone number and read it back; "I checked their photo ID" and 18+; a photo with the phone's camera (or "No photo today"); the customer signs on the phone under "I agree to the Thrift+ terms and photo release. I can read them at ecothrift.us/terms."; Finish. The membership is active at once.
-- **The signature (J5)** is stored with the member (with the date and the terms version). The register's Finish joining has the same signature pad, optional there.
+- **Cashier → Test terminal** (`/pos/test`): always the TRAIN register, marked "Test terminal — practice only, nothing is real". It opens the training drawer by itself at $0 (shared, so several computers can practice at once) and never changes the computer's saved register. Sales ring and print as usual, marked TRAINING, and write nothing real.
+
+### Fixed
+
+- Two practice sales finishing together can't collide on a TRAIN receipt number.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

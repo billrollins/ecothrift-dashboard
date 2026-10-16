@@ -81,6 +81,11 @@ export function openDrawer(data: Record<string, unknown>): Promise<{ data: Drawe
   return api.post<Drawer>('/pos/drawers/', data);
 }
 
+/** The test terminal (2026-10-16): today's shared practice drawer on the training register, opened if needed. */
+export function openTrainingDrawer(registerId: number): Promise<{ data: Drawer }> {
+  return api.post<Drawer>('/pos/drawers/open-training/', { register: registerId });
+}
+
 export function drawerHandoff(id: number, data: Record<string, unknown>): Promise<{ data: Drawer }> {
   return api.post<Drawer>(`/pos/drawers/${id}/handoff/`, data);
 }

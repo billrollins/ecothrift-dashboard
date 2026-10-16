@@ -53,7 +53,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'storeSales',
     label: 'Cashier',
     itemIds: [
-      'posTerminal', 'thriftPlusFinalize', 'posTransactions', 'posDrawers', 'posCash', 'posPrintables', 'posSetup', 'thriftPlus',
+      'posTerminal', 'thriftPlusFinalize', 'posTestTerminal', 'posTransactions', 'posDrawers', 'posCash', 'posPrintables', 'posSetup', 'thriftPlus',
     ],
     guestItemIds: ['retailQa'],
   },

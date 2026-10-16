@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.171.0] -->
-<!-- Last reviewed: 2026-10-16 (2.171.0) -->
+<!-- Line 1 release: ## [2.172.0] -->
+<!-- Last reviewed: 2026-10-16 (2.172.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.172.0] - 2026-10-16
+
+User-facing theme: **A Test terminal any computer can open: practice sales on the training register, never touching the computer's real register setup (Bill, 2026-10-16).** Outside initiatives (POS).
+
+### Added
+
+- **Cashier → Test terminal** (`/pos/test`): always the TRAIN register, marked "Test terminal — practice only, nothing is real". It opens the training drawer by itself at $0 (shared, so several computers can practice at once) and never changes the computer's saved register. Sales ring and print as usual, marked TRAINING, and write nothing real.
+
+### Fixed
+
+- Two practice sales finishing together can't collide on a TRAIN receipt number.
 
 ## [2.171.0] - 2026-10-16
 

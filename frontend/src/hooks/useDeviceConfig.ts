@@ -49,13 +49,25 @@ function subscribe(callback: () => void): () => void {
   };
 }
 
-export function useDeviceConfig(): {
+const noSubscribe = () => () => {};
+const noSnapshot = (): POSDeviceConfig | null => null;
+
+/**
+ * This computer's saved device config. `ignoreSaved` (the test terminal, 2026-10-16) never reads it: the page
+ * brings its own register, and the computer's saved one is left exactly as it was.
+ */
+export function useDeviceConfig(options?: { ignoreSaved?: boolean }): {
   config: POSDeviceConfig | null;
   setConfig: (config: POSDeviceConfig | null) => void;
   isRegister: boolean;
   registerId: number | null;
 } {
-  const config = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const ignoreSaved = Boolean(options?.ignoreSaved);
+  const config = useSyncExternalStore(
+    ignoreSaved ? noSubscribe : subscribe,
+    ignoreSaved ? noSnapshot : getSnapshot,
+    ignoreSaved ? noSnapshot : getSnapshot,
+  );
 
   const setConfig = useCallback((value: POSDeviceConfig | null) => {
     if (value === null) {

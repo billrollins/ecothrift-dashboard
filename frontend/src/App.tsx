@@ -68,6 +68,7 @@ import { inventoryWorkbenchUrl, legacyItemParamsToRichSearch } from './utils/ric
 import ItemListPage from './pages/inventory/ItemListPage';
 import ItemDetailPage from './pages/inventory/ItemDetailPage';
 import TerminalPage from './pages/pos/TerminalPage';
+import TestTerminalPage from './pages/pos/TestTerminalPage';
 import DrawerListPage from './pages/pos/DrawerListPage';
 import CashManagementPage from './pages/pos/CashManagementPage';
 import TransactionListPage from './pages/pos/TransactionListPage';
@@ -332,6 +333,7 @@ export default function App() {
         <Route path="/inventory/inbound/finalization" element={<Navigate to="/inventory/processing" replace />} />
         <Route path="/inventory/inbound/disputes" element={<Navigate to="/inventory/processing" replace />} />
         <Route path="/pos/terminal" element={<TerminalPage />} />
+        <Route path="/pos/test" element={<TestTerminalPage />} />
         <Route path="/pos/drawers" element={<DrawerListPage />} />
         <Route path="/pos/cash" element={<CashManagementPage />} />
         <Route path="/pos/transactions" element={<TransactionListPage />} />

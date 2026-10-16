@@ -5,6 +5,7 @@ import {
   getDrawers,
   getCarts,
   openDrawer,
+  openTrainingDrawer,
   closeDrawer,
   reopenDrawer,
   drawerHandoff,
@@ -90,6 +91,21 @@ export function useOpenDrawer() {
   return useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
       const { data: result } = await openDrawer(data);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drawers'] });
+    },
+  });
+}
+
+/** The test terminal (2026-10-16): open (or reopen) today's shared training drawer. The server refuses a real register. */
+export function useOpenTrainingDrawer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (registerId: number) => {
+      const { data: result } = await openTrainingDrawer(registerId);
       return result;
     },
     onSuccess: () => {

@@ -124,6 +124,14 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Terminal',
     icon: 'register',
   },
+  posTestTerminal: {
+    id: 'posTestTerminal',
+    path: '/pos/test',
+    label: 'Test terminal',
+    // Always on the training register, any computer: practice and new roll-outs (owner, 2026-10-16).
+    icon: 'register',
+    roles: ['Employee'],
+  },
   posDrawers: {
     id: 'posDrawers',
     path: '/pos/drawers',

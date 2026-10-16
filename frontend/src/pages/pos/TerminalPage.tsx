@@ -77,6 +77,7 @@ import {
   useCompleteCart,
   useVoidCart,
   useOpenDrawer,
+  useOpenTrainingDrawer,
   useDrawerTakeover,
   useDeliveryAvailabilities,
 } from '../../hooks/usePOS';
@@ -106,7 +107,9 @@ import { updateCart, getCarts, getCartCardPreview, getStaffPurchaseSettings, sug
 import { PayrollPicker } from '../../components/pos/PayrollPicker';
 import type { DeliveryAddressSuggestion } from '../../api/pos.api';
 import { localPrintService } from '../../services/localPrintService';
-import type { CardPreview, Cart, CartLine, Drawer, PaymentMethod, POSDeviceConfig } from '../../types/pos.types';
+import type { CardPreview, Cart, CartLine, Drawer, PaymentMethod, POSDeviceConfig, Register } from '../../types/pos.types';
+import { deriveTerminalState } from './terminalState';
+import { TEST_TERMINAL_TITLE, testTerminalDeviceConfig } from '../../utils/testTerminal';
 import type { DenominationBreakdown } from '../../types/pos.types';
 import type { Customer } from '../../api/accounts.api';
 import {
@@ -131,44 +134,6 @@ import {
 } from '../../api/thriftplusRegister.api';
 import { thriftCardCode } from '../../utils/thriftPlusCard';
 import { IconConfirm as Check, IconDelete as Delete, IconEdit as Edit, IconSearch as Search } from '../../icons/ecoIcons';
-
-// ── Terminal state machine ─────────────────────────────────────────────────
-
-type TerminalState =
-  | 'unconfigured'    // no localStorage device config
-  | 'loading'         // register mode, waiting for drawer data
-  | 'no_drawer'       // register, no drawer opened today
-  | 'drawer_open_other' // register, drawer open but owned by someone else
-  | 'ready'           // register, my drawer open, no active cart
-  | 'active_sale'     // cart in progress (any device type)
-  | 'drawer_closed'   // register, today's drawer is closed
-  | 'manager_mode';   // non-register device (manager, mobile, etc.)
-
-function deriveTerminalState({
-  config,
-  isRegister,
-  loading,
-  todayDrawer,
-  cart,
-  userId,
-}: {
-  config: POSDeviceConfig | null;
-  isRegister: boolean;
-  loading: boolean;
-  todayDrawer: Drawer | null;
-  cart: Cart | null;
-  userId: number | undefined;
-}): TerminalState {
-  if (!config) return 'unconfigured';
-  if (!isRegister) return cart ? 'active_sale' : 'manager_mode';
-  if (loading) return 'loading';
-  if (cart) return 'active_sale';
-  if (!todayDrawer) return 'no_drawer';
-  if (todayDrawer.status === 'closed') return 'drawer_closed';
-  // Drawer is open
-  if (userId != null && Number(todayDrawer.current_cashier) === userId) return 'ready';
-  return 'drawer_open_other';
-}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -214,7 +179,10 @@ function findAffectedCartLineId(prev: Cart | null, next: Cart): number | null {
 /** Thrift+ re-ring works for 30 minutes after a sale (apps/thriftplus/services/register.py). */
 const RERING_WINDOW_MS = 30 * 60 * 1000;
 
-export default function TerminalPage() {
+export default function TerminalPage({ testRegister }: { testRegister?: Register } = {}) {
+  // The test terminal (/pos/test, 2026-10-16) brings the training register itself and never reads or changes the
+  // computer's saved device config; /pos/terminal (no testRegister) is exactly as before.
+  const testMode = testRegister != null;
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
   const skuInputRef = useRef<HTMLInputElement>(null);
@@ -225,7 +193,14 @@ export default function TerminalPage() {
   const scanInFlightRef = useRef('');
   const pendingScrollLineIdRef = useRef<number | null>(null);
   const lineElRefs = useRef<Map<number, HTMLElement>>(new Map());
-  const { config, isRegister, registerId } = useDeviceConfig();
+  const savedDevice = useDeviceConfig({ ignoreSaved: testMode });
+  const testConfig = useMemo(
+    () => (testRegister ? testTerminalDeviceConfig(testRegister) : null),
+    [testRegister],
+  );
+  const config: POSDeviceConfig | null = testConfig ?? savedDevice.config;
+  const isRegister = testConfig ? true : savedDevice.isRegister;
+  const registerId = testConfig ? (testConfig.registerId ?? null) : savedDevice.registerId;
   const thriftStatus = useQuery({
     queryKey: ['thriftplus', 'register-status', config?.registerCode ?? ''],
     queryFn: () => getThriftRegisterStatus(config?.registerCode ?? ''),
@@ -372,13 +347,16 @@ export default function TerminalPage() {
   useEffect(() => {
     if (activeDrawerId == null || hasRestoredRef.current) return;
     hasRestoredRef.current = true;
-    getCarts({ drawer: activeDrawerId, status: 'open' }).then(({ data }) => {
+    // The test terminal's drawer is shared by every computer on /pos/test: pick up only this person's open cart.
+    const restoreParams: Record<string, unknown> = { drawer: activeDrawerId, status: 'open' };
+    if (testMode && user?.id != null) restoreParams.cashier = user.id;
+    getCarts(restoreParams).then(({ data }) => {
       const openCarts = ((data as unknown as { results?: Cart[] })?.results ?? []) as Cart[];
       if (openCarts.length > 0) {
         setCart((prev) => prev ?? (openCarts[0] as Cart));
       }
     }).catch(() => {});
-  }, [activeDrawerId]);
+  }, [activeDrawerId, testMode, user?.id]);
 
   const terminalState = deriveTerminalState({
     config,
@@ -387,6 +365,7 @@ export default function TerminalPage() {
     todayDrawer,
     cart,
     userId: user?.id,
+    sharedDrawer: testMode,
   });
 
   const markRegisterActivity = useCallback(() => {
@@ -418,7 +397,36 @@ export default function TerminalPage() {
   const completeCartMutation = useCompleteCart();
   const voidCartMutation = useVoidCart();
   const openDrawerMutation = useOpenDrawer();
+  const openTrainingDrawerMutation = useOpenTrainingDrawer();
   const takeoverMutation = useDrawerTakeover();
+
+  // The test terminal is always usable: no open practice drawer today means the server opens (or reopens) the
+  // shared training drawer for whoever is here, with a zero count. Once per gap, never in a loop.
+  const trainingOpenAskedRef = useRef(false);
+  const needsTrainingDrawer = testMode && (terminalState === 'no_drawer' || terminalState === 'drawer_closed');
+  const [trainingOpenError, setTrainingOpenError] = useState('');
+  const openTrainingDrawerAsync = openTrainingDrawerMutation.mutateAsync;
+  const askForTrainingDrawer = useCallback(
+    (id: number) => {
+      trainingOpenAskedRef.current = true;
+      setTrainingOpenError('');
+      openTrainingDrawerAsync(id).catch((err: unknown) => {
+        setTrainingOpenError(
+          (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+            'Could not open the practice drawer.',
+        );
+      });
+    },
+    [openTrainingDrawerAsync],
+  );
+  useEffect(() => {
+    if (!needsTrainingDrawer) {
+      trainingOpenAskedRef.current = false;
+      return;
+    }
+    if (registerId == null || trainingOpenAskedRef.current) return;
+    askForTrainingDrawer(registerId);
+  }, [needsTrainingDrawer, registerId, askForTrainingDrawer]);
   const lookupCustomerMutation = useLookupCustomer();
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -1309,6 +1317,36 @@ export default function TerminalPage() {
   // ── State panels ───────────────────────────────────────────────────────────
 
   const renderContent = () => {
+    if (needsTrainingDrawer) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6 }}>
+          {trainingOpenError ? (
+            <Alert
+              severity="error"
+              sx={{ maxWidth: 560 }}
+              action={
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={() => {
+                    if (registerId != null) askForTrainingDrawer(registerId);
+                  }}
+                >
+                  Try again
+                </Button>
+              }
+            >
+              {trainingOpenError}
+            </Alert>
+          ) : (
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <CircularProgress size={22} />
+              <Typography>Opening the practice drawer…</Typography>
+            </Stack>
+          )}
+        </Box>
+      );
+    }
     switch (terminalState) {
       case 'unconfigured':
         return (
@@ -2250,11 +2288,21 @@ export default function TerminalPage() {
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      {todayDrawer?.register_is_training && <TrainingBanner />}
+      {(testMode || todayDrawer?.register_is_training) && <TrainingBanner />}
       <PageHeader
         dense
-        title={todayDrawer?.register_is_training ? 'Training Terminal' : 'POS Terminal'}
-        subtitle={deviceLabel}
+        title={
+          testMode
+            ? TEST_TERMINAL_TITLE
+            : todayDrawer?.register_is_training
+              ? 'Training Terminal'
+              : 'POS Terminal'
+        }
+        subtitle={
+          testMode
+            ? `Training Terminal · ${deviceLabel} · this computer's own register setup is not changed`
+            : deviceLabel
+        }
         action={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {/* The Labor Day sale is retired (owner 2026-10-16): the chip shows only while a sale is actually on, so it
@@ -2284,6 +2332,8 @@ export default function TerminalPage() {
               color={printStatus.online ? 'success' : 'default'}
               variant="outlined"
             />
+            {/* The test terminal has no device setup: it is always TRAIN and leaves this computer's setup alone. */}
+            {!testMode && (
             <Tooltip title={config ? 'Change device configuration' : 'Configure this device'}>
               <IconButton
                 size="small"
@@ -2293,6 +2343,7 @@ export default function TerminalPage() {
                 <Settings />
               </IconButton>
             </Tooltip>
+            )}
           </Box>
         }
       />
@@ -2910,17 +2961,22 @@ export default function TerminalPage() {
         }}
       />
 
-      {/* Device setup dialog - always available so users can reconfigure at any time */}
-      <DeviceSetupDialog
-        open={deviceSetupOpen}
-        onClose={() => setDeviceSetupOpen(false)}
-        onSaved={() => setDeviceSetupOpen(false)}
-      />
+      {/* Device setup dialog - always available so users can reconfigure at any time (not on the test terminal) */}
+      {!testMode && (
+        <DeviceSetupDialog
+          open={deviceSetupOpen}
+          onClose={() => setDeviceSetupOpen(false)}
+          onSaved={() => setDeviceSetupOpen(false)}
+        />
+      )}
 
-      <WorkCyclePromptDialog
-        terminalState={terminalState}
-        registerId={registerId}
-      />
+      {/* The idle work-cycle prompt starts a real routine: not on the practice terminal. */}
+      {!testMode && (
+        <WorkCyclePromptDialog
+          terminalState={terminalState}
+          registerId={registerId}
+        />
+      )}
     </Box>
   );
 }

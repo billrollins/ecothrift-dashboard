@@ -1,5 +1,5 @@
 from decimal import Decimal, InvalidOperation
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Sum, Q, Count
 from django.db.models.functions import TruncMonth, TruncYear, TruncWeek, Coalesce
 from django.utils import timezone
@@ -104,6 +104,19 @@ def _include_training_rows(params, *keys: str) -> bool:
 
 
 TRAINING_REFUSED = 'TRAINING_REGISTER'
+
+
+def _create_training_receipt(cart):
+    """A TRAIN- receipt. The test terminal (2026-10-16) runs on several computers at once, so two practice sales
+    can finish together and pick the same next number: the second one tries the number after."""
+    for attempt in range(5):
+        try:
+            with transaction.atomic():
+                return Receipt.objects.create(cart=cart, receipt_number=Receipt.generate_training_number())
+        except IntegrityError:
+            if attempt == 4:
+                raise
+    return None
 
 
 def _cancel_delivery_jobs_for_cart(cart):
@@ -270,6 +283,58 @@ class DrawerViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return Response(DrawerSerializer(drawer).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='open-training')
+    def open_training(self, request):
+        """The test terminal (owner, 2026-10-16): always usable, on the training register only.
+
+        Today's training drawer, opened (zero opening count, for the signed-in user) or reopened if needed.
+        Every computer on /pos/test shares this one practice drawer. A real register is refused: its drawer is
+        opened by a cashier counting real cash (create above), never automatically.
+        """
+        try:
+            register = Register.objects.get(pk=int(request.data.get('register')))
+        except (TypeError, ValueError, Register.DoesNotExist):
+            return Response({'detail': 'Register not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if not register.is_training:
+            return Response(
+                {
+                    'detail': 'Only the training register opens a drawer by itself. '
+                              'A real register needs a cashier to count and open its drawer.',
+                    'code': 'NOT_TRAINING_REGISTER',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not register.is_active:
+            return Response({'detail': 'The training register is inactive.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        today = timezone.localdate()
+        created = False
+        drawer = Drawer.objects.filter(register=register, date=today).first()
+        if drawer is None:
+            try:
+                with transaction.atomic():
+                    drawer = Drawer.objects.create(
+                        register=register,
+                        date=today,
+                        status='open',
+                        current_cashier=request.user,
+                        opened_by=request.user,
+                        opened_at=timezone.now(),
+                        opening_count={},
+                        opening_total=Decimal('0'),
+                    )
+                created = True
+            except IntegrityError:
+                # Another computer opened it a moment ago: share that one.
+                drawer = Drawer.objects.get(register=register, date=today)
+        if drawer.status != 'open':
+            Drawer.objects.filter(pk=drawer.pk).update(status='open')
+            drawer.refresh_from_db()
+        return Response(
+            DrawerSerializer(drawer).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
     def _drawer_expected_cash(self, drawer):
         """Expected cash in drawer: opening + cash sales - drops."""
@@ -1629,7 +1694,7 @@ class CartViewSet(viewsets.ModelViewSet):
                 # No drawer cash, no item sold, no hold or consignment closed, no Thrift+ money: practice only.
                 # No delivery either: add-delivery refuses on this register; any job left from before is cancelled.
                 _cancel_delivery_jobs_for_cart(cart)
-                Receipt.objects.create(cart=cart, receipt_number=Receipt.generate_training_number())
+                _create_training_receipt(cart)
             return Response(CartSerializer(cart).data)
 
         with transaction.atomic():
