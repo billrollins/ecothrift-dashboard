@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.170.2] -->
-<!-- Last reviewed: 2026-10-15 (2.170.2) -->
+<!-- Line 1 release: ## [2.170.3] -->
+<!-- Last reviewed: 2026-10-16 (2.170.3) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.170.3] - 2026-10-16
+
+User-facing theme: **Settings → Printing can print Thrift+ test receipts (member, non-member, training) before launch (Bill, 2026-10-16).** thrift_plus Phase 6 (launch). Print server 1.9.0 is released (Settings download).
+
+### Added
+
+- **Settings → Printing:** "Test Thrift+ member receipt", "Test non-member receipt" and "Test training receipt" print the print server's own Thrift+ samples the way the register sends a sale (needs print server 1.9.0).
 
 ## [2.170.2] - 2026-10-15
 

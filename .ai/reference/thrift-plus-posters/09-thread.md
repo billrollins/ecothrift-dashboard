@@ -820,3 +820,19 @@ Design language 3.4 (owner 10-15), done by the master while you hold: the small 
 ### 2026-10-15 15:29 · APP
 
 **APP: ThriftBuck note A handed to Eco-Thrift** for the app's falling-note animation (pack-v4/thriftbucks-ticket.webp, same file name). The last stack art in the app (an unused thriftbucks-brick.webp import) is to be deleted with it. After that the app has no stack and no TB symbol. No poster screen shows the falling note.
+
+### 2026-10-15 16:19 · MASTER
+
+Owner 10-15: the poster sessions are closed; the master owns P1 to P3 again (APP stays). Last fixes, OK'd by the owner: P3's 'Not returnable' card now reads 'Items tagged AS IS, or / heavily used, broken or / damaged after the sale.' (fixes the 'Doesn't work?' vs 'broken' clash); P1's truck re-shot with an empty trip (no stray 13.69 beside the $18.99 truck), also the website's phone image. P1 and P3 rebuilt, clean, re-locked in print/v4.
+
+### 2026-10-15 16:32 · APP
+
+**APP D13 to D15: scanning help** (owner 10-15, after using the live scanner). D13: zoom chips (.5× 1× 2× 3×, using the phone's own levels, with pinch) over the camera. D14a: a product barcode or other code shows our green tag (the real print-server tag with a ring on its QR, assets/our-green-tag.webp) and 'That's not our price tag'. D14b: our code but not found shows 'We can't find that item', priced as marked, no ThriftBucks, AS IS (a new rule for the rulebook). D15: an ecothrift.us link QR (like the terms QR on the posters) says 'That QR code is a link', with Open link / Scan again. Every scan now buzzes and answers with a card, never silence. Spec: design.md D13 to D15, sent to Eco-Thrift. No poster screen changes.
+
+### 2026-10-15 18:08 · MASTER
+
+**HANDOFF (owner 10-15):** the master design session and APP are retiring. The **Eco-Thrift** session now owns all Eco-Thrift design and code: the posters, the design language, the ThriftBucks art, the app's design, the website. This thread stays as history.
+
+### 2026-10-15 18:31 · APP
+
+**APP: v2.170.2 live (Heroku v457), built, shipped and deployed by APP on the owner's order.** The scanner's turned page is gone. A **Lock upright** button (full screen plus the screen lock, on Android) sits on the camera. On iPhones, a sideways phone keeps scanning full screen ('Turn your phone upright for the full app'), a read code says 'Got it!', the Member QR shows alone for the cashier, and everything else asks to turn upright. Eco-Thrift may ship again. Nothing on the posters changes.

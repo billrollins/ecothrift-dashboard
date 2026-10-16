@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import thriftPlusGuest from './receiptSamples/thriftplus_guest.json';
+import thriftPlusMember from './receiptSamples/thriftplus_member.json';
+import thriftPlusTraining from './receiptSamples/thriftplus_training.json';
 import {
   Box,
   Button,
@@ -141,6 +144,13 @@ function SpecStat({
   );
 }
 
+/** Thrift+ test receipts: the print server's samples (printserver/fixtures, needs print server 1.9.0 or later). */
+const THRIFT_PLUS_SAMPLES: { label: string; data: Record<string, unknown> }[] = [
+  { label: 'Test Thrift+ member receipt', data: thriftPlusMember },
+  { label: 'Test non-member receipt', data: thriftPlusGuest },
+  { label: 'Test training receipt', data: thriftPlusTraining },
+];
+
 export function PrintingPanel() {
   const { enqueueSnackbar } = useSnackbar();
   const [responseTime, setResponseTime] = useState<number | null>(null);
@@ -244,6 +254,16 @@ export function PrintingPanel() {
     onError: () => enqueueSnackbar('Test label failed', { variant: 'error' }),
   });
 
+  // Thrift+ test receipts (owner 2026-10-16): the print server's own samples, sent the way the register sends a sale.
+  const testThriftPlus = useMutation({
+    mutationFn: (sample: Record<string, unknown>) => localPrintService.printReceipt(sample, false),
+    onSuccess: (r) => {
+      enqueueSnackbar(r.success ? 'Thrift+ test receipt sent' : r.error ?? r.message, {
+        variant: r.success ? 'success' : 'error',
+      });
+    },
+    onError: () => enqueueSnackbar('Thrift+ test receipt failed', { variant: 'error' }),
+  });
   const testReceipt = useMutation({
     mutationFn: () => localPrintService.printTestReceipt(),
     onSuccess: (r) =>
@@ -414,6 +434,18 @@ export function PrintingPanel() {
             >
               Test receipt
             </Button>
+            {THRIFT_PLUS_SAMPLES.map((sample) => (
+              <Button
+                key={sample.label}
+                variant="outlined"
+                sx={actionSx}
+                startIcon={<Print />}
+                onClick={() => testThriftPlus.mutate(sample.data)}
+                disabled={!isServerOnline || testThriftPlus.isPending}
+              >
+                {sample.label}
+              </Button>
+            ))}
             <Button
               variant="outlined"
               sx={actionSx}

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-15 (owner: P11 an item we can't find; DKIM and DMARC done; P10 consignment; note A, V8) -->
+<!-- Last updated: 2026-10-15 (owner: P11 settled, kept ThriftBucks may pay for a not-found item; DKIM and DMARC done; P10; note A) -->
 # Thrift+ rulebook
 
 **The one place for every Thrift+ rule.** Form 5 is chosen: rewards first, as store credit. Code follows this file. It is the single source of truth: the old rulebook page, launch kit page and warranty review page are retired (10-09); the only page kept is the final forms grid. Owner answers are folded in here. Items marked "CPA / attorney" carry our answer and wait for their sign-off. Older notes (the 10-01 list, the legal memo, the warranty review, the launch kit) lose wherever they differ.
@@ -266,7 +266,7 @@
   - Source: Owner 10-10. Built: Yes (holds exist for shop accounts; tie to the membership with the one sign-up page).
 - **P11. An item we can't find** (Decided 10-15). When a tag doesn't find its item (in the app or at the register), the item **sells as marked, with no ThriftBucks, AS IS** (no 3-day returns). The app says: "We can't find that item. It's priced as marked, with no ThriftBucks. Sold AS IS, so no 3-day returns." (APP D14b)
   - Source: Owner 10-15, via the scanner design session. Built: v2.170.0 (the app's card). The register already matches: a tag it can't find is rung as a manual line, which collects no ThriftBucks, prints AS IS and can't come back (returns refuse non-items).
-  - **Open, owner to confirm:** a member's kept ThriftBucks can still pay for that manual line, as for pink tags and the $3/$5 bins (B3). If "no ThriftBucks" should also mean they can't be used on it, the register needs a way to mark a not-found line apart from pink tags and bins.
+  - **Owner 10-15: a member's kept ThriftBucks may pay for it,** like pink tags and the $3/$5 bins (B3). "No ThriftBucks" means it collects none. No register change.
 - **P10. Consignment** (Decided 10-15). **ThriftBucks will work on consignment items** once Eco-Thrift does consignment. Until then consignment is in **no** customer words: posters, terms, the app, receipts, emails (owner 10-15: "1. it is wrong. 2. it isn't relevant until we do consignment"). The code still leaves consignment items out of ThriftBucks (rewards, register); change that when consignment starts.
   - Source: Owner 10-15, via the Thrift+ Design session. Built: the words, v2.167.2 (/terms); the code change waits for consignment.
   - **The Sell page is hidden** until consignment starts (owner 10-15: "hide the sell page until consignment starts"): /sell goes to the home page, no links point to it, and `frontend-public/src/pages/SellPage.tsx` stays in the code. It comes back with fresh words when consignment starts. Built: v2.167.2.

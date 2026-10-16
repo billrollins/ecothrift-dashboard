@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-15 (D12: reopen an item from This trip). The APP session's design notes for the Thrift+ scanner (ecothrift.us/scan). APP designs, Eco-Thrift builds (frontend/src/pages/thriftplus/scanner/). The rulebook and 10-design-language.md win on words and look. -->
+<!-- Last updated: 2026-10-15 (D16 v2: sideways phones). The APP session's design notes for the Thrift+ scanner (ecothrift.us/scan). APP designs, Eco-Thrift builds (frontend/src/pages/thriftplus/scanner/). The rulebook and 10-design-language.md win on words and look. -->
 # Thrift+ scanner: design notes (APP)
 
 Built today: the trip scanner, v2.163.0 (live for staff). Screens as built, with a staged member: `workspace/scanner_art/app_review/now/` (tool: `.claude/worktrees/heuristic-pare-f0e172/workspace/scanner_art/tools/app_shots.mjs`, which stages the API in headless Edge, so it needs no backend and no preview code).
@@ -202,6 +202,46 @@ Replaces D7's single "Member QR" pill. Members only; non-members keep the single
 - **Line look:** unchanged; the line gives the usual press feedback (`&:active` background #e7f3e0).
 - Members and non-members alike. Nothing here is on a poster.
 
+### D13 to D15. Scanning help (owner 10-15, after using the live scanner)
+The owner: "needs zoom option in the scanner window. try to use the available zooms of the phone"; "if tag doesn't work tell them to look for our green tag ... (in this window show our green tag) BUT also if the code looks like our code say ... we can't find that item ... priced as marked, with no ThriftBucks and not valid for 3-day return (AS-IS)"; and a non-tag QR (he tried the ecothrift.us/terms QR) "should either scan and tell you what is wrong or do something to let user know". Mockups: `workspace/scanner_art/mockups/scan-help-mockups.png` (frames 13-zoom, 14a-not-our-tag, 14b-cant-find, 15-link).
+
+**D13. Zoom in the camera window.**
+- A zoom control sits centred over the bottom of the camera card, just above "Type tag #", like a phone's camera app: a pill (rgba(16,21,17,0.55), 1px rgba(255,255,255,0.25) border, padding u(6), gap u(6)) holding one chip per level. Each chip is min-width u(88), height u(72), radius 99, Roboto 800 u(30). The chosen chip is #ffffff with #1d5424 text; the others are clear with white text.
+- **The levels are the phone's own:** read the camera's zoom range (`track.getCapabilities().zoom`) and show 1× plus every whole step it reaches up to 3× (2×, 3×), and ".5×" only when the range goes below 1 (an ultra-wide camera). Choosing one applies `applyConstraints({ advanced: [{ zoom }] })`. Pinch on the camera picture zooms smoothly within the same range, and the chips follow.
+- **A phone with no zoom setting** (many iPhones in the browser): try its other back cameras first (a telephoto from `enumerateDevices`). Failing that, zoom digitally: magnify the picture, and decode a centre crop scaled up, so small or far codes still read. The chips look the same.
+- Remember the last level on the phone. Hide the control in type-only mode and when the camera isn't running.
+
+**Every code the camera reads gets an answer.** The scan always buzzes and flashes (as for a tag today), then the middle shows one of the cards below, never a toast that's easy to miss. Bottom row on these cards: **[Scan again]** (primary, full width, QrCodeScannerRounded), which closes the card and goes back to the camera. That same code is then ignored for 3 seconds, so it doesn't pop straight back up. Add EAN-13, EAN-8, UPC-A and UPC-E to the decoder's formats, only so a product barcode gets the "not our tag" answer.
+
+**D14a. Not our code** (a product barcode, other text, or a link that isn't ours):
+- The picture of our green tag: `workspace/scanner_art/assets/our-green-tag.webp` (also .png; 900 x 649, transparent). It's the real green tag rendered by the print server, with a member-green ring around its QR. Width u(600), centred, mb u(26).
+- h2 "That's not our price tag" (Roboto Condensed 700, u(52), #1d5424).
+- Line "Look for our green tag and scan the QR code on it." (u(31), #5d605a, line-height 1.4).
+
+**D14b. Our code, not found** (ITM and 4+ digits, one of our tag links with ?sku=, or a Code 128 tag code, and the lookup finds nothing):
+- `BlockRounded` u(110), #8b8e87; h2 "We can't find that item".
+- Line "It's priced as marked, with no ThriftBucks. Sold AS IS, so no 3-day returns." (keep "AS IS" and "3-day" together with no-break characters).
+- The AS IS badge as built ("AS IS · no returns"), then a grey band (#f3f3ef, u(24) corners, u(30) text, #5d605a) "No ThriftBucks on this item", then the code in small grey mono.
+- This is a rule as well as words: an item the system can't find sells as marked, with no ThriftBucks, AS IS. Eco-Thrift to add it to the rulebook (A rules), and the register should match.
+
+**D15. One of our links** (a QR whose address is on ecothrift.us, like the terms QR on a poster):
+- `LinkRounded` u(110), #3f9f35; h2 "That QR code is a link".
+- Line "It opens **ecothrift.us/terms**." (the address in bold ink, shown as host and path), then "To see a price, scan the QR code on our green tag."
+- Bottom row: [Open link] (quiet, OpenInNewRounded, opens it in a new tab) and [Scan again] (primary, flex 1.35).
+- A link to any other site gets D14a, with no button to open it.
+
+**No connection** stays as built.
+
+### D16 v2. A sideways phone, without the turned page (owner 10-15: the turned page is "ugly af"; "you are approved to plan out the solution. and ship and deploy on your own")
+v2.170.1's counter-rotation is dropped: the browser's own bar turns while the page doesn't, which looks broken. A website can't switch on the phone's rotation lock, so sideways gets its own simple screens. Customers tilt to frame a tag, so the camera keeps scanning while sideways.
+- **When:** a phone (touch, short side under 600 px) held sideways, read from the screen angle (as v2.170.1 does, so the keyboard never triggers it). The page turns with the phone as any web page does; no counter-rotation.
+- **Scanning sideways (the camera was showing):** the camera fills the whole screen (object-fit cover), the viewfinder brackets centred, and scanning carries on. Header, This trip and the buttons are hidden. At the top centre, 12 px down, a pill (rgba(16,21,17,0.72), white, Roboto 600 15 px, padding 8 px 16 px, `ScreenRotationRounded` 18 px): **"Turn your phone upright for the full app"**.
+- **A code read while sideways:** the usual buzz and flash, and the app handles it as normal underneath (the tag card, or a D14/D15 card, is ready). Over the camera, a centred white card (width 300 px, radius 24 px, padding 20 px, shadow as the app's cards) with `CheckCircleRounded` 44 px #3f9f35, **"Got it!"** (Roboto Condensed 700, 24 px, #1d5424) and **"Turn your phone upright to see it."** (16 px, #5d605a). Upright: the card is there, exactly as if scanned upright.
+- **The Member QR sideways** (a member turning the phone to show the cashier): a white screen with the QR centred, as large as fits (min(78vh, 78vw)), with its quiet zone; under it, the code in groups of four (Roboto Condensed 700, 18 px) and "Show this at the register." (14 px, #5d605a). Nothing else.
+- **Anything else sideways** (a tag card or trip on screen, the balance or Thrift+ sheet, sign-in, join, account): one clean full-screen message on #f2f2ee, centred: `StayCurrentPortraitRounded` 56 px #3f9f35, **"Turn your phone upright"** (Roboto Condensed 700, 26 px, #1d5424), **"The scanner works best held upright."** (16 px, #5d605a). Whatever was open is still there when it turns back; nothing resets, and typed text is kept.
+- **The home-screen app** keeps `"orientation": "portrait"` in the manifest and the `screen.orientation.lock('portrait')` attempt (Android honours it).
+- **Tablets and computers:** unchanged.
+
 ### Built (Eco-Thrift, 10-14)
 - D1 and D2 are built with tests green in `C:/Coding/_worktrees/ecothrift-dashboard--mycard` and go live with today's register release. The QR is the person's active card code; a person with no active card gets a card that lives only in the app (never printed), so the register needs no change. D3 is a one-file swap when the master's note lands.
 - D5 is built (worktree `ecothrift-dashboard--mycard`, Vite :5186; shots `workspace/scanner_art/app_review/d5/`, tool `workspace/scanner_art/tools/d5_shots.mjs`). APP reviewed and approved it 10-14 with two polish notes: bold Share / Add to Home Screen / Add in the how-to, and check the sheet's scrollbar on a real phone. All of it goes live with the 10-14 register release.
@@ -214,8 +254,11 @@ Replaces D7's single "Member QR" pill. Members only; non-members keep the single
 - **D12 built and checked (10-15)** with D11 on :5186 (shot `app_review/d12/trip-item.png`). Accepted Eco-Thrift's choices: with a line's − + open, a tap on the rest of the line still opens its tag; a second look isn't counted as a scan (`?again=1`). D11 and D12 ship together as **v2.167.1** on the owner's "ship and deploy" in Eco-Thrift's chat.
 - **D3 closed 10-15:** the owner picked ThriftBuck note A (the Eco-Thrift seal in the middle, the terms QR left, Thrift+ right; no TB symbol, no oval). Eco-Thrift swaps `thriftbucks-ticket.webp` for `workspace/scanner_art/tb/pack-v4/thriftbucks-ticket.webp` (the falling note) and removes the unused stack (`thriftbucks-brick.webp`, `art.brick`). The app then has no stack and no TB symbol anywhere.
 - **v2.167.1 live 10-15** (Heroku v451): D11 and D12. APP's live check without signing in (`tools/prod_check.mjs`, shots `app_review/live/`): /scan, /join and /qr all load the app and show "Coming soon / Staff sign in" while Thrift+ is off (the local preview code doesn't open production). The member screens are the owner's staff-login test. D3 (note A, stack removed) goes in the next release.
-- **D3 built 10-15:** the falling note is note A (160 px), and `thriftbucks-brick.webp` is deleted with its import. It ships as v2.167.2 on the owner's next "ship and deploy" in Eco-Thrift's chat.
+- **D3 live 10-15 in v2.167.2** (Heroku v452): the falling note is note A (160 px), and `thriftbucks-brick.webp` is deleted with its import. **Every APP decision (D1 to D12) is now live.**
 - **No consignment in customer words (owner 10-15):** checked the app as of v2.167.1 plus D3. No screen, sheet, the six lines, or server message the app shows mentions consignment. A consignment item's tag reads "No ThriftBucks on this item yet", which stays true once consignment collects them. The register's rules (no ThriftBucks on consignment) stay internal. Nothing to change.
+- **D13 to D15 live 10-15 in v2.170.0** (Heroku v455). APP checked the shots in `app_review/d13/`: the three cards and the zoom chips, both native (.5× to 3×) and digital (2×). Builder notes: native zoom on Android Chrome, Edge and Samsung; on iPhone Pro, 1× and 2× are digital and 3× switches to the telephoto (check close focus on a real Pro); everywhere else digital 1× to 3×. Typed 8-, 12- and 13-digit numbers count as product barcodes. When a tag and a barcode share the frame, the tag wins. Rulebook P11 holds the rule; its open question is the owner's: can kept ThriftBucks pay for a not-found line (like pink tags and bins)?
+- **D16. Portrait only (owner to Eco-Thrift from the floor, 10-15: "we need the scanner app page to stay fixed in portrait. customers tilt phone to scan and it reorients")**, live in v2.170.1 (Heroku v456). A browser tab can't lock its orientation, so on a sideways phone the page turns itself back by the screen angle and behaves like a portrait-locked app, camera and swipes included. The home-screen app locks portrait (the manifest has "orientation": "portrait"). It applies to phones only (a touch screen with a short side under 600 px) and reads the screen angle, never the viewport, so the keyboard can't trigger it. APP checked `app_review/portrait/tag-landscape.png`: it reads upright on a sideways phone.
+- **D16 v2 live 10-15 in v2.170.2** (GitHub 141ac05f, Heroku v457). APP built, shipped and deployed it itself, on the owner's order ("approved to plan out the solution. and ship and deploy on your own"; Eco-Thrift held its ships). "Lock upright" (full screen plus the orientation lock; Android, hidden on iPhones) sits top left on the camera and on the sideways screens. Sideways without the lock: the full-screen camera with the pill, "Got it!", the QR alone, or "Turn your phone upright". The turned page (portraitLock.ts) is removed. Checked in headless Edge with a sideways screen angle (`app_review/d16/`) and in the live bundle.
 
 ## Open
 - **Brand plan (master's proposal to the owner, waiting on his yes):** the brush Thrift+ logo everywhere, the app header too (it replaces Black Anemone, so there's no font to buy), and the note's center becomes the brush "+" in bright green inside the oval. If he says yes:
