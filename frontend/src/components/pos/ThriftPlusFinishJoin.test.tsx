@@ -146,6 +146,23 @@ describe('Joined online? at the register (owner 2026-10-15, J8)', () => {
 });
 
 describe('Finish joining', () => {
+  it("says they need to finalize and shows their QR big, for the Finalize phone to scan off the screen", () => {
+    wrap(
+      <ThriftPlusFinishJoinDialog
+        open
+        person={{ ...CARA, qr: 'TP402155831907', code_last4: '1907' }}
+        onClose={() => undefined}
+        cart={openCart}
+        lastSale={null}
+        onCart={() => undefined}
+      />,
+    );
+    expect(screen.getByText('Needs to finalize Thrift+')).toBeInTheDocument();
+    expect(screen.getByTestId('thrift-finish-qr')).toHaveTextContent('Open Finalize and scan this QR. Or finish here below.');
+    expect(screen.getByRole('img', { name: "Cara Joyner's member QR" })).toBeInTheDocument();
+    expect(screen.getByText('Member code ending 1907')).toBeInTheDocument();
+  });
+
   it('reads the phone back, then the ID and photo, and puts them on the sale', async () => {
     const user = userEvent.setup();
     const onCart = vi.fn();

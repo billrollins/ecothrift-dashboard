@@ -87,6 +87,10 @@ export interface ThriftPendingPerson {
   joined_at: string;
   /** The last 4 of their member code (the QR in their app), or null. */
   code_last4: string | null;
+  /** Their member QR (`TP` + code): the terminal shows it for the Finalize phone to scan (owner 2026-10-16). */
+  qr?: string | null;
+  /** Finalize's newest-50 list only: `active` once they finished. */
+  status?: 'pending' | 'active';
 }
 
 /** Pending joins by name, email or member code, newest first (at most 10). A POST, so names stay out of request logs. */
@@ -105,9 +109,13 @@ export interface ThriftCodeMember {
  * Finalize Thrift+ (owner 2026-10-16): pending joins for a name, email or scanned member QR, and, when a QR is no
  * pending join, who it belongs to (so the cashier hears "already a member").
  */
-export async function findPendingOrMember(q: string): Promise<{ people: ThriftPendingPerson[]; member?: ThriftCodeMember }> {
+export async function findPendingOrMember(
+  q: string,
+  { recent = false }: { recent?: boolean } = {},
+): Promise<{ people: ThriftPendingPerson[]; member?: ThriftCodeMember }> {
+  // `recent` with nothing typed: the newest 50 online joins, pending and finished (Finalize, owner 2026-10-16).
   const { data } = await api.post<{ people: ThriftPendingPerson[]; member?: ThriftCodeMember }>(
-    '/thriftplus/register/pending/', { q },
+    '/thriftplus/register/pending/', recent ? { q, recent: true } : { q },
   );
   return data;
 }
@@ -175,6 +183,7 @@ export function pendingFromError(err: unknown): ThriftPendingPerson | null {
     email: data.email ?? '',
     joined_at: data.joined_at ?? '',
     code_last4: data.code_last4 ?? null,
+    qr: data.qr ?? null,
   };
 }
 

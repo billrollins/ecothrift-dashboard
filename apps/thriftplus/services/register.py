@@ -50,7 +50,7 @@ from decimal import ROUND_DOWN, ROUND_HALF_UP, ROUND_UP, Decimal
 from django.db import transaction
 from django.utils import timezone
 
-from apps.thriftplus.models import Account, CartMember, Card, ItemReward, LedgerEntry, Person, RestrictedProduct
+from apps.thriftplus.models import Account, CartMember, Card, Event, ItemReward, LedgerEntry, Person, RestrictedProduct
 from apps.thriftplus.services import ledger, members, trip
 from apps.thriftplus.services.members import MemberError
 from apps.thriftplus.services.rewards import floor_for, rules
@@ -846,13 +846,14 @@ def after_void(cart, *, user=None) -> None:
 # ── Joined online: finish joining at the register (owner 2026-10-15, J8) ────────
 
 def pending_person(person: Person) -> dict:
-    """One pending join, for the cashier to pick and finish."""
+    """One pending join, for the cashier to pick and finish. ``qr`` is their member QR (staff screens only): the
+    terminal shows it so the Finalize phone can scan it off the screen (owner 2026-10-16)."""
     card = (Card.objects.filter(person=person, status=Card.STATUS_ACTIVE).order_by('-issued_at', '-pk')
             .values_list('code', flat=True).first())
     return {
         'person_id': person.pk, 'account_id': person.account_id, 'first_name': person.first_name,
         'last_name': person.last_name, 'email': person.email, 'joined_at': person.account.created_at,
-        'code_last4': card[-4:] if card else None,
+        'code_last4': card[-4:] if card else None, 'qr': f'TP{card}' if card else None,
     }
 
 
@@ -871,6 +872,21 @@ def pending(query: str = '', *, limit: int = 10) -> list[dict]:
         for word in q.split():
             people = people.filter(Q(first_name__icontains=word) | Q(last_name__icontains=word) | Q(email__icontains=word))
     return [pending_person(p) for p in people.distinct().order_by('-account__created_at', '-pk')[:limit]]
+
+
+# Finalize Thrift+'s list before anything is typed (owner 2026-10-16): the newest online joins, scrollable.
+RECENT_JOINS = 50
+
+
+def recent_joins(limit: int = RECENT_JOINS) -> list[dict]:
+    """The newest online joins, newest first, up to ``limit``: the ones still to finish and the ones already finished
+    (``status`` ``pending`` or ``active``), so a cashier sees at a glance whether someone is done."""
+    joined = Event.objects.filter(action='joined_online', account__isnull=False).values('account_id')
+    people = (Person.objects.select_related('account')
+              .filter(account_id__in=joined, role=Person.ROLE_PRIMARY, removed_at__isnull=True,
+                      account__status__in=[Account.STATUS_PENDING, Account.STATUS_ACTIVE])
+              .order_by('-account__created_at', '-pk')[:limit])
+    return [{**pending_person(p), 'status': p.account.status} for p in people]
 
 
 def code_member(query: str) -> dict | None:

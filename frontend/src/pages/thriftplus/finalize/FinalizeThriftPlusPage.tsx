@@ -190,7 +190,8 @@ export default function FinalizeThriftPlusPage() {
     setFinding(true);
     setFindNote('');
     try {
-      const found = await findPendingOrMember(query.trim());
+      // Nothing typed: the newest 50 online joins, finished ones too (owner 2026-10-16).
+      const found = await findPendingOrMember(query.trim(), { recent: !query.trim() });
       setPeople(found.people);
       setSearched(query.trim());
     } catch (err) {
@@ -405,27 +406,53 @@ export default function FinalizeThriftPlusPage() {
               </Stack>
               {people && people.length === 0 ? (
                 <Typography color="text.secondary">
-                  {searched ? 'No one who joined online by that name or email.' : 'No one is waiting to finish joining.'}
+                  {searched ? 'No one who joined online by that name or email.' : 'No one has joined online yet.'}
                 </Typography>
               ) : null}
               {people && people.length > 0 ? (
-                <Stack spacing={1} data-testid="finalize-people">
-                  {!searched ? <Typography variant="overline" color="text.secondary">Joined online, newest first</Typography> : null}
-                  {people.map((p) => (
-                    <ButtonBase
-                      key={p.person_id}
-                      onClick={() => pick(p)}
-                      sx={{
-                        display: 'block', textAlign: 'left', p: 2, borderRadius: 2, border: 1, borderColor: 'divider', minHeight: 64,
-                      }}
-                    >
-                      <Typography fontWeight={800} fontSize="1.1rem">{pendingName(p)}</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {[p.email, p.joined_at ? `joined ${joinedOn(p.joined_at)}` : ''].filter(Boolean).join(' · ')}
-                      </Typography>
-                    </ButtonBase>
-                  ))}
-                </Stack>
+                <Box>
+                  {!searched ? (
+                    <Typography variant="overline" color="text.secondary" component="div">
+                      {`Joined online, newest first · ${people.filter((p) => p.status !== 'active').length} to finish`}
+                    </Typography>
+                  ) : null}
+                  {/* The newest 50, in their own scrolling box (owner 2026-10-16); a finished one is shown, not picked. */}
+                  <Stack
+                    spacing={1}
+                    data-testid="finalize-people"
+                    sx={{ maxHeight: '58dvh', overflowY: 'auto', overscrollBehavior: 'contain', pr: 0.5, py: 0.5 }}
+                  >
+                    {people.map((p) => {
+                      const done = p.status === 'active';
+                      return (
+                        <ButtonBase
+                          key={p.person_id}
+                          onClick={() => pick(p)}
+                          disabled={done}
+                          data-testid={done ? 'finalize-person-done' : 'finalize-person-pending'}
+                          sx={{
+                            display: 'flex', alignItems: 'center', gap: 1, textAlign: 'left', p: 2, borderRadius: 2, border: 1,
+                            borderColor: 'divider', minHeight: 64, flexShrink: 0, ...(done ? { bgcolor: 'action.hover', opacity: 0.75 } : {}),
+                          }}
+                        >
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography fontWeight={800} fontSize="1.1rem">{pendingName(p)}</Typography>
+                            <Typography variant="body2" color="text.secondary" noWrap>
+                              {[p.email, p.joined_at ? `joined ${joinedOn(p.joined_at)}` : ''].filter(Boolean).join(' · ')}
+                            </Typography>
+                          </Box>
+                          <Typography
+                            variant="body2"
+                            fontWeight={800}
+                            sx={{ color: done ? 'success.main' : 'warning.dark', whiteSpace: 'nowrap' }}
+                          >
+                            {done ? 'Finished' : 'To finish'}
+                          </Typography>
+                        </ButtonBase>
+                      );
+                    })}
+                  </Stack>
+                </Box>
               ) : null}
             </>
           )}

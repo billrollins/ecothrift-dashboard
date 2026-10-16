@@ -25,6 +25,7 @@ import { formatCurrency } from '../../utils/format';
 import { reringMessage } from '../../utils/thriftPlusRegister';
 import ThriftSignaturePad, { type ThriftSignaturePadHandle } from '../../pages/thriftplus/finalize/ThriftSignaturePad';
 import { IdCheckFields, PhotoField } from '../thriftplus/PersonFields';
+import QrSvg from '../thriftplus/QrSvg';
 import { pendingName } from './ThriftPlusPendingFind';
 import { THRIFT_APP_ADDRESS } from './ThriftPlusSignupDialog';
 
@@ -136,12 +137,23 @@ export default function ThriftPlusFinishJoinDialog({
 
   return (
     <Dialog open={open && person !== null} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>Finish joining</DialogTitle>
+      <DialogTitle>{step === 'done' ? 'Finish joining' : 'Needs to finalize Thrift+'}</DialogTitle>
       <DialogContent>
         {person ? (
           <Box sx={{ mb: 1 }}>
             <Typography fontWeight={800}>{name}</Typography>
             <Typography variant="body2" color="text.secondary">{`Joined online${person.email ? ` with ${person.email}` : ''}.`}</Typography>
+          </Box>
+        ) : null}
+        {/* Owner 2026-10-16: their QR, big, so the Finalize app on the store phone scans it straight off this screen. */}
+        {person?.qr && step === 'phone' ? (
+          <Box data-testid="thrift-finish-qr" sx={{ mb: 2, p: 1.5, borderRadius: 2, border: 1, borderColor: 'divider', textAlign: 'center' }}>
+            <Typography fontWeight={800}>Finish on the store phone</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Open Finalize and scan this QR. Or finish here below.
+            </Typography>
+            <QrSvg text={person.qr} label={`${name}'s member QR`} sx={{ width: 220, maxWidth: '100%' }} />
+            {person.code_last4 ? <Typography variant="caption" color="text.secondary">{`Member code ending ${person.code_last4}`}</Typography> : null}
           </Box>
         ) : null}
         {training ? (

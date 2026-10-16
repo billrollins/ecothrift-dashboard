@@ -103,7 +103,8 @@ describe('Finalize Thrift+', () => {
     renderPage();
     expect(await screen.findByText('Cara Joyner')).toBeInTheDocument(); // the newest joins first
     await user.type(screen.getByLabelText('Name or email'), 'joyner{Enter}');
-    expect(api.findPendingOrMember).toHaveBeenLastCalledWith('joyner');
+    expect(api.findPendingOrMember).toHaveBeenNthCalledWith(1, '', { recent: true }); // the newest 50 online joins
+    expect(api.findPendingOrMember).toHaveBeenLastCalledWith('joyner', { recent: false });
     await user.click(await screen.findByText('Cara Joyner'));
     await throughPhoneAndId(user);
 
@@ -190,5 +191,20 @@ describe('Finalize Thrift+', () => {
     expect(document.head.querySelector('link[rel="manifest"]')).toHaveAttribute('href', '/finalize/manifest.webmanifest');
     unmount();
     expect(document.head.querySelector('link[rel="manifest"]')).toBeNull();
+  });
+
+  it('lists the newest online joins in a scrolling box; a finished one says Finished and is not picked', async () => {
+    const user = userEvent.setup();
+    const DONE: ThriftPendingPerson = { ...CARA, person_id: 8, first_name: 'Dee', last_name: 'Done', status: 'active' };
+    api.findPendingOrMember.mockResolvedValue({ people: [{ ...CARA, status: 'pending' }, DONE] });
+    renderPage();
+    const list = await screen.findByTestId('finalize-people');
+    expect(list).toHaveStyle({ overflowY: 'auto' });
+    expect(screen.getByText('Joined online, newest first · 1 to finish')).toBeInTheDocument();
+    const done = screen.getByTestId('finalize-person-done');
+    expect(done).toHaveTextContent(/Dee Done.*Finished/);
+    expect(done).toBeDisabled();
+    await user.click(screen.getByTestId('finalize-person-pending'));
+    expect(await screen.findByLabelText('Phone number')).toBeInTheDocument();
   });
 });

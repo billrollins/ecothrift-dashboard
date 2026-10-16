@@ -1,8 +1,9 @@
-v2.174.2 — Receipt words: no minus on ThriftBucks used, and a non-member's You missed out on ThriftBucks and 3-day returns
+v2.175.0 — Finalize lists the newest 50 online joins; a pending QR at the register shows "Needs to finalize" with their QR
 
-User-facing theme: **Receipt words: no minus on a member's ThriftBucks used, and a non-member's "You missed out on:" over "12.60 ThriftBucks and 3-day returns" (Bill, 2026-10-16).** Print server 1.9.4 (Settings → Printing → Download on each register). Outside initiatives (POS).
+User-facing theme: **Finalize lists the newest 50 online joins, and a pending member's QR at the register says "Needs to finalize Thrift+" and shows their QR for the store phone to scan (Bill, 2026-10-16).** Thrift+ Rewards.
 
 ### Changed
-- **Receipts (print server 1.9.4):** the member block reads "+20.00 ThriftBucks today · 35.00 used"; the non-member block reads "You missed out on:" over "12.60 ThriftBucks and 3-day returns".
+- **Finalize Thrift+:** before anything is typed, the list shows the newest 50 online joins, newest first, in their own scrolling box. Each says "To finish" or "Finished"; a finished one can't be picked. Search is unchanged.
+- **Terminal:** scanning the QR of someone who joined online and hasn't finished opens "Needs to finalize Thrift+" with their member QR big on the screen. The Finalize app on the store phone scans it straight off the register, or the cashier finishes there as before. The pending person now carries their QR (`qr`, staff screens only).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -830,8 +830,11 @@ class RegisterViewSet(viewsets.ViewSet):
         """Joined online, not finished (J8): ``{q}`` a name, email or member code; newest first, at most 10. A POST,
         so names and emails stay out of the request logs. A member code that is no pending join also answers ``member``
         ``{status, first_name}`` (``active``, ``revoked``, ``removed`` or ``unknown``), so Finalize Thrift+ can say
-        "already a member"."""
+        "already a member". ``{recent: true}`` with nothing typed (Finalize, owner 2026-10-16): the newest 50 online
+        joins, pending and finished, each with its ``status``."""
         q = str(request.data.get('q') or '')
+        if not q.strip() and request.data.get('recent'):
+            return Response({'people': register.recent_joins()})
         people = register.pending(q)
         body = {'people': people}
         if not people:

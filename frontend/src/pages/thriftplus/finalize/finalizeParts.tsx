@@ -1,6 +1,6 @@
 import { Box, Button, Dialog, Stack, Typography } from '@mui/material';
-import QRCode from 'qrcode';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
+import QrSvg from '../../../components/thriftplus/QrSvg';
 // The terms the customer signs under, word for word from the public site's copy (one source, J5).
 import { THRIFT_PLUS_TERMS_EN as TERMS } from '../../../../../frontend-public/src/data/thriftPlusTerms.en';
 import { installAppHead } from '../scanner/installApp';
@@ -55,29 +55,6 @@ export function useStayOnPage({ onBack, midway }: { onBack: () => void; midway: 
   }, []);
 }
 
-/** A crisp QR: an SVG with a 4-module quiet zone, error correction M. */
-function QrSvg({ text, label }: { text: string; label: string }) {
-  const [svg, setSvg] = useState('');
-  useEffect(() => {
-    let live = true;
-    QRCode.toString(text, { type: 'svg', errorCorrectionLevel: 'M', margin: 4, color: { dark: '#000000', light: '#ffffff' } })
-      .then((out) => live && setSvg(out))
-      .catch(() => live && setSvg(''));
-    return () => {
-      live = false;
-    };
-  }, [text]);
-  return (
-    <Box
-      role="img"
-      aria-label={label}
-      data-testid="finalize-join-qr"
-      sx={{ width: 'min(78vw, 46vh, 420px)', aspectRatio: '1 / 1', mx: 'auto', '& svg': { width: '100%', height: '100%', display: 'block', shapeRendering: 'crispEdges' } }}
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
-  );
-}
-
 const done = { minHeight: 64, fontSize: '1.2rem', fontWeight: 800, borderRadius: 2 } as const;
 
 /** The Join QR, full screen, to show a customer (owner 2026-10-16): they scan it, join on their phone, and come back. */
@@ -93,7 +70,7 @@ export function JoinQrDialog({ open, onClose }: { open: boolean; onClose: () => 
       >
         <Typography variant="h4" fontWeight={800}>Join Thrift+</Typography>
         <Typography fontSize="1.15rem" color="text.secondary">Scan this with your phone&apos;s camera.</Typography>
-        <QrSvg text={JOIN_URL} label={`QR code for ${JOIN_SHOWN}`} />
+        <QrSvg text={JOIN_URL} label={`QR code for ${JOIN_SHOWN}`} testId="finalize-join-qr" sx={{ width: 'min(78vw, 46vh, 420px)' }} />
         <Typography fontSize="2rem" fontWeight={800} sx={{ letterSpacing: '0.01em' }} data-testid="finalize-join-url">
           {JOIN_SHOWN}
         </Typography>

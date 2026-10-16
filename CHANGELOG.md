@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.174.2] -->
-<!-- Last reviewed: 2026-10-16 (2.174.2) -->
+<!-- Line 1 release: ## [2.175.0] -->
+<!-- Last reviewed: 2026-10-16 (2.175.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.175.0] - 2026-10-16
+
+User-facing theme: **Finalize lists the newest 50 online joins, and a pending member's QR at the register says "Needs to finalize Thrift+" and shows their QR for the store phone to scan (Bill, 2026-10-16).** Thrift+ Rewards.
+
+### Changed
+- **Finalize Thrift+:** before anything is typed, the list shows the newest 50 online joins, newest first, in their own scrolling box. Each says "To finish" or "Finished"; a finished one can't be picked. Search is unchanged.
+- **Terminal:** scanning the QR of someone who joined online and hasn't finished opens "Needs to finalize Thrift+" with their member QR big on the screen. The Finalize app on the store phone scans it straight off the register, or the cashier finishes there as before. The pending person now carries their QR (`qr`, staff screens only).
 
 ## [2.174.2] - 2026-10-16
 

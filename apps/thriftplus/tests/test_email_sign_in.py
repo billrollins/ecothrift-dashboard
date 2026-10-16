@@ -364,6 +364,8 @@ class FinishJoiningTests(MailMixin, RegisterBase):
             'code': 'MEMBER_PENDING', 'person_id': self.cara.pk, 'account_id': self.cara.account_id,
             'detail': 'Joined online. Finish joining first: ask the phone number, check the ID, take the photo.',
             'first_name': 'Cara', 'last_name': 'Joyner', 'email': 'cara@example.com', 'code_last4': self.cara_code[-4:],
+            # The terminal shows their QR for the Finalize phone to scan (owner 2026-10-16).
+            'qr': f'TP{self.cara_code}',
         }
         for r in (self._attach(cart['id'], self.cara_code),
                   self.api.post('/api/thriftplus/register/attach/', {'cart': cart['id'], 'person': self.cara.pk}, format='json')):
@@ -391,7 +393,21 @@ class FinishJoiningTests(MailMixin, RegisterBase):
         self.assertEqual(len(find('')), 2)
         self.assertEqual(find('Ana'), [])  # an active member is not a pending join
         row = find('joyner')[0]
-        self.assertEqual(set(row), {'person_id', 'account_id', 'first_name', 'last_name', 'email', 'joined_at', 'code_last4'})
+        self.assertEqual(set(row), {'person_id', 'account_id', 'first_name', 'last_name', 'email', 'joined_at', 'code_last4', 'qr'})
+        self.assertEqual(row['qr'], f'TP{self.cara_code}')
+
+    def test_finalize_lists_the_newest_online_joins_finished_ones_too(self):
+        # Owner 2026-10-16: with nothing typed, Finalize lists the newest 50 online joins, each saying if it's finished.
+        member_auth.join('Cara Two', 'cara2@example.com', base_url='https://ecothrift.us', ip='198.51.100.9')
+        recent = lambda: self.api.post('/api/thriftplus/register/pending/', {'q': '', 'recent': True}, format='json').json()['people']  # noqa: E731
+        self.assertEqual([(p['last_name'], p['status']) for p in recent()], [('Two', 'pending'), ('Joyner', 'pending')])
+        self.assertEqual(self._finish().status_code, 200)
+        self.assertEqual([(p['last_name'], p['status']) for p in recent()], [('Two', 'pending'), ('Joyner', 'active')])
+        # Ana joined at a register, not online: never on this list. The plain list is still pending only.
+        self.assertNotIn('Ana', [p['first_name'] for p in recent()])
+        plain = self.api.post('/api/thriftplus/register/pending/', {'q': ''}, format='json').json()['people']
+        self.assertEqual([p['last_name'] for p in plain], ['Two'])
+        self.assertEqual(register.RECENT_JOINS, 50)
 
     def test_finishing_verifies_the_phone_in_person_and_puts_them_on_the_sale(self):
         cart = self._cart()
