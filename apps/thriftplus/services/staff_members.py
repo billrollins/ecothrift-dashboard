@@ -297,9 +297,8 @@ def staff_list(*, with_suggestions: bool = True) -> dict:
             'login_suggestions': login_merge.suggestions(user, limit=3) if with_suggestions else [],
         })
     missing = sum(1 for r in rows if r['membership'] is None)
-    website_missing = sum(1 for r in rows if r['website'] is None)
-    return {'staff': rows, 'missing': missing, 'website_missing': website_missing,
-            'missing_any': sum(1 for r in rows if r['membership'] is None or r['website'] is None)}
+    # Owner 2026-10-16: staff are not website customers, so no staff member is "missing" one.
+    return {'staff': rows, 'missing': missing, 'website_missing': 0, 'missing_any': missing}
 
 
 # ── Merge a customer membership into the staff member's ──────────────────────────

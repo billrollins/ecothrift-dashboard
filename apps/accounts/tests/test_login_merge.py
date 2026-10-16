@@ -15,7 +15,6 @@ from apps.accounts.models import AccountEvent, CustomerProfile, EmployeeProfile,
 from apps.accounts.services import login_merge
 from apps.accounts.services.login_merge import MergeError, merge_customer_login
 from apps.accounts.services.magic_link import issue_magic_link
-from apps.accounts.services.staff_customer import ensure_staff_customer
 from apps.thriftplus.models import Account, LedgerEntry, MemberLogin
 from apps.thriftplus.services import ledger, members, staff_members
 from apps.webstore.models import Conversation, Message, Reservation, WebListing
@@ -82,7 +81,7 @@ class LoginMergeTests(TestCase):
     def test_preview_says_what_will_move_and_changes_nothing(self):
         p = login_merge.preview(self.outlook, self.bill)
         self.assertEqual(p['source']['email'], 'bill_rollins.rf@outlook.com')
-        self.assertEqual(p['profile'], {'action': 'move', 'customer_number': 'CUS-002'})
+        self.assertEqual(p['profile'], {'action': 'drop', 'customer_number': 'CUS-002'})  # staff are not customers
         self.assertEqual(p['moves']['conversations'], 1)
         self.assertEqual(p['moves']['messages'], 1)
         self.assertEqual(p['moves']['holds'], 1)
@@ -102,12 +101,10 @@ class LoginMergeTests(TestCase):
         guest.refresh_from_db()
         self.assertEqual((guest.customer_id, guest.guest_email), (self.bill.pk, 'bill_rollins@ecothrift.us'))
         self.assertEqual(result['moved']['website threads by email'], 1)
-        # The website customer account moved, with its number.
-        profile = CustomerProfile.objects.get(user=self.bill)
-        self.assertEqual((profile.customer_number, profile.notes), ('CUS-002', 'Likes lamps'))
-        self.assertIsNotNone(profile.email_verified_at)
-        self.assertEqual(result['profile'], 'moved')
-        self.assertTrue(self.bill.groups.filter(name='Customer').exists())
+        # Owner 2026-10-16: staff are not customers, so the customer record is dropped, never moved to the staff login.
+        self.assertEqual(result['profile'], 'dropped')
+        self.assertFalse(CustomerProfile.objects.filter(user__in=[self.bill, self.outlook]).exists())
+        self.assertFalse(self.bill.groups.filter(name='Customer').exists())
         self.assertEqual(User.objects.get(pk=self.bill.pk).role, 'Admin')
         # The conversation and its message moved to the staff login.
         self.assertEqual(Conversation.objects.get(pk=self.thread.pk).customer_id, self.bill.pk)
@@ -141,19 +138,12 @@ class LoginMergeTests(TestCase):
         threads = api.get('/api/webstore/my/conversations/')
         self.assertEqual(threads.status_code, 200)
 
-    def test_both_profiles_keep_the_staff_ones_with_the_earlier_number(self):
-        ensure_staff_customer(self.bill)
-        staff_profile = CustomerProfile.objects.get(user=self.bill)
-        CustomerProfile.objects.filter(pk=staff_profile.pk).update(customer_number='CUS-010', notes='Staff')
-        CustomerProfile.objects.filter(user=self.outlook).update(customer_since=date(2025, 1, 2))
+    def test_a_staff_record_left_from_10_15_is_never_given_the_customer_one(self):
+        CustomerProfile.objects.create(user=self.bill, customer_number='CUS-010', notes='Staff')
         result = merge_customer_login(self.outlook, self.bill, actor=self.owner)
-        self.assertEqual(result['profile'], 'combined')
-        self.assertEqual(CustomerProfile.objects.count(), 1)
-        kept = CustomerProfile.objects.get()
-        self.assertEqual((kept.pk, kept.user_id, kept.customer_number), (staff_profile.pk, self.bill.pk, 'CUS-002'))
-        self.assertEqual(kept.customer_since, date(2025, 1, 2))
-        self.assertEqual(kept.notes, 'Staff\nLikes lamps')
-        self.assertEqual(result['customer_number'], 'CUS-002')
+        self.assertEqual(result['profile'], 'dropped')
+        self.assertFalse(CustomerProfile.objects.filter(user=self.outlook).exists())
+        self.assertEqual(CustomerProfile.objects.get(user=self.bill).notes, 'Staff')  # the staff-customers request removes it
 
     def test_a_thriftplus_membership_with_the_outlook_email_merges_into_the_staff_one(self):
         source = members.create_account(first_name='Bill', last_name='Rollins', phone='4025550199',
@@ -249,7 +239,7 @@ class LoginMergeApiTests(TestCase):
         r = api.post(API + 'merge/', {'staff_user': self.bill.pk, 'source_user': self.outlook.pk}, format='json')
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(r.json()['source_email_was'], 'bill_rollins.rf@outlook.com')
-        self.assertEqual(CustomerProfile.objects.get(user=self.bill).user_id, self.bill.pk)
+        self.assertFalse(CustomerProfile.objects.filter(user=self.bill).exists())  # staff are not customers (2026-10-16)
         again = api.post(API + 'merge/', {'staff_user': self.bill.pk, 'source_user': self.outlook.pk}, format='json')
         self.assertEqual(again.status_code, 400)
 
@@ -273,18 +263,18 @@ class StaffTabListTests(TestCase):
         self.outlook = _customer('bill_rollins.rf@outlook.com')
         self.api = APIClient()
 
-    def test_rows_show_the_website_account_and_create_missing_makes_both(self):
+    def test_rows_and_create_missing_make_memberships_only(self):
         self.api.force_authenticate(self.manager)
         body = self.api.get('/api/thriftplus/staff-memberships/').json()
         rows = {r['email']: r for r in body['staff']}
-        self.assertEqual((body['website_missing'], body['missing'], body['missing_any']), (3, 3, 3))
-        self.assertIsNone(rows['bill_rollins@ecothrift.us']['website'])
+        self.assertEqual((body['website_missing'], body['missing'], body['missing_any']), (0, 3, 3))  # staff aren't customers
         self.assertEqual([s['user_id'] for s in rows['bill_rollins@ecothrift.us']['login_suggestions']],
                          [self.outlook.pk])
         self.assertEqual(self.api.post('/api/thriftplus/staff-memberships/create-missing/').status_code, 403)
         self.api.force_authenticate(self.owner)
         done = self.api.post('/api/thriftplus/staff-memberships/create-missing/').json()
-        self.assertEqual((done['customers_made'], done['made'], done['missing_any']), (3, 3, 0))
-        self.assertTrue(all(r['website'] and r['membership'] for r in done['staff']))
+        self.assertEqual((done['customers_made'], done['made'], done['missing_any']), (0, 3, 0))
+        self.assertTrue(all(r['membership'] for r in done['staff']))
+        self.assertFalse(CustomerProfile.objects.exclude(user=self.outlook).exists())  # no staff customer record
         self.assertFalse(Account.objects.filter(staff_user=self.outlook).exists())
         self.assertEqual(CustomerProfile.objects.filter(user=self.outlook).count(), 1)  # the customer is left alone

@@ -86,12 +86,22 @@ def _by_email(email: str) -> Person | None:
             .annotate(rank=rank).order_by('rank', 'role', 'pk').first())
 
 
+def find_person(user) -> Person | None:
+    """Read only: the customer's Thrift+ person, linked or by email (never made, never saved)."""
+    if user is None or not getattr(user, 'pk', None) or _staff_login(user):
+        return None
+    return (Person.objects.select_related('account').filter(user=user).first()
+            or _by_email(_clean(user.email)))
+
+
 def person_for_user(user, *, make: bool = True) -> Person | None:
     """The Thrift+ person for a website customer login (linked, or found by email and linked, or made pending when
     ``make``). None for a staff login (staff use their staff membership) or a login with no email."""
     if user is None or not getattr(user, 'pk', None) or _staff_login(user):
         return None
     found = Person.objects.select_related('account').filter(user=user).first()
+    if found is None and not _customer_users().filter(pk=user.pk).exists():
+        return None  # not a website customer login (a system login): no membership
     if found is not None:
         return found
     email = _clean(user.email)
@@ -192,31 +202,56 @@ def end_member_session(request, response):
 # ── Merge what exists, and remove customer passwords (the one-account request) ─────
 
 def _customer_users():
-    """Website logins that aren't staff logins (no superuser, staff flag or staff/consignee group)."""
+    """Website customer logins: a customer record or the Customer group, and not a staff login (superuser, staff flag
+    or staff/consignee group). A system login (no customer record, e.g. ``@system.local``) is never one."""
+    User = get_user_model()
     staff = Q(is_superuser=True) | Q(is_staff=True) | Q(groups__name__in=('Admin', 'Manager', 'Employee', 'Consignee'))
-    return get_user_model().objects.exclude(pk__in=get_user_model().objects.filter(staff).values('pk'))
+    customers = User.objects.filter(Q(customer__isnull=False) | Q(groups__name__iexact='customer')).values('pk')
+    return User.objects.filter(pk__in=customers).exclude(pk__in=User.objects.filter(staff).values('pk'))
+
+
+def _staff_records():
+    """Customer records and Customer-group links on staff logins, left from 10-15 (staff are not customers)."""
+    from apps.accounts.models import CustomerProfile
+    from apps.accounts.services.staff_customer import staff_login_q
+
+    staff = get_user_model().objects.filter(staff_login_q()).values('pk')
+    profiles = CustomerProfile.objects.select_related('user').filter(user_id__in=staff)
+    in_group = get_user_model().objects.filter(pk__in=staff, groups__name__iexact='customer').distinct()
+    return profiles, in_group
 
 
 def plan() -> dict:
+    """The legacy cleanup (owner 2026-10-16), in counts. Changes nothing."""
     users = _customer_users()
-    unlinked = users.filter(thrift_plus_person__isnull=True)
+    unlinked = list(users.filter(thrift_plus_person__isnull=True))
     with_member = [u for u in unlinked if _by_email(_clean(u.email)) is not None]
-    people = Person.objects.filter(user__isnull=True, removed_at__isnull=True).exclude(email='')
+    profiles, in_group = _staff_records()
     return {
         'customer_logins': users.count(),
         'link_existing': len(with_member),
-        'make_memberships': unlinked.count() - len(with_member),
-        'people_without_login': people.count(),
-        'staff_people': Person.objects.filter(user__isnull=True, role=Person.ROLE_PRIMARY,
-                                              account__staff_user__isnull=False).count(),
+        'make_memberships': len(unlinked) - len(with_member),
         'customer_passwords': sum(1 for u in users.only('password') if u.has_usable_password()),
         'app_passwords': MemberLogin.objects.count(),
+        'staff_records': profiles.count(),
+        'staff_records_list': [f'{p.customer_number} {p.user.full_name}' for p in profiles.order_by('customer_number')],
+        'staff_in_group': in_group.count(),
     }
 
 
 def apply(progress=None) -> dict:
-    """Idempotent: safe to run again."""
-    counts = {'linked': 0, 'made': 0, 'logins_made': 0, 'staff_linked': 0, 'passwords_removed': 0, 'app_passwords_removed': 0}
+    """The legacy cleanup. Idempotent: safe to run again.
+
+    1. Every old ecothrift.us customer becomes a member: linked to the member with the same email, or a new one at
+       Needs Finalize (their email counts as confirmed: they have a history with us, so the 24-hour delete never
+       takes them).
+    2. Every customer password and old Thrift+ app login is removed. Staff passwords are not touched.
+    3. The customer records and Customer-group links on staff logins are removed. The logins themselves stay.
+    """
+    from django.contrib.auth.models import Group
+
+    counts = {'linked': 0, 'made': 0, 'passwords_removed': 0, 'app_passwords_removed': 0, 'staff_records_removed': 0,
+              'staff_out_of_group': 0}
 
     def note(text):
         if progress is not None:
@@ -226,20 +261,17 @@ def apply(progress=None) -> dict:
         if not login.person.email:
             login.person.email = login.email
             login.person.save(update_fields=['email', 'updated_at'])
-    for user in _customer_users().filter(thrift_plus_person__isnull=True).iterator():
+    for user in _customer_users().filter(thrift_plus_person__isnull=True).select_related('customer'):
         had = _by_email(_clean(user.email)) is not None
-        if person_for_user(user) is not None:
-            counts['linked' if had else 'made'] += 1
-    note(f"Linked {counts['linked']} customer logins; made {counts['made']} pending memberships.")
-    for person in Person.objects.select_related('account').filter(user__isnull=True, removed_at__isnull=True).exclude(email=''):
-        staff = bool(person.account.staff_user_id and person.role == Person.ROLE_PRIMARY)
-        if link_user(person) is not None:
-            counts['staff_linked' if staff else 'logins_made'] += 1
-    for person in Person.objects.select_related('account').filter(user__isnull=True, role=Person.ROLE_PRIMARY,
-                                                                  account__staff_user__isnull=False):
-        if link_user(person) is not None:
-            counts['staff_linked'] += 1
-    note(f"Made {counts['logins_made']} website logins; linked {counts['staff_linked']} staff members.")
+        person = person_for_user(user)
+        if person is None:
+            continue
+        counts['linked' if had else 'made'] += 1
+        if person.email_verified_at is None:
+            profile = getattr(user, 'customer', None)
+            person.email_verified_at = (profile.email_verified_at if profile else None) or timezone.now()
+            person.save(update_fields=['email_verified_at', 'updated_at'])
+    note(f"Linked {counts['linked']} old customers to their member; made {counts['made']} Needs Finalize members.")
     for user in _customer_users().iterator():
         if user.has_usable_password():
             user.set_unusable_password()
@@ -248,5 +280,14 @@ def apply(progress=None) -> dict:
     counts['app_passwords_removed'] = MemberLogin.objects.count()
     MemberResetToken.objects.all().delete()
     MemberLogin.objects.all().delete()
-    note(f"Removed {counts['passwords_removed']} website and {counts['app_passwords_removed']} app customer passwords.")
+    note(f"Removed {counts['passwords_removed']} customer and {counts['app_passwords_removed']} old app passwords.")
+    profiles, in_group = _staff_records()
+    staff = list(in_group)
+    counts['staff_records_removed'] = profiles.delete()[0]
+    group = Group.objects.filter(name__iexact='customer').first()
+    if group is not None:
+        for user in staff:
+            user.groups.remove(group)
+    counts['staff_out_of_group'] = len(staff)
+    note(f"Removed {counts['staff_records_removed']} customer records from staff logins.")
     return counts

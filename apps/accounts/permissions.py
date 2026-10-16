@@ -64,12 +64,13 @@ class IsCustomer(BasePermission):
     messages); every staff gate checks the staff role, so a customer never gains staff access.
     """
     def has_permission(self, request, view):
-        from apps.accounts.services.staff_customer import is_customer
+        from apps.accounts.services.staff_customer import can_use_storefront
 
         user = request.user
         if not user or not user.is_authenticated or not user.is_active:
             return False
-        return is_customer(user)
+        # Since 2026-10-16 staff are not customers, but an active staff login still uses these pages.
+        return can_use_storefront(user)
 
 
 class IsSuperAdmin(BasePermission):

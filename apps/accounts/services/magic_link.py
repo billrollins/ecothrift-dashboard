@@ -101,11 +101,19 @@ def _refresh_hold_verification_link(*, hold_token: str, email: str, request_ip: 
 def customer_email_verified(user: User | None) -> bool:
     if user is None or not getattr(user, 'is_authenticated', False):
         return False
+    from apps.accounts.services.staff_customer import is_active_staff
+
+    if is_active_staff(user):
+        return True  # a Dash email is trusted; staff have no customer record (2026-10-16)
     profile = getattr(user, 'customer', None)
     return bool(profile and profile.email_verified_at)
 
 
 def stamp_email_verified(user: User) -> None:
+    from apps.accounts.services.staff_customer import is_staff_login
+
+    if is_staff_login(user):
+        return  # staff are never customers (owner 2026-10-16)
     profile, _ = CustomerProfile.objects.get_or_create(
         user=user,
         defaults={'customer_number': CustomerProfile.generate_customer_number()},
@@ -272,9 +280,13 @@ def _get_or_create_customer(
     first_name: str = '',
     last_name: str = '',
 ) -> User:
+    from apps.accounts.services.staff_customer import is_staff_login
+
     email = _normalize_email(email)
     group, _ = Group.objects.get_or_create(name='Customer')
     user = User.objects.filter(email__iexact=email).first()
+    if user is not None and is_staff_login(user):
+        return user  # staff are never customers (owner 2026-10-16): no profile, no Customer group
     if user is None:
         local = email.split('@')[0][:40] or 'Customer'
         user = User(

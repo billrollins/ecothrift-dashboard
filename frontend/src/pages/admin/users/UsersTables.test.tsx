@@ -5,7 +5,6 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarProvider } from 'notistack';
 import EmployeesPanel from './EmployeesPanel';
-import CustomersPanel from './CustomersPanel';
 
 const state = vi.hoisted(() => ({
   users: [] as Array<Record<string, unknown>>,
@@ -113,22 +112,6 @@ const EMPLOYEE = {
   },
 };
 
-const CUSTOMER = {
-  id: 22,
-  email: 'pat@example.com',
-  first_name: 'Pat',
-  last_name: 'Lee',
-  full_name: 'Pat Lee',
-  phone: '4025550199',
-  customer_number: 'CUS-022',
-  customer_since: '2025-01-01',
-  notes: 'Prefers text',
-  is_active: true,
-  email_verified: true,
-  holds_count: 1,
-  last_hold_at: '2026-08-01T12:00:00Z',
-};
-
 describe('EmployeesPanel directory', () => {
   beforeEach(() => {
     state.users = [EMPLOYEE];
@@ -164,45 +147,6 @@ describe('EmployeesPanel directory', () => {
     expect(state.saveProfile).toHaveBeenCalledWith({
       userId: 11,
       data: { position: 'Lead cashier' },
-    });
-  });
-});
-
-describe('CustomersPanel directory', () => {
-  beforeEach(() => {
-    state.customers = [CUSTOMER];
-    state.saveCustomer.mockReset().mockResolvedValue({});
-  });
-
-  it('orders identity, number, contact, notes, then work and status', () => {
-    wrap(<CustomersPanel onSelect={() => {}} />);
-    expect(screen.getByTestId('headers').textContent).toBe(
-      'Customer|#|Phone|Notes|Holds|Account|Since',
-    );
-  });
-
-  it('saves phone and notes on the row', async () => {
-    const user = userEvent.setup();
-    wrap(<CustomersPanel onSelect={() => {}} />);
-
-    const phone = screen.getByLabelText('Phone for Pat Lee');
-    await user.clear(phone);
-    await user.type(phone, '4025550111');
-    phone.blur();
-
-    expect(state.saveCustomer).toHaveBeenCalledWith({
-      id: 22,
-      data: { phone: '4025550111' },
-    });
-
-    const notes = screen.getByLabelText('Notes for Pat Lee');
-    await user.clear(notes);
-    await user.type(notes, 'Ask for Pat at the register');
-    notes.blur();
-
-    expect(state.saveCustomer).toHaveBeenCalledWith({
-      id: 22,
-      data: { notes: 'Ask for Pat at the register' },
     });
   });
 });

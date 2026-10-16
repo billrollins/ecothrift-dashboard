@@ -265,14 +265,14 @@ describe('Thrift+ member service', () => {
   it('lists the online joins to finish at a register, and sends one a sign-in link from next to the email', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(screen.getByRole('button', { name: 'Joined online, not finished' }));
+    await user.click(screen.getByRole('button', { name: 'Needs Finalize' }));
     expect(links.finds).toContainEqual(['', 'pending']); // listed with nothing typed
-    expect(await screen.findByText(/cara@example\.com · joined online, finish at a register/)).toBeInTheDocument();
+    expect(await screen.findByText(/cara@example\.com · needs finalize/)).toBeInTheDocument();
     await user.click(screen.getByText('Cara Joyner'));
     expect(await screen.findByTestId('thrift-pending-note')).toHaveTextContent(
-      'Joined online, finish at a register. Not a member yet: it collects and uses nothing until a register asks the phone number',
+      'Needs Finalize. Not a member yet: it collects and uses nothing until a register asks the phone number',
     );
-    expect(screen.getAllByText('Joined online, finish at a register').length).toBeGreaterThan(0); // the person's chip
+    expect(screen.getAllByText('Needs Finalize').length).toBeGreaterThan(0); // the person's chip
     expect(screen.getByText('No phone yet: the register asks it and reads it back')).toBeInTheDocument();
     expect(screen.getByText('Email confirmed')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'ID checked: 18+' })).not.toBeInTheDocument(); // the register does it

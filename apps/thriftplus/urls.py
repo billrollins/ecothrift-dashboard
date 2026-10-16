@@ -8,6 +8,7 @@ from apps.thriftplus.views import (
     CardBatchViewSet,
     CardViewSet,
     FamiliesViewSet,
+    MemberDirectoryViewSet,
     PersonViewSet,
     RegisterViewSet,
     RestrictedProductViewSet,
@@ -28,6 +29,8 @@ router.register(r'restricted', RestrictedProductViewSet, basename='thriftplus-re
 router.register(r'returns', ReturnsViewSet, basename='thriftplus-returns')
 # Owner 2026-10-15: every staff member's own membership, made, linked or merged from Dash.
 router.register(r'staff-memberships', StaffMembershipsViewSet, basename='thriftplus-staff-memberships')
+# Owner 2026-10-16: Dash -> Users -> Members (every member, the drawer's actions).
+router.register(r'member-directory', MemberDirectoryViewSet, basename='thriftplus-member-directory')
 
 def _gated(view):
     """Thrift+ is off: the scanner and portal say "opens soon", except to a phone with the staff preview code."""

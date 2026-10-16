@@ -69,7 +69,7 @@ vi.mock('../../api/accounts.api', () => ({
     },
     staff: { user_id: 1, name: 'Bill Rollins', email: 'bill_rollins@ecothrift.us' },
     moves: { conversations: 1, messages: 2, holds: 1 },
-    profile: { action: 'combine', customer_number: 'CUS-002', drops: 'CUS-012' },
+    profile: { action: 'drop', customer_number: 'CUS-002' },
     thriftplus: { account: 34, note: '', name: 'Bill Rollins', bucks: '5.00', credit: '2.50', moves: {}, staff_account: 12 },
     source_after: 'merged-8.bill_rollins.rf@outlook.com',
   })),
@@ -94,7 +94,7 @@ function renderTab() {
 beforeEach(() => {
   vi.mocked(fetchStaffMemberships).mockResolvedValue(LIST);
   vi.mocked(createMissingStaffMemberships).mockResolvedValue({
-    ...LIST, missing: 0, website_missing: 0, missing_any: 0, made: 1, linked: 0, customers_made: 1, customers_fixed: 0,
+    ...LIST, missing: 0, website_missing: 0, missing_any: 0, made: 1, linked: 0, customers_made: 0, customers_fixed: 0,
     staff: [LIST.staff[0], {
       ...LIST.staff[1], website: { customer_number: 'CUS-013' },
       membership: { id: 13, status: 'active', name: 'Cal Clerk', email: 'cal@ecothrift.us', bucks: '0.00', credit: '0.00' },
@@ -107,26 +107,24 @@ beforeEach(() => {
 });
 
 describe('Thrift+ Staff tab (owner 2026-10-15)', () => {
-  it('lists each staff member with their website account and membership, and the owner creates the missing ones', async () => {
+  it('lists each staff member with their membership (staff are not customers), and the owner creates the missing ones', async () => {
     const user = userEvent.setup();
     renderTab();
     const rows = await screen.findAllByTestId('staff-row');
-    expect(within(rows[0]).getByText('Website account CUS-012')).toBeInTheDocument();
+    expect(within(rows[0]).queryByText(/Website account/)).toBeNull(); // owner 2026-10-16: staff are not customers
     expect(within(rows[0]).getByText('Membership #12')).toBeInTheDocument();
     expect(within(rows[0]).getByText(/ThriftBucks 0\.00 · Thrift\+ credit \$0\.00/)).toBeInTheDocument();
     expect(within(rows[0]).getByText(/May also be theirs: Bill Rollins #34 \(same name, same email name\)/)).toBeInTheDocument();
     expect(within(rows[0]).getByText(
       'Customer login that may be theirs: bill_rollins.rf@outlook.com (same email name, same phone)',
     )).toBeInTheDocument();
-    expect(within(rows[1]).getByText('No website account yet')).toBeInTheDocument();
     expect(within(rows[1]).getByText('No membership yet')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Create missing (1)' }));
     await waitFor(() => expect(createMissingStaffMemberships).toHaveBeenCalled());
     expect(await screen.findByTestId('staff-done')).toHaveTextContent(
-      'Made 1 website account and 1 staff membership; linked 0 by the same email.',
+      'Made 1 staff membership; linked 0 by the same email.',
     );
     expect(screen.getByText('Membership #13')).toBeInTheDocument();
-    expect(screen.getByText('Website account CUS-013')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Create missing/ })).not.toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\bcards?\b/i);
   });
@@ -151,7 +149,7 @@ describe('Thrift+ Staff tab (owner 2026-10-15)', () => {
     await waitFor(() => expect(fetchLoginMergePreview).toHaveBeenCalledWith(1, 8));
     const preview = await within(dialog).findByTestId('login-merge-preview');
     expect(preview).toHaveTextContent('bill_rollins.rf@outlook.com merges into bill_rollins@ecothrift.us');
-    expect(preview).toHaveTextContent('One website account stays: CUS-002 (the earlier number)');
+    expect(preview).toHaveTextContent('Their customer record CUS-002 is dropped (staff are not customers)');
     expect(preview).toHaveTextContent('Moves: conversations: 1, messages: 2, holds: 1');
     expect(preview).toHaveTextContent(
       'Thrift+ membership #34 (Bill Rollins) merges into Bill Rollins’s too: ThriftBucks 5.00 · Thrift+ credit $2.50',
@@ -161,7 +159,7 @@ describe('Thrift+ Staff tab (owner 2026-10-15)', () => {
     await user.click(within(dialog).getByRole('button', { name: "Merge bill_rollins.rf@outlook.com into Bill Rollins's login" }));
     await waitFor(() => expect(mergeCustomerLogin).toHaveBeenCalledWith(1, 8));
     expect(await screen.findByTestId('staff-done')).toHaveTextContent(
-      "Merged bill_rollins.rf@outlook.com into Bill Rollins's login: conversations: 1, holds: 1. Website account CUS-002. "
+      "Merged bill_rollins.rf@outlook.com into Bill Rollins's login: conversations: 1, holds: 1. "
       + 'Thrift+ membership #34 merged in too.',
     );
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());

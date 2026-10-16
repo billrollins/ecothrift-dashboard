@@ -38,7 +38,10 @@ def customer_stats() -> dict:
     month_start = _month_start(today)
     prev_start, prev_end = _previous_month_bounds(today)
 
-    counts = CustomerProfile.objects.aggregate(
+    from apps.accounts.services.staff_customer import staff_login_q
+
+    staff = CustomerProfile.objects.filter(staff_login_q('user__')).values('pk')
+    counts = CustomerProfile.objects.exclude(pk__in=staff).aggregate(
         total=Count('pk'),
         active=Count('pk', filter=Q(user__is_active=True)),
         verified=Count('pk', filter=Q(user__is_active=True, email_verified_at__isnull=False)),

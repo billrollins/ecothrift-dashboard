@@ -680,7 +680,11 @@ class CustomerViewSet(viewsets.ModelViewSet):
         from django.db.models.functions import Coalesce
         from apps.webstore.models import Reservation
 
-        qs = CustomerProfile.objects.select_related('user').all()
+        from apps.accounts.services.staff_customer import staff_login_q
+
+        # Owner 2026-10-16: staff are not customers; a staff login never shows here.
+        staff = CustomerProfile.objects.filter(staff_login_q('user__')).values('pk')
+        qs = CustomerProfile.objects.select_related('user').exclude(pk__in=staff)
         active = self.request.query_params.get('is_active')
         if active in ('0', 'false', 'False'):
             qs = qs.filter(user__is_active=False)

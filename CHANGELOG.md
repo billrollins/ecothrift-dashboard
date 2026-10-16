@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.175.0] -->
-<!-- Last reviewed: 2026-10-16 (2.175.0) -->
+<!-- Line 1 release: ## [2.176.0] -->
+<!-- Last reviewed: 2026-10-16 (2.176.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.176.0] - 2026-10-16
+
+User-facing theme: **Users → Members: every member in one list with the facts that matter, three stages (Needs Finalize, Member, Off), sign-in link on top and Delete account at the bottom; staff are not customers; a legacy cleanup to approve (Bill, 2026-10-16).** Thrift+ Rewards.
+
+### Added
+- **Users → Members** (was Customers; the old `?tab=customers` address still opens it). Every member, newest first, in two-line cells: Name / Member # · Since / ThriftBucks (short: 135, 1.2K, 1.2M) · Returns (times they actually returned something) · Phone / Email · Holds / Last visit · State / Notes. Marks for a linked staff member, a message waiting and an old account. Filters: All, Needs Finalize, Member, Off. The strip counts Members, Needs Finalize, new this week, ThriftBucks out and messages waiting.
+- **The member drawer:** on top, Send sign-in link, Open messages and Holds; then ThriftBucks (now and collected), Thrift+ credit, returns, sales and spend, last visit, holds, messages; the profile (name, email, phone, notes); at the very bottom, Deactivate or Reactivate, and **Delete account** for the superuser only (it shows the counts, then the full name typed; it deletes the account, its links, its transactions and their payments).
+- **Superuser → Requests: "Members: legacy cleanup"** (`members.legacy_cleanup`): every old ecothrift.us customer becomes a member (linked to the member with the same email, or new at Needs Finalize), every customer password and old app login is removed, and the customer records on staff logins are removed. Staff passwords and logins are not touched. Safe to run again.
+
+### Changed
+- **Three stages, no others:** Unconfirmed (signed up, email not confirmed: not listed, deleted after 24 hours), Needs Finalize (email confirmed; finish at a register), Member. Off is a deactivated or revoked member. Thrift+ → Members says Needs Finalize too.
+- **Finalizing at a register confirms the email**, so nobody is stuck because they didn't click the email.
+- **Staff are not customers:** a staff login never gets a customer record or the Customer group, never shows on Members, and is never counted there; staff still use their own ecothrift.us pages with their Dash password. A customer login merged into a staff login has its customer record dropped. Thrift+ → Staff no longer shows website accounts.
+- **Every 10 minutes** (`expire_online_holds`) also deletes sign-ups that never confirmed their email within 24 hours and never reached a register (the membership only; a website login with the same email stays).
+
+### Fixed
+- A system login (`@system.local`) is never merged into a member.
 
 ## [2.175.0] - 2026-10-16
 

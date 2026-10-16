@@ -45,7 +45,8 @@ import {
   setPersonNews,
   verifyPerson,
 } from '../../api/thriftplus.api';
-import type { MemberDeletePreview, NewMember, ThriftPlusAccount, ThriftPlusPerson } from '../../types/thriftplus.types';
+import type { NewMember, ThriftPlusAccount, ThriftPlusPerson } from '../../types/thriftplus.types';
+import DeleteForGoodDialog from '../../components/thriftplus/DeleteForGoodDialog';
 import { useAuth } from '../../hooks/useAuth';
 import PersonFields from '../../components/thriftplus/PersonFields';
 import MemberMoney from './MemberMoney';
@@ -128,7 +129,7 @@ function phone(p: string): string {
 }
 
 /** Joined online with a name and email; the phone, ID and photo come at a register (owner 2026-10-15, J8). */
-const PENDING_LABEL = 'Joined online, finish at a register';
+const PENDING_LABEL = 'Needs Finalize'; // owner 2026-10-16: the stages are Needs Finalize and Member
 
 /**
  * Send the Thrift+ app link (J12): a join email until the address is confirmed, then a sign-in link. With `email`, the
@@ -274,92 +275,6 @@ function PersonCard({ person, account, onChanged }: { person: ThriftPlusPerson; 
   );
 }
 
-/** One line of what a delete erases; left out when there is nothing. */
-function Gone({ n, label }: { n: number | string; label: string }) {
-  if (!n || n === '0' || n === '0.00') return null;
-  return <li><strong>{n}</strong> {label}</li>;
-}
-
-const sameName = (a: string, b: string) => a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase();
-
-/**
- * Delete a member for good (owner 2026-10-16): for testing, when staff sign each other up. It shows everything the
- * customer left, then asks for their name typed out. Deactivate is the normal way; this can't be undone.
- */
-function DeleteMemberDialog({ id, onClose, onDeleted }: { id: number; onClose: () => void; onDeleted: () => void }) {
-  const { enqueueSnackbar } = useSnackbar();
-  const [typed, setTyped] = useState('');
-  const preview = useQuery({ queryKey: ['thriftplus', 'delete-preview', id], queryFn: () => fetchMemberDeletePreview(id), staleTime: 0 });
-  const del = useMutation({
-    mutationFn: () => deleteMember(id, typed),
-    onSuccess: (r) => {
-      enqueueSnackbar(`${r.name} is deleted.${r.items_back ? ` ${r.items_back} sold item(s) are back on the shelf.` : ''}`, { variant: 'success' });
-      onDeleted();
-    },
-    onError: (err) => enqueueSnackbar(detail(err), { variant: 'error' }),
-  });
-  const p: MemberDeletePreview | undefined = preview.data;
-  const matches = !!p && sameName(typed, p.name);
-  return (
-    <Dialog open onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Delete this member for good?</DialogTitle>
-      <DialogContent>
-        {preview.isError ? <Alert severity="error">{detail(preview.error)}</Alert> : null}
-        {p ? (
-          <Stack spacing={1.5} data-testid="delete-member-preview">
-            <Alert severity="warning">
-              For testing only. Everything below is erased, as if <strong>{p.name}</strong> never existed. It can't be
-              undone. To take a real customer off, use <strong>Deactivate</strong> instead.
-            </Alert>
-            <Box component="ul" sx={{ m: 0, pl: 2.5, '& li': { mb: 0.25 } }}>
-              <Gone n={p.people.length} label={p.people.length === 1 ? 'person on the membership' : 'people on the membership'} />
-              <Gone
-                n={p.sales}
-                label={`register sale${p.sales === 1 ? '' : 's'}${p.paid_sales ? ` ($${p.sales_total} paid: the cash comes back out of an open drawer and the items go back on the shelf)` : ''}`}
-              />
-              <Gone n={p.bucks} label="ThriftBucks" />
-              <Gone n={p.credit === '0.00' ? 0 : `$${p.credit}`} label="Thrift+ credit" />
-              <Gone n={p.ledger_rows} label="ThriftBucks and credit rows" />
-              <Gone n={p.returns} label="3-day returns" />
-              <Gone n={p.scans} label="scans in the app" />
-              <Gone n={p.history} label="history lines" />
-              <Gone n={p.member_codes} label="member codes" />
-              <Gone n={p.sign_ins} label="app sign-ins" />
-              <Gone n={p.passwords} label="old app password" />
-              <Gone n={p.consents} label="email and text consent records" />
-              <Gone
-                n={p.website_logins.length}
-                label={`ecothrift.us login${p.website_logins.length === 1 ? '' : 's'} (${p.website_logins.map((u) => u.email).join(', ')})`}
-              />
-              <Gone n={p.holds} label={`hold${p.holds === 1 ? '' : 's'}${p.active_holds ? ` (${p.active_holds} active: stock goes back to the listing)` : ''}`} />
-              <Gone n={p.orders} label="online orders" />
-              <Gone n={p.conversations} label="website conversations" />
-            </Box>
-            {p.staff_member ? (
-              <Alert severity="info">
-                This is {p.staff_member}'s staff membership. Their Dash login stays; a fresh membership is made the next
-                time they sign in.
-              </Alert>
-            ) : null}
-            <TextField
-              autoFocus
-              fullWidth
-              label={`Type ${p.name} to delete`}
-              value={typed}
-              onChange={(e) => setTyped(e.target.value)}
-              inputProps={{ 'data-testid': 'delete-member-name' }}
-            />
-          </Stack>
-        ) : null}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button color="error" variant="contained" disabled={!matches || del.isPending} onClick={() => del.mutate()}>Delete for good</Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
 function AccountDetail({ id, onDeleted }: { id: number; onDeleted: () => void }) {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
@@ -470,8 +385,10 @@ function AccountDetail({ id, onDeleted }: { id: number; onDeleted: () => void })
         </DialogActions>
       </Dialog>
       {deleting ? (
-        <DeleteMemberDialog
-          id={id}
+        <DeleteForGoodDialog
+          queryKey={['thriftplus', 'delete-preview', id]}
+          load={() => fetchMemberDeletePreview(id)}
+          remove={(name) => deleteMember(id, name)}
           onClose={() => setDeleting(false)}
           onDeleted={() => {
             setDeleting(false);
@@ -533,7 +450,7 @@ export default function MembersTab() {
             clickable
             color={pendingOnly ? 'info' : 'default'}
             variant={pendingOnly ? 'filled' : 'outlined'}
-            label="Joined online, not finished"
+            label="Needs Finalize"
             onClick={() => setPendingOnly((v) => !v)}
             aria-pressed={pendingOnly}
           />
