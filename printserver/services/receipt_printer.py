@@ -422,11 +422,12 @@ def _bottom_block(data: dict[str, Any]) -> tuple[str, list[tuple[str, bool]], li
         missed = _missed_bucks(data)
         parts = []
         if missed:
-            parts.append(f"+{missed} ThriftBucks")
+            parts.append(f"{missed} ThriftBucks")
         if returns:
-            parts.append("1 return" if returns == 1 else f"{returns} returns")
-        if parts:
-            lines.append(("You missed " + " and ".join(parts), True))
+            parts.append("3-day returns")
+        if parts:  # owner 2026-10-16: "You missed out on:" over "12.60 ThriftBucks and 3-day returns"
+            lines.append(("You missed out on:", False))
+            lines.append((" and ".join(parts), True))
         lines.append((BLOCK_JOIN, False))
         lines.append((BLOCK_NON_MEMBER_AS_IS, True))
         return (BLOCK_HEAD_NON_MEMBER, lines, [])
@@ -434,7 +435,7 @@ def _bottom_block(data: dict[str, Any]) -> tuple[str, list[tuple[str, bool]], li
     member = _tp_member(data)
     head = f"{BLOCK_HEAD_MEMBER} {member}" if member else BLOCK_HEAD_MEMBER
     # Today's ThriftBucks on one line (owner 2026-10-16: no use-by date, no balances):
-    # "+20.00 ThriftBucks today · -35.00 used", or "-35.00 ThriftBucks instantly: $17.50 off".
+    # "+20.00 ThriftBucks today · 35.00 used" (no minus, owner 2026-10-16), or "-35.00 ThriftBucks instantly: $17.50 off".
     instant_off = _tp_amount(tp, "instant_off")
     instant_bucks = _tp_amount(tp, "instant_bucks")
     collected = _tp_amount(tp, "collected")
@@ -446,7 +447,7 @@ def _bottom_block(data: dict[str, Any]) -> tuple[str, list[tuple[str, bool]], li
     elif collected > 0:
         parts.append(f"+{_tb(collected)} ThriftBucks today")
     if used > 0:
-        parts.append(f"-{_tb(used)} used")
+        parts.append(f"{_tb(used)} used")
     lines = [(" · ".join(parts), True)] if parts else []
     # B12 (the new words) at normal size in the block; the item groups say what is AS IS.
     return (head, lines, [THRIFT_PLUS_TERMS_LINE])

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.174.1] -->
-<!-- Last reviewed: 2026-10-16 (2.174.1) -->
+<!-- Line 1 release: ## [2.174.2] -->
+<!-- Last reviewed: 2026-10-16 (2.174.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.174.2] - 2026-10-16
+
+User-facing theme: **Receipt words: no minus on a member's ThriftBucks used, and a non-member's "You missed out on:" over "12.60 ThriftBucks and 3-day returns" (Bill, 2026-10-16).** Print server 1.9.4 (Settings → Printing → Download on each register). Outside initiatives (POS).
+
+### Changed
+- **Receipts (print server 1.9.4):** the member block reads "+20.00 ThriftBucks today · 35.00 used"; the non-member block reads "You missed out on:" over "12.60 ThriftBucks and 3-day returns".
 
 ## [2.174.1] - 2026-10-16
 

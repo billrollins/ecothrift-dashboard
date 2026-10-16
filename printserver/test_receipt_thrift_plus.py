@@ -51,7 +51,7 @@ class MemberReceiptTests(unittest.TestCase):
         """Owner 2026-10-16: today's ThriftBucks on one line; no use-by date, no balances."""
         head, lines, fine = rp._bottom_block(self.data)
         self.assertEqual(head, "THRIFT+ MEMBER Pat")
-        self.assertEqual(lines, [("+20.00 ThriftBucks today · -35.00 used", True)])
+        self.assertEqual(lines, [("+20.00 ThriftBucks today · 35.00 used", True)])
         self.assertEqual(fine, [B12])
         for text in _both(self.data):
             self.assertNotIn("balance", text.lower())
@@ -158,7 +158,7 @@ class GuestReceiptTests(unittest.TestCase):
         data = _fixture("receipt_thriftplus_guest")
         head, lines, fine = rp._bottom_block(data)
         self.assertEqual(head, "NON-MEMBER")
-        self.assertEqual(lines, [("You missed +12.60 ThriftBucks and 1 return", True),
+        self.assertEqual(lines, [("You missed out on:", False), ("12.60 ThriftBucks and 3-day returns", True),
                                  ("Join free: ecothrift.us/join", False), ("All sales final · Sold AS IS", True)])
         self.assertEqual(fine, [])
         for text in _both(data):

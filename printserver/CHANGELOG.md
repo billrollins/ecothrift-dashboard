@@ -5,6 +5,12 @@ Ship: `.ai/protocols/ship-print-server.md`. Script: `python printserver/distribu
 
 ---
 
+## [1.9.4] — 2026-10-16 (install on every register: REG-01, REG-02, TRAIN)
+
+### Changed
+- **Member block:** `+20.00 ThriftBucks today · 35.00 used`: no minus in front of the used amount (owner 2026-10-16).
+- **Non-member block:** `You missed out on:` over `12.60 ThriftBucks and 3-day returns` (owner 2026-10-16).
+
 ## [1.9.3] — 2026-10-16 (install on every register: REG-01, REG-02, TRAIN)
 
 Owner 2026-10-16: the whole receipt, decided line by line (rulebook V6, B12).

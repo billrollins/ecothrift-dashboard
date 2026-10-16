@@ -1,7 +1,7 @@
-VERSION = "1.9.3"
+VERSION = "1.9.4"
 RELEASE_NOTES = (
-    "Receipts, decided line by line: items in 3-DAY RETURN and SOLD AS IS groups with a ThriftBucks column, Items "
-    "total before ThriftBucks used, payment on one line, and a short black Thrift+ block with the new ThriftBucks line."
+    "Receipt words: a member's '35.00 used' has no minus; a non-member's block says 'You missed out on:' over "
+    "'12.60 ThriftBucks and 3-day returns'."
 )
 
 # Default URL for the public version-check endpoint on the dashboard backend.
@@ -9,6 +9,28 @@ RELEASE_NOTES = (
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.9.4] — 2026-10-16 (install on every register: REG-01, REG-02, TRAIN)
+
+### Changed
+- **Member block:** ``+20.00 ThriftBucks today · 35.00 used``: no minus in front of the used amount (owner 2026-10-16).
+- **Non-member block:** ``You missed out on:`` over ``12.60 ThriftBucks and 3-day returns`` (owner 2026-10-16).
+
+## [1.9.3] — 2026-10-16 (install on every register: REG-01, REG-02, TRAIN)
+
+Owner 2026-10-16: the whole receipt, decided line by line (rulebook V6, B12).
+
+### Changed
+- **Top:** the logo, then the address and hours; receipt number, date and cashier on one line.
+- **Items in groups:** a member's under a black **3-DAY RETURN** bar and a **SOLD AS IS** heading, each with its own
+  ITEM · THRIFTBUCKS · PRICE headers and a ``+9.60`` ThriftBucks column; a non-member's under **ALL SALES FINAL ·
+  SOLD AS IS** with an IF MEMBER column. The per-item sub-lines are gone.
+- **Totals:** Items total (when ThriftBucks paid part), ThriftBucks used, Subtotal, Tax, TOTAL; payment on one line.
+- **The black block:** a member's ``+20.00 ThriftBucks today · -35.00 used`` (or ``-35.00 ThriftBucks instantly:
+  $17.50 off``) and the B12 line at normal size, with new words: ``ThriftBucks are Thrift+ rewards. Use them starting
+  tomorrow; they expire 30 days after you collect them. No cash value. Terms: ecothrift.us/terms``. A non-member's
+  ``You missed +12.60 ThriftBucks and 1 return``, ``Join free: ecothrift.us/join``, ``All sales final · Sold AS IS``.
+- No use-by dates, no balances, no thank-you line.
+
 ## [1.9.2] — 2026-10-16 (install on every register: REG-01, REG-02, TRAIN)
 
 Owner 2026-10-16: 1.9.1's black block printed striped (the printer leaves a white strip between white-on-black

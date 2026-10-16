@@ -1,9 +1,8 @@
-v2.174.1 â€” The receipt, decided line by line: returns and AS IS groups with a ThriftBucks column, a short black Thrift+ block
+v2.174.2 — Receipt words: no minus on ThriftBucks used, and a non-member's You missed out on ThriftBucks and 3-day returns
 
-User-facing theme: **The receipt, decided line by line: returns and AS IS items in their own groups with a ThriftBucks column, and a short black Thrift+ block (Bill, 2026-10-16).** Print server 1.9.3 (Settings → Printing → Download on each register). Outside initiatives (POS).
+User-facing theme: **Receipt words: no minus on a member's ThriftBucks used, and a non-member's "You missed out on:" over "12.60 ThriftBucks and 3-day returns" (Bill, 2026-10-16).** Print server 1.9.4 (Settings → Printing → Download on each register). Outside initiatives (POS).
 
 ### Changed
-- **Receipts (print server 1.9.3):** the logo with the address and hours; receipt number, date and cashier on one line; a member's items under a black 3-DAY RETURN bar and a SOLD AS IS heading, each with ITEM · THRIFTBUCKS · PRICE headers ("+9.60"); a non-member's under ALL SALES FINAL · SOLD AS IS with an IF MEMBER column; Items total before ThriftBucks used; payment on one line.
-- **The black block:** "+20.00 ThriftBucks today · -35.00 used" and the ThriftBucks rewards line at normal size with new words ("Use them starting tomorrow; they expire 30 days after you collect them"); a non-member's "You missed +12.60 ThriftBucks and 1 return". No use-by dates, no balances (rules B12, V6; the attorney confirms the new words).
+- **Receipts (print server 1.9.4):** the member block reads "+20.00 ThriftBucks today · 35.00 used"; the non-member block reads "You missed out on:" over "12.60 ThriftBucks and 3-day returns".
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
