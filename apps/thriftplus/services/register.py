@@ -873,11 +873,47 @@ def pending(query: str = '', *, limit: int = 10) -> list[dict]:
     return [pending_person(p) for p in people.distinct().order_by('-account__created_at', '-pk')[:limit]]
 
 
+def code_member(query: str) -> dict | None:
+    """A scanned member QR that is not a pending join (Finalize Thrift+): who it is and where the membership stands, so
+    the cashier is told "already a member" instead of "not found". None when the text is not a member code."""
+    from apps.thriftplus.services.cards import parse
+
+    code = parse((query or '').strip())
+    if not code:
+        return None
+    card = Card.objects.select_related('person__account').filter(code=code).first()
+    person = card.person if card is not None else None
+    if person is None:
+        return {'status': 'unknown', 'first_name': ''}
+    status = 'removed' if person.removed_at is not None else person.account.status
+    return {'status': status, 'first_name': person.first_name}
+
+
+# J5: the words the customer signs under, and the terms version they cover (ecothrift.us/terms, "Version: October 15,
+# 2026"). A new terms version changes this.
+SIGNATURE_WORDS = 'I agree to the Thrift+ terms and photo release. I can read them at ecothrift.us/terms.'
+TERMS_VERSION = '2026-10-15'
+SIGNATURE_MAX_BYTES = 1_000_000
+
+
+def _check_signature(signature) -> None:
+    """A PNG drawing, under 1 MB."""
+    if getattr(signature, 'size', 0) > SIGNATURE_MAX_BYTES:
+        raise RegisterError('SIGNATURE_BAD', 'The signature did not save. Clear it and sign again.')
+    head = signature.read(8)
+    signature.seek(0)
+    if head != b'\x89PNG\r\n\x1a\n':
+        raise RegisterError('SIGNATURE_BAD', 'The signature did not save. Clear it and sign again.')
+
+
 def finish_join(person_id, *, phone: str, id_checked: bool = False, verified_18: bool = False, photo=None,
-                user=None) -> Person:
+                signature=None, require_signature: bool = False, user=None) -> Person:
     """Finish joining at the register (J8): the phone the cashier read back (10 digits, unique among active and pending
     people), then the ID check, 18+ and the photo as at a register sign-up. The phone is verified in person (who and
-    when); the membership becomes active."""
+    when); the membership becomes active.
+
+    ``signature`` (J5, owner 2026-10-16): a PNG of the customer's signature, stored with when and the terms version.
+    ``require_signature`` (Finalize Thrift+ on a phone): the signature and the ID check are both required."""
     try:
         pk = int(person_id)
     except (TypeError, ValueError):
@@ -885,6 +921,12 @@ def finish_join(person_id, *, phone: str, id_checked: bool = False, verified_18:
     digits = members.normalize_phone(phone)
     if len(digits) != 10:
         raise RegisterError('PHONE_BAD', 'Type the 10-digit phone number.')
+    if require_signature and not id_checked:
+        raise RegisterError('ID_NEEDED', 'Check their photo ID first.')
+    if require_signature and not signature:
+        raise RegisterError('SIGNATURE_NEEDED', 'The customer signs before you finish.')
+    if signature:
+        _check_signature(signature)
     with transaction.atomic():
         person = Person.objects.select_for_update().select_related('account').filter(pk=pk).first()
         if person is None:
@@ -906,12 +948,16 @@ def finish_join(person_id, *, phone: str, id_checked: bool = False, verified_18:
             person.verified_at, person.verified_by = now, user
         if photo:
             person.photo = photo
+        if signature:
+            signature.name = f'person-{person.pk}-{now:%Y%m%d%H%M%S}.png'
+            person.signature = signature
+            person.signed_at, person.signed_terms_version = now, TERMS_VERSION
         person.save()
         account = person.account
         account.status = Account.STATUS_ACTIVE
         account.save(update_fields=['status', 'updated_at'])
         members.log('finished_joining', account=account, person=person, actor=user, id_checked=person.id_checked,
-                    verified_18=person.verified_18, photo=bool(photo))
+                    verified_18=person.verified_18, photo=bool(photo), signed=bool(signature))
         members.member_code(person, user=user)
     return person
 

@@ -203,6 +203,18 @@ describe('Studios and Admin placement', () => {
   });
 });
 
+describe('Finalize Thrift+ placement', () => {
+  it('sits in Cashier right after Terminal, for every staff role', () => {
+    const storeSales = SLOT_C_NAV_GROUPS.find((g) => g.id === 'storeSales');
+    expect(storeSales?.itemIds.slice(0, 2)).toEqual(['posTerminal', 'thriftPlusFinalize']);
+    expect(NAV_ITEM_CATALOG.thriftPlusFinalize).toMatchObject({ path: '/thriftplus/finalize', label: 'Finalize Thrift+' });
+    expect(NAV_ITEM_CATALOG.thriftPlusFinalize?.roles).toBeUndefined();
+    expect(NAV_ITEM_CATALOG.thriftPlusFinalize?.superuserOnly).toBeUndefined();
+    const groups = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS);
+    expect(groups.find((g) => g.id === 'storeSales')?.items.map((item) => item.id)).toContain('thriftPlusFinalize');
+  });
+});
+
 describe('Command Center placement', () => {
   const storeSales = SLOT_C_NAV_GROUPS.find((g) => g.id === 'storeSales');
   const admin = SLOT_C_NAV_GROUPS.find((g) => g.id === 'admin');

@@ -13,7 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   finishThriftJoin,
   reringThriftMember,
@@ -23,6 +23,7 @@ import {
 import type { Cart } from '../../types/pos.types';
 import { formatCurrency } from '../../utils/format';
 import { reringMessage } from '../../utils/thriftPlusRegister';
+import ThriftSignaturePad, { type ThriftSignaturePadHandle } from '../../pages/thriftplus/finalize/ThriftSignaturePad';
 import { IdCheckFields, PhotoField } from '../thriftplus/PersonFields';
 import { pendingName } from './ThriftPlusPendingFind';
 import { THRIFT_APP_ADDRESS } from './ThriftPlusSignupDialog';
@@ -75,6 +76,9 @@ export default function ThriftPlusFinishJoinDialog({
   const [rering, setRering] = useState(true);
   const [busy, setBusy] = useState(false);
   const [where, setWhere] = useState('');
+  // J5 (owner 2026-10-16): the customer may sign here on the touch screen; optional at the register.
+  const [signed, setSigned] = useState(false);
+  const pad = useRef<ThriftSignaturePadHandle | null>(null);
   const openSale = cart && cart.status === 'open' ? cart : null;
   const digits = phoneDigits(phone);
   const name = person ? pendingName(person) : '';
@@ -88,6 +92,7 @@ export default function ThriftPlusFinishJoinDialog({
       setPhoto(null);
       setRering(true);
       setWhere('');
+      setSigned(false);
     }
   }, [open, person?.person_id]);
 
@@ -95,8 +100,10 @@ export default function ThriftPlusFinishJoinDialog({
     if (!person || !digits) return;
     setBusy(true);
     try {
+      const signature = signed ? await pad.current?.toBlob() : null;
       const done = await finishThriftJoin({
         person: person.person_id, phone: digits, ...id, photo, cart: openSale?.id ?? null,
+        ...(signature ? { signature } : {}),
       });
       let note = '';
       if (done.cart) {
@@ -184,6 +191,13 @@ export default function ThriftPlusFinishJoinDialog({
             <Typography variant="caption" color="text.secondary">
               Never scan or keep the ID itself: only the name, phone, email, photo and the 18+ flag are stored.
             </Typography>
+            <Box data-testid="thrift-finish-signature">
+              <Typography variant="body2" fontWeight={700}>
+                The customer signs (optional here): I agree to the Thrift+ terms and photo release. I can read them at
+                ecothrift.us/terms.
+              </Typography>
+              <ThriftSignaturePad ref={pad} onInk={setSigned} disabled={busy} />
+            </Box>
             {!openSale && lastSale ? (
               <FormControlLabel
                 control={<Checkbox checked={rering} onChange={(e) => setRering(e.target.checked)} />}

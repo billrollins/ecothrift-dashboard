@@ -429,6 +429,67 @@ class FinishJoiningTests(MailMixin, RegisterBase):
         self.assertEqual((r.status_code, r.json()['code']), (400, 'TRAINING'))
         self.assertEqual(Account.objects.get(pk=self.cara.account_id).status, Account.STATUS_PENDING)
 
+    # ── Finalize Thrift+ on the cashier's phone (owner 2026-10-16, J5) ──
+
+    PNG = b'\x89PNG\r\n\x1a\n' + b'\x00' * 32
+
+    def _signature(self, data=None):
+        return SimpleUploadedFile('signature.png', data or self.PNG, content_type='image/png')
+
+    def test_finish_with_a_signature_stores_it_with_when_and_the_terms_version(self):
+        r = self._finish(signature=self._signature(), finalize='true')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual((r.json()['status'], r.json()['signed'], r.json()['cart']), ('active', True, None))
+        cara = Person.objects.get(pk=self.cara.pk)
+        self.assertTrue(cara.signature.name.startswith('thriftplus/signatures/'))
+        self.assertTrue(cara.signature.name.endswith('.png'))
+        self.assertIsNotNone(cara.signed_at)
+        self.assertEqual(cara.signed_terms_version, register.TERMS_VERSION)
+        self.assertTrue(Event.objects.get(action='finished_joining').detail['signed'])
+
+    def test_finalize_refuses_without_the_signature_or_the_id_check_and_stays_pending(self):
+        r = self._finish(finalize='true')
+        self.assertEqual((r.status_code, r.json()['code']), (400, 'SIGNATURE_NEEDED'))
+        r = self._finish(finalize='true', id_checked='false', signature=self._signature())
+        self.assertEqual((r.status_code, r.json()['code']), (400, 'ID_NEEDED'))
+        r = self._finish(finalize='true', signature=self._signature(b'GIF89a-not-a-png'))
+        self.assertEqual((r.status_code, r.json()['code']), (400, 'SIGNATURE_BAD'))
+        r = self._finish(finalize='true', phone='555-0177', signature=self._signature())
+        self.assertEqual((r.status_code, r.json()['code']), (400, 'PHONE_BAD'))
+        self.assertEqual(Account.objects.get(pk=self.cara.account_id).status, Account.STATUS_PENDING)
+        self.assertFalse(Person.objects.get(pk=self.cara.pk).signature)
+
+    def test_the_register_finish_still_works_without_a_signature(self):
+        r = self._finish()
+        self.assertEqual((r.status_code, r.json()['signed']), (200, False))
+        self.assertIsNone(Person.objects.get(pk=self.cara.pk).signed_at)
+
+    def test_finishing_is_staff_only(self):
+        from apps.thriftplus.tests.test_register import _user
+
+        anon = APIClient().post('/api/thriftplus/register/finish/', {'person': self.cara.pk}, format='multipart')
+        self.assertIn(anon.status_code, (401, 403))
+        outsider = _user('consignee@example.com', 'Consignee')
+        api = APIClient()
+        api.force_authenticate(outsider)
+        r = api.post('/api/thriftplus/register/finish/', {'person': self.cara.pk, 'phone': '4025550177',
+                                                         'id_checked': 'true', 'finalize': 'true',
+                                                         'signature': self._signature()}, format='multipart')
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(api.post('/api/thriftplus/register/pending/', {'q': 'cara'}, format='json').status_code, 403)
+        self.assertEqual(Account.objects.get(pk=self.cara.account_id).status, Account.STATUS_PENDING)
+
+    def test_a_scanned_qr_of_an_active_member_says_so(self):
+        ana_code, blank = self.codes[0], self.codes[2]  # Ana's, and a card no one has
+        r = self.api.post('/api/thriftplus/register/pending/', {'q': f'TP{ana_code}'}, format='json').json()
+        self.assertEqual((r['people'], r['member']), ([], {'status': 'active', 'first_name': 'Ana'}))
+        r = self.api.post('/api/thriftplus/register/pending/', {'q': f'TP{blank}'}, format='json').json()
+        self.assertEqual(r['member']['status'], 'unknown')
+        r = self.api.post('/api/thriftplus/register/pending/', {'q': 'nobody'}, format='json').json()
+        self.assertNotIn('member', r)
+        r = self.api.post('/api/thriftplus/register/pending/', {'q': f'TP{self.cara_code}'}, format='json').json()
+        self.assertEqual(([p['person_id'] for p in r['people']], 'member' in r), ([self.cara.pk], False))
+
     def test_a_register_sign_up_verifies_the_phone_too(self):
         r = self.api.post('/api/thriftplus/accounts/', {'first_name': 'Dot', 'phone': '402 555 0190'}, format='multipart')
         self.assertEqual(r.status_code, 201, r.content)

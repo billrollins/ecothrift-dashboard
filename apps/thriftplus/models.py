@@ -73,6 +73,11 @@ class Person(models.Model):
     email_verified_at = models.DateTimeField(null=True, blank=True)
     phone_verified_at = models.DateTimeField(null=True, blank=True)
     phone_verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    # J5 (owner 2026-10-16): the customer's signature under "I agree to the Thrift+ terms and photo release", drawn on
+    # the cashier's phone (Finalize Thrift+) or the register; with when and which terms version it covers.
+    signature = models.FileField(upload_to='thriftplus/signatures/', blank=True, default='')
+    signed_at = models.DateTimeField(null=True, blank=True)
+    signed_terms_version = models.CharField(max_length=20, blank=True, default='')
     removed_at = models.DateTimeField(null=True, blank=True, help_text='Taken off the account (second adults only).')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

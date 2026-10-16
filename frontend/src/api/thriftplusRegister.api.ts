@@ -95,13 +95,34 @@ export async function findPendingJoins(q: string): Promise<ThriftPendingPerson[]
   return data.people;
 }
 
+/** A scanned member QR that is no pending join: where that membership stands ('unknown' when no one has the code). */
+export interface ThriftCodeMember {
+  status: 'active' | 'revoked' | 'removed' | 'unknown' | string;
+  first_name: string;
+}
+
+/**
+ * Finalize Thrift+ (owner 2026-10-16): pending joins for a name, email or scanned member QR, and, when a QR is no
+ * pending join, who it belongs to (so the cashier hears "already a member").
+ */
+export async function findPendingOrMember(q: string): Promise<{ people: ThriftPendingPerson[]; member?: ThriftCodeMember }> {
+  const { data } = await api.post<{ people: ThriftPendingPerson[]; member?: ThriftCodeMember }>(
+    '/thriftplus/register/pending/', { q },
+  );
+  return data;
+}
+
 export interface ThriftFinishJoin {
   person: number;
   /** Ten digits, read back to them. */
   phone: string;
   id_checked: boolean;
   verified_18: boolean;
-  photo?: File | null;
+  photo?: File | Blob | null;
+  /** The customer's signature, a PNG (J5). */
+  signature?: Blob | null;
+  /** Finalize Thrift+ on a phone: the server requires the signature and the ID check. */
+  finalize?: boolean;
   /** An open sale: the member goes on it after. */
   cart?: number | null;
 }
@@ -112,6 +133,8 @@ export interface ThriftFinishResult {
   first_name: string;
   last_name: string;
   status: string;
+  /** Newer servers: a signature is on file (J5). */
+  signed?: boolean;
   /** The sale with the member on it (when a cart was sent and the attach worked). */
   cart: Cart | null;
   /** They joined, but could not go on the sale. */
@@ -125,7 +148,9 @@ export async function finishThriftJoin(body: ThriftFinishJoin): Promise<ThriftFi
   form.append('phone', body.phone);
   form.append('id_checked', String(body.id_checked));
   form.append('verified_18', String(body.id_checked && body.verified_18));
-  if (body.photo) form.append('photo', body.photo);
+  if (body.photo) form.append('photo', body.photo, body.photo instanceof File ? body.photo.name : 'photo.jpg');
+  if (body.signature) form.append('signature', body.signature, 'signature.png');
+  if (body.finalize) form.append('finalize', 'true');
   if (body.cart) form.append('cart', String(body.cart));
   const { data } = await api.post<ThriftFinishResult>('/thriftplus/register/finish/', form, {
     transformRequest: [

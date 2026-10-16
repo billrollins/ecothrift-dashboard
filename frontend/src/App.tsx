@@ -20,6 +20,7 @@ const KioskPage = lazy(() => import('./pages/kiosk/KioskPage'));
 const ClockPage = lazy(() => import('./pages/kiosk/ClockPage'));
 // Thrift+ price scanner: the customer web app (mock). Public, its own sign-in, owns the window.
 const ThriftPlusScannerPage = lazy(() => import('./pages/thriftplus/scanner/ThriftPlusScannerPage'));
+const FinalizeThriftPlusPage = lazy(() => import('./pages/thriftplus/finalize/FinalizeThriftPlusPage'));
 const BstockLoginHandoffPage = lazy(() => import('./pages/routines/BstockLoginHandoffPage'));
 const CountPage = lazy(() => import('./pages/inventory/count/CountPage'));
 const InventoriesPage = lazy(() => import('./pages/inventory/count/InventoriesPage'));
@@ -335,6 +336,15 @@ export default function App() {
         <Route path="/pos/cash" element={<CashManagementPage />} />
         <Route path="/pos/transactions" element={<TransactionListPage />} />
         <Route path="/pos/printables" element={<PosPrintablesPage />} />
+        {/* Finalize Thrift+ on a phone beside the cashier (owner 2026-10-16): staff, Employee and up. */}
+        <Route
+          path="/thriftplus/finalize"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <FinalizeThriftPlusPage />
+            </Suspense>
+          }
+        />
         <Route path="/pos/deliveries" element={<DeliveriesEntryRedirect />} />
         <Route path="/pos/deliveries/schedule" element={<DeliveriesEntryRedirect page="schedule" />} />
         <Route path="/pos/deliveries/table" element={<DeliveriesEntryRedirect page="table" />} />

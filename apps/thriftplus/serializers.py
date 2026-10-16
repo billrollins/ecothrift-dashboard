@@ -28,7 +28,10 @@ class PersonSerializer(serializers.ModelSerializer):
             'verified_at', 'removed_at', 'cards', 'created_at',
             # Owner 2026-10-15 (J8, J11): the email confirmed by its link or code; the phone read back at a register.
             'email_verified_at', 'phone_verified_at',
+            # Owner 2026-10-16 (J5): when they signed, and the terms version it covers.
+            'signed_at', 'signed_terms_version',
         ]
+        read_only_fields = ['signed_at', 'signed_terms_version']
 
     def get_photo_url(self, obj) -> str | None:
         return obj.photo.url if obj.photo else None

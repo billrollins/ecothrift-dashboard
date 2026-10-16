@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.170.4] -->
-<!-- Last reviewed: 2026-10-16 (2.170.4) -->
+<!-- Line 1 release: ## [2.171.0] -->
+<!-- Last reviewed: 2026-10-16 (2.171.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.171.0] - 2026-10-16
+
+User-facing theme: **Finalize Thrift+ on a cashier's phone: finish an online join anywhere in the store, with the customer's signature (Bill, 2026-10-16, launch day).** thrift_plus Phase 5 (register).
+
+### Added
+
+- **Cashier → Finalize Thrift+** (any staff phone): scan the customer's member QR or search their name or email; enter the phone number and read it back; "I checked their photo ID" and 18+; a photo with the phone's camera (or "No photo today"); the customer signs on the phone under "I agree to the Thrift+ terms and photo release. I can read them at ecothrift.us/terms."; Finish. The membership is active at once.
+- **The signature (J5)** is stored with the member (with the date and the terms version). The register's Finish joining has the same signature pad, optional there.
 
 ## [2.170.4] - 2026-10-16
 

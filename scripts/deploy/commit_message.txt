@@ -1,9 +1,10 @@
-v2.170.4 — Register: the Labor Day sale is retired (no chip to turn it on; off for good)
+v2.171.0 — Finalize Thrift+ on a cashier's phone: finish an online join anywhere in the store, with the customer's signature
 
-User-facing theme: **The Labor Day sale is retired at the register (Bill, 2026-10-16).** Outside initiatives (POS).
+User-facing theme: **Finalize Thrift+ on a cashier's phone: finish an online join anywhere in the store, with the customer's signature (Bill, 2026-10-16, launch day).** thrift_plus Phase 5 (register).
 
-### Removed
+### Added
 
-- The register's "Labor Day off / on" chip: it shows only while a sale is actually on (so it can be turned off), never as a way to turn one on. Production's Labor Day setting is switched off for good, so the calendar no longer starts it each September.
+- **Cashier → Finalize Thrift+** (any staff phone): scan the customer's member QR or search their name or email; enter the phone number and read it back; "I checked their photo ID" and 18+; a photo with the phone's camera (or "No photo today"); the customer signs on the phone under "I agree to the Thrift+ terms and photo release. I can read them at ecothrift.us/terms."; Finish. The membership is active at once.
+- **The signature (J5)** is stored with the member (with the date and the terms version). The register's Finish joining has the same signature pad, optional there.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -142,6 +142,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Transactions',
     icon: 'receipt',
   },
+  // A cashier finishes an online join on a phone beside her, away from the register (owner 2026-10-16). All staff.
+  thriftPlusFinalize: {
+    id: 'thriftPlusFinalize',
+    path: '/thriftplus/finalize',
+    label: 'Finalize Thrift+',
+    icon: 'thriftPlus',
+  },
   posPrintables: {
     id: 'posPrintables',
     path: '/pos/printables',

@@ -702,8 +702,8 @@ class RegisterViewSet(viewsets.ViewSet):
     - ``bucks`` ``{use: bool}``: use the member's kept ThriftBucks automatically on this trip, or not today;
     - ``rering`` ``{code}`` or ``{person}``: the member on a sale finished in the last 30 minutes;
     - ``pending`` ``{q}``: joined online and not finished yet (owner 2026-10-15, J8), by name, email or member code;
-    - ``finish`` ``{person, phone, id_checked, verified_18, photo, cart?}``: finish joining (the phone read back, the
-      ID, the photo); with ``cart``, the member goes on that sale after.
+    - ``finish`` ``{person, phone, id_checked, verified_18, photo, signature?, finalize?, cart?}``: finish joining (the
+      phone read back, the ID, the photo, the signature); with ``cart``, the member goes on that sale after.
 
     A pending member's QR (attach, re-ring) answers 400 ``MEMBER_PENDING`` with the person to finish. Thrift+ credit is
     used first, automatically (no action). Every sale action refuses while Thrift+ is dark there.
@@ -778,14 +778,27 @@ class RegisterViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
     def pending(self, request):
         """Joined online, not finished (J8): ``{q}`` a name, email or member code; newest first, at most 10. A POST,
-        so names and emails stay out of the request logs."""
-        return Response({'people': register.pending(str(request.data.get('q') or ''))})
+        so names and emails stay out of the request logs. A member code that is no pending join also answers ``member``
+        ``{status, first_name}`` (``active``, ``revoked``, ``removed`` or ``unknown``), so Finalize Thrift+ can say
+        "already a member"."""
+        q = str(request.data.get('q') or '')
+        people = register.pending(q)
+        body = {'people': people}
+        if not people:
+            who = register.code_member(q)
+            if who is not None:
+                body['member'] = who
+        return Response(body)
 
     @action(detail=False, methods=['post'], parser_classes=[JSONParser, MultiPartParser, FormParser])
     def finish(self, request):
         """Finish joining at the register (J8): the phone the cashier read back, the ID check, 18+ and the photo, as at
         a sign-up. 409 ``PHONE_TAKEN`` when another active or pending person has that phone. With ``cart`` (an open
-        sale), the member goes on it after; a refusal there comes back as ``attach_error`` (they are still joined)."""
+        sale), the member goes on it after; a refusal there comes back as ``attach_error`` (they are still joined).
+
+        ``signature`` (optional, owner 2026-10-16, J5): a PNG of the customer's signature, stored with ``signed_at`` and
+        the terms version. ``finalize=true`` (Finalize Thrift+, the cashier's phone, no cart): the signature and the ID
+        check are required (400 ``SIGNATURE_NEEDED`` / ``ID_NEEDED``)."""
         from apps.pos.models import Cart
         from apps.pos.serializers import CartSerializer
 
@@ -796,12 +809,14 @@ class RegisterViewSet(viewsets.ViewSet):
                 raise register.RegisterError('TRAINING', 'This is the training register. Finish joining on a real register.')
             person = register.finish_join(d.get('person'), phone=str(d.get('phone') or ''), id_checked=_truthy(d.get('id_checked')),
                                           verified_18=_truthy(d.get('verified_18')), photo=request.FILES.get('photo'),
-                                          user=request.user)
+                                          signature=request.FILES.get('signature'),
+                                          require_signature=_truthy(d.get('finalize')), user=request.user)
         except register.RegisterError as exc:
             code = status.HTTP_409_CONFLICT if exc.code == 'PHONE_TAKEN' else status.HTTP_400_BAD_REQUEST
             return Response(exc.payload(), status=code)
         body = {'person_id': person.pk, 'account_id': person.account_id, 'first_name': person.first_name,
-                'last_name': person.last_name, 'status': person.account.status, 'cart': None}
+                'last_name': person.last_name, 'status': person.account.status, 'signed': bool(person.signature),
+                'cart': None}
         if cart is not None:
             try:
                 register.attach(cart, person=person.pk, user=request.user)
