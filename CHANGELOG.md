@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.177.1] -->
-<!-- Last reviewed: 2026-10-16 (2.177.1) -->
+<!-- Line 1 release: ## [2.178.0] -->
+<!-- Last reviewed: 2026-10-16 (2.178.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.178.0] - 2026-10-16
+
+User-facing theme: **Users → Members for everyday lookups: a compact list of 50 a page, a phone layout, See QR at the top of the drawer, and Add a person (name, ID, photo) (Bill, 2026-10-16).** Thrift+ Rewards.
+
+### Added
+- **Member drawer, See QR:** the first button. It shows the main member's QR big, with the number in fours, to scan at the register or on Finalize.
+- **Member drawer, Add a person:** a second adult on an active membership with nobody added yet. Needs their name, the photo ID checked (and 18+ if it shows), a photo, and "both are here, and the main member approves". Phone and email stay the main member's.
+
+### Changed
+- **Members list:** 50 a page (was 25), shorter rows (48px) and header, so far more fit on a screen.
+- **On a phone:** each member is two short lines: the name (and "+ Sam" for a second adult) with the stage, then #number · ••phone's last 4 · ThriftBucks. Long names end in "…".
+- **Users page header:** one short line ("Members and staff. Open a row for the whole record.", none on a phone), with tighter tabs and numbers.
 
 ## [2.177.1] - 2026-10-16
 
