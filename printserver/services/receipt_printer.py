@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -52,13 +53,12 @@ RECEIPT_POLICY_LINES: tuple[str, ...] = (
 RECEIPT_POLICY_PNG_HEADLINE = "NO REFUNDS"
 RECEIPT_POLICY_PNG_SUB = "ALL SALES FINAL — TEST BEFORE YOU BUY"
 
-# Thrift+ member receipts (10-12 policy, A3/W1/W9): a member receipt has 3-day-return lines, so it
-# must not say "No refunds" alone. Words from .ai/reference/thrift-plus-terms/returns-register.md.
-RECEIPT_POLICY_LINES_MEMBER: tuple[str, ...] = (
-    "All sales final except Thrift+ 3-day returns on lines marked 3-day return. Sold AS IS.",
-)
-RECEIPT_POLICY_PNG_HEADLINE_MEMBER = "SOLD AS IS"
-RECEIPT_POLICY_PNG_SUB_MEMBER = "ALL SALES FINAL EXCEPT THRIFT+ 3-DAY RETURNS"
+# The black block's words (owner 2026-10-16: "black says if thrift+ or not, ThriftBucks either used, instant OR
+# collected, OR missed for non-members, and a quick note AS IS unless noted above").
+BLOCK_HEAD_MEMBER = "THRIFT+ MEMBER"
+BLOCK_HEAD_NON_MEMBER = "NON-MEMBER"
+BLOCK_AS_IS_MEMBER = "SOLD AS IS unless marked 3-day return above"
+BLOCK_JOIN = "Join free at the register or ecothrift.us/join"
 
 # Thrift+ block words (V2/V4/V8, B2, B5, B12, W1). ThriftBucks are numbers next to their label,
 # never "$"; Thrift+ credit and the instant redemption are dollars.
@@ -73,6 +73,8 @@ THRIFT_PLUS_RETURNS_LINE = (
 # Owner 2026-10-15 (design language v2.8): "Non-member" replaces "guest" wherever a customer reads. The dashboard may
 # send the words as ``thrift_plus.non_member_line``; these are the same words, for a payload without them.
 THRIFT_PLUS_GUEST_AS_IS = "Non-member: All sales final. Sold AS IS."
+# In the block the head already says NON-MEMBER, so the line drops its "Non-member: " lead.
+_NON_MEMBER_LEAD = "Non-member:"
 MARK_3_DAY_RETURN = "3-day return"
 MARK_AS_IS = "AS IS"
 
@@ -243,13 +245,34 @@ def _is_guest_as_is(data: dict[str, Any]) -> bool:
     return tp is not None and not _is_member_receipt(data) and _truthy(tp.get("guest_all_as_is"))
 
 
-def _guest_as_is_lines(data: dict[str, Any]) -> list[str]:
-    """The one non-member line under the items ("Non-member: All sales final. Sold AS IS."): the dashboard's
-    ``non_member_line`` when sent, else the same words from here; wrapped to the tape."""
+def _non_member_as_is(data: dict[str, Any]) -> str:
+    """The block's AS IS line for a non-member ("All sales final. Sold AS IS."): the dashboard's
+    ``non_member_line`` when sent, else the same words from here, without the "Non-member:" lead."""
     tp = _tp(data) or {}
     sent = tp.get("non_member_line")
     text = sent.strip() if isinstance(sent, str) and sent.strip() else THRIFT_PLUS_GUEST_AS_IS
-    return _wrap_chars(text[:200])
+    if text.lower().startswith(_NON_MEMBER_LEAD.lower()):
+        text = text[len(_NON_MEMBER_LEAD):].strip()
+    return text[:200]
+
+
+_MISSED = re.compile(r"(\d[\d,]*\.\d{2}) ThriftBucks")
+
+
+def _missed_line(data: dict[str, Any]) -> str:
+    """ "You missed 12.60 ThriftBucks today": what membership would have collected on this trip, from the
+    dashboard's ``guest_line`` ("This trip would have collected 12.60 ThriftBucks."). Nothing to miss, nothing
+    printed; a line without a number prints as sent."""
+    tp = _tp(data) or {}
+    guest_line = str(tp.get("guest_line") or "").strip()
+    if not guest_line:
+        return ""
+    m = _MISSED.search(guest_line)
+    if not m:
+        return guest_line[:200]
+    if (_as_money(m.group(1).replace(",", "")) or 0) <= 0:
+        return ""
+    return f"You missed {m.group(1)} ThriftBucks today"
 
 
 def _tp_amount(tp: dict[str, Any] | None, key: str) -> float:
@@ -324,35 +347,34 @@ def _bucks_used_row(data: dict[str, Any]) -> tuple[str, str] | None:
     return ("ThriftBucks used", _tb(used))
 
 
-def _thrift_plus_rows(data: dict[str, Any]) -> list[tuple[str, str | None, bool]]:
-    """Thrift+ lines after payment (10-12 policy: V4, B2, B5, B12, W1): (label, amount or None, bold).
+def _bottom_block(data: dict[str, Any]) -> tuple[str, list[tuple[str, bool]], list[str]]:
+    """The black block at the bottom of every receipt (owner 2026-10-16): (head, lines as (text, bold), fine print).
 
-    A member receipt shows:
-    - "THRIFT+ MEMBER Pat": the first name, or nothing after the words (owner 2026-10-14: no card, no last 4);
-    - "ThriftBucks collected 35.00, use by Nov 19", or "Redeemed instantly: 35.00 ThriftBucks, $17.50 off"
-      (one choice per trip, B1);
-    - "Thrift+ credit used $50.00" when credit paid part of the total;
-    - both balances: "Your ThriftBucks 35.00, use by Nov 19" and "Thrift+ credit $12.20";
-    - the B12 line ("ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value. Terms:
-      ecothrift.us/terms") and the 3-day returns line.
+    - A member: "THRIFT+ MEMBER Pat" (the first name, or the words alone; no card, no last 4); this trip's
+      ThriftBucks ("ThriftBucks collected 20.00, use by Nov 19", or "Redeemed instantly: 35.00 ThriftBucks, $17.50
+      off"; "ThriftBucks used 35.00" when kept ThriftBucks paid); Thrift+ credit used; the balances; "SOLD AS IS
+      unless marked 3-day return above"; then small: the 3-day returns line and B12 word for word.
+    - A non-member: "NON-MEMBER", "You missed 12.60 ThriftBucks today", how to join, "All sales final. Sold AS IS."
+    - No Thrift+ on the payload (Thrift+ off, an old dashboard): the NO REFUNDS block as before.
 
     ThriftBucks are numbers next to their label (never "$"); credit and the instant redemption are dollars.
-    A guest receipt shows the dashboard's ``guest_line`` (what membership would have collected), if sent. Old
-    dashboards send no ``thrift_plus``, so this is empty; the pre-10-12 shape (cover, ``banked``) prints only
-    what still holds (the member line and the balances), never the retired rows.
+    The pre-10-12 shape (cover, ``banked``) prints only what still holds (the member head and the balances).
     """
     tp = _tp(data)
     if tp is None:
-        return []
+        return (RECEIPT_POLICY_PNG_HEADLINE, [(RECEIPT_POLICY_PNG_SUB, True)], list(RECEIPT_POLICY_LINES))
     if not _is_member_receipt(data):
-        guest_line = str(tp.get("guest_line") or "").strip()
-        if guest_line:
-            return [(guest_line, None, True), ("Free to join Thrift+. Ask at the register.", None, False)]
-        return []
+        lines: list[tuple[str, bool]] = []
+        missed = _missed_line(data)
+        if missed:
+            lines.append((missed, True))
+        lines.append((BLOCK_JOIN, False))
+        lines.append((_non_member_as_is(data), True))
+        return (BLOCK_HEAD_NON_MEMBER, lines, [])
 
     member = _tp_member(data)
-    head = f"THRIFT+ MEMBER {member}" if member else "THRIFT+ MEMBER"
-    rows: list[tuple[str, str | None, bool]] = [(head, None, True)]
+    head = f"{BLOCK_HEAD_MEMBER} {member}" if member else BLOCK_HEAD_MEMBER
+    lines = []
 
     instant_off = _tp_amount(tp, "instant_off")
     instant_bucks = _tp_amount(tp, "instant_bucks")
@@ -363,15 +385,16 @@ def _thrift_plus_rows(data: dict[str, Any]) -> list[tuple[str, str | None, bool]
             parts.append(f"{_tb(instant_bucks)} ThriftBucks")
         if instant_off > 0:
             parts.append(f"${instant_off:.2f} off")
-        rows.extend((ln, None, False) for ln in _comma_lines("Redeemed instantly: " + ", ".join(parts)))
+        lines.append(("Redeemed instantly: " + ", ".join(parts), True))
     elif collected > 0:
         use_by = _use_by(tp.get("use_by"))
-        text = f"ThriftBucks collected {_tb(collected)}" + (f", use by {use_by}" if use_by else "")
-        rows.extend((ln, None, False) for ln in _comma_lines(text))
-
+        lines.append((f"ThriftBucks collected {_tb(collected)}" + (f", use by {use_by}" if use_by else ""), True))
+    used = _tp_amount(tp, "bucks_used")
+    if used > 0:
+        lines.append((f"ThriftBucks used {_tb(used)}", True))
     credit_used = _tp_amount(tp, "credit_used")
     if credit_used > 0:
-        rows.append(("Thrift+ credit used", f"${credit_used:.2f}", False))
+        lines.append((f"Thrift+ credit used ${credit_used:.2f}", False))
 
     balances = tp.get("balances")
     if isinstance(balances, dict):
@@ -386,43 +409,20 @@ def _thrift_plus_rows(data: dict[str, Any]) -> list[tuple[str, str | None, bool]
         line = f"Your ThriftBucks {_tb(bucks_bal)}"
         if bucks_bal > 0 and bucks_use_by:
             line += f", use by {bucks_use_by}"
-        rows.extend((ln, None, False) for ln in _comma_lines(line))
-    if credit_bal is not None:
-        rows.append(("Thrift+ credit", f"${credit_bal:.2f}", False))
+        lines.append((line, False))
+    if credit_bal is not None and credit_bal > 0:
+        lines.append((f"Your Thrift+ credit ${credit_bal:.2f}", False))
 
-    rows.append((THRIFT_PLUS_TERMS_LINE, None, False))
-    rows.append((THRIFT_PLUS_RETURNS_LINE, None, False))
-    return rows
-
-
-def _policy(data: dict[str, Any]) -> tuple[str | None, tuple[str, ...], str, str]:
-    """(print header or None, policy lines, PNG headline, PNG sub) for this receipt.
-
-    Guests (and receipts without Thrift+) keep the NO REFUNDS block as it is. A member receipt says the
-    exception in the same breath (no bare "No refunds")."""
-    if _is_member_receipt(data):
-        return (None, RECEIPT_POLICY_LINES_MEMBER, RECEIPT_POLICY_PNG_HEADLINE_MEMBER, RECEIPT_POLICY_PNG_SUB_MEMBER)
-    return ("ALL SALES FINAL", RECEIPT_POLICY_LINES, RECEIPT_POLICY_PNG_HEADLINE, RECEIPT_POLICY_PNG_SUB)
+    lines.append((BLOCK_AS_IS_MEMBER, True))
+    return (head, lines, [THRIFT_PLUS_RETURNS_LINE, THRIFT_PLUS_TERMS_LINE])
 
 
-# cp437 box drawing — a framed coupon reads as a tear-off, not more fine print.
-_TEAR_LINE = ("- " * (W // 2)).rstrip()
-_BOX_INNER = W - 2
-
-
-def _box_top() -> bytes:
-    return _line("\u2554" + "\u2550" * _BOX_INNER + "\u2557")
-
-
-def _box_bottom() -> bytes:
-    return _line("\u255a" + "\u2550" * _BOX_INNER + "\u255d")
-
-
-def _box_row(text: str, *, bold: bool = False) -> bytes:
-    body = _ascii(text)[:_BOX_INNER].center(_BOX_INNER)
-    if bold:
-        return _encode("\u2551") + BOLD_ON + _encode(body) + BOLD_OFF + _encode("\u2551") + b"\n"
-    return _line(f"\u2551{body}\u2551")
+def _block_text_lines(text: str) -> list[str]:
+    """One block line on the tape: split at ", " first (so "use by Nov 19" never wraps apart), then by words."""
+    out: list[str] = []
+    for part in _comma_lines(text):
+        out.extend(_wrap_chars(part.strip()))
+    return out
 
 
 # Phrases a wrap never splits (Thrift+ words read as one term on the tape).
@@ -477,15 +477,8 @@ RECEIPT_STORE_HOURS: tuple[str, ...] = (
 RECEIPT_FOOTER = "Thank you for shopping Eco-Thrift Canfield"
 RECEIPT_WEBSITE = "ecothrift.us"
 
-# Fine print for the Google review offer (kept short enough to read on 80mm).
-RECEIPT_REVIEW_TERMS: tuple[str, ...] = (
-    "Review must be posted after the date on this",
-    "receipt. Show it on your phone at checkout.",
-    "One use per customer, 5% off one transaction,",
-    "max $5 discount. Not valid with other offers",
-    "and no cash value. Offer may change anytime.",
-)
-
+# The Google review note: one small line right above the black block (owner 2026-10-16: "VERY small, 1 line").
+RECEIPT_REVIEW_LINE = "Google review: 5% off your next visit, max $5"
 
 def format_receipt(data: dict[str, Any]) -> bytes:
     """Build a complete ESC/POS byte stream from receipt_data.
@@ -559,8 +552,6 @@ def format_receipt(data: dict[str, Any]) -> bytes:
         mark = _item_mark(item, data)
         if mark:
             buf += FONT_SMALL + _line(f"    {mark}") + NORMAL
-    if _is_guest_as_is(data):
-        buf += BOLD_ON + b"".join(_line(ln) for ln in _guest_as_is_lines(data)) + BOLD_OFF
 
     buf += _separator()
 
@@ -597,58 +588,32 @@ def format_receipt(data: dict[str, Any]) -> bytes:
     if data.get("change") is not None:
         buf += _lr("Change", f"${data['change']:.2f}")
     emit_rows(_card_payment_rows(data))
-    tp_rows = _thrift_plus_rows(data)
-    if tp_rows:
-        buf += _separator()
-        emit_rows(tp_rows)
-
     buf += _separator("=")
 
-    # --- Footer ---
-    buf += CENTER
-    buf += BOLD_ON + DOUBLE_HEIGHT
-    buf += _line("THANK YOU")
-    buf += NORMAL + BOLD_OFF
-    for wrapped in _wrap_chars(RECEIPT_FOOTER):
-        buf += _line(wrapped)
-
-    buf += _line()
-    policy_header, policy_lines, _png_head, _png_sub = _policy(data)
-    if policy_header:
-        buf += BOLD_ON + _line(policy_header) + BOLD_OFF
-        for pl in policy_lines:
-            for wrapped in _wrap_chars(pl):
-                buf += _line(wrapped)
-    else:
-        buf += BOLD_ON
-        for pl in policy_lines:
-            for wrapped in _wrap_chars(pl):
-                buf += _line(wrapped)
-        buf += BOLD_OFF
-
-    buf += _line()
-    buf += _line("Questions? Ask any team member")
-    buf += _line(RECEIPT_WEBSITE)
+    # --- Footer: thanks, the one-line review note, then the black block (GS B: white on black) ---
+    buf += CENTER + _line(RECEIPT_FOOTER)
+    buf += FONT_SMALL + _line(RECEIPT_REVIEW_LINE) + NORMAL
     buf += LEFT
 
-    # --- Review offer: last thing on the tape so it reads as a coupon, not terms ---
-    buf += _line()
-    buf += LEFT
-    buf += _line(_TEAR_LINE)
-    buf += _box_top()
-    buf += _box_row("GOOGLE REVIEW REWARD")
-    buf += _box_row("")
-    buf += _box_row("5% OFF YOUR NEXT VISIT", bold=True)
-    buf += _box_row("")
-    buf += _box_row("Review us today, then show it")
-    buf += _box_row("to a cashier next time you shop.")
-    buf += _box_bottom()
-    buf += CENTER
-    buf += _line()
-    for pl in RECEIPT_REVIEW_TERMS:
-        for wrapped in _wrap_chars(pl):
-            buf += _line(wrapped)
-    buf += LEFT
+    def rev(text: str = "", *, bold: bool = False, tall: bool = False) -> bytes:
+        body = _encode(_ascii(text)[:W].center(W))
+        style = (BOLD_ON if bold else b"") + (DOUBLE_HEIGHT if tall else b"")
+        return REVERSE_ON + style + body + NORMAL + BOLD_OFF + REVERSE_OFF + b"\n"
+
+    head, block_lines, fine = _bottom_block(data)
+    buf += rev()
+    for ln in _wrap_chars(head):
+        buf += rev(ln, bold=True, tall=True)
+    buf += rev()
+    for text, bold in block_lines:
+        for ln in _block_text_lines(text):
+            buf += rev(ln, bold=bold)
+    if fine:
+        buf += rev()
+        for text in fine:
+            for ln in _wrap_chars(text):
+                buf += rev(ln)
+    buf += rev()
 
     if training:
         buf += _line()
@@ -767,8 +732,6 @@ def format_receipt_text(data: dict[str, Any]) -> str:
         mark = _item_mark(item, data)
         if mark:
             lines.append(f"    {mark}")
-    if _is_guest_as_is(data):
-        lines.extend(_guest_as_is_lines(data))
 
     lines.append("-" * W)
 
@@ -799,28 +762,28 @@ def format_receipt_text(data: dict[str, Any]) -> str:
     if data.get("change") is not None:
         lines.append(_txt_lr("Change", f"${data['change']:.2f}"))
     emit_rows(_card_payment_rows(data))
-    tp_rows = _thrift_plus_rows(data)
-    if tp_rows:
-        lines.append("-" * W)
-        emit_rows(tp_rows)
 
     lines.append("=" * W)
     footer = data.get("footer", "Thank you for shopping at Eco-Thrift!")
     for part in str(footer).split("\n"):
         if part.strip():
             for wrapped in _wrap_chars(part.strip()):
-                lines.append(wrapped.center(W))
+                lines.append(wrapped.center(W).rstrip())
     if data.get("store_address"):
         lines.append("-" * W)
         for part in str(data["store_address"]).split("\n"):
             if part.strip():
                 for wrapped in _wrap_chars(part.strip()):
-                    lines.append(wrapped.center(W))
-    lines.append("-" * W)
-    _header, policy_lines, _png_head, _png_sub = _policy(data)
-    for pl in policy_lines:
-        for wrapped in _wrap_chars(pl):
-            lines.append(wrapped.center(W))
+                    lines.append(wrapped.center(W).rstrip())
+    lines.append(RECEIPT_REVIEW_LINE.center(W).rstrip())
+    head, block_lines, fine = _bottom_block(data)
+    lines.append("#" * W)
+    lines.extend(ln.center(W).rstrip() for ln in _wrap_chars(head))
+    for text, _bold in block_lines:
+        lines.extend(ln.center(W).rstrip() for ln in _block_text_lines(text))
+    for text in fine:
+        lines.extend(ln.center(W).rstrip() for ln in _wrap_chars(text))
+    lines.append("#" * W)
     if training:
         lines.extend(["*" * W, TRAINING_BANNER.center(W), "*" * W])
     lines.append("")
@@ -1226,10 +1189,6 @@ def render_receipt_to_image(
             y -= 4 * S
             draw.text((x0 + 14 * S, y), mark, font=f_small, fill=t["muted"])
             y += _text_h(f_small) + 6 * S
-    if _is_guest_as_is(data):
-        for ln in _guest_as_is_lines(data):
-            draw.text((x0, y), ln, font=f_label_b, fill=t["text"])
-            y += _text_h(f_label_b) + 6 * S
 
     draw.line([x0, y, x1, y], fill=t["rule"], width=lw1)
     y += 14 * S
@@ -1318,12 +1277,6 @@ def render_receipt_to_image(
                 _lr_money(label, amount, f_total if bold else f_sub, f_money)
 
     _emit_rows(_card_payment_rows(data), text_rows_plain=False)
-    tp_rows = _thrift_plus_rows(data)
-    if tp_rows:
-        y += 4 * S
-        draw.line([x0, y, x1, y], fill=t["rule"], width=lw1)
-        y += 12 * S
-        _emit_rows(tp_rows, text_rows_plain=True)
 
     y += 10 * S
     footer = data.get("footer", "Thank you for shopping at Eco-Thrift!")
@@ -1350,41 +1303,44 @@ def render_receipt_to_image(
                     y += _text_h(f_sub) + 2 * S
         y += 10 * S
 
-    # --- Policy (very visible) ---
+    # --- The review note (one small line), then the black block ---
+    f_review = _sans_reg(11 * S)
+    rw = _text_w(draw, RECEIPT_REVIEW_LINE, f_review)
+    draw.text((x0 + (inner - rw) / 2, y), RECEIPT_REVIEW_LINE, font=f_review, fill=t["muted"])
+    y += _text_h(f_review) + 8 * S
+
     policy_top = y
-    _header, policy_lines, policy_headline, policy_sub = _policy(data)
-    policy_body: list[str] = []
-    for pl in policy_lines:
-        policy_body.extend(_wrap_text(pl, f_policy_s, draw, inner - 24 * S))
-    lh_pol = _text_h(f_policy_s) + 2 * S
-    policy_h = 92 * S + len(policy_body) * lh_pol
-    policy_h = max(policy_h, 150 * S)
-
+    head, block_lines, fine = _bottom_block(data)
+    pad = 16 * S
+    box_w = inner - 2 * pad
+    f_head = f_policy_h
+    for size in (34, 30, 26, 22):
+        f_head = _sans_bold(size * S)
+        if _text_w(draw, head, f_head) <= box_w:
+            break
+    f_line_b = _sans_bold(16 * S)
+    f_line = _sans_reg(15 * S)
+    rows: list[tuple[str, ImageFont.ImageFont, tuple[int, int, int], int]] = []  # text, font, fill, gap after
+    for ln in _wrap_text(head, f_head, draw, box_w):
+        rows.append((ln, f_head, t["policy_text"], 4 * S))
+    rows[-1] = (*rows[-1][:3], 12 * S)
+    for text, bold in block_lines:
+        font = f_line_b if bold else f_line
+        for ln in _wrap_text(text, font, draw, box_w):
+            rows.append((ln, font, t["policy_text"] if bold else t["policy_sub"], 5 * S))
+    if fine:
+        rows[-1] = (*rows[-1][:3], 12 * S)
+        for text in fine:
+            for ln in _wrap_text(text, f_policy_s, draw, box_w):
+                rows.append((ln, f_policy_s, t["policy_sub"], 2 * S))
+            rows[-1] = (*rows[-1][:3], 6 * S)
+    policy_h = 2 * pad + sum(_text_h(f) + gap for _ln, f, _fill, gap in rows)
     _fill_rounded(draw, (x0, policy_top, x1, policy_top + policy_h), max(2, 10 * S), t["policy_bg"])
-
-    headline = policy_headline
-    if theme_key == "emoji":
-        headline = f"⛔ {policy_headline} ⛔"
-    hw = _text_w(draw, headline, f_policy_h)
-    draw.text(
-        (x0 + (inner - hw) / 2, policy_top + 12 * S),
-        headline,
-        font=f_policy_h,
-        fill=t["policy_text"],
-    )
-    subh = policy_sub
-    sw = _text_w(draw, subh, f_policy_m)
-    draw.text(
-        (x0 + (inner - sw) / 2, policy_top + 50 * S),
-        subh,
-        font=f_policy_m,
-        fill=t["policy_sub"],
-    )
-    py = policy_top + 78 * S
-    for ln in policy_body:
-        lw = _text_w(draw, ln, f_policy_s)
-        draw.text((x0 + (inner - lw) / 2, py), ln, font=f_policy_s, fill=t["policy_text"])
-        py += lh_pol
+    py = policy_top + pad
+    for ln, font, fill, gap in rows:
+        lw = _text_w(draw, ln, font)
+        draw.text((x0 + (inner - lw) / 2, py), ln, font=font, fill=fill)
+        py += _text_h(font) + gap
 
     y = policy_top + policy_h + margin
     if training:

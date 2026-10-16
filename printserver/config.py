@@ -1,7 +1,7 @@
-VERSION = "1.9.0"
+VERSION = "1.9.1"
 RELEASE_NOTES = (
-    "Thrift+ receipts to the 10-12 policy: member block (first name, ThriftBucks and use-by dates, the B12 rewards "
-    "line), ThriftBucks used above Subtotal, 3-day return / AS IS line marks, member policy line, TRAINING - NOT A SALE."
+    "Receipts: everything Thrift+ in one black block at the bottom (member or non-member, this trip's ThriftBucks or "
+    "the ones a non-member missed, SOLD AS IS unless marked), and one small Google review line right above it."
 )
 
 # Default URL for the public version-check endpoint on the dashboard backend.
@@ -9,7 +9,25 @@ RELEASE_NOTES = (
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
-## [1.9.0] — unreleased (install on every register before members ring up, 10-20)
+## [1.9.1] — 2026-10-16 (install on every register: REG-01, REG-02, TRAIN)
+
+Owner 2026-10-16: the receipt was too busy. Everything Thrift+ moves into one black block at the bottom.
+
+### Changed
+- **The black block at the bottom** (ESC/POS white on black, so the registers print it as the preview shows):
+  - a member: ``THRIFT+ MEMBER Pat``, this trip's ThriftBucks (``ThriftBucks collected 20.00, use by Nov 19``, or
+    ``Redeemed instantly: 35.00 ThriftBucks, $17.50 off``; ``ThriftBucks used 35.00`` when kept ThriftBucks paid),
+    Thrift+ credit used, the balances (a zero credit balance is left off), ``SOLD AS IS unless marked 3-day return
+    above``, then the 3-day returns line and the B12 line word for word in small type;
+  - a non-member: ``NON-MEMBER``, ``You missed 12.60 ThriftBucks today`` (from the dashboard's ``guest_line``), how to
+    join, ``All sales final. Sold AS IS.``;
+  - no Thrift+ on the receipt (Thrift+ off): the NO REFUNDS block as before.
+- **Google review:** one small line right above the black block (``Google review: 5% off your next visit, max $5``).
+  The framed coupon and its five lines of fine print are gone.
+- The Thrift+ lines after payment, the non-member line under the items, the big THANK YOU and the "Questions?"
+  lines are gone (the block says it all).
+
+## [1.9.0] — 2026-10-16
 
 Thrift+ receipts to the 10-12 Thrift+ policy (rules V4, A3, B2, B5, B12, W1, W9).
 ESC/POS (the ``POST /print/receipt`` path), GDI text and PNG print the same lines.

@@ -36,18 +36,40 @@ def _both(data: dict) -> list[str]:
     return [rp.format_receipt_text(data), _escpos_text(data)]
 
 
+def _lines(text: str) -> list[str]:
+    """The tape's lines without the black block's centering pad."""
+    return [ln.strip() for ln in text.splitlines()]
+
+
 class MemberReceiptTests(unittest.TestCase):
     def setUp(self):
         self.data = _fixture("receipt_thriftplus_member")
 
     def test_member_block_prints_the_10_12_lines(self):
         for text in _both(self.data):
-            self.assertIn("THRIFT+ MEMBER Pat\n", text)
-            self.assertIn("ThriftBucks collected 20.00, use by Nov 19", text)
-            self.assertRegex(text, r"Thrift\+ credit used +\$40\.00")
-            self.assertIn("Your ThriftBucks 20.00, use by Nov 19", text)
-            self.assertRegex(text, r"Thrift\+ credit +\$0\.00")
+            lines = _lines(text)
+            self.assertIn("THRIFT+ MEMBER Pat", lines)
+            self.assertIn("ThriftBucks collected 20.00, use by Nov 19", lines)
+            self.assertIn("Thrift+ credit used $40.00", lines)
+            self.assertIn("Your ThriftBucks 20.00, use by Nov 19", lines)
+            self.assertNotIn("Your Thrift+ credit", text)  # a zero credit balance is left off
+            self.assertIn("SOLD AS IS unless marked 3-day return above", lines)
             self.assertIn("80% back as", text)
+
+    def test_the_black_block_comes_last_with_the_review_line_right_above(self):
+        """Owner 2026-10-16: the black block at the bottom says it all; one small Google review line above it."""
+        for name in ("receipt_thriftplus_member", "receipt_thriftplus_guest"):
+            for text in _both(_fixture(name)):
+                lines = [ln for ln in _lines(text) if ln]
+                review = lines.index(rp.RECEIPT_REVIEW_LINE)
+                head = next(i for i, ln in enumerate(lines) if ln.startswith(("THRIFT+ MEMBER", "NON-MEMBER")))
+                self.assertLessEqual(head - review, 2)  # the PNG/text block edge may sit between them
+                self.assertNotIn("GOOGLE REVIEW REWARD", text)
+                self.assertNotIn("THANK YOU\n", text)
+        self.assertLessEqual(len(rp.RECEIPT_REVIEW_LINE), rp.W)
+        raw = rp.format_receipt(self.data)
+        self.assertEqual(raw.count(rp.REVERSE_ON), raw.count(rp.REVERSE_OFF))
+        self.assertGreater(raw.count(rp.REVERSE_ON), 8)
 
     def test_every_member_receipt_carries_the_b12_line_word_for_word(self):
         for name in ("receipt_thriftplus_member", "receipt_thriftplus_training"):
@@ -64,7 +86,8 @@ class MemberReceiptTests(unittest.TestCase):
         for name in ("receipt_thriftplus_member", "receipt_thriftplus_training", "receipt_thriftplus_guest"):
             data = _fixture(name)
             data["thrift_plus"] = {**data["thrift_plus"], "card_last4": "4821"}
-            rows = " ".join(label for label, _amount, _bold in rp._thrift_plus_rows(data))
+            head, block, fine = rp._bottom_block(data)
+            rows = " ".join([head, *(text for text, _bold in block), *fine])
             self.assertIsNone(CARD.search(rows), rows)
             self.assertNotIn("4821", rows)
         paid_by_card = {**self.data, "payment_method": "card", "card_type": "debit", "card_amount": 8.15}
@@ -73,7 +96,7 @@ class MemberReceiptTests(unittest.TestCase):
     def test_a_member_receipt_with_no_name_prints_the_words_alone(self):
         data = {**self.data, "thrift_plus": {**self.data["thrift_plus"], "member": ""}}
         for text in _both(data):
-            self.assertIn("THRIFT+ MEMBER\n", text)
+            self.assertIn("THRIFT+ MEMBER", _lines(text))
             self.assertIn("3-day return", text)  # still a member receipt: its marks and its policy line
             self.assertNotIn("No refunds", text)
 
@@ -96,8 +119,7 @@ class MemberReceiptTests(unittest.TestCase):
     def test_member_policy_never_says_no_refunds_alone(self):
         for text in _both(self.data):
             self.assertNotIn("No refunds", text)
-            self.assertIn("All sales final except Thrift+ 3-day returns on", text)
-            self.assertIn("lines marked 3-day return. Sold AS IS.", text)
+            self.assertIn("SOLD AS IS unless marked 3-day return above", _lines(text))
 
     def test_no_banned_words(self):
         for text in _both(self.data):
@@ -117,17 +139,33 @@ class MemberReceiptTests(unittest.TestCase):
 
 
 class GuestReceiptTests(unittest.TestCase):
-    def test_guest_gets_one_as_is_line_and_the_old_policy(self):
+    def test_guest_gets_the_non_member_block(self):
         data = _fixture("receipt_thriftplus_guest")
         for text in _both(data):
+            lines = _lines(text)
             # Owner 2026-10-15: "Non-member" replaces "guest" wherever a customer reads.
-            self.assertIn("Non-member: All sales final. Sold AS IS.\n", text)
-            self.assertNotIn("All items sold AS IS.", text)
+            self.assertIn("NON-MEMBER", lines)
+            self.assertIn("You missed 12.60 ThriftBucks today", lines)
+            self.assertIn("All sales final. Sold AS IS.", lines)
             self.assertNotIn("guest", text.lower())
             self.assertNotIn("3-day return", text)
             self.assertNotIn("    AS IS", text)  # no per-line marks for guests
-            self.assertIn("All sales are final. No refunds or exchanges.", text)
             self.assertNotIn("ThriftBucks used", text)
+            self.assertNotIn("THRIFT+ MEMBER", text)
+
+    def test_nothing_missed_prints_no_missed_line(self):
+        data = _fixture("receipt_thriftplus_guest")
+        data["thrift_plus"]["guest_line"] = "This trip would have collected 0.00 ThriftBucks."
+        for text in _both(data):
+            self.assertNotIn("missed", text)
+            self.assertIn("NON-MEMBER", _lines(text))
+
+    def test_a_receipt_without_thrift_plus_keeps_no_refunds(self):
+        data = {k: v for k, v in _fixture("receipt_thriftplus_guest").items() if k != "thrift_plus"}
+        for text in _both(data):
+            self.assertIn("NO REFUNDS", _lines(text))
+            self.assertIn("All sales are final. No refunds or exchanges.", " ".join(_lines(text)))
+            self.assertNotIn("NON-MEMBER", text)
 
 
     def test_the_non_member_line_is_the_dashboards_when_sent_and_the_same_words_without_it(self):
@@ -135,11 +173,11 @@ class GuestReceiptTests(unittest.TestCase):
         self.assertEqual(data["thrift_plus"]["non_member_line"], rp.THRIFT_PLUS_GUEST_AS_IS)
         del data["thrift_plus"]["non_member_line"]
         for text in _both(data):
-            self.assertIn("Non-member: All sales final. Sold AS IS.\n", text)
+            self.assertIn("All sales final. Sold AS IS.", _lines(text))
         data["thrift_plus"]["non_member_line"] = "Non-member: All sales final."
         for text in _both(data):
-            self.assertIn("Non-member: All sales final.\n", text)
-            self.assertNotIn("Sold AS IS.\n", text.split("All sales are final")[0])
+            self.assertIn("All sales final.", _lines(text))
+            self.assertNotIn("Sold AS IS.", text)
         self.assertGreater(rp.render_receipt_to_image(_fixture("receipt_thriftplus_guest")).height, 800)
 
     def test_a_member_receipt_has_no_non_member_line(self):
@@ -183,7 +221,7 @@ class ToleranceTests(unittest.TestCase):
         }}
         text = self._render_all(old)
         self.assertIn("Your ThriftBucks 12.40", text)
-        self.assertRegex(text, r"Thrift\+ credit +\$3\.25")
+        self.assertIn("Your Thrift+ credit $3.25", text)
         self.assertIsNone(BANNED.search(text))
 
     def test_missing_and_bad_keys_do_not_crash(self):

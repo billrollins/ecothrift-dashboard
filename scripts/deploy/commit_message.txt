@@ -1,13 +1,12 @@
-v2.172.0 — A Test terminal any computer can open: practice sales on the training register
+v2.172.1 — A cleaner receipt: everything Thrift+ in one black block at the bottom, one small Google review line above it
 
-User-facing theme: **A Test terminal any computer can open: practice sales on the training register, never touching the computer's real register setup (Bill, 2026-10-16).** Outside initiatives (POS).
+User-facing theme: **A cleaner receipt: everything Thrift+ in one black block at the bottom, and one small Google review line above it (Bill, 2026-10-16: "it is SOOOO busy").** Print server 1.9.1 (live in Settings → Printing; each register installs it from Download). Outside initiatives (POS).
 
-### Added
-
-- **Cashier → Test terminal** (`/pos/test`): always the TRAIN register, marked "Test terminal — practice only, nothing is real". It opens the training drawer by itself at $0 (shared, so several computers can practice at once) and never changes the computer's saved register. Sales ring and print as usual, marked TRAINING, and write nothing real.
-
-### Fixed
-
-- Two practice sales finishing together can't collide on a TRAIN receipt number.
+### Changed
+- **Receipts (print server 1.9.1):** the black block at the bottom of the tape (printed white on black) says:
+  - for a member: THRIFT+ MEMBER and the first name, this trip's ThriftBucks (collected with the use-by date, or redeemed instantly, plus ThriftBucks used), Thrift+ credit used, the balances, and "SOLD AS IS unless marked 3-day return above", then the 3-day returns and B12 lines in small type;
+  - for a non-member: NON-MEMBER, "You missed 12.60 ThriftBucks today", how to join free, and "All sales final. Sold AS IS.";
+  - with Thrift+ off: the NO REFUNDS block as before.
+- **Google review:** one small line right above the block ("Google review: 5% off your next visit, max $5"). The framed coupon and its fine print are gone, and so are the Thrift+ lines after payment, the non-member line under the items and the big THANK YOU.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

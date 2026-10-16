@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.172.0] -->
-<!-- Last reviewed: 2026-10-16 (2.172.0) -->
+<!-- Line 1 release: ## [2.172.1] -->
+<!-- Last reviewed: 2026-10-16 (2.172.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.172.1] - 2026-10-16
+
+User-facing theme: **A cleaner receipt: everything Thrift+ in one black block at the bottom, and one small Google review line above it (Bill, 2026-10-16: "it is SOOOO busy").** Print server 1.9.1 (live in Settings → Printing; each register installs it from Download). Outside initiatives (POS).
+
+### Changed
+- **Receipts (print server 1.9.1):** the black block at the bottom of the tape (printed white on black) says:
+  - for a member: THRIFT+ MEMBER and the first name, this trip's ThriftBucks (collected with the use-by date, or redeemed instantly, plus ThriftBucks used), Thrift+ credit used, the balances, and "SOLD AS IS unless marked 3-day return above", then the 3-day returns and B12 lines in small type;
+  - for a non-member: NON-MEMBER, "You missed 12.60 ThriftBucks today", how to join free, and "All sales final. Sold AS IS.";
+  - with Thrift+ off: the NO REFUNDS block as before.
+- **Google review:** one small line right above the block ("Google review: 5% off your next visit, max $5"). The framed coupon and its fine print are gone, and so are the Thrift+ lines after payment, the non-member line under the items and the big THANK YOU.
 
 ## [2.172.0] - 2026-10-16
 
