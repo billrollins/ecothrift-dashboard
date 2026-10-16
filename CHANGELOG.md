@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.176.0] -->
-<!-- Last reviewed: 2026-10-16 (2.176.0) -->
+<!-- Line 1 release: ## [2.177.0] -->
+<!-- Last reviewed: 2026-10-16 (2.177.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.177.0] - 2026-10-16
+
+User-facing theme: **Finalize's people: a compact card (name, member #, phone's last 4, when they joined) that opens everything we know, with Finish now, Resend join email, and the owner's Delete and start over (Bill, 2026-10-16).** Thrift+ Rewards.
+
+### Changed
+- **Finalize Thrift+ cards:** two short lines, phone first: the name and To finish / Finished; then #member number · ••phone's last 4 (or "no phone yet") · when they joined ("Today 9:12 AM"). A long name ends in "…"; the date gives way before the number.
+- **Tap a card:** a panel slides up with the member number in full, email (confirmed or not), phone, when they joined and finished (and by whom), photo ID and 18+, the signature, the app sign-in, the photo and their QR.
+  - To finish: **Finish now** and **Resend join email**.
+  - The owner only: **Delete and start over** (type the name to confirm). The membership and everything on it goes; they join again from the beginning.
 
 ## [2.176.0] - 2026-10-16
 
