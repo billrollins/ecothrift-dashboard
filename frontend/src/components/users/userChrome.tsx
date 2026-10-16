@@ -229,6 +229,14 @@ export function tenureFrom(start: string | null | undefined): string {
 }
 
 /** "today" / "3 days ago" / a date once it is far enough back. */
+/** "Oct 16, 2026, 2:14 PM": a date with its time (owner 2026-10-16: Members' Since). */
+export function formatWhen(value: string | null | undefined): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
 export function relativeDay(value: string | null | undefined): string {
   if (!value) return '';
   const d = new Date(value);

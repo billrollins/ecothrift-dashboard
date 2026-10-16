@@ -167,8 +167,10 @@ class MembersTabTests(TestCase):
         self.assertEqual([(r['name'], r['stage']) for r in rows],
                          [('Old Hold', 'needs_finalize'), ('Pat New', 'needs_finalize'), ('Ana Per', 'member')])
         ana = rows[2]
-        self.assertEqual((ana['bucks'], ana['bucks_lifetime'], ana['returns'], ana['number']),
-                         ('1250.00', '1250.00', 0, f'#{self.member.pk}'))
+        self.assertEqual((ana['bucks'], ana['bucks_lifetime'], ana['returns']), ('1250.00', '1250.00', 0))
+        # Member # is the 12-digit member code (owner 2026-10-16), not the membership's database id.
+        self.assertRegex(ana['number'], r'^\d{4} \d{4} \d{4}$')
+        self.assertEqual(ana['number'], ana['code_display'])
         self.assertTrue(rows[0]['legacy'])
 
     def test_deactivate_is_off_and_reactivate_puts_it_back(self):

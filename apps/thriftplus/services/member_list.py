@@ -95,7 +95,9 @@ def rows() -> list[dict]:
         others = [str(p) for p in account.people.all() if p.removed_at is None and p is not person]
         out.append({
             'key': f'a{account.pk}', 'kind': 'member', 'account_id': account.pk, 'user_id': None,
-            'number': f'#{account.pk}', 'name': (str(person) if person else '') or email or f'Member #{account.pk}',
+            # Member # is the primary person's 12-digit member code, "7166 7172 0440" (owner 2026-10-16); the
+            # membership's database id stays internal.
+            'number': display(code) if code else '', 'name': (str(person) if person else '') or email or 'No name',
             'second': others[0] if others else '', 'email': person.email if person else '',
             'phone': person.phone if person else '', 'stage': stage(account, person),
             'since': account.created_at, 'bucks': str(ledger.bucks_total(account)),

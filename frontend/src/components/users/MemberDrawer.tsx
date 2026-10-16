@@ -31,7 +31,7 @@ import { addSecondAdult } from '../../api/thriftplus.api';
 import DeleteForGoodDialog from '../thriftplus/DeleteForGoodDialog';
 import { IdCheckFields, PhotoField } from '../thriftplus/PersonFields';
 import QrSvg from '../thriftplus/QrSvg';
-import { DrawerSection, Fact, PersonAvatar, formatDay, relativeDay } from './userChrome';
+import { DrawerSection, Fact, PersonAvatar, formatWhen, relativeDay } from './userChrome';
 import { IconClose as Close } from '../../icons/ecoIcons';
 
 function detail(err: unknown, fallback: string): string {
@@ -203,7 +203,7 @@ export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; 
                 <Fact label="Last visit" value={row.last_visit ? relativeDay(row.last_visit) : 'Not yet'} />
                 <Fact label="Holds" value={row.holds_total ? `${row.holds_active} active · ${row.holds_total} total` : 'None'} />
                 <Fact label="Messages" value={row.needs_reply ? 'Waiting on us' : 'Clear'} tone={row.needs_reply ? 'warn' : 'neutral'} />
-                <Fact label="Since" value={formatDay(row.since)} />
+                <Fact label="Since" value={formatWhen(row.since)} />
               </DrawerSection>
 
               <DrawerSection title="Profile">

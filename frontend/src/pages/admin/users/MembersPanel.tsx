@@ -9,7 +9,7 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useQuery } from '@tanstack/react-query';
 import { GRID_FILL_SX, GRID_PAGE_PROPS, GRID_SX, PAGE_FILL_SX, noRowsSlot } from '../../../components/common/gridChrome';
 import MemberDrawer from '../../../components/users/MemberDrawer';
-import { PersonCell, StackCell, StateChip, formatDay, relativeDay } from '../../../components/users/userChrome';
+import { PersonCell, StackCell, StateChip, formatWhen, relativeDay } from '../../../components/users/userChrome';
 import { STAGE_LABEL, fetchMembers, shortBucks, type MemberRow, type MemberStage } from '../../../api/memberDirectory.api';
 import { useIsMobileLayout } from '../../../hooks/useIsMobileLayout';
 import { formatPhone } from '../../../utils/formatPhone';
@@ -31,7 +31,9 @@ function matches(row: MemberRow, q: string): boolean {
   if (!q) return true;
   const hay = `${row.name} ${row.second} ${row.email} ${row.number} ${row.notes}`.toLowerCase();
   const digits = q.replace(/\D/g, '');
-  return hay.includes(q.toLowerCase()) || (digits.length >= 3 && (row.phone || '').includes(digits));
+  // A member code matches typed with or without its spaces, or scanned as the app's QR ("TP716671720440").
+  return hay.includes(q.toLowerCase())
+    || (digits.length >= 3 && ((row.phone || '').includes(digits) || (row.number || '').replace(/\D/g, '').includes(digits)));
 }
 
 /** The quick marks under a name: Staff, a waiting message, an old account. */
@@ -105,7 +107,7 @@ export default function MembersPanel({ openKey }: { openKey?: string | null }) {
 
   const columns: GridColDef<MemberRow>[] = useMemo(() => [
     {
-      field: 'name', headerName: 'Name / Member #', flex: 1.4, minWidth: 210, sortable: false,
+      field: 'name', headerName: 'Name / Member #', flex: 1.3, minWidth: 190, sortable: false,
       renderCell: ({ row }) => (
         <Box sx={{ minWidth: 0, py: 0.5 }}>
           <PersonCell name={row.name} secondary={`${row.number}${row.second ? ` · with ${row.second}` : ''}`}
@@ -115,14 +117,15 @@ export default function MembersPanel({ openKey }: { openKey?: string | null }) {
       ),
     },
     {
-      field: 'since', headerName: 'Since / ThriftBucks · Returns', width: 190,
+      // Since with its time (owner 2026-10-16), the room taken from Name and Phone.
+      field: 'since', headerName: 'Since / ThriftBucks · Returns', width: 240,
       renderCell: ({ row }) => (
-        <StackCell top={formatDay(row.since) || '-'}
+        <StackCell top={formatWhen(row.since) || '-'}
           bottom={`${shortBucks(row.bucks)} ThriftBucks · ${row.returns} return${row.returns === 1 ? '' : 's'}`} />
       ),
     },
     {
-      field: 'phone', headerName: 'Phone / Email', flex: 1.2, minWidth: 190, sortable: false,
+      field: 'phone', headerName: 'Phone / Email', flex: 1, minWidth: 170, sortable: false,
       renderCell: ({ row }) => (
         <StackCell top={row.phone ? formatPhone(row.phone) : 'No phone yet'} bottom={row.email || 'No email'} />
       ),

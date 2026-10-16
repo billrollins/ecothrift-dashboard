@@ -44,9 +44,9 @@ const BASE = {
   kind: 'member', user_id: null, second: '', credit: '0.00', bucks_lifetime: '0.00', sales: 0, spent: '0.00',
   last_visit: null, holds_active: 0, holds_total: 0, needs_reply: false, notes: '', staff: '', legacy: false, returns: 0,
 };
-const ANA = { ...BASE, key: 'a7', account_id: 7, number: '#7', name: 'Ana Diaz', email: 'ana@example.com', phone: '4025550101',
+const ANA = { ...BASE, key: 'a7', account_id: 7, number: '7166 7172 0440', name: 'Ana Diaz', email: 'ana@example.com', phone: '4025550101',
   stage: 'member', since: '2026-10-01T12:00:00Z', bucks: '1234.00', returns: 2, holds_active: 1, holds_total: 3, notes: 'Prefers text' };
-const PAT = { ...BASE, key: 'a9', account_id: 9, number: '#9', name: 'Pat New', email: 'pat@example.com', phone: '',
+const PAT = { ...BASE, key: 'a9', account_id: 9, number: '1234 5678 9012', name: 'Pat New', email: 'pat@example.com', phone: '',
   stage: 'needs_finalize', since: '2026-10-16T12:00:00Z', bucks: '0.00' };
 
 function wrap() {

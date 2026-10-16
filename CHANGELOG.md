@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.178.0] -->
-<!-- Last reviewed: 2026-10-16 (2.178.0) -->
+<!-- Line 1 release: ## [2.178.1] -->
+<!-- Last reviewed: 2026-10-16 (2.178.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.178.1] - 2026-10-16
+
+User-facing theme: **Members show the 12-digit member code as Member #, and Since shows the date and time (Bill, 2026-10-16).** Outside initiatives (Thrift+).
+
+### Changed
+- **Dash → Users → Members:** Member # is the main member's 12-digit member code ("7166 7172 0440", the number under their QR), not the membership's database id ("#80"). The search finds a code typed with or without spaces, or scanned.
+- **Since** shows the date and the time, in a wider column (the room comes from Name and Phone); the member drawer's Since shows the time too.
 
 ## [2.178.0] - 2026-10-16
 

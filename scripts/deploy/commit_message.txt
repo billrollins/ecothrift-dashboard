@@ -1,14 +1,9 @@
-v2.178.0 — Members: compact list of 50, a phone layout, See QR in the drawer, and Add a person
+v2.178.1 — Members: Member # is the 12-digit member code, and Since shows the date and time
 
-User-facing theme: **Users → Members for everyday lookups: a compact list of 50 a page, a phone layout, See QR at the top of the drawer, and Add a person (name, ID, photo) (Bill, 2026-10-16).** Thrift+ Rewards.
-
-### Added
-- **Member drawer, See QR:** the first button. It shows the main member's QR big, with the number in fours, to scan at the register or on Finalize.
-- **Member drawer, Add a person:** a second adult on an active membership with nobody added yet. Needs their name, the photo ID checked (and 18+ if it shows), a photo, and "both are here, and the main member approves". Phone and email stay the main member's.
+User-facing theme: **Members show the 12-digit member code as Member #, and Since shows the date and time (Bill, 2026-10-16).** Outside initiatives (Thrift+).
 
 ### Changed
-- **Members list:** 50 a page (was 25), shorter rows (48px) and header, so far more fit on a screen.
-- **On a phone:** each member is two short lines: the name (and "+ Sam" for a second adult) with the stage, then #number · ••phone's last 4 · ThriftBucks. Long names end in "…".
-- **Users page header:** one short line ("Members and staff. Open a row for the whole record.", none on a phone), with tighter tabs and numbers.
+- **Dash → Users → Members:** Member # is the main member's 12-digit member code ("7166 7172 0440", the number under their QR), not the membership's database id ("#80"). The search finds a code typed with or without spaces, or scanned.
+- **Since** shows the date and the time, in a wider column (the room comes from Name and Phone); the member drawer's Since shows the time too.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
