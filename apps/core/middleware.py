@@ -7,7 +7,9 @@ the public hostnames get the public site (a holding page for now - Phase 0 of th
 301 redirect from the other (e.g. ``www`` -> apex).
 
 Activated only when ``settings.PUBLIC_SITE_HOSTS`` is non-empty, so local dev and
-the dashboard host are unaffected.
+the dashboard host are unaffected - except the Thrift+ Member pages, which the
+dashboard host (``settings.STAFF_DASHBOARD_HOST``) sends to the public host
+(owner 2026-10-16: the member app installs from ecothrift.us only).
 """
 from __future__ import annotations
 
@@ -16,7 +18,7 @@ import time
 from decimal import Decimal
 
 from django.conf import settings
-from django.http import HttpResponse, HttpResponsePermanentRedirect
+from django.http import HttpResponse, HttpResponsePermanentRedirect, HttpResponseRedirect
 from django.template.loader import render_to_string
 
 # Paths that must keep working on a public host (shared API, assets, admin, media).
@@ -31,7 +33,7 @@ _SHORT_LINK_PREFIX = '/i/'
 # Dashboard SPA routes that customers open on the public host: the Thrift+ scanner
 # (www.ecothrift.us/scan). They pass through to the dashboard app, which serves them publicly.
 # ecothrift.us/qr (owner 2026-10-14): straight to the Member QR in the scanner (a redirect in ecothrift/urls.py);
-# /card is the old address, kept quietly.
+# /card is the old address, kept quietly. On the dash host these same paths go to ecothrift.us (owner 2026-10-16).
 _DASHBOARD_SPA_PATHS = ('/scan', '/qr', '/card', '/join')  # /join: owner 2026-10-15 (J8)
 
 # Public landing template (Django-rendered; replaced by the public SPA in a later phase).
@@ -124,18 +126,42 @@ class PublicSiteMiddleware:
         # Built public SPA index.html (None in local dev → holding page is served).
         self.index_path = getattr(settings, 'PUBLIC_SITE_INDEX', None)
         self._index_html = None
+        # The staff dashboard host (dash.ecothrift.us). Local hosts never match, so local dev keeps /scan.
+        self.dash_host = (getattr(settings, 'STAFF_DASHBOARD_HOST', '') or '').strip().lower().split(':')[0]
 
     def __call__(self, request):
-        if self.public_hosts:
+        if self.public_hosts or self.dash_host:
             try:
                 host = request.get_host().split(':')[0].lower()
             except Exception:  # pragma: no cover - get_host validates against ALLOWED_HOSTS
                 host = ''
-            if host in self.public_hosts:
+            if self.public_hosts and host in self.public_hosts:
                 response = self._handle_public(request, host)
                 if response is not None:
                     return response
+            elif host and host == self.dash_host:
+                response = self._member_app_off_dash(request)
+                if response is not None:
+                    return response
         return self.get_response(request)
+
+    def _member_app_off_dash(self, request):
+        """
+        Owner 2026-10-16: two home-screen apps, Thrift+ Member (ecothrift.us) and Thrift+ Staff (dash.ecothrift.us/staff).
+        The member pages on the dash host (/scan, /qr, /card, /join) go to the same address on ecothrift.us (302, the
+        query kept), so the member app is only ever installed from ecothrift.us and its scope never covers the staff app.
+        """
+        path = request.path
+        if not any(path == p or path.startswith(p + '/') for p in _DASHBOARD_SPA_PATHS):
+            return None
+        target_host = self.canonical_host or 'ecothrift.us'
+        if target_host == self.dash_host:
+            return None
+        target = f'https://{target_host}{path}'
+        query = request.META.get('QUERY_STRING', '')
+        if query:
+            target = f'{target}?{query}'
+        return HttpResponseRedirect(target)
 
     def _handle_public(self, request, host):
         path = request.path

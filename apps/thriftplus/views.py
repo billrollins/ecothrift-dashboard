@@ -16,12 +16,12 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status, viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin, IsStaff, IsSuperAdmin
+from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin, IsStaff, IsSuperAdmin, IsTeamMember
 from apps.thriftplus.models import (
     Account,
     Card,
@@ -1173,3 +1173,19 @@ class MemberDirectoryViewSet(viewsets.ViewSet):
         except MemberError as exc:
             return _error(exc)
         return Response(result)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsTeamMember])
+def staff_tag(request, sku: str):
+    """
+    The Thrift+ Staff app's test scanner (owner 2026-10-16): the item card a member's scanner shows for one tag
+    (``TagLookup``, the same shape as ``public/tag/<sku>/``), for a signed-in staff member. It logs no scan and moves no
+    item's numbers, and it answers while Thrift+ is still off for customers.
+    """
+    from apps.thriftplus.services import scanner
+
+    item = scanner.find_item(sku)
+    if item is None:
+        return Response({'status': 'not_found', 'sku': sku})
+    return Response({'status': 'found', 'item': scanner.item_card(item)})

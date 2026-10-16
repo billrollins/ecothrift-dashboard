@@ -60,15 +60,24 @@ export function canInstall(): 'prompt' | 'ios' | null {
   return null;
 }
 
-/** Put the manifest and the iPhone tags in the head; returns how to take them out again. */
+/**
+ * Put the manifest and the iPhone tags in the head; returns how to take them out again. Owner 2026-10-16: two apps that
+ * install side by side on one phone, Thrift+ Member (this one, from ecothrift.us) and Thrift+ Staff (/staff/ on
+ * dash.ecothrift.us), each with its own id, scope, icon, name and colour.
+ */
 export function installScannerHead(): () => void {
-  return installAppHead({ manifest: '/scan/manifest.webmanifest', icon: '/scan/icons/apple-touch-icon.png', title: 'Thrift+', theme: '#237a26' });
+  return installAppHead({ manifest: '/scan/manifest.webmanifest', icon: '/scan/icons/apple-touch-icon.png', title: 'Thrift+ Member', theme: '#237a26' });
 }
 
-/**
- * The same for any page that installs as its own home-screen app: the scanner, and Finalize Thrift+ on the store phones
- * (owner 2026-10-16, J13).
- */
+/** The Thrift+ Staff app (owner 2026-10-16): its manifest is scoped to /staff/, so it never overlaps the member app. */
+export const STAFF_APP_HEAD = {
+  manifest: '/staff/manifest.webmanifest',
+  icon: '/staff/icons/apple-touch-icon.png',
+  title: 'Thrift+ Staff',
+  theme: '#111111',
+} as const;
+
+/** The same for any page that installs as its own home-screen app: the member scanner and Thrift+ Staff. */
 export function installAppHead({ manifest, icon, title, theme }: { manifest: string; icon: string; title: string; theme: string }): () => void {
   const added: HTMLElement[] = [];
   const add = (tag: 'link' | 'meta', attrs: Record<string, string>) => {

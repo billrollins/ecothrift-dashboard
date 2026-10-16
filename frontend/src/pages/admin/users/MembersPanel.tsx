@@ -111,7 +111,7 @@ export default function MembersPanel({ openKey }: { openKey?: string | null }) {
       renderCell: ({ row }) => (
         <Box sx={{ minWidth: 0, py: 0.5 }}>
           <PersonCell name={row.name} secondary={`${row.number}${row.second ? ` · with ${row.second}` : ''}`}
-            seed={row.email || row.key} muted={row.stage === 'off'} />
+            seed={row.email || row.key} muted={row.stage === 'off'} photo={row.photo_url} />
           <Marks row={row} />
         </Box>
       ),

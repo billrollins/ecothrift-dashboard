@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate, useParams, useSearchParams } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { isStaffRole } from './auth/roles';
 import { useAuth } from './contexts/AuthContext';
 import { LoadingScreen } from './components/feedback/LoadingScreen';
@@ -20,7 +20,8 @@ const KioskPage = lazy(() => import('./pages/kiosk/KioskPage'));
 const ClockPage = lazy(() => import('./pages/kiosk/ClockPage'));
 // Thrift+ price scanner: the customer web app (mock). Public, its own sign-in, owns the window.
 const ThriftPlusScannerPage = lazy(() => import('./pages/thriftplus/scanner/ThriftPlusScannerPage'));
-const FinalizeThriftPlusPage = lazy(() => import('./pages/thriftplus/finalize/FinalizeThriftPlusPage'));
+// Thrift+ Staff (owner 2026-10-16): the store phones' app at /staff (Finalize, Members, Scan, Join QR).
+const StaffApp = lazy(() => import('./pages/thriftplus/staff/StaffApp'));
 const BstockLoginHandoffPage = lazy(() => import('./pages/routines/BstockLoginHandoffPage'));
 const CountPage = lazy(() => import('./pages/inventory/count/CountPage'));
 const InventoriesPage = lazy(() => import('./pages/inventory/count/InventoriesPage'));
@@ -127,6 +128,20 @@ function StaffRoute({ children }: { children: React.ReactNode }) {
   if (user?.role === 'Consignee') return <Navigate to="/consignee" replace />;
   if (isStaffRole(user?.role)) return <>{children}</>;
   return <Navigate to="/login" replace />;
+}
+
+/** Thrift+ Staff behind the staff sign-in; signing in comes back to the tab that was opened. */
+function StaffAppGate() {
+  const location = useLocation();
+  return (
+    <ProtectedRoute next={`${location.pathname}${location.search}`}>
+      <StaffRoute>
+        <Suspense fallback={<LoadingScreen message="Loading…" />}>
+          <StaffApp />
+        </Suspense>
+      </StaffRoute>
+    </ProtectedRoute>
+  );
 }
 
 function ManagerRoute({ children }: { children: React.ReactNode }) {
@@ -686,20 +701,11 @@ export default function App() {
         }
       />
 
-      {/* Finalize Thrift+ on a store phone (owner 2026-10-16, J13): staff, Employee and up. Full screen, outside MainLayout,
-          so it installs as its own home-screen app and a customer holding the phone can't wander into Dash. */}
-      <Route
-        path="/thriftplus/finalize"
-        element={
-          <ProtectedRoute next="/thriftplus/finalize">
-            <StaffRoute>
-              <Suspense fallback={<LoadingScreen message="Loading…" />}>
-                <FinalizeThriftPlusPage />
-              </Suspense>
-            </StaffRoute>
-          </ProtectedRoute>
-        }
-      />
+      {/* Thrift+ Staff on the store phones (owner 2026-10-16): staff, Employee and up. Full screen, outside MainLayout, so
+          it installs as its own home-screen app (scope /staff/) and a customer holding the phone can't wander into Dash.
+          Finalize, Members, Scan and Join QR on its bottom bar. The old Finalize address lands in it. */}
+      <Route path="/staff/*" element={<StaffAppGate />} />
+      <Route path="/thriftplus/finalize" element={<Navigate to="/staff/finalize" replace />} />
 
       {/* Hosted time kiosk - full-bleed, keeps the host's staff JWT, outside MainLayout. */}
       <Route

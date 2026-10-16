@@ -31,6 +31,38 @@ class ScannerPassthroughTests(SimpleTestCase):
             self.assertEqual((response.status_code, response.content), (200, b'dashboard'), host)
 
 
+@override_settings(
+    PUBLIC_SITE_HOSTS=['ecothrift.us', 'www.ecothrift.us'], PUBLIC_SITE_CANONICAL_HOST='ecothrift.us',
+    STAFF_DASHBOARD_HOST='dash.ecothrift.us', ALLOWED_HOSTS=['ecothrift.us', 'www.ecothrift.us', 'dash.ecothrift.us', 'localhost'],
+)
+class MemberAppOffDashTests(SimpleTestCase):
+    """Owner 2026-10-16: Thrift+ Member installs from ecothrift.us only; dash.ecothrift.us/staff is Thrift+ Staff."""
+
+    def _get(self, host, path):
+        middleware = PublicSiteMiddleware(lambda request: HttpResponse('dashboard'))
+        return middleware(RequestFactory().get(path, HTTP_HOST=host))
+
+    def test_member_pages_on_the_dash_host_go_to_ecothrift_us_with_the_query(self):
+        response = self._get('dash.ecothrift.us', '/scan?x=1')
+        self.assertEqual((response.status_code, response['Location']), (302, 'https://ecothrift.us/scan?x=1'))
+        for path in ('/scan', '/scan/list', '/qr', '/card', '/join/'):
+            response = self._get('dash.ecothrift.us', path)
+            self.assertEqual((response.status_code, response['Location']), (302, f'https://ecothrift.us{path}'), path)
+
+    def test_the_public_host_still_serves_the_member_pages(self):
+        response = self._get('ecothrift.us', '/scan')
+        self.assertEqual((response.status_code, response.content), (200, b'dashboard'))
+
+    def test_the_staff_app_and_dash_pages_are_served_on_the_dash_host(self):
+        for path in ('/staff/', '/staff/finalize', '/staff/scan', '/dashboard', '/scanner', '/api/thriftplus/public/session/'):
+            response = self._get('dash.ecothrift.us', path)
+            self.assertEqual((response.status_code, response.content), (200, b'dashboard'), path)
+
+    def test_local_dev_keeps_the_scanner(self):
+        response = self._get('localhost', '/scan')
+        self.assertEqual((response.status_code, response.content), (200, b'dashboard'))
+
+
 class AccountPagesTests(SimpleTestCase):
     """Owner 2026-10-15: the site's own account pages load directly; only Shopify's old account addresses move."""
 

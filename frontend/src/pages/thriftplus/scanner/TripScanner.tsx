@@ -59,7 +59,8 @@ import { thriftPlusKeys, useCartActions, useSignIn, useThriftPlusCart } from './
 // 'item': a trip line's tag seen again from This trip (owner 2026-10-15, APP D12).
 type Mode = 'scan' | 'card' | 'trip' | 'item';
 
-interface Top {
+/** A tag or code on screen. Also the Thrift+ Staff app's test scanner's (owner 2026-10-16, StaffScanPage.tsx). */
+export interface Top {
   key: number;
   sku: string;
   lookup: TagLookup | null;
@@ -70,9 +71,9 @@ interface Top {
 }
 
 /** The answer card a code gets instead of a tag (owner 2026-10-15, APP D14a, D14b, D15), or null for a tag. */
-type Answer = 'not-ours' | 'not-found' | 'link';
+export type Answer = 'not-ours' | 'not-found' | 'link';
 
-function answerFor(top: Top | null): Answer | null {
+export function answerFor(top: Top | null): Answer | null {
   const code = top?.code;
   if (!code) return null;
   if (code.kind === 'other') return 'not-ours';
@@ -541,8 +542,9 @@ function RetailPrice({ value, onClick }: { value: string; onClick: () => void })
 /**
  * The scanned tag, filling the middle: a big centered price tag. Swipes right to add, left to pass. A code that isn't
  * a tag we have shows its answer here instead (APP D14, D15); a left swipe is then [Scan again].
+ * The Thrift+ Staff app's test scanner shows the same card (owner 2026-10-16), without "Price feel off?" (no `onFeel`).
  */
-function ScanCard({ top, answer = null, isGuest, verified18, qty, onAdd, onPass, onFeel, onRetail, onReturns }: {
+export function ScanCard({ top, answer = null, isGuest, verified18, qty, onAdd, onPass, onFeel, onRetail, onReturns }: {
   top: Top;
   answer?: Answer | null;
   isGuest: boolean;
@@ -550,7 +552,7 @@ function ScanCard({ top, answer = null, isGuest, verified18, qty, onAdd, onPass,
   qty: number;
   onAdd: (() => void) | null;
   onPass: () => void;
-  onFeel: () => void;
+  onFeel?: () => void;
   onRetail: () => void;
   onReturns: (ok: boolean) => void;
 }) {
@@ -607,7 +609,7 @@ function FoundTag({ item, isGuest, verified18, qty, onFeel, onRetail, onReturns 
   isGuest: boolean;
   verified18: boolean;
   qty: number;
-  onFeel: () => void;
+  onFeel?: () => void;
   onRetail: () => void;
   onReturns: (ok: boolean) => void;
 }) {
@@ -654,13 +656,15 @@ function FoundTag({ item, isGuest, verified18, qty, onFeel, onRetail, onReturns 
           <CheckCircleRounded sx={{ fontSize: u(34) }} /> {qty} in your trip
         </Box>
       )}
-      <Box sx={{ mt: u(14) }}>
-        <ButtonBase onPointerDown={(e) => e.stopPropagation()} onClick={onFeel} data-testid="price-feel"
-          sx={{ gap: u(16), px: u(22), py: u(10), borderRadius: 99, color: sc.ink2, fontSize: u(28), fontFamily: sc.font }}>
-          <SmsRounded sx={{ fontSize: u(44), color: '#8c8f89' }} />
-          Price feel off? Tell us.
-        </ButtonBase>
-      </Box>
+      {onFeel && (
+        <Box sx={{ mt: u(14) }}>
+          <ButtonBase onPointerDown={(e) => e.stopPropagation()} onClick={onFeel} data-testid="price-feel"
+            sx={{ gap: u(16), px: u(22), py: u(10), borderRadius: 99, color: sc.ink2, fontSize: u(28), fontFamily: sc.font }}>
+            <SmsRounded sx={{ fontSize: u(44), color: '#8c8f89' }} />
+            Price feel off? Tell us.
+          </ButtonBase>
+        </Box>
+      )}
     </>
   );
 }

@@ -16,9 +16,10 @@ vi.mock('../../../api/memberDirectory.api', async (importOriginal) => ({
   sendMemberLink: async (key: string) => { state.sent.push(key); return { detail: 'ok' }; },
 }));
 
-const added = vi.hoisted(() => ({ calls: [] as Array<[number, Record<string, unknown>]> }));
+const added = vi.hoisted(() => ({ calls: [] as Array<[number, Record<string, unknown>]>, photos: [] as Array<[number, File]> }));
 vi.mock('../../../api/thriftplus.api', () => ({
   addSecondAdult: async (id: number, body: Record<string, unknown>) => { added.calls.push([id, body]); return {}; },
+  setPersonPhoto: async (id: number, photo: File) => { added.photos.push([id, photo]); return {}; },
 }));
 
 vi.mock('../../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 1, is_superuser: state.superuser } }) }));
@@ -112,7 +113,8 @@ describe('MembersPanel', () => {
 
 it('See QR sits at the top of the drawer, and Add a person needs a name, the ID, a photo and the approval', async () => {
   const user = userEvent.setup();
-  state.rows = [{ ...ANA, qr: 'TP402155831907', code_display: '4021 5583 1907', can_add_person: true }];
+  state.rows = [{ ...ANA, qr: 'TP402155831907', code_display: '4021 5583 1907', can_add_person: true,
+    people: [{ id: 70, name: 'Ana Diaz', role: 'primary', photo_url: null }] }];
   wrap();
   await user.click(await screen.findByText('Ana Diaz'));
   await user.click(screen.getByTestId('member-see-qr'));
@@ -127,9 +129,27 @@ it('See QR sits at the top of the drawer, and Add a person needs a name, the ID,
   await user.click(screen.getByRole('checkbox', { name: 'Both are here, and Ana approves' }));
   expect(go).toBeDisabled(); // still needs the photo
   const photo = new File(['jpg'], 'sam.jpg', { type: 'image/jpeg' });
-  await user.upload(document.querySelector('input[type=file]') as HTMLInputElement, photo);
+  const files = document.querySelectorAll('input[type=file]');
+  await user.upload(files[files.length - 1] as HTMLInputElement, photo); // the form's photo, not the header circle
   await user.click(go);
   expect(added.calls).toEqual([[7, expect.objectContaining({ first_name: 'Sam', last_name: 'Diaz', id_checked: true, photo, both_present: true, primary_approves: true })]]);
 });
-});
 
+it("shows each person's photo, and a circle taps to take or replace it (owner 2026-10-16)", async () => {
+  const user = userEvent.setup();
+  added.photos.length = 0;
+  state.rows = [{ ...ANA, can_add_person: false, photo_url: '/media/ana.jpg', second: 'Sam Diaz',
+    people: [{ id: 70, name: 'Ana Diaz', role: 'primary', photo_url: '/media/ana.jpg' },
+      { id: 71, name: 'Sam Diaz', role: 'secondary', photo_url: null }] }];
+  wrap();
+  await user.click(await screen.findByText('Ana Diaz'));
+  const slots = screen.getByTestId('member-photo-slots');
+  expect(within(slots).getByRole('img', { name: 'Ana Diaz' })).toHaveAttribute('src', '/media/ana.jpg');
+  expect(within(slots).getByLabelText("Replace Ana Diaz's photo")).toBeInTheDocument();
+  expect(screen.queryByTestId('member-add-slot')).toBeNull(); // two people: no empty slot
+  const photo = new File(['jpg'], 'sam.jpg', { type: 'image/jpeg' });
+  const take = within(slots).getByLabelText("Take Sam Diaz's photo");
+  await user.upload(take.querySelector('input[type=file]') as HTMLInputElement, photo);
+  expect(added.photos).toEqual([[71, photo]]);
+});
+});

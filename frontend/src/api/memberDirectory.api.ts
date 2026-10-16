@@ -8,6 +8,14 @@ import api from './client';
 /** Needs Finalize: email confirmed, finish at a register. Member: finalized. Off: deactivated or revoked. */
 export type MemberStage = 'needs_finalize' | 'member' | 'off' | 'unconfirmed';
 
+/** One person on a membership, for the avatar circles (owner 2026-10-16). */
+export interface MemberPerson {
+  id: number;
+  name: string;
+  role: 'primary' | 'secondary';
+  photo_url: string | null;
+}
+
 export interface MemberRow {
   /** `a<account>` (a member) or `c<user>` (an old ecothrift.us customer, until the legacy cleanup runs). */
   key: string;
@@ -37,6 +45,10 @@ export interface MemberRow {
   /** The staff member this membership is linked to. */
   staff: string;
   legacy: boolean;
+  /** The main member's photo, or null (initials show instead). */
+  photo_url?: string | null;
+  /** The people on the membership, main member first (none on an old account). */
+  people?: MemberPerson[];
   /** The main member's QR (`TP` + code) and its number in fours; '' when none (owner 2026-10-16: See QR). */
   qr?: string;
   code_display?: string;

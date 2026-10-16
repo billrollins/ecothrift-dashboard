@@ -5,7 +5,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Alert, Box, Button, Checkbox, Chip, Divider, Drawer, FormControlLabel, IconButton, Stack, TextField, Typography } from '@mui/material';
-import PersonAddAlt1Outlined from '@mui/icons-material/PersonAddAlt1Outlined';
+import Add from '@mui/icons-material/Add';
+import PhotoCameraOutlined from '@mui/icons-material/PhotoCameraOutlined';
 import QrCode2Rounded from '@mui/icons-material/QrCode2Rounded';
 import ForumOutlined from '@mui/icons-material/ForumOutlined';
 import MailOutline from '@mui/icons-material/MailOutline';
@@ -27,7 +28,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useIsMobileLayout } from '../../hooks/useIsMobileLayout';
 import { maskPhoneInput, stripPhone } from '../../utils/formatPhone';
-import { addSecondAdult } from '../../api/thriftplus.api';
+import { addSecondAdult, setPersonPhoto } from '../../api/thriftplus.api';
 import DeleteForGoodDialog from '../thriftplus/DeleteForGoodDialog';
 import { IdCheckFields, PhotoField } from '../thriftplus/PersonFields';
 import QrSvg from '../thriftplus/QrSvg';
@@ -52,6 +53,51 @@ const EMPTY_ADD = { first_name: '', last_name: '', id_checked: false, verified_1
 function splitName(name: string): { first_name: string; last_name: string } {
   const parts = name.trim().split(/\s+/);
   return { first_name: parts[0] ?? '', last_name: parts.slice(1).join(' ') };
+}
+
+/**
+ * The avatar circles (owner 2026-10-16, his drawing): the main member and the second person, each their photo (or
+ * initials). Tap one to take or replace the photo (the phone's camera on the Thrift+ Staff app). No second person yet:
+ * an empty "+" circle opens Add a person. An old account (no membership) shows its initials only.
+ */
+function PhotoSlots({ row, off, busy, onAdd, onPhoto }: {
+  row: MemberRow;
+  off: boolean;
+  busy: boolean;
+  onAdd: () => void;
+  onPhoto: (personId: number, file: File, name: string) => void;
+}) {
+  const people = row.people ?? [];
+  const size = 60;
+  if (!people.length) return <PersonAvatar name={row.name || '?'} seed={row.email || row.key} muted={off} size={size} />;
+  const slot = { p: 0, borderRadius: '50%', position: 'relative', flexShrink: 0 } as const;
+  return (
+    <Stack direction="row" spacing={0.75} data-testid="member-photo-slots" sx={{ flexShrink: 0 }}>
+      {people.slice(0, 2).map((p) => (
+        <Box key={p.id} component="label" aria-label={`${p.photo_url ? 'Replace' : 'Take'} ${p.name}'s photo`}
+          sx={{ ...slot, cursor: busy ? 'default' : 'pointer' }}>
+          <PersonAvatar name={p.name || '?'} seed={`${row.key}-${p.id}`} muted={off} size={size} photo={p.photo_url} />
+          <Box aria-hidden sx={{ position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: '50%',
+            bgcolor: 'background.paper', border: 1, borderColor: 'divider', display: 'grid', placeItems: 'center' }}>
+            <PhotoCameraOutlined sx={{ fontSize: 15 }} />
+          </Box>
+          <input hidden type="file" accept="image/*" capture="environment" disabled={busy}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (file) onPhoto(p.id, file, p.name);
+            }} />
+        </Box>
+      ))}
+      {people.length < 2 && row.can_add_person ? (
+        <Box component="button" type="button" aria-label="Add a person" data-testid="member-add-slot" onClick={onAdd}
+          sx={{ ...slot, width: size, height: size, border: '2px dashed', borderColor: 'divider', bgcolor: 'transparent',
+            color: 'text.secondary', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+          <Add />
+        </Box>
+      ) : null}
+    </Stack>
+  );
 }
 
 export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; onClose: () => void }) {
@@ -110,7 +156,8 @@ export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; 
         {row ? (
           <>
             <Stack direction="row" alignItems="flex-start" spacing={1.25} sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
-              <PersonAvatar name={row.name || '?'} seed={row.email || row.key} muted={off} size={44} />
+              <PhotoSlots row={row} off={off} busy={busy} onAdd={() => setAdding(true)}
+                onPhoto={(personId, file, name) => void run(() => setPersonPhoto(personId, file), `Photo saved for ${name}`, 'Could not save the photo')} />
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography variant="h6" sx={{ fontWeight: 700 }} noWrap>{row.name}</Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -164,11 +211,7 @@ export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; 
 
               {row.can_add_person && row.account_id ? (
                 <Box sx={{ mb: 2 }} data-testid="member-add-person">
-                  {!adding ? (
-                    <Button variant="outlined" startIcon={<PersonAddAlt1Outlined />} onClick={() => setAdding(true)}>
-                      Add a person
-                    </Button>
-                  ) : (
+                  {!adding ? null : (
                     <Box sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 2 }}>
                       <Typography sx={{ fontWeight: 700 }}>Add a person to this membership</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>

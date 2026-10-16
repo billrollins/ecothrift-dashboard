@@ -3,19 +3,10 @@ import { useEffect, useRef } from 'react';
 import QrSvg from '../../../components/thriftplus/QrSvg';
 // The terms the customer signs under, word for word from the public site's copy (one source, J5).
 import { THRIFT_PLUS_TERMS_EN as TERMS } from '../../../../../frontend-public/src/data/thriftPlusTerms.en';
-import { installAppHead } from '../scanner/installApp';
 
 /** ecothrift.us/join: the customer starts on their own phone (J8), then a cashier finishes them here. */
 export const JOIN_URL = 'https://ecothrift.us/join';
 export const JOIN_SHOWN = 'ecothrift.us/join';
-
-/** The home-screen app on the store phones (J13): its own manifest and icon, beside the customer scanner. */
-export function useFinalizeAppHead() {
-  useEffect(
-    () => installAppHead({ manifest: '/finalize/manifest.webmanifest', icon: '/finalize/icons/apple-touch-icon.png', title: 'Finalize', theme: '#1b241d' }),
-    [],
-  );
-}
 
 /**
  * The phone stays on this page while a customer holds it (owner 2026-10-16, J13): the phone's Back (a button or a

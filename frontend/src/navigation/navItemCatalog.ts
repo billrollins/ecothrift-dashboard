@@ -151,10 +151,11 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'receipt',
   },
   // A cashier finishes an online join on a phone beside her, away from the register (owner 2026-10-16). All staff.
+  // It opens the Thrift+ Staff app (owner 2026-10-16), on its Finalize tab.
   thriftPlusFinalize: {
     id: 'thriftPlusFinalize',
-    path: '/thriftplus/finalize',
-    label: 'Finalize Thrift+',
+    path: '/staff/finalize',
+    label: 'Thrift+ Staff', // the staff app (owner 2026-10-16): Finalize, Members, Scan, Join QR
     icon: 'thriftPlus',
   },
   posPrintables: {

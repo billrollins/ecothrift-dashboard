@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.178.2] -->
-<!-- Last reviewed: 2026-10-16 (2.178.2) -->
+<!-- Line 1 release: ## [2.179.0] -->
+<!-- Last reviewed: 2026-10-16 (2.179.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.179.0] - 2026-10-16
+
+User-facing theme: **Two apps on one phone: Thrift+ Member (customers, ecothrift.us) and Thrift+ Staff (dash.ecothrift.us/staff: Finalize, Members, Scan, Join QR), and member photos in the avatar circles (Bill, 2026-10-16).** Outside initiatives (Thrift+).
+
+### Added
+- **Thrift+ Staff app** at dash.ecothrift.us/staff: its own home-screen app (dark "T+ STAFF" icon) with a bottom bar: **Finalize**, **Members** (Manager and up), **Scan** (a test scanner: the item card as a member or non-member sees it; records no scan; works with Thrift+ off) and **Join QR**. The bar hides while a customer is part way through Finalize. The old Finalize address forwards here, and the Dash menu item is now "Thrift+ Staff".
+- **Member photos:** the Members list and drawer show each person's photo (initials when there is none). In the drawer, tap a circle to take or replace the photo, or the empty "+" circle to add a second person (the Add a person button is gone).
+
+### Changed
+- **Thrift+ Member** is the customer app's name, installed only from ecothrift.us: dash.ecothrift.us sends /scan, /qr, /join and /card to ecothrift.us, so the two apps never cover each other and both install. A phone that installed the member app from dash.ecothrift.us removes it once and installs it from ecothrift.us/scan.
 
 ## [2.178.2] - 2026-10-16
 

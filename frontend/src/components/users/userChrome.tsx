@@ -32,15 +32,20 @@ export function PersonAvatar({
   seed,
   muted = false,
   size = 32,
+  photo,
 }: {
   name: string;
   seed: string;
   muted?: boolean;
   size?: number;
+  /** Their photo (owner 2026-10-16): shown instead of the initials when there is one. */
+  photo?: string | null;
 }) {
   const h = hue(seed || name);
   return (
     <Avatar
+      src={photo || undefined}
+      alt={photo ? name : undefined}
       sx={{
         width: size,
         height: size,
@@ -63,16 +68,18 @@ export function PersonCell({
   seed,
   muted = false,
   trailing,
+  photo,
 }: {
   name: string;
   secondary: string;
   seed: string;
   muted?: boolean;
   trailing?: ReactNode;
+  photo?: string | null;
 }) {
   return (
     <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0, width: '100%' }}>
-      <PersonAvatar name={name || '?'} seed={seed} muted={muted} />
+      <PersonAvatar name={name || '?'} seed={seed} muted={muted} photo={photo} />
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
           <Typography

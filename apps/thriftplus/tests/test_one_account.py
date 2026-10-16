@@ -171,6 +171,9 @@ class MembersTabTests(TestCase):
         # Member # is the 12-digit member code (owner 2026-10-16), not the membership's database id.
         self.assertRegex(ana['number'], r'^\d{4} \d{4} \d{4}$')
         self.assertEqual(ana['number'], ana['code_display'])
+        # The avatar circles (owner 2026-10-16): the people, main member first, each with a photo or none.
+        self.assertEqual([p['role'] for p in ana['people']], ['primary'])
+        self.assertIsNone(ana['photo_url'])
         self.assertTrue(rows[0]['legacy'])
 
     def test_deactivate_is_off_and_reactivate_puts_it_back(self):

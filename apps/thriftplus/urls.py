@@ -15,6 +15,7 @@ from apps.thriftplus.views import (
     ReturnsViewSet,
     RewardsViewSet,
     StaffMembershipsViewSet,
+    staff_tag,
 )
 
 router = DefaultRouter()
@@ -90,6 +91,8 @@ public = [path(str(p.pattern), p.callback if str(p.pattern) in SIGN_IN else _gat
 urlpatterns = [
     path('public/', include(public)),  # the scanner app and portal: member sessions only (public_views.py)
     # Staff send a member the Thrift+ app link (owner 2026-10-15, J12); the same as people/<id>/email-link/.
+    # The Thrift+ Staff app's test scanner (owner 2026-10-16): a tag's item card, never counted as a scan.
+    path('staff-tag/<str:sku>/', staff_tag, name='thriftplus-staff-tag'),
     path('members/<int:pk>/email-link/', PersonViewSet.as_view({'post': 'email_link'}), name='thriftplus-member-email-link'),
     path('', include(router.urls)),
 ]

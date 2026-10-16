@@ -33,7 +33,7 @@ import { compressImageToJpeg } from '../../../services/receiving/receivingClient
 import { thriftCardCode } from '../../../utils/thriftPlusCard';
 import { isStandalone } from '../scanner/installApp';
 import { useQrCamera } from '../scanner/useQrCamera';
-import { JoinQrDialog, TermsDialog, useFinalizeAppHead, useStayOnPage } from './finalizeParts';
+import { JoinQrDialog, TermsDialog, useStayOnPage } from './finalizeParts';
 import { PersonCard, PersonSheet } from './finalizePeople';
 import { useAuth } from '../../../contexts/AuthContext';
 import ThriftSignaturePad, { type ThriftSignaturePadHandle } from './ThriftSignaturePad';
@@ -150,8 +150,12 @@ function QrScan({ onCode, onClose, busy }: { onCode: (raw: string) => void; onCl
  *
  * Owner 2026-10-16 (J13): a home-screen app on the store phones, full screen. The Join QR shows a customer who hasn't
  * joined; the terms open in a popup; Back, a swipe, a pull-down or a long press can't take a customer off the page.
+ *
+ * Owner 2026-10-16: it is the Finalize tab of the Thrift+ Staff app (/staff/finalize, StaffApp.tsx), which owns the
+ * page head (the staff manifest). `onMidway` tells the app when someone is part way through, so it hides its bottom bar
+ * and a customer holding the phone can't open another tab.
  */
-export default function FinalizeThriftPlusPage() {
+export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midway: boolean) => void } = {}) {
   const [step, setStep] = useState<Step>('find');
   const [person, setPerson] = useState<ThriftPendingPerson | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -180,7 +184,7 @@ export default function FinalizeThriftPlusPage() {
   const lastScan = useRef('');
   const digits = phoneDigits(phone);
 
-  useFinalizeAppHead();
+  const midway = step !== 'find' && step !== 'done';
   useStayOnPage({
     // The phone's Back closes a popup, or does nothing: the on-screen Back moves between steps.
     onBack: () => {
@@ -188,8 +192,13 @@ export default function FinalizeThriftPlusPage() {
       setTerms(false);
       setInfo(null);
     },
-    midway: step !== 'find' && step !== 'done',
+    midway,
   });
+  useEffect(() => {
+    onMidway?.(midway);
+  }, [midway, onMidway]);
+  // Leaving the tab never leaves the app's bar hidden.
+  useEffect(() => () => onMidway?.(false), [onMidway]);
 
   async function search(query: string) {
     setFinding(true);
@@ -333,7 +342,6 @@ export default function FinalizeThriftPlusPage() {
       data-testid="finalize-thriftplus"
       sx={{
         maxWidth: 560, mx: 'auto', px: 2, pt: 'calc(env(safe-area-inset-top, 0px) + 16px)', pb: 'calc(env(safe-area-inset-bottom, 0px) + 48px)',
-        minHeight: '100dvh',
         // A long press opens no menu and selects nothing (typing still works).
         userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
         '& input, & textarea': { userSelect: 'text', WebkitUserSelect: 'text' },

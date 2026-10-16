@@ -196,12 +196,18 @@ describe('Finalize Thrift+', () => {
     expect(window.history.length).toBe(entries + 1); // the guard entry is put back
   });
 
-  it('puts the Finalize app manifest in the head (installs beside the scanner)', async () => {
-    const { unmount } = renderPage();
-    await screen.findByText('Cara Joyner');
-    expect(document.head.querySelector('link[rel="manifest"]')).toHaveAttribute('href', '/finalize/manifest.webmanifest');
-    unmount();
+  it('leaves the page head to the Thrift+ Staff app, and says when someone is part way through (owner 2026-10-16)', async () => {
+    const user = userEvent.setup();
+    const onMidway = vi.fn();
+    const { unmount } = render(<MemoryRouter><FinalizeThriftPlusPage onMidway={onMidway} /></MemoryRouter>);
+    await user.click(await screen.findByText('Cara Joyner'));
     expect(document.head.querySelector('link[rel="manifest"]')).toBeNull();
+    expect(onMidway).toHaveBeenLastCalledWith(false);
+    await user.click(await screen.findByRole('button', { name: 'Finish now' }));
+    await screen.findByLabelText('Phone number');
+    expect(onMidway).toHaveBeenLastCalledWith(true);
+    unmount();
+    expect(onMidway).toHaveBeenLastCalledWith(false);
   });
 
   it('lists the newest online joins in a scrolling box; a finished one says Finished and is not picked', async () => {

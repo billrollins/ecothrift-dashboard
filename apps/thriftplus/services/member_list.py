@@ -93,6 +93,8 @@ def rows() -> list[dict]:
         sale = sales.get(account.pk, {})
         hold = holds.get(email, {}) if email else {}
         others = [str(p) for p in account.people.all() if p.removed_at is None and p is not person]
+        # The people on the membership, main member first, with their photos (owner 2026-10-16: the avatar circles).
+        people = sorted((p for p in account.people.all() if p.removed_at is None), key=lambda p: p is not person)
         out.append({
             'key': f'a{account.pk}', 'kind': 'member', 'account_id': account.pk, 'user_id': None,
             # Member # is the primary person's 12-digit member code, "7166 7172 0440" (owner 2026-10-16); the
@@ -110,6 +112,9 @@ def rows() -> list[dict]:
             'qr': f'TP{code}' if code else '', 'code_display': display(code) if code else '',
             # A second adult can be added to an active membership that has none (2 adults at most).
             'can_add_person': account.status == Account.STATUS_ACTIVE and not others,
+            'photo_url': person.photo.url if person and person.photo else None,
+            'people': [{'id': p.pk, 'name': str(p), 'role': p.role, 'photo_url': p.photo.url if p.photo else None}
+                       for p in people],
         })
     for user in _legacy_users():
         email = (user.email or '').strip().lower()
