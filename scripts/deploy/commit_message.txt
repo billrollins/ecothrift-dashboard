@@ -1,12 +1,8 @@
-v2.179.0 — Two apps on one phone: Thrift+ Member and Thrift+ Staff (Finalize, Members, Scan, Join QR), and member photos
+v2.179.1 — Receipts no longer print their top over and over (print server 1.9.5)
 
-User-facing theme: **Two apps on one phone: Thrift+ Member (customers, ecothrift.us) and Thrift+ Staff (dash.ecothrift.us/staff: Finalize, Members, Scan, Join QR), and member photos in the avatar circles (Bill, 2026-10-16).** Outside initiatives (Thrift+).
+User-facing theme: **Receipts no longer print their top over and over (print server 1.9.5; Bill, 2026-10-17).** Outside initiatives (POS).
 
-### Added
-- **Thrift+ Staff app** at dash.ecothrift.us/staff: its own home-screen app (dark "T+ STAFF" icon) with a bottom bar: **Finalize**, **Members** (Manager and up), **Scan** (a test scanner: the item card as a member or non-member sees it; records no scan; works with Thrift+ off) and **Join QR**. The bar hides while a customer is part way through Finalize. The old Finalize address forwards here, and the Dash menu item is now "Thrift+ Staff".
-- **Member photos:** the Members list and drawer show each person's photo (initials when there is none). In the drawer, tap a circle to take or replace the photo, or the empty "+" circle to add a second person (the Add a person button is gone).
-
-### Changed
-- **Thrift+ Member** is the customer app's name, installed only from ecothrift.us: dash.ecothrift.us sends /scan, /qr, /join and /card to ecothrift.us, so the two apps never cover each other and both install. A phone that installed the member app from dash.ecothrift.us removes it once and installs it from ecothrift.us/scan.
+### Fixed
+- **Print server 1.9.5:** a receipt (most often a member's with 3-day returns) sometimes printed its top, logo to the 3-DAY RETURN bar, many times before the whole receipt. The receipt picture went to the printer in one ~80 KB piece; solid black slows a thermal printer, its memory filled, and Windows restarted the job from the top. It now goes in small strips at the printer's own speed. Each register installs 1.9.5 from Settings → Printing → Download.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

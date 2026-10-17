@@ -23,7 +23,11 @@ from services import receipt_printer as rp
 
 DOTS = 576  # 80mm paper at 203 dpi: 72 bytes a row (the 48-character tape is 48 x 12 dots)
 SIDE = 8
-BAND_ROWS = 128  # rows per GS v 0 command; small bands suit every printer's buffer
+BAND_ROWS = 64  # rows per GS v 0 command (4.6 KB): small strips, sent one at a time (1.9.5)
+# How fast to send (1.9.5): about the printer's own speed, so its memory never fills. A thermal printer slows down on
+# solid black to protect its head, so a dark strip gets more time. Rows a second, and the extra share for black.
+SEND_ROWS_PER_SECOND = 800
+DARK_SLOWDOWN = 3.0
 INK = 150  # darker than this prints black
 
 
@@ -334,7 +338,33 @@ def raster_bytes(image: Image.Image) -> bytes:
     return bytes(out)
 
 
+def raster_parts(image: Image.Image) -> list[tuple[bytes, float]]:
+    """The picture as GS v 0 strips, each with the seconds to wait after sending it (its print time, longer when
+    dark). Joined, the strips are exactly ``raster_bytes``."""
+    bw = image.convert("L").point(lambda v: 255 if v < 128 else 0).convert("1", dither=Image.Dither.NONE)
+    width_bytes = (bw.width + 7) // 8
+    parts: list[tuple[bytes, float]] = []
+    for top in range(0, bw.height, BAND_ROWS):
+        part = bw.crop((0, top, bw.width, min(bw.height, top + BAND_ROWS)))
+        rows = part.height
+        body = part.tobytes()
+        black = sum(bin(b).count("1") for b in body) / max(1, len(body) * 8)
+        wait = rows / SEND_ROWS_PER_SECOND * (1 + DARK_SLOWDOWN * black)
+        head = b"\x1dv0\x00" + bytes([width_bytes % 256, width_bytes // 256, rows % 256, rows // 256])
+        parts.append((head + body, round(wait, 3)))
+    return parts
+
+
+def receipt_parts(data: dict[str, Any]) -> list[tuple[bytes, float]]:
+    """The whole print job in strips (1.9.5): reset and left align on the first, feed and cut on the last."""
+    parts = raster_parts(render_thermal_receipt(data))
+    first, wait = parts[0]
+    parts[0] = (rp.INIT + rp.LEFT + first, wait)
+    last, wait = parts[-1]
+    parts[-1] = (last + rp.FEED_LINES(4) + rp.PARTIAL_CUT, wait)
+    return parts
+
+
 def receipt_escpos(data: dict[str, Any]) -> bytes:
-    """The whole print job: reset, left align, the picture, feed and cut."""
-    image = render_thermal_receipt(data)
-    return rp.INIT + rp.LEFT + raster_bytes(image) + rp.FEED_LINES(4) + rp.PARTIAL_CUT
+    """The whole print job in one piece: reset, left align, the picture, feed and cut."""
+    return b"".join(part for part, _wait in receipt_parts(data))

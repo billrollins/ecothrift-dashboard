@@ -1,7 +1,7 @@
-VERSION = "1.9.4"
+VERSION = "1.9.5"
 RELEASE_NOTES = (
-    "Receipt words: a member's '35.00 used' has no minus; a non-member's block says 'You missed out on:' over "
-    "'12.60 ThriftBucks and 3-day returns'."
+    "Fixes receipts that printed their top (logo to the 3-DAY RETURN bar) over and over: the picture now goes to the "
+    "printer in small strips at the printer's own speed, so Windows never stalls and restarts the job."
 )
 
 # Default URL for the public version-check endpoint on the dashboard backend.
@@ -9,6 +9,19 @@ RELEASE_NOTES = (
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.9.5] — 2026-10-17 (install on every register: REG-01, REG-02, TRAIN)
+
+Owner 2026-10-17: now and then a receipt (most often a member's with 3-day returns) printed its top, from the logo to
+the 3-DAY RETURN bar, ten times over before the whole receipt.
+
+### Fixed
+- **No more repeated receipt tops.** The receipt picture was handed to Windows in one piece (~80 KB). Solid black (the
+  logo, then the black bar) makes a thermal printer slow down to protect its head; its memory filled, the send stalled
+  past Windows' limit, and Windows restarted the job from the top, again and again. Now the picture goes out in small
+  strips (64 rows, under 5 KB each) in one job, at about the printer's own speed, with more time for dark strips
+  (``send_raw_paced``), so the printer's memory never fills. A long receipt takes about 3 seconds. The test receipt uses
+  the same path.
+
 ## [1.9.4] — 2026-10-16 (install on every register: REG-01, REG-02, TRAIN)
 
 ### Changed

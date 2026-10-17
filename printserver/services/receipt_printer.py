@@ -536,6 +536,18 @@ def format_receipt(data: dict[str, Any]) -> bytes:
         return format_receipt_tape(data)
 
 
+def receipt_job_parts(data: dict[str, Any]) -> list[tuple[bytes, float]]:
+    """The print job as (bytes, seconds to wait after) parts, for ``printer_manager.send_raw_paced`` (1.9.5): the
+    picture in strips, or the text tape in one piece if the picture fails."""
+    try:
+        from services.receipt_raster import receipt_parts
+
+        return receipt_parts(data)
+    except Exception:  # noqa: BLE001
+        logger.exception("Receipt picture failed; printing the text tape")
+        return [(format_receipt_tape(data), 0.0)]
+
+
 def format_receipt_tape(data: dict[str, Any]) -> bytes:
     """The text tape (the fallback): a complete ESC/POS byte stream from receipt_data.
 

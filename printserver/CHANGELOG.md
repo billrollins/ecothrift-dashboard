@@ -5,6 +5,19 @@ Ship: `.ai/protocols/ship-print-server.md`. Script: `python printserver/distribu
 
 ---
 
+## [1.9.5] — 2026-10-17 (install on every register: REG-01, REG-02, TRAIN)
+
+Owner 2026-10-17: now and then a receipt (most often a member's with 3-day returns) printed its top, from the logo to
+the 3-DAY RETURN bar, ten times over before the whole receipt.
+
+### Fixed
+- **No more repeated receipt tops.** The receipt picture was handed to Windows in one piece (~80 KB). Solid black (the
+  logo, then the black bar) makes a thermal printer slow down to protect its head; its memory filled, the send stalled
+  past Windows' limit, and Windows restarted the job from the top, again and again. Now the picture goes out in small
+  strips (64 rows, under 5 KB each) in one job, at about the printer's own speed, with more time for dark strips
+  (`send_raw_paced`), so the printer's memory never fills. A long receipt takes about 3 seconds. The test receipt uses
+  the same path.
+
 ## [1.9.4] — 2026-10-16 (install on every register: REG-01, REG-02, TRAIN)
 
 ### Changed

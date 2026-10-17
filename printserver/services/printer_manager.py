@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from typing import Any
 
 import win32con  # type: ignore[import-untyped]
@@ -128,6 +130,33 @@ def resolve_printer(requested: str | None, role: str | None = None) -> str:
         "No printer configured. Open http://127.0.0.1:8888 to select printers. "
         f"Installed printers: {sorted(installed)}"
     )
+
+
+_PACED_LOCK = threading.Lock()
+
+
+def send_raw_paced(printer_name: str, doc_name: str, parts: list[tuple[bytes, float]]) -> None:
+    """One RAW job written a part at a time, waiting after each part (1.9.5, owner 2026-10-17).
+
+    Windows starts sending a job to the printer while it is still being written, so pacing the writes paces what
+    reaches the printer: its memory never fills, the send never stalls past Windows' limit, and Windows never restarts
+    the job (a restart reprinted the receipt's top over and over). One receipt at a time per print server.
+    """
+    with _PACED_LOCK:
+        handle = win32print.OpenPrinter(printer_name)
+        try:
+            win32print.StartDocPrinter(handle, 1, (doc_name, None, "RAW"))
+            try:
+                win32print.StartPagePrinter(handle)
+                for data, wait in parts:
+                    win32print.WritePrinter(handle, data)
+                    if wait > 0:
+                        time.sleep(wait)
+                win32print.EndPagePrinter(handle)
+            finally:
+                win32print.EndDocPrinter(handle)
+        finally:
+            win32print.ClosePrinter(handle)
 
 
 def send_raw(printer_name: str, doc_name: str, data: bytes) -> None:

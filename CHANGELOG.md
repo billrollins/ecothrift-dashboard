@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.179.0] -->
-<!-- Last reviewed: 2026-10-16 (2.179.0) -->
+<!-- Line 1 release: ## [2.179.1] -->
+<!-- Last reviewed: 2026-10-17 (2.179.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.179.1] - 2026-10-17
+
+User-facing theme: **Receipts no longer print their top over and over (print server 1.9.5; Bill, 2026-10-17).** Outside initiatives (POS).
+
+### Fixed
+- **Print server 1.9.5:** a receipt (most often a member's with 3-day returns) sometimes printed its top, logo to the 3-DAY RETURN bar, many times before the whole receipt. The receipt picture went to the printer in one ~80 KB piece; solid black slows a thermal printer, its memory filled, and Windows restarted the job from the top. It now goes in small strips at the printer's own speed. Each register installs 1.9.5 from Settings → Printing → Download.
 
 ## [2.179.0] - 2026-10-16
 
