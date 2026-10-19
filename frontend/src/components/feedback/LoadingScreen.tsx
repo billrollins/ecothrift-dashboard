@@ -1,10 +1,13 @@
 import { Box, CircularProgress, Typography } from '@mui/material';
+import { APP_VERSION } from '../../utils/appVersion';
 
 export interface LoadingScreenProps {
   message?: string;
+  /** The release version under it, muted: the Thrift+ Staff app's splash. */
+  version?: boolean;
 }
 
-export function LoadingScreen({ message }: LoadingScreenProps) {
+export function LoadingScreen({ message, version }: LoadingScreenProps) {
   return (
     <Box
       sx={{
@@ -22,6 +25,11 @@ export function LoadingScreen({ message }: LoadingScreenProps) {
           {message}
         </Typography>
       )}
+      {version && APP_VERSION ? (
+        <Typography variant="caption" color="text.disabled" data-testid="app-version">
+          {APP_VERSION}
+        </Typography>
+      ) : null}
     </Box>
   );
 }

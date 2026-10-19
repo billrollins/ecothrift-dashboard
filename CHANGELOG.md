@@ -25,6 +25,13 @@ User-facing theme: **The Transactions page shows totals, Thrift+ members and the
 ### Changed
 - The table fills most of the screen (compact rows, a smaller header, the "Press Enter" hint gone), and Status no longer cuts off to "Complet...".
 
+## [2.182.5] - 2026-10-19
+
+User-facing theme: **Both Thrift+ apps show their version on the splash screen, muted (Bill, 2026-10-19).** Outside initiatives (Thrift+).
+
+### Added
+- **Thrift+ Member and Thrift+ Staff:** the loading screen each app shows when it opens now has the version under the spinner in small grey text (for example v2.182.5), so anyone can tell which release a phone is running. The version comes from the release itself, set when the app is built. Dash's own loading screens are unchanged.
+
 ## [2.182.4] - 2026-10-19
 
 User-facing theme: **Finalize is one screen: their photo with Retake, the ID check, a signature only if needed, Done, then Add a person; and the selfie camera opens in the installed app (Bill, 2026-10-19).** Outside initiatives (Thrift+).

@@ -116,9 +116,9 @@ import OnlineSalesHoldsPage from './pages/online-sales/OnlineSalesHoldsPage';
 import OnlineSalesMessagesPage from './pages/online-sales/OnlineSalesMessagesPage';
 import AnnouncementsPage from './pages/announcements/AnnouncementsPage';
 
-function ProtectedRoute({ children, next }: { children: React.ReactNode; next?: string }) {
+function ProtectedRoute({ children, next, version }: { children: React.ReactNode; next?: string; version?: boolean }) {
   const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) return <LoadingScreen message="Loading..." />;
+  if (isLoading) return <LoadingScreen message="Loading..." version={version} />;
   if (!isAuthenticated) return <Navigate to={next ? `/login?next=${encodeURIComponent(next)}` : '/login'} replace />;
   return <>{children}</>;
 }
@@ -134,9 +134,9 @@ function StaffRoute({ children }: { children: React.ReactNode }) {
 function StaffAppGate() {
   const location = useLocation();
   return (
-    <ProtectedRoute next={`${location.pathname}${location.search}`}>
+    <ProtectedRoute next={`${location.pathname}${location.search}`} version>
       <StaffRoute>
-        <Suspense fallback={<LoadingScreen message="Loading…" />}>
+        <Suspense fallback={<LoadingScreen message="Loading…" version />}>
           <StaffApp />
         </Suspense>
       </StaffRoute>
