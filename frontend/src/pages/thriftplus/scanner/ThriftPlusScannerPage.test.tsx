@@ -594,7 +594,7 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     expect(screen.getByTestId('where')).toHaveTextContent('?view=finish');
     expect(within(finish).getByTestId('finish-progress')).toHaveTextContent('Step 1 of 2');
     expect(within(finish).getByTestId('finish-intro')).toHaveTextContent('Two quick steps: 1. Selfie 2. Sign. Then show your QR at the register.');
-    expect(within(finish).getByTestId('selfie-tip')).toHaveTextContent('Face the camera, no hat or sunglasses.');
+    expect(within(finish).getByTestId('selfie-tip')).toHaveTextContent('Fit your face in the oval. No hat or sunglasses.');
     expect(within(finish).queryByRole('button', { name: /skip|later/i })).toBeNull();
     const input = within(finish).getByTestId('selfie-input');
     expect(input).toHaveAttribute('accept', 'image/*');
@@ -646,6 +646,31 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     expect(await screen.findByTestId('see-trip')).toBeInTheDocument();
     expect(screen.queryByTestId('finish-joining')).toBeNull();
     expect(screen.getByTestId('where')).toHaveTextContent(/^$/);
+  });
+
+  it('the selfie camera opens in the app with an oval to fit the face in (owner 2026-10-19)', async () => {
+    const stop = vi.fn();
+    const fakeStream = { getTracks: () => [{ stop }] } as unknown as MediaStream;
+    const getUserMedia = vi.fn().mockResolvedValue(fakeStream);
+    const playSpy = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    Object.defineProperty(window, 'isSecureContext', { configurable: true, value: true });
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } });
+    try {
+      const user = userEvent.setup();
+      await mockApi.joinThriftPlus('Robin', 'Lee', 'robin@example.com');
+      const { token } = thriftPlusMockControls.outbox()[0];
+      renderPage(`/scan?signin=${token}`);
+      const finish = await screen.findByTestId('finish-joining');
+      await user.click(within(finish).getByRole('button', { name: 'Take my selfie' }));
+      expect(await within(finish).findByTestId('selfie-camera')).toBeInTheDocument();
+      expect(getUserMedia).toHaveBeenCalledWith(expect.objectContaining({ video: expect.objectContaining({ facingMode: { ideal: 'user' } }) }));
+      expect(await within(finish).findByText('Fit your face in the oval')).toBeInTheDocument();
+      expect(within(finish).getByRole('button', { name: 'Take photo' })).toBeInTheDocument();
+    } finally {
+      playSpy.mockRestore();
+      Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: undefined });
+      Object.defineProperty(window, 'isSecureContext', { configurable: true, value: false });
+    }
   });
 
   it('a photo this phone cannot read is not sent: it asks for the selfie again', async () => {

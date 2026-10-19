@@ -18,6 +18,7 @@ import { ErrorLine } from './signInParts';
 import { sc, u } from './scannerTheme';
 import { BigButton } from './tripUi';
 import { useFinishJoining } from './useThriftPlus';
+import SelfieCamera, { selfieCameraAvailable } from './SelfieCamera';
 
 /** The terms' version, as the server records it (apps/thriftplus/services/register.py TERMS_VERSION). */
 export const TERMS_VERSION = '2026-10-19'; // matches the server's register.TERMS_VERSION (the terms of 10-19, J17)
@@ -126,20 +127,31 @@ export function FinishJoining({ member, onDone, onClose }: {
   );
 }
 
-/** Step: the selfie, with the front camera. */
+/**
+ * Step: the selfie. The front camera opens in the app with an oval to fit the face in (owner 2026-10-19: close enough
+ * for staff to match it to the ID); where it can't open here, the phone's own camera.
+ */
 function SelfieStep() {
   const finish = useFinishJoining();
   const input = useRef<HTMLInputElement | null>(null);
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [err, setErr] = useState('');
+  const [camera, setCamera] = useState(false);
+  // The in-app camera failed once (blocked or unsupported): use the phone's own camera from then on.
+  const [native, setNative] = useState(false);
   const preview = usePreview(photo);
 
-  const open = () => {
-    setErr('');
+  const openNative = () => {
     if (input.current) {
       input.current.value = ''; // the same photo again still counts as a new one
       input.current.click();
     }
+  };
+
+  const open = () => {
+    setErr('');
+    if (!native && selfieCameraAvailable()) setCamera(true);
+    else openNative();
   };
 
   const use = async () => {
@@ -172,6 +184,20 @@ function SelfieStep() {
           });
         }}
       />
+      {camera ? (
+        <SelfieCamera
+          onPhoto={(blob) => {
+            setCamera(false);
+            setPhoto(blob);
+          }}
+          onFail={() => {
+            setCamera(false);
+            setNative(true);
+            setErr("The camera didn't open here. Tap Take my selfie to use your phone's camera.");
+          }}
+        />
+      ) : (
+      <>
       <Box
         sx={{
           mt: u(30), mx: 'auto', width: u(560), maxWidth: '100%', aspectRatio: '3 / 4', borderRadius: u(36), overflow: 'hidden',
@@ -187,7 +213,7 @@ function SelfieStep() {
         )}
       </Box>
       <Box data-testid="selfie-tip" sx={{ mt: u(22), textAlign: 'center', fontSize: u(30), color: sc.ink2 }}>
-        Face the camera, no hat or sunglasses.
+        Fit your face in the oval. No hat or sunglasses.
       </Box>
       {err && <ErrorLine sx={{ textAlign: 'center' }}>{err}</ErrorLine>}
       <Box sx={{ mt: u(30), display: 'flex', flexDirection: 'column', gap: u(18) }}>
@@ -202,6 +228,8 @@ function SelfieStep() {
           <BigButton primary onClick={open} testId="selfie-take">Take my selfie</BigButton>
         )}
       </Box>
+      </>
+      )}
     </Box>
   );
 }

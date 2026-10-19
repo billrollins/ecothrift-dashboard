@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.182.1] -->
-<!-- Last reviewed: 2026-10-19 (2.182.1) -->
+<!-- Line 1 release: ## [2.182.2] -->
+<!-- Last reviewed: 2026-10-19 (2.182.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.182.2] - 2026-10-19
+
+User-facing theme: **The selfie camera has a face oval: "Fit your face in the oval", so the face is close enough to match the photo ID (Bill, 2026-10-19).** Outside initiatives (Thrift+).
+
+### Changed
+- **Finish joining → selfie:** "Take my selfie" opens the front camera inside the app with an oval to fit the face in ("Fit your face in the oval"), then "Take photo". The photo is cropped to the frame around the oval, so a face that fills the oval fills the photo (mirrored on screen like a mirror, not in the photo). Where the camera can't open in the app, the phone's own camera opens as before.
+- **Continue with Google** is switched on (the Google client ID is set on Heroku).
 
 ## [2.182.1] - 2026-10-19
 

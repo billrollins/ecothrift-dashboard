@@ -1,8 +1,9 @@
-v2.182.1 — Thrift+ email sign-in limits hold for their whole 15 minutes or hour
+v2.182.2 — The selfie camera has a face oval, so the face is close enough to match the photo ID
 
-User-facing theme: **Thrift+ email sign-in limits now hold for their whole 15 minutes or hour, instead of ending about 5 minutes after the second try.** Outside initiatives (Thrift+).
+User-facing theme: **The selfie camera has a face oval: "Fit your face in the oval", so the face is close enough to match the photo ID (Bill, 2026-10-19).** Outside initiatives (Thrift+).
 
-### Fixed
-- **Email sign-in limits keep their window:** the limits on sign-in emails (3 per 15 minutes and 6 an hour per email, 10 an hour per address) and on code tries (10 per 15 minutes per address) used `cache.incr`, which on the database cache re-saves the count with the default 5-minute timeout, so a count ended about 5 minutes after its second try. They now count in the same window-keeping counter as the phone-code limits (start and count stored, re-saved with the time left). Counts saved before this release still count.
+### Changed
+- **Finish joining → selfie:** "Take my selfie" opens the front camera inside the app with an oval to fit the face in ("Fit your face in the oval"), then "Take photo". The photo is cropped to the frame around the oval, so a face that fills the oval fills the photo (mirrored on screen like a mirror, not in the photo). Where the camera can't open in the app, the phone's own camera opens as before.
+- **Continue with Google** is switched on (the Google client ID is set on Heroku).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
