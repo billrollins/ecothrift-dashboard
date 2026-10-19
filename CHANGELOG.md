@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.182.0] -->
-<!-- Last reviewed: 2026-10-19 (2.182.0) -->
+<!-- Line 1 release: ## [2.182.1] -->
+<!-- Last reviewed: 2026-10-19 (2.182.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.182.1] - 2026-10-19
+
+User-facing theme: **Thrift+ email sign-in limits now hold for their whole 15 minutes or hour, instead of ending about 5 minutes after the second try.** Outside initiatives (Thrift+).
+
+### Fixed
+- **Email sign-in limits keep their window:** the limits on sign-in emails (3 per 15 minutes and 6 an hour per email, 10 an hour per address) and on code tries (10 per 15 minutes per address) used `cache.incr`, which on the database cache re-saves the count with the default 5-minute timeout, so a count ended about 5 minutes after its second try. They now count in the same window-keeping counter as the phone-code limits (start and count stored, re-saved with the time left). Counts saved before this release still count.
 
 ## [2.182.0] - 2026-10-19
 

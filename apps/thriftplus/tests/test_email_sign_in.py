@@ -4,11 +4,14 @@ Finish joining), and staff sending the app link from Dash. The mail send is mock
 from __future__ import annotations
 
 import re
-from datetime import timedelta
+import time
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from unittest.mock import patch
 
-from django.core.cache import cache
+from django.core.cache import cache, caches
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -19,6 +22,7 @@ from apps.thriftplus.models import Account, Card, CartMember, Event, LedgerEntry
 from apps.thriftplus.services import member_auth, members, register, signin_emails
 from apps.thriftplus.services.overview import overview
 from apps.thriftplus.tests.test_register import RegisterBase
+from ecothrift import settings as prod_settings
 
 BASE = '/api/thriftplus/public/'
 IP = '203.0.113.5'
@@ -578,3 +582,79 @@ class StaffEmailLinkTests(MailMixin, RegisterBase):
         self.skip_gap('cara@example.com')
         self.assertEqual(self._send_link(cara).json()['sent'], 'join')
         self.assertEqual(register.pending('cara')[0]['person_id'], cara.pk)
+
+
+@override_settings(CACHES=prod_settings.CACHES)
+class LimitWindowTests(TestCase):
+    """The email limits count across their whole window on the production cache (the database cache). Its ``incr``
+    re-saves a key with the default 5-minute timeout, so a 15-minute or hour count used to end 5 minutes after its
+    second count."""
+
+    def setUp(self):
+        call_command('createcachetable', verbosity=0)
+        cache.clear()
+        self.start = self.now = time.time()
+        for target, fake in (('time.time', lambda: self.now),
+                             ('django.core.cache.backends.db.tz_now',
+                              lambda: datetime.fromtimestamp(self.now, tz=dt_timezone.utc))):
+            clock = patch(target, side_effect=fake)
+            clock.start()
+            self.addCleanup(clock.stop)
+
+    def at(self, seconds):
+        self.now = self.start + seconds
+
+    def refused(self, email, ip=None) -> bool:
+        try:
+            member_auth._limit_send(email, ip)
+        except member_auth.LimitError:
+            return True
+        return False
+
+    def test_the_production_cache_is_the_database_cache(self):
+        self.assertEqual(type(caches['default']).__name__, 'DatabaseCache')
+
+    def test_3_sends_per_email_hold_for_the_full_15_minutes(self):
+        for when in (0, 31, 62):
+            self.at(when)
+            self.assertFalse(self.refused('bo@example.com'))
+        for when in (93, 400, 899):  # 400: past the default timeout after the second count
+            self.at(when)
+            self.assertTrue(self.refused('bo@example.com'), when)
+        self.at(901)  # the window ends 15 minutes after the first send, not later
+        self.assertFalse(self.refused('bo@example.com'))
+
+    def test_6_sends_per_email_hold_for_the_full_hour(self):
+        for when in (0, 31, 62, 901, 932, 963):
+            self.at(when)
+            self.assertFalse(self.refused('bo@example.com'), when)
+        for when in (1900, 3000, 3599):  # the 15-minute count is over; the hour's is not
+            self.at(when)
+            self.assertTrue(self.refused('bo@example.com'), when)
+        self.at(3601)
+        self.assertFalse(self.refused('bo@example.com'))
+
+    def test_10_sends_per_address_hold_for_the_full_hour(self):
+        for n in range(member_auth.SENDS_PER_IP_HOUR):
+            self.at(n * 60)
+            self.assertFalse(self.refused(f'p{n}@example.com', IP), n)
+        for when in (1200, 3000, 3599):
+            self.at(when)
+            self.assertTrue(self.refused('p99@example.com', IP), when)
+        self.at(3601)
+        self.assertFalse(self.refused('p99@example.com', IP))
+
+    def test_10_code_tries_per_address_hold_for_the_full_15_minutes(self):
+        for n in range(member_auth.CODE_TRIES_PER_IP):
+            self.at(n * 20)
+            member_auth._limit_code_try(IP)
+        for when in (200, 600, 899):
+            self.at(when)
+            with self.assertRaises(member_auth.LimitError, msg=when):
+                member_auth._limit_code_try(IP)
+        self.at(901)
+        member_auth._limit_code_try(IP)
+
+    def test_a_count_saved_before_the_fix_still_counts(self):
+        cache.set(f"thriftplus:send-15m:{member_auth._hash('bo@example.com', 'limit')}", 3, 300)
+        self.assertTrue(self.refused('bo@example.com'))

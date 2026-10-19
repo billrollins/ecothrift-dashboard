@@ -298,16 +298,24 @@ def _code_hash(email: str, code: str) -> str:
     return _hash(f'{email}:{code}', 'email-code')
 
 
-def _window(key: str) -> int:
-    return int(cache.get(key) or 0)
+def _count(key: str, seconds: int) -> int:
+    """Count one in a fixed window that keeps its end (``cache.incr`` on the database cache re-saves the key with the
+    default 5-minute timeout). The email and phone limits both count here."""
+    now = time.time()
+    value = cache.get(key)
+    start, n = value if isinstance(value, (tuple, list)) else (now, int(value or 0))  # a bare count: before 10-19
+    left = seconds - (now - start)
+    if left <= 0:
+        start, n, left = now, 0, seconds
+    cache.set(key, (start, n + 1), max(1, math.ceil(left)))
+    return n + 1
 
 
-def _bump(key: str, seconds: int) -> None:
-    if not cache.add(key, 1, seconds):
-        try:
-            cache.incr(key)
-        except ValueError:  # it expired between the two calls
-            cache.set(key, 1, seconds)
+def _counted(key: str) -> int:
+    value = cache.get(key)
+    if isinstance(value, (tuple, list)):
+        return int(value[1])
+    return int(value or 0)  # a bare count, saved by the email limits before 2026-10-19
 
 
 def _limit_send(email: str, ip: str | None) -> None:
@@ -315,31 +323,31 @@ def _limit_send(email: str, ip: str | None) -> None:
     so the answer never says whether an email is a member's: 30 s between sends to one email, 3 per 15 minutes and 6
     an hour per email, 10 an hour per address (staff sends from Dash have no address)."""
     key = _hash(email, 'limit')
-    if ip and _window(f'thriftplus:send-ip:{ip}') >= SENDS_PER_IP_HOUR:
+    if ip and _counted(f'thriftplus:send-ip:{ip}') >= SENDS_PER_IP_HOUR:
         logger.warning('thrift+ sign-in email refused for %s: too many from one address', mask(email))
         raise LimitError('TOO_MANY')
     last = cache.get(f'thriftplus:send-last:{key}')
     now = time.time()
     if last and now - float(last) < SEND_GAP_SECONDS:
         raise LimitError('TOO_SOON', retry_after=max(1, math.ceil(SEND_GAP_SECONDS - (now - float(last)))))
-    if _window(f'thriftplus:send-15m:{key}') >= SENDS_PER_15_MIN or _window(f'thriftplus:send-1h:{key}') >= SENDS_PER_HOUR:
+    if _counted(f'thriftplus:send-15m:{key}') >= SENDS_PER_15_MIN or _counted(f'thriftplus:send-1h:{key}') >= SENDS_PER_HOUR:
         logger.warning('thrift+ sign-in email refused for %s: too many sends', mask(email))
         raise LimitError('TOO_MANY')
     cache.set(f'thriftplus:send-last:{key}', now, SEND_GAP_SECONDS)
-    _bump(f'thriftplus:send-15m:{key}', 15 * 60)
-    _bump(f'thriftplus:send-1h:{key}', 60 * 60)
+    _count(f'thriftplus:send-15m:{key}', 15 * 60)
+    _count(f'thriftplus:send-1h:{key}', 60 * 60)
     if ip:
-        _bump(f'thriftplus:send-ip:{ip}', 60 * 60)
+        _count(f'thriftplus:send-ip:{ip}', 60 * 60)
 
 
 def _limit_code_try(ip: str | None) -> None:
     if not ip:
         return
     key = f'thriftplus:code-ip:{ip}'
-    if _window(key) >= CODE_TRIES_PER_IP:
+    if _counted(key) >= CODE_TRIES_PER_IP:
         logger.warning('thrift+ sign-in code refused: too many tries from one address')
         raise LimitError('TOO_MANY')
-    _bump(key, 15 * 60)
+    _count(key, 15 * 60)
 
 
 def member_by_email(email: str) -> Person | None:
@@ -571,22 +579,6 @@ PHONE_SENDS_PER_IP_HOUR = 10
 PHONE_WRONG_CODES = 5  # per number; then the number is locked
 PHONE_LOCK_SECONDS = 15 * 60
 PHONE_JOIN_SECONDS = 15 * 60  # a phone join's names wait this long for the code
-
-
-def _count(key: str, seconds: int) -> int:
-    """Count one in a fixed window that keeps its end (``cache.incr`` on the database cache resets the timeout)."""
-    now = time.time()
-    start, n = cache.get(key) or (now, 0)
-    left = seconds - (now - start)
-    if left <= 0:
-        start, n, left = now, 0, seconds
-    cache.set(key, (start, n + 1), max(1, math.ceil(left)))
-    return n + 1
-
-
-def _counted(key: str) -> int:
-    value = cache.get(key)
-    return int(value[1]) if value else 0
 
 
 def _phone_key(digits: str, what: str) -> str:
