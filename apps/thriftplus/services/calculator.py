@@ -14,7 +14,8 @@ night, in a straight line, never below 10% of the tag.
   (straight, slow start, fast start; the same end point); the floor share.
 - **More than one:** grow X% slower for each extra unit of the same product (back-stock estimates from the last
   inventory can count), and Y% slower for each extra similar item (same brand and category). Capped. The live
-  engine instead holds a family's reward while it sells on pace; that needs real sales, so it is not replayed here.
+  engine instead holds a product of 10+ units while it has 90 days of supply or less (rulebook P6); that needs real
+  sales, so it is not replayed here.
 - **Demand (beta):** each category's days to sell (V3 sales with a floor date, last 180 days), blended with the
   store's by credibility (n ÷ (n + 30)). A category that sells faster than the store discounts slower, and a slow
   one faster: the rate × (category days ÷ store days) ^ strength, kept between ½ and 2.

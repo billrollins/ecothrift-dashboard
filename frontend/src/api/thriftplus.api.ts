@@ -4,13 +4,13 @@ import type {
   CalculatorResult,
   EngineSaved,
   EngineState,
-  FamiliesQueue,
-  FamilyStatus,
-  FamilyView,
   FloorCompare,
   FloorPlan,
   FloorPlanChoices,
   ItemRewardDetail,
+  OverstockAction,
+  OverstockList,
+  OverstockShow,
   MemberDeletePreview,
   NewMember,
   RewardPreview,
@@ -417,29 +417,16 @@ export async function fetchCalculator(choices: CalculatorChoices): Promise<Calcu
   return data;
 }
 
-// ── Pricing families (thrift_plus_families Phase 1, owner 2026-10-13) ──────────
+// ── Overstock (rulebook P6, owner 2026-10-19) ─────────────────────────────────
 
-export async function fetchFamilies(params: { status: FamilyView; band?: string; flag?: string; q?: string; offset?: number }): Promise<FamiliesQueue> {
-  const { data } = await api.get<FamiliesQueue>('/thriftplus/families/', { params });
+/** Products with 10+ floor units and over a year of supply: not yet marked, all, or one action. */
+export async function fetchOverstock(params: { show: OverstockShow; q?: string; offset?: number }): Promise<OverstockList> {
+  const { data } = await api.get<OverstockList>('/thriftplus/overstock/', { params });
   return data;
 }
 
-export async function decideFamily(id: number, action: 'approve' | 'not_family' | 'exit' | 'reopen', target?: number) {
-  const { data } = await api.post<{ id: number; status: FamilyStatus }>(`/thriftplus/families/${id}/decide/`, { action, target });
-  return data;
-}
-
-export async function bulkApproveFamilies(ids: number[]) {
-  const { data } = await api.post<{ approved: number; skipped: number }>('/thriftplus/families/bulk/', { ids });
-  return data;
-}
-
-export async function markRestNotFamily() {
-  const { data } = await api.post<{ marked: number }>('/thriftplus/families/rest/', {});
-  return data;
-}
-
-export async function findFamilies() {
-  const { data } = await api.post<{ products: number; new: number; approved: number }>('/thriftplus/families/find/', {});
+/** The owner's action on a lot (``clear`` removes it). */
+export async function markOverstock(productId: number, action: OverstockAction | 'clear', note = '') {
+  const { data } = await api.post<{ product_id: number; action: OverstockAction | null }>(`/thriftplus/overstock/${productId}/mark/`, { action, note });
   return data;
 }

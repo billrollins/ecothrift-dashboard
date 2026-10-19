@@ -158,6 +158,7 @@ Built as:
 - **Code:** `services/rewards.py`, the math. It is pure `step()` over plain values, with no model and no LLM, and holds `plan()` (the dry run), `recompute()` (the nightly write) and `member_price()` (what the register will read).
 - **Families:** `services/families.py` finds vector neighbours on the floor (similarity ≥ 0.85, up to 8), then asks one "same family?" tool call per product. It is asked once, and the answer is stored.
 - **Commands:** `recompute_rewards` and `assign_reward_families`.
+- **2026-10-19: families retired.** Pacing is now by each product's supply (rulebook P6, [`thrift_plus_families`](./thrift_plus_families.md) Phase 2): under 10 units like singles, 10+ hold at 90 days of supply or less; `assign_reward_families` is a no-op. The family notes here are history.
 - **Request kind:** `thriftplus.reset_rewards`.
 - **Dash:** Thrift+ → Rewards tab.
 

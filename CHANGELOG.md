@@ -12,6 +12,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.181.0] - 2026-10-19
+
+User-facing theme: **Thrift+ ThriftBucks discount only what isn't selling: products under 10 units grow like single items, products of 10+ units grow only while they have more than 90 days of supply, and a new Overstock list shows the lots over a year of supply for the owner's weekly call. Families, sell targets and approvals are gone (Bill, 2026-10-19).** thrift_plus_families Phase 2 (rulebook P6).
+
+### Changed
+- **The supply rule (rulebook P6):** every unit grows ThriftBucks on its own clock. A product with 10 or more units on the floor holds its ThriftBucks on a night it has 90 days of supply or less (floor units ÷ sales a day, as if one more sold now, over the real age of its oldest floor unit, 7 to 90 days) and grows like a single item otherwise. Fewer than 10 units: like single items. A restocked unit starts its own clock. ThriftBucks never go down. The 10 units, 90 days and 365 days are in the engine's saved setting (code defaults; the Calculator's Save keeps them).
+- **Leaving families:** units that were held or approved as a family grow on from the ThriftBucks they have, from the next nightly run, with no jump.
+- **Thrift+ → ThriftBucks:** reasons "Selling fine (10+ units)" and "Over 90 days of supply"; the summary shows how many 10+ unit products are selling fine.
+
+### Added
+- **Thrift+ → Overstock** (replaces Families; `?tab=families` opens it): every product with 10+ floor units and more than a year of supply, not yet marked first, then the biggest tag dollars. Each lot shows units, tags, retail, cost, age, sales in 90 and 180 days, the estimate per 90 days and its supply in days, with flags for "bought to sell near the tag" (cost 40%+ of the tag) and "mixed tags" (prices more than 2× apart: maybe unlike items under one name). The owner marks Back stock, Bundle, Dollar bin, Liquidate, Donate or Keep, with a note; stamped who and when; Clear undoes it. Managers can look. It never changes ThriftBucks. `OverstockMark` (migration `thriftplus.0022`).
+
+### Removed
+- Pricing families: the possible/approved/not-a-family/exit states, sell targets, the shared %, default approval, the Families page and its API (`/api/thriftplus/families/`), the nightly flagging and the AI family check. `assign_reward_families` does nothing now (kept so any leftover Scheduler job doesn't fail). The `RewardFamily` and `FamilyLink` tables stay, unused, for history.
+
 ## [2.180.1] - 2026-10-19
 
 User-facing theme: **Receipts with no solid black, so the printer stops reprinting their top (print server 1.9.6; Bill, 2026-10-19).** Outside initiatives (POS).

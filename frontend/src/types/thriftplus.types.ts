@@ -106,7 +106,7 @@ export interface RewardRunSummary {
 export interface RewardPreview {
   day: string;
   switch_on: boolean;
-  rules: { floor_share: string; start: string | null; wait_days: number; horizon: number; pace_window: number };
+  rules: { floor_share: string; start: string | null; wait_days: number; horizon: number; group_min_units: number; supply_days: number; overstock_days: number };
   totals: {
     units: number;
     with_reward: number;
@@ -117,7 +117,7 @@ export interface RewardPreview {
   };
   by_status: Partial<Record<RewardStatus, number>>;
   bands: { band: string; units: number; with_reward: number; reward_total: string; pct_off_rewarded: string | null }[];
-  families: { paced: number; on_pace: number; linked: number };
+  supply: { paced: number; selling_fine: number };
   exit_list: { count: number; tag_total: string; rows: RewardRow[] };
   top: RewardRow[];
   to_close: number;
@@ -298,21 +298,16 @@ export interface CalculatorResult {
   current_settings: { start: string | null; floor_share: string; switch_on: boolean };
 }
 
-/** A pricing family on the Families tab (thrift_plus_families Phase 1, owner 2026-10-13). */
-export type FamilyStatus = 'possible' | 'approved' | 'not_family' | 'exit';
-/** A status, or ``review``: approved by default and not yet reviewed by the owner (owner 2026-10-16). */
-export type FamilyView = FamilyStatus | 'review';
+/** An overstock lot on the Overstock tab (rulebook P6, owner 2026-10-19): 10+ floor units, over a year of supply. */
+export type OverstockAction = 'back_stock' | 'bundle' | 'dollar_bin' | 'liquidate' | 'donate' | 'keep';
+export type OverstockShow = 'undecided' | 'all' | OverstockAction;
 
-export interface FamilyRow {
-  id: number;
-  name: string;
-  kind: 'identical' | 'similar';
-  status: FamilyStatus;
+export interface OverstockRow {
+  product_id: number;
+  title: string;
+  brand: string;
   category: string;
-  products: number;
   units: number;
-  band: '2-3' | '4-9' | '10-49' | '50+';
-  huge: boolean;
   tag_total: string;
   price_avg: string;
   price_min: string;
@@ -323,28 +318,21 @@ export interface FamilyRow {
   age_newest: number | null;
   sold_90: number;
   sold_180: number;
-  est_per_90: string;
-  days_to_clear: number | null;
-  pct_now: string;
-  suggested_target: number;
-  target_per_90: number | null;
-  pct: string | null;
-  decided_by: string;
-  decided_at: string | null;
-  note: string;
-  auto: boolean;
-  flags: { key: 'huge' | 'volume' | 'cost' | 'junk' | 'fast'; text: string }[];
+  per_90: string;
+  days_of_supply: number;
+  flags: { key: 'cost' | 'mixed'; text: string }[];
+  mark: { action: OverstockAction; label: string; note: string; by: string; at: string } | null;
 }
 
-export interface FamiliesQueue {
-  counts: Record<FamilyView, number>;
-  units: Record<FamilyView, number>;
+export interface OverstockList {
   total: number;
-  decided: number;
-  reviewed: number;
+  undecided: number;
+  counts: Record<'undecided' | OverstockAction, number>;
+  units: number;
+  tag_total: string;
+  settings: { group_min_units: number; overstock_days: number };
   matching: number;
-  bulk_ok: number;
-  rows: FamilyRow[];
+  rows: OverstockRow[];
 }
 
 /** Everything a delete would remove (owner 2026-10-16: testing only; Deactivate is the normal way). */

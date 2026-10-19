@@ -4,7 +4,7 @@ the floor?", for any set of choices, without touching a price or a setting.
 
 It replays the reward engine's own rules (``rewards.step``) over today's on-shelf items in closed form:
 day 1 is the first day on the floor, nothing for the first ``wait_days``, then the price ÷ ``horizon`` a
-day, never below the floor share of the tag. Pacing (a family selling on pace holds its reward) is left
+day, never below the floor share of the tag. Pacing (a product of 10+ units selling fine holds its reward) is left
 out on purpose: it can only hold a reward lower, so these are the most members could be offered.
 
 The one choice that is new here is ``max_age``: stock already on the floor counts as at most that many days

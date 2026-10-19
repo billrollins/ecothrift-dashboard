@@ -57,11 +57,11 @@ const row = {
 const preview: RewardPreview = {
   day: '2026-10-22',
   switch_on: false,
-  rules: { floor_share: '0.50', start: null, wait_days: 7, horizon: 90, pace_window: 14 },
+  rules: { floor_share: '0.50', start: null, wait_days: 7, horizon: 90, group_min_units: 10, supply_days: 90, overstock_days: 365 },
   totals: { units: 1200, with_reward: 800, tag_total: '24000.00', reward_total: '1234.50', member_total: '22765.50', pct_off_rewarded: '8.2' },
   by_status: { waiting: 400, climbing: 700, paused: 100 },
   bands: [{ band: 'Under $10', units: 600, with_reward: 400, reward_total: '300.00', pct_off_rewarded: '11.0' }],
-  families: { paced: 30, on_pace: 12, linked: 4 },
+  supply: { paced: 30, selling_fine: 12 },
   exit_list: { count: 1, tag_total: '9.00', rows: [{ ...row, item_id: 12, sku: 'ITM0000012', title: 'Old mug', day: 95, reason: 'reached_floor' }] },
   top: [row],
   to_close: 0,
@@ -268,7 +268,7 @@ describe('Thrift+ rewards (the dry run)', () => {
     expect(await screen.findByText('What members would pay Thursday, Oct 22')).toBeInTheDocument();
     expect(screen.getByText('Dark: the switch is off')).toBeInTheDocument();
     expect(screen.getByText('1,234.50')).toBeInTheDocument();
-    expect(screen.getByText('12 of 30 on pace')).toBeInTheDocument();
+    expect(screen.getByText('12 of 30 selling fine')).toBeInTheDocument();
     expect(screen.getByText('Old mug')).toBeInTheDocument();
     await user.type(screen.getByLabelText('SKU'), 'ITM0000011');
     await user.click(screen.getByRole('button', { name: 'Look up' }));

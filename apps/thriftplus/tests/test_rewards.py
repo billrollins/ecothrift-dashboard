@@ -1,4 +1,4 @@
-"""Thrift+ Phase 2: the reward engine (the pure step, the nightly recompute, families, the API)."""
+"""Thrift+ Phase 2: the reward engine (the pure step, the nightly recompute, pacing by supply, the API)."""
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
@@ -14,8 +14,8 @@ from apps.accounts.models import User
 from apps.core.models import AppSetting, ApprovalRequest
 from apps.core.services import approval_requests as ar
 from apps.inventory.models import Item, Product
-from apps.thriftplus.models import FamilyLink, ItemReward, RewardEvent, RewardFamily, RewardRun
-from apps.thriftplus.services import families, rewards
+from apps.thriftplus.models import ItemReward, RewardEvent, RewardRun
+from apps.thriftplus.services import rewards
 from apps.thriftplus.services.rewards import Pace, Prior, Rules, Unit
 
 D = Decimal
@@ -73,32 +73,41 @@ class StepTests(SimpleTestCase):
         consigned = _walk(_unit(source='consignment'), 30)[-1]
         self.assertEqual((consigned.status, consigned.reward), (ItemReward.STATUS_EXCLUDED, D('0')))
 
-    def test_a_family_on_pace_holds_and_behind_pace_climbs(self):
-        on_pace = Pace(units=10, days_left=80, sold_recent=14, window=14)
-        behind = Pace(units=10, days_left=80, sold_recent=0, window=14)
+    def test_ten_or_more_units_selling_fine_hold_and_over_supply_climb(self):
+        # Rulebook P6 (owner 2026-10-19): days of supply = units ÷ ((sold + 1) ÷ window); 90 or less holds tonight.
+        selling = Pace(units=10, sold_recent=13, window=14)  # 1 a day: 10 days of supply
+        slow = Pace(units=10, sold_recent=0, window=14)  # 1 in 14 days: 140 days of supply
         start = _walk(_unit(), 12)[-1]  # day 12, 5 growth days
         prior = _prior(start, DAY + timedelta(days=11))
-        held = rewards.step(_unit(), prior, DAY + timedelta(days=12), on_pace, RULES, 'p7')
+        held = rewards.step(_unit(), prior, DAY + timedelta(days=12), selling, RULES, 'p7')
         self.assertEqual((held.grow_days, held.reward, held.status), (5, start.reward, ItemReward.STATUS_PAUSED))
-        self.assertEqual(held.event['reason'], 'family_on_pace')
-        self.assertEqual(held.event['detail']['pace']['required_per_day'], '0.125')
-        climbs = rewards.step(_unit(), prior, DAY + timedelta(days=12), behind, RULES, 'p7')
-        self.assertEqual((climbs.grow_days, climbs.reason), (6, 'behind_pace'))
-        last_unit = rewards.step(_unit(), prior, DAY + timedelta(days=12), Pace(1, 80, 5, 14), RULES, 'p7')
-        self.assertEqual(last_unit.reason, 'one_unit')  # a family's last unit climbs on its own
+        self.assertEqual(held.event['reason'], 'selling_fine')
+        self.assertEqual(held.event['detail']['pace']['days_of_supply'], 10)
+        climbs = rewards.step(_unit(), prior, DAY + timedelta(days=12), slow, RULES, 'p7')
+        self.assertEqual((climbs.grow_days, climbs.reason), (6, 'over_supply'))
+        nine = rewards.step(_unit(), prior, DAY + timedelta(days=12), Pace(units=9, sold_recent=13, window=14), RULES, 'p7')
+        self.assertEqual((nine.grow_days, nine.reason), (6, 'one_unit'))  # under 10 units: like a single
+        self.assertTrue(Pace(units=90, sold_recent=89, window=90).on_pace)  # exactly 90 days of supply holds
+
+    def test_a_unit_leaving_the_families_rule_grows_on_from_what_it_has(self):
+        # A family unit's ThriftBucks came from the family's %, not its own growth days (owner 2026-10-19).
+        start = _walk(_unit(), 20)[-1]  # day 20, 13 growth days: $13.00
+        prior = _prior(start, DAY + timedelta(days=19), reward=D('30.00'), reason='family_on_target', grow_days=5)
+        o = rewards.step(_unit(), prior, DAY + timedelta(days=20), None, RULES, 'p7')
+        self.assertEqual((o.grow_days, o.reward, o.reason), (31, D('31.00'), 'one_unit'))  # $1 a day on $90
 
     def test_missed_nights_still_grow_and_only_tonight_holds(self):
         start = _walk(_unit(), 10)[-1]  # day 10, 3 growth days
         prior = _prior(start, DAY + timedelta(days=9))
         later = DAY + timedelta(days=12)  # day 13: three nights since
         self.assertEqual(rewards.step(_unit(), prior, later, None, RULES, 'p7').grow_days, 6)
-        held = rewards.step(_unit(), prior, later, Pace(10, 80, 14, 14), RULES, 'p7')
+        held = rewards.step(_unit(), prior, later, Pace(10, 13, 14), RULES, 'p7')
         self.assertEqual(held.grow_days, 5)
 
     def test_a_unit_scanned_but_not_added_climbs_alone(self):
         start = _walk(_unit(), 12)[-1]
         prior = _prior(start, DAY + timedelta(days=11), scans=10, adds=1)
-        lagging = rewards.step(_unit(), prior, DAY + timedelta(days=12), Pace(10, 80, 14, 14, scans=100, adds=50), RULES, 'p7')
+        lagging = rewards.step(_unit(), prior, DAY + timedelta(days=12), Pace(10, 13, 14, scans=100, adds=50), RULES, 'p7')
         self.assertEqual((lagging.status, lagging.reason), (ItemReward.STATUS_CLIMBING, 'scans_lag'))
 
     def test_never_decreases_except_a_retag_below_the_cap(self):
@@ -151,24 +160,28 @@ class RecomputeTests(TestCase):
         self.assertEqual(again.counts['computed'], 0)  # overnight only: a re-run changes nothing
         self.assertEqual(RewardEvent.objects.count(), 5)
 
-    def test_identical_units_are_a_possible_family_that_holds(self):
-        # Owner 2026-10-13 (thrift_plus_families): units of one product are a possible family, held until decided,
-        # in place of the old sell-through pacing for bulk.
+    def test_under_ten_units_grow_like_singles(self):
         rewards.recompute(DAY)
         mug = ItemReward.objects.get(item=self.mug_items[0])
-        self.assertEqual((mug.status, mug.reason, mug.grow_days), (ItemReward.STATUS_PAUSED, 'family_possible', 13))
-        self.assertEqual(ItemReward.objects.get(item=self.lamp_item).reason, 'one_unit')
+        self.assertEqual((mug.status, mug.reason, mug.grow_days, mug.family_key), (ItemReward.STATUS_CLIMBING, 'one_unit', 13, f'p{self.mugs.pk}'))
 
-    def test_a_family_link_paces_different_products_together(self):
-        family = RewardFamily.objects.create(name='Lamps')
-        other = Product.objects.create(title='Brass floor lamp, black')
-        FamilyLink.objects.create(product=self.lamp, family=family, source=FamilyLink.SOURCE_ASKED)
-        FamilyLink.objects.create(product=other, family=family, source=FamilyLink.SOURCE_NEIGHBOUR)
-        _floor_item(other, 'ITMRW0002', days_on_floor=5, price='80.00')
+    def test_ten_or_more_units_pace_by_their_supply_and_a_restock_starts_its_own_clock(self):
+        cups = Product.objects.create(title='Paper cups')
+        for i in range(10):
+            _floor_item(cups, f'ITMRWC{i:02d}', days_on_floor=20, price='4.00')
         p = rewards.plan(DAY)
-        key = f'f{family.pk}'
-        self.assertEqual(p.paces[key].units, 2)
-        self.assertEqual(p.paces[key].days_left, 71)  # counted from the oldest unit (day 20)
+        pace = p.paces[f'p{cups.pk}']
+        self.assertEqual((pace.units, pace.sold_recent, pace.window, int(pace.days_of_supply)), (10, 0, 19, 190))
+        self.assertEqual({o.reason for o in p.outcomes if o.product_id == cups.pk}, {'over_supply'})
+        for i in range(9):  # 9 sold in the window: (9 + 1) ÷ 19 days, so 19 days of supply
+            Item.objects.create(product=cups, sku=f'ITMRWS{i:02d}', price=D('4.00'), status='sold',
+                                sold_at=timezone.make_aware(datetime.combine(DAY - timedelta(days=3), time(12))))
+        rewards.recompute(DAY)
+        self.assertEqual(set(ItemReward.objects.filter(item__product=cups).values_list('reason', flat=True)), {'selling_fine'})
+        new = _floor_item(cups, 'ITMRWC99', days_on_floor=1, price='4.00', on=DAY + timedelta(days=1))
+        rewards.recompute(DAY + timedelta(days=1))
+        state = ItemReward.objects.get(item=new)
+        self.assertEqual((state.day, state.reward, state.status), (1, D('0'), ItemReward.STATUS_WAITING))
 
     def test_items_that_leave_the_floor_close_with_their_reward(self):
         rewards.recompute(DAY)
@@ -200,31 +213,6 @@ class RecomputeTests(TestCase):
         AppSetting.objects.update_or_create(key=rewards.START_KEY, defaults={'value': '2026-10-20'})
         r = rewards.rules()
         self.assertEqual((r.floor_share, r.start), (D('0.10'), date(2026, 10, 20)))
-
-
-class FamilyTests(TestCase):
-    def setUp(self):
-        self.a = Product.objects.create(title='Ninja blender 72 oz red')
-        self.b = Product.objects.create(title='Ninja blender 72 oz black')
-        self.c = Product.objects.create(title='Ninja blender cup')
-
-    def test_no_close_neighbour_stands_alone_without_a_model_call(self):
-        with patch.object(families, 'neighbours', return_value=[]), patch.object(families, '_ask') as ask:
-            link = families.check(self.a.pk)
-        ask.assert_not_called()
-        self.assertEqual((link.family_id, link.source), (None, FamilyLink.SOURCE_ALONE))
-
-    def test_the_model_names_the_family_once_and_neighbours_join(self):
-        near = [{'product_id': self.b.pk, 'similarity': 0.97}, {'product_id': self.c.pk, 'similarity': 0.88}]
-        answer = ({'same_ids': [self.b.pk, 99999], 'family_name': 'Ninja 72 oz blenders', 'reason': 'Same blender.'}, 'm')
-        with patch.object(families, 'neighbours', return_value=near), patch.object(families, '_ask', return_value=answer) as ask:
-            link = families.check(self.a.pk)
-            families.check(self.a.pk)  # asked once
-        self.assertEqual(ask.call_count, 1)
-        self.assertEqual(link.family.name, 'Ninja 72 oz blenders')
-        self.assertEqual(FamilyLink.objects.get(product=self.b).family_id, link.family_id)
-        self.assertFalse(FamilyLink.objects.filter(product=self.c).exists())
-        self.assertEqual(link.answer['same_ids'], [self.b.pk])  # an id outside the candidates is dropped
 
 
 class RewardsApiTests(APITestCase):

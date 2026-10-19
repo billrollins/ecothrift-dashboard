@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-30 (moved out of context.md by tech_target) -->
+<!-- Last updated: 2026-10-19 (Thrift+ supply rule: floor counts include back stock) -->
 # Known issues and live gaps
 
 Load when a task touches one of these areas, or before a ship (docs audit in [`ship.md`](../protocols/ship.md)). Fixed items come off this list.
@@ -14,6 +14,7 @@ Load when a task touches one of these areas, or before a ship (docs audit in [`s
 - **POS — already sold:** the dialog is SKU-exact (`status=sold`). Check-in edit no longer births sold units when quantity is raised after a sibling sold (**v2.95.0**). Duplicate physical tags (Quick Reprice / extra copies of one SKU) and cart qty++ on the same SKU still produce the message.
 - **Routines — Opening can run twice a day:** once a pooled run picks up an assignee and is finished, the pooled branch of `materialize_routines` (it looks for `status=open` only) makes a second run for the same period. Seen 2026-09-22 (runs 180 and 187). Fix: skip creation when any run exists for that routine and period.
 - **Tests — `tests_*.py` are not collected by default:** `pytest.ini` `python_files` is `test_*.py tests.py`, so a bare `pytest apps/routines` skips the nine `tests_*.py` files; name them. Pre-existing red (the `Retail` department seed collision, em dashes in six files, grading and clock-dependent asserts) is listed under Later in [`time_kiosk`](../initiatives/_archived/time_kiosk.md).
+- **Thrift+ — floor counts include back stock and unwritten shrink:** the supply rule and Thrift+ → Overstock (rulebook P6) count every `on_shelf` unit, and almost none carry a back-stock location (52 of 35,017 on 10-19), so some products look slower than they are and grow ThriftBucks sooner. Fixed by back-stock counts (P5, P7).
 
 ## Not yet implemented (live gaps)
 

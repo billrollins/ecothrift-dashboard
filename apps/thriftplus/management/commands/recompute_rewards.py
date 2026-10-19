@@ -35,7 +35,7 @@ class Command(BaseCommand):
                 raise CommandError('--day must be YYYY-MM-DD') from exc
         if opts['dry_run']:
             report = rewards.summarize(rewards.plan(day), top=10)
-            self.stdout.write(json.dumps({k: report[k] for k in ('day', 'rules', 'totals', 'by_status', 'bands', 'families')}, indent=1))
+            self.stdout.write(json.dumps({k: report[k] for k in ('day', 'rules', 'totals', 'by_status', 'bands', 'supply')}, indent=1))
             self.stdout.write(f"exit list: {report['exit_list']['count']} items; to close: {report['to_close']}")
             return
         run = rewards.recompute(day)

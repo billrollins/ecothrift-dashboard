@@ -1,32 +1,78 @@
-<!-- initiative: slug=thrift-plus-families status=active updated=2026-10-16 -->
-<!-- Last updated: 2026-10-16 (families approved by default; the owner reviews after) -->
+<!-- initiative: slug=thrift-plus-families status=active updated=2026-10-19 -->
+<!-- Last updated: 2026-10-19 (Phase 2 built: supply rule and Thrift+ → Overstock) -->
 
-# Initiative: Thrift+ pricing families
+# Initiative: Thrift+ look-alikes and overstock (was: pricing families)
 
-**Status:** **Active**: Phase 1 shipped. **Owner 10-16: every family is approved by default** at the 90-day clear target (none had been decided, so 29,186 of the floor's units sat frozen at launch); Families opens on **To review** and the owner reviews the big lots after. Built in [Unreleased], not shipped. Phase 1b (similar items) next; the owner OK'd setting up its AI run as a request.
+**Status:** **Active: Phase 2 shipped in v2.181.0 (10-19).** Owner 10-19: products under 10 units grow like singles; 10+ units grow only while over 90 days of supply; a weekly overstock list for lots over a year of supply. This replaces families, targets and approvals (rulebook P6).
 
-**Objective:** Identical and similar items on the floor stop growing ThriftBucks one by one (0.75% of the tag a day). They become **pricing families**: their ThriftBucks lock together and rise slowly, only until the family sells at the pace the owner sets (*x* per 90 days). Every family is **approved by the owner with a sell target**. Until then a possible family holds: its ThriftBucks stop growing. The **Families** page lets the owner make those calls fast and well. A bad family call is a liability both ways: junk volume piles up if it never moves, and good items lose margin if a big group discounts as fast as singles.
+**Objective:** ThriftBucks discount only what isn't selling, with no owner work per product. Multi-unit stock that sells fine keeps its margin; stock that doesn't grows like any item. The real overstock (lots over a year of supply) goes to the owner as a short weekly list of physical actions, because a member discount won't clear it.
 
-**Compass:** this file is not the compass; [`thrift_plus_rewards`](./thrift_plus_rewards.md) stays the compass until launch. This is its rule P6 ("Families of look-alikes"), built out.
+**Compass:** this file is not the compass; [`thrift_plus_rewards`](./thrift_plus_rewards.md) is. This is its rule P6 ("Look-alikes and overstock"), built out.
 
 ---
 
 ## Finish line
 
-On **Thrift+ → Families** (Dash), the owner sees every possible family in the order of money at stake. Each card shows its units, prices, age, past sales and an AI suggestion. One tap approves it with a sell target, says "not a family", splits it, or sends it to exit. Approved families price together in the nightly engine and sit on a watch list that flags one that is off pace. The floor's existing groups are all decided (or held on purpose) by launch.
+The nightly engine grows a product of 10+ floor units only on nights it has more than 90 days of supply; everything else grows like a single item. **Thrift+ → Overstock** in Dash lists every product of 10+ units with more than a year of supply, biggest tag dollars first, and the owner marks one action per lot. No family, target or approval is left in the engine or the page.
 
 ---
 
 ## Out of scope
 
-- Changing tag prices. Families move ThriftBucks, never the tag.
-- Back-stock moves and the floor/back-stock page (P7). Its counts are shown where they exist.
-- Customer-facing words about families. The formula is never published (P8).
+- Changing tag prices. ThriftBucks only, never the tag.
+- Back-stock counts and moves (P5, P7). Floor counts today include back stock and unwritten shrink (only 52 of 35,017 on-shelf items have a back-stock location), so some products look slower than they are. Accepted for now.
+- Grouping similar products (the AI run is dropped: each product is measured on its own).
+- Customer-facing words. The formula is never published (P8).
 - Consignment (excluded from ThriftBucks).
+- Buying limits (flag lots where one SKU would be over a year of supply): in [`buying_intelligence_v2`](./buying_intelligence_v2.md), after launch.
 
 ---
 
-## What the floor looks like (production, 2026-10-13, read-only)
+## Why (production, 2026-10-19, read-only)
+
+| Units of one product | Products | Units | Tags | Over a year of supply |
+|---|---|---|---|---|
+| 2 to 3 | 1,364 | 3,115 | $57k | 0 |
+| 4 to 9 | 656 | 3,676 | $44k | 216 ($18k) |
+| 10 to 49 | 412 | 8,185 | $65k | 272 ($48k) |
+| 50 or more | 93 | 13,932 | $75k | 75 ($66k) |
+
+Supply = floor units ÷ sales in the last 90 days. **$132k of $241k** is over a year of supply. Under the families rule: big lots were "behind" every night, so they aged slowly whether they sold or not; groups of 2 or 3 were held or grew slower than single items (the +1 estimate over a short window looked "on pace"); restocks inherited a family's %; and the owner's review queue refilled with every load.
+
+---
+
+## Phase 2: Supply rule and the overstock list (planned 10-19)
+
+**Gated by:** none (the owner said yes 10-19). **Built 10-19**, one ship.
+
+1. **Engine** (`services/rewards.py`). The group is the product; `FamilyLink` and `RewardFamily` are no longer read. A product is **paced** with 10+ non-consignment floor units. It is **on pace** (tonight holds) when its days of supply are 90 or less: floor units ÷ ((sold in the window + 1) ÷ window), where the window is the real age of its oldest floor unit (not the launch-compressed age), 7 to 90 days. Behind: it grows like a single. The existing hold mechanics stay: only tonight holds, missed nights still grow, a unit whose scans-to-adds lags still climbs alone. Remove the possible/approved family branches, `family_states`, the nightly `flag_identical` and `auto_approve`. Units held or approved as families resume from the ThriftBucks they have (never down), with no catch-up jump (the held nights already advanced their day). New reasons with labels on the ThriftBucks tab: "Selling fine (10+ units)" and "Over 90 days of supply".
+2. **Settings.** `group_min_units` 10, `supply_days` 90 and `overstock_days` 365 in the engine's saved setting (code defaults; the Calculator's Save keeps them). The Calculator itself doesn't model pacing (unchanged).
+3. **Overstock list.** Thrift+ → **Families** becomes **Overstock**: products with 10+ floor units and more than 365 days of supply, biggest tag dollars first, undecided first. Each row: units, tag dollars, sold in 90 and 180 days, days of supply, retail, cost, age, flags (catch-all product; cost 40%+ of the tag, so it was bought to sell near the tag). The owner marks Back stock, Bundle, Dollar bin, Liquidate, Donate or Keep, with an optional note; stamped who and when. A new `OverstockMark` table (one migration). Managers can look; only the owner marks. The list never changes ThriftBucks.
+4. **Retire.** The family queue endpoints and page, `families.py` (`flag_identical`, the AI check) and `assign_reward_families`. The `RewardFamily` and `FamilyLink` tables stay unused for history (dropped later). Check the Heroku Scheduler for an `assign_reward_families` job (it never ran in production).
+5. **Tests.** Under 10 units grows like a single; 10+ holds at 90 days of supply or less and grows over it; a restocked unit starts its own clock; units held as a family resume with no jump; the overstock list's order, flags, marks and permissions.
+6. **Docs.** Changelog, `thrift_plus_rewards` engine notes, `extended/known-issues.md` (floor counts include back stock).
+
+**Built 10-19:** `rewards.Pace` (supply), `rewards.paces` (by product), `Rules.group_min_units` / `supply_days` /
+`overstock_days` (kept through the Calculator's Save), the one-time catch-up for units leaving the families rule
+(`FAMILY_REASONS`, `Rules.days_for`), `services/overstock.py`, `OverstockMark` (`thriftplus.0022`), `OverstockViewSet`
+(`/api/thriftplus/overstock/`), Thrift+ → **Overstock** (`?tab=families` opens it too). Retired: `families.py`,
+`family_queue.py`, the Families page and API. `assign_reward_families` is a no-op until any Scheduler job for it is
+removed. Tests: `test_rewards.py` (selling fine, over supply, under 10, restock, leaving the families rule),
+`test_overstock.py`, `OverstockTab.test.tsx`.
+
+- [x] Engine: under 10 units like singles; 10+ hold at 90 days of supply or less; restocks start their own clock.
+- [x] Units from the families rule grow on from the ThriftBucks they have.
+- [x] Overstock list with marks, owner-only.
+- [x] Family queue, flagging and AI check retired.
+
+---
+
+## History: the families design (2026-10-13 to 10-19, superseded)
+
+Kept for the record; none of it is the rule now (rulebook P6).
+
+
+### What the floor looks like (production, 2026-10-13, read-only)
 
 - **34,510 floor units** (not consignment) in **8,561 products**.
 - **2,464 products have 2 or more units on the floor: 28,413 units, 82% of the floor.** By size:
@@ -45,7 +91,7 @@ On **Thrift+ → Families** (Dash), the owner sees every possible family in the 
 
 ---
 
-## The rules (owner 2026-10-13, with rulebook P6)
+### The rules (owner 2026-10-13, with rulebook P6)
 
 1. **Possible family:** identical items (one product, several units), and similar items the AI groups across products. **As soon as a group is flagged, its ThriftBucks stop growing** until the owner approves it (with a sell target) or removes it.
 2. **Approved family:** its units carry the same ThriftBucks as a % of each tag. They don't grow 0.75% a day. They rise slowly while the family sells slower than its target, and hold while it sells at or above it. They never go down (P3), and every change is logged with the pace numbers.
@@ -55,7 +101,7 @@ On **Thrift+ → Families** (Dash), the owner sees every possible family in the 
 
 ---
 
-## The Families page (the heart of it)
+### The Families page (the heart of it)
 
 **Built for speed and for good calls.** It is a queue, worked top down.
 
@@ -82,7 +128,7 @@ On **Thrift+ → Families** (Dash), the owner sees every possible family in the 
 
 ---
 
-## Initial work on stock already on the floor (before launch)
+### Initial work on stock already on the floor (before launch)
 
 1. **Group the identical products** (2,464 groups; no AI needed).
 2. **Find similar items across products:** run `assign_reward_families` over the floor (vectors exist). It needs the model in Settings → AI (`THRIFTPLUS_FAMILY`). That's about 8,561 checks at most; the cost estimate goes in the request before it runs. It is staged as a Superuser → Requests item for the owner's OK.
@@ -92,7 +138,7 @@ On **Thrift+ → Families** (Dash), the owner sees every possible family in the 
 
 ---
 
-## The owner's answers (2026-10-13)
+### The owner's answers (2026-10-13)
 
 1. **What counts as a family: the same product, or similar products.** Similar is the hard part. **Not one similarity threshold:** compare products **within the same category and subcategory**, and call "similar" the ones that are very close *for that subcategory*. The owner wants help with the method and the timing (likely overnight runs). Claude's method is below (§ Finding similar items).
 2. **Every family is decided by launch day.** The page has **"Mark the rest not a family"** for whatever is left. So nothing is undecided at launch.
@@ -107,7 +153,7 @@ On **Thrift+ → Families** (Dash), the owner sees every possible family in the 
 
 ---
 
-## Finding similar items (Claude's method, for answer 1)
+### Finding similar items (Claude's method, for answer 1)
 
 - **Compare only within a subcategory.** Candidates must share the category and subcategory (the taxonomy). That removes most false matches before any math.
 - **"Very close" is relative to the subcategory.** For each product, find its nearest neighbours by vector *inside its subcategory* (the 103,267 vectors in production). Keep a pair only when it is unusually close **for that subcategory**: in the top few % of that subcategory's pairs, and each is among the other's nearest (mutual). Add two checks: tags within about 2× of each other, and the same brand when both have one.
@@ -116,9 +162,9 @@ On **Thrift+ → Families** (Dash), the owner sees every possible family in the 
 
 ---
 
-## Phases
+### Phases
 
-### Phase 1: Identical families, the hold, and the queue
+#### Phase 1: Identical families, the hold, and the queue
 Every product with 2+ units on the floor (generic ones included) is a possible family. It holds, and the owner decides it on the Families page.
 **Gated by:** none (answers 2 to 6 given 10-13).
 
@@ -131,33 +177,35 @@ Acceptance:
 
 **Built 10-13 (not shipped yet):** `families.flag_identical` (run first every night, and "Find new families"), the engine's `family_states` and hold/approved steps (`rewards.py`), `family_queue.py` (the cards, flags and decisions), `FamiliesViewSet` (`/api/thriftplus/families/`), and Thrift+ → **Families** in Dash. A possible family keeps the ThriftBucks of its first night (its launch start), so launch-day values are the same either way; decisions change growth from the next night. An approved family starts at the median of its units' current %. Identical units no longer pace by sell-through as "bulk" (the families replace it). Local dry run: 2,080 families found in 0.5 s, the queue in 0.4 s, 1,996 can be approved in bulk (84 huge lots one by one).
 
-### Phase 1c: Approved by default (owner 2026-10-16)
+#### Phase 1c: Approved by default (owner 2026-10-16)
 Every possible family is approved at the end of its first night at the default target (its floor count per 90 days), unstamped, starting at the median of its units' ThriftBucks %. The page opens on **To review** (approved, no one stamped); the owner's Save, Not a family or Exit stamps it. Replaces "a possible family holds until the owner decides" (rule 1 and 3 above, rulebook P6).
 - [x] `family_queue.auto_approve` at the end of every nightly run and on "Find new families"; the run counts `families_auto_approved`.
 - [x] Families page: the To review view, the "Approved by default" chip, an approved card's target and Save, Not a family, Exit.
 - [x] Tests: approved by default after the first night, then the slow rise; review and the owner's save.
 
-### Phase 1b: Similar items
+#### Phase 1b (dropped): Similar items
 The overnight search (§ Finding similar items) adds possible families across products to the same queue.
 **Gated by:** Phase 1, and the owner's OK on answer 7.
 
-### Phase 2: The watch list
+#### Phase 2 (dropped): The watch list
 Approved families on one list: sales in the last period next to the floor count, back stock and prices. It flags a family off pace (too slow, or clearing too fast) and offers a new target.
 **Gated by:** Phase 1. Detail when Phase 1 is built.
 
-### Phase 3: Decision speed
+#### Phase 3 (dropped): Decision speed
 AI suggestions with reasons, projections on the target slider, photos, keyboard, Split and Merge.
 **Gated by:** Phase 1. Detail when Phase 1 is built.
 
-### Phase 4: New arrivals
+#### Phase 4 (dropped): New arrivals
 New items join or start families at check-in (Processing), and the watch list alerts.
 **Gated by:** Phase 2. Detail when Phase 2 is built.
 
 ---
 
-## Timing
+### Timing
 
 Launch is Tue 10-20; the last project day is Thu 10-15. Phase 1 (identical families) can ship Thu 10-15 (dark), and the owner works the queue 10-15 to 10-19. Phase 1b (similar items) runs overnight as soon as it's approved, into the same queue. Phases 2 to 4 follow launch.
+
+---
 
 ## See also
 

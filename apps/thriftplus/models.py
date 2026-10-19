@@ -161,8 +161,42 @@ class Event(models.Model):
 # ── The reward engine (thrift_plus_rewards Phase 2) ─────────────────────────────
 
 
+class OverstockMark(models.Model):
+    """
+    The owner's action on an overstock lot (rulebook P6, owner 2026-10-19): a product with 10+ floor units and more than
+    a year of supply. One mark per product, changed in place and stamped. Staff do the physical work; the mark never
+    changes ThriftBucks.
+    """
+
+    ACTION_BACK_STOCK = 'back_stock'
+    ACTION_BUNDLE = 'bundle'
+    ACTION_DOLLAR_BIN = 'dollar_bin'
+    ACTION_LIQUIDATE = 'liquidate'
+    ACTION_DONATE = 'donate'
+    ACTION_KEEP = 'keep'
+    ACTION_CHOICES = [
+        (ACTION_BACK_STOCK, 'Back stock'),
+        (ACTION_BUNDLE, 'Bundle'),
+        (ACTION_DOLLAR_BIN, 'Dollar bin'),
+        (ACTION_LIQUIDATE, 'Liquidate'),
+        (ACTION_DONATE, 'Donate'),
+        (ACTION_KEEP, 'Keep'),
+    ]
+
+    product = models.OneToOneField('inventory.Product', on_delete=models.CASCADE, primary_key=True, related_name='overstock_mark')
+    action = models.CharField(max_length=12, choices=ACTION_CHOICES)
+    note = models.CharField(max_length=200, blank=True, default='')
+    marked_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    marked_at = models.DateTimeField()
+
+    def __str__(self):
+        return f'{self.product_id}: {self.action}'
+
+
 class RewardFamily(models.Model):
     """
+    **Retired 2026-10-19** (rulebook P6: the supply rule replaces families; kept for history, unused).
+
     Products a shopper treats as the same kind of thing at a similar price (the same blender in
     two colours, two sizes of one towel set). Their floor units pace together. A product with no
     family stands alone, and units of one product are always paced together (bulk).
@@ -208,6 +242,8 @@ class RewardFamily(models.Model):
 
 class FamilyLink(models.Model):
     """
+    **Retired 2026-10-19** (kept for history, unused).
+
     A product's family check: asked once (vector neighbours on the floor, then the model's
     "same family?"), never again. ``family`` is null when the product stands alone.
     """

@@ -1,15 +1,15 @@
 import { Box, Tab, Tabs, Typography } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import CalculatorTab from './CalculatorTab';
-import FamiliesTab from './FamiliesTab';
 import FloorStockTab from './FloorStockTab';
 import MembersTab from './MembersTab';
+import OverstockTab from './OverstockTab';
 import OverviewTab from './OverviewTab';
 import RegisterTab from './RegisterTab';
 import RewardsTab from './RewardsTab';
 import StaffTab from './StaffTab';
 
-const TABS = ['members', 'staff', 'rewards', 'families', 'calculator', 'floor', 'register', 'overview'] as const;
+const TABS = ['members', 'staff', 'rewards', 'overstock', 'calculator', 'floor', 'register', 'overview'] as const;
 type TabKey = (typeof TABS)[number];
 
 /**
@@ -21,7 +21,8 @@ type TabKey = (typeof TABS)[number];
  */
 export default function ThriftPlusPage() {
   const [params, setParams] = useSearchParams();
-  const asked = params.get('tab') as TabKey | null;
+  const raw = params.get('tab');
+  const asked = (raw === 'families' ? 'overstock' : raw) as TabKey | null; // the Families tab became Overstock (10-19)
   const tab: TabKey = asked && TABS.includes(asked) ? asked : 'members';
   return (
     <Box>
@@ -32,7 +33,7 @@ export default function ThriftPlusPage() {
         <Tab value="members" label="Members" sx={{ textTransform: 'none' }} />
         <Tab value="staff" label="Staff" sx={{ textTransform: 'none' }} />
         <Tab value="rewards" label="ThriftBucks" sx={{ textTransform: 'none' }} />
-        <Tab value="families" label="Families" sx={{ textTransform: 'none' }} />
+        <Tab value="overstock" label="Overstock" sx={{ textTransform: 'none' }} />
         <Tab value="calculator" label="Calculator" sx={{ textTransform: 'none' }} />
         <Tab value="floor" label="Floor stock" sx={{ textTransform: 'none' }} />
         <Tab value="register" label="Register" sx={{ textTransform: 'none' }} />
@@ -41,7 +42,7 @@ export default function ThriftPlusPage() {
       {tab === 'members' ? <MembersTab /> : null}
       {tab === 'staff' ? <StaffTab /> : null}
       {tab === 'rewards' ? <RewardsTab /> : null}
-      {tab === 'families' ? <FamiliesTab /> : null}
+      {tab === 'overstock' ? <OverstockTab /> : null}
       {tab === 'calculator' ? <CalculatorTab /> : null}
       {tab === 'floor' ? <FloorStockTab /> : null}
       {tab === 'register' ? <RegisterTab /> : null}

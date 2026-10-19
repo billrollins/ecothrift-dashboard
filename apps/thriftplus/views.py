@@ -481,69 +481,40 @@ class CardBatchViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(CardBatchSerializer(batch).data)
 
 
-class FamiliesViewSet(viewsets.ViewSet):
+class OverstockViewSet(viewsets.ViewSet):
     """
-    Thrift+ → Families (thrift_plus_families Phase 1, owner 2026-10-13): the pricing families on the floor and the
-    owner's decisions. Managers can look; the owner decides.
-    - GET ``families/?status=review&band=10-49&flag=huge&q=…&offset=0`` the queue, in order of money at stake
-      (``review``: approved by default, not yet reviewed by the owner; owner 2026-10-16);
-    - POST ``families/<id>/decide/ {action: approve|not_family|exit|reopen, target?}``;
-    - POST ``families/bulk/ {ids}`` approve at the suggestion (never a lot of 50+);
-    - POST ``families/rest/`` every family still possible becomes "not a family";
-    - POST ``families/find/`` look for new ones now and approve them by default (it also runs every night).
+    Thrift+ → Overstock (rulebook P6, owner 2026-10-19): products with 10+ floor units and more than a year of supply,
+    for the owner's weekly look. Managers can look; the owner marks.
+    - GET ``overstock/?show=undecided|all|<action>&q=…&offset=0`` the list, not yet marked first, then tag dollars;
+    - POST ``overstock/<product_id>/mark/ {action: back_stock|bundle|dollar_bin|liquidate|donate|keep|clear, note?}``.
     """
 
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
     def list(self, request):
-        from apps.thriftplus.services import family_queue
+        from apps.thriftplus.services import overstock
 
         q = request.query_params
-        status_ = q.get('status') or family_queue.REVIEW
-        if status_ not in family_queue.STATUS_KEYS:
-            return Response({'detail': 'Unknown status.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             offset = max(0, int(q.get('offset') or 0))
         except ValueError:
             offset = 0
-        return Response(family_queue.queue(status=status_, band=q.get('band') or '', flag=q.get('flag') or '',
-                                           q=(q.get('q') or '').strip(), offset=offset))
+        try:
+            return Response(overstock.listing(show=q.get('show') or overstock.UNDECIDED, q=(q.get('q') or '').strip(),
+                                              offset=offset))
+        except overstock.OverstockError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsSuperAdmin])
-    def decide(self, request, pk=None):
-        from apps.thriftplus.models import RewardFamily
-        from apps.thriftplus.services import family_queue
+    def mark(self, request, pk=None):
+        from apps.thriftplus.services import overstock
 
-        family = get_object_or_404(RewardFamily, pk=pk)
-        target = request.data.get('target')
         try:
-            target = int(target) if target not in (None, '') else None
-            family = family_queue.decide(family, str(request.data.get('action') or ''), by=request.user, target=target,
-                                         note=str(request.data.get('note') or ''))
-        except (ValueError, family_queue.FamilyError) as exc:
-            return Response({'detail': str(exc) or 'The target is a whole number.'}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({'id': family.pk, 'status': family.status, 'target_per_90': family.target_per_90,
-                         'pct': str(family.pct) if family.pct is not None else None})
-
-    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsSuperAdmin])
-    def bulk(self, request):
-        from apps.thriftplus.services import family_queue
-
-        ids = [int(i) for i in (request.data.get('ids') or []) if str(i).isdigit()]
-        return Response(family_queue.bulk_approve(ids, by=request.user))
-
-    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsSuperAdmin])
-    def rest(self, request):
-        from apps.thriftplus.services import family_queue
-
-        return Response({'marked': family_queue.rest_not_family(by=request.user)})
-
-    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsSuperAdmin])
-    def find(self, request):
-        from apps.thriftplus.services import families, family_queue
-
-        found = families.flag_identical()
-        return Response({**found, 'approved': family_queue.auto_approve()})
+            m = overstock.mark(int(pk), str(request.data.get('action') or ''), by=request.user,
+                               note=str(request.data.get('note') or ''))
+        except (ValueError, overstock.OverstockError) as exc:
+            return Response({'detail': str(exc) or 'No such product.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'product_id': int(pk), 'action': m.action if m else None})
 
 
 class RewardsViewSet(viewsets.ViewSet):

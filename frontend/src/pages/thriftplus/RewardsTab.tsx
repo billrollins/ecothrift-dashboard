@@ -25,7 +25,7 @@ import { formatCurrency } from '../../utils/format';
 const STATUS_LABEL: Record<RewardStatus, string> = {
   waiting: 'Days 1 to 7',
   climbing: 'Climbing',
-  paused: 'Held: family on pace',
+  paused: 'Held: selling fine',
   capped: 'At the floor',
   no_room: 'No tag price',
   excluded: 'Consignment',
@@ -36,6 +36,8 @@ const REASON_LABEL: Record<string, string> = {
   start: 'Started',
   days_1_to_7: 'Days 1 to 7',
   one_unit: 'Climbing on its own',
+  selling_fine: 'Selling fine (10+ units)',
+  over_supply: 'Over 90 days of supply',
   behind_pace: 'Family behind pace',
   family_on_pace: 'Family selling on pace',
   scans_lag: 'Scanned, not added',
@@ -186,7 +188,7 @@ export default function RewardsTab() {
         <Stat label="ThriftBucks total" value={<TbAmount value={p.totals.reward_total} bare />} hint={`of ${formatCurrency(p.totals.tag_total)} in tags`} />
         <Stat label="Average off (with ThriftBucks)" value={p.totals.pct_off_rewarded ? `${p.totals.pct_off_rewarded}%` : '-'} />
         <Stat label="Exit list (day 90+)" value={p.exit_list.count.toLocaleString()} hint={`${formatCurrency(p.exit_list.tag_total)} in tags`} />
-        <Stat label="Families paced" value={`${p.families.on_pace} of ${p.families.paced} on pace`} hint={`${p.families.linked} across products`} />
+        <Stat label={`Products of ${p.rules.group_min_units}+ units`} value={`${p.supply.selling_fine} of ${p.supply.paced} selling fine`} hint={`held while ${p.rules.supply_days} days of supply or less`} />
       </Stack>
 
       <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', rowGap: 0.75 }}>
