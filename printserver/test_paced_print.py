@@ -48,6 +48,24 @@ class StripTests(unittest.TestCase):
         self.assertEqual(parts, [(rp.format_receipt_tape(data), 0.0)])
 
 
+class NoSolidBlackTests(unittest.TestCase):
+    """1.9.6 (owner 2026-10-19): the office POS-80 stalled or restarted on solid black (test prints on the office
+    printer); the same receipt with outlines printed clean. No receipt has more than a few full-width black lines in a
+    row (a frame's outer line is 4)."""
+
+    def test_no_receipt_has_a_solid_black_area(self):
+        for name in ("receipt_thriftplus_member", "receipt_thriftplus_guest", "receipt_thriftplus_training"):
+            img = rr.render_thermal_receipt(_fixture(name)).convert("L")
+            w, h = img.size
+            px = img.load()
+            run = longest = 0
+            for y in range(h):
+                black = sum(1 for x in range(rr.SIDE, w - rr.SIDE) if px[x, y] < 128)
+                run = run + 1 if black >= 0.9 * (w - 2 * rr.SIDE) else 0
+                longest = max(longest, run)
+            self.assertLessEqual(longest, rr.OUTLINE, name)
+
+
 class PacedSendTests(unittest.TestCase):
     def test_one_job_written_a_strip_at_a_time_with_the_waits(self):
         from services import printer_manager as pm

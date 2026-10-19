@@ -5,6 +5,23 @@ Ship: `.ai/protocols/ship-print-server.md`. Script: `python printserver/distribu
 
 ---
 
+## [1.9.6] — 2026-10-19 (install on every register: REG-01, REG-02, TRAIN)
+
+Owner 2026-10-19: receipts still printed their top over and over (1.9.5 too), most often a member's with 3-day returns.
+Test prints on the office POS-80: the receipt with the solid black 3-DAY RETURN bar repeated its top; the same receipt
+with the bar as an outline printed clean; three solid black bars stalled the printer. Raising or lowering the driver's
+density did not change it (our receipts go to the printer as raw commands).
+
+### Fixed
+- **No solid black anywhere.** Solid black heats every dot of a line at once, and this printer stalls or restarts on
+  it (Windows then sends the job again, which reprinted the top). Instead:
+  - **3-DAY RETURN** and **SOLD AS IS** (a non-member's **ALL SALES FINAL · SOLD AS IS**) are the same heading: a
+    double frame (a 4-dot outer line, a thin inner one) with heavy black type (Arial Black).
+  - **The Thrift+ box** at the bottom is a double-framed box with black text: the member line in heavy type, a rule
+    under it. (A 50% gray dot fill was tried and printed badly.)
+  - **YOU SAVED** and the training band are outlines too.
+  - A test fails if any receipt has more than 4 full-width black lines in a row.
+
 ## [1.9.5] — 2026-10-17 (install on every register: REG-01, REG-02, TRAIN)
 
 Owner 2026-10-17: now and then a receipt (most often a member's with 3-day returns) printed its top, from the logo to

@@ -29,10 +29,25 @@ BAND_ROWS = 64  # rows per GS v 0 command (4.6 KB): small strips, sent one at a 
 SEND_ROWS_PER_SECOND = 800
 DARK_SLOWDOWN = 3.0
 INK = 150  # darker than this prints black
+# Owner 2026-10-19: never a solid black area. The office POS-80 stalls or restarts on solid black (every dot of a line
+# heated at once), and the restart reprinted the receipt's top over and over. Bars and the Thrift+ block are outlines
+# (OUTLINE dots thick) with black text.
+OUTLINE = 4  # the outer line of a double frame; the inner line is 1 dot, INNER_GAP inside it
+INNER_GAP = 4
 
 
 def _font(size: int, bold: bool = False) -> ImageFont.ImageFont:
     return rp._sans_bold(size) if bold else rp._sans_reg(size)
+
+
+def _heavy(size: int) -> ImageFont.ImageFont:
+    """The headings' heavy type (Arial Black; Arial Bold where it is missing): bold without solid black (1.9.6)."""
+    for family in ("ariblk.ttf", "seguibl.ttf"):
+        try:
+            return ImageFont.truetype(family, size)
+        except OSError:
+            continue
+    return _font(size, True)
 
 
 def _when(data: dict[str, Any]) -> str:
@@ -124,24 +139,25 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
         d.rectangle([x0, y, x1, y + thick - 1], fill=0)
         y += thick + pad
 
-    def band(text: str, size: int = 30) -> None:
-        nonlocal y
-        f = _font(size, True)
-        d.rectangle([x0, y, x1, y + h(f) + 10], fill=0)
-        d.text((x0 + (inner - w(text, f)) / 2, y + 5), text, font=f, fill=255)
-        y += h(f) + 16
+    def frame(box: tuple[int, int, int, int], radius: int = 0) -> None:
+        """A double frame: a thick outer line and a thin inner one (bold, and never solid black, 1.9.6)."""
+        l, t, r, b = box
+        k = OUTLINE + INNER_GAP
+        if radius:
+            d.rounded_rectangle([l, t, r, b], radius=radius, outline=0, width=OUTLINE)
+            d.rounded_rectangle([l + k, t + k, r - k, b - k], radius=max(2, radius - k), outline=0, width=1)
+        else:
+            d.rectangle([l, t, r, b], outline=0, width=OUTLINE)
+            d.rectangle([l + k, t + k, r - k, b - k], outline=0, width=1)
 
-    def thin_heading(text: str) -> None:
-        """── SOLD AS IS ─────: the heading between two hairlines."""
+    def band(text: str, size: int = 30) -> None:
+        """A heading bar: a double frame with heavy black type (never solid black, 1.9.6)."""
         nonlocal y
-        f = _font(22, True)
-        tw = w(text, f)
-        mid = y + h(f) // 2
-        left_end = x0 + (inner - tw) / 2 - 12
-        d.rectangle([x0, mid, left_end, mid + 1], fill=0)
-        d.rectangle([left_end + tw + 24, mid, x1, mid + 1], fill=0)
-        d.text((left_end + 12, y), text, font=f, fill=0)
-        y += h(f) + 8
+        f = _heavy(size)
+        bar_h = h(f) + 2 * (OUTLINE + INNER_GAP) + 4
+        frame((x0, y, x1, y + bar_h))
+        d.text((x0 + (inner - w(text, f)) / 2, y + (bar_h - h(f)) / 2 + 1), text, font=f, fill=0)
+        y += bar_h + 8
 
     training = rp._is_training(data)
     if training:
@@ -227,12 +243,12 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
             if rest:
                 if returns:
                     y += 8
-                thin_heading("SOLD AS IS")
+                band("SOLD AS IS", size=24)  # the same heading as 3-DAY RETURN (owner 2026-10-19)
                 col_heads()
                 for it in rest:
                     item_row(it)
         else:
-            thin_heading("ALL SALES FINAL · SOLD AS IS")
+            band("ALL SALES FINAL · SOLD AS IS", size=24)
             col_heads()
             for it in items:
                 item_row(it)
@@ -267,10 +283,10 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
         y += 6
         f_sav = _font(24, True)
         top = y
-        d.rectangle([x0, top, x1, top + h(f_sav) + 8], fill=0)
-        d.text((x0 + 10, top + 4), "YOU SAVED", font=f_sav, fill=255)
+        d.rectangle([x0, top, x1, top + h(f_sav) + 8], outline=0, width=OUTLINE)
+        d.text((x0 + 10, top + 4), "YOU SAVED", font=f_sav, fill=0)
         amt = f"${total_saved:.2f}"
-        d.text((x1 - 10 - w(amt, f_sav), top + 4), amt, font=f_sav, fill=255)
+        d.text((x1 - 10 - w(amt, f_sav), top + 4), amt, font=f_sav, fill=0)
         y = top + h(f_sav) + 14
         for label, amount in rows:
             lr(label, rp._savings_amount(label, amount), _font(20), gap=0, indent=18)
@@ -292,10 +308,14 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
     y += 10
 
     head, block_lines, fine = rp._bottom_block(data)
-    pad = 18
+    pad = 22
     box = (x0 + pad, x1 - pad)
     box_w = box[1] - box[0]
-    f_head = fit(head, 40, True, box_w, smallest=24)
+    f_head = _heavy(40)
+    for size in range(40, 23, -1):  # heavy type, as large as fits
+        f_head = _heavy(size)
+        if w(head, f_head) <= box_w:
+            break
     plan: list[tuple[str, ImageFont.ImageFont, int]] = []  # line, font, gap after
     for ln in rp._wrap_text(head, f_head, d, box_w):
         plan.append((ln, f_head, 2))
@@ -310,11 +330,15 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
             for ln in rp._wrap_text(text, _font(21), d, box_w):
                 plan.append((ln, _font(21), 2))
     block_h = 2 * pad + sum(h(f) + gap for _ln, f, gap in plan)
-    d.rounded_rectangle([x0, y, x1, y + block_h], radius=16, fill=0)
+    # Owner 2026-10-19: no deep black (a gray dot fill printed "ugly"): a bold outlined box, black text, a rule under
+    # the member line.
+    frame((x0, y, x1, y + block_h), radius=18)
     y += pad
-    for ln, font, gap in plan:
-        d.text((box[0] + (box_w - w(ln, font)) / 2, y), ln, font=font, fill=255)
+    for i, (ln, font, gap) in enumerate(plan):
+        d.text((box[0] + (box_w - w(ln, font)) / 2, y), ln, font=font, fill=0)
         y += h(font) + gap
+        if font is f_head and (i + 1 == len(plan) or plan[i + 1][1] is not f_head):
+            d.rectangle([box[0] + 40, y - 7, box[1] - 40, y - 5], fill=0)
     y += pad + 10
 
     if training:

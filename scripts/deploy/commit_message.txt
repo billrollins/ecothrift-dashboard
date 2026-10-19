@@ -1,5 +1,8 @@
-v2.180.0 — Thrift+ families approved by default: ThriftBucks rise slowly instead of sitting frozen; the owner reviews the big lots after
+v2.180.1 — Receipts with no solid black, so the printer stops reprinting their top (print server 1.9.6)
 
+User-facing theme: **Receipts with no solid black, so the printer stops reprinting their top (print server 1.9.6; Bill, 2026-10-19).** Outside initiatives (POS).
 
+### Fixed
+- **Print server 1.9.6:** receipts (mostly members' with 3-day returns) still printed their top over and over on 1.9.5. Test prints on the office printer showed solid black makes the POS-80 stall or restart. 3-DAY RETURN and SOLD AS IS are now matching double-framed headings in heavy type, and the Thrift+ box is a double-framed box with black text. Each register installs 1.9.6 from Settings → Printing → Download.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

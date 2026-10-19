@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.179.1] -->
-<!-- Last reviewed: 2026-10-17 (2.179.1) -->
+<!-- Line 1 release: ## [2.180.1] -->
+<!-- Last reviewed: 2026-10-19 (2.180.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.180.1] - 2026-10-19
+
+User-facing theme: **Receipts with no solid black, so the printer stops reprinting their top (print server 1.9.6; Bill, 2026-10-19).** Outside initiatives (POS).
+
+### Fixed
+- **Print server 1.9.6:** receipts (mostly members' with 3-day returns) still printed their top over and over on 1.9.5. Test prints on the office printer showed solid black makes the POS-80 stall or restart. 3-DAY RETURN and SOLD AS IS are now matching double-framed headings in heavy type, and the Thrift+ box is a double-framed box with black text. Each register installs 1.9.6 from Settings → Printing → Download.
 
 ## [2.180.0] - 2026-10-19
 
