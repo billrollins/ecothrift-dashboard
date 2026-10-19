@@ -139,6 +139,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+# "Continue with Google" (Thrift+ Join v2, 2026-10-19): Google's sign-in popup hands the sign-in back to the page that
+# opened it. Django's default COOP "same-origin" cuts that link, so the popup finished and the page waited forever.
+# "same-origin-allow-popups" keeps the protection for everything else (Google's Identity Services docs require it).
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
+
 ROOT_URLCONF = 'ecothrift.urls'
 
 TEMPLATES = [

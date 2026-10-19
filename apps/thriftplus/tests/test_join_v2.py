@@ -532,3 +532,12 @@ class FinalizeV2Tests(TwilioMixin, MailMixin, RegisterBase):
                                                          'face_matches': 'true', 'finalize': 'true'}, format='multipart')
         self.assertEqual(r.status_code, 403)
         self.assertEqual(Account.objects.get(pk=self.pat.account_id).status, Account.STATUS_PENDING)
+
+
+class GooglePopupHeaderTests(TestCase):
+    """2026-10-19: with COOP "same-origin" the Google popup could not hand the sign-in back, so it stalled."""
+
+    def test_pages_allow_the_google_sign_in_popup(self):
+        r = self.client.get('/api/thriftplus/public/sign-in-options/')
+        self.assertEqual(r.headers.get('Cross-Origin-Opener-Policy'), 'same-origin-allow-popups')
+

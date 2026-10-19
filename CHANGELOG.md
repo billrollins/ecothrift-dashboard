@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.182.2] -->
-<!-- Last reviewed: 2026-10-19 (2.182.2) -->
+<!-- Line 1 release: ## [2.182.3] -->
+<!-- Last reviewed: 2026-10-19 (2.182.3) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.182.3] - 2026-10-19
+
+User-facing theme: **"Continue with Google" no longer stalls (Bill, 2026-10-19).** Outside initiatives (Thrift+).
+
+### Fixed
+- **Google sign-in stalled after picking the account:** the site's Cross-Origin-Opener-Policy header was Django's default "same-origin", which cuts the link between the page and Google's sign-in popup, so the sign-in never came back. It is now "same-origin-allow-popups", as Google's Identity Services require.
 
 ## [2.182.2] - 2026-10-19
 
