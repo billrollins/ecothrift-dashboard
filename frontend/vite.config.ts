@@ -1,4 +1,5 @@
 /// <reference types="vitest/config" />
+import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -7,6 +8,8 @@ import react from '@vitejs/plugin-react'
 import basicSsl from '@vitejs/plugin-basic-ssl'
 
 const frontendDir = fileURLToPath(new URL('.', import.meta.url))
+// The release version (the repo's package.json, bumped on every ship), shown on the apps' splash screens.
+const appVersion = String(JSON.parse(fs.readFileSync(path.resolve(frontendDir, '..', 'package.json'), 'utf8')).version || '')
 // A second coder (another worktree) runs its own servers: ECOTHRIFT_API_PORT / ECOTHRIFT_STAFF_PORT.
 const apiTarget = `http://127.0.0.1:${process.env.ECOTHRIFT_API_PORT || 8000}`
 const staffPort = Number(process.env.ECOTHRIFT_STAFF_PORT) || 5173
@@ -55,6 +58,7 @@ function publicSiteUrlHint() {
 // Load `.env` from repo root (same file as Django) so VITE_* vars live alongside the backend.
 export default defineConfig({
   envDir: path.resolve(frontendDir, '..'),
+  define: { __APP_VERSION__: JSON.stringify(appVersion) },
   plugins: [
     react(),
     ...(mobileHttps

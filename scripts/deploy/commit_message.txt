@@ -1,12 +1,8 @@
-v2.182.4 — Finalize is one screen (photo, ID check, sign if needed, Done, Add a person); the selfie camera opens in the installed app
+v2.182.5 — Both Thrift+ apps show their version, muted, on the loading screen
 
-User-facing theme: **Finalize is one screen: their photo with Retake, the ID check, a signature only if needed, Done, then Add a person; and the selfie camera opens in the installed app (Bill, 2026-10-19).** Outside initiatives (Thrift+).
+User-facing theme: **Both Thrift+ apps show their version on the splash screen, muted (Bill, 2026-10-19).** Outside initiatives (Thrift+).
 
-### Changed
-- **Finalize Thrift+ (Thrift+ Staff):** one screen for everyone after scanning or picking them: their photo (the selfie) with **Retake photo**, or **Take their photo** when there is none; the signature box only when they didn't sign in the app ("Signed the terms in the app." otherwise); **Name matches**, **Face matches the photo**, **18 or older**; then **Done**. The old four steps are gone. After Done: **Add a person** (first and last name, the ID, a photo, "Both are here, and … approves") or **Finalize another**.
-- **The server** asks for the face check whenever a photo is on file (or a new photo), and for a signature only when there isn't one yet.
-
-### Fixed
-- **The selfie camera didn't open in the installed Thrift+ Member app:** the scanner kept the back camera open behind Finish joining, and phones open one camera at a time. The scanner now lets go of its camera while Finish joining is open, and the selfie camera tries once more if the camera is still busy.
+### Added
+- **Thrift+ Member and Thrift+ Staff:** the loading screen each app shows when it opens now has the version under the spinner in small grey text (for example v2.182.5), so anyone can tell which release a phone is running. The version comes from the release itself, set when the app is built. Dash's own loading screens are unchanged.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

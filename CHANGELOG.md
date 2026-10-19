@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.182.4] -->
-<!-- Last reviewed: 2026-10-19 (2.182.4) -->
+<!-- Line 1 release: ## [2.182.5] -->
+<!-- Last reviewed: 2026-10-19 (2.182.5) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.182.5] - 2026-10-19
+
+User-facing theme: **Both Thrift+ apps show their version on the splash screen, muted (Bill, 2026-10-19).** Outside initiatives (Thrift+).
+
+### Added
+- **Thrift+ Member and Thrift+ Staff:** the loading screen each app shows when it opens now has the version under the spinner in small grey text (for example v2.182.5), so anyone can tell which release a phone is running. The version comes from the release itself, set when the app is built. Dash's own loading screens are unchanged.
 
 ## [2.182.4] - 2026-10-19
 
