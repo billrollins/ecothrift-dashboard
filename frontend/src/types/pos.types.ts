@@ -245,6 +245,8 @@ export interface Cart {
   thrift_credit?: string;
   /** Thrift+ member, ThriftBucks and Thrift+ credit; null while Thrift+ is dark at this register. */
   thrift_plus?: ThriftPlusCartBlock | null;
+  /** Transactions list: the member and ThriftBucks on this sale; null for a guest. */
+  thrift_row?: { member: string; earned: string; used: string; credit_used: string; instant: string } | null;
 }
 
 /** A receipt line's 3-day returns mark (W10, A3), frozen on the line at the sale. */

@@ -22,6 +22,7 @@ from .models import (
     DeliveryAvailability, DeliveryDay, DeliveryJob, DeliveryJobItem,
     DeliveryRun, DeliveryRunStop, DeliveryAttachment,
 )
+from .serializers import thrift_earned_on
 from .serializers import (
     RegisterSerializer, DrawerSerializer,
     DrawerHandoffSerializer, CashDropSerializer,
@@ -664,9 +665,35 @@ class CartViewSet(viewsets.ModelViewSet):
         ).prefetch_related('lines').all()
         # Practice sales on the training register stay out of the Transactions list (they showed as
         # "Completed" under All). The terminal still finds its own open cart by asking for its drawer.
-        if self.action == 'list' and not _include_training_rows(self.request.query_params, 'drawer'):
+        if self.action in ('list', 'summary') and not _include_training_rows(self.request.query_params, 'drawer'):
             qs = qs.exclude(drawer__register__is_training=True)
+        if self.action == 'list':
+            qs = qs.select_related('thrift_member__person').annotate(tp_earned=thrift_earned_on())
         return qs
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        """Totals for the Transactions page: the same filters as the list, money from completed sales only."""
+        qs = self.filter_queryset(self.get_queryset()).order_by()
+        voided = qs.filter(status='voided').count()
+        thrift_count = qs.filter(status='completed', thrift_member__isnull=False).count()
+        done = qs.filter(status='completed')
+        totals = done.aggregate(count=Count('id'), total=Sum('total'))
+        by_method = {
+            row['payment_method']: str(row['total'] or Decimal('0'))
+            for row in done.values('payment_method').annotate(total=Sum('total'))
+        }
+        count = totals['count'] or 0
+        total = totals['total'] or Decimal('0')
+        average = (total / count).quantize(Decimal('0.01')) if count else Decimal('0')
+        return Response({
+            'count': count,
+            'total': str(total),
+            'average': str(average),
+            'voided_count': voided,
+            'thrift_count': thrift_count,
+            'by_method': by_method,
+        })
 
     def perform_create(self, serializer):
         from apps.core.models import AppSetting

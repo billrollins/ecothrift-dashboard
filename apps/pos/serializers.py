@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+from django.db.models import DecimalField, OuterRef, Subquery, Sum
 from rest_framework import serializers
 from .models import (
     Register, Drawer, DrawerHandoff, CashDrop,
@@ -6,6 +9,15 @@ from .models import (
     DashboardDepartmentGoal,
     DeliveryAvailability, DeliveryDay, DeliveryJob, DeliveryJobItem,
 )
+
+
+def thrift_earned_on():
+    """ThriftBucks a sale put in the member's bank (sale and re-ring rows; a void's reversal is not subtracted)."""
+    from apps.thriftplus.models import LedgerEntry
+    rows = (LedgerEntry.objects
+            .filter(cart=OuterRef('pk'), kind=LedgerEntry.KIND_BANK, reason__in=('sale', 'rering'), amount__gt=0)
+            .order_by().values('cart').annotate(t=Sum('amount')).values('t'))
+    return Subquery(rows, output_field=DecimalField(max_digits=10, decimal_places=2))
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -183,6 +195,7 @@ class CartSerializer(serializers.ModelSerializer):
     receipt = ReceiptSerializer(read_only=True)
     savings = serializers.SerializerMethodField()
     thrift_plus = serializers.SerializerMethodField()
+    thrift_row = serializers.SerializerMethodField()
 
     class Meta:
         model = Cart
@@ -195,7 +208,7 @@ class CartSerializer(serializers.ModelSerializer):
             'card_type_fixed_at', 'card_type_fixed_by', 'card_type_fixed_by_name',
             'card_type_fix_deadline', 'payroll_employee', 'payroll_employee_name',
             'completed_at', 'created_at',
-            'lines', 'receipt', 'savings', 'thrift_credit', 'thrift_plus',
+            'lines', 'receipt', 'savings', 'thrift_credit', 'thrift_plus', 'thrift_row',
         ]
         read_only_fields = [
             'id', 'cashier', 'subtotal', 'tax_amount', 'total', 'tax_rate', 'created_at',
@@ -214,6 +227,27 @@ class CartSerializer(serializers.ModelSerializer):
             return None
         from apps.thriftplus.services.register import cart_block
         return cart_block(obj)
+
+    def get_thrift_row(self, obj):
+        """The Thrift+ columns on the Transactions list: who, ThriftBucks kept, used, and taken off instantly.
+        None for a guest sale. Cheap: the list annotates ``tp_earned`` and prefetches the lines."""
+        from django.core.exceptions import ObjectDoesNotExist
+        try:
+            member = obj.thrift_member
+        except ObjectDoesNotExist:
+            return None
+        earned = getattr(obj, 'tp_earned', None)
+        if earned is None:
+            earned = obj.__class__.objects.filter(pk=obj.pk).annotate(tp_earned=thrift_earned_on()).values_list(
+                'tp_earned', flat=True).first()
+        person = member.person
+        return {
+            'member': f'{person.first_name} {person.last_name}'.strip(),
+            'earned': str(earned or Decimal('0.00')),
+            'used': str(member.bank_used or Decimal('0.00')),
+            'credit_used': str(obj.thrift_credit or Decimal('0.00')),
+            'instant': str(sum((l.thrift_savings or Decimal('0') for l in obj.lines.all()), Decimal('0.00'))),
+        }
 
     def get_savings(self, obj):
         from apps.pos.services.sale_mode import cart_savings

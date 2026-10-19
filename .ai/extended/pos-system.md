@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-07 (payroll deduction for staff) -->
+<!-- Last updated: 2026-10-19 (Transactions: totals, date chips, Thrift+ columns, search) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -208,7 +208,10 @@ The `useDeviceConfig` hook (`frontend/src/hooks/useDeviceConfig.ts`) reads/write
 ## Transactions Page (`TransactionListPage.tsx`)
 
 - Default `statusFilter` is `'all'` (shows both completed and voided)
-- Filters: receipt number search, cashier dropdown, status (All / Completed / Voided), date range
+- Filters: one **Search** box (receipt number or Thrift+ member name, `q`; searches 0.4 s after typing stops), date range with chips (Today, Yesterday, This week from Monday, This month, Last 30 days, All time), cashier, status (All / Completed / Voided), payment
+- **Totals strip:** `GET /pos/carts/summary/` takes the list's filters and answers `{count, total, average, voided_count, thrift_count, by_method}`, money from completed sales only (split sales count under Split). Training registers stay out, as in the list.
+- **Thrift+ columns:** each list row carries `thrift_row` (`member`, `earned` = sale and re-ring ThriftBucks ledger rows, `used` = kept ThriftBucks spent, `credit_used`, `instant` = the lines' `thrift_savings`), null for a guest. The list annotates `earned` in one subquery. The table shows Used as ThriftBucks plus credit.
+- The table fills the rest of the screen (`calc(100vh - 300px)`, compact rows).
 - Actions per row: reprint receipt, fix card type (15 min then superuser), void (Manager+)
 
 ---

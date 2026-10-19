@@ -1,9 +1,10 @@
 import { isAxiosError } from 'axios';
-import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 import {
   getRegisters,
   getDrawers,
   getCarts,
+  getCartSummary,
   openDrawer,
   openTrainingDrawer,
   closeDrawer,
@@ -82,6 +83,18 @@ export function useCarts(
     enabled: options?.enabled !== false,
     placeholderData: options?.placeholderData,
     staleTime: options?.staleTime,
+  });
+}
+
+export function useCartSummary(params?: Record<string, unknown>) {
+  return useQuery({
+    queryKey: ['carts', 'summary', params],
+    queryFn: async () => {
+      const { data } = await getCartSummary(params);
+      return data;
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.182.4] -->
-<!-- Last reviewed: 2026-10-19 (2.182.4) -->
+<!-- Line 1 release: ## [2.183.0] -->
+<!-- Last reviewed: 2026-10-19 (2.183.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.183.0] - 2026-10-19
+
+User-facing theme: **The Transactions page shows totals, Thrift+ members and their ThriftBucks, and finds a sale by receipt or member name (Bill, 2026-10-19).** Outside initiatives (POS).
+
+### Added
+- **Totals strip** on Transactions: sales, total, average sale, each payment method, Thrift+ sales and voided, for whatever filters are set (completed sales only).
+- **Date chips:** Today, Yesterday, This week, This month, Last 30 days, All time.
+- **Thrift+ columns:** the member's name, ThriftBucks **Earned**, **Used** (kept ThriftBucks and Thrift+ credit) and **Instant** (taken off right away). Blank for guests.
+- **One Search box** finds a receipt number or a member's name, and searches as you type.
+
+### Changed
+- The table fills most of the screen (compact rows, a smaller header, the "Press Enter" hint gone), and Status no longer cuts off to "Complet...".
 
 ## [2.182.4] - 2026-10-19
 

@@ -740,6 +740,20 @@ export function getCarts(params?: Record<string, unknown>): Promise<{ data: Pagi
   return api.get<PaginatedResponse<Cart>>('/pos/carts/', { params });
 }
 
+export interface CartSummary {
+  count: number;
+  total: string;
+  average: string;
+  voided_count: number;
+  thrift_count: number;
+  by_method: Record<string, string>;
+}
+
+/** Totals for the Transactions page: same filters as getCarts, money from completed sales only. */
+export function getCartSummary(params?: Record<string, unknown>) {
+  return api.get<CartSummary>('/pos/carts/summary/', { params });
+}
+
 // Dashboard
 export function getDashboardMetrics(params?: {
   weeks?: number;

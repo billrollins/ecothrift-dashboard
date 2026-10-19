@@ -36,7 +36,7 @@ import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
-import { useCarts, useVoidCart } from '../../hooks/usePOS';
+import { useCartSummary, useCarts, useVoidCart } from '../../hooks/usePOS';
 import { useUsers } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
 import { localPrintService } from '../../services/localPrintService';
@@ -44,7 +44,7 @@ import type { Cart, CartLine } from '../../types/pos.types';
 import { CartCardBreakdown } from '../../components/pos/CartCardBreakdown';
 import { CardTypeFixControls } from '../../components/pos/CardTypeFixControls';
 import { buildReceiptData } from '../../utils/posReceipt';
-import { format } from 'date-fns';
+import { format, startOfMonth, startOfWeek, subDays } from 'date-fns';
 import {
   getHistoricalRevenue,
   type HistoricalRevenueResponse,
@@ -55,6 +55,28 @@ function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num ?? 0);
 }
+
+const ymd = (d: Date) => format(d, 'yyyy-MM-dd');
+
+/** One-tap date ranges for the From/To boxes. Weeks start Monday. */
+function datePresets(): { label: string; from: string; to: string }[] {
+  const today = new Date();
+  return [
+    { label: 'Today', from: ymd(today), to: ymd(today) },
+    { label: 'Yesterday', from: ymd(subDays(today, 1)), to: ymd(subDays(today, 1)) },
+    { label: 'This week', from: ymd(startOfWeek(today, { weekStartsOn: 1 })), to: ymd(today) },
+    { label: 'This month', from: ymd(startOfMonth(today)), to: ymd(today) },
+    { label: 'Last 30 days', from: ymd(subDays(today, 29)), to: ymd(today) },
+    { label: 'All time', from: '', to: '' },
+  ];
+}
+
+/** A Thrift+ money cell: blank for a guest sale or nothing, so the column reads at a glance. */
+function thriftMoney(value: number): string {
+  return value > 0 ? formatCurrency(value) : '';
+}
+
+const METHOD_LABELS: Record<string, string> = { cash: 'Cash', card: 'Card', split: 'Split', payroll: 'Payroll' };
 
 const DB_COLORS: Record<string, string> = { db1: '#9e9e9e', db2: '#1976d2', db3: '#2e7d32' };
 const DB_LABELS: Record<string, string> = { db1: 'DB1 Legacy', db2: 'DB2 Production', db3: 'DB3 Current' };
@@ -102,7 +124,7 @@ function HistoricalRevenuePanel() {
     <Accordion
       expanded={expanded}
       onChange={(_, e) => setExpanded(e)}
-      sx={{ mb: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}
+      sx={{ mb: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}
     >
       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
         <Stack direction="row" alignItems="center" spacing={1.5}>
@@ -241,6 +263,11 @@ export default function TransactionListPage() {
     setPaginationModel((pm) => ({ ...pm, page: 0 }));
   }, [receiptDraft]);
 
+  useEffect(() => {
+    const t = setTimeout(() => setCommittedReceipt(receiptDraft.trim()), 400);
+    return () => clearTimeout(t);
+  }, [receiptDraft]);
+
   const clearReceiptSearch = useCallback(() => {
     setReceiptDraft('');
     setCommittedReceipt('');
@@ -264,7 +291,7 @@ export default function TransactionListPage() {
     if (statusFilter && statusFilter !== 'all') p.status = statusFilter;
     if (dateFrom) p.date_from = dateFrom;
     if (dateTo) p.date_to = dateTo;
-    if (committedReceipt) p.receipt_number = committedReceipt;
+    if (committedReceipt) p.q = committedReceipt;
     if (cashierFilter) p.cashier = cashierFilter;
     if (paymentFilter === 'credit' || paymentFilter === 'debit') {
       p.card_type = paymentFilter;
@@ -287,6 +314,13 @@ export default function TransactionListPage() {
     setPaginationModel((pm) => ({ ...pm, page: 0 }));
   }, [dateFrom, dateTo, committedReceipt, cashierFilter, statusFilter, paymentFilter]);
 
+  // The totals strip uses the same filters as the list, without paging.
+  const summaryParams = useMemo(() => {
+    const { page: _page, page_size: _size, ...rest } = params;
+    return rest;
+  }, [params]);
+  const { data: summary } = useCartSummary(summaryParams);
+
   const { data, isLoading } = useCarts(params, {
     placeholderData: keepPreviousData,
     staleTime: 5 * 60 * 1000,
@@ -300,14 +334,14 @@ export default function TransactionListPage() {
     {
       field: 'receipt_number',
       headerName: 'Receipt #',
-      width: 120,
+      width: 150,
       // A sale voided before payment never got a receipt; say so instead of showing its cart number.
       valueGetter: (_, row) => row.receipt?.receipt_number ?? (row.status === 'voided' ? 'Not paid' : `Sale ${row.id}`),
     },
     {
       field: 'status',
       headerName: 'Status',
-      width: 100,
+      width: 120,
       renderCell: ({ row }) =>
         row.status === 'voided' ? (
           <Chip size="small" label="Voided" color="error" variant="outlined" />
@@ -327,13 +361,12 @@ export default function TransactionListPage() {
     {
       field: 'cashier_name',
       headerName: 'Cashier',
-      flex: 1,
-      minWidth: 120,
+      width: 200,
     },
     {
       field: 'payment_method',
       headerName: 'Method',
-      width: 100,
+      width: 110,
       valueFormatter: (value) =>
         String(value ?? '')
           .replace(/_/g, ' ')
@@ -342,8 +375,50 @@ export default function TransactionListPage() {
     {
       field: 'total',
       headerName: 'Total',
-      width: 100,
+      width: 110,
+      align: 'right',
+      headerAlign: 'right',
       valueFormatter: (value) => formatCurrency(value ?? 0),
+    },
+    {
+      field: 'tp_member',
+      headerName: 'Thrift+ member',
+      width: 170,
+      sortable: false,
+      valueGetter: (_, row) => (row as Cart).thrift_row?.member ?? '',
+    },
+    {
+      field: 'tp_earned',
+      headerName: 'Earned',
+      description: "ThriftBucks this sale put in the member's bank",
+      width: 95,
+      align: 'right',
+      headerAlign: 'right',
+      sortable: false,
+      valueGetter: (_, row) => thriftMoney(parseFloat((row as Cart).thrift_row?.earned ?? '0')),
+    },
+    {
+      field: 'tp_used',
+      headerName: 'Used',
+      description: 'Kept ThriftBucks and Thrift+ credit spent on this sale',
+      width: 95,
+      align: 'right',
+      headerAlign: 'right',
+      sortable: false,
+      valueGetter: (_, row) => {
+        const t = (row as Cart).thrift_row;
+        return thriftMoney(t ? parseFloat(t.used) + parseFloat(t.credit_used) : 0);
+      },
+    },
+    {
+      field: 'tp_instant',
+      headerName: 'Instant',
+      description: 'ThriftBucks taken off the price right away',
+      width: 95,
+      align: 'right',
+      headerAlign: 'right',
+      sortable: false,
+      valueGetter: (_, row) => thriftMoney(parseFloat((row as Cart).thrift_row?.instant ?? '0')),
     },
   ];
 
@@ -363,17 +438,17 @@ export default function TransactionListPage() {
 
   return (
     <Box>
-      <PageHeader title="Transactions" subtitle="Transaction history" />
+      <PageHeader title="Transactions" dense />
 
       <HistoricalRevenuePanel />
 
-      <Grid container spacing={2} sx={{ mb: 2 }}>
+      <Grid container spacing={2} sx={{ mb: 1 }}>
         <Grid size={{ xs: 12, md: 2 }}>
           <TextField
             fullWidth
             size="small"
-            label="Receipt #"
-            placeholder="Receipt # (Enter or Search)"
+            label="Search"
+            placeholder="Receipt # or member name"
             value={receiptDraft}
             onChange={(e) => setReceiptDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -387,11 +462,11 @@ export default function TransactionListPage() {
                 endAdornment: (
                   <InputAdornment position="end">
                     {receiptDraft ? (
-                      <IconButton size="small" aria-label="Clear receipt search" onClick={clearReceiptSearch} edge="end">
+                      <IconButton size="small" aria-label="Clear search" onClick={clearReceiptSearch} edge="end">
                         <Clear fontSize="small" />
                       </IconButton>
                     ) : null}
-                    <IconButton size="small" aria-label="Search by receipt" onClick={commitReceiptSearch} edge="end">
+                    <IconButton size="small" aria-label="Search" onClick={commitReceiptSearch} edge="end">
                       <Search fontSize="small" />
                     </IconButton>
                   </InputAdornment>
@@ -399,9 +474,6 @@ export default function TransactionListPage() {
               },
             }}
           />
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-            Press Enter or Search to filter. Typing alone does not reload.
-          </Typography>
         </Grid>
         <Grid size={{ xs: 12, md: 2 }}>
           <TextField
@@ -476,7 +548,57 @@ export default function TransactionListPage() {
         </Grid>
       </Grid>
 
-      <Box sx={{ height: 500 }}>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1, flexWrap: 'wrap', rowGap: 1 }}>
+        {datePresets().map((p) => (
+          <Chip
+            key={p.label}
+            size="small"
+            label={p.label}
+            clickable
+            color={dateFrom === p.from && dateTo === p.to ? 'primary' : 'default'}
+            variant={dateFrom === p.from && dateTo === p.to ? 'filled' : 'outlined'}
+            onClick={() => {
+              setDateFrom(p.from);
+              setDateTo(p.to);
+            }}
+          />
+        ))}
+      </Stack>
+
+      {summary && (
+        <Paper
+          variant="outlined"
+          sx={{ px: 1.5, py: 0.75, mb: 1 }}
+          title="Completed sales only, for the filters above. Split sales count under Split."
+        >
+          <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap', rowGap: 0.5 }}>
+            {[
+              { label: 'Sales', value: summary.count.toLocaleString('en-US') },
+              { label: 'Total', value: formatCurrency(summary.total) },
+              { label: 'Average sale', value: formatCurrency(summary.average) },
+              ...Object.entries(summary.by_method)
+                .sort(([, a], [, b]) => parseFloat(b) - parseFloat(a))
+                .map(([method, total]) => ({ label: METHOD_LABELS[method] ?? method, value: formatCurrency(total) })),
+              ...(summary.thrift_count
+                ? [{ label: 'Thrift+ sales', value: summary.thrift_count.toLocaleString('en-US') }]
+                : []),
+              ...(summary.voided_count
+                ? [{ label: 'Voided', value: summary.voided_count.toLocaleString('en-US') }]
+                : []),
+            ].map((t) => (
+              <Typography key={t.label} variant="body2" color="text.secondary">
+                {t.label}{' '}
+                <Box component="span" sx={{ color: 'text.primary', fontWeight: 700 }}>
+                  {t.value}
+                </Box>
+              </Typography>
+            ))}
+          </Stack>
+        </Paper>
+      )}
+
+      {/* The table takes the rest of the screen (about 70% of it on a laptop). */}
+      <Box sx={{ height: 'calc(100vh - 300px)', minHeight: 420 }}>
         <DataGrid
           rows={carts as GridRowsProp}
           columns={columns}
@@ -487,6 +609,7 @@ export default function TransactionListPage() {
           paginationModel={paginationModel}
           onPaginationModelChange={setPaginationModel}
           pageSizeOptions={[10, 25, 50, 100]}
+          density="compact"
           onRowClick={({ row }) => setSelectedCart(row as Cart)}
           sx={{
             border: 'none',
