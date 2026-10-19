@@ -38,10 +38,20 @@ export default function SelfieCamera({ onPhoto, onFail }: {
     let stopped = false;
     (async () => {
       try {
-        const media = await navigator.mediaDevices.getUserMedia({
+        const ask = () => navigator.mediaDevices.getUserMedia({
           audio: false,
           video: { facingMode: { ideal: 'user' }, width: { ideal: 1280 }, height: { ideal: 1280 } },
         });
+        let media: MediaStream;
+        try {
+          media = await ask();
+        } catch (first) {
+          // The scanner's back camera may take a moment to let go (phones open one camera at a time): one more try.
+          const name = first && typeof first === 'object' && 'name' in first ? String((first as { name?: unknown }).name) : '';
+          if (name === 'NotAllowedError' || stopped) throw first;
+          await new Promise((r) => window.setTimeout(r, 700));
+          media = await ask();
+        }
         if (stopped) {
           media.getTracks().forEach((t) => t.stop());
           return;

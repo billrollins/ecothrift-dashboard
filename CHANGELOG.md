@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.182.3] -->
-<!-- Last reviewed: 2026-10-19 (2.182.3) -->
+<!-- Line 1 release: ## [2.182.4] -->
+<!-- Last reviewed: 2026-10-19 (2.182.4) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.182.4] - 2026-10-19
+
+User-facing theme: **Finalize is one screen: their photo with Retake, the ID check, a signature only if needed, Done, then Add a person; and the selfie camera opens in the installed app (Bill, 2026-10-19).** Outside initiatives (Thrift+).
+
+### Changed
+- **Finalize Thrift+ (Thrift+ Staff):** one screen for everyone after scanning or picking them: their photo (the selfie) with **Retake photo**, or **Take their photo** when there is none; the signature box only when they didn't sign in the app ("Signed the terms in the app." otherwise); **Name matches**, **Face matches the photo**, **18 or older**; then **Done**. The old four steps are gone. After Done: **Add a person** (first and last name, the ID, a photo, "Both are here, and … approves") or **Finalize another**.
+- **The server** asks for the face check whenever a photo is on file (or a new photo), and for a signature only when there isn't one yet.
+
+### Fixed
+- **The selfie camera didn't open in the installed Thrift+ Member app:** the scanner kept the back camera open behind Finish joining, and phones open one camera at a time. The scanner now lets go of its camera while Finish joining is open, and the selfie camera tries once more if the camera is still busy.
 
 ## [2.182.3] - 2026-10-19
 

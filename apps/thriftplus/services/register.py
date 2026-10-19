@@ -999,9 +999,11 @@ def finish_join(person_id, *, phone: str = '', id_checked: bool = False, verifie
         if person.account.status != Account.STATUS_PENDING:
             raise RegisterError('NOT_PENDING', 'They already finished joining. Scan their QR or find them by phone.')
         app = from_app(person)
-        if require_signature and app and not face_matches:
-            raise RegisterError('FACE_NEEDED', 'Check that their face matches the selfie.')
-        if require_signature and not app and not signature:
+        # Owner 2026-10-19 (Finalize, one screen): a photo on file is checked against the face (or retaken); the
+        # screen takes one when there is none; the signature only when they didn't sign in the app.
+        if require_signature and person.photo and not photo and not face_matches:
+            raise RegisterError('FACE_NEEDED', 'Check that their face matches the photo.')
+        if require_signature and not person.signature and not signature:
             raise RegisterError('SIGNATURE_NEEDED', 'The customer signs before you finish.')
         if digits:
             taken = Person.objects.filter(

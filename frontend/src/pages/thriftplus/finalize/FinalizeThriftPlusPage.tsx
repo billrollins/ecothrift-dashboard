@@ -28,7 +28,8 @@ import {
   type ThriftPendingPerson,
 } from '../../../api/thriftplusRegister.api';
 import { pendingName } from '../../../components/pos/ThriftPlusPendingFind';
-import SelfieCheck, { NO_CHECKS, checksDone, readyToVerify, type FaceChecks } from '../../../components/thriftplus/SelfieCheck';
+import SelfieCheck, { NO_CHECKS, checksDone, type FaceChecks } from '../../../components/thriftplus/SelfieCheck';
+import AddPersonPanel from '../../../components/thriftplus/AddPersonPanel';
 import { compressImageToJpeg } from '../../../services/receiving/receivingClient';
 import { thriftCardCode } from '../../../utils/thriftPlusCard';
 import { isStandalone } from '../scanner/installApp';
@@ -45,11 +46,11 @@ export const SIGNATURE_WORDS = 'I agree to the Thrift+ terms and photo release. 
  * `verify`: the one screen for a selfie and a signature from the app (Join v2, owner 2026-10-19). Otherwise the store
  * phone takes them: the ID, a photo and the signature. No phone number is asked here since Join v2 (it is optional).
  */
-type Step = 'find' | 'verify' | 'id' | 'photo' | 'sign' | 'done';
+type Step = 'find' | 'verify' | 'done' | 'add';
 
 /** The numbered steps of the store-phone path (the selfie path is one screen, unnumbered). */
-const STEP_NUMBER: Partial<Record<Step, number>> = { find: 1, id: 2, photo: 3, sign: 4 };
-const STEPS = 4;
+const STEP_NUMBER: Partial<Record<Step, number>> = { find: 1, verify: 2 };
+const STEPS = 2;
 
 /** What the cashier hears when a scanned QR is no pending join. */
 export function codeMemberMessage(member: ThriftCodeMember | undefined): string {
@@ -174,21 +175,16 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
   const [finding, setFinding] = useState(false);
   const [checks, setChecks] = useState<FaceChecks>(NO_CHECKS);
   const [newSelfie, setNewSelfie] = useState<Blob | null>(null);
-  const [idChecked, setIdChecked] = useState(false);
-  const [over18, setOver18] = useState(false);
-  const [photo, setPhoto] = useState<Blob | null>(null);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [photoBusy, setPhotoBusy] = useState(false);
   const [signed, setSigned] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [joinQr, setJoinQr] = useState(false);
   const [terms, setTerms] = useState(false);
   const [info, setInfo] = useState<ThriftPendingPerson | null>(null);
+  const [added, setAdded] = useState('');
   const { user } = useAuth();
   const navigate = useNavigate();
   const pad = useRef<ThriftSignaturePadHandle | null>(null);
-  const photoInput = useRef<HTMLInputElement | null>(null);
   const lastScan = useRef('');
 
   const midway = step !== 'find' && step !== 'done';
@@ -229,14 +225,10 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => () => {
-    if (photoUrl && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(photoUrl);
-  }, [photoUrl]);
-
   function pick(p: ThriftPendingPerson) {
     setPerson(p);
     setScanning(false);
-    setStep(readyToVerify(p) ? 'verify' : 'id');
+    setStep('verify');
   }
 
   async function onScan(raw: string) {
@@ -268,27 +260,6 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
     }
   }
 
-  async function onPhoto(file: File | null) {
-    if (!file) return;
-    setPhotoBusy(true);
-    try {
-      const small = await smallPhoto(file);
-      setPhoto(small);
-      setPhotoUrl(objectUrl(small));
-    } finally {
-      setPhotoBusy(false);
-    }
-  }
-
-  function retake() {
-    setPhoto(null);
-    setPhotoUrl(null);
-    if (photoInput.current) {
-      photoInput.current.value = '';
-      photoInput.current.click();
-    }
-  }
-
   async function send(body: Parameters<typeof finishThriftJoin>[0]) {
     setBusy(true);
     setError('');
@@ -302,23 +273,24 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
     }
   }
 
-  /** The store-phone path: the ID, a photo and the signature taken here. No phone number (optional since Join v2). */
-  async function finish() {
-    if (!person || !idChecked || !signed) return;
-    const signature = await pad.current?.toBlob();
-    if (!signature) {
-      setError('The signature did not save. Clear it and sign again.');
-      return;
-    }
-    await send({ person: person.person_id, id_checked: true, verified_18: over18, photo, signature, finalize: true });
-  }
-
-  /** The selfie path (Join v2): the photo ID checked against the app selfie. A retaken photo replaces the selfie. */
+  /**
+   * Done (owner 2026-10-19): the photo ID checked against their photo. A retaken photo replaces it; with no photo on
+   * file one is taken here; the signature is taken here only when they didn't sign in the app.
+   */
   async function verified() {
-    if (!person || !checksDone(checks)) return;
+    if (!person || !checksDone(checks) || !(person.photo_url || newSelfie)) return;
+    let signature: Blob | null | undefined = null;
+    if (!person.signed) {
+      signature = await pad.current?.toBlob();
+      if (!signature) {
+        setError('The signature did not save. Clear it and sign again.');
+        return;
+      }
+    }
     await send({
       person: person.person_id, id_checked: true, face_matches: true, verified_18: checks.over18, finalize: true,
       ...(newSelfie ? { photo: newSelfie } : {}),
+      ...(signature ? { signature } : {}),
     });
   }
 
@@ -334,17 +306,14 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
     setFindNote('');
     setChecks(NO_CHECKS);
     setNewSelfie(null);
-    setIdChecked(false);
-    setOver18(false);
-    setPhoto(null);
-    setPhotoUrl(null);
     setSigned(false);
+    setAdded('');
     setError('');
     lastScan.current = '';
     void search('');
   }
 
-  const back: Partial<Record<Step, Step>> = { verify: 'find', id: 'find', photo: 'id', sign: 'photo' };
+  const back: Partial<Record<Step, Step>> = { verify: 'find', add: 'done' };
   const number = STEP_NUMBER[step];
   const joinButton = (
     <Button variant="outlined" size="large" startIcon={<QrCode2Rounded />} onClick={() => setJoinQr(true)} sx={big} data-testid="finalize-show-join">
@@ -383,13 +352,6 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
           <Button size="small" onClick={() => navigate('/dashboard')} sx={{ minHeight: 44 }}>Dash</Button>
         ) : null}
       </Stack>
-      {person && step !== 'find' && step !== 'done' && step !== 'verify' ? (
-        <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, bgcolor: 'action.hover' }} data-testid="finalize-person">
-          <Typography fontWeight={800} fontSize="1.15rem">{pendingName(person)}</Typography>
-          {person.email ? <Typography variant="body2" color="text.secondary">{person.email}</Typography> : null}
-        </Box>
-      ) : null}
-
       {step === 'find' ? (
         <Stack spacing={2}>
           <Typography color="text.secondary">
@@ -459,142 +421,49 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
         </Stack>
       ) : null}
 
-      {/* Join v2 (owner 2026-10-19): a selfie and a signature from the app. One screen: the photo ID against the selfie. */}
+      {/* One screen for everyone (owner 2026-10-19): their photo, the ID check, the signature only if not signed in the app. */}
       {step === 'verify' && person ? (
         <Box data-testid="finalize-verify">
           <SelfieCheck person={person} checks={checks} onChecks={setChecks} retake={newSelfie} onRetake={(f) => void onRetake(f)} disabled={busy}>
+            {person.signed ? (
+              <Alert severity="success" data-testid="finalize-signed">Signed the terms in the app.</Alert>
+            ) : (
+              <Stack spacing={1.5} data-testid="finalize-sign">
+                <Typography fontWeight={700} color="text.secondary">Hand the phone to the customer to sign.</Typography>
+                <Typography variant="h6" fontWeight={800} data-testid="finalize-sign-words">{SIGNATURE_WORDS}</Typography>
+                <Button
+                  variant="outlined"
+                  size="large"
+                  startIcon={<DescriptionRounded />}
+                  onClick={() => setTerms(true)}
+                  disabled={busy}
+                  sx={big}
+                  data-testid="finalize-read-terms"
+                >
+                  Read the terms
+                </Button>
+                <ThriftSignaturePad ref={pad} onInk={setSigned} disabled={busy} />
+              </Stack>
+            )}
             {error ? <Alert severity="error" data-testid="finalize-error">{error}</Alert> : null}
             <Button
               variant="contained"
               size="large"
               color="success"
-              disabled={!checksDone(checks) || busy}
+              disabled={!checksDone(checks) || !(person.photo_url || newSelfie) || (!person.signed && !signed) || busy}
               onClick={() => void verified()}
               sx={{ ...big, minHeight: 72, fontSize: '1.3rem' }}
+              data-testid="finalize-done-button"
             >
-              {busy ? <CircularProgress size={26} color="inherit" /> : 'Verified'}
+              {busy ? <CircularProgress size={26} color="inherit" /> : 'Done'}
             </Button>
+            {!(person.photo_url || newSelfie) ? (
+              <Typography variant="body2" color="text.secondary" textAlign="center">Take their photo first.</Typography>
+            ) : !person.signed && !signed ? (
+              <Typography variant="body2" color="text.secondary" textAlign="center">They sign first.</Typography>
+            ) : null}
           </SelfieCheck>
         </Box>
-      ) : null}
-
-      {step === 'id' ? (
-        <Stack spacing={1.5}>
-          <Typography fontSize="1.1rem">Look at their photo ID: the name, the face and the age.</Typography>
-          <FormControlLabel
-            sx={{ border: 1, borderColor: 'divider', borderRadius: 2, m: 0, p: 1, minHeight: 64 }}
-            control={
-              <Checkbox
-                checked={idChecked}
-                onChange={(e) => {
-                  setIdChecked(e.target.checked);
-                  if (!e.target.checked) setOver18(false);
-                }}
-                sx={{ '& .MuiSvgIcon-root': { fontSize: 32 } }}
-              />
-            }
-            label={<Typography fontWeight={700} fontSize="1.1rem">I checked their photo ID</Typography>}
-          />
-          <FormControlLabel
-            sx={{ border: 1, borderColor: 'divider', borderRadius: 2, m: 0, p: 1, minHeight: 64 }}
-            control={
-              <Checkbox
-                checked={over18}
-                disabled={!idChecked}
-                onChange={(e) => setOver18(e.target.checked)}
-                sx={{ '& .MuiSvgIcon-root': { fontSize: 32 } }}
-              />
-            }
-            label={<Typography fontWeight={700} fontSize="1.1rem">The ID shows 18 or older</Typography>}
-          />
-          <Typography variant="body2" color="text.secondary">
-            Never scan or keep the ID itself: only the name, phone, email, photo and the 18+ flag are stored.
-          </Typography>
-          <Button variant="contained" size="large" disabled={!idChecked} onClick={() => setStep('photo')} sx={big}>
-            Next
-          </Button>
-        </Stack>
-      ) : null}
-
-      {step === 'photo' ? (
-        <Stack spacing={2}>
-          <Typography fontSize="1.1rem">Take their photo. Staff use it only to confirm it&apos;s them.</Typography>
-          <input
-            ref={photoInput}
-            hidden
-            type="file"
-            accept="image/*"
-            capture="environment"
-            data-testid="finalize-photo-input"
-            onChange={(e) => void onPhoto(e.target.files?.[0] ?? null)}
-          />
-          {photo ? (
-            <>
-              {photoUrl ? (
-                <Box
-                  component="img"
-                  src={photoUrl}
-                  alt="Their photo"
-                  draggable={false}
-                  sx={{ width: '100%', maxHeight: 360, objectFit: 'contain', borderRadius: 2, bgcolor: 'action.hover' }}
-                />
-              ) : (
-                <Alert severity="success">Photo taken.</Alert>
-              )}
-              <Button variant="contained" size="large" onClick={() => setStep('sign')} sx={big}>Next</Button>
-              <Button variant="outlined" size="large" startIcon={<PhotoCameraRounded />} onClick={retake} sx={big}>
-                Retake
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="contained"
-                size="large"
-                startIcon={photoBusy ? <CircularProgress size={22} color="inherit" /> : <PhotoCameraRounded />}
-                disabled={photoBusy}
-                onClick={() => photoInput.current?.click()}
-                sx={{ ...big, minHeight: 72 }}
-              >
-                Take their photo
-              </Button>
-              <Button size="large" onClick={() => setStep('sign')} sx={{ minHeight: 48 }}>
-                No photo today
-              </Button>
-            </>
-          )}
-        </Stack>
-      ) : null}
-
-      {step === 'sign' ? (
-        <Stack spacing={1.5}>
-          <Typography fontWeight={700} color="text.secondary">Hand the phone to the customer to sign.</Typography>
-          <Typography variant="h6" fontWeight={800} data-testid="finalize-sign-words">{SIGNATURE_WORDS}</Typography>
-          <Button
-            variant="outlined"
-            size="large"
-            startIcon={<DescriptionRounded />}
-            onClick={() => setTerms(true)}
-            disabled={busy}
-            sx={big}
-            data-testid="finalize-read-terms"
-          >
-            Read the terms
-          </Button>
-          <ThriftSignaturePad ref={pad} onInk={setSigned} disabled={busy} />
-          {error ? <Alert severity="error" data-testid="finalize-error">{error}</Alert> : null}
-          <Button
-            variant="contained"
-            size="large"
-            color="success"
-            disabled={!signed || busy}
-            onClick={() => void finish()}
-            sx={{ ...big, minHeight: 64 }}
-          >
-            {busy ? <CircularProgress size={26} color="inherit" /> : 'Finish'}
-          </Button>
-          {!signed ? <Typography variant="body2" color="text.secondary" textAlign="center">They sign first.</Typography> : null}
-        </Stack>
       ) : null}
 
       {step === 'done' ? (
@@ -603,11 +472,29 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
             <Typography fontWeight={800} fontSize="1.25rem">{`${person?.first_name ?? 'They'} is a Thrift+ member.`}</Typography>
             <Typography sx={{ mt: 0.5 }}>They show their member QR in the Thrift+ app at the register.</Typography>
           </Alert>
+          {added ? <Alert severity="success" data-testid="finalize-added">{`${added} is on the membership.`}</Alert> : null}
+          {person && !added ? (
+            <Button variant="outlined" size="large" onClick={() => setStep('add')} sx={big} data-testid="finalize-add-person">
+              Add a person
+            </Button>
+          ) : null}
           <Button variant="contained" size="large" onClick={startOver} sx={{ ...big, minHeight: 64 }}>
             Finalize another
           </Button>
           {joinButton}
         </Stack>
+      ) : null}
+
+      {step === 'add' && person ? (
+        <AddPersonPanel
+          accountId={person.account_id}
+          mainFirstName={person.first_name}
+          onAdded={(name) => {
+            setAdded(name);
+            setStep('done');
+          }}
+          onCancel={() => setStep('done')}
+        />
       ) : null}
 
       <PersonSheet

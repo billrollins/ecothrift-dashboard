@@ -1,8 +1,12 @@
-v2.182.3 — Continue with Google no longer stalls (the page allows Google's sign-in popup)
+v2.182.4 — Finalize is one screen (photo, ID check, sign if needed, Done, Add a person); the selfie camera opens in the installed app
 
-User-facing theme: **"Continue with Google" no longer stalls (Bill, 2026-10-19).** Outside initiatives (Thrift+).
+User-facing theme: **Finalize is one screen: their photo with Retake, the ID check, a signature only if needed, Done, then Add a person; and the selfie camera opens in the installed app (Bill, 2026-10-19).** Outside initiatives (Thrift+).
+
+### Changed
+- **Finalize Thrift+ (Thrift+ Staff):** one screen for everyone after scanning or picking them: their photo (the selfie) with **Retake photo**, or **Take their photo** when there is none; the signature box only when they didn't sign in the app ("Signed the terms in the app." otherwise); **Name matches**, **Face matches the photo**, **18 or older**; then **Done**. The old four steps are gone. After Done: **Add a person** (first and last name, the ID, a photo, "Both are here, and … approves") or **Finalize another**.
+- **The server** asks for the face check whenever a photo is on file (or a new photo), and for a signature only when there isn't one yet.
 
 ### Fixed
-- **Google sign-in stalled after picking the account:** the site's Cross-Origin-Opener-Policy header was Django's default "same-origin", which cuts the link between the page and Google's sign-in popup, so the sign-in never came back. It is now "same-origin-allow-popups", as Google's Identity Services require.
+- **The selfie camera didn't open in the installed Thrift+ Member app:** the scanner kept the back camera open behind Finish joining, and phones open one camera at a time. The scanner now lets go of its camera while Finish joining is open, and the selfie camera tries once more if the camera is still busy.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

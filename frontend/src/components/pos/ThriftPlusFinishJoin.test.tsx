@@ -284,7 +284,7 @@ describe('Finish joining, the selfie path (Join v2, owner 2026-10-19)', () => {
     expect(screen.getByRole('checkbox', { name: '18 or older' })).toBeDisabled();
     await user.click(screen.getByRole('checkbox', { name: 'Name matches' }));
     expect(verified).toBeDisabled();
-    await user.click(screen.getByRole('checkbox', { name: 'Face matches the selfie' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Face matches the photo' }));
     expect(verified).toBeEnabled();
     await user.click(screen.getByRole('checkbox', { name: '18 or older' }));
     await user.click(verified);
@@ -307,7 +307,7 @@ describe('Finish joining, the selfie path (Join v2, owner 2026-10-19)', () => {
     expect(await screen.findByRole('img', { name: 'The new photo' })).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Re-ring the last sale ($42.80) for them' })).toBeChecked();
     await user.click(screen.getByRole('checkbox', { name: 'Name matches' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Face matches the selfie' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Face matches the photo' }));
     await user.click(screen.getByRole('button', { name: 'Verified' }));
     expect(await screen.findByTestId('thrift-finish-done')).toHaveTextContent('Re-rung for Cara');
     expect(calls.finished).toEqual([

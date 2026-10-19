@@ -68,7 +68,7 @@ type Step = 'verify' | 'phone' | 'readback' | 'id' | 'done';
  * is ready (J2), and they go on the sale (or re-ring the last one).
  *
  * Join v2 (owner 2026-10-19): someone who took a selfie and signed in the app gets one screen: the selfie, "Check
- * their photo ID" (Name matches, Face matches the selfie, 18 or older) and Verified. No phone, photo or signature.
+ * their photo ID" (Name matches, Face matches the photo, 18 or older) and Verified. No phone, photo or signature.
  * For everyone else the phone number is optional now: left blank, Next goes straight to the ID.
  */
 export default function ThriftPlusFinishJoinDialog({

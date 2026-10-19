@@ -158,7 +158,9 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   const handleCodeRef = useRef<(raw: string, from: 'camera' | 'typed', format?: string) => void>(() => undefined);
   const typeOnly = typeOnlyMode();
   const camera = useQrCamera({
-    enabled: !typeOnly,
+    // Finish joining's selfie needs the front camera: the scanner lets go of the back one (a paused stream still holds
+    // it, and phones won't open two cameras at once).
+    enabled: !typeOnly && !finishOpen,
     paused: mode !== 'scan' || sheet != null || info != null || feel != null || accountOpen || finishOpen,
     onDecode: (raw, format) => handleCodeRef.current(raw, 'camera', format),
   });

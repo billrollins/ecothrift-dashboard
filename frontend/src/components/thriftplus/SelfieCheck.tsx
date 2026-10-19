@@ -111,7 +111,7 @@ export default function SelfieCheck({
         />
       ) : (
         <Box sx={{ p: 3, borderRadius: 3, bgcolor: 'action.hover', textAlign: 'center' }}>
-          <Typography color="text.secondary">{retake ? 'New photo taken.' : 'No selfie to show. Retake photo below.'}</Typography>
+          <Typography color="text.secondary">{retake ? 'New photo taken.' : 'No photo yet. Take their photo below.'}</Typography>
         </Box>
       )}
       <Box>
@@ -122,7 +122,7 @@ export default function SelfieCheck({
       </Box>
       <Typography variant="h6" fontWeight={800}>Check their photo ID</Typography>
       <BigCheck label="Name matches" checked={checks.name} disabled={disabled} onChange={(v) => set({ name: v })} />
-      <BigCheck label="Face matches the selfie" checked={checks.face} disabled={disabled} onChange={(v) => set({ face: v })} />
+      <BigCheck label="Face matches the photo" checked={checks.face} disabled={disabled} onChange={(v) => set({ face: v })} />
       <BigCheck label="18 or older" checked={checks.over18} disabled={disabled || !idDone} onChange={(v) => set({ over18: v })} />
       <Typography variant="body2" color="text.secondary">Never scan or keep the ID itself.</Typography>
       {children}
@@ -140,13 +140,15 @@ export default function SelfieCheck({
         }}
       />
       <Button
-        size="small"
+        size={src || retake ? 'small' : 'large'}
+        variant={src || retake ? 'text' : 'contained'}
         startIcon={<PhotoCameraRounded />}
         disabled={disabled}
         onClick={() => input.current?.click()}
-        sx={{ alignSelf: 'center', minHeight: 44 }}
+        sx={{ alignSelf: src || retake ? 'center' : 'stretch', minHeight: src || retake ? 44 : 64 }}
+        data-testid="selfie-check-retake"
       >
-        Retake photo
+        {src || retake ? 'Retake photo' : 'Take their photo'}
       </Button>
     </Stack>
   );

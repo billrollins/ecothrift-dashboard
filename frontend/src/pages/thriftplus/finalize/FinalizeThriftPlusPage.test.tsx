@@ -26,7 +26,7 @@ vi.mock('../scanner/useQrCamera', () => ({
 // Who is signed in: a cashier, or the owner (Delete and start over is the owner's alone).
 const auth = vi.hoisted(() => ({ user: { is_superuser: false } }));
 vi.mock('../../../contexts/AuthContext', () => ({ useAuth: () => ({ user: auth.user }) }));
-const admin = vi.hoisted(() => ({ deleteMember: vi.fn(), sendMemberEmailLink: vi.fn() }));
+const admin = vi.hoisted(() => ({ deleteMember: vi.fn(), sendMemberEmailLink: vi.fn(), addSecondAdult: vi.fn() }));
 vi.mock('../../../api/thriftplus.api', () => admin);
 
 vi.mock('../../../services/receiving/receivingClient', () => ({
@@ -73,19 +73,15 @@ function sign() {
   fireEvent.pointerUp(pad, { pointerId: 1 });
 }
 
-/** The store-phone path (no selfie or signature from the app): no phone number since Join v2, straight to the ID. */
-async function throughId(user: User) {
-  await screen.findByLabelText('I checked their photo ID');
-  expect(screen.queryByLabelText(/Phone number/)).not.toBeInTheDocument();
-  const next = screen.getByRole('button', { name: 'Next' });
-  expect(next).toBeDisabled(); // the ID check is required here
-  await user.click(screen.getByLabelText('I checked their photo ID'));
-  await user.click(screen.getByLabelText('The ID shows 18 or older'));
-  await user.click(screen.getByRole('button', { name: 'Next' }));
+/** Owner 2026-10-19: one screen for everyone. Tick Name matches and Face matches the photo. */
+async function checkId(user: User, over18 = true) {
+  await user.click(await screen.findByRole('checkbox', { name: 'Name matches' }));
+  await user.click(screen.getByRole('checkbox', { name: 'Face matches the photo' }));
+  if (over18) await user.click(screen.getByRole('checkbox', { name: '18 or older' }));
 }
 
 describe('Finalize Thrift+', () => {
-  it('scans the member QR with the phone camera and goes to the ID check (no selfie yet: the store-phone path)', async () => {
+  it('scans the member QR and opens the one screen: no photo yet, so Take their photo; the signature here', async () => {
     const user = userEvent.setup();
     expect(isThriftCardCode(CODE)).toBe(true);
     renderPage();
@@ -93,9 +89,12 @@ describe('Finalize Thrift+', () => {
     expect(camera.enabled).toBe(true);
     await act(async () => camera.onDecode?.(`TP${CODE}`));
     expect(api.findPendingOrMember).toHaveBeenLastCalledWith(`TP${CODE}`);
-    expect(await screen.findByLabelText('I checked their photo ID')).toBeInTheDocument();
-    expect(screen.getByTestId('finalize-person')).toHaveTextContent('Cara Joyner');
-    expect(screen.getByText('2 of 4')).toBeInTheDocument();
+    const box = await screen.findByTestId('finalize-verify');
+    expect(screen.getByTestId('selfie-check-name')).toHaveTextContent('Cara Joyner');
+    expect(box).toHaveTextContent('No photo yet. Take their photo below.');
+    expect(screen.getByRole('button', { name: 'Take their photo' })).toBeInTheDocument();
+    expect(screen.getByTestId('thrift-signature-pad')).toBeInTheDocument(); // not signed in the app
+    expect(screen.getByText('2 of 2')).toBeInTheDocument();
   });
 
   it('tells the cashier when the QR is already an active member, and ignores codes that are not member QRs', async () => {
@@ -107,11 +106,11 @@ describe('Finalize Thrift+', () => {
     api.findPendingOrMember.mockResolvedValueOnce({ people: [], member: { status: 'active', first_name: 'Ana' } });
     await act(async () => camera.onDecode?.(`TP${CODE}`));
     expect(await screen.findByTestId('finalize-find-note')).toHaveTextContent('Ana is already a Thrift+ member.');
-    expect(screen.queryByLabelText('I checked their photo ID')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('finalize-verify')).not.toBeInTheDocument();
     expect(codeMemberMessage({ status: 'unknown', first_name: '' })).toMatch(/isn't a Thrift\+ member code/);
   });
 
-  it('searches by name, needs the ID check and the signature (no phone), then finishes', async () => {
+  it('searches by name; one screen: a photo taken here, the ID check and the signature, then Done', async () => {
     const user = userEvent.setup();
     renderPage();
     expect(await screen.findByText('Cara Joyner')).toBeInTheDocument(); // the newest joins first
@@ -120,48 +119,67 @@ describe('Finalize Thrift+', () => {
     expect(api.findPendingOrMember).toHaveBeenLastCalledWith('joyner', { recent: true });
     await user.click(await screen.findByText('Cara Joyner'));
     await user.click(await screen.findByRole('button', { name: 'Finish now' }));
-    await throughId(user);
+    await screen.findByTestId('finalize-verify');
+    expect(screen.queryByLabelText(/Phone number/)).not.toBeInTheDocument();
+    const done = screen.getByRole('button', { name: 'Done' });
+    expect(done).toBeDisabled();
 
-    // The photo: taken, with Retake.
+    // No photo on file: Take their photo; then it reads Retake photo.
     const photo = new File(['jpg'], 'cara.jpg', { type: 'image/jpeg' });
-    await user.upload(screen.getByTestId('finalize-photo-input'), photo);
-    expect(await screen.findByRole('button', { name: 'Retake' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.upload(screen.getByTestId('selfie-check-retake-input'), photo);
+    expect(await screen.findByRole('button', { name: 'Retake photo' })).toBeInTheDocument();
+    await checkId(user);
+    expect(done).toBeDisabled(); // they sign first
 
-    // The signature under the J5 words: Finish waits for it.
+    // The signature under the J5 words; the terms open in a popup (J13): no link anywhere that leaves the page.
     expect(screen.getByTestId('finalize-sign-words')).toHaveTextContent(SIGNATURE_WORDS);
-    // The terms open in a popup on this screen (J13): no link anywhere that leaves the page.
     expect(screen.queryAllByRole('link')).toHaveLength(0);
     await user.click(screen.getByRole('button', { name: 'Read the terms' }));
     expect(await screen.findByTestId('finalize-terms')).toHaveTextContent('3-day returns');
     expect(screen.getByTestId('finalize-terms').querySelectorAll('a')).toHaveLength(0);
     await user.click(screen.getByRole('button', { name: 'Back to signing' }));
     await waitFor(() => expect(screen.queryByTestId('finalize-terms')).not.toBeInTheDocument());
-    const finish = screen.getByRole('button', { name: 'Finish' });
-    expect(finish).toBeDisabled();
     sign();
-    expect(finish).toBeEnabled();
+    expect(done).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Clear' }));
-    expect(finish).toBeDisabled();
+    expect(done).toBeDisabled();
     sign();
-    await user.click(finish);
+    await user.click(done);
 
     await screen.findByTestId('finalize-done');
     const body = api.finishThriftJoin.mock.calls[0][0];
-    expect(body).toMatchObject({ person: 7, id_checked: true, verified_18: true, finalize: true });
+    expect(body).toMatchObject({ person: 7, id_checked: true, face_matches: true, verified_18: true, finalize: true });
     expect(body.phone).toBeUndefined();
-    expect(body.face_matches).toBeUndefined();
     expect(body.signature).toBeInstanceOf(Blob);
     expect(body.photo).toBe(photo);
     expect(body.cart).toBeUndefined();
-    expect(screen.getByTestId('finalize-done')).toHaveTextContent(
-      'Cara is a Thrift+ member.They show their member QR in the Thrift+ app at the register.',
-    );
+    expect(screen.getByTestId('finalize-done')).toHaveTextContent('Cara is a Thrift+ member.');
     await user.click(screen.getByRole('button', { name: 'Finalize another' }));
     expect(screen.getByRole('button', { name: 'Scan their member QR' })).toBeInTheDocument();
   });
 
-  it('the store-phone path without a photo or a phone: a refusal shows on the signing screen', async () => {
+  it('a photo already on file (not signed yet): their photo shows with Retake, they sign here, then Done', async () => {
+    const user = userEvent.setup();
+    const HALF: ThriftPendingPerson = { ...CARA, status: 'pending', selfie: true, signed: false, photo_url: '/media/cara.jpg' };
+    api.findPendingOrMember.mockResolvedValue({ people: [HALF] });
+    renderPage();
+    await user.click(await screen.findByText('Cara Joyner'));
+    await user.click(await screen.findByRole('button', { name: 'Finish now' }));
+    await screen.findByTestId('finalize-verify');
+    expect(screen.getByRole('img', { name: "Cara Joyner's selfie" })).toHaveAttribute('src', '/media/cara.jpg');
+    expect(screen.queryByRole('button', { name: 'Take their photo' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retake photo' })).toBeInTheDocument();
+    await checkId(user, false);
+    sign();
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByTestId('finalize-done');
+    const body = api.finishThriftJoin.mock.calls[0][0];
+    expect(body.photo).toBeUndefined(); // their photo stays
+    expect(body.signature).toBeInstanceOf(Blob);
+    expect(body).toMatchObject({ face_matches: true, verified_18: false });
+  });
+
+  it('a refusal stays on the one screen with the message', async () => {
     const user = userEvent.setup();
     api.finishThriftJoin.mockRejectedValueOnce({
       response: { data: { code: 'NOT_PENDING', detail: 'Cara is already a Thrift+ member.' } },
@@ -169,15 +187,37 @@ describe('Finalize Thrift+', () => {
     renderPage();
     await user.click(await screen.findByText('Cara Joyner'));
     await user.click(await screen.findByRole('button', { name: 'Finish now' }));
-    await throughId(user);
-    await user.click(screen.getByRole('button', { name: 'No photo today' }));
+    await user.upload(await screen.findByTestId('selfie-check-retake-input'), new File(['jpg'], 'c.jpg', { type: 'image/jpeg' }));
+    await checkId(user);
     sign();
-    await user.click(screen.getByRole('button', { name: 'Finish' }));
+    await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(await screen.findByTestId('finalize-error')).toHaveTextContent('Cara is already a Thrift+ member.');
-    const body = api.finishThriftJoin.mock.calls[0][0];
-    expect(body.photo).toBeNull();
-    expect(body.phone).toBeUndefined();
-    expect(body.signature).toBeInstanceOf(Blob);
+    expect(api.finishThriftJoin.mock.calls[0][0].phone).toBeUndefined();
+  });
+
+  it('after Done: Add a person (both here, the ID, a photo, the approval), then Finalize another', async () => {
+    const user = userEvent.setup();
+    admin.addSecondAdult.mockReset().mockResolvedValue({});
+    api.findPendingOrMember.mockResolvedValue({ people: [READY] });
+    renderPage();
+    await user.click(await screen.findByText('Cara Joyner'));
+    await user.click(await screen.findByRole('button', { name: 'Finish now' }));
+    await checkId(user);
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByTestId('finalize-done');
+    await user.click(screen.getByRole('button', { name: 'Add a person' }));
+    const panel = await screen.findByTestId('add-person');
+    const add = screen.getByRole('button', { name: 'Add them' });
+    expect(add).toBeDisabled();
+    await user.type(screen.getByLabelText(/First name/), 'Sam');
+    await user.type(screen.getByLabelText(/Last name/), 'Joyner');
+    await user.click(screen.getByRole('checkbox', { name: 'Checked a photo ID (the name matches)' }));
+    await user.upload(panel.querySelector('input[type=file]') as HTMLInputElement, new File(['jpg'], 's.jpg', { type: 'image/jpeg' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Both are here, and Cara approves' }));
+    await user.click(add);
+    expect(admin.addSecondAdult).toHaveBeenCalledWith(3, expect.objectContaining({ first_name: 'Sam', last_name: 'Joyner', both_present: true, primary_approves: true }));
+    expect(await screen.findByTestId('finalize-added')).toHaveTextContent('Sam Joyner is on the membership.');
+    expect(screen.queryByRole('button', { name: 'Add a person' })).not.toBeInTheDocument();
   });
 
   it('shows the Join QR and ecothrift.us/join full screen for a customer who has not joined', async () => {
@@ -212,7 +252,7 @@ describe('Finalize Thrift+', () => {
     expect(document.head.querySelector('link[rel="manifest"]')).toBeNull();
     expect(onMidway).toHaveBeenLastCalledWith(false);
     await user.click(await screen.findByRole('button', { name: 'Finish now' }));
-    await screen.findByLabelText('I checked their photo ID');
+    await screen.findByTestId('finalize-verify');
     expect(onMidway).toHaveBeenLastCalledWith(true);
     unmount();
     expect(onMidway).toHaveBeenLastCalledWith(false);
@@ -239,7 +279,7 @@ describe('Finalize Thrift+', () => {
     expect(screen.getAllByTestId('finalize-person-line')[0]).toHaveTextContent('4021 5583 1907· no phone yet');
     await user.click(screen.getByTestId('finalize-person-pending'));
     await user.click(await screen.findByRole('button', { name: 'Finish now' }));
-    expect(await screen.findByLabelText('I checked their photo ID')).toBeInTheDocument();
+    expect(await screen.findByTestId('finalize-verify')).toBeInTheDocument();
   });
 
   it('marks who took a selfie and signed in the app: their selfie small and "Ready: selfie + signed" (Join v2)', async () => {
@@ -278,7 +318,7 @@ describe('Finalize Thrift+', () => {
   });
 
   describe('the selfie path (Join v2, owner 2026-10-19)', () => {
-    it('one screen: the selfie, the name, "Check their photo ID"; Verified waits for the name and the face', async () => {
+    it('one screen: the selfie, the name, "Check their photo ID"; Done waits for the name and the face', async () => {
       const user = userEvent.setup();
       api.findPendingOrMember.mockResolvedValue({ people: [READY] });
       renderPage();
@@ -294,22 +334,23 @@ describe('Finalize Thrift+', () => {
       expect(screen.queryByTestId('thrift-signature-pad')).not.toBeInTheDocument();
       expect(screen.queryByText(/of 4/)).not.toBeInTheDocument();
 
-      const verified = screen.getByRole('button', { name: 'Verified' });
+      expect(screenBox).toHaveTextContent('Signed the terms in the app.');
+      const verified = screen.getByRole('button', { name: 'Done' });
       const over18 = screen.getByRole('checkbox', { name: '18 or older' });
       expect(verified).toBeDisabled();
       expect(over18).toBeDisabled();
       await user.click(screen.getByRole('checkbox', { name: 'Name matches' }));
       expect(verified).toBeDisabled();
       expect(over18).toBeDisabled();
-      await user.click(screen.getByRole('checkbox', { name: 'Face matches the selfie' }));
+      await user.click(screen.getByRole('checkbox', { name: 'Face matches the photo' }));
       expect(verified).toBeEnabled();
       expect(over18).toBeEnabled();
       await user.click(over18);
       // Unchecking the face clears 18+ (it goes with a checked ID).
-      await user.click(screen.getByRole('checkbox', { name: 'Face matches the selfie' }));
+      await user.click(screen.getByRole('checkbox', { name: 'Face matches the photo' }));
       expect(verified).toBeDisabled();
       expect(over18).not.toBeChecked();
-      await user.click(screen.getByRole('checkbox', { name: 'Face matches the selfie' }));
+      await user.click(screen.getByRole('checkbox', { name: 'Face matches the photo' }));
       await user.click(over18);
       await user.click(verified);
 
@@ -321,20 +362,20 @@ describe('Finalize Thrift+', () => {
       expect(screen.getByRole('button', { name: 'Scan their member QR' })).toBeInTheDocument();
     });
 
-    it('Verified without 18+ sends verified_18 false', async () => {
+    it('Done without 18+ sends verified_18 false', async () => {
       const user = userEvent.setup();
       api.findPendingOrMember.mockResolvedValue({ people: [READY] });
       renderPage();
       await user.click(await screen.findByText('Cara Joyner'));
       await user.click(await screen.findByRole('button', { name: 'Finish now' }));
       await user.click(await screen.findByRole('checkbox', { name: 'Name matches' }));
-      await user.click(screen.getByRole('checkbox', { name: 'Face matches the selfie' }));
-      await user.click(screen.getByRole('button', { name: 'Verified' }));
+      await user.click(screen.getByRole('checkbox', { name: 'Face matches the photo' }));
+      await user.click(screen.getByRole('button', { name: 'Done' }));
       await screen.findByTestId('finalize-done');
       expect(api.finishThriftJoin.mock.calls[0][0]).toMatchObject({ verified_18: false, face_matches: true, id_checked: true });
     });
 
-    it('Retake photo: the new photo goes in the same Verified call, in place of the selfie', async () => {
+    it('Retake photo: the new photo goes in the same Done call, in place of the selfie', async () => {
       const user = userEvent.setup();
       api.findPendingOrMember.mockResolvedValue({ people: [READY] });
       renderPage();
@@ -348,8 +389,8 @@ describe('Finalize Thrift+', () => {
       expect(await screen.findByRole('img', { name: 'The new photo' })).toBeInTheDocument();
       expect(screen.queryByRole('img', { name: "Cara Joyner's selfie" })).not.toBeInTheDocument();
       await user.click(screen.getByRole('checkbox', { name: 'Name matches' }));
-      await user.click(screen.getByRole('checkbox', { name: 'Face matches the selfie' }));
-      await user.click(screen.getByRole('button', { name: 'Verified' }));
+      await user.click(screen.getByRole('checkbox', { name: 'Face matches the photo' }));
+      await user.click(screen.getByRole('button', { name: 'Done' }));
       await screen.findByTestId('finalize-done');
       const body = api.finishThriftJoin.mock.calls[0][0];
       expect(body.photo).toBe(photo);
@@ -365,8 +406,8 @@ describe('Finalize Thrift+', () => {
       await user.click(await screen.findByText('Cara Joyner'));
       await user.click(await screen.findByRole('button', { name: 'Finish now' }));
       await user.click(await screen.findByRole('checkbox', { name: 'Name matches' }));
-      await user.click(screen.getByRole('checkbox', { name: 'Face matches the selfie' }));
-      await user.click(screen.getByRole('button', { name: 'Verified' }));
+      await user.click(screen.getByRole('checkbox', { name: 'Face matches the photo' }));
+      await user.click(screen.getByRole('button', { name: 'Done' }));
       expect(await screen.findByTestId('finalize-error')).toHaveTextContent('Cara is already a Thrift+ member.');
       await user.click(screen.getByRole('button', { name: 'Back' }));
       expect(screen.getByRole('button', { name: 'Scan their member QR' })).toBeInTheDocument();
