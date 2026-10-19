@@ -13,8 +13,10 @@ The rules (owner's design, 2026-09-25; the rate and the launch start since 2026-
 - **Days 1 to 7** (the wait): no reward. **Then** it grows by the % a day of the starting price (0.75%).
 - **Before launch** the nightly run computes launch day (``default_day``), so staff see launch-day ThriftBucks.
 - **Pricing families** (thrift_plus_families, owner 2026-10-13): a product with 2+ floor units is a possible family
-  (``families.flag_identical``, run first each night). A **possible** family (or one sent to **exit**) holds: a unit
-  keeps the ThriftBucks of its first night and grows no more. An **approved** family prices its units together: one
+  (``families.flag_identical``, run first each night), and since 2026-10-16 it is approved at the end of that night at
+  the default target (``family_queue.auto_approve``: clear its floor count in 90 days; the owner reviews it after). A
+  **possible** family (or one sent to **exit**) holds: a unit keeps the ThriftBucks of its first night and grows no
+  more. An **approved** family prices its units together: one
   share of each tag (``RewardFamily.pct``), rising ``family_rise_pct`` (0.25%) a night while the family sells slower
   than its target, holding at or above it; a unit never goes down. The family's sales are estimated conservatively, as
   if one more sold now: (sold in the window + 1) ÷ the window's days, over the family's age (7 to 90 days). **Not a
@@ -664,8 +666,15 @@ def recompute(on: date | None = None) -> RewardRun:
             _write(fresh[i:i + CHUNK], run, on, now)
         closed = _close(p.to_close, run, on, now)
         _store_family_pcts(p, on)
+        try:  # after the night, so a new family's units keep their first-night start (the median it starts from)
+            from apps.thriftplus.services import family_queue
+
+            auto_approved = family_queue.auto_approve()
+        except Exception:  # never stops the nightly run
+            logger.exception('approving possible families by default failed')
+            auto_approved = 0
         run.counts = {**summary_counts(p), 'computed': len(fresh), 'closed': closed,
-                      'families_flagged': flagged.get('new', 0), 'bucks_lots_expired': expired.get('lots', 0)}
+                      'families_flagged': flagged.get('new', 0), 'families_auto_approved': auto_approved, 'bucks_lots_expired': expired.get('lots', 0)}
     except Exception as exc:
         logger.exception('reward recompute for %s failed', on)
         run.error = str(exc)[:4000]

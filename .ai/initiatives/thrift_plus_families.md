@@ -1,9 +1,9 @@
-<!-- initiative: slug=thrift-plus-families status=active updated=2026-10-13 -->
-<!-- Last updated: 2026-10-13 -->
+<!-- initiative: slug=thrift-plus-families status=active updated=2026-10-16 -->
+<!-- Last updated: 2026-10-16 (families approved by default; the owner reviews after) -->
 
 # Initiative: Thrift+ pricing families
 
-**Status:** **Active**: Phase 1 built 10-13, waiting to ship. Phase 1b (similar items) next; the owner OK'd setting up its AI run as a request.
+**Status:** **Active**: Phase 1 shipped. **Owner 10-16: every family is approved by default** at the 90-day clear target (none had been decided, so 29,186 of the floor's units sat frozen at launch); Families opens on **To review** and the owner reviews the big lots after. Built in [Unreleased], not shipped. Phase 1b (similar items) next; the owner OK'd setting up its AI run as a request.
 
 **Objective:** Identical and similar items on the floor stop growing ThriftBucks one by one (0.75% of the tag a day). They become **pricing families**: their ThriftBucks lock together and rise slowly, only until the family sells at the pace the owner sets (*x* per 90 days). Every family is **approved by the owner with a sell target**. Until then a possible family holds: its ThriftBucks stop growing. The **Families** page lets the owner make those calls fast and well. A bad family call is a liability both ways: junk volume piles up if it never moves, and good items lose margin if a big group discounts as fast as singles.
 
@@ -130,6 +130,12 @@ Acceptance:
 - [x] Tests: hold, approve, not a family, the slow rise against the target, and mark the rest.
 
 **Built 10-13 (not shipped yet):** `families.flag_identical` (run first every night, and "Find new families"), the engine's `family_states` and hold/approved steps (`rewards.py`), `family_queue.py` (the cards, flags and decisions), `FamiliesViewSet` (`/api/thriftplus/families/`), and Thrift+ → **Families** in Dash. A possible family keeps the ThriftBucks of its first night (its launch start), so launch-day values are the same either way; decisions change growth from the next night. An approved family starts at the median of its units' current %. Identical units no longer pace by sell-through as "bulk" (the families replace it). Local dry run: 2,080 families found in 0.5 s, the queue in 0.4 s, 1,996 can be approved in bulk (84 huge lots one by one).
+
+### Phase 1c: Approved by default (owner 2026-10-16)
+Every possible family is approved at the end of its first night at the default target (its floor count per 90 days), unstamped, starting at the median of its units' ThriftBucks %. The page opens on **To review** (approved, no one stamped); the owner's Save, Not a family or Exit stamps it. Replaces "a possible family holds until the owner decides" (rule 1 and 3 above, rulebook P6).
+- [x] `family_queue.auto_approve` at the end of every nightly run and on "Find new families"; the run counts `families_auto_approved`.
+- [x] Families page: the To review view, the "Approved by default" chip, an approved card's target and Save, Not a family, Exit.
+- [x] Tests: approved by default after the first night, then the slow rise; review and the owner's save.
 
 ### Phase 1b: Similar items
 The overnight search (§ Finding similar items) adds possible families across products to the same queue.

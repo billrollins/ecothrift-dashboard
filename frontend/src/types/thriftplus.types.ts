@@ -300,6 +300,8 @@ export interface CalculatorResult {
 
 /** A pricing family on the Families tab (thrift_plus_families Phase 1, owner 2026-10-13). */
 export type FamilyStatus = 'possible' | 'approved' | 'not_family' | 'exit';
+/** A status, or ``review``: approved by default and not yet reviewed by the owner (owner 2026-10-16). */
+export type FamilyView = FamilyStatus | 'review';
 
 export interface FamilyRow {
   id: number;
@@ -330,14 +332,16 @@ export interface FamilyRow {
   decided_by: string;
   decided_at: string | null;
   note: string;
+  auto: boolean;
   flags: { key: 'huge' | 'volume' | 'cost' | 'junk' | 'fast'; text: string }[];
 }
 
 export interface FamiliesQueue {
-  counts: Record<FamilyStatus, number>;
-  units: Record<FamilyStatus, number>;
+  counts: Record<FamilyView, number>;
+  units: Record<FamilyView, number>;
   total: number;
   decided: number;
+  reviewed: number;
   matching: number;
   bulk_ok: number;
   rows: FamilyRow[];

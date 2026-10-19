@@ -55,18 +55,25 @@ class HoldAndApproveTests(TestCase):
         self.boss = _boss()
         self.lamp = Product.objects.create(title='Brass floor lamp')
         self.items = [_floor_item(self.lamp, f'ITMFH0{i}', days_on_floor=30, price='100.00') for i in range(4)]
-        rewards.recompute(DAY)  # flags the family, then holds it at its start
+        rewards.recompute(DAY)  # flags the family, holds it at its start, then approves it by default
         self.family = RewardFamily.objects.get()
 
     def rewards_on(self):
         return sorted(set(ItemReward.objects.values_list('reward', flat=True)))
 
-    def test_a_possible_family_keeps_its_start_and_grows_no_more(self):
+    def test_a_new_family_keeps_its_first_night_start_then_is_approved_by_default(self):
         self.assertEqual(self.rewards_on(), [D('25.55')])  # 23 growth days
         self.assertEqual(set(ItemReward.objects.values_list('reason', flat=True)), {'family_possible'})
-        rewards.recompute(DAY + timedelta(days=1))
-        rewards.recompute(DAY + timedelta(days=2))
-        self.assertEqual(self.rewards_on(), [D('25.55')])
+        # owner 2026-10-16: approved at the end of its first night, to clear its 4 units in 90 days, unstamped (to review)
+        self.assertEqual((self.family.status, self.family.target_per_90, self.family.pct, self.family.decided_by),
+                         (RewardFamily.STATUS_APPROVED, 4, D('0.2555'), None))
+        rewards.recompute(DAY + timedelta(days=1))  # no sales: (0 + 1) ÷ 30 days × 90 = 3 < 4, behind
+        self.assertEqual(self.rewards_on(), [D('25.80')])
+
+    def test_a_possible_family_holds(self):
+        family_queue.decide(self.family, 'reopen', by=self.boss)
+        out = {o.reason for o in rewards.plan(DAY + timedelta(days=1)).outcomes}  # held, until the night approves it again
+        self.assertEqual(out, {'family_possible'})
 
     def test_approved_behind_its_target_rises_a_quarter_percent_a_night_and_once(self):
         family_queue.decide(self.family, 'approve', by=self.boss, target=10)
@@ -112,13 +119,30 @@ class FamiliesPageTests(APITestCase):
 
     def test_the_queue_is_in_order_of_money_at_stake_with_flags(self):
         self.client.force_authenticate(self.manager)
-        data = self.client.get('/api/thriftplus/families/').data
+        data = self.client.get('/api/thriftplus/families/?status=possible').data
         self.assertEqual((data['total'], data['decided'], data['counts']['possible']), (2, 0, 2))
         self.assertEqual([r['name'] for r in data['rows']], ['Stoneware mug', 'Plastic tumbler'])  # $18 before $12.50
         tumbler = data['rows'][1]
         self.assertEqual((tumbler['units'], tumbler['suggested_target'], tumbler['huge']), (50, 50, True))
         self.assertEqual({f['key'] for f in tumbler['flags']}, {'huge', 'volume', 'cost', 'junk'})
-        self.assertEqual(self.client.get('/api/thriftplus/families/?band=50%2B').data['matching'], 1)
+        self.assertEqual(self.client.get('/api/thriftplus/families/?status=possible&band=50%2B').data['matching'], 1)
+
+    def test_approved_by_default_then_reviewed(self):
+        """Owner 2026-10-16: every possible family is approved at its floor count per 90 days and waits for review;
+        the owner's save stamps it and takes it off the review list."""
+        self.assertEqual(family_queue.auto_approve(), 2)
+        self.huge.refresh_from_db()
+        self.assertEqual((self.huge.status, self.huge.target_per_90, self.huge.decided_by), ('approved', 50, None))
+        self.client.force_authenticate(self.boss)
+        data = self.client.get('/api/thriftplus/families/').data  # opens on "to review"
+        self.assertEqual((data['counts']['review'], data['reviewed'], data['matching']), (2, 0, 2))
+        r = self.client.post(f'/api/thriftplus/families/{self.huge.pk}/decide/', {'action': 'approve', 'target': 20}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.huge.refresh_from_db()
+        self.assertEqual((self.huge.target_per_90, self.huge.decided_by), (20, self.boss))
+        data = self.client.get('/api/thriftplus/families/').data
+        self.assertEqual((data['counts']['review'], data['reviewed'], [x['id'] for x in data['rows']]), (1, 1, [self.small.pk]))
+        self.assertEqual(family_queue.auto_approve(), 0)  # nothing left to approve
 
     def test_only_the_owner_decides(self):
         self.client.force_authenticate(self.manager)

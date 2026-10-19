@@ -485,22 +485,22 @@ class FamiliesViewSet(viewsets.ViewSet):
     """
     Thrift+ → Families (thrift_plus_families Phase 1, owner 2026-10-13): the pricing families on the floor and the
     owner's decisions. Managers can look; the owner decides.
-    - GET ``families/?status=possible&band=10-49&flag=huge&q=…&offset=0`` the queue, in order of money at stake;
+    - GET ``families/?status=review&band=10-49&flag=huge&q=…&offset=0`` the queue, in order of money at stake
+      (``review``: approved by default, not yet reviewed by the owner; owner 2026-10-16);
     - POST ``families/<id>/decide/ {action: approve|not_family|exit|reopen, target?}``;
     - POST ``families/bulk/ {ids}`` approve at the suggestion (never a lot of 50+);
     - POST ``families/rest/`` every family still possible becomes "not a family";
-    - POST ``families/find/`` look for new ones now (it also runs every night).
+    - POST ``families/find/`` look for new ones now and approve them by default (it also runs every night).
     """
 
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
     def list(self, request):
-        from apps.thriftplus.models import RewardFamily
         from apps.thriftplus.services import family_queue
 
         q = request.query_params
-        status_ = q.get('status') or RewardFamily.STATUS_POSSIBLE
-        if status_ not in dict(RewardFamily.STATUS_CHOICES):
+        status_ = q.get('status') or family_queue.REVIEW
+        if status_ not in family_queue.STATUS_KEYS:
             return Response({'detail': 'Unknown status.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             offset = max(0, int(q.get('offset') or 0))
@@ -540,9 +540,10 @@ class FamiliesViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsSuperAdmin])
     def find(self, request):
-        from apps.thriftplus.services import families
+        from apps.thriftplus.services import families, family_queue
 
-        return Response(families.flag_identical())
+        found = families.flag_identical()
+        return Response({**found, 'approved': family_queue.auto_approve()})
 
 
 class RewardsViewSet(viewsets.ViewSet):

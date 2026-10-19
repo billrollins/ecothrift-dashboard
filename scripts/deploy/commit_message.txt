@@ -1,8 +1,5 @@
-v2.179.1 — Receipts no longer print their top over and over (print server 1.9.5)
+v2.180.0 — Thrift+ families approved by default: ThriftBucks rise slowly instead of sitting frozen; the owner reviews the big lots after
 
-User-facing theme: **Receipts no longer print their top over and over (print server 1.9.5; Bill, 2026-10-17).** Outside initiatives (POS).
 
-### Fixed
-- **Print server 1.9.5:** a receipt (most often a member's with 3-day returns) sometimes printed its top, logo to the 3-DAY RETURN bar, many times before the whole receipt. The receipt picture went to the printer in one ~80 KB piece; solid black slows a thermal printer, its memory filled, and Windows restarted the job from the top. It now goes in small strips at the printer's own speed. Each register installs 1.9.5 from Settings → Printing → Download.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

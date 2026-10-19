@@ -16,6 +16,10 @@ conservative sales estimate ((sold + 1) ÷ days, as if one more sold now), today
 **Decisions** (the owner): approve with a target (the units then share one ThriftBucks %, starting at the median of
 their current %), not a family, exit, or reopen. Bulk approve at the suggestion (never a huge lot), and "mark the
 rest not a family". Every decision is stamped (who, when).
+
+**Approved by default** (owner 2026-10-16): every possible family is approved each night at the default target (clear
+its floor count in 90 days), unstamped, so nothing sits frozen. An approved family with no one stamped on it is **to
+review**: the owner works those (the big lots first) and his save stamps it.
 """
 from __future__ import annotations
 
@@ -38,6 +42,10 @@ JUNK_PRICE = Decimal('5')
 COST_SHARE = Decimal('0.40')
 SIZE_BANDS = [('2-3', 2, 3), ('4-9', 4, 9), ('10-49', 10, 49), ('50+', 50, None)]
 ZERO = Decimal('0')
+
+
+REVIEW = 'review'  # a view, not a status: approved by default and not yet reviewed by the owner
+STATUS_KEYS = [s for s, _ in RewardFamily.STATUS_CHOICES] + [REVIEW]
 
 
 class FamilyError(Exception):
@@ -144,6 +152,7 @@ def _rows() -> list[dict]:
             'target_per_90': f.target_per_90, 'pct': str((f.pct or ZERO) * 100) if f.pct is not None else None,
             'decided_by': (f.decided_by.full_name or f.decided_by.email) if f.decided_by else '',
             'decided_at': f.decided_at.isoformat() if f.decided_at else None, 'note': f.note,
+            'auto': f.status == RewardFamily.STATUS_APPROVED and f.decided_by_id is None,
             'flags': flags,
         })
     out.sort(key=lambda r: (-Decimal(r['tag_total']), -r['units'], r['id']))
@@ -164,14 +173,17 @@ def _category_names(fam_of: dict[int, int], fids: set[int]) -> dict[int, str]:
 
 def queue(*, status: str = RewardFamily.STATUS_POSSIBLE, band: str = '', flag: str = '', q: str = '',
           offset: int = 0, limit: int = 50) -> dict:
-    """The page: one status's families in order, filtered, a page at a time, and the counts."""
+    """The page: one status's families (or ``review``) in order, filtered, a page at a time, and the counts."""
     rows = _rows()
     counts = defaultdict(int)
     units_by = defaultdict(int)
     for r in rows:
         counts[r['status']] += 1
         units_by[r['status']] += r['units']
-    shown = [r for r in rows if r['status'] == status]
+        if r['auto']:
+            counts[REVIEW] += 1
+            units_by[REVIEW] += r['units']
+    shown = [r for r in rows if r['auto']] if status == REVIEW else [r for r in rows if r['status'] == status]
     if band:
         shown = [r for r in shown if r['band'] == band]
     if flag:
@@ -181,9 +193,10 @@ def queue(*, status: str = RewardFamily.STATUS_POSSIBLE, band: str = '', flag: s
         shown = [r for r in shown if ql in r['name'].lower() or ql in (r['category'] or '').lower()]
     total = len(rows)
     return {
-        'counts': {s: counts.get(s, 0) for s, _ in RewardFamily.STATUS_CHOICES},
-        'units': {s: units_by.get(s, 0) for s, _ in RewardFamily.STATUS_CHOICES},
+        'counts': {s: counts.get(s, 0) for s in STATUS_KEYS},
+        'units': {s: units_by.get(s, 0) for s in STATUS_KEYS},
         'total': total, 'decided': total - counts.get(RewardFamily.STATUS_POSSIBLE, 0),
+        'reviewed': total - counts.get(RewardFamily.STATUS_POSSIBLE, 0) - counts.get(REVIEW, 0),
         'matching': len(shown), 'bulk_ok': sum(1 for r in shown if not r['huge']),
         'rows': shown[offset:offset + limit],
     }
@@ -209,11 +222,12 @@ def decide(family: RewardFamily, action: str, *, by, target: int | None = None, 
             raise FamilyError('A sell target (units per 90 days) is needed.')
         if not 1 <= int(target) <= 100000:
             raise FamilyError('The target is units per 90 days, 1 or more.')
+        if family.status != RewardFamily.STATUS_APPROVED:
+            family.pct_on = None
         family.status = RewardFamily.STATUS_APPROVED
         family.target_per_90 = int(target)
         if family.pct is None:
             family.pct = _floor_pct(family)
-        family.pct_on = None
     elif action == 'not_family':
         family.status = RewardFamily.STATUS_NOT_FAMILY
     elif action == 'exit':
@@ -249,3 +263,34 @@ def rest_not_family(*, by) -> int:
     """Every family still possible becomes "not a family" (owner 2026-10-13: everything decided by launch)."""
     return RewardFamily.objects.filter(status=RewardFamily.STATUS_POSSIBLE).update(
         status=RewardFamily.STATUS_NOT_FAMILY, decided_by=by, decided_at=timezone.now(), note='Marked with the rest')
+
+
+AUTO_NOTE = 'Approved by default: clear the floor in 90 days'
+
+
+def auto_approve() -> int:
+    """Every possible family becomes approved at the default target (its floor count per 90 days), unstamped, so it is
+    to review (owner 2026-10-16). Each starts at the median of its units' current ThriftBucks %. Run nightly after the
+    flagging, so a new family never sits frozen."""
+    from apps.inventory.models import Item
+
+    fids = list(RewardFamily.objects.filter(status=RewardFamily.STATUS_POSSIBLE).values_list('pk', flat=True))
+    if not fids:
+        return 0
+    units = dict(Item.objects.filter(status='on_shelf', product__reward_family_link__family_id__in=fids)
+                 .exclude(source='consignment').values('product__reward_family_link__family_id')
+                 .annotate(n=Count('id')).values_list('product__reward_family_link__family_id', 'n'))
+    shares: dict[int, list[Decimal]] = defaultdict(list)
+    for fid, reward, price in (ItemReward.objects.filter(item__status='on_shelf', item__product__reward_family_link__family_id__in=fids)
+                               .exclude(status__in=[ItemReward.STATUS_CLOSED, ItemReward.STATUS_EXCLUDED])
+                               .values_list('item__product__reward_family_link__family_id', 'reward', 'starting_price')):
+        if price and price > 0:
+            shares[fid].append(reward / price)
+    now = timezone.now()
+    done = 0
+    for fid in fids:
+        pct = Decimal(median(shares[fid])).quantize(Decimal('0.0001')) if shares.get(fid) else ZERO
+        done += RewardFamily.objects.filter(pk=fid, status=RewardFamily.STATUS_POSSIBLE).update(
+            status=RewardFamily.STATUS_APPROVED, target_per_90=max(1, units.get(fid, 0)), pct=pct, pct_on=None,
+            decided_by=None, decided_at=now, note=AUTO_NOTE)
+    return done

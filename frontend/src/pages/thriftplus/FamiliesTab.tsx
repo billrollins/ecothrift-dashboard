@@ -1,6 +1,8 @@
 /**
  * Thrift+ → Families (thrift_plus_families Phase 1, owner 2026-10-13): every pricing family on the floor, worked as a
- * queue in order of money at stake. A possible family holds its ThriftBucks until the owner decides it:
+ * queue in order of money at stake. Since 2026-10-16 every new family is approved by default at the suggested target
+ * (clear the floor in 90 days), so nothing sits frozen; the page opens on **To review** (approved by default, not yet
+ * reviewed), and the owner's save stamps a family as his. A family still to decide holds its ThriftBucks:
  * - **Approve** with a sell target (units per 90 days; suggested: clear the floor in 90 days): its units then share one
  *   ThriftBucks %, rising 0.25% of the tag a night while it sells slower than the target;
  * - **Not a family**: each unit grows on its own again; **Exit**: it holds, for the exit list.
@@ -32,10 +34,11 @@ import { useState } from 'react';
 import { bulkApproveFamilies, decideFamily, fetchFamilies, findFamilies, markRestNotFamily } from '../../api/thriftplus.api';
 import { useAuth } from '../../hooks/useAuth';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
-import type { FamilyRow, FamilyStatus } from '../../types/thriftplus.types';
+import type { FamilyRow, FamilyView } from '../../types/thriftplus.types';
 import { formatCurrency, formatNumber } from '../../utils/format';
 
-const STATUSES: { key: FamilyStatus; label: string }[] = [
+const STATUSES: { key: FamilyView; label: string }[] = [
+  { key: 'review', label: 'To review' },
   { key: 'possible', label: 'To decide' },
   { key: 'approved', label: 'Families' },
   { key: 'not_family', label: 'Not a family' },
@@ -60,7 +63,7 @@ export default function FamiliesTab() {
   const { user } = useAuth();
   const owner = Boolean(user?.is_superuser);
   const qc = useQueryClient();
-  const [status, setStatus] = useState<FamilyStatus>('possible');
+  const [status, setStatus] = useState<FamilyView>('review');
   const [band, setBand] = useState('');
   const [flag, setFlag] = useState('');
   const [search, setSearch] = useState('');
@@ -97,13 +100,13 @@ export default function FamiliesTab() {
   const find = useMutation({
     mutationFn: () => findFamilies(),
     onSuccess: (r) => {
-      setNotice(r.new ? `Found ${formatNumber(r.new)} new possible families.` : 'No new families on the floor.');
+      setNotice(r.new ? `Found ${formatNumber(r.new)} new families; ${formatNumber(r.approved)} approved by default, to review.` : 'No new families on the floor.');
       refresh();
     },
   });
 
   const data = list.data;
-  const pct = data && data.total ? Math.round((100 * data.decided) / data.total) : 0;
+  const pct = data && data.total ? Math.round((100 * data.reviewed) / data.total) : 0;
   const rows = data?.rows ?? [];
   const bulkIds = rows.filter((r) => !r.huge).map((r) => r.id);
 
@@ -112,10 +115,11 @@ export default function FamiliesTab() {
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
         <Stack direction="row" alignItems="baseline" spacing={1} flexWrap="wrap" useFlexGap>
           <Typography sx={{ fontWeight: 800, fontSize: 18 }}>
-            {data ? `${formatNumber(data.decided)} of ${formatNumber(data.total)} families decided` : 'Families'}
+            {data ? `${formatNumber(data.reviewed)} of ${formatNumber(data.total)} families reviewed` : 'Families'}
           </Typography>
           <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>
-            Everything is decided by launch. A family to decide holds its ThriftBucks until you do.
+            Every family is approved by default to clear its floor count in 90 days, so its ThriftBucks rise slowly while it
+            sells behind that. Review the big lots first: Save makes the target yours.
           </Typography>
         </Stack>
         <LinearProgress variant="determinate" value={pct} sx={{ my: 1.25, height: 8, borderRadius: 4 }} />
@@ -226,13 +230,15 @@ function FamilyCard({ row, owner, busy, onDecide }: {
   const okTarget = Number.isFinite(n) && n >= 1;
   const price = row.price_min === row.price_max ? formatCurrency(row.price_min) : `${formatCurrency(row.price_min)} to ${formatCurrency(row.price_max)}`;
   const toDecide = row.status === 'possible';
+  const approved = row.status === 'approved';
+  const open = toDecide || approved;
   return (
     <Paper
       variant="outlined"
-      tabIndex={owner && toDecide ? 0 : -1}
+      tabIndex={owner && open ? 0 : -1}
       data-testid="family-card"
       onKeyDown={(e) => {
-        if (!owner || !toDecide || e.target instanceof HTMLInputElement) return;
+        if (!owner || !open || e.target instanceof HTMLInputElement) return;
         const k = e.key.toLowerCase();
         if (k === 'a' && okTarget) onDecide('approve', n);
         if (k === 'n') onDecide('not_family');
@@ -245,6 +251,7 @@ function FamilyCard({ row, owner, busy, onDecide }: {
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
             <Typography sx={{ fontWeight: 800, fontSize: 16 }}>{row.name}</Typography>
             <Chip size="small" label={row.kind === 'identical' ? 'Same product' : `${row.products} similar products`} />
+            {row.auto ? <Chip size="small" color="warning" variant="outlined" label="Approved by default" /> : null}
             {row.category ? <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{row.category}</Typography> : null}
           </Stack>
           <Stack direction="row" spacing={2.5} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
@@ -271,21 +278,21 @@ function FamilyCard({ row, owner, busy, onDecide }: {
           {!toDecide ? (
             <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 1 }}>
               {row.status === 'approved' ? `Target ${row.target_per_90} per 90 days; ThriftBucks ${Number(row.pct ?? 0).toFixed(2)}% of the tag. ` : ''}
-              {row.decided_by ? `Decided by ${row.decided_by}` : ''}
+              {row.decided_by ? `Decided by ${row.decided_by}` : row.auto ? 'Approved by default' : ''}
               {row.decided_at ? ` on ${new Date(row.decided_at).toLocaleDateString()}` : ''}
-              {row.note ? ` · ${row.note}` : ''}
+              {row.note && !row.auto ? ` · ${row.note}` : ''}
             </Typography>
           ) : null}
         </Box>
         {owner ? (
           <Stack spacing={1} sx={{ width: { md: 250 }, flexShrink: 0 }}>
-            {toDecide ? (
+            {open ? (
               <>
                 <Stack direction="row" spacing={1}>
                   <TextField size="small" type="number" label="Target per 90 days" value={target} onChange={(e) => setTarget(e.target.value)}
                     helperText={`Suggested ${row.suggested_target}`} inputProps={{ min: 1 }} sx={{ flex: 1 }} />
                   <Button variant="contained" sx={plain} disabled={busy || !okTarget} onClick={() => onDecide('approve', n)} data-testid="family-approve">
-                    Approve
+                    {approved ? 'Save' : 'Approve'}
                   </Button>
                 </Stack>
                 <Stack direction="row" spacing={1}>

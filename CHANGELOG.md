@@ -12,6 +12,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.180.0] - 2026-10-19
+
+User-facing theme: **Thrift+ families approved by default: every family's ThriftBucks rise slowly now instead of sitting frozen, and the owner reviews the big lots after (Bill, 2026-10-16).** thrift_plus_families.
+
+### Changed
+- **Families are approved by default:** each night, after the ThriftBucks run, every possible family is approved at the default target (clear its floor count in 90 days), starting at the middle of its units' current ThriftBucks. From then on it rises 0.25% of the tag a night while it sells slower than that, and holds at or above it; never down. A new family keeps its first night's ThriftBucks before it is approved. The first night approves every family still waiting (2,597 families, 29,186 floor units on 10-16). "Find new families" approves what it finds the same way.
+- **Thrift+ → Families opens on "To review":** families approved by default and not yet reviewed, biggest money at stake first, with an "Approved by default" chip. On an approved family the owner can change the target and **Save** (that stamps it as his and takes it off the list), or choose Not a family or Exit. The header counts "X of Y families reviewed".
+
 ## [2.179.1] - 2026-10-17
 
 User-facing theme: **Receipts no longer print their top over and over (print server 1.9.5; Bill, 2026-10-17).** Outside initiatives (POS).

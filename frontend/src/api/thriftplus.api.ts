@@ -6,6 +6,7 @@ import type {
   EngineState,
   FamiliesQueue,
   FamilyStatus,
+  FamilyView,
   FloorCompare,
   FloorPlan,
   FloorPlanChoices,
@@ -418,7 +419,7 @@ export async function fetchCalculator(choices: CalculatorChoices): Promise<Calcu
 
 // ── Pricing families (thrift_plus_families Phase 1, owner 2026-10-13) ──────────
 
-export async function fetchFamilies(params: { status: FamilyStatus; band?: string; flag?: string; q?: string; offset?: number }): Promise<FamiliesQueue> {
+export async function fetchFamilies(params: { status: FamilyView; band?: string; flag?: string; q?: string; offset?: number }): Promise<FamiliesQueue> {
   const { data } = await api.get<FamiliesQueue>('/thriftplus/families/', { params });
   return data;
 }
@@ -439,6 +440,6 @@ export async function markRestNotFamily() {
 }
 
 export async function findFamilies() {
-  const { data } = await api.post<{ products: number; new: number }>('/thriftplus/families/find/', {});
+  const { data } = await api.post<{ products: number; new: number; approved: number }>('/thriftplus/families/find/', {});
   return data;
 }
