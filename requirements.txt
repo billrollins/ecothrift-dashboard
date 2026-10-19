@@ -1,6 +1,8 @@
 Django==5.2
 djangorestframework==3.16.0
 djangorestframework-simplejwt==5.4.0
+# Thrift+ "Continue with Google": the ID token is checked against Google's keys (already installed through simplejwt and msal).
+PyJWT[crypto]>=2.8,<3
 django-cors-headers==4.6.0
 django-filter==24.3
 django-storages==1.14.4

@@ -102,6 +102,12 @@ export interface ThriftPendingPerson {
   finished_at?: string | null;
   finished_by?: string;
   app_signed_in?: boolean;
+  /** Join v2 (owner 2026-10-19): they took a selfie in the app (`photo_url` shows it). */
+  selfie?: boolean;
+  /** Join v2: they signed the terms in the app. */
+  signed?: boolean;
+  /** Join v2: how they joined, masked ("c***@example.com" or "••0123"). */
+  contact?: string;
 }
 
 /** Pending joins by name, email or member code, newest first (at most 10). A POST, so names stay out of request logs. */
@@ -133,10 +139,12 @@ export async function findPendingOrMember(
 
 export interface ThriftFinishJoin {
   person: number;
-  /** Ten digits, read back to them. */
-  phone: string;
+  /** Ten digits, read back to them. Optional since Join v2 (owner 2026-10-19): not sent when blank. */
+  phone?: string;
   id_checked: boolean;
   verified_18: boolean;
+  /** Join v2: staff checked the face on the photo ID against the app selfie (the selfie path). */
+  face_matches?: boolean;
   photo?: File | Blob | null;
   /** The customer's signature, a PNG (J5). */
   signature?: Blob | null;
@@ -164,9 +172,10 @@ export interface ThriftFinishResult {
 export async function finishThriftJoin(body: ThriftFinishJoin): Promise<ThriftFinishResult> {
   const form = new FormData();
   form.append('person', String(body.person));
-  form.append('phone', body.phone);
+  if (body.phone) form.append('phone', body.phone);
   form.append('id_checked', String(body.id_checked));
   form.append('verified_18', String(body.id_checked && body.verified_18));
+  if (body.face_matches !== undefined) form.append('face_matches', String(body.face_matches));
   if (body.photo) form.append('photo', body.photo, body.photo instanceof File ? body.photo.name : 'photo.jpg');
   if (body.signature) form.append('signature', body.signature, 'signature.png');
   if (body.finalize) form.append('finalize', 'true');
@@ -195,6 +204,11 @@ export function pendingFromError(err: unknown): ThriftPendingPerson | null {
     joined_at: data.joined_at ?? '',
     code_last4: data.code_last4 ?? null,
     qr: data.qr ?? null,
+    // Join v2: the selfie path at the register, when the server sends it.
+    ...(data.photo_url !== undefined ? { photo_url: data.photo_url } : {}),
+    ...(data.selfie !== undefined ? { selfie: Boolean(data.selfie) } : {}),
+    ...(data.signed !== undefined ? { signed: Boolean(data.signed) } : {}),
+    ...(data.contact !== undefined ? { contact: data.contact } : {}),
   };
 }
 

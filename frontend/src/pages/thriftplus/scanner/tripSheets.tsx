@@ -25,7 +25,7 @@ import { toCents, type PriceFeelReason, type ThriftPlusItemCard, type ThriftPlus
 import { getMyCard, type MyCard } from '../../../api/thriftPlusScanner.api';
 import { tbNumber } from '../../../components/thriftplus/ThriftBucks';
 import { FieldBanner } from './ScannerTop';
-import { bucksReady, money, wouldPayChoices } from './scannerLogic';
+import { bucksReady, hasFinishSteps, money, wouldPayChoices } from './scannerLogic';
 import { ThriftPlusLogo, art, sc, u } from './scannerTheme';
 import { canInstall, installPrompt, isStandalone } from './installApp';
 import { BigButton, Sheet } from './tripUi';
@@ -235,9 +235,11 @@ export function SidewaysQr() {
 
 /**
  * Member QR (owner 2026-10-14, APP D1, D6 and D11): the member's QR to show at the register (there is no card), kept on
- * the phone so it shows with no signal, with the screen kept awake while it's open, and the home-screen link. Nothing else.
+ * the phone so it shows with no signal, with the screen kept awake while it's open, and the home-screen link. Nothing else,
+ * except "Finish joining" while a pending member still has a selfie or a signature to do (Join v2, owner 2026-10-19).
  */
-export function WalletSheet({ member, onClose }: { member: ThriftPlusMember; onClose: () => void }) {
+export function WalletSheet({ member, onClose, onFinish }: { member: ThriftPlusMember; onClose: () => void; onFinish?: () => void }) {
+  const steps = hasFinishSteps(member);
   const card = useQuery({ queryKey: thriftPlusKeys.myCard, queryFn: getMyCard, initialData: cachedCard, staleTime: 60_000 });
   useEffect(() => {
     if (!card.data) return;
@@ -282,9 +284,16 @@ export function WalletSheet({ member, onClose }: { member: ThriftPlusMember; onC
             <Box sx={{ py: u(120) }}><CircularProgress size={28} sx={{ color: sc.green }} /></Box>
           )}
         </Box>
-        {/* Not joined at a register yet (J2): the bold line says so; the card's B12 line stays on every card (APP D1). */}
-        <Box sx={{ mt: u(24), textAlign: 'center', fontWeight: 700, fontSize: u(32) }}>
-          {c && !c.ready ? 'Finish joining at any register. Show them this code.' : 'Show this at the register.'}
+        {/* Not joined at a register yet (J2): the bold line says so; the card's B12 line stays on every card (APP D1).
+            Join v2: with the selfie and signature done in the app, the register only checks the photo ID. */}
+        <Box data-testid="my-card-line" sx={{ mt: u(24), textAlign: 'center', fontWeight: 700, fontSize: u(32) }}>
+          {steps
+            ? 'Finish joining here, or at any register.'
+            : member.ready === false && member.finish_steps
+              ? 'Show this QR at the register with your photo ID.'
+              : c && !c.ready
+                ? 'Finish joining at any register. Show them this code.'
+                : 'Show this at the register.'}
         </Box>
         <Box sx={{ mt: u(10), textAlign: 'center', fontSize: u(24), lineHeight: 1.4, opacity: 0.92 }}>
           {CARD_TERMS} Terms:{' '}
@@ -292,6 +301,11 @@ export function WalletSheet({ member, onClose }: { member: ThriftPlusMember; onC
         </Box>
       </Box>
 
+      {steps && onFinish && (
+        <Box sx={{ mt: u(26), display: 'flex' }}>
+          <BigButton primary onClick={onFinish} testId="finish-joining-button">Finish joining</BigButton>
+        </Box>
+      )}
       <AddToHome />
     </Sheet>
   );

@@ -81,6 +81,17 @@ def normalize_phone(raw: str | None) -> str:
     return digits[1:] if len(digits) == 11 and digits.startswith('1') else digits
 
 
+def confirmed(person: Person | None) -> bool:
+    """Join v2 (owner 2026-10-19): a join is confirmed once its email (link, code or Google) or its phone (a texted
+    code, or read back at a register) is verified. Confirmed pending joins are Needs Finalize and never purged."""
+    return person is not None and (person.email_verified_at is not None or person.phone_verified_at is not None)
+
+
+def confirmed_q(prefix: str = '') -> Q:
+    """``confirmed`` as a filter; ``prefix`` is the path to the person (``'people__'`` from an Account)."""
+    return Q(**{f'{prefix}email_verified_at__isnull': False}) | Q(**{f'{prefix}phone_verified_at__isnull': False})
+
+
 def log(action: str, *, account=None, person=None, card=None, actor=None, **detail) -> Event:
     return Event.objects.create(action=action, account=account, person=person, card=card, actor=actor, detail=detail)
 

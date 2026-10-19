@@ -827,7 +827,11 @@ class RegisterViewSet(viewsets.ViewSet):
 
         ``signature`` (optional, owner 2026-10-16, J5): a PNG of the customer's signature, stored with ``signed_at`` and
         the terms version. ``finalize=true`` (Finalize Thrift+, the cashier's phone, no cart): the signature and the ID
-        check are required (400 ``SIGNATURE_NEEDED`` / ``ID_NEEDED``)."""
+        check are required (400 ``SIGNATURE_NEEDED`` / ``ID_NEEDED``).
+
+        Join v2 (owner 2026-10-19): ``phone`` is optional for everyone. When the selfie and the signature were taken in
+        the app, ``finalize=true`` needs only ``id_checked`` and ``face_matches`` (400 ``FACE_NEEDED``), with
+        ``verified_18``; a new ``photo`` (Retake) replaces the selfie."""
         from apps.pos.models import Cart
         from apps.pos.serializers import CartSerializer
 
@@ -839,7 +843,8 @@ class RegisterViewSet(viewsets.ViewSet):
             person = register.finish_join(d.get('person'), phone=str(d.get('phone') or ''), id_checked=_truthy(d.get('id_checked')),
                                           verified_18=_truthy(d.get('verified_18')), photo=request.FILES.get('photo'),
                                           signature=request.FILES.get('signature'),
-                                          require_signature=_truthy(d.get('finalize')), user=request.user)
+                                          require_signature=_truthy(d.get('finalize')),
+                                          face_matches=_truthy(d.get('face_matches')), user=request.user)
         except register.RegisterError as exc:
             code = status.HTTP_409_CONFLICT if exc.code == 'PHONE_TAKEN' else status.HTTP_400_BAD_REQUEST
             return Response(exc.payload(), status=code)
@@ -862,6 +867,8 @@ def _found_person(person: Person) -> dict:
         'last_initial': (person.last_name or '')[:1].upper(), 'role': person.role,
         'photo_url': person.photo.url if person.photo else None, 'verified_18': person.verified_18,
         'practice': bool(person.account.is_practice), 'account_status': person.account.status,
+        # Join v2: the selfie and signature taken in the app ("Ready" for Finalize when both are there).
+        'selfie': bool(person.photo), 'signed': bool(person.signature),
     }
 
 

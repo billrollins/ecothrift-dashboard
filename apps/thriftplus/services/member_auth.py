@@ -15,6 +15,9 @@ Django users, and their session can't reach anything staff-side (the auth map of
   - a password: **staff only** (their Dash login; owner 2026-10-16, "the only passwords are for staff"). The old
     member logins and their reset links are retired (``one_account``);
   - or the Thrift+ card plus the last 4 digits of the member's phone (gone 10-14; old sessions only).
+  - **Join v2** (owner 2026-10-19): "Continue with Google" (``google_sign_in``), and one "Phone or email" box: a
+    6-digit code by email (the ways above) or by text (Twilio Verify, ``phone_codes``), with the same never-says-
+    whether-a-member answers, limits on top of Verify's, and every send and check logged with the number masked.
 - **One account** (owner 2026-10-16): an emailed sign-in here signs in to ecothrift.us too, and back
   (``services/one_account.py``).
 """
@@ -78,7 +81,8 @@ def _can_sign_in(person: Person) -> bool:
 
 
 def _days(kind: str) -> int:
-    return {MemberSession.KIND_PASSWORD: PASSWORD_DAYS, MemberSession.KIND_EMAIL: EMAIL_DAYS}.get(kind, CARD_DAYS)
+    return {MemberSession.KIND_PASSWORD: PASSWORD_DAYS, MemberSession.KIND_EMAIL: EMAIL_DAYS,
+            MemberSession.KIND_PHONE: EMAIL_DAYS}.get(kind, CARD_DAYS)
 
 
 # ── Sessions ───────────────────────────────────────────────────────────────────
@@ -169,9 +173,10 @@ class IsMember(BasePermission):
         return isinstance(request.user, Member)
 
 
-# Sign-ins that may change a membership: a password, or an emailed link or code (owner 2026-10-15, J11: members have
-# no password, so the email is the strong sign-in). Not the old card sign-in.
-CHANGE_KINDS = (MemberSession.KIND_PASSWORD, MemberSession.KIND_EMAIL)
+# Sign-ins that may change a membership: a password, an emailed link or code, Google, or a texted code (owner
+# 2026-10-15, J11: members have no password, so the email is the strong sign-in; Join v2 adds the phone). Not the old
+# card sign-in.
+CHANGE_KINDS = (MemberSession.KIND_PASSWORD, MemberSession.KIND_EMAIL, MemberSession.KIND_PHONE)
 
 
 class IsPasswordMember(BasePermission):
@@ -551,4 +556,301 @@ def redeem(row: MemberEmailToken, *, how: str) -> Person:
     if fields:
         person.save(update_fields=[*fields, 'updated_at'])
     members.log('email_link_used', account=person.account, person=person, purpose=row.purpose, to=mask(row.email), how=how)
+    return person
+
+
+# ── Join v2: one "Phone or email" box, texted codes, Google (owner 2026-10-19) ──
+
+CONTACT_BAD_TEXT = 'Enter a US phone number or an email.'
+PHONE_OFF_TEXT = 'Texted codes are not on yet. Use your email.'
+MEMBERSHIP_OFF_TEXT = 'This membership is not active. Ask at the register.'
+GOOGLE_BAD_TEXT = "Google sign-in didn't work. Try again, or use your phone or email."
+PHONE_GAP_SECONDS = 30  # between texts to one number
+PHONE_SENDS_PER_HOUR = 5  # per number
+PHONE_SENDS_PER_IP_HOUR = 10
+PHONE_WRONG_CODES = 5  # per number; then the number is locked
+PHONE_LOCK_SECONDS = 15 * 60
+PHONE_JOIN_SECONDS = 15 * 60  # a phone join's names wait this long for the code
+
+
+def _count(key: str, seconds: int) -> int:
+    """Count one in a fixed window that keeps its end (``cache.incr`` on the database cache resets the timeout)."""
+    now = time.time()
+    start, n = cache.get(key) or (now, 0)
+    left = seconds - (now - start)
+    if left <= 0:
+        start, n, left = now, 0, seconds
+    cache.set(key, (start, n + 1), max(1, math.ceil(left)))
+    return n + 1
+
+
+def _counted(key: str) -> int:
+    value = cache.get(key)
+    return int(value[1]) if value else 0
+
+
+def _phone_key(digits: str, what: str) -> str:
+    return f'thriftplus:sms-{what}:{_hash(digits, "phone-limit")}'
+
+
+def _phone_locked(digits: str) -> int:
+    """Seconds left on the number's lock (5 wrong codes), or 0."""
+    until = cache.get(_phone_key(digits, 'lock'))
+    return max(0, math.ceil(float(until) - time.time())) if until else 0
+
+
+def _limit_phone_send(digits: str, ip: str | None) -> None:
+    """Our limits on top of Verify's, counted for every valid request, member or not (the answer never says): locked
+    after 5 wrong codes for 15 minutes, 30 s between texts to one number, 5 an hour per number, 10 an hour per
+    address."""
+    from apps.thriftplus.services.phone_codes import masked
+
+    locked = _phone_locked(digits)
+    if locked:
+        raise LimitError('LOCKED', retry_after=locked)
+    if ip and _counted(f'thriftplus:sms-ip:{ip}') >= PHONE_SENDS_PER_IP_HOUR:
+        logger.warning('thrift+ texted code refused for %s: too many from one address', masked(digits))
+        raise LimitError('TOO_MANY')
+    last = cache.get(_phone_key(digits, 'last'))
+    now = time.time()
+    if last and now - float(last) < PHONE_GAP_SECONDS:
+        raise LimitError('TOO_SOON', retry_after=max(1, math.ceil(PHONE_GAP_SECONDS - (now - float(last)))))
+    if _counted(_phone_key(digits, '1h')) >= PHONE_SENDS_PER_HOUR:
+        logger.warning('thrift+ texted code refused for %s: too many sends', masked(digits))
+        raise LimitError('TOO_MANY')
+    cache.set(_phone_key(digits, 'last'), now, PHONE_GAP_SECONDS)
+    _count(_phone_key(digits, '1h'), 60 * 60)
+    if ip:
+        _count(f'thriftplus:sms-ip:{ip}', 60 * 60)
+
+
+def _phone_wrong(digits: str) -> int:
+    """One more wrong code for the number; the fifth locks it for 15 minutes."""
+    key = _phone_key(digits, 'wrong')
+    n = int(cache.get(key) or 0) + 1
+    if n >= PHONE_WRONG_CODES:
+        cache.set(_phone_key(digits, 'lock'), time.time() + PHONE_LOCK_SECONDS, PHONE_LOCK_SECONDS)
+        cache.delete(key)
+    else:
+        cache.set(key, n, PHONE_LOCK_SECONDS)
+    return n
+
+
+def member_by_phone(digits: str) -> Person | None:
+    """The member (active or pending, not practice) with this phone: an active membership first, then the primary,
+    then the newest. One membership per phone (``register.finish_join``), but 2 adults may share one."""
+    if not digits:
+        return None
+    return (
+        Person.objects.select_related('account')
+        .filter(phone=digits, removed_at__isnull=True, account__is_practice=False,
+                account__status__in=(Account.STATUS_ACTIVE, Account.STATUS_PENDING))
+        .annotate(rank=Case(When(account__status=Account.STATUS_ACTIVE, then=Value(0)), default=Value(1),
+                            output_field=IntegerField()))
+        .order_by('rank', 'role', '-pk').first()
+    )
+
+
+def _phone_off(digits: str) -> Person | None:
+    return (Person.objects.select_related('account')
+            .filter(phone=digits, account__status__in=(Account.STATUS_REVOKED, Account.STATUS_INACTIVE)).first())
+
+
+def _phone_log(action: str, person: Person | None, digits: str, **detail) -> None:
+    """Every send and check, the number masked: on the person when there is one, else the server log."""
+    from apps.thriftplus.services import members
+    from apps.thriftplus.services.phone_codes import masked
+
+    if person is not None:
+        members.log(action, account=person.account, person=person, to=masked(digits), **detail)
+    else:
+        logger.info('thrift+ %s for %s %s', action, masked(digits), detail or '')
+
+
+def _phone_purpose(person: Person) -> str:
+    from apps.thriftplus.services.members import confirmed
+
+    if person.account.status == Account.STATUS_PENDING and not confirmed(person):
+        return MemberEmailToken.PURPOSE_JOIN
+    return MemberEmailToken.PURPOSE_SIGN_IN
+
+
+def _text_code(digits: str, person: Person | None, purpose: str) -> None:
+    from apps.thriftplus.services import phone_codes
+
+    try:
+        phone_codes.send(digits)
+        sent = True
+    except phone_codes.PhoneCodeError:
+        logger.exception('thrift+ texted code to %s failed', phone_codes.masked(digits))
+        sent = False
+    _phone_log('phone_code_sent', person, digits, purpose=purpose, sent=sent)
+
+
+def send_code(contact: str, first_name: str = '', last_name: str = '', *, base_url: str, ip: str | None = None) -> str:
+    """One "Phone or email" box (Join v2): with both names a join, with none a sign in. Answers the channel ('sms' or
+    'email'), the same whether or not the contact is a member's.
+    - An email goes through ``join`` / ``request_link`` (the emailed link and code).
+    - A US phone: a member's number (active or pending) gets a sign-in code; a new number with names gets a join code
+      (the names wait 15 minutes for it); a new number without names, or a revoked or deactivated membership's, gets
+      nothing (logged)."""
+    from apps.thriftplus.services import members, phone_codes
+
+    contact = str(contact or '').strip()
+    first, last = str(first_name or '').strip(), str(last_name or '').strip()
+    if bool(first) != bool(last):
+        raise AuthError('NAME_NEEDED', NAME_NEEDED_TEXT)
+    joining = bool(first and last)
+    if '@' in contact:
+        if not _clean_email(contact):
+            raise AuthError('CONTACT_BAD', CONTACT_BAD_TEXT)
+        if joining:
+            join(first, last, contact, base_url=base_url, ip=ip)
+        else:
+            request_link(contact, base_url=base_url, ip=ip)
+        return 'email'
+    digits = phone_codes.us_number(contact)
+    if not digits:
+        raise AuthError('CONTACT_BAD', CONTACT_BAD_TEXT)
+    if not phone_codes.available():
+        raise AuthError('PHONE_OFF', PHONE_OFF_TEXT)
+    names = _join_name(first, last) if joining else None
+    ip = _ip(ip)
+    _limit_phone_send(digits, ip)
+    person = member_by_phone(digits)
+    if person is None:
+        off = _phone_off(digits)
+        if off is not None:
+            reason = 'revoked membership' if off.account.status == Account.STATUS_REVOKED else 'deactivated membership'
+            members.log('join_refused' if joining else 'phone_code_refused', account=off.account, person=off,
+                        to=phone_codes.masked(digits), reason=reason, by='phone')
+            return 'sms'
+        if names is None:
+            logger.info('thrift+ texted code asked for %s: no member, nothing sent', phone_codes.masked(digits))
+            return 'sms'
+        cache.set(_phone_key(digits, 'join'), {'first_name': names[0], 'last_name': names[1]}, PHONE_JOIN_SECONDS)
+        _text_code(digits, None, MemberEmailToken.PURPOSE_JOIN)
+        return 'sms'
+    _text_code(digits, person, _phone_purpose(person))
+    return 'sms'
+
+
+def check_phone_code(digits: str, code: str, *, ip: str | None = None) -> tuple[Person, str]:
+    """The texted code for a US number (10 digits): (the person to sign in, 'join' or 'sign_in'). A new number's join
+    becomes a pending membership now (the primary person, the phone verified, no email) with its member code. A wrong
+    code counts against the number (the fifth locks it for 15 minutes); tries are limited per address too."""
+    from apps.thriftplus.services import phone_codes
+
+    _limit_code_try(_ip(ip))
+    locked = _phone_locked(digits)
+    if locked:
+        raise LimitError('LOCKED', retry_after=locked)
+    given = ''.join(ch for ch in str(code or '') if ch.isdigit())
+    person = member_by_phone(digits)
+    names = cache.get(_phone_key(digits, 'join')) if person is None else None
+    ok = False
+    if len(given) == 6 and (person is not None or names):
+        try:
+            ok = phone_codes.check(digits, given)
+        except phone_codes.PhoneCodeError:
+            logger.exception('thrift+ texted code check for %s failed', phone_codes.masked(digits))
+            raise AuthError('CODE_BAD', LINK_TEXT['CODE_BAD']) from None
+    if not ok:
+        _phone_log('phone_code_failed', person, digits, wrong=_phone_wrong(digits))
+        raise AuthError('CODE_BAD', LINK_TEXT['CODE_BAD'])
+    cache.delete(_phone_key(digits, 'wrong'))
+    cache.delete(_phone_key(digits, 'join'))
+    if person is None:
+        return _phone_join(digits, names), MemberEmailToken.PURPOSE_JOIN
+    purpose = _phone_purpose(person)
+    if person.phone_verified_at is None:
+        person.phone_verified_at = timezone.now()
+        person.save(update_fields=['phone_verified_at', 'updated_at'])
+    _phone_log('phone_code_used', person, digits, purpose=purpose)
+    return person, purpose
+
+
+@transaction.atomic
+def _phone_join(digits: str, names: dict) -> Person:
+    from apps.thriftplus.services import members
+    from apps.thriftplus.services.phone_codes import masked
+
+    taken = member_by_phone(digits)  # joined some other way since the code went out
+    if taken is not None:
+        return taken
+    account = Account.objects.create(status=Account.STATUS_PENDING, notes='Joined online (name and phone).')
+    person = Person.objects.create(account=account, role=Person.ROLE_PRIMARY, first_name=names['first_name'],
+                                   last_name=names['last_name'], phone=digits, phone_verified_at=timezone.now())
+    members.log('joined_online', account=account, person=person, to=masked(digits), by='phone')
+    members.new_member_code(person)
+    _phone_log('phone_code_used', person, digits, purpose=MemberEmailToken.PURPOSE_JOIN)
+    return person
+
+
+def google_address(claims: dict) -> str:
+    address = _clean_email(claims.get('email'))
+    if not address:
+        raise AuthError('GOOGLE_BAD', GOOGLE_BAD_TEXT)
+    return address
+
+
+def google_member(address: str) -> Person | None:
+    """The member a Google-verified email signs in to (as ``join``: a staff member's own membership first), or None
+    for a new email. A staff email with no usable membership, or a revoked or deactivated membership's email, is
+    refused (``MEMBERSHIP_OFF``, logged); the person holds that email, so saying so reveals nothing."""
+    from apps.thriftplus.services import members
+
+    staff, person = _staff_member_for(address)
+    person = person or member_by_email(address)
+    if person is not None:
+        return person
+    if staff:
+        logger.info('thrift+ Google sign-in with a staff email %s: no membership to sign in', mask(address))
+        raise AuthError('MEMBERSHIP_OFF', MEMBERSHIP_OFF_TEXT)
+    off = (Person.objects.select_related('account')
+           .filter(email=address, account__status__in=(Account.STATUS_REVOKED, Account.STATUS_INACTIVE)).first())
+    if off is not None:
+        reason = 'revoked membership' if off.account.status == Account.STATUS_REVOKED else 'deactivated membership'
+        members.log('join_refused', account=off.account, person=off, to=mask(address), reason=reason, by='google')
+        raise AuthError('MEMBERSHIP_OFF', MEMBERSHIP_OFF_TEXT)
+    return None
+
+
+def google_sign_in(person: Person, address: str) -> str:
+    """Sign in a member by Google: Google verified the email, so it is confirmed (as an emailed link would). Answers
+    'join' (a pending join not confirmed until now) or 'sign_in'."""
+    from apps.thriftplus.services import members
+
+    purpose = _sign_in_purpose(person)
+    fields = []
+    if not person.email:
+        person.email = address
+        fields.append('email')
+    if person.email == address and person.email_verified_at is None:
+        person.email_verified_at = timezone.now()
+        fields.append('email_verified_at')
+    if fields:
+        person.save(update_fields=[*fields, 'updated_at'])
+    members.log('google_sign_in', account=person.account, person=person, to=mask(address), purpose=purpose)
+    return purpose
+
+
+@transaction.atomic
+def google_join(address: str, claims: dict) -> Person:
+    """A new Google-verified email: a pending membership with Google's given and family name (the one name rule), the
+    email confirmed, and a member code."""
+    from apps.accounts.services.names import clean_name
+    from apps.thriftplus.services import members
+
+    first, last = str(claims.get('given_name') or ''), str(claims.get('family_name') or '')
+    if not first.strip():
+        first, last = str(claims.get('name') or ''), ''
+    if not first.strip():
+        first = address.split('@')[0]
+    first, last = clean_name(first, last)
+    account = Account.objects.create(status=Account.STATUS_PENDING, notes='Joined online (Google).')
+    person = Person.objects.create(account=account, role=Person.ROLE_PRIMARY, first_name=first, last_name=last,
+                                   email=address, email_verified_at=timezone.now())
+    members.log('joined_online', account=account, person=person, to=mask(address), by='google')
+    members.new_member_code(person)
     return person

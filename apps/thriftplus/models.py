@@ -515,9 +515,10 @@ class MemberSession(models.Model):
 
     KIND_PASSWORD = 'password'
     KIND_CARD = 'card'  # gone 10-14 (no card); old sessions only
-    KIND_EMAIL = 'email'  # owner 2026-10-15 (J11): an emailed link or code
+    KIND_EMAIL = 'email'  # owner 2026-10-15 (J11): an emailed link or code (and, Join v2, Continue with Google)
+    KIND_PHONE = 'phone'  # Join v2 (owner 2026-10-19): a texted code
     KIND_CHOICES = [(KIND_PASSWORD, 'Email or username and password'), (KIND_CARD, 'Card and phone digits'),
-                    (KIND_EMAIL, 'Emailed link or code')]
+                    (KIND_EMAIL, 'Emailed link or code, or Google'), (KIND_PHONE, 'Texted code')]
 
     token_hash = models.CharField(max_length=64, unique=True)
     person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name='sessions')

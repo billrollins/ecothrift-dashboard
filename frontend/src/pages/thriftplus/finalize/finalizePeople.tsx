@@ -1,10 +1,11 @@
-import { Alert, Box, Button, ButtonBase, CircularProgress, Drawer, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, ButtonBase, Chip, CircularProgress, Drawer, Stack, TextField, Typography } from '@mui/material';
 import { format, isToday, parseISO } from 'date-fns';
 import { useState } from 'react';
 import { deleteMember, sendMemberEmailLink } from '../../../api/thriftplus.api';
 import { thriftErrorMessage, type ThriftPendingPerson } from '../../../api/thriftplusRegister.api';
 import { pendingName } from '../../../components/pos/ThriftPlusPendingFind';
 import QrSvg from '../../../components/thriftplus/QrSvg';
+import { readyToVerify } from '../../../components/thriftplus/SelfieCheck';
 
 function when(iso: string | null | undefined, long = false): string {
   if (!iso) return '';
@@ -26,30 +27,54 @@ const big = { minHeight: 56, fontSize: '1.1rem', fontWeight: 700, borderRadius: 
  */
 export function PersonCard({ person, onOpen }: { person: ThriftPendingPerson; onOpen: () => void }) {
   const done = person.status === 'active';
+  const ready = readyToVerify(person);
   const meta = { fontSize: '0.85rem', color: 'text.secondary', whiteSpace: 'nowrap' } as const;
   return (
     <ButtonBase
       onClick={onOpen}
       data-testid={done ? 'finalize-person-done' : 'finalize-person-pending'}
       sx={{
-        display: 'block', width: '100%', textAlign: 'left', px: 1.5, py: 1, borderRadius: 2, border: 1, borderColor: 'divider',
-        flexShrink: 0, ...(done ? { bgcolor: 'action.hover' } : {}),
+        display: 'flex', alignItems: 'center', gap: 1.25, width: '100%', textAlign: 'left', px: 1.5, py: 1, borderRadius: 2,
+        border: 1, borderColor: 'divider', flexShrink: 0, ...(done ? { bgcolor: 'action.hover' } : {}),
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, minWidth: 0 }}>
-        <Typography fontWeight={800} fontSize="1.05rem" noWrap sx={{ flex: 1, minWidth: 0 }}>{pendingName(person)}</Typography>
-        <Typography fontWeight={800} fontSize="0.85rem" sx={{ flexShrink: 0, color: done ? 'success.main' : 'warning.dark' }}>
-          {done ? 'Finished' : 'To finish'}
-        </Typography>
-      </Box>
-      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, minWidth: 0, overflow: 'hidden' }} data-testid="finalize-person-line">
-        <Typography component="span" sx={{ ...meta, flexShrink: 0, fontWeight: 700 }}>{person.code_display || (person.code_last4 ? `…${person.code_last4}` : 'No code')}</Typography>
-        <Typography component="span" sx={{ ...meta, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {`· ${person.phone_last4 ? `••${person.phone_last4}` : 'no phone yet'}`}
-        </Typography>
-        <Typography component="span" sx={{ ...meta, flexShrink: 2, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {person.joined_at ? `· ${when(person.joined_at)}` : ''}
-        </Typography>
+      {/* Join v2 (owner 2026-10-19): their selfie, small, so staff know who is in front of them. */}
+      {person.photo_url ? (
+        <Box
+          component="img"
+          src={person.photo_url}
+          alt=""
+          draggable={false}
+          data-testid="finalize-person-thumb"
+          sx={{ width: 48, height: 48, borderRadius: 1.5, objectFit: 'cover', flexShrink: 0, bgcolor: 'action.hover' }}
+        />
+      ) : null}
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, minWidth: 0 }}>
+          <Typography fontWeight={800} fontSize="1.05rem" noWrap sx={{ flex: 1, minWidth: 0 }}>{pendingName(person)}</Typography>
+          <Typography fontWeight={800} fontSize="0.85rem" sx={{ flexShrink: 0, color: done ? 'success.main' : 'warning.dark' }}>
+            {done ? 'Finished' : 'To finish'}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, minWidth: 0, overflow: 'hidden' }} data-testid="finalize-person-line">
+          <Typography component="span" sx={{ ...meta, flexShrink: 0, fontWeight: 700 }}>{person.code_display || (person.code_last4 ? `…${person.code_last4}` : 'No code')}</Typography>
+          <Typography component="span" sx={{ ...meta, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {`· ${person.phone_last4 ? `••${person.phone_last4}` : (person.contact || 'no phone yet')}`}
+          </Typography>
+          <Typography component="span" sx={{ ...meta, flexShrink: 2, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {person.joined_at ? `· ${when(person.joined_at)}` : ''}
+          </Typography>
+        </Box>
+        {/* Who is quick: only the photo ID to check against the selfie. */}
+        {ready ? (
+          <Chip
+            size="small"
+            color="success"
+            label="Ready: selfie + signed"
+            data-testid="finalize-person-ready"
+            sx={{ mt: 0.5, fontWeight: 700, height: 22 }}
+          />
+        ) : null}
       </Box>
     </ButtonBase>
   );
@@ -143,7 +168,7 @@ export function PersonSheet({ person, owner, onClose, onFinish, onDeleted }: {
               {person.email || 'None'}
               {person.email ? <Box component="span" sx={{ color: 'text.secondary', fontWeight: 400 }}>{person.email_verified ? ' · confirmed' : ' · not confirmed yet'}</Box> : null}
             </Row>
-            <Row label="Phone">{person.phone_last4 ? `ends in ${person.phone_last4}` : 'Not yet (asked when they finish)'}</Row>
+            <Row label="Phone">{person.phone_last4 ? `ends in ${person.phone_last4}` : 'None'}</Row>
             <Row label="Joined online">{when(person.joined_at, true) || '—'}</Row>
             {done ? (
               <Row label="Finished">{`${when(person.finished_at, true) || '—'}${person.finished_by ? ` by ${person.finished_by}` : ''}`}</Row>

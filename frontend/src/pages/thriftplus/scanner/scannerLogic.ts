@@ -1,5 +1,5 @@
 /** Pure helpers for the Thrift+ scanner: reading tag codes, price-feel choices, money text. */
-import { fromCents, toCents, type Money } from '../../../api/thriftPlusMock';
+import { fromCents, readContact, toCents, type EmailSignIn, type Money, type ThriftPlusMember } from '../../../api/thriftPlusMock';
 
 /**
  * What a code the camera read (or someone typed) is, so every one gets an answer (owner 2026-10-15, APP D14, D15).
@@ -170,4 +170,27 @@ export function bucksReady(total: Money | number | undefined, available: Money |
   const now = Math.min(all, Number(available) || 0);
   const tomorrow = Math.round((all - now) * 100) / 100;
   return { now, tomorrow: tomorrow >= 0.005 ? tomorrow : 0 };
+}
+
+/** A pending member with steps left to do in the app (Join v2, owner 2026-10-19): a selfie, a signature. */
+export function hasFinishSteps(member: ThriftPlusMember | null | undefined): boolean {
+  return !!member && member.ready === false && (member.finish_steps?.length ?? 0) > 0;
+}
+
+/**
+ * Where a sign-in lands (Join v2): a pending member with steps left finishes joining (`view=finish`); a join that has
+ * nothing left opens the Member QR (`view=qr`); a sign-in, the scanner.
+ */
+export function viewAfterSignIn(r: EmailSignIn, joined = false): 'finish' | 'qr' | null {
+  if (r.status === 'member' && hasFinishSteps(r.member)) return 'finish';
+  return r.purpose === 'join' || joined ? 'qr' : null;
+}
+
+/** The contact a code went to, partly hidden: "(•••) •••-4567", or "d•••@example.com". */
+export function maskContact(raw: string): string {
+  const c = readContact(raw);
+  if (!c) return raw.trim();
+  if (c.kind === 'phone') return `(•••) •••-${c.value.slice(-4)}`;
+  const [name, domain] = raw.trim().split('@');
+  return `${name.slice(0, 1)}•••@${domain}`;
 }

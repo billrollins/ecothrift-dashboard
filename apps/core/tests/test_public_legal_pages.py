@@ -19,8 +19,9 @@ def _read(rel: str) -> str:
 
 class PublicLegalPagesSourceTests(SimpleTestCase):
     def test_the_wording_says_no_texts_and_no_sharing(self):
+        # Owner 2026-10-19 (J17, master D20/D13): the only texts are Thrift+ sign-in codes the customer asks for.
         legal = _read('data/legal.ts')
-        self.assertIn("'Eco-Thrift does not currently send text messages.'", legal)
+        self.assertIn("'Eco-Thrift sends a text message only when you ask for a Thrift+ sign-in code. We send no other texts.", legal)
         self.assertIn("'We do not sell or share your email address or phone number with anyone for their marketing.'", legal)
 
     def test_pages_carry_no_text_program_and_say_how_to_stop_emails(self):

@@ -81,7 +81,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
     {
       num: 'A.3',
       what: 'Antes de que su membresía funcione',
-      short: 'Una foto, su nombre y teléfono, la revisión de una identificación con foto y su firma.',
+      short: 'Su nombre, una foto, su firma y la revisión de una identificación con foto en la caja.',
       section: 1,
     },
     {
@@ -138,7 +138,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
       num: 'D.3',
       what: 'Correo electrónico',
       short:
-        'Recibos, novedades de Thrift+ y enlaces para iniciar sesión. Noticias de la tienda que puede desactivar. Sin mensajes de texto.',
+        'Recibos, novedades de Thrift+ y enlaces para iniciar sesión. Noticias de la tienda que puede desactivar. Mensajes de texto solo con los códigos para iniciar sesión que usted pida.',
       section: 10,
     },
   ],
@@ -212,7 +212,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
   fullIntro: {
     label: 'Términos de la membresía Thrift+.',
     text: 'EcoThrift LLC, 8425 West Center Road, Omaha, NE 68124 · (402) 881-9861',
-    version: 'Versión: 15 de octubre de 2026.',
+    version: 'Versión: 19 de octubre de 2026.',
   },
 
   sections: [
@@ -230,7 +230,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
         },
         {
           n: '1.3',
-          text: 'Su membresía funciona solo después de que tengamos su foto, su nombre y su número de teléfono, la revisión de su identificación con foto y su firma en la pantalla de la caja. Hasta entonces, su cuenta no reúne ni usa nada. Puede empezar en su teléfono en ecothrift.us/join solo con su nombre y su correo (le enviamos un enlace para terminar) y terminar en cualquier caja, donde le pedimos su número de teléfono. ¿No tiene correo? Únase en cualquier caja.',
+          text: 'Su membresía funciona solo después de que tengamos su nombre, su foto y su firma, y el personal haya revisado su identificación con foto en una caja. Hasta entonces, su cuenta no reúne ni usa nada. Únase en su teléfono en ecothrift.us/join con su nombre y Google, su número de celular o su correo; tómese la foto (una selfie) y firme en la app Thrift+; luego muestre su QR de miembro y su identificación con foto en cualquier caja. Si no se toma la selfie o no firma, le tomamos la foto y firma en la caja.',
         },
         { n: '1.4', text: 'Al firmar, acepta estos términos y la autorización de foto de la §10.' },
         {
@@ -403,7 +403,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
         {
           n: '10.1',
           label: 'Foto.',
-          text: 'Tomamos su foto en la caja. Solo sirve para que el personal confirme que es usted. Nunca se usa para publicidad ni para reconocimiento facial, ni se comparte. La borramos 24 meses después de su última compra, o dentro de los 30 días después de que lo pida.',
+          text: 'Usted se toma la foto (una selfie) en la app Thrift+, o se la tomamos en la caja; el personal la compara con su identificación con foto. Solo sirve para que el personal confirme que es usted. Nunca se usa para publicidad ni para reconocimiento facial, ni se comparte. La borramos 24 meses después de su última compra, o dentro de los 30 días después de que lo pida.',
         },
         {
           n: '10.2',
@@ -413,12 +413,12 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
         {
           n: '10.3',
           label: 'Correo electrónico.',
-          text: 'Es opcional. Si nos lo da, le enviamos recibos y novedades de Thrift+, y noticias de la tienda que puede desactivar en cualquier momento (con el enlace para darse de baja en cada correo de noticias, en Mi cuenta o en cualquier caja). No enviamos mensajes de texto.',
+          text: 'Es opcional. Si nos lo da, le enviamos recibos y novedades de Thrift+, y noticias de la tienda que puede desactivar en cualquier momento (con el enlace para darse de baja en cada correo de noticias, en Mi cuenta o en cualquier caja). Los únicos mensajes de texto que enviamos son los códigos para iniciar sesión que usted pida. Nunca vendemos ni compartimos su número de celular.',
         },
         {
           n: '10.4',
           label: 'Iniciar sesión.',
-          text: 'No hay contraseña. Su correo de registro trae un enlace que inicia su sesión en la app Thrift+. En un teléfono nuevo, o después de cerrar sesión, toque "Envíenme un enlace para iniciar sesión": le enviamos por correo un enlace que funciona una sola vez y por poco tiempo (hasta 30 minutos). Un teléfono se mantiene con la sesión iniciada por un año mientras lo use; cerrar sesión la termina.',
+          text: 'No hay contraseña. Inicie sesión con Google, o con un código de 6 dígitos que le enviamos por mensaje de texto a su celular o por correo (un enlace por correo también funciona). Cada código o enlace funciona una sola vez y por poco tiempo. Un teléfono se mantiene con la sesión iniciada por un año mientras lo use; cerrar sesión la termina. Pueden aplicarse cargos por mensajes y datos.',
         },
       ],
     },

@@ -91,8 +91,11 @@ export interface ThriftPlusMember {
   bucks_available?: Money;
   /** Thrift+ credit (dollars, from 3-day returns). */
   credit_balance: Money;
-  /** How this session signed in: an emailed link or code (owner 2026-10-15, J11), a password, or an old card session. */
-  session_kind?: 'password' | 'card' | 'email';
+  /**
+   * How this session signed in: an emailed link or code (owner 2026-10-15, J11), a texted code (Join v2, 2026-10-19), a
+   * password, or an old card session.
+   */
+  session_kind?: 'password' | 'card' | 'email' | 'phone';
   /** False until they set up an email and password. (Real API only.) */
   has_login?: boolean;
   /** Thrift+ is still off: a staff or practice member is testing it. (Real API only.) */
@@ -104,6 +107,46 @@ export interface ThriftPlusMember {
   ready?: boolean;
   /** The email was confirmed by its link or code (J11). */
   email_verified?: boolean;
+  /** Join v2 (owner 2026-10-19): they have a selfie on file (taken in the app or at a register). Missing on older servers. */
+  selfie?: boolean;
+  /** Join v2: their signature on the terms is on file. */
+  signed?: boolean;
+  /** Join v2: their phone number was confirmed by a texted code. */
+  phone_verified?: boolean;
+  /** Join v2: what's left in the app before the register, in order. Empty when done or active; missing on older servers. */
+  finish_steps?: FinishStep[];
+}
+
+/** Join v2 (owner 2026-10-19): the steps a pending member finishes in the app, then shows the QR and an ID at a register. */
+export type FinishStep = 'selfie' | 'sign';
+
+/** The ways in this server offers (`sign-in-options/`): Google only with a client id, texts only when phone is on. */
+export interface SignInOptions {
+  google_client_id: string | null;
+  phone: boolean;
+  email: true;
+}
+
+/** "Send my code": where the 6-digit code went. */
+export interface CodeSent {
+  status: 'sent';
+  channel: 'sms' | 'email';
+}
+
+/** What a "Phone or email" box holds: a US phone number (as +1 and 10 digits) or an email (lower case); null for neither. */
+export type Contact = { kind: 'phone'; value: string } | { kind: 'email'; value: string };
+
+const EMAIL_SHAPE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/** Reads the one box: 10 digits (or 1 and 10 digits) in any format is a phone number; an address with an @ is an email. */
+export function readContact(raw: string): Contact | null {
+  const text = raw.trim();
+  if (!text) return null;
+  if (text.includes('@')) return EMAIL_SHAPE.test(text) ? { kind: 'email', value: text.toLowerCase() } : null;
+  if (/[^\d\s().+-]/.test(text)) return null;
+  const digits = text.replace(/\D/g, '');
+  const ten = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+  return ten.length === 10 ? { kind: 'phone', value: `+1${ten}` } : null;
 }
 
 export type ThriftPlusSession =
@@ -388,16 +431,26 @@ interface StoredSession {
   /** Email sign-in (owner 2026-10-15, APP D9): who joined, and whether they're finished at a register. */
   first_name?: string;
   ready?: boolean;
-  kind?: 'password' | 'email';
+  kind?: 'password' | 'email' | 'phone';
+  /** Join v2: the selfie and signature taken in the app, and a phone confirmed by its code. */
+  selfie?: boolean;
+  signed?: boolean;
+  phone_verified?: boolean;
+  /** Join v2: who this is in `state.joins` (an email or a +1 phone number). */
+  contact?: string;
 }
 
 export type MockSignal =
   | { kind: 'scan' | 'add' | 'pass'; sku: string; at: string }
   | { kind: 'feel'; sku: string; at: string; feel: PriceFeel };
 
-/** An email the mock "sent": its link token and 6-digit code (one use, 15 minutes, 5 wrong codes kill it). */
+/**
+ * An email or text the mock "sent": its link token (emails only) and 6-digit code (one use, 15 minutes, 5 wrong codes
+ * kill it). `to` is the email (lower case) or the phone number as +1 and 10 digits.
+ */
 export interface MockEmail {
   to: string;
+  channel: 'sms' | 'email';
   purpose: SignInPurpose;
   token: string;
   code: string;
@@ -406,12 +459,26 @@ export interface MockEmail {
   wrong: number;
 }
 
+interface MockJoin {
+  first_name: string;
+  verified: boolean;
+  selfie: boolean;
+  signed: boolean;
+}
+
+/** Mock: texts on, Google off (no client id), like a server with Twilio set up and no Google yet. */
+const DEFAULT_OPTIONS: SignInOptions = { google_client_id: null, phone: true, email: true };
+
 const state = {
   latencyMs: 120,
   signals: [] as MockSignal[],
   emails: [] as MockEmail[],
-  /** Joined online (pending until a register finishes them), by lower-cased email. */
-  joins: new Map<string, { first_name: string; verified: boolean }>(),
+  /** Joined online (pending until a register finishes them), by lower-cased email or +1 phone number. */
+  joins: new Map<string, MockJoin>(),
+  /** What `sign-in-options/` answers (Join v2). */
+  options: { ...DEFAULT_OPTIONS } as SignInOptions,
+  /** The selfies and signatures sent from the app (Join v2), newest last. */
+  finished: [] as Array<{ step: FinishStep; contact: string; terms_version?: string }>,
 };
 
 function wait(ms = state.latencyMs): Promise<void> {
@@ -427,11 +494,14 @@ function readSession(): ThriftPlusSession {
   if (!s) return { status: 'signed_out' };
   if (s.status === 'guest') return { status: 'guest' };
   const ready = s.ready ?? true;
+  const selfie = ready || !!s.selfie;
+  const signed = ready || !!s.signed;
+  const steps: FinishStep[] = ready ? [] : [...(selfie ? [] : ['selfie' as const]), ...(signed ? [] : ['sign' as const])];
   return {
     status: 'member',
     member: {
       first_name: s.first_name || 'Dana',
-      email: s.email || 'member@example.com',
+      email: s.email ?? 'member@example.com',
       username: s.username ?? null,
       card_last4: ready ? '4821' : null,
       verified_18: ready,
@@ -439,7 +509,11 @@ function readSession(): ThriftPlusSession {
       bucks_available: ready ? '27.50' : '0.00',
       credit_balance: '0.00',
       ready,
-      email_verified: true,
+      email_verified: s.email !== '', // a member who joined by phone has no email
+      selfie,
+      signed,
+      phone_verified: !!s.phone_verified,
+      finish_steps: steps,
       ...(s.kind ? { session_kind: s.kind } : {}),
     },
   };
@@ -554,18 +628,20 @@ export async function signInWithCard(cardCode: string, phoneLast4: string): Prom
   return readSession();
 }
 
-// Email sign-in and joining (owner 2026-10-15, APP D9; rulebook J8, J11). No passwords and no texts: every email
-// carries a link and a 6-digit code, each works once for 15 minutes. The answers never say whether an email is a
-// member's. Mock: nothing is sent (`thriftPlusMockControls.outbox()` shows what would be), and any email that hasn't
-// joined here counts as an active member's.
+// Email sign-in and joining (owner 2026-10-15, APP D9; rulebook J8, J11), and Join v2 (owner 2026-10-19): Google, a
+// texted code or an emailed one. Every email carries a link and a 6-digit code; a text carries the code. Each works
+// once for 15 minutes. The answers never say whether a contact is a member's. Mock: nothing is sent
+// (`thriftPlusMockControls.outbox()` shows what would be), and any contact that hasn't joined here counts as an active
+// member's.
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const EMAIL_MINUTES = 15;
 
-function sendEmail(to: string, purpose: SignInPurpose): void {
+function sendEmail(to: string, purpose: SignInPurpose, channel: 'sms' | 'email' = 'email'): void {
   const n = state.emails.length + 1;
   state.emails.push({
     to,
+    channel,
     purpose,
     token: `mock-link-${n}`,
     code: String(100000 + ((n * 271_829) % 900_000)),
@@ -573,6 +649,10 @@ function sendEmail(to: string, purpose: SignInPurpose): void {
     used: false,
     wrong: 0,
   });
+}
+
+function newJoin(first: string): MockJoin {
+  return { first_name: first, verified: false, selfie: false, signed: false };
 }
 
 /** Join with a name and email: a pending membership and a join email (an email already a member's gets a sign-in email). */
@@ -583,7 +663,7 @@ export async function joinThriftPlus(first: string, last: string, email: string)
   if (!who || !last.trim()) throw new ThriftPlusError('Enter your first and last name.', 'NAME_NEEDED');
   if (!EMAIL_RE.test(to)) throw new ThriftPlusError('Check your email address.', 'EMAIL_BAD');
   const joined = state.joins.get(to);
-  if (!joined) state.joins.set(to, { first_name: who, verified: false });
+  if (!joined) state.joins.set(to, newJoin(who));
   sendEmail(to, !joined || !joined.verified ? 'join' : 'sign_in');
   return { status: 'sent' };
 }
@@ -598,19 +678,29 @@ export async function requestSignInEmail(email: string): Promise<{ status: 'sent
   return { status: 'sent' };
 }
 
-function signedInBy(sent: MockEmail): EmailSignIn {
-  sent.used = true;
-  const joined = state.joins.get(sent.to);
+/** Signed in as `contact` (an email or a +1 phone number), by a code, a link or Google. */
+function signInAs(contact: string, purpose: SignInPurpose): EmailSignIn {
+  const joined = state.joins.get(contact);
   if (joined) joined.verified = true;
+  const byPhone = contact.startsWith('+');
   writeJson(LS.session, {
     status: 'member',
-    email: sent.to,
+    email: byPhone ? '' : contact,
     username: null,
     first_name: joined?.first_name,
     ready: !joined, // joined online: not ready until a register finishes it (J2)
-    kind: 'email',
+    kind: byPhone ? 'phone' : 'email',
+    selfie: joined?.selfie,
+    signed: joined?.signed,
+    phone_verified: byPhone,
+    contact,
   } satisfies StoredSession);
-  return { ...readSession(), purpose: sent.purpose };
+  return { ...readSession(), purpose };
+}
+
+function signedInBy(sent: MockEmail): EmailSignIn {
+  sent.used = true;
+  return signInAs(sent.to, sent.purpose);
 }
 
 /** Past its 15 minutes, or killed by 5 wrong codes. */
@@ -619,25 +709,130 @@ const expired = (sent: MockEmail) => sent.wrong >= 5 || Date.now() - sent.sentAt
 /** The link in the email: `/scan?signin=<token>`. */
 export async function signInWithLink(token: string): Promise<EmailSignIn> {
   await wait();
-  const sent = state.emails.find((e) => e.token === token);
+  const sent = state.emails.find((e) => e.token === token && e.channel === 'email');
   if (!sent) throw new ThriftPlusError("That link didn't work. Send a new one.", 'LINK_BAD');
   if (sent.used) throw new ThriftPlusError('That link has already been used. Send a new one.', 'LINK_USED');
   if (expired(sent)) throw new ThriftPlusError('That link has expired. Send a new one.', 'LINK_EXPIRED');
   return signedInBy(sent);
 }
 
-/** The 6-digit code from the email, typed in the app: the newest one sent to that email. */
-export async function signInWithCode(email: string, code: string): Promise<EmailSignIn> {
-  await wait();
-  const to = email.trim().toLowerCase();
+/** The newest code sent to `to`, checked: wrong ones count, five kill it. */
+function checkSent(to: string, code: string): EmailSignIn {
   const sent = [...state.emails].reverse().find((e) => e.to === to && !e.used);
   if (!sent) throw new ThriftPlusError("That code didn't work. Check it and try again.", 'CODE_BAD');
+  // A texted code never says expired (the server's phone codes answer CODE_BAD only).
+  if (expired(sent) && sent.channel === 'sms') throw new ThriftPlusError("That code didn't work. Check it and try again.", 'CODE_BAD');
   if (expired(sent)) throw new ThriftPlusError('That code has expired. Send a new one.', 'CODE_EXPIRED');
   if (code.trim() !== sent.code) {
     sent.wrong += 1;
     throw new ThriftPlusError("That code didn't work. Check it and try again.", 'CODE_BAD');
   }
   return signedInBy(sent);
+}
+
+/** The 6-digit code from the email, typed in the app: the newest one sent to that email. */
+export async function signInWithCode(email: string, code: string): Promise<EmailSignIn> {
+  await wait();
+  return checkSent(email.trim().toLowerCase(), code);
+}
+
+// ── Join v2 (owner 2026-10-19): Google, a phone or an email; then a selfie and a signature in the app ─────────
+
+/** The ways in: Google only with a client id; texts only when the server has phone set up. */
+export async function getSignInOptions(): Promise<SignInOptions> {
+  return { ...state.options };
+}
+
+/**
+ * "Send my code" (`code/send/`): with both names a join, without them a sign-in. A phone number gets a text, an email
+ * an email (its link and code). The same answer whether or not the contact is a member's.
+ */
+export async function sendCode(contact: string, first = '', last = ''): Promise<CodeSent> {
+  await wait();
+  const who = first.replace(/\s+/g, ' ').trim();
+  const hasLast = !!last.trim();
+  if (!!who !== hasLast) throw new ThriftPlusError('Enter your first and last name.', 'NAME_NEEDED');
+  const read = readContact(contact);
+  if (!read) throw new ThriftPlusError('Enter a US phone number or an email.', 'CONTACT_BAD');
+  if (read.kind === 'phone' && !state.options.phone) throw new ThriftPlusError('Enter your email.', 'PHONE_OFF');
+  const channel = read.kind === 'phone' ? 'sms' : 'email';
+  const joined = state.joins.get(read.value);
+  if (who && !joined) state.joins.set(read.value, newJoin(who));
+  const pending = who ? !joined || !joined.verified : !!joined && !joined.verified;
+  sendEmail(read.value, pending ? 'join' : 'sign_in', channel);
+  return { status: 'sent', channel };
+}
+
+/** "Enter the 6-digit code" (`code/check/`): signs in like the emailed code. */
+export async function checkCode(contact: string, code: string): Promise<EmailSignIn> {
+  await wait();
+  const read = readContact(contact);
+  if (!read) throw new ThriftPlusError("That code didn't work. Check it and try again.", 'CODE_BAD');
+  return checkSent(read.value, code);
+}
+
+/** Google's ID token, read like the server does (mock: the payload is not checked against Google). */
+function googlePerson(credential: string): { email: string; given_name: string; family_name: string } | null {
+  try {
+    const part = credential.split('.')[1] ?? '';
+    const json = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>;
+    const email = typeof json.email === 'string' ? json.email.trim().toLowerCase() : '';
+    if (!EMAIL_RE.test(email)) return null;
+    return { email, given_name: String(json.given_name ?? ''), family_name: String(json.family_name ?? '') };
+  } catch {
+    return null;
+  }
+}
+
+/** "Continue with Google" (`google/`): a new email joins (pending, Google's name), a known one signs in. */
+export async function signInWithGoogle(credential: string): Promise<EmailSignIn> {
+  await wait();
+  if (!state.options.google_client_id) throw new ThriftPlusError('Google sign-in is off. Use your email or phone.', 'GOOGLE_OFF');
+  const person = googlePerson(credential);
+  if (!person) throw new ThriftPlusError("Google didn't sign you in. Try again, or use your email or phone.", 'GOOGLE_BAD');
+  const joined = state.joins.get(person.email);
+  if (!joined) state.joins.set(person.email, newJoin(person.given_name.trim() || 'Member'));
+  return signInAs(person.email, joined ? 'sign_in' : 'join');
+}
+
+/** The signed-in pending member's join, or the error the server gives anyone else. */
+function pendingJoin(): { stored: StoredSession; join: MockJoin; contact: string } {
+  const stored = readJson<StoredSession | null>(LS.session, null);
+  const contact = stored?.contact ?? '';
+  const join = state.joins.get(contact);
+  if (!stored || stored.status !== 'member') throw new ThriftPlusError('Sign in first.', 'NOT_SIGNED_IN');
+  if (stored.ready !== false || !join) throw new ThriftPlusError('Your membership is already finished. Ask at the register to change it.', 'NOT_PENDING');
+  return { stored, join, contact };
+}
+
+function memberNow(): ThriftPlusMember {
+  const s = readSession();
+  if (s.status !== 'member') throw new ThriftPlusError('Sign in first.', 'NOT_SIGNED_IN');
+  return s.member;
+}
+
+/** "Use this photo" (`me/selfie/`, multipart `photo`): images only, 8 MB at most. */
+export async function uploadSelfie(photo: Blob): Promise<ThriftPlusMember> {
+  await wait();
+  const { stored, join, contact } = pendingJoin();
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(photo.type)) throw new ThriftPlusError('That file is not a photo. Take your selfie again.', 'PHOTO_BAD');
+  if (!photo.size) throw new ThriftPlusError('Take your selfie first.', 'PHOTO_NEEDED');
+  if (photo.size > 8 * 1024 * 1024) throw new ThriftPlusError('That photo is too big. Take your selfie again.', 'PHOTO_TOO_BIG');
+  join.selfie = true;
+  writeJson(LS.session, { ...stored, selfie: true } satisfies StoredSession);
+  state.finished.push({ step: 'selfie', contact });
+  return memberNow();
+}
+
+/** "Sign" (`me/signature/`): the signature as a PNG data URL, and the terms version it was signed under. */
+export async function signTerms(signature: string, termsVersion: string): Promise<ThriftPlusMember> {
+  await wait();
+  const { stored, join, contact } = pendingJoin();
+  if (!signature.startsWith('data:image/png;base64,')) throw new ThriftPlusError('The signature did not save. Clear it and sign again.', 'SIGNATURE_BAD');
+  join.signed = true;
+  writeJson(LS.session, { ...stored, signed: true } satisfies StoredSession);
+  state.finished.push({ step: 'sign', contact, terms_version: termsVersion });
+  return memberNow();
 }
 
 /** Scan without an account: guests see what members would collect. */
@@ -743,11 +938,26 @@ export const thriftPlusMockControls = {
   outbox(): MockEmail[] {
     return state.emails.map((e) => ({ ...e }));
   },
+  /** What `sign-in-options/` answers (Join v2): set a Google client id to show "Continue with Google". */
+  setSignInOptions(options: Partial<SignInOptions>): void {
+    state.options = { ...state.options, ...options, email: true };
+  },
+  /** A Google ID token for the mock's `google/` (Join v2): unsigned, with Google's email and name. */
+  googleCredential(email: string, givenName = '', familyName = ''): string {
+    const part = (o: object) => btoa(JSON.stringify(o)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    return `${part({ alg: 'none' })}.${part({ email, given_name: givenName, family_name: familyName })}.mock`;
+  },
+  /** The selfies and signatures sent from the app (Join v2), oldest first. */
+  finished(): Array<{ step: FinishStep; contact: string; terms_version?: string }> {
+    return state.finished.map((f) => ({ ...f }));
+  },
   /** Forget everything on this phone. */
   reset(): void {
     state.signals = [];
     state.emails = [];
     state.joins.clear();
+    state.options = { ...DEFAULT_OPTIONS };
+    state.finished = [];
     for (const key of Object.values(LS)) writeJson(key, null);
   },
 };

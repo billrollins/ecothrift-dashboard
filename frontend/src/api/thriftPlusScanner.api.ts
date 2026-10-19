@@ -14,8 +14,12 @@
 import axios from 'axios';
 import {
   computeCartTotals,
+  readContact,
   ThriftPlusError,
+  type CodeSent,
+  type Contact,
   type EmailSignIn,
+  type FinishStep,
   type PriceFeel,
   type SignInPurpose,
   type TagLookup,
@@ -25,11 +29,16 @@ import {
   type ThriftPlusItemCard,
   type ThriftPlusMember,
   type ThriftPlusSession,
+  type SignInOptions,
 } from './thriftPlusMock';
 
-export { computeCartTotals, ThriftPlusError };
+export { computeCartTotals, readContact, ThriftPlusError };
 export type {
+  CodeSent,
+  Contact,
   EmailSignIn,
+  FinishStep,
+  SignInOptions,
   PriceFeel,
   SignInPurpose,
   TagLookup,
@@ -101,6 +110,33 @@ function writeJson(key: string, value: unknown): void {
   }
 }
 
+/** "in 3 minutes", "in a minute", "in a moment": a 429's wait in plain words. */
+function waitWords(seconds: number | undefined): string {
+  if (!seconds || seconds < 45) return 'in a moment';
+  const minutes = Math.ceil(seconds / 60);
+  return minutes === 1 ? 'in a minute' : `in ${minutes} minutes`;
+}
+
+/**
+ * Join v2's answers in the app's own short, plain words (owner 2026-10-19: "SMOOTH and CLEAR and SIMPLE"), whatever
+ * the server's `detail` says. Other codes keep the server's words.
+ */
+const PLAIN: Record<string, (retryAfter?: number) => string> = {
+  MEMBERSHIP_OFF: () => 'This membership is not active. Ask at the register.',
+  NOT_PENDING: () => 'Your membership is already finished. Ask at the register to change it.',
+  PHOTO_NEEDED: () => 'Take your selfie first.',
+  PHOTO_BAD: () => "That photo didn't work. Take your selfie again.",
+  PHOTO_TOO_BIG: () => 'That photo is too big. Take your selfie again.',
+  SIGNATURE_BAD: () => 'The signature did not save. Clear it and sign again.',
+  TOO_MANY: (s) => `Too many codes. Try again ${waitWords(s)}.`,
+  LOCKED: (s) => `Too many tries. Try again ${waitWords(s)}.`,
+  CONTACT_BAD: () => 'Enter a US phone number or an email.',
+  PHONE_OFF: () => 'Texts are off right now. Enter your email.',
+  GOOGLE_OFF: () => 'Google sign-in is off. Use your email or phone.',
+  GOOGLE_BAD: () => "Google didn't sign you in. Try again, or use your email or phone.",
+  NAME_NEEDED: () => 'Enter your first and last name.',
+};
+
 /**
  * The server's message, or a plain fallback. It carries the server's `code`, and for a 429 the seconds to wait
  * (`retry_after`, or the Retry-After header) as `retryAfter`.
@@ -111,6 +147,8 @@ function problem(err: unknown, fallback: string): ThriftPlusError {
     const code = typeof body.code === 'string' ? body.code : undefined;
     const wait = Number(body.retry_after ?? err.response?.headers?.['retry-after']);
     const retryAfter = Number.isFinite(wait) && wait > 0 ? Math.ceil(wait) : undefined;
+    const plain = code ? PLAIN[code] : undefined;
+    if (plain) return new ThriftPlusError(plain(retryAfter), code, retryAfter);
     if (typeof body.detail === 'string' && body.detail) return new ThriftPlusError(body.detail, code, retryAfter);
     if (!err.response) return new ThriftPlusError('Could not reach the store. Check your signal and try again.');
     return new ThriftPlusError(fallback, code, retryAfter);
@@ -217,6 +255,79 @@ export async function signInWithCode(email: string, code: string): Promise<Email
     return emailSignedIn(data);
   } catch (err) {
     throw problem(err, "That code didn't work. Check it and try again.");
+  }
+}
+
+// ── Join v2 (owner 2026-10-19): Google, a phone or an email; then a selfie and a signature in the app ─────────
+// One box takes a phone number or an email. "Send my code" with both names is a join, without them a sign-in; the
+// answer is the same whether or not the contact is a member's. A signed-in pending member then takes a selfie and
+// signs the terms here, so the register only checks the photo ID.
+
+/** The ways in this server offers. Unreachable or older: email only (no Google button, no phone). */
+export async function getSignInOptions(): Promise<SignInOptions> {
+  try {
+    const { data } = await http.get<Partial<SignInOptions>>('/sign-in-options/');
+    return { google_client_id: data.google_client_id || null, phone: data.phone === true, email: true };
+  } catch {
+    return { google_client_id: null, phone: false, email: true };
+  }
+}
+
+/** "Send my code": a text to a phone number, or an email (its link and code) to an email. Names only for a join. */
+export async function sendCode(contact: string, first = '', last = ''): Promise<CodeSent> {
+  const names = first.trim() || last.trim() ? { first_name: first.trim(), last_name: last.trim() } : {};
+  try {
+    const { data } = await http.post<CodeSent>('/code/send/', { contact: contact.trim(), ...names });
+    return data;
+  } catch (err) {
+    throw problem(err, 'Could not send the code. Try again.');
+  }
+}
+
+/** The 6-digit code from the text or the email. */
+export async function checkCode(contact: string, code: string): Promise<EmailSignIn> {
+  try {
+    const { data } = await http.post<EmailSignIn>('/code/check/', { contact: contact.trim(), code: code.trim() });
+    return emailSignedIn(data);
+  } catch (err) {
+    throw problem(err, "That code didn't work. Check it and try again.");
+  }
+}
+
+/** "Continue with Google": Google's ID token (Google Identity Services). A new email joins with Google's name. */
+export async function signInWithGoogle(credential: string): Promise<EmailSignIn> {
+  try {
+    const { data } = await http.post<EmailSignIn>('/google/', { credential });
+    return emailSignedIn(data);
+  } catch (err) {
+    throw problem(err, "Google didn't sign you in. Try again, or use your email or phone.");
+  }
+}
+
+/**
+ * "Use this photo": the selfie of a pending member (an active member's photo is changed by staff). Send a JPEG the app
+ * redrew (FinishJoining.tsx): the server reads images with Pillow and refuses HEIC.
+ */
+export async function uploadSelfie(photo: Blob): Promise<ThriftPlusMember> {
+  const form = new FormData();
+  form.append('photo', photo, photo.type === 'image/png' ? 'selfie.png' : 'selfie.jpg');
+  try {
+    const { data } = await http.post<ThriftPlusMember>('/me/selfie/', form);
+    member = data;
+    return data;
+  } catch (err) {
+    throw problem(err, 'Could not save your photo. Try again.');
+  }
+}
+
+/** "Sign": the signature as a PNG data URL, and the terms version it was signed under. */
+export async function signTerms(signature: string, termsVersion: string): Promise<ThriftPlusMember> {
+  try {
+    const { data } = await http.post<ThriftPlusMember>('/me/signature/', { signature, terms_version: termsVersion });
+    member = data;
+    return data;
+  } catch (err) {
+    throw problem(err, 'Could not save your signature. Try again.');
   }
 }
 

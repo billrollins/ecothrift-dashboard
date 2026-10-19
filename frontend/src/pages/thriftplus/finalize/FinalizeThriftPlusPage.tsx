@@ -27,8 +27,8 @@ import {
   type ThriftCodeMember,
   type ThriftPendingPerson,
 } from '../../../api/thriftplusRegister.api';
-import { phoneDigits, phoneReadBack } from '../../../components/pos/ThriftPlusFinishJoinDialog';
 import { pendingName } from '../../../components/pos/ThriftPlusPendingFind';
+import SelfieCheck, { NO_CHECKS, checksDone, readyToVerify, type FaceChecks } from '../../../components/thriftplus/SelfieCheck';
 import { compressImageToJpeg } from '../../../services/receiving/receivingClient';
 import { thriftCardCode } from '../../../utils/thriftPlusCard';
 import { isStandalone } from '../scanner/installApp';
@@ -41,11 +41,15 @@ import ThriftSignaturePad, { type ThriftSignaturePadHandle } from './ThriftSigna
 /** J5: the words the customer signs under. The terms open in a popup here, never a link (J13). */
 export const SIGNATURE_WORDS = 'I agree to the Thrift+ terms and photo release. I can read them at ecothrift.us/terms.';
 
-type Step = 'find' | 'phone' | 'readback' | 'id' | 'photo' | 'sign' | 'done';
+/**
+ * `verify`: the one screen for a selfie and a signature from the app (Join v2, owner 2026-10-19). Otherwise the store
+ * phone takes them: the ID, a photo and the signature. No phone number is asked here since Join v2 (it is optional).
+ */
+type Step = 'find' | 'verify' | 'id' | 'photo' | 'sign' | 'done';
 
-/** The numbered steps after the member is found (the read-back belongs to the phone step). */
-const STEP_NUMBER: Partial<Record<Step, number>> = { find: 1, phone: 2, readback: 2, id: 3, photo: 4, sign: 5 };
-const STEPS = 5;
+/** The numbered steps of the store-phone path (the selfie path is one screen, unnumbered). */
+const STEP_NUMBER: Partial<Record<Step, number>> = { find: 1, id: 2, photo: 3, sign: 4 };
+const STEPS = 4;
 
 /** What the cashier hears when a scanned QR is no pending join. */
 export function codeMemberMessage(member: ThriftCodeMember | undefined): string {
@@ -145,8 +149,12 @@ function QrScan({ onCode, onClose, busy }: { onCode: (raw: string) => void; onCl
 /**
  * Finalize Thrift+ (owner 2026-10-16): a cashier finishes a membership started online on a phone beside her, away
  * from the register, even with people in line. One step per screen: find the member (their member QR or a name or
- * email), the phone number read back, the photo ID (seen, never kept, J3), a photo (J4), and the customer's signature
- * under the J5 words. Then the membership is ready (J2). No sale here, so it works on any register, training too.
+ * email), the photo ID (seen, never kept, J3), a photo (J4), and the customer's signature under the J5 words. Then the
+ * membership is ready (J2). No sale here, so it works on any register, training too.
+ *
+ * Join v2 (owner 2026-10-19, "SMOOTH and CLEAR and SIMPLE"): someone who took a selfie and signed in the app gets one
+ * screen: their selfie, "Check their photo ID" (Name matches, Face matches the selfie, 18 or older) and Verified. The
+ * phone number is no longer asked here (optional on the server).
  *
  * Owner 2026-10-16 (J13): a home-screen app on the store phones, full screen. The Join QR shows a customer who hasn't
  * joined; the terms open in a popup; Back, a swipe, a pull-down or a long press can't take a customer off the page.
@@ -164,8 +172,8 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
   const [searched, setSearched] = useState('');
   const [findNote, setFindNote] = useState('');
   const [finding, setFinding] = useState(false);
-  const [phone, setPhone] = useState('');
-  const [phoneError, setPhoneError] = useState('');
+  const [checks, setChecks] = useState<FaceChecks>(NO_CHECKS);
+  const [newSelfie, setNewSelfie] = useState<Blob | null>(null);
   const [idChecked, setIdChecked] = useState(false);
   const [over18, setOver18] = useState(false);
   const [photo, setPhoto] = useState<Blob | null>(null);
@@ -182,7 +190,6 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
   const pad = useRef<ThriftSignaturePadHandle | null>(null);
   const photoInput = useRef<HTMLInputElement | null>(null);
   const lastScan = useRef('');
-  const digits = phoneDigits(phone);
 
   const midway = step !== 'find' && step !== 'done';
   useStayOnPage({
@@ -229,7 +236,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
   function pick(p: ThriftPendingPerson) {
     setPerson(p);
     setScanning(false);
-    setStep('phone');
+    setStep(readyToVerify(p) ? 'verify' : 'id');
   }
 
   async function onScan(raw: string) {
@@ -282,33 +289,41 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
     }
   }
 
-  async function finish() {
-    if (!person || !digits || !idChecked || !signed) return;
+  async function send(body: Parameters<typeof finishThriftJoin>[0]) {
     setBusy(true);
     setError('');
     try {
-      const signature = await pad.current?.toBlob();
-      if (!signature) {
-        setError('The signature did not save. Clear it and sign again.');
-        return;
-      }
-      await finishThriftJoin({
-        person: person.person_id, phone: digits, id_checked: true, verified_18: over18, photo, signature, finalize: true,
-      });
+      await finishThriftJoin(body);
       setStep('done');
     } catch (err) {
-      const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
-      if (code === 'PHONE_TAKEN' || code === 'PHONE_BAD') {
-        setPhoneError(thriftErrorMessage(err));
-        setStep('phone');
-      } else if (code === 'NOT_PENDING' || code === 'MEMBER_UNKNOWN' || code === 'CARD_NOT_ACTIVE') {
-        setError(thriftErrorMessage(err));
-      } else {
-        setError(thriftErrorMessage(err, 'Could not finish. Check the connection and try again.'));
-      }
+      setError(thriftErrorMessage(err, 'Could not finish. Check the connection and try again.'));
     } finally {
       setBusy(false);
     }
+  }
+
+  /** The store-phone path: the ID, a photo and the signature taken here. No phone number (optional since Join v2). */
+  async function finish() {
+    if (!person || !idChecked || !signed) return;
+    const signature = await pad.current?.toBlob();
+    if (!signature) {
+      setError('The signature did not save. Clear it and sign again.');
+      return;
+    }
+    await send({ person: person.person_id, id_checked: true, verified_18: over18, photo, signature, finalize: true });
+  }
+
+  /** The selfie path (Join v2): the photo ID checked against the app selfie. A retaken photo replaces the selfie. */
+  async function verified() {
+    if (!person || !checksDone(checks)) return;
+    await send({
+      person: person.person_id, id_checked: true, face_matches: true, verified_18: checks.over18, finalize: true,
+      ...(newSelfie ? { photo: newSelfie } : {}),
+    });
+  }
+
+  async function onRetake(file: File) {
+    setNewSelfie(await smallPhoto(file));
   }
 
   function startOver() {
@@ -317,8 +332,8 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
     setScanning(false);
     setQ('');
     setFindNote('');
-    setPhone('');
-    setPhoneError('');
+    setChecks(NO_CHECKS);
+    setNewSelfie(null);
     setIdChecked(false);
     setOver18(false);
     setPhoto(null);
@@ -329,7 +344,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
     void search('');
   }
 
-  const back: Partial<Record<Step, Step>> = { phone: 'find', readback: 'phone', id: 'readback', photo: 'id', sign: 'photo' };
+  const back: Partial<Record<Step, Step>> = { verify: 'find', id: 'find', photo: 'id', sign: 'photo' };
   const number = STEP_NUMBER[step];
   const joinButton = (
     <Button variant="outlined" size="large" startIcon={<QrCode2Rounded />} onClick={() => setJoinQr(true)} sx={big} data-testid="finalize-show-join">
@@ -353,7 +368,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
             startIcon={<ArrowBackRounded />}
             onClick={() => {
               setError('');
-              if (step === 'phone') startOver();
+              if (back[step] === 'find') startOver();
               else setStep(back[step]!);
             }}
             sx={{ minHeight: 44 }}
@@ -368,7 +383,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
           <Button size="small" onClick={() => navigate('/dashboard')} sx={{ minHeight: 44 }}>Dash</Button>
         ) : null}
       </Stack>
-      {person && step !== 'find' && step !== 'done' ? (
+      {person && step !== 'find' && step !== 'done' && step !== 'verify' ? (
         <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, bgcolor: 'action.hover' }} data-testid="finalize-person">
           <Typography fontWeight={800} fontSize="1.15rem">{pendingName(person)}</Typography>
           {person.email ? <Typography variant="body2" color="text.secondary">{person.email}</Typography> : null}
@@ -378,7 +393,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
       {step === 'find' ? (
         <Stack spacing={2}>
           <Typography color="text.secondary">
-            For someone who joined online. Check their photo ID and phone, and have them sign.
+            For someone who joined online: scan their member QR, then check their photo ID.
           </Typography>
           {findNote ? <Alert severity="info" data-testid="finalize-find-note">{findNote}</Alert> : null}
           {!scanning ? joinButton : null}
@@ -444,41 +459,23 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
         </Stack>
       ) : null}
 
-      {step === 'phone' ? (
-        <Stack spacing={2}>
-          <Typography fontSize="1.1rem">Ask their phone number.</Typography>
-          {phoneError ? <Alert severity="error" data-testid="finalize-phone-error">{phoneError}</Alert> : null}
-          <TextField
-            label="Phone number"
-            type="tel"
-            value={phone}
-            autoFocus
-            onChange={(e) => {
-              setPhone(e.target.value);
-              setPhoneError('');
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && digits) {
-                e.preventDefault();
-                setStep('readback');
-              }
-            }}
-            helperText={phone && !digits ? 'The whole number: 10 digits.' : ' '}
-            slotProps={{ htmlInput: { inputMode: 'tel', autoComplete: 'off', style: { fontSize: '1.4rem' } } }}
-          />
-          <Button variant="contained" size="large" disabled={!digits} onClick={() => setStep('readback')} sx={big}>
-            Next
-          </Button>
-        </Stack>
-      ) : null}
-
-      {step === 'readback' ? (
-        <Stack spacing={2} data-testid="finalize-readback">
-          <Typography variant="h4" fontWeight={800}>{`${phoneReadBack(digits)} — read it back to them`}</Typography>
-          <Typography color="text.secondary">Their phone finds them at the register from now on.</Typography>
-          <Button variant="contained" size="large" onClick={() => setStep('id')} sx={big}>That&apos;s right</Button>
-          <Button variant="outlined" size="large" onClick={() => setStep('phone')} sx={big}>Change it</Button>
-        </Stack>
+      {/* Join v2 (owner 2026-10-19): a selfie and a signature from the app. One screen: the photo ID against the selfie. */}
+      {step === 'verify' && person ? (
+        <Box data-testid="finalize-verify">
+          <SelfieCheck person={person} checks={checks} onChecks={setChecks} retake={newSelfie} onRetake={(f) => void onRetake(f)} disabled={busy}>
+            {error ? <Alert severity="error" data-testid="finalize-error">{error}</Alert> : null}
+            <Button
+              variant="contained"
+              size="large"
+              color="success"
+              disabled={!checksDone(checks) || busy}
+              onClick={() => void verified()}
+              sx={{ ...big, minHeight: 72, fontSize: '1.3rem' }}
+            >
+              {busy ? <CircularProgress size={26} color="inherit" /> : 'Verified'}
+            </Button>
+          </SelfieCheck>
+        </Box>
       ) : null}
 
       {step === 'id' ? (
@@ -604,7 +601,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
         <Stack spacing={2} data-testid="finalize-done">
           <Alert severity="success" sx={{ fontSize: '1.15rem', '& .MuiAlert-message': { width: '100%' } }}>
             <Typography fontWeight={800} fontSize="1.25rem">{`${person?.first_name ?? 'They'} is a Thrift+ member.`}</Typography>
-            <Typography sx={{ mt: 0.5 }}>They can show their member QR or give their phone at the register.</Typography>
+            <Typography sx={{ mt: 0.5 }}>They show their member QR in the Thrift+ app at the register.</Typography>
           </Alert>
           <Button variant="contained" size="large" onClick={startOver} sx={{ ...big, minHeight: 64 }}>
             Finalize another

@@ -48,7 +48,10 @@ export default function PrivacyPage() {
           </p>
 
           <h2>Text messages</h2>
-          <p data-testid="privacy-no-texts">{NO_TEXTS}</p>
+          <p data-testid="privacy-no-texts">
+            {NO_TEXTS} {PRIVACY_NO_SHARING} Your mobile number is shared only with the service provider that sends
+            the codes.
+          </p>
 
           <h2>Job applications</h2>
           <p>

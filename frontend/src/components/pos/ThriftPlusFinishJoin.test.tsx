@@ -33,7 +33,7 @@ vi.mock('../../api/thriftplusRegister.api', () => ({
     calls.finds.push(q);
     return !q || 'cara joyner cara@example.com'.includes(q.toLowerCase()) ? [CARA] : [];
   },
-  finishThriftJoin: async (body: { phone: string; cart?: number | null }) => {
+  finishThriftJoin: async (body: { phone?: string; cart?: number | null }) => {
     calls.finished.push(body);
     if (body.phone === '4025550101') {
       const err = { response: { data: { code: 'PHONE_TAKEN', detail: 'That phone number is on another membership. Check the ID and ask a manager.' } } };
@@ -172,17 +172,17 @@ describe('Finish joining', () => {
     wrap(<ThriftPlusFinishJoinDialog open person={CARA} onClose={() => undefined} cart={openCart} lastSale={null} onCart={onCart} />);
     expect(screen.getByText('Cara Joyner')).toBeInTheDocument();
     expect(screen.getByText('Joined online with cara@example.com.')).toBeInTheDocument();
-    expect(screen.getByText('Ask their phone number.')).toBeInTheDocument();
+    expect(screen.getByText("Ask their phone number. It's optional: leave it blank to skip.")).toBeInTheDocument();
     const next = screen.getByRole('button', { name: 'Next' });
-    await user.type(screen.getByLabelText('Phone number'), '555-0123');
+    await user.type(screen.getByLabelText('Phone number (optional)'), '555-0123');
     expect(next).toBeDisabled(); // the whole number: 10 digits
     expect(screen.getByText('The whole number: 10 digits.')).toBeInTheDocument();
-    await user.clear(screen.getByLabelText('Phone number'));
-    await user.type(screen.getByLabelText('Phone number'), '402 555 0123');
+    await user.clear(screen.getByLabelText('Phone number (optional)'));
+    await user.type(screen.getByLabelText('Phone number (optional)'), '402 555 0123');
     await user.click(next);
     expect(screen.getByTestId('thrift-finish-readback')).toHaveTextContent('(402) 555-0123 — read it back to them');
     await user.click(screen.getByRole('button', { name: 'Change it' }));
-    expect(screen.getByLabelText('Phone number')).toHaveValue('402 555 0123');
+    expect(screen.getByLabelText('Phone number (optional)')).toHaveValue('402 555 0123');
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.click(screen.getByRole('button', { name: "That's right" }));
     expect(screen.getByText(/Without an ID check they still collect ThriftBucks/)).toBeInTheDocument();
@@ -203,13 +203,13 @@ describe('Finish joining', () => {
   it('a phone on another membership goes back to the phone with the message', async () => {
     const user = userEvent.setup();
     wrap(<ThriftPlusFinishJoinDialog open person={CARA} onClose={() => undefined} cart={openCart} lastSale={null} onCart={() => undefined} />);
-    await user.type(screen.getByLabelText('Phone number'), '(402) 555-0101{Enter}');
+    await user.type(screen.getByLabelText('Phone number (optional)'), '(402) 555-0101{Enter}');
     await user.click(screen.getByRole('button', { name: "That's right" }));
     await user.click(screen.getByRole('button', { name: 'Finish joining' }));
     expect(await screen.findByTestId('thrift-finish-phone-error')).toHaveTextContent(
       'That phone number is on another membership. Check the ID and ask a manager.',
     );
-    expect(screen.getByLabelText('Phone number')).toBeInTheDocument();
+    expect(screen.getByLabelText('Phone number (optional)')).toBeInTheDocument();
   });
 
   it('re-rings the last sale when there is no open sale', async () => {
@@ -221,7 +221,7 @@ describe('Finish joining', () => {
         onCart={() => undefined} onRerung={onRerung}
       />,
     );
-    await user.type(screen.getByLabelText('Phone number'), '4025550123{Enter}');
+    await user.type(screen.getByLabelText('Phone number (optional)'), '4025550123{Enter}');
     await user.click(screen.getByRole('button', { name: "That's right" }));
     expect(screen.getByRole('checkbox', { name: 'Re-ring the last sale ($42.80) for them' })).toBeChecked();
     await user.click(screen.getByRole('button', { name: 'Finish joining' }));
@@ -233,12 +233,96 @@ describe('Finish joining', () => {
   it('the training register cannot finish a real membership', () => {
     wrap(<ThriftPlusFinishJoinDialog open training person={CARA} onClose={() => undefined} cart={openCart} lastSale={null} onCart={() => undefined} />);
     expect(screen.getByText('This is the training register. Finish joining on a real register.')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Phone number')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Phone number/)).not.toBeInTheDocument();
+  });
+
+  it('the phone is optional: left blank, Next goes straight to the ID and no phone is sent (Join v2)', async () => {
+    const user = userEvent.setup();
+    wrap(<ThriftPlusFinishJoinDialog open person={CARA} onClose={() => undefined} cart={openCart} lastSale={null} onCart={() => undefined} />);
+    const next = screen.getByRole('button', { name: 'Next' });
+    expect(next).toBeEnabled();
+    await user.click(next);
+    expect(screen.queryByTestId('thrift-finish-readback')).not.toBeInTheDocument();
+    expect(screen.getByText('Check their photo ID and take the photo.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByLabelText('Phone number (optional)')).toHaveValue('');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Checked a photo ID (the name matches)' }));
+    await user.click(screen.getByRole('button', { name: 'Finish joining' }));
+    const done = await screen.findByTestId('thrift-finish-done');
+    expect(calls.finished).toEqual([{ person: 21, id_checked: true, verified_18: false, photo: null, cart: 3 }]);
+    expect(done).toHaveTextContent('show their member QR.');
+    expect(done).not.toHaveTextContent('give their phone number');
   });
 
   it('formats the phone for the read-back', () => {
     expect(phoneDigits('+1 (402) 555-0123')).toBe('4025550123');
     expect(phoneDigits('555-0123')).toBe('');
     expect(phoneReadBack('4025550123')).toBe('(402) 555-0123');
+  });
+});
+
+describe('Finish joining, the selfie path (Join v2, owner 2026-10-19)', () => {
+  const READY: ThriftPendingPerson = {
+    ...CARA, status: 'pending', selfie: true, signed: true, photo_url: '/media/cara-selfie.jpg', contact: 'c***@example.com',
+    qr: 'TP402155831907',
+  };
+
+  it('a selfie and a signature from the app: the selfie, the three checks and Verified; no phone, photo or signature', async () => {
+    const user = userEvent.setup();
+    const onCart = vi.fn();
+    wrap(<ThriftPlusFinishJoinDialog open person={READY} onClose={() => undefined} cart={openCart} lastSale={null} onCart={onCart} />);
+    expect(screen.getByRole('img', { name: "Cara Joyner's selfie" })).toHaveAttribute('src', '/media/cara-selfie.jpg');
+    expect(screen.getByTestId('thrift-finish-verify')).toHaveTextContent('c***@example.com');
+    expect(screen.getByText('Check their photo ID')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Phone number/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('thrift-finish-qr')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('thrift-finish-signature')).not.toBeInTheDocument();
+    expect(screen.queryByText('Take or add a photo')).not.toBeInTheDocument();
+    const verified = screen.getByRole('button', { name: 'Verified' });
+    expect(verified).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: '18 or older' })).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: 'Name matches' }));
+    expect(verified).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: 'Face matches the selfie' }));
+    expect(verified).toBeEnabled();
+    await user.click(screen.getByRole('checkbox', { name: '18 or older' }));
+    await user.click(verified);
+    const done = await screen.findByTestId('thrift-finish-done');
+    expect(calls.finished).toEqual([{ person: 21, id_checked: true, face_matches: true, verified_18: true, finalize: true, cart: 3 }]);
+    expect(onCart).toHaveBeenCalledWith(expect.objectContaining({ id: 3 }));
+    expect(done).toHaveTextContent('Welcome, Cara.');
+    expect(document.body.textContent ?? '').not.toMatch(/\bcards?\b/i);
+  });
+
+  it('Retake photo sends the new photo with Verified, and the last sale can be re-rung', async () => {
+    const user = userEvent.setup();
+    wrap(
+      <ThriftPlusFinishJoinDialog
+        open person={READY} onClose={() => undefined} cart={null} lastSale={{ id: 41, total: '42.80' }} onCart={() => undefined}
+      />,
+    );
+    const photo = new File(['jpg'], 'new.jpg', { type: 'image/jpeg' });
+    await user.upload(screen.getByTestId('selfie-check-retake-input'), photo);
+    expect(await screen.findByRole('img', { name: 'The new photo' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Re-ring the last sale ($42.80) for them' })).toBeChecked();
+    await user.click(screen.getByRole('checkbox', { name: 'Name matches' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Face matches the selfie' }));
+    await user.click(screen.getByRole('button', { name: 'Verified' }));
+    expect(await screen.findByTestId('thrift-finish-done')).toHaveTextContent('Re-rung for Cara');
+    expect(calls.finished).toEqual([
+      { person: 21, id_checked: true, face_matches: true, verified_18: false, finalize: true, cart: null, photo },
+    ]);
+    expect(calls.rerung).toEqual([[41, 21]]);
+  });
+
+  it('a selfie without a signature keeps the register path (phone optional, ID, photo, signature)', () => {
+    wrap(
+      <ThriftPlusFinishJoinDialog
+        open person={{ ...READY, signed: false }} onClose={() => undefined} cart={openCart} lastSale={null} onCart={() => undefined}
+      />,
+    );
+    expect(screen.getByLabelText('Phone number (optional)')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Verified' })).not.toBeInTheDocument();
   });
 });

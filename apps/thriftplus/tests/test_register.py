@@ -383,7 +383,7 @@ class PhoneFindTests(RegisterBase):
         row = self._find('4025550101').json()['people'][1]
         self.assertEqual(row, {'person_id': dee.pk, 'account_id': self.account.pk, 'first_name': 'Dee', 'last_initial': 'L',
                                'role': 'secondary', 'photo_url': None, 'verified_18': False, 'practice': False,
-                               'account_status': 'active'})
+                               'account_status': 'active', 'selfie': False, 'signed': False})
         self.assertEqual(self._find('4025559999').json(), {'people': []})
         short = self._find('0101')
         self.assertEqual((short.status_code, short.json()['code']), (400, 'PHONE_SHORT'))

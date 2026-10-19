@@ -93,6 +93,14 @@ Creates `RoutineRun` rows for the current America/Chicago store day. Closed Sund
 
 **Prod flags (v2.69.0 go-live):** `ONLINE_SALES_ENABLED=true` and `MS_GRAPH_ENABLED=true` on Heroku after purge/seed/smoke. Staff Online Sales pages remain available to Manager/Admin regardless of the public kill switch. Other flags: `ONLINE_SALES_INQUIRIES_ENABLED`, `ONLINE_SALES_ACCOUNTS_ENABLED`, `ONLINE_SALES_PUBLIC_BASE_URL` (magic-link / hold email links). Whole-DB wipe commands (`reset_business_data`, `reset_buying_data`) were removed - Online Sales blank-slate is `purge_online_sales` only (`--force-production --yes` on prod).
 
+## Heroku Scheduler (Thrift+)
+
+| Schedule | Command | Dyno |
+|----------|---------|------|
+| Daily 07:00 UTC | `python manage.py recompute_rewards` | Standard-1X |
+
+The nightly ThriftBucks run (every floor item's reward for the day, with the saved Calculator setting). Added by the owner 2026-10-19; before that the only run was the Calculator Save on 10-16. `assign_reward_families` is retired (families approved by default since v2.180.0): no job for it. `build_daily_brief` runs locally (data platform), not on Heroku.
+
 ## Heroku Scheduler (Microsoft Graph mailbox)
 
 | Schedule | Command |
@@ -229,7 +237,8 @@ Defined in `.env` (local values) and `.envprod` (mirror of Heroku Config Vars, w
 | `MS_GRAPH_MAILBOX` | Mailbox Graph sends as / syncs from | `retail@ecothrift.us` |
 | `MS_GRAPH_FALLBACK_EMAIL_BACKEND` | Backend used when Graph is off or fails open | Django console |
 | `EMAIL_BACKEND` | Override Django email backend (defaults from `MS_GRAPH_ENABLED`) | auto |
-| `TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`, `TWILIO_API_SECRET`, `TWILIO_FROM_NUMBER` | **Not set yet.** The Eco-Thrift Twilio **sub-account** only (house standard texting.md), typed by Bill into Heroku when texting goes live. Read by `apps/texting/service.py` (`waiting_on`); never in `.env` (dev never texts) | unset |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`, `TWILIO_API_SECRET`, `TWILIO_VERIFY_SERVICE_SID` | **Set on Heroku 2026-10-19** (main account "Eco-Thrift", releases v479/v480), for **Thrift+ sign-in codes only** (Twilio Verify, rule J17; read by `apps/thriftplus/services/phone_codes.py`). Mirrored in `.envprod`; never in `.env` (dev and tests never text; Verify is mocked) | prod only |
+| `TWILIO_FROM_NUMBER` | **Unset on purpose.** It completes the parked texting app's live switch (`apps/texting/service.py`, D20): it stays unset, so no marketing or notice texts can go out | unset |
 | `DJANGO_SETTINGS_MODULE` | Settings module (**required on Heroku**) | `ecothrift.settings` locally; prod `ecothrift.settings_production` |
 
 **Full SOCKS5 setup (all `BUYING_SOCKS5_*` vars):** See **[`.ai/extended/vpn-socks5.md`](vpn-socks5.md)**.

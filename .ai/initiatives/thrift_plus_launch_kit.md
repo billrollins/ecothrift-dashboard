@@ -172,7 +172,7 @@ within 3 days for store credit.
 
 **Settings and data:**
 - [ ] Rewards for stock already on the floor: the owner's one-time call (10-13). The tools are the start setting, the reset request, and a manual tool if wanted.
-- [ ] Scheduler jobs: `assign_reward_families --limit 200` (05:30 UTC), `recompute_rewards` (06:00 UTC), `build_daily_brief` (morning). *(09-30: all three commands exist; Heroku Scheduler entries are the owner's step.)*
+- [x] Scheduler jobs: `assign_reward_families --limit 200` (05:30 UTC), `recompute_rewards` (06:00 UTC), `build_daily_brief` (morning). *(09-30: all three commands exist; Heroku Scheduler entries are the owner's step.)* *(Done 10-19: `recompute_rewards` daily 07:00 UTC on Heroku; `assign_reward_families` retired; `build_daily_brief` runs locally.)*
 
 **Print:**
 - [ ] Print server 1.9.0 built and installed on every register (the Thrift+ receipt block, and the member policy lines if approved). *(09-30: code and `printserver/CHANGELOG.md` ready; `VERSION` is still 1.8.0 and is bumped by `ship-print-server.md` at release. Member and guest receipts render correctly: fixtures `printserver/fixtures/receipt_thriftplus_{member,guest}.json`. Open nit: the "Rewards this trip" row prints in a much larger font than its neighbours; owner to judge.)*

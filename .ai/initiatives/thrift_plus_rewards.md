@@ -186,7 +186,7 @@ Acceptance:
 - [x] Every change of status or reason is logged with the pace numbers. The nightly run is recorded.
 - [x] Dry-run report: Thrift+ → Rewards (tomorrow's totals, bands, the biggest rewards, the exit list, one item's log).
 - [ ] The full pre-ship run is GREEN (R-074).
-- [ ] After the ship, the owner adds the Scheduler jobs `assign_reward_families --limit 200` (05:30 UTC) and `recompute_rewards` (06:00 UTC), and reviews the dry run on 10-01.
+- [x] After the ship, the owner adds the Scheduler jobs `assign_reward_families --limit 200` (05:30 UTC) and `recompute_rewards` (06:00 UTC), and reviews the dry run on 10-01. *(Done 10-19: `recompute_rewards` daily 07:00 UTC, Standard-1X. `assign_reward_families` is retired, so no job.)*
 
 ### Phase 3 — The register · **ship Mon 10-05 (v2.109.0 or later)** · built early (09-25), tests R-076
 The POS handles members:

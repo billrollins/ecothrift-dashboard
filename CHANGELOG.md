@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.180.1] -->
-<!-- Last reviewed: 2026-10-19 (2.180.1) -->
+<!-- Line 1 release: ## [2.182.0] -->
+<!-- Last reviewed: 2026-10-19 (2.182.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.182.0] - 2026-10-19
+
+User-facing theme: **Join Thrift+ with Google, a phone or an email; take a selfie and sign in the app; at the register staff just scan, check the photo ID against the selfie, and tap Verified (Bill, 2026-10-19: "SMOOTH and CLEAR and SIMPLE").** Rule J17. Outside initiatives (Thrift+).
+
+### Added
+- **Join and Sign in (the Thrift+ Member app):** "Continue with Google", or first and last name plus one **Email or phone** box and "Send my code" (a 6-digit code by email, or by text through Twilio Verify; email is suggested first because it's free). The code signs them in on the spot. Google shows once its client ID is set; texts only to US numbers, with our own limits (30 s between texts, 5 an hour per number, 10 per address, a 15-minute lock after 5 wrong codes); answers never say whether someone is a member.
+- **Finish joining in the app:** two steps, "Step 1 of 2": a **selfie** (front camera, sent as a JPEG) and a **signature** under the terms; then "Show this QR at the register with your photo ID." The Member QR has a "Finish joining" button while steps are left.
+- **Finalize and the register's Finish joining:** for someone with a selfie and a signature: their selfie big, then "Name matches", "Face matches the selfie", "18 or older" and **Verified** (Retake photo if the selfie is bad). Otherwise the photo and signature are taken there as before. **No phone step**: the phone is optional everywhere. Finalize cards show the selfie and a "Ready: selfie + signed" chip.
+
+### Changed
+- **Confirmed** (Needs Finalize, never deleted after 24 hours) means the email **or** the phone was verified.
+- **Terms and privacy (version October 19, 2026):** joining with Google, a mobile number or an email; the selfie and signature in the app; the only texts are sign-in codes the customer asks for ("Message and data rates may apply"); we never sell or share mobile numbers. The signed terms version is now 2026-10-19. Rule changes J4, J5, J11, X1 point to J17; the attorney confirms the in-app signature and selfie. (Rule "One way to join" renumbered J16; it shared J15.)
+- **Docs:** the nightly ThriftBucks job (`recompute_rewards`, daily 07:00 UTC, added by the owner 10-19) is recorded; the Twilio Verify keys are documented (the old texting sender stays off).
 
 ## [2.181.0] - 2026-10-19
 

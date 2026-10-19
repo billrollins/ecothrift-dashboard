@@ -66,7 +66,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
     {
       num: 'A.3',
       what: 'Before your membership works',
-      short: 'A photo, your name and phone, a photo ID check, and your signature.',
+      short: 'Your name, a photo, your signature, and a photo ID check at the register.',
       section: 1,
     },
     { num: 'B.1', what: 'ThriftBucks', short: 'On most items. They grow as an item sits, up to 95% of the tag.', section: 3 },
@@ -107,7 +107,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
     {
       num: 'D.3',
       what: 'Email',
-      short: 'Receipts, Thrift+ updates and sign-in links. Store news you can turn off. No texts.',
+      short: 'Receipts, Thrift+ updates and sign-in links. Store news you can turn off. Texts only for sign-in codes you ask for.',
       section: 10,
     },
   ],
@@ -181,7 +181,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
   fullIntro: {
     label: 'Thrift+ Membership Terms.',
     text: 'EcoThrift LLC, 8425 West Center Road, Omaha, NE 68124 · (402) 881-9861',
-    version: 'Version: October 15, 2026.',
+    version: 'Version: October 19, 2026.',
   },
 
   sections: [
@@ -199,7 +199,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
         },
         {
           n: '1.3',
-          text: 'Your membership works only after we have your photo, your name and phone number, a check of your photo ID, and your signature on the register screen. Until then, your account collects and uses nothing. You may start on your phone at ecothrift.us/join with just your name and email (we email you a link to finish), then finish at any register, where we ask your phone number. No email? Join at any register.',
+          text: 'Your membership works only after we have your name, your photo and your signature, and staff have checked your photo ID at a register. Until then, your account collects and uses nothing. Join on your phone at ecothrift.us/join with your name and Google, your mobile number or your email; take your photo (a selfie) and sign in the Thrift+ app; then show your member QR and your photo ID at any register. If you skip the selfie or the signature, we take your photo and you sign at the register.',
         },
         { n: '1.4', text: 'By signing, you agree to these terms and to the photo release in §10.' },
         { n: '1.5', text: 'Items for adults 18 and over require an ID check every time, member or not.' },
@@ -369,7 +369,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
         {
           n: '10.1',
           label: 'Photo.',
-          text: "We take your photo at the register. It is used only so staff can confirm it's you. It is never used for marketing, shared, or used for face recognition. We delete it 24 months after your last purchase, or within 30 days of your request.",
+          text: "You take your photo (a selfie) in the Thrift+ app, or we take it at the register; staff check it against your photo ID. It is used only so staff can confirm it's you. It is never used for marketing, shared, or used for face recognition. We delete it 24 months after your last purchase, or within 30 days of your request.",
         },
         {
           n: '10.2',
@@ -379,12 +379,12 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
         {
           n: '10.3',
           label: 'Email.',
-          text: "An email is optional. If you give one, we send receipts and Thrift+ updates, and store news that you can turn off at any time (the unsubscribe link in every store news email, My account, or any register). We don't send text messages.",
+          text: "An email is optional. If you give one, we send receipts and Thrift+ updates, and store news that you can turn off at any time (the unsubscribe link in every store news email, My account, or any register). The only text messages we send are sign-in codes you ask for. We never sell or share your mobile number.",
         },
         {
           n: '10.4',
           label: 'Signing in.',
-          text: 'There is no password. Your join email has a link that signs you in to the Thrift+ app. On a new phone, or after you sign out, tap "Email me a sign-in link": we email you a link that works once and only for a short time (up to 30 minutes). A phone stays signed in for a year while you use it; signing out ends it.',
+          text: 'There is no password. Sign in with Google, or with a 6-digit code we text to your mobile number or email to you (an emailed link works too). Each code or link works once and only for a short time. A phone stays signed in for a year while you use it; signing out ends it. Message and data rates may apply to texts.',
         },
       ],
     },

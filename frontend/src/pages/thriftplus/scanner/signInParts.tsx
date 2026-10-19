@@ -55,6 +55,46 @@ export function EmailField({ value, onChange, sx }: { value: string; onChange: (
   );
 }
 
+/**
+ * The one box (Join v2, owner 2026-10-19): email first, since texts cost money and email is free. "Email or phone",
+ * or "Email" while texts are off, and one small line under it. Plain text, so a phone number never trips the browser's
+ * email check; 18 px so iPhone doesn't zoom.
+ */
+export function ContactField({ value, onChange, phone, sx }: { value: string; onChange: (v: string) => void; phone: boolean; sx?: object }) {
+  return (
+    <Box sx={sx}>
+      {phone ? (
+        <Field>
+          <InputBase
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="you@email.com or mobile number"
+            inputProps={{ 'aria-label': 'Email or phone', autoComplete: 'email', inputMode: 'email', autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false }}
+            sx={{ flex: 1, fontSize: 18 }}
+          />
+        </Field>
+      ) : (
+        <EmailField value={value} onChange={onChange} />
+      )}
+      <Box data-testid="contact-hint" sx={{ mt: u(12), fontSize: u(26), color: sc.ink2, lineHeight: 1.4 }}>
+        {phone ? "We'll send a 6-digit code. Email is free; a text works too." : "We'll send a 6-digit code to your email."}
+      </Box>
+    </Box>
+  );
+}
+
+/** A quiet "or" between Google and the box. */
+export function OrLine() {
+  const rule = { flex: 1, height: '1px', bgcolor: sc.line } as const;
+  return (
+    <Box aria-hidden sx={{ display: 'flex', alignItems: 'center', gap: u(20), my: u(28), color: sc.ink3, fontSize: u(28) }}>
+      <Box sx={rule} />
+      or
+      <Box sx={rule} />
+    </Box>
+  );
+}
+
 /** The green button. `disabled` greys it out (the code's "Sign in" until 6 digits). */
 export function Primary({ busy, label, disabled = false }: { busy: boolean; label: string; disabled?: boolean }) {
   return (

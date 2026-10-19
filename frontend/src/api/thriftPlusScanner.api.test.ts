@@ -97,3 +97,76 @@ describe('the Thrift+ scanner client', () => {
     await expect(scanner.signInWithLink('t')).rejects.toThrow('Could not reach the store. Check your signal and try again.');
   });
 });
+
+describe('Join v2 client (owner 2026-10-19)', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    http.get.mockReset();
+    http.post.mockReset();
+  });
+
+  it('reads the ways in, and falls back to email only when the server can\'t say', async () => {
+    http.get.mockResolvedValueOnce({ data: { google_client_id: 'client-1', phone: true, email: true } });
+    expect(await scanner.getSignInOptions()).toEqual({ google_client_id: 'client-1', phone: true, email: true });
+    expect(http.get).toHaveBeenCalledWith('/sign-in-options/');
+    http.get.mockResolvedValueOnce({ data: { google_client_id: '', phone: 'yes' } });
+    expect(await scanner.getSignInOptions()).toEqual({ google_client_id: null, phone: false, email: true });
+    http.get.mockRejectedValueOnce(new Error('404'));
+    expect(await scanner.getSignInOptions()).toEqual({ google_client_id: null, phone: false, email: true });
+  });
+
+  it('sends a code (names only for a join), checks it, signs in with Google, and posts the selfie and the signature', async () => {
+    const member = { first_name: 'Ana', ready: false, finish_steps: ['selfie', 'sign'] };
+    http.post.mockImplementation(async (url: string) => {
+      if (url === '/code/send/') return { data: { status: 'sent', channel: 'sms' } };
+      if (url === '/me/selfie/' || url === '/me/signature/') return { data: member };
+      return { data: { status: 'member', member, purpose: 'join' } };
+    });
+    expect(await scanner.sendCode(' 402 555 0123 ', ' Ana ', ' Diaz ')).toEqual({ status: 'sent', channel: 'sms' });
+    expect(http.post).toHaveBeenCalledWith('/code/send/', { contact: '402 555 0123', first_name: 'Ana', last_name: 'Diaz' });
+    await scanner.sendCode('ana@example.com');
+    expect(http.post).toHaveBeenLastCalledWith('/code/send/', { contact: 'ana@example.com' });
+
+    expect(await scanner.checkCode('ana@example.com', ' 123456 ')).toMatchObject({ purpose: 'join', member: { ready: false } });
+    expect(http.post).toHaveBeenLastCalledWith('/code/check/', { contact: 'ana@example.com', code: '123456' });
+    await scanner.signInWithGoogle('id-token');
+    expect(http.post).toHaveBeenLastCalledWith('/google/', { credential: 'id-token' });
+
+    await scanner.uploadSelfie(new Blob(['jpg'], { type: 'image/jpeg' }));
+    const [url, body] = http.post.mock.calls.at(-1) ?? [];
+    expect(url).toBe('/me/selfie/');
+    expect(body).toBeInstanceOf(FormData);
+    expect((body as FormData).get('photo')).toBeInstanceOf(Blob);
+    await scanner.signTerms('data:image/png;base64,cG5n', '2026-10-15');
+    expect(http.post).toHaveBeenLastCalledWith('/me/signature/', { signature: 'data:image/png;base64,cG5n', terms_version: '2026-10-15' });
+  });
+
+  it("carries the server's words for a bad contact and a bad Google token", async () => {
+    const fail = (status: number, data: object) => Object.assign(new Error('Request failed'), { isAxiosError: true, response: { status, data, headers: {} } });
+    http.post.mockRejectedValueOnce(fail(400, { code: 'CONTACT_BAD', detail: 'Enter a US phone number or an email.' }));
+    await expect(scanner.sendCode('nope')).rejects.toMatchObject({ code: 'CONTACT_BAD', message: 'Enter a US phone number or an email.' });
+    http.post.mockRejectedValueOnce(fail(400, { code: 'GOOGLE_BAD' }));
+    await expect(scanner.signInWithGoogle('x')).rejects.toMatchObject({ code: 'GOOGLE_BAD', message: "Google didn't sign you in. Try again, or use your email or phone." });
+  });
+
+  it("says the server's new answers in short, plain words, with a 429's wait", async () => {
+    const fail = (status: number, data: object) => Object.assign(new Error('Request failed'), { isAxiosError: true, response: { status, data, headers: {} } });
+    const words = async (call: () => Promise<unknown>, status: number, data: object) => {
+      http.post.mockRejectedValueOnce(fail(status, data));
+      return call().then(() => '', (e: Error) => e.message);
+    };
+    const jpeg = new Blob(['x'], { type: 'image/jpeg' });
+    expect(await words(() => scanner.signInWithGoogle('t'), 403, { code: 'MEMBERSHIP_OFF', detail: 'Account deactivated.' }))
+      .toBe('This membership is not active. Ask at the register.');
+    expect(await words(() => scanner.uploadSelfie(jpeg), 400, { code: 'NOT_PENDING' })).toBe('Your membership is already finished. Ask at the register to change it.');
+    expect(await words(() => scanner.uploadSelfie(jpeg), 400, { code: 'PHOTO_NEEDED' })).toBe('Take your selfie first.');
+    expect(await words(() => scanner.uploadSelfie(jpeg), 400, { code: 'PHOTO_BAD' })).toBe("That photo didn't work. Take your selfie again.");
+    expect(await words(() => scanner.uploadSelfie(jpeg), 400, { code: 'PHOTO_TOO_BIG' })).toBe('That photo is too big. Take your selfie again.');
+    expect(await words(() => scanner.signTerms('x', 'v'), 400, { code: 'SIGNATURE_BAD' })).toBe('The signature did not save. Clear it and sign again.');
+    expect(await words(() => scanner.sendCode('a@b.co'), 429, { code: 'TOO_MANY', retry_after: 600 })).toBe('Too many codes. Try again in 10 minutes.');
+    expect(await words(() => scanner.sendCode('a@b.co'), 429, { code: 'LOCKED', retry_after: 60 })).toBe('Too many tries. Try again in a minute.');
+    expect(await words(() => scanner.checkCode('a@b.co', '123456'), 429, { code: 'LOCKED', retry_after: 900 })).toBe('Too many tries. Try again in 15 minutes.');
+    http.post.mockRejectedValueOnce(fail(429, { code: 'LOCKED', retry_after: 900 }));
+    await expect(scanner.checkCode('a@b.co', '123456')).rejects.toMatchObject({ code: 'LOCKED', retryAfter: 900 });
+  });
+});

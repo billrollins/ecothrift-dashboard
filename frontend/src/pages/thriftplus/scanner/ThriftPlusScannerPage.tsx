@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Box, ButtonBase, CircularProgress } from '@mui/material';
-import { isOpen, setPreviewCode, type SignInPurpose } from '../../../api/thriftPlusScanner.api';
+import { isOpen, setPreviewCode, type EmailSignIn } from '../../../api/thriftPlusScanner.api';
 import { SignInScreen } from './SignInScreen';
 import { TripScanner } from './TripScanner';
 import { UNIT_CSS, sc, useScannerFonts } from './scannerTheme';
@@ -20,6 +20,7 @@ import { installScannerHead } from './installApp';
 import { TurnUprightScreen } from './Sideways';
 import { useSideways, useStandaloneLock, useUprightLock } from './screenLock';
 import { loadDetector } from './useQrCamera';
+import { viewAfterSignIn } from './scannerLogic';
 import { useSignIn, useThriftPlusSession } from './useThriftPlus';
 
 const TYPE_ONLY_KEY = 'tp-type-only';
@@ -55,8 +56,9 @@ export default function ThriftPlusScannerPage() {
     }
   }
   // The email's link (owner 2026-10-15, APP D9): /scan?signin=<token> signs this browser in, once. The token comes off
-  // the address either way; a join opens the Member QR (view=qr), a sign-in the scanner. A used or expired link shows
-  // its words on the sign-in screen (unless this phone is signed in already).
+  // the address either way; a pending member with steps left finishes joining (view=finish, Join v2), any other join
+  // opens the Member QR (view=qr), a sign-in the scanner. A used or expired link shows its words on the sign-in screen
+  // (unless this phone is signed in already).
   const signinToken = pageParams.get('signin');
   const joinAsked = pageParams.get('view') === 'join';
   const auth = useSignIn();
@@ -66,9 +68,9 @@ export default function ThriftPlusScannerPage() {
     if (!signinToken || linkTried.current === signinToken) return;
     linkTried.current = signinToken;
     void (async () => {
-      let purpose: SignInPurpose | null = null;
+      let signed: EmailSignIn | null = null;
       try {
-        purpose = (await auth.link.mutateAsync(signinToken)).purpose;
+        signed = await auth.link.mutateAsync(signinToken);
         setLinkError('');
       } catch (e) {
         setLinkError(e instanceof Error && e.message ? e.message : "That link didn't work. Send a new one.");
@@ -76,7 +78,8 @@ export default function ThriftPlusScannerPage() {
       setPageParams((prev) => {
         const next = new URLSearchParams(prev);
         next.delete('signin');
-        if (purpose === 'join') next.set('view', 'qr');
+        const view = signed ? viewAfterSignIn(signed) : null;
+        if (view) next.set('view', view);
         return next;
       }, { replace: true });
     })();
@@ -139,7 +142,7 @@ export default function ThriftPlusScannerPage() {
           )
         ) : resetToken ? (
           <Box sx={{ flex: 1, overflowY: 'auto' }}>
-            <SignInScreen start="email" notice="No passwords anymore. Enter your email and we'll send you a link." />
+            <SignInScreen start="email" notice="No passwords anymore. We'll send you a code instead." />
           </Box>
         ) : signinToken || !session.data ? (
           <Box sx={{ flex: 1, display: 'grid', placeItems: 'center' }}>

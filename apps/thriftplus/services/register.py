@@ -845,15 +845,28 @@ def after_void(cart, *, user=None) -> None:
 
 # ── Joined online: finish joining at the register (owner 2026-10-15, J8) ────────
 
+def contact(person: Person) -> str:
+    """How they joined, masked for staff screens: the email, else the phone (Join v2)."""
+    from apps.thriftplus.services.member_auth import mask
+    from apps.thriftplus.services.phone_codes import masked
+
+    if person.email:
+        return mask(person.email)
+    return masked(person.phone) if person.phone else ''
+
+
 def pending_person(person: Person) -> dict:
     """One pending join, for the cashier to pick and finish. ``qr`` is their member QR (staff screens only): the
-    terminal shows it so the Finalize phone can scan it off the screen (owner 2026-10-16)."""
+    terminal shows it so the Finalize phone can scan it off the screen (owner 2026-10-16). Join v2 (owner 2026-10-19):
+    the selfie and signature taken in the app (``photo_url``, ``selfie``, ``signed``) and the masked ``contact``."""
     card = (Card.objects.filter(person=person, status=Card.STATUS_ACTIVE).order_by('-issued_at', '-pk')
             .values_list('code', flat=True).first())
     return {
         'person_id': person.pk, 'account_id': person.account_id, 'first_name': person.first_name,
         'last_name': person.last_name, 'email': person.email, 'joined_at': person.account.created_at,
         'code_last4': card[-4:] if card else None, 'qr': f'TP{card}' if card else None,
+        'photo_url': person.photo.url if person.photo else None, 'selfie': bool(person.photo),
+        'signed': bool(person.signature), 'contact': contact(person),
     }
 
 
@@ -882,7 +895,7 @@ def recent_joins(limit: int = RECENT_JOINS) -> list[dict]:
     """The newest online joins, newest first, up to ``limit``: the ones still to finish and the ones already finished
     (``status`` ``pending`` or ``active``), so a cashier sees at a glance whether someone is done."""
     joined = Event.objects.filter(action='joined_online', account__isnull=False).values('account_id')
-    people = (Person.objects.select_related('account', 'phone_verified_by')
+    people = (Person.objects.select_related('account')
               .filter(account_id__in=joined, role=Person.ROLE_PRIMARY, removed_at__isnull=True,
                       account__status__in=[Account.STATUS_PENDING, Account.STATUS_ACTIVE])
               .order_by('-account__created_at', '-pk')[:limit])
@@ -902,14 +915,17 @@ def finalize_row(person: Person) -> dict:
 
     row = pending_person(person)
     code = row['qr'][2:] if row.get('qr') else ''
+    # Finished at a register: the finished_joining Event (the phone is no longer always verified there, Join v2).
+    finished = (Event.objects.filter(action='finished_joining', person=person).select_related('actor')
+                .order_by('-created_at').first()) if person.account.status == Account.STATUS_ACTIVE else None
     return {
         **row, 'status': person.account.status, 'code_display': display(code) if code else '',
         'phone_last4': person.phone[-4:] if person.phone else None,
         'email_verified': person.email_verified_at is not None,
+        'phone_verified': person.phone_verified_at is not None, 'confirmed': members.confirmed(person),
         'id_checked': person.id_checked, 'verified_18': person.verified_18,
-        'photo_url': person.photo.url if person.photo else None,
-        'signed_at': person.signed_at, 'finished_at': person.phone_verified_at,
-        'finished_by': _who(person.phone_verified_by),
+        'signed_at': person.signed_at, 'finished_at': finished.created_at if finished else None,
+        'finished_by': _who(finished.actor) if finished else '',
         'app_signed_in': person.sessions.filter(expires_at__gt=timezone.now()).exists(),
     }
 
@@ -933,7 +949,7 @@ def code_member(query: str) -> dict | None:
 # J5: the words the customer signs under, and the terms version they cover (ecothrift.us/terms, "Version: October 15,
 # 2026"). A new terms version changes this.
 SIGNATURE_WORDS = 'I agree to the Thrift+ terms and photo release. I can read them at ecothrift.us/terms.'
-TERMS_VERSION = '2026-10-15'
+TERMS_VERSION = '2026-10-19'  # the terms as of J17 (selfie and signature in the app, sign-in codes by text)
 SIGNATURE_MAX_BYTES = 1_000_000
 
 
@@ -947,25 +963,31 @@ def _check_signature(signature) -> None:
         raise RegisterError('SIGNATURE_BAD', 'The signature did not save. Clear it and sign again.')
 
 
-def finish_join(person_id, *, phone: str, id_checked: bool = False, verified_18: bool = False, photo=None,
-                signature=None, require_signature: bool = False, user=None) -> Person:
-    """Finish joining at the register (J8): the phone the cashier read back (10 digits, unique among active and pending
-    people), then the ID check, 18+ and the photo as at a register sign-up. The phone is verified in person (who and
-    when); the membership becomes active.
+def from_app(person: Person) -> bool:
+    """Join v2 (owner 2026-10-19): the selfie and the signature were both taken in the app before the register."""
+    return bool(person.photo) and bool(person.signature)
+
+
+def finish_join(person_id, *, phone: str = '', id_checked: bool = False, verified_18: bool = False, photo=None,
+                signature=None, require_signature: bool = False, face_matches: bool = False, user=None) -> Person:
+    """Finish joining at the register (J8): the ID check, 18+ and the photo as at a register sign-up; the membership
+    becomes active. ``phone`` is optional (Join v2): when typed, the 10 digits the cashier read back (unique among
+    active and pending people), verified in person (who and when).
 
     ``signature`` (J5, owner 2026-10-16): a PNG of the customer's signature, stored with when and the terms version.
-    ``require_signature`` (Finalize Thrift+ on a phone): the signature and the ID check are both required."""
+    ``require_signature`` (Finalize Thrift+ on a phone):
+    - the selfie and the signature already taken in the app (``from_app``, Join v2): only the ID check and
+      ``face_matches`` (the face matches the selfie) are needed; a new ``photo`` (Retake) replaces the selfie;
+    - otherwise the signature and the ID check are both required."""
     try:
         pk = int(person_id)
     except (TypeError, ValueError):
         raise RegisterError('MEMBER_UNKNOWN', 'That member is not in the system. Find them again.') from None
     digits = members.normalize_phone(phone)
-    if len(digits) != 10:
+    if digits and len(digits) != 10:
         raise RegisterError('PHONE_BAD', 'Type the 10-digit phone number.')
     if require_signature and not id_checked:
         raise RegisterError('ID_NEEDED', 'Check their photo ID first.')
-    if require_signature and not signature:
-        raise RegisterError('SIGNATURE_NEEDED', 'The customer signs before you finish.')
     if signature:
         _check_signature(signature)
     with transaction.atomic():
@@ -976,14 +998,22 @@ def finish_join(person_id, *, phone: str, id_checked: bool = False, verified_18:
             raise RegisterError('CARD_NOT_ACTIVE', 'This membership is not active.')
         if person.account.status != Account.STATUS_PENDING:
             raise RegisterError('NOT_PENDING', 'They already finished joining. Scan their QR or find them by phone.')
-        taken = Person.objects.filter(
-            phone=digits, removed_at__isnull=True, account__status__in=(Account.STATUS_ACTIVE, Account.STATUS_PENDING),
-        ).exclude(pk=person.pk).exists()
-        if taken:
-            raise RegisterError('PHONE_TAKEN', PHONE_TAKEN_TEXT)
+        app = from_app(person)
+        if require_signature and app and not face_matches:
+            raise RegisterError('FACE_NEEDED', 'Check that their face matches the selfie.')
+        if require_signature and not app and not signature:
+            raise RegisterError('SIGNATURE_NEEDED', 'The customer signs before you finish.')
+        if digits:
+            taken = Person.objects.filter(
+                phone=digits, removed_at__isnull=True,
+                account__status__in=(Account.STATUS_ACTIVE, Account.STATUS_PENDING),
+            ).exclude(pk=person.pk).exists()
+            if taken:
+                raise RegisterError('PHONE_TAKEN', PHONE_TAKEN_TEXT)
         now = timezone.now()
-        person.phone = digits
-        person.phone_verified_at, person.phone_verified_by = now, user
+        if digits and (digits != person.phone or person.phone_verified_at is None):
+            person.phone = digits
+            person.phone_verified_at, person.phone_verified_by = now, user
         if person.email and person.email_verified_at is None:
             person.email_verified_at = now  # finalized in person (owner 2026-10-16): nobody stuck on the email
         if id_checked:
@@ -1000,7 +1030,8 @@ def finish_join(person_id, *, phone: str, id_checked: bool = False, verified_18:
         account.status = Account.STATUS_ACTIVE
         account.save(update_fields=['status', 'updated_at'])
         members.log('finished_joining', account=account, person=person, actor=user, id_checked=person.id_checked,
-                    verified_18=person.verified_18, photo=bool(photo), signed=bool(signature))
+                    verified_18=person.verified_18, photo=bool(photo), signed=bool(signature), from_app=app,
+                    face_matches=bool(face_matches), phone=bool(digits))
         members.member_code(person, user=user)
     return person
 

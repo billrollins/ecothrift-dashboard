@@ -1,59 +1,55 @@
 /**
- * Join Thrift+ (owner 2026-10-15, APP D9; rulebook J8): online a shopper gives only a name and an email. One email
- * confirms it and signs them in; they finish joining at any register (the phone number read back, the ID, the photo).
- * Opened from "Join Thrift+" on the sign-in screen, or straight from ecothrift.us/join (`/scan?view=join`).
+ * Join Thrift+ (Join v2, owner 2026-10-19: "SMOOTH and CLEAR and SIMPLE"): Google, or a name and a phone or an email.
+ * The code signs them in; then a selfie and a signature in the app (FinishJoining.tsx), and at the register only the
+ * QR and a photo ID. Opened from "Join Thrift+" on the sign-in screen, or straight from ecothrift.us/join
+ * (`/scan?view=join`).
  *
- * Owner 2026-10-16: spell it out, super simple, the same on a phone and a computer. Two boxes in the customer's order
- * (now, then at the store), each thing asked with the reason next to it, and one closing line: that is all it takes
- * (in the program's words, V2: "collect").
+ * Owner 2026-10-16: spell it out, the same on a phone and a computer: the two steps in the customer's order (now, then
+ * at the store), and one closing line: that is all it takes (in the program's words, V2: "collect").
  */
 import { Box, InputBase } from '@mui/material';
-import { EmailField, Field, Primary, Secondary, TERMS_URL, Title } from './signInParts';
+import { GoogleButton } from './GoogleButton';
+import { ContactField, Field, Primary, Secondary, TERMS_URL, Title } from './signInParts';
 import { sc, u } from './scannerTheme';
 
-/** One thing we ask, and why. */
-function Ask({ what, why }: { what: string; why: string }) {
+/** One numbered line: step 1 (now) and step 2 (at the store) look alike. */
+function Step({ n, lead, text, testId }: { n: number; lead: string; text: string; testId: string }) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: u(16), mt: u(18) }}>
-      <Box sx={{ flex: `0 0 ${u(130)}`, fontWeight: 700, fontSize: u(32), color: sc.ink }}>{what}</Box>
-      <Box sx={{ fontSize: u(29), color: sc.ink2, lineHeight: 1.35 }}>{why}</Box>
-    </Box>
-  );
-}
-
-/** A numbered box: step 1 (now) and step 2 (at the store) look alike. */
-function Step({ n, title, testId, children }: { n: number; title: string; testId: string; children: React.ReactNode }) {
-  return (
-    <Box
-      data-testid={testId}
-      sx={{ mt: u(26), p: u(30), borderRadius: u(28), border: `${u(3)} solid ${sc.cardEdge}`, bgcolor: sc.card, boxShadow: sc.tileShadow }}
-    >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: u(16) }}>
-        <Box
-          aria-hidden
-          sx={{
-            width: u(54), height: u(54), borderRadius: '50%', bgcolor: sc.green, color: '#fff', fontWeight: 700,
-            fontSize: u(32), display: 'grid', placeItems: 'center', flex: 'none',
-          }}
-        >
-          {n}
-        </Box>
-        <Box component="h2" sx={{ m: 0, fontFamily: sc.condensed, fontWeight: 700, fontSize: u(40), color: sc.titleGreen }}>
-          {title}
-        </Box>
+    <Box data-testid={testId} sx={{ display: 'flex', alignItems: 'flex-start', gap: u(18), mt: u(18) }}>
+      <Box
+        aria-hidden
+        sx={{
+          width: u(54), height: u(54), borderRadius: '50%', bgcolor: sc.green, color: '#fff', fontWeight: 700,
+          fontSize: u(32), display: 'grid', placeItems: 'center', flex: 'none',
+        }}
+      >
+        {n}
       </Box>
-      {children}
+      <Box sx={{ fontSize: u(31), color: sc.ink, lineHeight: 1.4, pt: u(4) }}>
+        <Box component="span" sx={{ fontWeight: 700 }}>{lead}</Box> {text}
+      </Box>
     </Box>
   );
 }
 
-export function JoinForm({ first, last, email, onFirst, onLast, onEmail, busy, onSend, onSignIn }: {
+/** "Google, your email or your phone" (email first: it's free, owner 2026-10-19), less what this server has off. */
+function ways(google: boolean, phone: boolean): string {
+  const list = [...(google ? ['Google'] : []), 'your email', ...(phone ? ['your phone'] : [])];
+  return list.length === 1 ? list[0] : `${list.slice(0, -1).join(', ')} or ${list[list.length - 1]}`;
+}
+
+export function JoinForm({ first, last, contact, onFirst, onLast, onContact, phone, googleClientId, onGoogle, busy, onSend, onSignIn }: {
   first: string;
   last: string;
-  email: string;
+  contact: string;
   onFirst: (v: string) => void;
   onLast: (v: string) => void;
-  onEmail: (v: string) => void;
+  onContact: (v: string) => void;
+  /** Texts are on: the box takes a phone number too. */
+  phone: boolean;
+  /** Null: no Google button. */
+  googleClientId: string | null;
+  onGoogle: (credential: string) => void;
   busy: boolean;
   onSend: () => void;
   onSignIn: () => void;
@@ -69,46 +65,42 @@ export function JoinForm({ first, last, email, onFirst, onLast, onEmail, busy, o
     >
       <Title>Join Thrift+</Title>
       <Box sx={{ fontSize: u(31), color: sc.ink2, mt: u(10), lineHeight: 1.4 }}>Free. Two quick steps.</Box>
+      <Box sx={{ mt: u(10), mb: u(34) }}>
+        <Step n={1} lead="Now:" text={`your name, then ${ways(!!googleClientId, phone)}.`} testId="join-step-now" />
+        <Step n={2} lead="At the store:" text="show your QR and your photo ID. That's it." testId="join-step-store" />
+      </Box>
 
-      <Step n={1} title="Now, from anywhere" testId="join-step-now">
-        <Ask what="Name" why="So we know who you are" />
-        {/* Owner 2026-10-16: first and last name, both required, the same for every way in. */}
-        <Field sx={{ mt: u(12) }}>
-          <InputBase
-            value={first}
-            onChange={(e) => onFirst(e.target.value)}
-            placeholder="First name"
-            required
-            inputProps={{ 'aria-label': 'First name', autoComplete: 'given-name', autoCapitalize: 'words' }}
-            sx={{ flex: 1, fontSize: 18 }}
-          />
-        </Field>
-        <Field sx={{ mt: u(12) }}>
-          <InputBase
-            value={last}
-            onChange={(e) => onLast(e.target.value)}
-            placeholder="Last name"
-            required
-            inputProps={{ 'aria-label': 'Last name', autoComplete: 'family-name', autoCapitalize: 'words' }}
-            sx={{ flex: 1, fontSize: 18 }}
-          />
-        </Field>
-        <Ask what="Email" why="To sign in. No password." />
-        <EmailField value={email} onChange={onEmail} sx={{ mt: u(12) }} />
-        <Primary busy={busy} label="Email me a link" />
-      </Step>
-
-      <Step n={2} title="At the store" testId="join-step-store">
-        <Ask what="Phone" why="To look up your account" />
-        <Ask what="ID" why="To check your name and that you're 18+" />
-        <Ask what="Photo" why="A quick check at the register, so you don't need your ID every time" />
-      </Step>
+      {googleClientId && <GoogleButton clientId={googleClientId} joining onCredential={onGoogle} />}
+      {/* Owner 2026-10-16: first and last name, both required, the same for every way in. */}
+      <Field>
+        <InputBase
+          value={first}
+          onChange={(e) => onFirst(e.target.value)}
+          placeholder="First name"
+          required
+          inputProps={{ 'aria-label': 'First name', autoComplete: 'given-name', autoCapitalize: 'words' }}
+          sx={{ flex: 1, fontSize: 18 }}
+        />
+      </Field>
+      <Field sx={{ mt: u(16) }}>
+        <InputBase
+          value={last}
+          onChange={(e) => onLast(e.target.value)}
+          placeholder="Last name"
+          required
+          inputProps={{ 'aria-label': 'Last name', autoComplete: 'family-name', autoCapitalize: 'words' }}
+          sx={{ flex: 1, fontSize: 18 }}
+        />
+      </Field>
+      <ContactField value={contact} onChange={onContact} phone={phone} sx={{ mt: u(16) }} />
+      <Primary busy={busy} label="Send my code" />
 
       <Box sx={{ mt: u(30), textAlign: 'center', fontWeight: 700, fontSize: u(33), color: sc.greenDeep, lineHeight: 1.35 }}>
         That's all it takes to collect ThriftBucks and get 3-day returns.
       </Box>
       <Box sx={{ mt: u(16), fontSize: u(24), color: sc.ink2, lineHeight: 1.45, textAlign: 'center' }}>
-        We email your sign-in links, receipts and Thrift+ news; you can turn news off anytime. Terms:{' '}
+        We send your sign-in codes and receipts, and email Thrift+ news you can turn off anytime.
+        {phone ? ' Msg and data rates may apply.' : ''} Terms:{' '}
         <Box component="a" href={TERMS_URL} target="_blank" rel="noopener" data-testid="join-terms" sx={{ color: 'inherit' }}>
           ecothrift.us/terms
         </Box>

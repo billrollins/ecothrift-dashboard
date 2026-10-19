@@ -2,30 +2,34 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
   addToCart,
+  checkCode,
   clearCart,
   continueAsGuest,
   getCart,
   getHistory,
   getMe,
   getSession,
-  joinThriftPlus,
+  getSignInOptions,
   passItem,
   removeFromCart,
   removePerson,
-  requestSignInEmail,
+  sendCode,
   setMyNews,
   sendPriceFeel,
   clearHistory,
   setCartQty,
   signIn,
-  signInWithCode,
+  signInWithGoogle,
   signInWithLink,
   signOut,
+  signTerms,
+  uploadSelfie,
   type EmailSignIn,
   type PriceFeel,
   type ThriftPlusCart,
   type ThriftPlusHistoryEntry,
   type ThriftPlusItemCard,
+  type ThriftPlusMember,
   type ThriftPlusSession,
 } from '../../../api/thriftPlusScanner.api';
 
@@ -36,6 +40,7 @@ export const thriftPlusKeys = {
   history: ['thriftPlus', 'history'] as const,
   me: ['thriftPlus', 'me'] as const,
   myCard: ['thriftPlus', 'myCard'] as const,
+  signInOptions: ['thriftPlus', 'signInOptions'] as const,
 };
 
 /** The Member QR kept on the phone, so it shows with no signal (tripSheets.tsx). */
@@ -66,6 +71,27 @@ export function useThriftPlusSession(enabled = true) {
   return useQuery({ queryKey: thriftPlusKeys.session, queryFn: getSession, staleTime: Infinity, enabled });
 }
 
+/** The ways in (Join v2): the Google button needs a client id; the box takes a phone number only when texts are on. */
+export function useSignInOptions() {
+  return useQuery({ queryKey: thriftPlusKeys.signInOptions, queryFn: getSignInOptions, staleTime: Infinity });
+}
+
+/**
+ * Finish joining in the app (Join v2, owner 2026-10-19): the selfie, then the signature. Each answer is the member,
+ * whose `finish_steps` says what is left.
+ */
+export function useFinishJoining() {
+  const qc = useQueryClient();
+  const setMember = (member: ThriftPlusMember) => qc.setQueryData<ThriftPlusSession>(thriftPlusKeys.session, { status: 'member', member });
+  return {
+    selfie: useMutation({ mutationFn: (photo: Blob) => uploadSelfie(photo), onSuccess: setMember }),
+    sign: useMutation({
+      mutationFn: ({ signature, termsVersion }: { signature: string; termsVersion: string }) => signTerms(signature, termsVersion),
+      onSuccess: setMember,
+    }),
+  };
+}
+
 export function useThriftPlusCart() {
   return useQuery({ queryKey: thriftPlusKeys.cart, queryFn: getCart, staleTime: Infinity });
 }
@@ -91,15 +117,16 @@ export function useSignIn() {
     }),
     guest: useMutation({ mutationFn: () => continueAsGuest(), onSuccess: setSession }),
     signOut: useMutation({ mutationFn: () => signOut(), onSuccess: setSession }),
-    // Email sign-in and joining (owner 2026-10-15, APP D9): send the email, then its code or its link signs in.
-    email: useMutation({ mutationFn: (email: string) => requestSignInEmail(email) }),
-    join: useMutation({
-      mutationFn: ({ first, last, email }: { first: string; last: string; email: string }) => joinThriftPlus(first, last, email),
+    // Join v2 (owner 2026-10-19): "Send my code" to a phone or an email (names make it a join), then the code signs
+    // in; or Google. The emailed link still signs in too (APP D9).
+    send: useMutation({
+      mutationFn: ({ contact, first = '', last = '' }: { contact: string; first?: string; last?: string }) => sendCode(contact, first, last),
     }),
-    code: useMutation({
-      mutationFn: ({ email, code }: { email: string; code: string }) => signInWithCode(email, code),
+    check: useMutation({
+      mutationFn: ({ contact, code }: { contact: string; code: string }) => checkCode(contact, code),
       onSuccess: (r: EmailSignIn) => setSession(sessionOf(r)),
     }),
+    google: useMutation({ mutationFn: (credential: string) => signInWithGoogle(credential), onSuccess: (r: EmailSignIn) => setSession(sessionOf(r)) }),
     link: useMutation({ mutationFn: (token: string) => signInWithLink(token), onSuccess: (r: EmailSignIn) => setSession(sessionOf(r)) }),
     /** Signed in elsewhere on this phone (the email's link in another tab): pick up that session. */
     adopt: setSession,

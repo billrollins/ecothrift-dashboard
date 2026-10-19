@@ -66,8 +66,19 @@ def _session_payload(request) -> dict:
             'session_kind': user.session.kind,
             # Thrift+ is still off: this is a staff or practice member testing it (the scanner shows a test bar).
             'test_mode': not members.is_enabled(),
+            # Join v2 (owner 2026-10-19): the selfie and the signature are done in the app before the register.
+            **_finish_state(person, user.account),
         },
     }
+
+
+def _finish_state(person, account) -> dict:
+    selfie, signed = bool(person.photo), bool(person.signature)
+    steps = []
+    if account.status == Account.STATUS_PENDING:
+        steps = [step for step, done in (('selfie', selfie), ('sign', signed)) if not done]
+    return {'selfie': selfie, 'signed': signed, 'phone_verified': person.phone_verified_at is not None,
+            'finish_steps': steps}
 
 
 def _signed_in(request, person, kind: str) -> Response:
@@ -225,6 +236,126 @@ def session_code(request):
     except AuthError as exc:
         return _error(exc)
     return _email_signed_in(request, row, 'code')
+
+
+# ── Join v2: Google, one "Phone or email" box (owner 2026-10-19) ───────────────
+
+def _off_to_new_joins(request) -> Response | None:
+    """While Thrift+ is off, nobody new joins (only staff and practice members sign in, ``_closed_to``)."""
+    if members.open_to(request):
+        return None
+    return Response({'detail': 'Thrift+ opens soon. Ask at the register.', 'code': 'THRIFT_PLUS_OFF'},
+                    status=status.HTTP_403_FORBIDDEN)
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def sign_in_options(request):
+    """The ways in the app shows: ``google_client_id`` (null hides the Google button), ``phone`` (texted codes are
+    on), ``email`` (always)."""
+    from apps.thriftplus.services import google_sign_in, phone_codes
+
+    return Response({'google_client_id': google_sign_in.client_id(), 'phone': phone_codes.available(), 'email': True})
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([LoginThrottle])
+def google(request):
+    """"Continue with Google": ``{credential}`` (the Google Identity Services ID token). Signs in like
+    ``session/code/`` with ``purpose``; a new Google-verified email joins (a pending membership, the email confirmed).
+    404 GOOGLE_OFF (not set up), 400 GOOGLE_BAD, 403 MEMBERSHIP_OFF (revoked, deactivated, or a staff email with no
+    membership)."""
+    from apps.thriftplus.services import google_sign_in
+
+    if not google_sign_in.client_id():
+        return Response({'detail': 'Google sign-in is not set up.', 'code': 'GOOGLE_OFF'}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        claims = google_sign_in.verify(str(request.data.get('credential') or ''))
+    except google_sign_in.GoogleError as exc:
+        member_auth.logger.info('thrift+ Google sign-in refused: %s', exc)
+        return Response({'detail': member_auth.GOOGLE_BAD_TEXT, 'code': 'GOOGLE_BAD'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        address = member_auth.google_address(claims)
+        person = member_auth.google_member(address)
+    except AuthError as exc:
+        code = status.HTTP_403_FORBIDDEN if exc.code == 'MEMBERSHIP_OFF' else status.HTTP_400_BAD_REQUEST
+        return _error(exc, code)
+    if person is None:
+        refused = _off_to_new_joins(request)
+        if refused:
+            return refused
+        person, purpose = member_auth.google_join(address, claims), 'join'
+    else:
+        refused = _closed_to(request, person)
+        if refused:
+            return refused
+        purpose = member_auth.google_sign_in(person, address)
+    response = _signed_in(request, person, MemberSession.KIND_EMAIL)
+    response.data['purpose'] = purpose
+    return one_account.add_website_session(response, person)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def code_send(request):
+    """One "Phone or email" box: ``{contact, first_name?, last_name?}``. Both names: a join; none: a sign in.
+    ``{status: 'sent', channel: 'sms' | 'email'}`` whether or not the contact is a member's. 400 NAME_NEEDED,
+    CONTACT_BAD or PHONE_OFF; 429 TOO_SOON / TOO_MANY / LOCKED with ``retry_after`` when known."""
+    contact = str(request.data.get('contact') or '')
+    try:
+        channel = member_auth.send_code(contact, str(request.data.get('first_name') or ''),
+                                        str(request.data.get('last_name') or ''), base_url=_public_base(),
+                                        ip=_client_ip(request))
+    except member_auth.LimitError as exc:
+        return _limited(exc)
+    except AuthError as exc:
+        if exc.code == 'EMAIL_BAD':
+            exc = AuthError('CONTACT_BAD', member_auth.CONTACT_BAD_TEXT)
+        return _error(exc)
+    return Response({**SENT, 'channel': channel})
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def code_check(request):
+    """The 6-digit code from ``code/send/``: ``{contact, code}``. Signs in exactly like ``session/code/`` (body,
+    cookies, ``purpose``); a texted code is a ``phone`` session. 400 CODE_BAD, CODE_EXPIRED, CONTACT_BAD or PHONE_OFF;
+    429 over the tries."""
+    from apps.thriftplus.services import phone_codes
+
+    contact = str(request.data.get('contact') or '').strip()
+    code = str(request.data.get('code') or '')
+    if '@' in contact:
+        try:
+            row = member_auth.check_code(contact, code, ip=_client_ip(request))
+        except member_auth.LimitError as exc:
+            return _limited(exc)
+        except AuthError as exc:
+            return _error(exc)
+        return _email_signed_in(request, row, 'code')
+    digits = phone_codes.us_number(contact)
+    if not digits:
+        return _error(AuthError('CONTACT_BAD', member_auth.CONTACT_BAD_TEXT))
+    if not phone_codes.available():
+        return _error(AuthError('PHONE_OFF', member_auth.PHONE_OFF_TEXT))
+    known = member_auth.member_by_phone(digits)  # checked before the code is used up, as for an emailed code
+    refused = _closed_to(request, known) if known is not None else _off_to_new_joins(request)
+    if refused:
+        return refused
+    try:
+        person, purpose = member_auth.check_phone_code(digits, code, ip=_client_ip(request))
+    except member_auth.LimitError as exc:
+        return _limited(exc)
+    except AuthError as exc:
+        return _error(exc)
+    response = _signed_in(request, person, MemberSession.KIND_PHONE)
+    response.data['purpose'] = purpose
+    return one_account.add_website_session(response, person)
 
 
 @api_view(['POST'])
@@ -465,6 +596,86 @@ def my_card(request):
         # "Finish joining at any register. Show them this code."
         'ready': request.user.account.status == Account.STATUS_ACTIVE,
     })
+
+
+# ── Finish joining in the app: the selfie and the signature (Join v2, owner 2026-10-19) ──
+
+SELFIE_MAX_BYTES = 8 * 1024 * 1024
+
+
+def _pending_only(request) -> Response | None:
+    if request.user.account.status != Account.STATUS_PENDING:
+        return Response({'detail': 'Your membership is already finished. Staff change it at the register.',
+                         'code': 'NOT_PENDING'}, status=status.HTTP_400_BAD_REQUEST)
+    return None
+
+
+@api_view(['POST'])
+@authentication_classes(AUTH)
+@permission_classes([IsMember])
+def selfie(request):
+    """``me/selfie/``: multipart ``photo``, a pending member's selfie (an image, at most 8 MB), stored as their photo.
+    Answers the session payload. 400 NOT_PENDING, PHOTO_NEEDED, PHOTO_BAD or PHOTO_TOO_BIG."""
+    refused = _pending_only(request)
+    if refused:
+        return refused
+    photo = request.FILES.get('photo')
+    if photo is None:
+        return Response({'detail': 'Take your selfie first.', 'code': 'PHOTO_NEEDED'}, status=status.HTTP_400_BAD_REQUEST)
+    if photo.size > SELFIE_MAX_BYTES:
+        return Response({'detail': 'That photo is too big. Take it again.', 'code': 'PHOTO_TOO_BIG'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    try:
+        from PIL import Image
+
+        with Image.open(photo) as image:
+            image.verify()
+        photo.seek(0)
+    except Exception:
+        return Response({'detail': "That photo didn't work. Take it again.", 'code': 'PHOTO_BAD'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    members.set_photo(request.user.person, photo)
+    return Response(_session_payload(request))
+
+
+@api_view(['POST'])
+@authentication_classes(AUTH)
+@permission_classes([IsMember])
+def signature(request):
+    """``me/signature/``: ``{signature: 'data:image/png;base64,...', terms_version}``, a pending member signs the terms
+    in the app. Stored as their signature with when and the terms version. Answers the session payload. 400
+    NOT_PENDING or SIGNATURE_BAD."""
+    import base64
+    import binascii
+
+    from django.core.files.base import ContentFile
+    from django.utils import timezone
+
+    from apps.thriftplus.services import register
+
+    refused = _pending_only(request)
+    if refused:
+        return refused
+    raw = str(request.data.get('signature') or '')
+    prefix = 'data:image/png;base64,'
+    bad = Response({'detail': 'The signature did not save. Clear it and sign again.', 'code': 'SIGNATURE_BAD'},
+                   status=status.HTTP_400_BAD_REQUEST)
+    if not raw.startswith(prefix):
+        return bad
+    try:
+        data = base64.b64decode(raw[len(prefix):], validate=True)
+    except (binascii.Error, ValueError):
+        return bad
+    if len(data) > register.SIGNATURE_MAX_BYTES or not data.startswith(b'\x89PNG\r\n\x1a\n'):
+        return bad
+    person = request.user.person
+    now = timezone.now()
+    version = str(request.data.get('terms_version') or '').strip()[:20] or register.TERMS_VERSION
+    person.signature = ContentFile(data, name=f'person-{person.pk}-{now:%Y%m%d%H%M%S}.png')
+    person.signed_at, person.signed_terms_version = now, version
+    person.save(update_fields=['signature', 'signed_at', 'signed_terms_version', 'updated_at'])
+    members.log('app_signature', account=person.account, person=person, terms_version=version)
+    return Response(_session_payload(request))
 
 
 def _password_session(request) -> Response | None:

@@ -66,8 +66,8 @@ export function JoinQrDialog({ open, onClose }: { open: boolean; onClose: () => 
           {JOIN_SHOWN}
         </Typography>
         <Typography color="text.secondary" sx={{ maxWidth: 420 }}>
-          Join with your name and email. Then we finish here: your phone number, a look at your photo ID, a photo and your
-          signature.
+          Join on your phone. Then two quick steps in the app: a selfie and your signature. Show your QR here and we
+          check your photo ID.
         </Typography>
       </Stack>
       <Box sx={{ px: 2, pb: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}>

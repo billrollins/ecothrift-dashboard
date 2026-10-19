@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-19 (owner: P6 look-alikes and overstock replaces families, targets and approvals) -->
+<!-- Last updated: 2026-10-19 (owner: J17 join with Google, phone or email, selfie and signature in the app; J16 renumbered) -->
 # Thrift+ rulebook
 
 **The one place for every Thrift+ rule.** Form 5 is chosen: rewards first, as store credit. Code follows this file. It is the single source of truth: the old rulebook page, launch kit page and warranty review page are retired (10-09); the only page kept is the final forms grid. Owner answers are folded in here. Items marked "CPA / attorney" carry our answer and wait for their sign-off. Older notes (the 10-01 list, the legal memo, the warranty review, the launch kit) lose wherever they differ.
@@ -43,10 +43,10 @@
 - **J3. The ID check** (Decided). Staff look at a photo ID for the name, the age and the face. Nothing from the ID is scanned, copied or kept: only "ID checked", by whom, when, and the 18+ flag.
   - Customer words: "18+. ID is used only for verification." (poster, owner 10-09; still nothing from the ID is kept)
   - Source: 10-01; meeting 10-07. Built: Partly.
-- **J4. The photo** (Decided). Taken with the register's webcam. Used only so staff can confirm it is you: never marketing, never shared, never face recognition. Deleted 24 months after the last purchase, or within 30 days of a request.
+- **J4. The photo** (Decided; changed 10-19, J17). A selfie in the app, checked against the photo ID at the register, or taken at the register. Used only so staff can confirm it is you: never marketing, never shared, never face recognition. Deleted 24 months after the last purchase, or within 30 days of a request.
   - Customer words: "Your photo protects your ThriftBucks."
   - Source: 10-01; 10-08. Built: Partly (webcam view due 10-12).
-- **J5. The signature** (Decided). Signed on the register's touch screen: a deliberate act that covers the photo release and the written terms, which make no cash value, expiry, final sale and the ID rules binding.
+- **J5. The signature** (Decided; changed 10-19, J17). Signed in the app under the terms, or on the register's touch screen: a deliberate act that covers the photo release and the written terms, which make no cash value, expiry, final sale and the ID rules binding.
   - Customer words: "I agree to the Thrift+ terms and photo release. I can read them at ecothrift.us/terms."
   - Source: Legal memo accepted by the CPA and attorney 10-01; your OK 10-08 (Q5, Q7). Built: No (due 10-12).
 - **J6. Staff memberships** (Decided; changed 10-12). Free, like every membership (C1). Staff sign in to the scanner with their Dash login.
@@ -63,7 +63,7 @@
 - **J10. No Thrift+ card** (Decided 10-14). There is no physical card. At the register a member shows the **member QR in the Thrift+ app** (ecothrift.us/qr; it holds their member code) or **gives their phone number**; staff match the face to the photo (J4). Sign-up makes the member code; nothing is printed or handed out. "Card" appears nowhere a customer reads: posters, terms, the app, receipts, emails, the register (a payment card is "the way you paid").
   - Customer words: "Show your member QR in the Thrift+ app, or give your phone number."
   - Source: Owner 10-14 ("we are doing away with the card altogether ... no mention of CARD anywhere"), via the Thrift+ Design session. Built: v2.166.0 (app, register, Dash, receipts); card batches retired in Dash.
-- **J11. Signing in to the app** (Decided 10-15, second plan that day). **No password and no texts.** The join email's link is the first sign-in. On a new phone, or after signing out: "Email me a link". Every email carries the link **and a 6-digit code** to type in the app, since a phone may open the link in another browser (APP D9); each works once, for 15 minutes. A phone stays signed in for a year, renewed on use; signing out ends it. The screen never says whether an email is a member's ("If that email belongs to a member, we've sent a link"); link requests are limited per email and per address, and logged. Optional later: "Use Face ID / fingerprint next time" (a passkey). Staff sign in as before.
+- **J11. Signing in to the app** (Decided 10-15, second plan that day; changed 10-19, J17: Google, a texted code or an emailed code or link). **No password.** The join email's link is the first sign-in. On a new phone, or after signing out: "Email me a link". Every email carries the link **and a 6-digit code** to type in the app, since a phone may open the link in another browser (APP D9); each works once, for 15 minutes. A phone stays signed in for a year, renewed on use; signing out ends it. The screen never says whether an email is a member's ("If that email belongs to a member, we've sent a link"); link requests are limited per email and per address, and logged. Optional later: "Use Face ID / fingerprint next time" (a passkey). Staff sign in as before.
   - Customer words: "If that email belongs to a member, we've sent a link."
   - Source: Owner 10-15 in the master chat (master inbox 2026-10-15, second message; standards T76). Replaces the same day's texted-code plan (Twilio Verify), and the 10-14 proposals. Built: v2.167.0 (no passkeys yet).
   - **No texts:** /privacy keeps "Eco-Thrift does not currently send text messages." The terms are updated (Design 10-15): §10.4 is now "Signing in" (the email link, once, up to 30 minutes; a year signed in), and §1.3 points to **ecothrift.us/join** (name and email; a route to build).
@@ -83,11 +83,21 @@
   - Customer words (Join QR): "Join Thrift+. Scan this with your phone's camera." and "ecothrift.us/join".
   - **Owner 10-16 (two apps):** Finalize now lives in **Thrift+ Staff** (dash.ecothrift.us/staff; the old address forwards there), its own home-screen app with a dark "T+ STAFF" icon and a bottom bar: **Finalize, Members, Scan, Join QR**. Scan is a test scanner: the item card as a member or a non-member sees it, and it records no scan. Members (Manager and up) shows each person's photo; tap a circle to take or replace it, or the empty "+" circle to add a second person. The customer app is **Thrift+ Member**, installed only from ecothrift.us (dash.ecothrift.us sends /scan, /qr, /join and /card there), so both apps install on one phone.
   - Source: Owner 10-16 in chat ("SIMPLE and hard for customer to exit out of easily (back, click url, click link, swipe)"). Built: [Unreleased] (after v2.172.2).
-- **J15. One way to join, one name rule** (Decided 10-16). Everyone joins at **ecothrift.us/join** with a **First name and a Last name, both required**, and an email. The register and Dash no longer sign members up: a cashier shows the Join QR, the customer joins on their phone, and staff finish them on Finalize (J8, J13). The training register keeps practice sign-ups. Website sign-in sends a new email to Join.
+- **J16. One way to join, one name rule** (Decided 10-16; ID was a second J15 until 10-19). Everyone joins at **ecothrift.us/join** with a **First name and a Last name, both required**, and an email. The register and Dash no longer sign members up: a cashier shows the Join QR, the customer joins on their phone, and staff finish them on Finalize (J8, J13). The training register keeps practice sign-ups. Website sign-in sends a new email to Join.
   - **The name rule, everywhere a name is saved:** never "Customer" as a last name; a full name in one box is split into first and last; a single name gets **"Member"** as the last name; all lower case or ALL CAPS is capitalized (initials like "AJ" stay). Members can fix their own name later.
   - **Old ecothrift.us logins:** there are no separate website accounts. An old login with a verified email and a name is a member (Needs Finalize); one whose email was never verified is deleted with its pending membership (the request "Members: fix names, delete unverified old logins"). An active member, or one with ThriftBucks history, is never deleted.
   - **Member #** in Dash is the 12-digit member code ("7166 7172 0440"), not the database number.
   - Source: Owner 10-16 in chat ("We should have First Name and Last Name fields and BOTH are required for all methods ... we should only have 1 entrance to join"). Built: v2.178.2.
+- **J17. Join with Google, a phone or an email; selfie and signature in the app** (Decided 10-19). The one way in (J16) offers three ways to prove who you are, all on the customer's own phone, all signing them in on the spot:
+  1. **Continue with Google** (Google confirms the email and gives the name);
+  2. a **mobile number**: a 6-digit code by text (Twilio Verify; US numbers only);
+  3. an **email**: a 6-digit code or a link (as J8).
+  - Then, in the app, two steps: a **selfie** (front camera) and a **signature** under the terms. At the register staff only **scan the QR (or look them up), check the photo ID against the selfie, and tap Verified**. No phone step at the register; the phone number is optional. A customer who skips the selfie or the signature does them at the register as before.
+  - **Confirmed** (Needs Finalize, never purged after 24 hours) means the email **or** the phone was verified.
+  - **Texts:** sign-in codes the customer asks for are the only texts (X1 exception, master D20/D13). Our own limits on top of Twilio's: per number and per address, a resend wait, a lockout after wrong codes; answers never say whether someone is a member; dev and tests never text a real number.
+  - Customer words: "Continue with Google", "Phone or email", "Send my code", "Two quick steps: 1. Selfie 2. Sign. Then show your QR at the register." Staff words: "Name matches", "Face matches the selfie", "18 or older", "Verified".
+  - **Attorney to confirm** (packet): the signature taken in the app instead of on the register screen (J5), and the selfie instead of a register photo (J4). Terms and privacy updated 10-19 (version October 19, 2026).
+  - Source: Owner 10-19 in chat ("some people can't access their email in the store ... it is awkward to get phone from registers ... let them take a selfie from their phone, and sign, and all we do is verify the ID"; "Everything needs to be SMOOTH and CLEAR and SIMPLE"). Built: v2.181.x (Google and phone switch on when their keys are set).
 ## ThriftBucks and prices
 
 *What members collect, and how it moves.*
@@ -308,7 +318,7 @@
 
 *How we reach members and applicants.*
 
-- **X1. Email-first, no texts, no boxes** (Decided). No text messages. Members who give an email get receipts and Thrift+ updates, and store news they can turn off (the unsubscribe link in every news email, My account, or the register). Only turning off is recorded.
+- **X1. Email-first, no texts, no boxes** (Decided; one exception 10-19, J17: sign-in codes the customer asks for). No other text messages. Members who give an email get receipts and Thrift+ updates, and store news they can turn off (the unsubscribe link in every news email, My account, or the register). Only turning off is recorded.
   - Source: Bill via master 10-08 (T73, T74). Built: Yes (v2.155.1).
 
 ## Owner-only authorizations

@@ -2,8 +2,9 @@
 Dash → Users → Members (owner 2026-10-16): every member in one list, and the drawer's actions.
 
 **Stages, nothing else:**
-- ``unconfirmed``: signed up, email not confirmed yet. Not listed; deleted after 24 hours (``purge_unconfirmed``).
-- ``needs_finalize``: email confirmed; finish at a register (phone, ID, photo).
+- ``unconfirmed``: signed up, neither the email nor the phone confirmed yet. Not listed; deleted after 24 hours
+  (``purge_unconfirmed``).
+- ``needs_finalize``: the email or the phone confirmed (``members.confirmed``, Join v2); finish at a register (ID, photo).
 - ``member``: finalized at a register.
 - ``off``: deactivated (Reactivate puts it back) or revoked.
 
@@ -37,13 +38,17 @@ def stage(account: Account, person: Person | None = None) -> str:
         return 'off'
     if account.status == Account.STATUS_ACTIVE:
         return 'member'
+    from apps.thriftplus.services.members import confirmed
+
     person = person if person is not None else primary(account)
-    return 'needs_finalize' if person is not None and person.email_verified_at else 'unconfirmed'
+    return 'needs_finalize' if confirmed(person) else 'unconfirmed'
 
 
 def _unconfirmed_q() -> Q:
-    """Pending memberships whose people never confirmed an email."""
-    return Q(status=Account.STATUS_PENDING) & ~Q(people__email_verified_at__isnull=False)
+    """Pending memberships whose people never confirmed an email or a phone (``members.confirmed``)."""
+    from apps.thriftplus.services.members import confirmed_q
+
+    return Q(status=Account.STATUS_PENDING) & ~confirmed_q('people__')
 
 
 # ── The list ───────────────────────────────────────────────────────────────────
@@ -136,7 +141,7 @@ def rows() -> list[dict]:
 # ── 24 hours to confirm the email ──────────────────────────────────────────────
 
 def purge_unconfirmed(*, now=None, dry_run: bool = False) -> int:
-    """Delete sign-ups that never confirmed their email within 24 hours and never reached a register (no phone, no
+    """Delete sign-ups that never confirmed their email or phone within 24 hours and never reached a register (no phone, no
     sales, no ThriftBucks). Run every 10 minutes with ``expire_online_holds``."""
     from django.db import transaction
 

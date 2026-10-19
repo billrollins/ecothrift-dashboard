@@ -58,6 +58,11 @@ public = [
     path('session/email/', public_views.session_email),
     path('session/link/', public_views.session_link),
     path('session/code/', public_views.session_code),
+    # Join v2 (owner 2026-10-19): Google, and one "Phone or email" box with a texted or emailed code.
+    path('sign-in-options/', public_views.sign_in_options),
+    path('google/', public_views.google),
+    path('code/send/', public_views.code_send),
+    path('code/check/', public_views.code_check),
     path('session/password/', public_views.sign_in_password),
     path('session/card/', public_views.sign_in_card),
     path('session/sign-out/', public_views.sign_out),
@@ -80,12 +85,17 @@ public = [
     path('me/card-lost/', public_views.card_lost),
     path('me/emails/', public_views.emails),
     path('me/remove-person/', public_views.remove_person),
+    # Join v2: a pending member's selfie and signature, taken in the app before the register.
+    path('me/selfie/', public_views.selfie),
+    path('me/signature/', public_views.signature),
 ]
 
 # Every public route is behind the Thrift+ switch (owner, 2026-10-07), except signing in: while it is off, only staff
 # and practice members get through, checked in the view (staff test mode, 2026-10-10). An emailed link or code is
-# checked there too, before it is used (a link may open in a browser without the preview code).
-SIGN_IN = {'session/password/', 'session/card/', 'session/link/', 'session/code/'}
+# checked there too, before it is used (a link may open in a browser without the preview code). Join v2: Google and a
+# checked code the same way (a new join is refused there while off); the sign-in options are only which buttons show.
+SIGN_IN = {'session/password/', 'session/card/', 'session/link/', 'session/code/', 'google/', 'code/check/',
+           'sign-in-options/'}
 public = [path(str(p.pattern), p.callback if str(p.pattern) in SIGN_IN else _gated(p.callback), name=p.name) for p in public]
 
 urlpatterns = [

@@ -1,37 +1,46 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Box, ButtonBase, InputBase } from '@mui/material';
 import VisibilityOffRounded from '@mui/icons-material/VisibilityOffRounded';
 import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
-import type { SignInPurpose } from '../../../api/thriftPlusScanner.api';
-import { CheckEmail, type SentEmail } from './CheckEmailScreen';
+import { readContact, type EmailSignIn } from '../../../api/thriftPlusScanner.api';
+import { CheckCode, type SentCode } from './CheckEmailScreen';
+import { GoogleButton } from './GoogleButton';
 import { JoinForm } from './JoinScreen';
 import { FieldBanner } from './ScannerTop';
+import { viewAfterSignIn } from './scannerLogic';
 import { ThriftPlusLogo, sc, u } from './scannerTheme';
-import { EmailField, ErrorLine, Field, Primary, Secondary, SmallLink, Sub, Title } from './signInParts';
-import { useSignIn } from './useThriftPlus';
+import { ContactField, ErrorLine, Field, Primary, Secondary, SmallLink, Sub, Title } from './signInParts';
+import { useSignIn, useSignInOptions } from './useThriftPlus';
 
 type Mode = 'email' | 'staff' | 'join' | 'check';
 
-/** Where the screen opens: email sign-in, the staff password form (Coming soon's "Staff sign in"), or Join (ecothrift.us/join). */
+/** Where the screen opens: customer sign-in, the staff password form (Coming soon's "Staff sign in"), or Join (ecothrift.us/join). */
 export type SignInStart = 'email' | 'staff' | 'join';
 
 /**
- * Customer sign-in (owner 2026-10-15, APP D9; rulebook J8, J11): no passwords for members and no texts. "Email me a
- * link", then "Check your email" (the link, or the email's 6-digit code typed here). "Join Thrift+" takes a name and an
- * email the same way. "Staff sign in" opens the Dash email-and-password form: staff only (owner 2026-10-16, "the only
- * passwords are for staff"; a forgotten staff password is reset in Dash).
+ * Customer sign-in (Join v2, owner 2026-10-19; rulebook J8, J11): no passwords for members. "Continue with Google", or
+ * one "Phone or email" box and "Send my code", then the code screen (a text's code, or an email's code or link).
+ * "Join Thrift+" takes a name the same way. "Staff sign in" opens the Dash email-and-password form: staff only (owner
+ * 2026-10-16, "the only passwords are for staff"; a forgotten staff password is reset in Dash).
  * There is no Thrift+ card (owner 2026-10-14, APP D6). `notice` shows a failed link's words (`?signin=`).
  */
 export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInStart; notice?: string }) {
   const auth = useSignIn();
+  const options = useSignInOptions();
+  const phoneOn = options.data?.phone === true;
+  const googleId = options.data?.google_client_id ?? null;
   const [params, setParams] = useSearchParams();
   const [mode, setMode] = useState<Mode>(start);
   const [first, setFirst] = useState('');
   const [last, setLast] = useState('');
-  const [email, setEmail] = useState('');
-  const [sent, setSent] = useState<SentEmail | null>(null);
+  const [contact, setContact] = useState('');
+  const [sent, setSent] = useState<SentCode | null>(null);
   const [err, setErr] = useState(notice);
+  // Texts cost money (owner 2026-10-19): one tap sends once. Held while a send is in flight, and the last send's wait
+  // is kept, so "Change" and "Send my code" again for the same contact go back to the code instead of sending again.
+  const sending = useRef(false);
+  const lastSend = useRef<{ key: string; until: number } | null>(null);
 
   const go = (next: Mode) => {
     setErr('');
@@ -47,38 +56,78 @@ export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInS
     }
   };
 
-  /** "Email me a link" from the sign-in or the join screen. */
-  const send = async (kind: SentEmail['kind']) => {
+  /** "Send my code" from the sign-in or the join screen: a text to a phone number, an email to an email. */
+  const send = async (kind: SentCode['kind']) => {
     setErr('');
-    const to = email.trim();
+    const typed = contact.trim();
+    const read = readContact(typed);
+    if (kind === 'join' && (!first.trim() || !last.trim())) {
+      setErr('Enter your first and last name.');
+      return;
+    }
+    if (!read || (read.kind === 'phone' && !phoneOn)) {
+      setErr(phoneOn ? 'Enter a US phone number or an email.' : 'Check your email address.');
+      return;
+    }
+    const guess: SentCode['channel'] = read.kind === 'phone' ? 'sms' : 'email';
+    const key = `${kind}:${read.value}`;
+    const waitLeft = lastSend.current?.key === key ? Math.ceil((lastSend.current.until - Date.now()) / 1000) : 0;
+    if (waitLeft > 0) {
+      setSent({ kind, contact: typed, channel: sent?.channel ?? guess, first, last, wait: waitLeft });
+      setMode('check');
+      return;
+    }
+    if (sending.current) return;
+    sending.current = true;
     try {
-      if (kind === 'join') await auth.join.mutateAsync({ first, last, email: to });
-      else await auth.email.mutateAsync(to);
-      setSent({ kind, email: to, first, last, wait: 30 });
+      const r = await auth.send.mutateAsync(kind === 'join' ? { contact: typed, first, last } : { contact: typed });
+      lastSend.current = { key, until: Date.now() + 30_000 };
+      setSent({ kind, contact: typed, channel: r.channel ?? guess, first, last, wait: 30 });
       setMode('check');
     } catch (e) {
       const p = e as { code?: string; retryAfter?: number };
-      // One went to that address moments ago: wait for it (the same answer for any address).
+      // One went there moments ago: wait for it (the same answer for any contact).
       if (p.code === 'TOO_SOON') {
-        setSent({ kind, email: to, first, last, wait: p.retryAfter ?? 30 });
+        const wait = p.retryAfter ?? 30;
+        lastSend.current = { key, until: Date.now() + wait * 1000 };
+        setSent({ kind, contact: typed, channel: guess, first, last, wait });
         setMode('check');
       } else {
-        setErr(e instanceof Error && e.message ? e.message : 'Could not send the email. Try again.');
+        setErr(e instanceof Error && e.message ? e.message : 'Could not send the code. Try again.');
       }
+    } finally {
+      sending.current = false;
     }
   };
 
+  /** The code screen sent it again: the new wait counts for "Send my code" too. */
+  const resent = (seconds: number) => {
+    if (lastSend.current) lastSend.current = { ...lastSend.current, until: Date.now() + seconds * 1000 };
+  };
+
   /**
-   * Signed in by the code: after a join, straight to the Member QR (it says "Finish joining at any register");
-   * after a sign-in, the scanner (or the Member QR when they came from ecothrift.us/qr, which `view=qr` already asks).
+   * Signed in by the code or Google: a pending member with a selfie or a signature to do finishes joining
+   * (`view=finish`); any other join opens the Member QR; a sign-in, the scanner (or the Member QR when they came from
+   * ecothrift.us/qr, which `view=qr` already asks).
    */
-  const signedIn = (purpose: SignInPurpose) => {
-    if (purpose !== 'join' && sent?.kind !== 'join') return;
+  const signedIn = (r: EmailSignIn) => {
+    const view = viewAfterSignIn(r, sent?.kind === 'join');
+    if (!view) return;
     setParams((prev) => {
       const next = new URLSearchParams(prev);
-      next.set('view', 'qr');
+      next.set('view', view);
       return next;
     }, { replace: true });
+  };
+
+  /** Google's button handed back its ID token. */
+  const google = async (credential: string) => {
+    setErr('');
+    try {
+      signedIn(await auth.google.mutateAsync(credential));
+    } catch (e) {
+      setErr(e instanceof Error && e.message ? e.message : "Google didn't sign you in. Try again, or use your email or phone.");
+    }
   };
 
   const scanWithoutSigningIn = () => {
@@ -106,7 +155,16 @@ export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInS
       <Box sx={{ px: u(36), mt: u(-60), position: 'relative', zIndex: 1 }}>
         <Box sx={{ bgcolor: sc.card, borderRadius: u(36), boxShadow: sc.tileShadow, border: '1px solid #ecede8', p: u(48) }}>
           {mode === 'email' && (
-            <EmailForm email={email} onEmail={setEmail} busy={auth.email.isPending} onSend={() => void send('sign_in')} onStaff={() => go('staff')} />
+            <ContactForm
+              contact={contact}
+              onContact={setContact}
+              phone={phoneOn}
+              googleClientId={googleId}
+              onGoogle={(c) => void google(c)}
+              busy={auth.send.isPending || auth.google.isPending}
+              onSend={() => void send('sign_in')}
+              onStaff={() => go('staff')}
+            />
           )}
           {mode === 'staff' && (
             <PasswordForm run={run} busy={auth.password.isPending} onBack={() => go('email')} />
@@ -115,17 +173,20 @@ export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInS
             <JoinForm
               first={first}
               last={last}
-              email={email}
+              contact={contact}
               onFirst={setFirst}
               onLast={setLast}
-              onEmail={setEmail}
-              busy={auth.join.isPending}
+              onContact={setContact}
+              phone={phoneOn}
+              googleClientId={googleId}
+              onGoogle={(c) => void google(c)}
+              busy={auth.send.isPending || auth.google.isPending}
               onSend={() => void send('join')}
               onSignIn={() => go('email')}
             />
           )}
           {mode === 'check' && sent && (
-            <CheckEmail key={`${sent.kind}:${sent.email}`} sent={sent} onChange={() => go(sent.kind === 'join' ? 'join' : 'email')} onSignedIn={signedIn} />
+            <CheckCode key={`${sent.kind}:${sent.contact}`} sent={sent} onChange={() => go(sent.kind === 'join' ? 'join' : 'email')} onSignedIn={signedIn} onResent={resent} />
           )}
 
           {err && <ErrorLine>{err}</ErrorLine>}
@@ -152,10 +213,16 @@ export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInS
   );
 }
 
-/** Email sign-in (owner 2026-10-15, APP D9): the link and code by email; "Staff sign in" for the password form. */
-function EmailForm({ email, onEmail, busy, onSend, onStaff }: {
-  email: string;
-  onEmail: (v: string) => void;
+/**
+ * Customer sign-in (Join v2, owner 2026-10-19): Google, or a code to a phone or an email; "Staff sign in" for the
+ * password form.
+ */
+function ContactForm({ contact, onContact, phone, googleClientId, onGoogle, busy, onSend, onStaff }: {
+  contact: string;
+  onContact: (v: string) => void;
+  phone: boolean;
+  googleClientId: string | null;
+  onGoogle: (credential: string) => void;
   busy: boolean;
   onSend: () => void;
   onStaff: () => void;
@@ -163,16 +230,17 @@ function EmailForm({ email, onEmail, busy, onSend, onStaff }: {
   return (
     <Box
       component="form"
-      data-testid="email-sign-in"
+      data-testid="sign-in-form"
       onSubmit={(e) => {
         e.preventDefault();
         onSend();
       }}
     >
       <Title>Sign in</Title>
-      <Sub>Enter your email and we'll send you a link. No password needed.</Sub>
-      <EmailField value={email} onChange={onEmail} />
-      <Primary busy={busy} label="Email me a link" />
+      <Sub>No password needed.</Sub>
+      {googleClientId && <GoogleButton clientId={googleClientId} joining={false} onCredential={onGoogle} />}
+      <ContactField value={contact} onChange={onContact} phone={phone} />
+      <Primary busy={busy} label="Send my code" />
       {/* Customers have no password (J11): the password form is for staff. */}
       <Box sx={{ textAlign: 'center', mt: u(22) }}>
         <SmallLink label="Staff sign in" onClick={onStaff} />
@@ -229,7 +297,7 @@ function PasswordForm({ run, busy, onBack }: {
         </ButtonBase>
       </Field>
       <Primary busy={busy} label="Sign in" />
-      {/* Back to "Email me a link" (owner 2026-10-15, APP D9). */}
+      {/* Back to the customer sign-in (owner 2026-10-15, APP D9). */}
       <Secondary label="Back" onClick={onBack} />
     </Box>
   );

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ScanGate, classifyCode, money, monthName, parseTagCode, shortDate, wouldPayChoices, bucksReady } from './scannerLogic';
+import { ScanGate, classifyCode, money, monthName, parseTagCode, shortDate, wouldPayChoices, bucksReady, maskContact, viewAfterSignIn } from './scannerLogic';
+import type { ThriftPlusMember } from '../../../api/thriftPlusMock';
 
 describe('parseTagCode', () => {
   it('reads SKUs from tag QR payloads and barcodes', () => {
@@ -132,5 +133,26 @@ describe("bucksReady (B5: today's ThriftBucks are ready tomorrow morning)", () =
   it('reads all of it as ready when an older server sends no available amount', () => {
     expect(bucksReady('5.25', undefined)).toEqual({ now: 5.25, tomorrow: 0 });
     expect(bucksReady(undefined, undefined)).toEqual({ now: 0, tomorrow: 0 });
+  });
+});
+
+describe('Join v2 sign-in helpers (owner 2026-10-19)', () => {
+  const base: ThriftPlusMember = {
+    first_name: 'Robin', email: '', username: null, card_last4: null, verified_18: false, banked_rewards: '0.00', credit_balance: '0.00',
+  };
+
+  it('hides most of the contact a code went to', () => {
+    expect(maskContact('(402) 555-0123')).toBe('(•••) •••-0123');
+    expect(maskContact('robin@example.com')).toBe('r•••@example.com');
+    expect(maskContact('nope')).toBe('nope');
+  });
+
+  it('lands a pending member with steps on Finish joining, any other join on the Member QR, a sign-in on the scanner', () => {
+    const pending = { ...base, ready: false, finish_steps: ['selfie' as const] };
+    expect(viewAfterSignIn({ status: 'member', member: pending, purpose: 'sign_in' })).toBe('finish');
+    expect(viewAfterSignIn({ status: 'member', member: { ...pending, finish_steps: [] }, purpose: 'join' })).toBe('qr');
+    expect(viewAfterSignIn({ status: 'member', member: { ...base, ready: false }, purpose: 'join' })).toBe('qr'); // an older server
+    expect(viewAfterSignIn({ status: 'member', member: { ...base, ready: true }, purpose: 'sign_in' })).toBeNull();
+    expect(viewAfterSignIn({ status: 'member', member: { ...base, ready: true }, purpose: 'sign_in' }, true)).toBe('qr');
   });
 });

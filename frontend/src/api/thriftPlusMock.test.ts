@@ -2,6 +2,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   addToCart,
   categoryFor,
+  checkCode,
+  getSignInOptions,
+  readContact,
+  sendCode,
+  signInWithGoogle,
+  signTerms,
+  uploadSelfie,
   computeCartTotals,
   continueAsGuest,
   getCart,
@@ -234,5 +241,64 @@ describe('trip totals (no cover since 10-12)', () => {
 
   it('is zero for an empty trip', () => {
     expect(computeCartTotals([])).toEqual({ item_count: 0, price_total: '0.00', reward_total: '0.00' });
+  });
+});
+
+describe('Join v2 (mock, owner 2026-10-19): one box, a code by text or email, Google, then a selfie and a signature', () => {
+  it('reads the one box: a US phone number in any format, or an email; nothing else', () => {
+    expect(readContact('(402) 555-0123')).toEqual({ kind: 'phone', value: '+14025550123' });
+    expect(readContact('+1 402.555.0123')).toEqual({ kind: 'phone', value: '+14025550123' });
+    expect(readContact('14025550123')).toEqual({ kind: 'phone', value: '+14025550123' });
+    expect(readContact(' Dana@Example.com ')).toEqual({ kind: 'email', value: 'dana@example.com' });
+    expect(readContact('555-0123')).toBeNull();
+    expect(readContact('dana@example')).toBeNull();
+    expect(readContact('dana')).toBeNull();
+    expect(readContact('')).toBeNull();
+  });
+
+  it('a join by phone: a text, the code signs in pending with two steps, the selfie and the signature clear them', async () => {
+    expect(await getSignInOptions()).toEqual({ google_client_id: null, phone: true, email: true });
+    await expect(sendCode('402-555-0123', 'Robin', '')).rejects.toMatchObject({ code: 'NAME_NEEDED' });
+    await expect(sendCode('nope', 'Robin', 'Lee')).rejects.toMatchObject({ code: 'CONTACT_BAD', message: 'Enter a US phone number or an email.' });
+    expect(await sendCode('402-555-0123', 'Robin', 'Lee')).toEqual({ status: 'sent', channel: 'sms' });
+    const [sent] = thriftPlusMockControls.outbox();
+    expect(sent).toMatchObject({ to: '+14025550123', channel: 'sms', purpose: 'join' });
+
+    await expect(uploadSelfie(new Blob(['x'], { type: 'image/jpeg' }))).rejects.toMatchObject({ code: 'NOT_SIGNED_IN' });
+    const s = await checkCode('(402) 555-0123', sent.code);
+    expect(s).toMatchObject({ purpose: 'join', member: { first_name: 'Robin', ready: false, phone_verified: true, selfie: false, signed: false, finish_steps: ['selfie', 'sign'] } });
+
+    await expect(uploadSelfie(new Blob(['x'], { type: 'text/plain' }))).rejects.toMatchObject({ code: 'PHOTO_BAD' });
+    expect(await uploadSelfie(new Blob(['x'], { type: 'image/jpeg' }))).toMatchObject({ selfie: true, finish_steps: ['sign'] });
+    await expect(signTerms('not a png', '2026-10-15')).rejects.toMatchObject({ code: 'SIGNATURE_BAD' });
+    expect(await signTerms('data:image/png;base64,cG5n', '2026-10-15')).toMatchObject({ signed: true, ready: false, finish_steps: [] });
+    expect(thriftPlusMockControls.finished()).toEqual([
+      { step: 'selfie', contact: '+14025550123' },
+      { step: 'sign', contact: '+14025550123', terms_version: '2026-10-15' },
+    ]);
+
+    // Signing in again later keeps what was done.
+    await sendCode('4025550123');
+    const again = await checkCode('4025550123', thriftPlusMockControls.outbox().at(-1)?.code ?? '');
+    expect(again).toMatchObject({ purpose: 'sign_in', member: { selfie: true, signed: true, finish_steps: [] } });
+  });
+
+  it('a phone number while texts are off is refused; an active member can\'t send a selfie from the app', async () => {
+    thriftPlusMockControls.setSignInOptions({ phone: false });
+    await expect(sendCode('4025550123')).rejects.toMatchObject({ code: 'PHONE_OFF' });
+    expect(await sendCode('dana@example.com')).toEqual({ status: 'sent', channel: 'email' });
+    await checkCode('dana@example.com', thriftPlusMockControls.outbox()[0].code);
+    await expect(uploadSelfie(new Blob(['x'], { type: 'image/jpeg' }))).rejects.toMatchObject({ code: 'NOT_PENDING' });
+  });
+
+  it('Google: off without a client id; a new email joins with Google\'s name, a known one signs in', async () => {
+    const credential = thriftPlusMockControls.googleCredential('Robin@Example.com', 'Robin', 'Lee');
+    await expect(signInWithGoogle(credential)).rejects.toMatchObject({ code: 'GOOGLE_OFF' });
+    thriftPlusMockControls.setSignInOptions({ google_client_id: 'client-1' });
+    await expect(signInWithGoogle('junk')).rejects.toMatchObject({ code: 'GOOGLE_BAD' });
+    expect(await signInWithGoogle(credential)).toMatchObject({
+      purpose: 'join', member: { first_name: 'Robin', email: 'robin@example.com', ready: false, finish_steps: ['selfie', 'sign'] },
+    });
+    expect(await signInWithGoogle(credential)).toMatchObject({ purpose: 'sign_in', member: { ready: false } });
   });
 });

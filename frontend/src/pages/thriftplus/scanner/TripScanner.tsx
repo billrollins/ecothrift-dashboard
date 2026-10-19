@@ -50,6 +50,7 @@ import { SidewaysGotIt, SidewaysScanPill, TurnUprightScreen } from './Sideways';
 import { bankInto } from './TicketRain';
 import { ScanGate, classifyCode, money, type ScannedCode } from './scannerLogic';
 import { CategoryBadge, art, sc, u } from './scannerTheme';
+import { FinishJoining } from './FinishJoining';
 import { BalanceSheet, FeelSheet, InfoSheet, RETAIL_INFO, RETURNS_INFO, SidewaysQr, ThriftPlusSheet, TripHeader, WalletSheet, type Feel, type Info } from './tripSheets';
 import { BigBucks, BigButton, QtyStepper, ReturnsBadge, SwipeRow, useCountUp, useSwipe, useUndo } from './tripUi';
 import { loadDetector, useQrCamera } from './useQrCamera';
@@ -107,6 +108,8 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   const location = useLocation();
   const navigate = useNavigate();
   const accountOpen = params.get('view') === 'account' && !!member;
+  // Join v2 (owner 2026-10-19): a pending member's selfie and signature, after a join's sign-in or from the Member QR.
+  const finishOpen = params.get('view') === 'finish' && !!member;
   // ecothrift.us/qr (and the old /card); ecothrift.us/join on a phone that's signed in (owner 2026-10-15, APP D9).
   const cardAsked = params.get('view') === 'qr' || params.get('view') === 'card' || params.get('view') === 'join';
 
@@ -156,7 +159,7 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   const typeOnly = typeOnlyMode();
   const camera = useQrCamera({
     enabled: !typeOnly,
-    paused: mode !== 'scan' || sheet != null || info != null || feel != null || accountOpen,
+    paused: mode !== 'scan' || sheet != null || info != null || feel != null || accountOpen || finishOpen,
     onDecode: (raw, format) => handleCodeRef.current(raw, 'camera', format),
   });
 
@@ -258,7 +261,7 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
 
   // A laptop: right arrow adds, left arrow or Escape passes; on a trip line's tag, they go back to the trip.
   useEffect(() => {
-    if ((mode !== 'card' && mode !== 'item') || sheet || info || feel || accountOpen) return;
+    if ((mode !== 'card' && mode !== 'item') || sheet || info || feel || accountOpen || finishOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
       if (mode === 'item') {
@@ -285,11 +288,11 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
     else setParams({}, { replace: true });
   };
 
-  const overlayOpen = !!sheet || !!info || !!feel || accountOpen;
+  const overlayOpen = !!sheet || !!info || !!feel || accountOpen || finishOpen;
   const cameraSideways = sideways && mode === 'scan' && !overlayOpen;
   // A code read while sideways (the tag is ready underneath), and the Member QR shown alone to a cashier.
   const readSideways = mode === 'card' && !overlayOpen;
-  const qrSideways = sheet === 'wallet' && !!member && !info && !feel && !accountOpen;
+  const qrSideways = sheet === 'wallet' && !!member && !info && !feel && !accountOpen && !finishOpen;
 
   return (
     <Box ref={rootRef} onPointerDown={() => camera.poke()} sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
@@ -429,6 +432,10 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
           onClose={() => {
             setSheet(null);
             if (cardAsked) setParams({}, { replace: true });
+          }}
+          onFinish={() => {
+            setSheet(null);
+            setParams({ view: 'finish' }, { replace: true });
           }} />
       )}
       {sheet === 'balance' && member && (
@@ -450,6 +457,9 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
       )}
       {accountOpen && member && (
         <AccountPage member={member} onBack={closeAccount} onSignOut={() => auth.signOut.mutate()} />
+      )}
+      {finishOpen && member && (
+        <FinishJoining member={member} onDone={() => setParams({ view: 'qr' }, { replace: true })} onClose={() => setParams({}, { replace: true })} />
       )}
       {sideways && (
         cameraSideways ? <SidewaysScanPill lock={lock} />

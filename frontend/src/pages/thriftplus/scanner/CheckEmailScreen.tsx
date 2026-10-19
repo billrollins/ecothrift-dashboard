@@ -1,20 +1,22 @@
 /**
- * "Check your email" (owner 2026-10-15, APP D9; rulebook J11): after "Email me a link" from the sign-in or the join
- * screen. Every email carries a link and a 6-digit code. The phone may open the link in another browser (Mail, Gmail),
- * so this screen also takes the code and the member finishes where they started; it signs in by itself on the sixth
- * digit. The words never say whether the email is a member's.
+ * The code screen (Join v2, owner 2026-10-19; rulebook J11): after "Send my code" from the sign-in or the join screen.
+ * "Enter the 6-digit code we sent to …", a text's code or an email's (an email also carries a link, which may open in
+ * another browser, so this screen takes the code and the member finishes where they started). It signs in by itself on
+ * the sixth digit (`code/check/`). The words never say whether the contact is a member's.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Box, ButtonBase, InputBase } from '@mui/material';
-import { getSession, type SignInPurpose } from '../../../api/thriftPlusScanner.api';
+import { getSession, type EmailSignIn } from '../../../api/thriftPlusScanner.api';
+import { maskContact } from './scannerLogic';
 import { ErrorLine, Field, Primary, SmallLink, Sub, Title } from './signInParts';
 import { sc, u } from './scannerTheme';
 import { useSignIn } from './useThriftPlus';
 
-/** What was sent: a sign-in or a join email, to the email as typed; `wait` is the seconds before "Send it again". */
-export interface SentEmail {
+/** What was sent: a sign-in or a join code, to the contact as typed, by text or email; `wait` is the seconds before "Send it again". */
+export interface SentCode {
   kind: 'sign_in' | 'join';
-  email: string;
+  contact: string;
+  channel: 'sms' | 'email';
   first: string;
   last: string;
   wait: number;
@@ -30,12 +32,14 @@ function words(e: unknown, fallback: string): string {
   return e instanceof Error && e.message ? e.message : fallback;
 }
 
-export function CheckEmail({ sent, onChange, onSignedIn }: {
-  sent: SentEmail;
-  /** "Change": back to the form, the email kept. */
+export function CheckCode({ sent, onChange, onSignedIn, onResent }: {
+  sent: SentCode;
+  /** "Change": back to the form, the contact kept. */
   onChange: () => void;
-  /** Signed in: where to go next (a join opens the Member QR). */
-  onSignedIn: (purpose: SignInPurpose) => void;
+  /** Signed in: where to go next (a join finishes joining, then the Member QR). */
+  onSignedIn: (r: EmailSignIn) => void;
+  /** Sent again: the seconds until the next send is allowed. */
+  onResent?: (seconds: number) => void;
 }) {
   const auth = useSignIn();
   const [code, setCode] = useState('');
@@ -45,16 +49,18 @@ export function CheckEmail({ sent, onChange, onSignedIn }: {
   const [now, setNow] = useState(() => Date.now());
   const left = Math.max(0, Math.ceil((until - now) / 1000));
   const counting = sends < MAX_SENDS && left > 0;
-  const resending = auth.email.isPending || auth.join.isPending;
+  const byText = sent.channel === 'sms';
+  // Texts cost money (owner 2026-10-19): one tap sends once.
+  const resending = useRef(false);
 
-  // The countdown reads the clock, so it stays right while the phone is in the email app.
+  // The countdown reads the clock, so it stays right while the phone is in the email or messages app.
   useEffect(() => {
     if (!counting) return undefined;
     const t = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(t);
   }, [counting]);
 
-  // The link tapped in another tab of this browser signed this phone in: carry on here too.
+  // The email's link tapped in another tab of this browser signed this phone in: carry on here too.
   const latest = useRef({ adopt: auth.adopt, onSignedIn, kind: sent.kind });
   latest.current = { adopt: auth.adopt, onSignedIn, kind: sent.kind };
   useEffect(() => {
@@ -63,7 +69,7 @@ export function CheckEmail({ sent, onChange, onSignedIn }: {
       void getSession().then((s) => {
         if (s.status !== 'member') return;
         const { adopt, onSignedIn: next, kind } = latest.current;
-        next(kind === 'join' ? 'join' : 'sign_in');
+        next({ ...s, purpose: kind === 'join' ? 'join' : 'sign_in' });
         adopt(s);
       }).catch(() => undefined);
     };
@@ -78,49 +84,53 @@ export function CheckEmail({ sent, onChange, onSignedIn }: {
   };
 
   const submit = async (value: string) => {
-    if (value.length !== 6 || auth.code.isPending) return;
+    if (value.length !== 6 || auth.check.isPending) return;
     setErr('');
     try {
-      const r = await auth.code.mutateAsync({ email: sent.email, code: value });
-      onSignedIn(r.purpose);
+      onSignedIn(await auth.check.mutateAsync({ contact: sent.contact, code: value }));
     } catch (e) {
       setErr(words(e, "That code didn't work. Check it and try again."));
     }
   };
 
   const resend = async () => {
+    if (resending.current) return;
+    resending.current = true;
     setErr('');
     try {
-      if (sent.kind === 'join') await auth.join.mutateAsync({ first: sent.first, last: sent.last, email: sent.email });
-      else await auth.email.mutateAsync(sent.email);
+      await auth.send.mutateAsync(sent.kind === 'join' ? { contact: sent.contact, first: sent.first, last: sent.last } : { contact: sent.contact });
       setSends((n) => n + 1);
       restart(RESEND_SECONDS);
+      onResent?.(RESEND_SECONDS);
     } catch (e) {
       const p = e as { code?: string; retryAfter?: number };
-      if (p.code === 'TOO_SOON') restart(p.retryAfter ?? RESEND_SECONDS);
-      else setErr(words(e, 'Could not send the email. Try again.'));
+      if (p.code === 'TOO_SOON') {
+        restart(p.retryAfter ?? RESEND_SECONDS);
+        onResent?.(p.retryAfter ?? RESEND_SECONDS);
+      } else setErr(words(e, 'Could not send the code. Try again.'));
+    } finally {
+      resending.current = false;
     }
   };
 
   return (
     <Box
       component="form"
-      data-testid="check-email"
+      data-testid="check-code"
       onSubmit={(e) => {
         e.preventDefault();
         void submit(code);
       }}
     >
-      <Title>Check your email</Title>
+      <Title>{byText ? 'Check your texts' : 'Check your email'}</Title>
       <Sub>
-        {sent.kind === 'join'
-          ? "We've sent a link to confirm your email. Tap it on this phone, or type the code from the email."
-          : "If that email belongs to a member, we've sent a link. Tap it on this phone, or type the code from the email."}
+        <Box component="span" data-testid="sent-line">
+          Enter the 6-digit code we sent to{' '}
+          <Box component="span" data-testid="sent-to" sx={{ fontWeight: 700, color: sc.ink, overflowWrap: 'anywhere' }}>{maskContact(sent.contact)}</Box>.
+          {byText ? '' : ' Or tap the link in the email on this phone.'}
+        </Box>{' '}
+        <SmallLink label="Change" onClick={onChange} sx={{ fontSize: u(29), verticalAlign: 'baseline' }} />
       </Sub>
-      <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: u(12), mt: u(-12), mb: u(28) }}>
-        <Box data-testid="sent-to" sx={{ fontSize: u(31), fontWeight: 700, color: sc.ink, minWidth: 0, overflowWrap: 'anywhere' }}>{sent.email}</Box>
-        <SmallLink label="Change" onClick={onChange} sx={{ fontSize: u(29) }} />
-      </Box>
       <Field>
         <InputBase
           autoFocus
@@ -147,16 +157,16 @@ export function CheckEmail({ sent, onChange, onSignedIn }: {
         />
       </Field>
       {err && <ErrorLine>{err}</ErrorLine>}
-      <Primary busy={auth.code.isPending} disabled={code.length !== 6} label="Sign in" />
+      <Primary busy={auth.check.isPending} disabled={code.length !== 6} label={sent.kind === 'join' ? 'Continue' : 'Sign in'} />
       <Box data-testid="resend" sx={{ mt: u(26), textAlign: 'center', fontSize: u(28), color: sc.ink2, lineHeight: 1.4 }}>
         {sends >= MAX_SENDS ? (
           'Still nothing? Ask at any register.'
         ) : left > 0 ? (
-          `Didn't get it? Check spam, or send again in ${clock(left)}`
+          `Didn't get it? ${byText ? 'Send' : 'Check spam, or send'} again in ${clock(left)}`
         ) : (
           <ButtonBase
             type="button"
-            disabled={resending}
+            disabled={auth.send.isPending}
             onClick={() => void resend()}
             sx={{ fontFamily: sc.font, fontSize: 'inherit', fontWeight: 700, color: sc.greenDeep, textDecoration: 'underline', px: u(12), py: u(6), borderRadius: u(10) }}
           >
