@@ -43,11 +43,14 @@ HAND_TEXTS = {
         '(or reply with a good time)'
     ),
 }
+# The offer (owner 2026-10-19: "the same text option as the interview"): its private link, read and signed on the phone.
+OFFER_TEXT = "Hi {first_name}, it's Eco-Thrift! Your {role} job offer is ready. Read and sign it here: {link}"
+SHORT_OFFER_TEXT = "Hi {first_name}, it's Eco-Thrift! Your job offer is ready. Read and sign it here: {link}"
 SHORT_TEXTS = {
     'initial': "Hi {first_name}, it's Eco-Thrift! Book your interview: {link} (or reply with a good time)",
     'reminder': "Hi {first_name}, Eco-Thrift again. Don't miss out, book your interview: {link} (or reply with a good time)",
 }
-TEXT_LABELS = {'initial': 'Interview link text', 'reminder': 'Reminder text'}
+TEXT_LABELS = {'initial': 'Interview link text', 'reminder': 'Reminder text', 'offer': 'Offer text'}
 TEXT_FIELDS = {'initial': 'invite_texted_at', 'reminder': 'reminder_texted_at'}
 
 
@@ -112,16 +115,45 @@ def hand_text(which: str, *, first_name: str, role: str, link: str) -> str:
     return SHORT_TEXTS[which].format(first_name=first_name, link=link)
 
 
+def _open_offer(application):
+    from apps.hiring.models import Offer
+    from apps.hiring.offers import refresh
+
+    offer = application.offers.filter(status__in=Offer.OPEN).order_by('-sent_at').first()
+    if offer is not None:
+        refresh(offer)
+    if offer is None or offer.status not in Offer.OPEN:
+        raise ValidationError({'detail': 'There is no open offer to text.'})
+    return offer
+
+
+def offer_text(*, first_name: str, role: str, link: str) -> str:
+    """The offer text, kept to one message (SMS_LIMIT): the position drops out when it would go over."""
+    if role:
+        body = OFFER_TEXT.format(first_name=first_name, role=role, link=link)
+        if len(body) <= SMS_LIMIT:
+            return body
+    return SHORT_OFFER_TEXT.format(first_name=first_name, link=link)
+
+
 def text_draft(application, which: str) -> dict:
-    """The message and the number to copy. Makes the private interview link (and its short link) if there isn't one."""
+    """The message and the number to copy. Makes the private interview link (and its short link) if there isn't one;
+    ``offer`` texts the open offer's private link."""
     from apps.hiring.interviews import ensure_short_link
 
-    if which not in HAND_TEXTS:
-        raise ValidationError({'detail': 'Pick the first text or the reminder.'})
+    if which not in HAND_TEXTS and which != 'offer':
+        raise ValidationError({'detail': 'Pick the first text, the reminder, or the offer.'})
     if not application.phone:
         raise ValidationError({'detail': 'This applicant has no phone number.'})
     if _stopped(application):
         raise ValidationError({'detail': 'They asked not to be texted.'})
+    if which == 'offer':
+        from apps.hiring.offers import public_link
+
+        offer = _open_offer(application)
+        first = (application.first_name or '').strip() or 'there'
+        body = offer_text(first_name=first, role=offer.position, link=public_link(offer.token))
+        return {'which': which, 'phone': application.phone, 'body': body}
     link = ensure_short_link(application)
     first = (application.first_name or '').strip() or 'there'
     body = hand_text(which, first_name=first, role=_role(application), link=link)
@@ -133,9 +165,18 @@ def text_sent(application, which: str, *, by, body: str = '') -> Application:
     """"Text sent": record it on the history (with its words) and stop showing it as due."""
     from apps.hiring.interviews import _move_stage
 
-    if which not in HAND_TEXTS:
-        raise ValidationError({'detail': 'Pick the first text or the reminder.'})
+    if which not in HAND_TEXTS and which != 'offer':
+        raise ValidationError({'detail': 'Pick the first text, the reminder, or the offer.'})
     body = (body or text_draft(application, which)['body']).strip()
+    if which == 'offer':
+        # The offer's own steps (opened, signed) show on its card; the text only goes on the history.
+        _open_offer(application)
+        ApplicationEvent.objects.create(
+            application=application, kind=ApplicationEvent.KIND_TEXT, by=by,
+            text=f'Offer text sent by hand to {application.phone}',
+            data={'text': 'hand_offer', 'status': 'sent_by_hand', 'body': body},
+        )
+        return application
     now = timezone.now()
     field = TEXT_FIELDS[which]
     setattr(application, field, now)

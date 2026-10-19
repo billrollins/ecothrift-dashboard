@@ -69,7 +69,7 @@ Intended story: *source → prep → ingest → restore → records → floor �
 | 3 | `restoration` | Restoration | Test, assemble, repair, salvage | TARS (new window), Parts requests (Manager+) |
 | 4 | `inventory` | Inventory | Catalog — products, check-ins, items | Catalog |
 | 5 | `retailFloor` | Floor | Shelf and floorplans | Catalog, Quick reprice, Floorplans |
-| 6 | `storeSales` | Sales | Register, drawers, and POS setup | Terminal, Transactions, Deliveries, Drawers, Cash Management, Printables, POS setup (Manager+) |
+| 5 | `storeSales` | Cashier | Register, sales, drawers, and Thrift+ | Terminal, Thrift+ Staff, Transactions, Drawers, Cash management; **Setup:** Test terminal, Printables, POS setup (Manager+), Thrift+ (superuser); Command Center after a line (Manager+) |
 | 7 | `admin` | Admin | Setup and access | Assumptions, Employees, Customers, Permissions, Settings, Label Studio, Blog studio, Time & payroll *(Admin group itself Manager+; items further gated)* |
 
 \*Placeholder pages.
@@ -208,7 +208,7 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. D
 | **Delivery Field** | `/pos/deliveries/field/days`, `/field/total`, `/field/days/:dayId` | Mobile full-day run: Contact → Load → Routes → Deliveries → Finish; Routes API ETAs; sticky timer + step rail. |
 | **Deliveries (legacy)** | `/pos/deliveries/legacy` | Redirects to `/pos/deliveries` (retired in v2.57.0). |
 | **Drawers** | `/pos/drawers` | Cash drawer open/close status by register/day. |
-| **Cash Management** | `/pos/cash` | Drops, pickups, safe / reconciliation workflows. |
+| **Cash management** | `/pos/cash` | Drops, pickups, safe / reconciliation workflows. |
 | **Printables** | `/pos/printables` | Policy sheets / driver logs and similar printables. |
 | **POS setup** | `/admin/pos-setup` | Manager+: registers, locations, POS configuration. |
 

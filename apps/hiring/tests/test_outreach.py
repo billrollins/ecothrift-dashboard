@@ -227,3 +227,33 @@ class ShortLinkTests(_Applied):
         for _ in range(SHORT_MISSES_PER_HOUR):
             self.client.get('/i/zzzzzzz')
         self.assertEqual(self.client.get('/i/zzzzzzz').status_code, 429)
+
+
+class OfferTextTests(_Applied):
+    """The offer by text (owner 2026-10-19): the open offer's private link, copied or opened on a phone."""
+
+    def _make(self):
+        from apps.hiring.tests.test_hiring import OfferTests
+
+        terms = OfferTests.terms(self, send=False)
+        made = self.staff.post(f'/api/hiring/applications/{self.app.pk}/offer/', terms, format='json')
+        self.assertEqual(made.status_code, 201, made.data)
+        return made.data
+
+    def test_the_offer_text_carries_its_link_in_one_message_and_goes_on_the_history(self):
+        made = self._make()
+        draft = self.staff.post(f'/api/hiring/applications/{self.app.pk}/text-draft/', {'which': 'offer'}, format='json')
+        self.assertEqual(draft.status_code, 200, draft.data)
+        self.assertEqual(draft.data['phone'], self.app.phone)
+        self.assertIn(made['link'], draft.data['body'])
+        self.assertLessEqual(len(draft.data['body']), outreach.SMS_LIMIT)
+        stage = Application.objects.get(pk=self.app.pk).stage
+        sent = self.staff.post(f'/api/hiring/applications/{self.app.pk}/text-sent/',
+                               {'which': 'offer', 'body': draft.data['body']}, format='json')
+        self.assertEqual(sent.status_code, 200, sent.data)
+        self.assertEqual(Application.objects.get(pk=self.app.pk).stage, stage)  # the offer's stage stays
+        self.assertTrue(self.app.events.filter(data__text='hand_offer').exists())
+
+    def test_no_open_offer_no_text(self):
+        refused = self.staff.post(f'/api/hiring/applications/{self.app.pk}/text-draft/', {'which': 'offer'}, format='json')
+        self.assertEqual(refused.status_code, 400)

@@ -9,11 +9,14 @@ const cashierItems = (role: 'Employee' | 'Manager' | 'Admin' | 'Consignee') =>
     .find((g) => g.id === 'storeSales')?.items.map((item) => item.id) ?? [];
 
 describe('Test terminal in the Cashier nav (2026-10-16)', () => {
-  it('links to /pos/test, after the real Terminal and Finalize Thrift+', () => {
+  it('links to /pos/test, first under Setup (2026-10-19), after the daily pages', () => {
     expect(NAV_ITEM_CATALOG.posTestTerminal?.path).toBe('/pos/test');
     expect(NAV_ITEM_CATALOG.posTestTerminal?.label).toBe('Test terminal');
-    const items = cashierItems('Employee');
-    expect(items.indexOf('posTestTerminal')).toBe(items.indexOf('thriftPlusFinalize') + 1);
+    const group = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS)
+      .find((g) => g.id === 'storeSales');
+    expect(group?.setupItems.map((item) => item.id)).toEqual(['posTestTerminal', 'posPrintables']);
+    expect(cashierItems('Employee').slice(0, 5)).toEqual(
+      ['posTerminal', 'thriftPlusFinalize', 'posTransactions', 'posDrawers', 'posCash']);
   });
 
   it('shows for Employee and up, not below', () => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Box, List } from '@mui/material';
+import { Box, List, Typography } from '@mui/material';
 import { NavItemRow } from '../../navigation/NavItemRow';
 import { WorkspaceSwitcher } from '../../navigation/WorkspaceSwitcher';
 import { resolveNavGroups } from '../../navigation/navResolve';
@@ -184,7 +184,19 @@ function WorkspacePanel({
 }) {
   return (
     <List component="div" disablePadding>
-      {group.items.map(renderRow)}
+      {group.items.filter((item) => !group.setupItems.includes(item)).map(renderRow)}
+      {group.setupItems.length > 0 ? (
+        <>
+          <Typography
+            variant="overline"
+            component="div"
+            sx={{ px: 2.25, mt: 1, mb: 0.25, lineHeight: 1.6, fontSize: '0.65rem', letterSpacing: '0.08em', color: 'text.disabled' }}
+          >
+            Setup
+          </Typography>
+          {group.setupItems.map(renderRow)}
+        </>
+      ) : null}
       {group.guestItems.length > 0 ? (
         <>
           <Box

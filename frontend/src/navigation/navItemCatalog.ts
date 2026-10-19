@@ -141,7 +141,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   posCash: {
     id: 'posCash',
     path: '/pos/cash',
-    label: 'Cash Management',
+    label: 'Cash management',
     icon: 'cash',
   },
   posTransactions: {

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.183.0] -->
-<!-- Last reviewed: 2026-10-19 (2.183.0) -->
+<!-- Line 1 release: ## [2.184.0] -->
+<!-- Last reviewed: 2026-10-19 (2.184.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.184.0] - 2026-10-19
+
+User-facing theme: **A tidier sidebar (daily pages on top, a small Setup section below) and Text the offer, like the interview text (Bill, 2026-10-19).** Outside initiatives (navigation, People).
+
+### Added
+- **Text the offer (People):** an open offer's card has **Text the offer**. It opens the same dialog as the interview text: on a phone, **Open text message** with the number and the words filled in; anywhere, tap to copy the number and the message (the offer's private link, one text). **Text sent** puts it on the history.
+
+### Changed
+- **Sidebar, Cashier:** Terminal, Thrift+ Staff, Transactions, Drawers and Cash management on top; **Setup** below with Test terminal, Printables, POS setup and Thrift+; Command Center after a line.
+- **Sidebar, People:** Users, Applicants, Interviews, Onboarding and Check-ins on top; **Setup** below with Payroll deductions, Jobs & careers page and Emails.
+- "Cash Management" reads "Cash management", like the other pages. Workspace descriptions in the switcher match what is in them (Admin no longer lists Users; Studios lists announcements).
 
 ## [2.183.0] - 2026-10-19
 

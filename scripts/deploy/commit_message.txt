@@ -1,14 +1,13 @@
-v2.183.0 — Transactions: totals, date chips, Thrift+ member and ThriftBucks columns, one search for receipt or member
+v2.184.0 — A tidier sidebar (Setup section in Cashier and People) and Text the offer
 
-User-facing theme: **The Transactions page shows totals, Thrift+ members and their ThriftBucks, and finds a sale by receipt or member name (Bill, 2026-10-19).** Outside initiatives (POS).
+User-facing theme: **A tidier sidebar (daily pages on top, a small Setup section below) and Text the offer, like the interview text (Bill, 2026-10-19).** Outside initiatives (navigation, People).
 
 ### Added
-- **Totals strip** on Transactions: sales, total, average sale, each payment method, Thrift+ sales and voided, for whatever filters are set (completed sales only).
-- **Date chips:** Today, Yesterday, This week, This month, Last 30 days, All time.
-- **Thrift+ columns:** the member's name, ThriftBucks **Earned**, **Used** (kept ThriftBucks and Thrift+ credit) and **Instant** (taken off right away). Blank for guests.
-- **One Search box** finds a receipt number or a member's name, and searches as you type.
+- **Text the offer (People):** an open offer's card has **Text the offer**. It opens the same dialog as the interview text: on a phone, **Open text message** with the number and the words filled in; anywhere, tap to copy the number and the message (the offer's private link, one text). **Text sent** puts it on the history.
 
 ### Changed
-- The table fills most of the screen (compact rows, a smaller header, the "Press Enter" hint gone), and Status no longer cuts off to "Complet...".
+- **Sidebar, Cashier:** Terminal, Thrift+ Staff, Transactions, Drawers and Cash management on top; **Setup** below with Test terminal, Printables, POS setup and Thrift+; Command Center after a line.
+- **Sidebar, People:** Users, Applicants, Interviews, Onboarding and Check-ins on top; **Setup** below with Payroll deductions, Jobs & careers page and Emails.
+- "Cash Management" reads "Cash management", like the other pages. Workspace descriptions in the switcher match what is in them (Admin no longer lists Users; Studios lists announcements).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

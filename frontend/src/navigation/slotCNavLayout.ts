@@ -52,9 +52,9 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'storeSales',
     label: 'Cashier',
-    itemIds: [
-      'posTerminal', 'thriftPlusFinalize', 'posTestTerminal', 'posTransactions', 'posDrawers', 'posCash', 'posPrintables', 'posSetup', 'thriftPlus',
-    ],
+    // Every shift on top; practice, printing and setup below (owner, 2026-10-19: "the cashier workspace is messy").
+    itemIds: ['posTerminal', 'thriftPlusFinalize', 'posTransactions', 'posDrawers', 'posCash'],
+    setupItemIds: ['posTestTerminal', 'posPrintables', 'posSetup', 'thriftPlus'],
     guestItemIds: ['retailQa'],
   },
   {
@@ -83,7 +83,8 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     label: 'People',
     roles: ['Manager', 'Admin'],
     // Staff start to finish (owner, 2026-10-07): Users moved here from Admin.
-    itemIds: ['users', 'applicants', 'interviews', 'onboarding', 'checkins', 'payrollDeductions', 'jobs', 'hiringEmails'],
+    itemIds: ['users', 'applicants', 'interviews', 'onboarding', 'checkins'],
+    setupItemIds: ['payrollDeductions', 'jobs', 'hiringEmails'],
   },
   {
     id: 'admin',
@@ -149,7 +150,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'storeSales',
     label: 'Cashier',
     shortLabel: 'Cashier',
-    helper: 'Register, drawers, and POS setup',
+    helper: 'Register, sales, drawers, and Thrift+',
     icon: 'register',
     shortcutColor: '#CA8A04',
     shortcutDigit: 5,
@@ -176,7 +177,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'studios',
     label: 'Studios',
     shortLabel: 'Studios',
-    helper: 'Labels, floorplans, and the blog',
+    helper: 'Labels, floorplans, announcements, and the blog',
     icon: 'studio',
     shortcutColor: '#C026D3',
     shortcutDigit: 8,
@@ -194,7 +195,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'admin',
     label: 'Admin',
     shortLabel: 'Admin',
-    helper: 'Users, departments, shifts, routines, payroll, and settings',
+    helper: 'Departments, shifts, routines, payroll, and settings',
     icon: 'settings',
     shortcutColor: '#1E293B',
     shortcutDigit: 0,
@@ -290,7 +291,7 @@ export function glowColorForNavItem(itemId: string): string | undefined {
 
   for (const group of SLOT_C_NAV_GROUPS) {
     if (group.id === SLOT_C_ESSENTIALS_GROUP_ID) continue;
-    if (group.itemIds.includes(itemId)) {
+    if (group.itemIds.includes(itemId) || group.setupItemIds?.includes(itemId)) {
       return shortcutColorForWorkspace(group.id);
     }
   }
@@ -298,7 +299,7 @@ export function glowColorForNavItem(itemId: string): string | undefined {
   if (!def) return undefined;
   for (const group of SLOT_C_NAV_GROUPS) {
     if (group.id === SLOT_C_ESSENTIALS_GROUP_ID) continue;
-    const nativeHome = group.itemIds.some((id) => {
+    const nativeHome = [...group.itemIds, ...(group.setupItemIds ?? [])].some((id) => {
       const native = NAV_ITEM_CATALOG[id];
       return native != null && pathsOverlap(def, native);
     });

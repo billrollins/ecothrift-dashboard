@@ -222,7 +222,7 @@ export default function CashManagementPage() {
   return (
     <Box>
       <PageHeader
-        title="Cash Management"
+        title="Cash management"
         subtitle="Supplemental drawer and bank transactions"
         action={
           <Button

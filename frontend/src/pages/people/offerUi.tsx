@@ -31,6 +31,7 @@ import {
 import { ccTokens } from '../../theme';
 import { useEmailReview } from './EmailReview';
 import { errorText } from './peopleUi';
+import { TextDialog } from './outreachUi';
 
 function isoDate(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -269,16 +270,20 @@ function stamp(iso: string | null): string {
 
 export function OfferCard({
   offer,
+  app,
   onChanged,
   onDeclinedNotNow,
 }: {
   offer: Offer;
+  /** Who the offer is for: "Text the offer" needs their phone (owner 2026-10-19). */
+  app?: { id: number; first_name: string; phone?: string };
   onChanged: () => void;
   onDeclinedNotNow: () => void;
 }) {
   const { enqueueSnackbar } = useSnackbar();
   const [busy, setBusy] = useState(false);
   const [showLetter, setShowLetter] = useState(false);
+  const [texting, setTexting] = useState(false);
   const { review, dialog: reviewDialog } = useEmailReview();
   const open = offer.status === 'sent' || offer.status === 'viewed';
 
@@ -351,6 +356,11 @@ export function OfferCard({
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
         {open && (
           <>
+            {app?.phone && (
+              <Button size="small" variant="contained" disabled={busy} onClick={() => setTexting(true)}>
+                Text the offer
+              </Button>
+            )}
             <Button size="small" variant="outlined" disabled={busy}
               onClick={() => run(() => navigator.clipboard.writeText(offer.link), 'Offer link copied.', 'Could not copy.')}>
               Copy link
@@ -387,6 +397,17 @@ export function OfferCard({
         </Box>
       )}
       {reviewDialog}
+      {app && (
+        <TextDialog
+          app={app}
+          which={texting ? 'offer' : null}
+          onClose={() => setTexting(false)}
+          onSent={() => {
+            enqueueSnackbar('Offer text recorded.', { variant: 'success' });
+            onChanged();
+          }}
+        />
+      )}
     </Box>
   );
 }

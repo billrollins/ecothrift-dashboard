@@ -12,12 +12,12 @@ Workspaces (assigned digits; letter is the first letter of the short name):
 2. **Processing** (`2` / `P`) — Receiving, Processing (Restorations is a guest link)
 3. **Restoration** (`3` / `R`) — Overview, Bench, Parts Requests (Enhancements is a superuser guest link)
 4. **Retail Floor** (`4` / `F`) — Catalog, Quick reprice, Floorplans
-5. **Cashier** (`5` / `C`) — Terminal, Transactions, Drawers, Cash, Printables, POS setup
+5. **Cashier** (`5` / `C`) — Terminal, Thrift+ Staff, Transactions, Drawers, Cash management; Setup: Test terminal, Printables, POS setup, Thrift+
 6. **Deliveries** (`6` / `D`) — Schedule, Table
 7. **Online Sales** (`7` / `O`, Manager/Admin) — Listings, Holds, Messages
 8. **Studios** (`8` / `S`, Manager/Admin) — Label Studio, Floorplans, Blog Studio (superuser)
-9. *(free — digit 9 and letter L are unassigned)*
-10. **Admin** (`0` / `A`, Manager/Admin) — Users, Departments, Shifts, Routines (superuser; Routine Control), Command Center, Time & payroll (superuser), Settings
+9. **People** (`9`, Manager/Admin; `P` opens Processing) — Users, Applicants, Interviews, Onboarding, Check-ins; Setup: Payroll deductions, Jobs & careers page, Emails
+10. **Admin** (`0` / `A`, Manager/Admin) — Departments, Shifts, Routines (superuser; Routine Control), Command Center, Time & payroll (superuser), Settings
 
 The same digit always opens the same workspace. A key for a workspace the user cannot see does nothing. Superuser **Enhancements** lives as a Restoration guest item (`/admin/enhancement-requests`). **Users** is Manager+; Employees is first and default for Admin, Customers is `?tab=customers`. Managers only see Customers.
 
@@ -38,6 +38,8 @@ holds links that appear in the sidebar.
 | `WorkspaceSwitcher.tsx` | Trigger card + dropdown of workspace cards; digits jump while open |
 
 **Adding a page:** one entry in `navItemCatalog.ts`, then assign its id to a workspace in `slotCNavLayout.ts`.
+A page used every shift goes in `itemIds`; a set-and-forget page (setup, printables, practice) goes in
+`setupItemIds`, drawn under a small **Setup** caption after the daily pages (owner, 2026-10-19).
 
 **Adding a badge:** return the count from `hooks/useNavBadgeCounts.ts` keyed by nav item id. The
 sidebar renders whatever ids appear there, so no navigation code changes. Item counts also roll

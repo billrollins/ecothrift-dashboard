@@ -35,6 +35,11 @@ export interface NavGroupDef {
    * role filtering empties the list the hairline goes with it.
    */
   guestItemIds?: string[];
+  /**
+   * The workspace's own set-and-forget pages (setup, printables, practice). Drawn under a small "Setup"
+   * caption after the daily pages, so the pages used every shift sit on top (owner, 2026-10-19).
+   */
+  setupItemIds?: string[];
   roles?: UserRole[];
 }
 
@@ -45,6 +50,9 @@ export interface ResolvedNavItem extends NavItemDef {
 export interface ResolvedNavGroup {
   id: string;
   label: string | null;
+  /** Every page the workspace owns: the daily ones, then its setup pages. */
   items: ResolvedNavItem[];
+  /** The tail of ``items`` drawn under the "Setup" caption. */
+  setupItems: ResolvedNavItem[];
   guestItems: ResolvedNavItem[];
 }

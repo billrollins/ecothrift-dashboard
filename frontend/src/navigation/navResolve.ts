@@ -33,11 +33,15 @@ export function resolveNavItems(user: NavAccessUser, itemIds: string[]): Resolve
 export function resolveNavGroups(user: NavAccessUser, defs: NavGroupDef[]): ResolvedNavGroup[] {
   return defs
     .filter((group) => canAccessNav(user, group.roles))
-    .map((group) => ({
-      id: group.id,
-      label: group.label,
-      items: resolveNavItems(user, group.itemIds),
-      guestItems: resolveNavItems(user, group.guestItemIds ?? []),
-    }))
+    .map((group) => {
+      const setupItems = resolveNavItems(user, group.setupItemIds ?? []);
+      return {
+        id: group.id,
+        label: group.label,
+        items: [...resolveNavItems(user, group.itemIds), ...setupItems],
+        setupItems,
+        guestItems: resolveNavItems(user, group.guestItemIds ?? []),
+      };
+    })
     .filter((group) => group.items.length > 0 || group.guestItems.length > 0);
 }

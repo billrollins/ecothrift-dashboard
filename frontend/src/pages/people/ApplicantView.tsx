@@ -472,6 +472,7 @@ export function ApplicantView({
         <Box sx={{ mt: 1.25 }}>
           <OfferCard
             offer={featuredOffer}
+            app={app}
             onChanged={reloadAll}
             onDeclinedNotNow={() => {
               setNotNowReason('offer_declined');
@@ -583,6 +584,7 @@ export function ApplicantView({
           <OfferCard
             key={offer.id}
             offer={offer}
+            app={app}
             onChanged={reloadAll}
             onDeclinedNotNow={() => {
               setNotNowReason('offer_declined');

@@ -127,7 +127,8 @@ export interface Outreach {
   text_reminder: OutreachStep;
 }
 
-export type TextWhich = 'initial' | 'reminder';
+/** ``offer``: the open offer's private link (owner 2026-10-19). */
+export type TextWhich = 'initial' | 'reminder' | 'offer';
 
 export interface AnswerEntry {
   key: string;

@@ -191,7 +191,7 @@ export function TextDialog({
   onClose,
   onSent,
 }: {
-  app: ApplicationDetail;
+  app: Pick<ApplicationDetail, 'id' | 'first_name'>;
   which: TextWhich | null;
   onClose: () => void;
   onSent: (fresh: ApplicationDetail) => void;
@@ -237,7 +237,9 @@ export function TextDialog({
 
   return (
     <Dialog open={which !== null} onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>{which === 'reminder' ? 'Reminder text' : 'Initial text'} to {app.first_name}</DialogTitle>
+      <DialogTitle>
+        {which === 'reminder' ? 'Reminder text' : which === 'offer' ? 'Offer text' : 'Initial text'} to {app.first_name}
+      </DialogTitle>
       <DialogContent>
         {error && <Typography color="error">{error}</Typography>}
         {!draft && !error && <CircularProgress size={24} />}
