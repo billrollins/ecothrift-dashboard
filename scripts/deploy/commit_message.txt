@@ -1,13 +1,8 @@
-v2.186.1 — Closed days in the 3-day return window: the register and the app say when returns end
+v2.186.2 — The text opt-in screenshot shows today's sign-in screen
 
-User-facing theme: **When the store is closed on a day of a sale's 3-day return window, the member hears it at the sale (Bill, 2026-10-20).** Outside initiatives (Thrift+).
+User-facing theme: **The text opt-in screenshot shows today's sign-in screen (Bill, 2026-10-20).** Outside initiatives (Thrift+).
 
-### Added
-- **Register (Thrift+ panel):** when a member's sale has a closed day in its 3 days, a yellow box tells the cashier what to say, e.g. "Tell them: Heads up: we're closed Sun Oct 18 and Mon Oct 19. Returns for today's items end Sat Oct 17." The window itself stays 3 calendar days (rulebook W2).
-- **Thrift+ Member app:** the same line shows under the 3-day returns badge on a returnable item.
-- Closed days come from Dash **Settings → Hours** (the open-day checkboxes and Holiday hours), so a holiday closure added there shows up on its own.
-
-### Fixed
-- **Settings → Hours:** with every weekday ticked open (7 days a week), Sunday was still counted as closed. An empty closed-day list now means open every day.
+### Changed
+- **ecothrift.us/sms-opt-in.png:** retaken from the live sign-in screen, now with "At the store? Scan the store's sign-in QR" (v2.186.0). The text-message line under Send my code is unchanged, word for word, from what Twilio's toll-free review was given.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

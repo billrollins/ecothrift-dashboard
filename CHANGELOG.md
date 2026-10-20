@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.186.1] -->
-<!-- Last reviewed: 2026-10-20 (2.186.1) -->
+<!-- Line 1 release: ## [2.186.2] -->
+<!-- Last reviewed: 2026-10-20 (2.186.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.186.2] - 2026-10-20
+
+User-facing theme: **The text opt-in screenshot shows today's sign-in screen (Bill, 2026-10-20).** Outside initiatives (Thrift+).
+
+### Changed
+- **ecothrift.us/sms-opt-in.png:** retaken from the live sign-in screen, now with "At the store? Scan the store's sign-in QR" (v2.186.0). The text-message line under Send my code is unchanged, word for word, from what Twilio's toll-free review was given.
 
 ## [2.186.1] - 2026-10-20
 
