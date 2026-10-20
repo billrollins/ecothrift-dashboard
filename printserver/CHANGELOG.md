@@ -5,6 +5,17 @@ Ship: `.ai/protocols/ship-print-server.md`. Script: `python printserver/distribu
 
 ---
 
+## [1.9.7] — 2026-10-20 (install on every register: REG-01, REG-02, TRAIN)
+
+Owner 2026-10-20: the receipt says the last return day and what comes back, and that AS IS items can't come back.
+
+- **3-DAY RETURN box:** inside the frame, under the heading: "Returns through Fri Oct 23 · 80% of value as store credit".
+  The date is the register's `returns_until` (sent by Dash), or the sale day + 3 from an older Dash.
+- **SOLD AS IS box** (and a non-member's ALL SALES FINAL · SOLD AS IS box): "Items below are final sale and can't be
+  returned."
+- The text tape and the plain-text receipt print the returns line under the items.
+- Still no solid black anywhere (1.9.6); paced 64-row bands unchanged.
+
 ## [1.9.6] — 2026-10-19 (install on every register: REG-01, REG-02, TRAIN)
 
 Owner 2026-10-19: receipts still printed their top over and over (1.9.5 too), most often a member's with 3-day returns.

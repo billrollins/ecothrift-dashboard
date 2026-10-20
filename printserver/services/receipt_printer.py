@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as _dt
 import logging
 import re
 import sys
@@ -58,6 +59,8 @@ RECEIPT_POLICY_PNG_SUB = "ALL SALES FINAL — TEST BEFORE YOU BUY"
 BLOCK_HEAD_MEMBER = "THRIFT+ MEMBER"
 BLOCK_HEAD_NON_MEMBER = "NON-MEMBER"
 BLOCK_AS_IS_MEMBER = "SOLD AS IS unless marked 3-day return"
+# Inside the SOLD AS IS heading box (owner 2026-10-20).
+AS_IS_NO_RETURNS_LINE = "Items below are final sale and can't be returned."
 BLOCK_JOIN = "Join free: ecothrift.us/join"
 
 # Thrift+ block words (V2/V4/V8, B2, B5, B12, W1). ThriftBucks are numbers next to their label,
@@ -300,6 +303,51 @@ def _return_items(data: dict[str, Any]) -> int | None:
 
 def _items_word(n: int) -> str:
     return "1 item" if n == 1 else f"{n} items"
+
+
+# Owner 2026-10-20 (release 4): under a member's 3-DAY RETURN heading, "Returns through Thu Oct 23 · 80% of value as
+# store credit". The one place the receipt says "store credit" (the V2 ban is for the register's talk with members).
+RETURNS_PERCENT_LINE = "80% of value as store credit"
+_WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+_MONTHS_SHORT = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def _iso_day(value: Any) -> _dt.date | None:
+    text = str(value or "").strip()[:10]
+    try:
+        return _dt.date.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+def _returns_until(data: dict[str, Any]) -> _dt.date | None:
+    """The last day for 3-day returns: the dashboard's ``returns_until`` (ISO; closed days already counted by the
+    server), else the sale ``date`` + 3 days (an older dashboard). None when neither is a date."""
+    tp = _tp(data) or {}
+    sent = _iso_day(data.get("returns_until")) or _iso_day(tp.get("returns_until"))
+    if sent is not None:
+        return sent
+    sale = _iso_day(data.get("date"))
+    return sale + _dt.timedelta(days=3) if sale is not None else None
+
+
+def _returns_parts(data: dict[str, Any]) -> tuple[str, str] | None:
+    """("Returns through Thu Oct 23", "80% of value as store credit") for a member receipt that has 3-day return
+    lines, else None (no heading, no line). Without any date: "Returns within 3 days"."""
+    if not _is_member_receipt(data) or not _return_items(data):
+        return None
+    day = _returns_until(data)
+    if day is None:
+        head = "Returns within 3 days"
+    else:
+        head = f"Returns through {_WEEKDAYS[day.weekday()]} {_MONTHS_SHORT[day.month - 1]} {day.day}"
+    return (head, RETURNS_PERCENT_LINE)
+
+
+def _returns_line(data: dict[str, Any]) -> str:
+    """The two parts as one line: "Returns through Thu Oct 23 · 80% of value as store credit"."""
+    parts = _returns_parts(data)
+    return " · ".join(parts) if parts else ""
 
 
 def _tp_amount(tp: dict[str, Any] | None, key: str) -> float:
@@ -620,6 +668,10 @@ def format_receipt_tape(data: dict[str, Any]) -> bytes:
         if sub:
             buf += FONT_SMALL + b"".join(_line(f"    {ln}") for ln in _wrap_chars(sub, W - 4)) + NORMAL
 
+    returns = _returns_parts(data)
+    if returns:  # a member's 3-day return lines: the last day and what comes back
+        buf += CENTER + BOLD_ON + b"".join(_line(part) for part in returns) + BOLD_OFF + LEFT
+
     buf += _separator()
 
     # --- Totals ---
@@ -790,6 +842,10 @@ def format_receipt_text(data: dict[str, Any]) -> str:
         sub = _item_subline(item, data)
         if sub:
             lines.extend(f"    {ln}" for ln in _wrap_chars(sub, W - 4))
+
+    returns = _returns_parts(data)
+    if returns:
+        lines.extend(part.center(W).rstrip() for part in returns)
 
     lines.append("-" * W)
 
@@ -1250,6 +1306,13 @@ def render_receipt_to_image(
             y -= 4 * S
             draw.text((x0 + 14 * S, y), sub, font=f_small, fill=t["muted"])
             y += _text_h(f_small) + 6 * S
+
+    returns_line = _returns_line(data)
+    if returns_line:
+        for ln in _wrap_text(returns_line, f_small, draw, inner):
+            draw.text((x0 + (inner - _text_w(draw, ln, f_small)) / 2, y), ln, font=f_small, fill=t["text"])
+            y += _text_h(f_small) + 2 * S
+        y += 4 * S
 
     draw.line([x0, y, x1, y], fill=t["rule"], width=lw1)
     y += 14 * S

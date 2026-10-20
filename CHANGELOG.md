@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.186.2] -->
-<!-- Last reviewed: 2026-10-20 (2.186.2) -->
+<!-- Line 1 release: ## [2.186.3] -->
+<!-- Last reviewed: 2026-10-20 (2.186.3) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.186.3] - 2026-10-20
+
+User-facing theme: **The member receipt says the last return day, the 80%, and that AS IS items are final (Bill, 2026-10-20).** Outside initiatives (Thrift+).
+
+### Added
+- **Receipt (print server 1.9.7):** inside the 3-DAY RETURN box: "Returns through Fri Oct 23 · 80% of value as store credit". Inside the SOLD AS IS box (and a non-member's ALL SALES FINAL box): "Items below are final sale and can't be returned." Still no solid black. Install 1.9.7 on REG-01, REG-02 and TRAIN (Settings → Printing → Download).
+- **Dash** sends the last return day with every member receipt and reprint (`returns_until`); an older Dash leaves the print server to count sale day + 3.
 
 ## [2.186.2] - 2026-10-20
 

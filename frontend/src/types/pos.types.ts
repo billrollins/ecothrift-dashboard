@@ -307,6 +307,8 @@ export interface ThriftPlusCartBlock {
   guest_line: string;
   /** Closed days in this sale's 3-day return window: say it to the member (owner 2026-10-20). '' when none. */
   return_note?: string;
+  /** The last day for 3-day returns on this sale (ISO date; closed days already counted). The receipt prints it. */
+  returns_until?: string | null;
   /** Keyed by cart line id. */
   /** Per line: ThriftBucks, savings and the mark; a non-member's line also says what it would be for a member. */
   lines: Record<string, { reward: string; savings: string; mark: ThriftPlusLineMark; join_mark?: ThriftPlusLineMark }>;

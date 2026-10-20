@@ -118,6 +118,11 @@ export function buildReceiptData(cart: Cart): Record<string, unknown> {
         ? parseFloat(cart.savings.total)
         : undefined,
     thrift_plus: thriftPlusReceipt(cart),
+    // Print server 1.9.7 prints "Returns through Thu Oct 23 · 80% of value as store credit" under a member's
+    // 3-DAY RETURN heading; without this key (an older server) it works the day out as the sale date + 3.
+    ...(cart.thrift_plus?.member && cart.thrift_plus.returns_until
+      ? { returns_until: cart.thrift_plus.returns_until.slice(0, 10) }
+      : {}),
     // Print server 1.9.0 prints "TRAINING - NOT A SALE" at the top and bottom when it sees this flag.
     // Only a practice sale carries the key, so every real receipt's payload is unchanged.
     ...(training ? { training: true } : {}),

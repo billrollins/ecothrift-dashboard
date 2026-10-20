@@ -234,6 +234,19 @@ describe('Thrift+ on the receipt (the 10-12 policy)', () => {
     }
   });
 
+  it('sends the last day for 3-day returns for a member, only when the server gave one', () => {
+    const sent = buildReceiptData(cart({ lines: [lamp], thrift_plus: block({ returns_until: '2026-10-23' }) }));
+    expect(sent.returns_until).toBe('2026-10-23');
+    const stamped = buildReceiptData(cart({ lines: [lamp], thrift_plus: block({ returns_until: '2026-10-23T00:00:00Z' }) }));
+    expect(stamped.returns_until).toBe('2026-10-23');
+    const older = buildReceiptData(cart({ lines: [lamp], thrift_plus: block() })); // an older server: no key
+    expect('returns_until' in older).toBe(false);
+    const guest = buildReceiptData(cart({
+      lines: [lamp], thrift_plus: block({ member: null, guest_line: 'x', bucks_line_id: null, returns_until: '2026-10-23' }),
+    }));
+    expect('returns_until' in guest).toBe(false);
+  });
+
   it('prints the first name only and never a card or its last 4 (owner 2026-10-14: no Thrift+ card)', () => {
     const member = buildReceiptData(cart({ lines: [lamp, bucksLine], thrift_plus: block() }));
     const older = buildReceiptData(cart({ lines: [lamp], thrift_plus: block({ member: { ...MEMBER, first_name: undefined } }) }));

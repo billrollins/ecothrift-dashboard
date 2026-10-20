@@ -1,8 +1,9 @@
-v2.186.2 — The text opt-in screenshot shows today's sign-in screen
+v2.186.3 — The receipt says when returns end and that AS IS is final (print server 1.9.7)
 
-User-facing theme: **The text opt-in screenshot shows today's sign-in screen (Bill, 2026-10-20).** Outside initiatives (Thrift+).
+User-facing theme: **The member receipt says the last return day, the 80%, and that AS IS items are final (Bill, 2026-10-20).** Outside initiatives (Thrift+).
 
-### Changed
-- **ecothrift.us/sms-opt-in.png:** retaken from the live sign-in screen, now with "At the store? Scan the store's sign-in QR" (v2.186.0). The text-message line under Send my code is unchanged, word for word, from what Twilio's toll-free review was given.
+### Added
+- **Receipt (print server 1.9.7):** inside the 3-DAY RETURN box: "Returns through Fri Oct 23 · 80% of value as store credit". Inside the SOLD AS IS box (and a non-member's ALL SALES FINAL box): "Items below are final sale and can't be returned." Still no solid black. Install 1.9.7 on REG-01, REG-02 and TRAIN (Settings → Printing → Download).
+- **Dash** sends the last return day with every member receipt and reprint (`returns_until`); an older Dash leaves the print server to count sale day + 3.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -15,7 +15,11 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 # V2: words a receipt never prints (the legal "not a warranty" lines are not on receipts). "Rewards" as a name is
 # retired (V8), but B12's "Thrift+ rewards" (lower case) is the legal disclosure every member receipt carries.
-BANNED = re.compile(r"InstantBucks|\bcover\b|Return \$|store credit|warranty|\bearn|(?-i:Rewards)", re.IGNORECASE)
+# "store credit" is banned except in the returns line (owner 2026-10-20, release 4: "80% of value as store credit").
+BANNED = re.compile(
+    r"InstantBucks|\bcover\b|Return \$|(?<!80% of value as )store credit|warranty|\bearn|(?-i:Rewards)",
+    re.IGNORECASE,
+)
 # Owner 2026-10-14: there is no Thrift+ card. The Thrift+ block never says "card" (payment card rows may).
 CARD = re.compile(r"\bcards?\b", re.IGNORECASE)
 # B12, owner 2026-10-16: "Use ThriftBucks tomorrow; expire in 30 days" (attorney to confirm the new words).
@@ -289,6 +293,84 @@ class ToleranceTests(unittest.TestCase):
         text = rp.format_receipt_text(data)
         self.assertRegex(text, r"ThriftBucks used +1\.00\n")
         self.assertRegex(text, r"Redeemed instantly +\$2\.00")
+
+
+class ReturnsLineTests(unittest.TestCase):
+    """1.9.7 (owner 2026-10-20): under a member's 3-DAY RETURN heading, "Returns through Fri Oct 23 · 80% of value as
+    store credit"; the date is the payload's ``returns_until``, else the sale date + 3."""
+
+    LINE = "Returns through Fri Oct 23 · 80% of value as store credit"
+
+    def setUp(self):
+        self.data = _fixture("receipt_thriftplus_member")  # sale date 2026-10-20, no returns_until (older Dash)
+
+    def test_the_date_is_sent_or_the_sale_date_plus_three(self):
+        self.assertEqual(rp._returns_line(self.data), self.LINE)  # computed
+        sent = {**self.data, "returns_until": "2026-10-27"}  # closed days pushed it out: the server's date wins
+        self.assertEqual(rp._returns_line(sent), "Returns through Tue Oct 27 · 80% of value as store credit")
+        self.assertEqual(rp._returns_line({**self.data, "returns_until": "2026-10-27T00:00:00"}),
+                         "Returns through Tue Oct 27 · 80% of value as store credit")
+        self.assertEqual(rp._returns_line({**self.data, "returns_until": "junk"}), self.LINE)  # bad: compute
+        self.assertEqual(rp._returns_line({**self.data, "date": "2026-12-30"}),
+                         "Returns through Sat Jan 2 · 80% of value as store credit")  # across the year
+        nodate = {k: v for k, v in self.data.items() if k != "date"}
+        self.assertEqual(rp._returns_line(nodate), "Returns within 3 days · 80% of value as store credit")
+
+    def test_only_a_member_with_return_lines_gets_it(self):
+        guest = _fixture("receipt_thriftplus_guest")
+        self.assertEqual(rp._returns_line(guest), "")
+        as_is = {**self.data, "items": [{**it, "mark": "AS IS"} for it in self.data["items"]]}
+        self.assertEqual(rp._returns_line(as_is), "")
+        self.assertEqual(rp._returns_line({k: v for k, v in self.data.items() if k != "thrift_plus"}), "")
+        for text in _both(guest) + _both(as_is):
+            self.assertNotIn("80% of value", text)
+
+    def test_the_text_receipts_print_it_under_the_items(self):
+        for text in _both(self.data):
+            lines = _lines(text)
+            sold = next(i for i, ln in enumerate(lines) if ln.startswith("Box fan"))
+            head = next(i for i, ln in enumerate(lines) if ln.startswith("Returns through"))
+            self.assertGreater(head, sold)
+            self.assertEqual(lines[head], "Returns through Fri Oct 23")
+            self.assertEqual(lines[head + 1], "80% of value as store credit")
+            self.assertEqual(sum(1 for ln in lines if "80% of value" in ln), 1)
+
+    def test_the_picture_draws_the_line_in_one_or_two_lines(self):
+        from unittest import mock
+
+        from services import receipt_raster as rr
+
+        with mock.patch.object(rp, "_returns_parts", return_value=None):
+            without = rr.render_thermal_receipt(self.data)
+        with_line = rr.render_thermal_receipt(self.data)
+        self.assertEqual(with_line.width, 576)
+        self.assertGreaterEqual(with_line.height - without.height, 20)  # a line of type, at least
+        self.assertLessEqual(with_line.height - without.height, 70)  # never more than two lines and their gaps
+        # the line sits under the 3-DAY RETURN heading: the pictures match down to the heading's frame
+        top = without.crop((0, 0, 576, 600)).convert("L")
+        same = with_line.crop((0, 0, 576, 600)).convert("L")
+        first_diff = next((y for y in range(600) if top.crop((0, y, 576, y + 1)).tobytes()
+                           != same.crop((0, y, 576, y + 1)).tobytes()), None)
+        self.assertIsNotNone(first_diff)
+        self.assertGreater(first_diff, 250)  # below the logo, the store lines and the meta line
+
+    def test_the_as_is_box_says_nothing_comes_back(self):
+        from unittest import mock
+
+        from services import receipt_raster as rr
+
+        with mock.patch.object(rp, "AS_IS_NO_RETURNS_LINE", ""):
+            plain = rr.render_thermal_receipt(self.data)
+        said = rr.render_thermal_receipt(self.data)
+        self.assertEqual(rp.AS_IS_NO_RETURNS_LINE, "Items below are final sale and can't be returned.")
+        self.assertGreaterEqual(said.height - plain.height, 20)  # the line sits inside the SOLD AS IS frame
+
+    def test_odd_dates_still_draw(self):
+        from services import receipt_raster as rr
+
+        for day in ("2026-10-20", "2026-12-28", "2026-05-12", "2026-09-16"):  # wide weekday and month names
+            img = rr.render_thermal_receipt({**self.data, "date": day})
+            self.assertEqual(img.width, 576)
 
 
 class PictureTests(unittest.TestCase):

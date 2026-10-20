@@ -7,7 +7,8 @@ logo at the top and the same layout as the preview. ``format_receipt`` falls bac
 Layout (owner 2026-10-16, decided line by line in chat):
 - the logo, then the address and the hours (no phone);
 - one line: receipt number, date and time, cashier;
-- items in groups: a member's 3-DAY RETURN items under a black bar, then SOLD AS IS under a thin rule; a non-member's
+- items in groups: a member's 3-DAY RETURN items under a framed heading (then, 1.9.7, "Returns through Thu Oct 23 ·
+  80% of value as store credit"), then SOLD AS IS under a thin rule; a non-member's
   all under ALL SALES FINAL · SOLD AS IS. A THRIFTBUCKS column ("+9.60"; for a non-member, IF MEMBER) before PRICE;
 - Items total (when ThriftBucks paid part), ThriftBucks used, Subtotal, Tax, TOTAL; payment on one line;
 - one bold Google review line, then the black block: who, today's ThriftBucks, and the B12 line at normal size.
@@ -150,13 +151,28 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
             d.rectangle([l, t, r, b], outline=0, width=OUTLINE)
             d.rectangle([l + k, t + k, r - k, b - k], outline=0, width=1)
 
-    def band(text: str, size: int = 30) -> None:
-        """A heading bar: a double frame with heavy black type (never solid black, 1.9.6)."""
+    def band(text: str, size: int = 30, sub: tuple[str, ...] = ()) -> None:
+        """A heading bar: a double frame with heavy black type (never solid black, 1.9.6). ``sub``: lines set inside the
+        same frame under the heading (the returns line, owner 2026-10-20: "IN the returns header box, not under")."""
         nonlocal y
+        sub = tuple(s for s in sub if s)
         f = _heavy(size)
-        bar_h = h(f) + 2 * (OUTLINE + INNER_GAP) + 4
+        edge = OUTLINE + INNER_GAP
+        room = inner - 2 * (edge + 10)
+        line = "  ·  ".join(sub)
+        f_sub = fit(line, 22, True, room, smallest=19) if sub else None
+        rows = [line] if sub and w(line, f_sub) <= room else list(sub)
+        if sub and len(rows) > 1:
+            f_sub = _font(21, True)
+        sub_h = sum(h(f_sub) + 3 for _ in rows) + 4 if rows else 0
+        bar_h = h(f) + 2 * edge + 4 + sub_h
         frame((x0, y, x1, y + bar_h))
-        d.text((x0 + (inner - w(text, f)) / 2, y + (bar_h - h(f)) / 2 + 1), text, font=f, fill=0)
+        top = y + edge + 3
+        d.text((x0 + (inner - w(text, f)) / 2, top), text, font=f, fill=0)
+        ty = top + h(f) + 5
+        for row in rows:
+            d.text((x0 + (inner - w(row, f_sub)) / 2, ty), row, font=f_sub, fill=0)
+            ty += h(f_sub) + 3
         y += bar_h + 8
 
     training = rp._is_training(data)
@@ -236,19 +252,21 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
             returns = [it for it in items if rp._is_return_mark(it.get("mark"))]
             rest = [it for it in items if not rp._is_return_mark(it.get("mark"))]
             if returns:
-                band("3-DAY RETURN", size=24)
+                # The last day and what comes back, inside the heading's frame (release 4, owner 2026-10-20).
+                band("3-DAY RETURN", size=24, sub=tuple(rp._returns_parts(data) or ()))
                 col_heads()
                 for it in returns:
                     item_row(it)
             if rest:
                 if returns:
                     y += 8
-                band("SOLD AS IS", size=24)  # the same heading as 3-DAY RETURN (owner 2026-10-19)
+                # The same heading as 3-DAY RETURN (owner 2026-10-19), with no returns said inside it (10-20).
+                band("SOLD AS IS", size=24, sub=(rp.AS_IS_NO_RETURNS_LINE,))
                 col_heads()
                 for it in rest:
                     item_row(it)
         else:
-            band("ALL SALES FINAL · SOLD AS IS", size=24)
+            band("ALL SALES FINAL · SOLD AS IS", size=24, sub=(rp.AS_IS_NO_RETURNS_LINE,))
             col_heads()
             for it in items:
                 item_row(it)
