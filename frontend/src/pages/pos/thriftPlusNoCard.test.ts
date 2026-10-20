@@ -48,7 +48,7 @@ describe('No Thrift+ card in register or receipt words (owner 2026-10-14)', () =
   it("the terminal's Thrift+ words never say card; its payment-card words stay", () => {
     expect(cardHits('pages/pos/TerminalPage.tsx', /Thrift\+|member|re-ring|ThriftBucks/i)).toEqual([]);
     const terminal = readFileSync(join(SRC, 'pages/pos/TerminalPage.tsx'), 'utf8');
-    expect(terminal).toMatch(/Scan a SKU, CUS-XXXX or a Thrift\+ member QR/);
+    expect(terminal).toMatch(/Scan a SKU or a Thrift\+ member QR/);
   });
 
   it('the check catches a card in Thrift+ words and lets payment cards through', () => {

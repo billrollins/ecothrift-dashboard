@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { CHART_INITIAL_DIMENSION } from '../common/chartDefaults';
 import { dashboardPalette } from './dashboardCardStyles';
 import { formatDashboardCurrencyExact, shortDate } from './dashboardFormatters';
 import type { SalesChartRow, WeekBand } from './salesChartData';
@@ -68,7 +69,7 @@ export function SalesTrendChart({
   yAxisWidth = 44,
 }: SalesTrendChartProps) {
   return (
-    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50} initialDimension={CHART_INITIAL_DIMENSION}>
       <ComposedChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">

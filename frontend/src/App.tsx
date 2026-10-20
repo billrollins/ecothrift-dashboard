@@ -36,85 +36,89 @@ const MyOnboardingPage = lazy(() => import('./pages/people/MyOnboardingPage'));
 const PayrollDeductionsPage = lazy(() => import('./pages/people/PayrollDeductionsPage'));
 const CheckInsPage = lazy(() => import('./pages/people/CheckInsPage'));
 const MyCheckInsPage = lazy(() => import('./pages/people/MyCheckInsPage'));
-import FloorplanListPage from './pages/floorplan/FloorplanListPage';
+const FloorplanListPage = lazy(() => import('./pages/floorplan/FloorplanListPage'));
 
 // Pages
 import LoginPage from './pages/LoginPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import DashboardPage from './pages/DashboardPage';
-import RoutinesPage from './pages/routines/RoutinesPage';
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const RoutinesPage = lazy(() => import('./pages/routines/RoutinesPage'));
 import { PendingBstockLoginNotice } from './pages/routines/runners/PendingBstockLoginNotice';
-import TodayPage from './pages/routines/TodayPage';
-import TimePayrollPage from './pages/admin/TimePayrollPage';
-import EnhancementRequestsPage from './pages/admin/EnhancementRequestsPage';
-import IconsPage from './pages/admin/IconsPage';
-import AdminRoutinesPage from './pages/admin/routines/AdminRoutinesPage';
-import RetailQaPage from './pages/admin/retailqa/RetailQaPage';
-import ShiftsPage from './pages/admin/ShiftsPage';
-import DepartmentsPage from './pages/admin/departments/DepartmentsPage';
-import DepartmentDetailPage from './pages/admin/departments/DepartmentDetailPage';
-import VendorListPage from './pages/inventory/VendorListPage';
-import VendorDetailPage from './pages/inventory/VendorDetailPage';
-import OrderListPage from './pages/inventory/OrderListPage';
-import ReceivingEntryRedirect from './pages/inventory/ReceivingEntryRedirect';
-import ReceivingOrderPage from './pages/inventory/ReceivingOrderPage';
-import PreprocessingPage from './pages/inventory/PreprocessingPage';
-import ProcessingEntryRedirect from './pages/inventory/ProcessingEntryRedirect';
-import ProcessingWorkspacePage from './pages/inventory/processing/ProcessingWorkspacePage';
-import RestorationsPage from './pages/inventory/restorations/RestorationsPage';
-import InventorySearchPage, { LegacyWorkbenchRedirect } from './pages/inventory/InventorySearchPage';
-import ProductPage from './pages/inventory/ProductPage';
+const TodayPage = lazy(() => import('./pages/routines/TodayPage'));
+const TimePayrollPage = lazy(() => import('./pages/admin/TimePayrollPage'));
+const EnhancementRequestsPage = lazy(() => import('./pages/admin/EnhancementRequestsPage'));
+const IconsPage = lazy(() => import('./pages/admin/IconsPage'));
+const AdminRoutinesPage = lazy(() => import('./pages/admin/routines/AdminRoutinesPage'));
+const RetailQaPage = lazy(() => import('./pages/admin/retailqa/RetailQaPage'));
+const ShiftsPage = lazy(() => import('./pages/admin/ShiftsPage'));
+const DepartmentsPage = lazy(() => import('./pages/admin/departments/DepartmentsPage'));
+const DepartmentDetailPage = lazy(() => import('./pages/admin/departments/DepartmentDetailPage'));
+const VendorListPage = lazy(() => import('./pages/inventory/VendorListPage'));
+const VendorDetailPage = lazy(() => import('./pages/inventory/VendorDetailPage'));
+const OrderListPage = lazy(() => import('./pages/inventory/OrderListPage'));
+const ReceivingEntryRedirect = lazy(() => import('./pages/inventory/ReceivingEntryRedirect'));
+const ReceivingOrderPage = lazy(() => import('./pages/inventory/ReceivingOrderPage'));
+const PreprocessingPage = lazy(() => import('./pages/inventory/PreprocessingPage'));
+const ProcessingEntryRedirect = lazy(() => import('./pages/inventory/ProcessingEntryRedirect'));
+const ProcessingWorkspacePage = lazy(() => import('./pages/inventory/processing/ProcessingWorkspacePage'));
+const RestorationsPage = lazy(() => import('./pages/inventory/restorations/RestorationsPage'));
+const InventorySearchPage = lazy(() => import('./pages/inventory/InventorySearchPage'));
+const LegacyWorkbenchRedirect = lazy(() =>
+  import('./pages/inventory/InventorySearchPage').then((m) => ({ default: m.LegacyWorkbenchRedirect })),
+);
+const ProductPage = lazy(() => import('./pages/inventory/ProductPage'));
 import { inventoryWorkbenchUrl, legacyItemParamsToRichSearch } from './utils/richInventorySearch';
-import ItemListPage from './pages/inventory/ItemListPage';
-import ItemDetailPage from './pages/inventory/ItemDetailPage';
-import TerminalPage from './pages/pos/TerminalPage';
-import TestTerminalPage from './pages/pos/TestTerminalPage';
-import DrawerListPage from './pages/pos/DrawerListPage';
-import CashManagementPage from './pages/pos/CashManagementPage';
-import TransactionListPage from './pages/pos/TransactionListPage';
-import PosPrintablesPage from './pages/pos/PosPrintablesPage';
-import DeliveriesEntryRedirect, {
-  LegacyDeliveryDayRedirect,
-} from './pages/pos/deliveries/DeliveriesEntryRedirect';
-import DeliveryExperienceLayout from './pages/pos/deliveries/DeliveryExperienceLayout';
-import DeskDaysPage from './pages/pos/deliveries/desk/DeskDaysPage';
-import DeskDayDetailPage from './pages/pos/deliveries/desk/DeskDayDetailPage';
-import DeskTotalDeliveriesPage from './pages/pos/deliveries/desk/DeskTotalDeliveriesPage';
-import FieldDaysLandingPage from './pages/pos/deliveries/field/FieldDaysLandingPage';
-import FieldDayDetailPage from './pages/pos/deliveries/field/FieldDayDetailPage';
-import FieldTotalDeliveriesPage from './pages/pos/deliveries/field/FieldTotalDeliveriesPage';
-import PosStoreSetupPage from './pages/admin/PosStoreSetupPage';
-import ConsignmentAccountsPage from './pages/consignment/AccountsPage';
-import ConsigneeDetailPage from './pages/consignment/ConsigneeDetailPage';
-import ConsignmentItemsPage from './pages/consignment/ItemsPage';
-import ConsignmentPayoutsPage from './pages/consignment/PayoutsPage';
-import ConsigneeItemsPage from './pages/consignee/MyItemsPage';
-import ConsigneePayoutsPage from './pages/consignee/MyPayoutsPage';
-import ConsigneeSummaryPage from './pages/consignee/SummaryPage';
-import UsersPage from './pages/admin/users/UsersPage';
-import SettingsPage from './pages/admin/SettingsPage';
-import LabelStudioPage from './pages/admin/labelStudio/LabelStudioPage';
-import LabelDesignerPage from './pages/admin/labelStudio/LabelDesignerPage';
-import AuctionListPage from './pages/buying/AuctionListPage';
-import AuctionDetailPage from './pages/buying/AuctionDetailPage';
-import WatchlistPage from './pages/buying/WatchlistPage';
-import WishListPage from './pages/buying/WishListPage';
-import ReportCardsPage from './pages/buying/ReportCardsPage';
-import RequestsPage from './pages/admin/RequestsPage';
-import QAPage from './pages/admin/QAPage';
-import ThriftPlusPage from './pages/thriftplus/ThriftPlusPage';
-import ReportsPage from './pages/reports/ReportsPage';
-import PartsCommandCenterPage from './pages/restoration/parts/PartsCommandCenterPage';
-import RestorationQueuePage from './pages/restoration/queue/RestorationQueuePage';
-import RestorationBenchPage from './pages/restoration/RestorationBenchPage';
-import RestorationLayout from './pages/restoration/RestorationLayout';
-import TarsStudioRedirect from './pages/restoration/TarsStudioRedirect';
-import OnlineSalesListingsPage from './pages/online-sales/OnlineSalesListingsPage';
-import ListingStudioPage from './pages/online-sales/ListingStudioPage';
-import OnlineSalesHoldsPage from './pages/online-sales/OnlineSalesHoldsPage';
-import OnlineSalesMessagesPage from './pages/online-sales/OnlineSalesMessagesPage';
-import AnnouncementsPage from './pages/announcements/AnnouncementsPage';
+const ItemListPage = lazy(() => import('./pages/inventory/ItemListPage'));
+const ItemDetailPage = lazy(() => import('./pages/inventory/ItemDetailPage'));
+const TerminalPage = lazy(() => import('./pages/pos/TerminalPage'));
+const TestTerminalPage = lazy(() => import('./pages/pos/TestTerminalPage'));
+const DrawerListPage = lazy(() => import('./pages/pos/DrawerListPage'));
+const CashManagementPage = lazy(() => import('./pages/pos/CashManagementPage'));
+const TransactionListPage = lazy(() => import('./pages/pos/TransactionListPage'));
+const PosPrintablesPage = lazy(() => import('./pages/pos/PosPrintablesPage'));
+const DeliveriesEntryRedirect = lazy(() => import('./pages/pos/deliveries/DeliveriesEntryRedirect'));
+const LegacyDeliveryDayRedirect = lazy(() =>
+  import('./pages/pos/deliveries/DeliveriesEntryRedirect').then((m) => ({ default: m.LegacyDeliveryDayRedirect })),
+);
+const DeliveryExperienceLayout = lazy(() => import('./pages/pos/deliveries/DeliveryExperienceLayout'));
+const DeskDaysPage = lazy(() => import('./pages/pos/deliveries/desk/DeskDaysPage'));
+const DeskDayDetailPage = lazy(() => import('./pages/pos/deliveries/desk/DeskDayDetailPage'));
+const DeskTotalDeliveriesPage = lazy(() => import('./pages/pos/deliveries/desk/DeskTotalDeliveriesPage'));
+const FieldDaysLandingPage = lazy(() => import('./pages/pos/deliveries/field/FieldDaysLandingPage'));
+const FieldDayDetailPage = lazy(() => import('./pages/pos/deliveries/field/FieldDayDetailPage'));
+const FieldTotalDeliveriesPage = lazy(() => import('./pages/pos/deliveries/field/FieldTotalDeliveriesPage'));
+const PosStoreSetupPage = lazy(() => import('./pages/admin/PosStoreSetupPage'));
+const ConsignmentAccountsPage = lazy(() => import('./pages/consignment/AccountsPage'));
+const ConsigneeDetailPage = lazy(() => import('./pages/consignment/ConsigneeDetailPage'));
+const ConsignmentItemsPage = lazy(() => import('./pages/consignment/ItemsPage'));
+const ConsignmentPayoutsPage = lazy(() => import('./pages/consignment/PayoutsPage'));
+const ConsigneeItemsPage = lazy(() => import('./pages/consignee/MyItemsPage'));
+const ConsigneePayoutsPage = lazy(() => import('./pages/consignee/MyPayoutsPage'));
+const ConsigneeSummaryPage = lazy(() => import('./pages/consignee/SummaryPage'));
+const UsersPage = lazy(() => import('./pages/admin/users/UsersPage'));
+const SettingsPage = lazy(() => import('./pages/admin/SettingsPage'));
+const LabelStudioPage = lazy(() => import('./pages/admin/labelStudio/LabelStudioPage'));
+const LabelDesignerPage = lazy(() => import('./pages/admin/labelStudio/LabelDesignerPage'));
+const AuctionListPage = lazy(() => import('./pages/buying/AuctionListPage'));
+const AuctionDetailPage = lazy(() => import('./pages/buying/AuctionDetailPage'));
+const WatchlistPage = lazy(() => import('./pages/buying/WatchlistPage'));
+const WishListPage = lazy(() => import('./pages/buying/WishListPage'));
+const ReportCardsPage = lazy(() => import('./pages/buying/ReportCardsPage'));
+const RequestsPage = lazy(() => import('./pages/admin/RequestsPage'));
+const QAPage = lazy(() => import('./pages/admin/QAPage'));
+const ThriftPlusPage = lazy(() => import('./pages/thriftplus/ThriftPlusPage'));
+const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'));
+const PartsCommandCenterPage = lazy(() => import('./pages/restoration/parts/PartsCommandCenterPage'));
+const RestorationQueuePage = lazy(() => import('./pages/restoration/queue/RestorationQueuePage'));
+const RestorationBenchPage = lazy(() => import('./pages/restoration/RestorationBenchPage'));
+const RestorationLayout = lazy(() => import('./pages/restoration/RestorationLayout'));
+const TarsStudioRedirect = lazy(() => import('./pages/restoration/TarsStudioRedirect'));
+const OnlineSalesListingsPage = lazy(() => import('./pages/online-sales/OnlineSalesListingsPage'));
+const ListingStudioPage = lazy(() => import('./pages/online-sales/ListingStudioPage'));
+const OnlineSalesHoldsPage = lazy(() => import('./pages/online-sales/OnlineSalesHoldsPage'));
+const OnlineSalesMessagesPage = lazy(() => import('./pages/online-sales/OnlineSalesMessagesPage'));
+const AnnouncementsPage = lazy(() => import('./pages/announcements/AnnouncementsPage'));
 
 function ProtectedRoute({ children, next, version }: { children: React.ReactNode; next?: string; version?: boolean }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -194,7 +198,7 @@ function SuperAdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-export default function App() {
+function AppRoutes() {
   return (
     <Routes>
       {/* Public routes */}
@@ -215,7 +219,7 @@ export default function App() {
       <Route
         path="/scan"
         element={
-          <Suspense fallback={<LoadingScreen message="Loading…" />}>
+          <Suspense fallback={<LoadingScreen message="Loading…" version />}>
             <ThriftPlusScannerPage />
           </Suspense>
         }
@@ -765,5 +769,14 @@ export default function App() {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
+  );
+}
+
+export default function App() {
+  // Pages load on demand; this catches any route that suspends outside a layout's own Suspense.
+  return (
+    <Suspense fallback={<LoadingScreen message="Loading…" />}>
+      <AppRoutes />
+    </Suspense>
   );
 }

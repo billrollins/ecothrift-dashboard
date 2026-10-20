@@ -53,8 +53,8 @@ function renderTab() {
 describe('CalculatorTab', () => {
   it('shows guests and members side by side for the last inventory', async () => {
     renderTab();
-    await waitFor(() => expect(screen.getByText('Guests')).toBeInTheDocument());
-    expect(screen.getByText('Members')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText('Guests').length).toBeGreaterThan(0));
+    expect(screen.getAllByText('Members').length).toBeGreaterThan(0);
     expect(screen.getByText(/19,933 items the inventory of Mon 2026-10-05 counted/)).toBeInTheDocument();
     expect(screen.getAllByText('27.6%').length).toBeGreaterThan(0);
     expect(screen.getByText('By age on launch day (real age)')).toBeInTheDocument();

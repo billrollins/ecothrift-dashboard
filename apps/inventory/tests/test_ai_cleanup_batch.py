@@ -294,13 +294,13 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
         self.assertIn({'id': 'grok-test-9', 'name': 'Grok Test 9', 'provider': 'xai'}, models)
         self.assertIn(default, {m['id'] for m in models})
 
-    @override_settings(GOOGLE_API_KEY='google-test-key', AI_MODEL='gemini-3.1-flash-lite')
+    @override_settings(GOOGLE_API_KEY='google-test-key', AI_MODEL='gemini-3.5-flash-lite')
     def test_gemini_model_routes_to_google_provider(self):
-        """gemini-3.1-flash-lite is passed through llm_complete with the Google API key."""
+        """gemini-3.5-flash-lite is passed through llm_complete with the Google API key."""
         r1 = self._staging_row(1)
         with mock.patch(
             'apps.core.services.llm_router.llm_complete',
-            return_value=_llm_result([_suggestion(r1)], model_used='gemini-3.1-flash-lite'),
+            return_value=_llm_result([_suggestion(r1)], model_used='gemini-3.5-flash-lite'),
         ) as llm_call:
             resp = self.client.post(
                 f'/api/inventory/orders/{self.order.id}/ai-cleanup-batch/',
@@ -309,9 +309,9 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
             )
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertEqual(resp.data['rows_saved'], 1)
-        self.assertEqual(resp.data['model_used'], 'gemini-3.1-flash-lite')
+        self.assertEqual(resp.data['model_used'], 'gemini-3.5-flash-lite')
         llm_call.assert_called_once()
-        self.assertEqual(llm_call.call_args.kwargs['model_id'], 'gemini-3.1-flash-lite')
+        self.assertEqual(llm_call.call_args.kwargs['model_id'], 'gemini-3.5-flash-lite')
         self.assertEqual(llm_call.call_args.kwargs['api_key'], 'google-test-key')
         self.assertEqual(llm_call.call_args.kwargs['log_source'], 'ai_cleanup_batch')
 
@@ -320,7 +320,7 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
         """Gemini cleanup batches append ai_cleanup_batch lines via llm_complete logging."""
         r1 = self._staging_row(1)
         google_stub = lambda **kwargs: _llm_result(
-            [_suggestion(r1)], model_used='gemini-3.1-flash-lite',
+            [_suggestion(r1)], model_used='gemini-3.5-flash-lite',
         )
         with mock.patch.dict(
             'apps.core.services.llm_router._PROVIDER_CALLS',
@@ -329,14 +329,14 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
             with mock.patch('apps.core.services.ai_usage_log.log_ai_usage') as log_mock:
                 resp = self.client.post(
                     f'/api/inventory/orders/{self.order.id}/ai-cleanup-batch/',
-                    {'row_ids': [r1.id], 'model': 'gemini-3.1-flash-lite'},
+                    {'row_ids': [r1.id], 'model': 'gemini-3.5-flash-lite'},
                     format='json',
                 )
         self.assertEqual(resp.status_code, 200, resp.data)
         log_mock.assert_called_once()
         self.assertEqual(log_mock.call_args[0][0], 'ai_cleanup_batch')
-        self.assertEqual(log_mock.call_args[0][1], 'gemini-3.1-flash-lite')
-        self.assertIn('requested_model=gemini-3.1-flash-lite', log_mock.call_args.kwargs['detail'])
+        self.assertEqual(log_mock.call_args[0][1], 'gemini-3.5-flash-lite')
+        self.assertIn('requested_model=gemini-3.5-flash-lite', log_mock.call_args.kwargs['detail'])
 
     def test_cleanup_models_are_the_active_text_models_in_settings(self):
         from apps.core.ai_config import ai_model

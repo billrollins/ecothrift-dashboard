@@ -45,7 +45,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--customers',
             action='store_true',
-            help='Also delete Customer-group users and their CustomerProfile rows.',
+            help='Also delete Customer-group users (a linked Thrift+ person is kept, unlinked).',
         )
         parser.add_argument(
             '--force-production',

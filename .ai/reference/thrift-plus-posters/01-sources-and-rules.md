@@ -17,7 +17,7 @@
    - At least 3 variations of every creative in every collection, with real range.
    - No mistakes, and no AI-slop look: only professional results.
 5. **Older drafts, superseded wherever they differ:**
-   - The launch kit (`.ai/initiatives/thrift_plus_launch_kit.md`).
+   - The launch kit (`.ai/initiatives/_archived/thrift_plus_launch_kit.md`).
    - The warranty review (`.ai/extended/thrift-plus-limited-warranty.md`: 3 days and 95% there are old).
    - The main session's 10-08 sign drafts (`workspace/signs/`). These use gift card, Bank it +5% and 90%, all replaced by Form 5.
 

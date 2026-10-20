@@ -109,20 +109,20 @@ def _legacy_preview(params: dict) -> dict:
     from apps.thriftplus.services import one_account
 
     p = one_account.plan()
-    staff = '; '.join(p['staff_records_list']) or 'none'
+    staff = '; '.join(p['staff_in_group_list']) or 'none'
     return {
         'counts': {'Old customers': p['customer_logins'], 'Link to their member': p['link_existing'],
                    'New Needs Finalize members': p['make_memberships'], 'Customer passwords': p['customer_passwords'],
-                   'Old app passwords': p['app_passwords'], 'Staff customer records': p['staff_records']},
+                   'Old app passwords': p['app_passwords'], 'Staff in the Customer group': p['staff_in_group']},
         'changes': [
             f"Every old ecothrift.us customer becomes a member: {p['link_existing']:,} link to the member with the same "
             f"email, {p['make_memberships']:,} become new members at Needs Finalize. Their holds stay with them.",
             f"Removes {p['customer_passwords']:,} customer passwords and {p['app_passwords']:,} old Thrift+ app logins. "
             'Members sign in with an emailed link. Staff passwords are not touched.',
-            f"Removes the customer records on staff logins ({staff}). The staff logins stay.",
+            f"Takes staff logins out of the Customer group ({staff}). The staff logins stay.",
             'Safe to run again. Removed passwords are not kept.',
         ],
-        'sample': p['staff_records_list'][:20],
+        'sample': p['staff_in_group_list'][:20],
     }
 
 

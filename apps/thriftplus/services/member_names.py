@@ -3,10 +3,12 @@ Members: names and old logins (owner 2026-10-16), the one-time cleanup behind th
 
 "These should have no website accounts ... they should have a member account IF they have email verified, AND name."
 
-1. **Old logins with no verified email go.** An old ecothrift.us customer login whose email was never verified (its
-   customer record has no ``email_verified_at``), and the pending membership the 10-16 merge made for it, are deleted
+1. **Old logins with no verified email go.** An old ecothrift.us customer login whose member never verified the email
+   (``Person.email_verified_at`` is empty), and the pending membership the 10-16 merge made for it, are deleted
    the way Dash's Delete does (``delete_member.erase``: the login, its holds, orders and conversations). A membership
    that is active, or has any ThriftBucks or credit history, is never deleted here: only its names are fixed.
+   Since T62 (2026-10-20) the old customer record is gone, so a login with no member at all is left alone (nothing says
+   it was never verified).
 2. **Every name follows the one rule** (``apps.accounts.services.names``): "Customer" is never a last name; a full name
    in the first-name box is split; a single name gets "Member"; all lower case or ALL CAPS is capitalized. A member's
    login carries the member's name (one account).
@@ -29,10 +31,10 @@ def _staff_q() -> Q:
 
 
 def _old_logins():
-    """Old ecothrift.us customer logins: a customer record, not a staff login."""
+    """Old ecothrift.us customer logins: in the Customer group, not a staff login."""
     User = get_user_model()
     staff = User.objects.filter(_staff_q()).values('pk')
-    return User.objects.filter(customer__isnull=False).exclude(pk__in=staff).select_related('customer')
+    return User.objects.filter(groups__name__iexact='customer').exclude(pk__in=staff).distinct()
 
 
 def _keeps(account: Account | None) -> bool:
@@ -45,10 +47,10 @@ def _keeps(account: Account | None) -> bool:
 def _unverified():
     """(login, its membership or None) for each old login with no verified email whose membership is not real."""
     out = []
-    for user in _old_logins().filter(customer__email_verified_at__isnull=True):
+    for user in _old_logins().filter(thrift_plus_person__isnull=False, thrift_plus_person__email_verified_at__isnull=True):
         person = Person.objects.select_related('account').filter(user=user).first()
         account = person.account if person else None
-        if account is not None and _keeps(account):
+        if account is None or _keeps(account):
             continue
         if account is not None and account.people.exclude(user=user).exclude(user__isnull=True).exists():
             continue  # someone else's login is on that membership: leave it to Dash

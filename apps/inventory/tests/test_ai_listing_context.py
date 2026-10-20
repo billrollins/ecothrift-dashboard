@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.inventory.models import Item, Product
+from apps.inventory.models import Category, Item, Product
 from apps.inventory.services.ai_listing_context import retrieve_listing_examples_for_prompt
 
 
@@ -14,7 +14,7 @@ class RetrieveListingExamplesTests(TestCase):
         product = Product.objects.create(
             title='Old Spice Captain Body Wash',
             brand='Old Spice',
-            category='Health & Beauty',
+            category=Category.objects.get_or_create(name='Health & Beauty')[0],
         )
         Item.objects.create(
             product=product,

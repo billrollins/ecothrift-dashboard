@@ -203,7 +203,7 @@ export function CardTypeFixDialog({ open, cart, onClose, onUpdated }: Props) {
             lineHeight: 1.25,
           }}
         >
-          {recordedLabel} — card charged {money(recordedCharged)}
+          {recordedLabel} - card charged {money(recordedCharged)}
           {currentIsCredit && recordedSurcharge > 0 ? ` (+${money(recordedSurcharge)})` : ''}
         </Typography>
         <Typography

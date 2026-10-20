@@ -1,9 +1,9 @@
-<!-- Last updated: 2026-10-07 (owners' meeting held; new Thrift+ build items for 10-09 to 10-12) -->
+<!-- Last updated: 2026-10-16 (owner: Thrift+ launched Fri 10-16, four days early) -->
 # Calendar
 
 Claude's clock. **Every session:** compare today's date with this table, say plainly whether we are on track or behind, and update the Status column. Dates are America/Chicago.
 
-- **Thrift+ launch:** **Tue 2026-10-20**. **Last project day: Thu 2026-10-15.** Every goal is set to finish by then; 10-16 to 10-19 is room for issues.
+- **Thrift+ launch:** **launched Fri 2026-10-16** (owner, 10-16: "Thrift+ launches today"; planned for Tue 10-20). The switch is on. The ThriftBucks engine's saved launch date is still 10-20, so every run until then computes 10-20 (members see launch-day ThriftBucks now; growth resumes after 10-20).
 - **Owner's days:** Mon–Thu. Saturday is his at-home physical projects, and Sunday is off. Ships and anything that needs him (approvals, reviews, dry runs, training) go on Mon–Thu. Claude builds on any day.
 - **Thrift+ ships go out dark:** behind a Thrift+ switch that stays off until launch, each one passing the full pre-ship run (POS included). POS must never break.
 - **Parallel threads:** ad hoc projects (such as the scanner mock) run in other Claude sessions and push to production themselves. This thread fetches and merges `origin/main` before every push.
@@ -36,7 +36,8 @@ Claude's clock. **Every session:** compare today's date with this table, say pla
 | 10-14 | Wed | Fixes. Final full pre-ship run. Launch checklist | v2.110.x | |
 | 10-15 | Thu | **Last project day.** Everything done; the switch is ready | | |
 | 10-16 → 10-19 | | Room for issues. Print cards and posters | | |
-| 10-20 | Tue | **LAUNCH: the Thrift+ switch goes on** | | |
+| 10-16 | Fri | **LAUNCH (moved up by the owner): the Thrift+ switch is on.** Facebook post 1 built (`workspace/social/`) | | **Launched.** Production at ~9 AM CT: 82% of floor items have ThriftBucks (29,107 of 35,382), 51,373 ThriftBucks on the floor |
+| 10-20 | Tue | Was the launch day. The engine's saved launch date (its jump start) | | |
 | 10-21 → 10-28 | | Launch fixes. data_platform Phase 3: QA framework (data quality first) | | built early (09-25); GREEN (R-079 + R-080) |
 | 10-29 | Thu | **Ship** data_platform Phase 3 (QA framework and inbox) | || shipped early in v2.110.0 (09-28, owner packed it together) |
 | 11-02 → 11-11 | | data_platform Phase 4: the Analytical layer (local warehouse, point-in-time tables, misfits, inventory reconstruction) | | built early (09-28), local only; `lean_test.py warehouse` GREEN. Left: shrink (needs floor counts), score push-back (with Phase 5) |

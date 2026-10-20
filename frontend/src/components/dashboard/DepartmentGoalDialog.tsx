@@ -46,18 +46,18 @@ export function retailGoalBand(raw?: string | null): string {
   return (RETAIL_GOAL_LETTERS as readonly string[]).includes(letter) ? letter : 'B';
 }
 const GRADE_SCALE = [
-  { letter: 'A+', gpa: '4.0', range: '97–100%' },
-  { letter: 'A', gpa: '4.0', range: '93–96%' },
-  { letter: 'A-', gpa: '3.7', range: '90–92%' },
-  { letter: 'B+', gpa: '3.3', range: '87–89%' },
-  { letter: 'B', gpa: '3.0', range: '83–86%' },
-  { letter: 'B-', gpa: '2.7', range: '80–82%' },
-  { letter: 'C+', gpa: '2.3', range: '77–79%' },
-  { letter: 'C', gpa: '2.0', range: '73–76%' },
-  { letter: 'C-', gpa: '1.7', range: '70–72%' },
-  { letter: 'D+', gpa: '1.3', range: '67–69%' },
-  { letter: 'D', gpa: '1.0', range: '65–66%' },
-  { letter: 'D-', gpa: '0.7', range: '60–64%' },
+  { letter: 'A+', gpa: '4.0', range: '97-100%' },
+  { letter: 'A', gpa: '4.0', range: '93-96%' },
+  { letter: 'A-', gpa: '3.7', range: '90-92%' },
+  { letter: 'B+', gpa: '3.3', range: '87-89%' },
+  { letter: 'B', gpa: '3.0', range: '83-86%' },
+  { letter: 'B-', gpa: '2.7', range: '80-82%' },
+  { letter: 'C+', gpa: '2.3', range: '77-79%' },
+  { letter: 'C', gpa: '2.0', range: '73-76%' },
+  { letter: 'C-', gpa: '1.7', range: '70-72%' },
+  { letter: 'D+', gpa: '1.3', range: '67-69%' },
+  { letter: 'D', gpa: '1.0', range: '65-66%' },
+  { letter: 'D-', gpa: '0.7', range: '60-64%' },
   { letter: 'F', gpa: '0.0', range: 'Below 60%' },
 ] as const;
 

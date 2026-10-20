@@ -1,8 +1,10 @@
+import { Suspense } from 'react';
 import { AppBar, Box, Button, Toolbar } from '@mui/material';
 import Logout from '@mui/icons-material/Logout';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../contexts/AuthContext';
+import { LoadingScreen } from '../feedback/LoadingScreen';
 import logoImg from '../../assets/logo-full-360x120.png';
 
 const navItems = [
@@ -91,7 +93,9 @@ export function ConsigneeLayout() {
           mx: 'auto',
         }}
       >
-        <Outlet />
+        <Suspense fallback={<LoadingScreen message="Loading…" />}>
+          <Outlet />
+        </Suspense>
       </Box>
     </Box>
   );

@@ -104,7 +104,7 @@ function TaskState({ task }: { task: OnboardingTask }) {
     const extra = task.kind === 'count' && task.data.count ? ` (${task.data.count}${task.data.size ? `, ${task.data.size}` : ''})` : '';
     return (
       <Typography variant="caption" sx={{ color: ccTokens.goodText }}>
-        Done{extra} · {task.done_by || '—'}
+        Done{extra} · {task.done_by || '-'}
         {task.done_at ? `, ${shortDate(task.done_at)}` : ''}
       </Typography>
     );

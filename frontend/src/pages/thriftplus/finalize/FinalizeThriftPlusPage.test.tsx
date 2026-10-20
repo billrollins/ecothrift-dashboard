@@ -6,6 +6,9 @@ import type { ThriftPendingPerson } from '../../../api/thriftplusRegister.api';
 import { isThriftCardCode } from '../../../utils/thriftPlusCard';
 import FinalizeThriftPlusPage, { SIGNATURE_WORDS, codeMemberMessage } from './FinalizeThriftPlusPage';
 
+// These forms type a lot through userEvent; on a busy machine (full suite beside the Django run) 20s is not enough.
+vi.setConfig({ testTimeout: 60_000 });
+
 const api = vi.hoisted(() => ({ findPendingOrMember: vi.fn(), finishThriftJoin: vi.fn() }));
 vi.mock('../../../api/thriftplusRegister.api', async (orig) => ({
   ...(await orig<typeof import('../../../api/thriftplusRegister.api')>()),

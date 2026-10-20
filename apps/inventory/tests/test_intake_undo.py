@@ -40,7 +40,7 @@ class IntakeUndoTests(TestCase):
         PreprocessingRow.objects.create(
             purchase_order=self.order,
             row_number=1,
-            standard_description='S1',
+            standard_brand='S1',
             ai_title='A1',
             final_title='F1',
             unit_retail=Decimal('5.00'),
@@ -49,7 +49,7 @@ class IntakeUndoTests(TestCase):
         PreprocessingRow.objects.create(
             purchase_order=self.order,
             row_number=2,
-            standard_description='S2',
+            standard_brand='S2',
         )
         self.order.preprocess_status = 'finalized'
         self.order.standardized_at = self.order.updated_at
@@ -88,14 +88,14 @@ class IntakeUndoTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='spine',
+            title='spine',
         )
         PreprocessingRow.objects.create(
             purchase_order=self.order,
             row_number=1,
             manifest_row=mr,
             raw_row={'SKU': 'ABC'},
-            standard_description='S1',
+            standard_brand='S1',
             ai_title='A1',
         )
         self.order.preprocess_status = 'standardized'
@@ -113,7 +113,7 @@ class IntakeUndoTests(TestCase):
 
         r = PreprocessingRow.objects.get(purchase_order=self.order, row_number=1)
         self.assertEqual(r.raw_row, {'SKU': 'ABC'})
-        self.assertEqual(r.standard_description, '')
+        self.assertEqual(r.standard_brand, '')
         self.assertEqual(r.ai_title, '')
         self.assertIsNone(r.manifest_row_id)
 
@@ -123,7 +123,7 @@ class IntakeUndoTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='spine',
+            title='spine',
         )
         Item.objects.create(
             purchase_order=self.order,
@@ -142,7 +142,7 @@ class IntakeUndoTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='bk',
+            title='bk',
         )
         prev = compute_undo_preview(self.order, 'standardize')
         self.assertFalse(prev['safe'])
@@ -156,7 +156,7 @@ class IntakeUndoTests(TestCase):
         self.order.refresh_from_db()
         self.assertEqual(self.order.preprocess_status, 'not_started')
         r = PreprocessingRow.objects.get(purchase_order=self.order, row_number=1)
-        self.assertEqual(r.standard_description, '')
+        self.assertEqual(r.standard_brand, '')
         self.assertEqual(r.ai_title, '')
         self.assertIsNone(r.final_title)
         self.assertIsNone(r.proposed_price)
@@ -166,13 +166,13 @@ class IntakeUndoTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='spine',
+            title='spine',
         )
         PreprocessingRow.objects.create(
             purchase_order=self.order,
             row_number=1,
             manifest_row=mr,
-            standard_description='S1',
+            standard_brand='S1',
             ai_title='A1',
             final_title='F1',
         )
@@ -191,7 +191,7 @@ class IntakeUndoTests(TestCase):
 
         r = PreprocessingRow.objects.get(purchase_order=self.order, row_number=1)
         self.assertEqual(r.ai_title, '')
-        self.assertEqual(r.standard_description, 'S1')
+        self.assertEqual(r.standard_brand, 'S1')
         self.assertIsNone(r.final_title)
 
     def test_finalize_allowed_with_spine(self):
@@ -199,20 +199,20 @@ class IntakeUndoTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='spine',
+            title='spine',
         )
         PreprocessingRow.objects.create(
             purchase_order=self.order,
             row_number=1,
             manifest_row=mr,
-            standard_description='S1',
+            standard_brand='S1',
             final_title='F1',
         )
         ProcessingRow.objects.create(
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='bk',
+            title='bk',
         )
         self.order.preprocess_status = 'finalized'
         self.order.finalized_at = self.order.updated_at
@@ -238,7 +238,7 @@ class IntakeUndoTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='bk',
+            title='bk',
         )
         Item.objects.create(
             purchase_order=self.order,
@@ -256,7 +256,7 @@ class IntakeUndoTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='bk',
+            title='bk',
         )
         prev = compute_undo_preview(self.order, 'finalize')
         self.assertTrue(prev['safe'])
@@ -274,20 +274,20 @@ class IntakeUndoTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='spine',
+            title='spine',
         )
         PreprocessingRow.objects.create(
             purchase_order=self.order,
             row_number=1,
             manifest_row=mr,
-            standard_description='S1',
+            standard_brand='S1',
             final_title='F1',
         )
         ProcessingRow.objects.create(
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='bk',
+            title='bk',
             manifest_row=mr,
         )
         self.order.preprocess_status = 'finalized'
@@ -321,7 +321,7 @@ class IntakeUndoTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='bk',
+            title='bk',
         )
         ItemCheckIn.objects.create(
             purchase_order=self.order,

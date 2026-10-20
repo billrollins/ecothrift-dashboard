@@ -175,7 +175,7 @@ export function formatCardWeight(
   weight?: number | null,
   excluded?: boolean,
 ): string {
-  if (excluded) return `${name} —`;
+  if (excluded) return `${name} -`;
   if (weight == null) return name;
   const shown = Number.isInteger(weight) ? String(weight) : String(weight);
   return `${name} · ${shown}%`;
@@ -509,7 +509,7 @@ export function DepartmentRetailDayDialog({
                 >
                   {data.goal_letter
                     ? `Goal ${data.goal_letter} · ${data.goal_met ? 'met' : 'not met'}`
-                    : 'Goal —'}
+                    : 'Goal -'}
                 </Typography>
               </Box>
             </Box>

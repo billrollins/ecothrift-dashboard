@@ -101,8 +101,8 @@ export interface StaffMemberRow {
   role: string;
   membership: (StaffMoney & { id: number; status: ThriftPlusAccount['status']; name: string; email: string }) | null;
   suggestions: StaffSuggestion[];
-  /** Their website customer account (owner 2026-10-15: every staff login is a website customer too), or none yet. */
-  website?: { customer_number: string } | null;
+  /** Always null: staff are not website customers (owner 2026-10-16), and the customer record is retired (T62). */
+  website?: null;
   /** Customer logins (another email) that may be theirs: "Merge a customer login…". */
   login_suggestions?: LoginCandidate[];
 }

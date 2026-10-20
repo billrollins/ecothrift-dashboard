@@ -14,6 +14,7 @@ export interface PosAddItemErrorBody {
 export type PosAddItemErrorKind =
   | 'not_found'
   | 'already_sold'
+  | 'already_in_cart'
   | 'item_on_hold'
   | 'sku_required'
   | 'network'
@@ -65,6 +66,17 @@ export function parsePosAddItemError(err: unknown): ParsedPosAddItemError {
       title,
     };
   }
+  if (code === 'ITEM_ALREADY_IN_CART') {
+    return {
+      kind: 'already_in_cart',
+      message:
+        detail ??
+        'This item is already on the sale and there is no other unit of it on the shelf. Ask a lead if you are holding a second one.',
+      itemId,
+      sku,
+      title,
+    };
+  }
   if (code === 'ITEM_ON_HOLD') {
     return {
       kind: 'item_on_hold',
@@ -105,6 +117,12 @@ export function parsePosAddItemError(err: unknown): ParsedPosAddItemError {
 export function snackbarVariantForPosAddItemError(
   kind: PosAddItemErrorKind,
 ): 'warning' | 'error' | 'info' {
-  if (kind === 'already_sold' || kind === 'sku_required' || kind === 'item_on_hold') return 'warning';
+  if (
+    kind === 'already_sold' ||
+    kind === 'already_in_cart' ||
+    kind === 'sku_required' ||
+    kind === 'item_on_hold'
+  )
+    return 'warning';
   return 'error';
 }

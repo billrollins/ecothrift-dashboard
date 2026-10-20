@@ -5,7 +5,7 @@ from django.core import mail
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from apps.accounts.models import CustomerProfile, MagicLinkToken, User
+from apps.accounts.models import MagicLinkToken, User
 from apps.accounts.services.magic_link import consume_magic_link
 
 
@@ -24,7 +24,6 @@ class NoCustomerPasswordTests(TestCase):
     def _customer(self, email='shop@example.com', password='old-secret-1'):
         user = User.objects.create_user(email=email, first_name='Shop', last_name='Per', password=password)
         user.groups.add(Group.objects.get(name='Customer'))
-        CustomerProfile.objects.create(user=user, customer_number=CustomerProfile.generate_customer_number())
         return user
 
     def test_register_takes_no_password_and_lookup_never_offers_one(self):

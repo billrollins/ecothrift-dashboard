@@ -8,7 +8,7 @@ import { ccTokens } from '../../theme';
 import { AiHelpBar } from './AiHelpBar';
 
 /**
- * A role's interview questions (owner 2026-10-12): the scorecard asks each one with 1–5 stars and a note. Add, edit,
+ * A role's interview questions (owner 2026-10-12): the scorecard asks each one with 1-5 stars and a note. Add, edit,
  * reorder and delete one at a time, or have AI review the whole list and accept its changes all at once or one by
  * one. A question keeps its key when its words change, so earlier scorecards stay linked. Nothing saves until Save.
  */
@@ -118,7 +118,7 @@ export function InterviewQuestionsEditor({
     <Box data-testid="interview-questions">
       <Typography fontWeight={700}>Interview questions</Typography>
       <Typography variant="body2" sx={{ color: ccTokens.ink2, mb: 1 }}>
-        The scorecard asks these, in this order, each with 1–5 stars and a note.
+        The scorecard asks these, in this order, each with 1-5 stars and a note.
       </Typography>
       <Stack spacing={1}>
         {value.map((q, i) => (

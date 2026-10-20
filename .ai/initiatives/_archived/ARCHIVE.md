@@ -12,6 +12,7 @@ Every archived initiative, in one flat folder (**`.ai/initiatives/_archived/<slu
 
 | File | Disposition | Summary | Archived |
 |------|-------------|---------|----------|
+| [thrift_plus_launch_kit.md](./thrift_plus_launch_kit.md) | completed | Thrift+ launch kit: signage, receipts, training, the launch to-do. Launched 10-16; owner closed the checklist 10-20. | 2026-10-20 |
 | [ai_settings_floorplan.md](./ai_settings_floorplan.md) | completed | Settings > AI and floorplan Build SVG / Adjust with AI. Merged into main 2026-09-23; ships with the unreleased B-Stock release. Env unset waits until after Heroku runs `core/0006`. | 2026-09-23 |
 | [time_kiosk.md](./time_kiosk.md) | completed | Time kiosk: hosted `/kiosk`, public `/clock`, badge cards, clock-in gate, miss reasons. Shipped GitHub and Heroku **v2.96.0**. | 2026-09-22 |
 | [departments_admin.md](./departments_admin.md) | completed | Departments directory + hub, slug cutover, two-tier writes. Shipped GitHub **v2.95.0**; Heroku with **v2.96.0**. | 2026-09-22 |

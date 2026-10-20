@@ -30,11 +30,8 @@ def _user(email, group='Employee', first='Sam', last='Staff', **extra):
     return user
 
 
-def _customer(email, first='Bill', last='Rollins', number=None, **extra):
-    user = _user(email, 'Customer', first=first, last=last, **extra)
-    CustomerProfile.objects.create(user=user, customer_number=number or CustomerProfile.generate_customer_number(),
-                                   notes='Likes lamps')
-    return user
+def _customer(email, first='Bill', last='Rollins', **extra):
+    return _user(email, 'Customer', first=first, last=last, **extra)
 
 
 def _listing():
@@ -46,7 +43,7 @@ class LoginMergeTests(TestCase):
     def setUp(self):
         self.owner = User.objects.create_superuser('owner@ecothrift.us', 'Olive', 'Owner', password=PASSWORD)
         self.bill = _user('bill_rollins@ecothrift.us', 'Admin', first='Bill', last='Rollins', phone='(402) 555-0199')
-        self.outlook = _customer('bill_rollins.rf@outlook.com', phone='402-555-0199', number='CUS-002')
+        self.outlook = _customer('bill_rollins.rf@outlook.com', phone='402-555-0199')
         self.listing = _listing()
         self.thread = Conversation.objects.create(listing=self.listing, customer=self.outlook, guest_name='Bill',
                                                   guest_email='bill_rollins.rf@outlook.com')
@@ -62,10 +59,10 @@ class LoginMergeTests(TestCase):
         found = login_merge.suggestions(self.bill)
         self.assertEqual([r['user_id'] for r in found], [self.outlook.pk])
         self.assertEqual(found[0]['why'], ['same email name', 'same phone', 'same name'])
-        self.assertEqual(found[0]['customer_number'], 'CUS-002')
+        self.assertNotIn('customer_number', found[0])  # the old customer number is gone (T62)
         # Never a staff login, the staff member themself, or a switched-off login.
         _user('bill_rollins.2@ecothrift.us', 'Employee', first='Bill', last='Rollins')
-        gone = _customer('bill_rollins.old@gmail.com', number='CUS-090')
+        gone = _customer('bill_rollins.old@gmail.com')
         gone.is_active = False
         gone.save()
         self.assertEqual([r['user_id'] for r in login_merge.suggestions(self.bill)], [self.outlook.pk])
@@ -81,7 +78,7 @@ class LoginMergeTests(TestCase):
     def test_preview_says_what_will_move_and_changes_nothing(self):
         p = login_merge.preview(self.outlook, self.bill)
         self.assertEqual(p['source']['email'], 'bill_rollins.rf@outlook.com')
-        self.assertEqual(p['profile'], {'action': 'drop', 'customer_number': 'CUS-002'})  # staff are not customers
+        self.assertNotIn('profile', p)  # the customer record is retired (T62)
         self.assertEqual(p['moves']['conversations'], 1)
         self.assertEqual(p['moves']['messages'], 1)
         self.assertEqual(p['moves']['holds'], 1)
@@ -92,7 +89,7 @@ class LoginMergeTests(TestCase):
 
     # ── Merge ──
 
-    def test_the_profile_moves_when_the_staff_login_has_none(self):
+    def test_the_merge_ends_the_customer_login_and_moves_its_rows(self):
         outstanding = RefreshToken.for_user(self.outlook)
         link = issue_magic_link(email='bill_rollins.rf@outlook.com')
         guest = Conversation.objects.create(listing=self.listing, guest_name='Bill', guest_email='BILL_ROLLINS.rf@outlook.com')
@@ -101,9 +98,8 @@ class LoginMergeTests(TestCase):
         guest.refresh_from_db()
         self.assertEqual((guest.customer_id, guest.guest_email), (self.bill.pk, 'bill_rollins@ecothrift.us'))
         self.assertEqual(result['moved']['website threads by email'], 1)
-        # Owner 2026-10-16: staff are not customers, so the customer record is dropped, never moved to the staff login.
-        self.assertEqual(result['profile'], 'dropped')
-        self.assertFalse(CustomerProfile.objects.filter(user__in=[self.bill, self.outlook]).exists())
+        # Owner 2026-10-16: staff are not customers, so the staff login never joins the Customer group.
+        self.assertNotIn('profile', result)
         self.assertFalse(self.bill.groups.filter(name='Customer').exists())
         self.assertEqual(User.objects.get(pk=self.bill.pk).role, 'Admin')
         # The conversation and its message moved to the staff login.
@@ -138,12 +134,14 @@ class LoginMergeTests(TestCase):
         threads = api.get('/api/webstore/my/conversations/')
         self.assertEqual(threads.status_code, 200)
 
-    def test_a_staff_record_left_from_10_15_is_never_given_the_customer_one(self):
+    def test_the_retired_customer_records_are_left_alone(self):
+        """T62: nothing reads or writes CustomerProfile, so a merge neither moves nor deletes its rows."""
         CustomerProfile.objects.create(user=self.bill, customer_number='CUS-010', notes='Staff')
+        CustomerProfile.objects.create(user=self.outlook, customer_number='CUS-002', notes='Likes lamps')
         result = merge_customer_login(self.outlook, self.bill, actor=self.owner)
-        self.assertEqual(result['profile'], 'dropped')
-        self.assertFalse(CustomerProfile.objects.filter(user=self.outlook).exists())
-        self.assertEqual(CustomerProfile.objects.get(user=self.bill).notes, 'Staff')  # the staff-customers request removes it
+        self.assertNotIn('customer_number', result)
+        self.assertEqual(CustomerProfile.objects.get(user=self.bill).notes, 'Staff')
+        self.assertEqual(CustomerProfile.objects.get(user=self.outlook).customer_number, 'CUS-002')
 
     def test_a_thriftplus_membership_with_the_outlook_email_merges_into_the_staff_one(self):
         source = members.create_account(first_name='Bill', last_name='Rollins', phone='4025550199',
@@ -185,7 +183,7 @@ class LoginMergeTests(TestCase):
     def test_refusals_change_nothing(self):
         clerk = _user('clerk@ecothrift.us', 'Employee')
         consignee = _user('con@example.com', 'Consignee')
-        shopper = _customer('shopper@example.com', first='Sue', last='Shopper', number='CUS-050')
+        shopper = _customer('shopper@example.com', first='Sue', last='Shopper')
         cases = [
             (self.bill, self.bill, 'That is the staff login itself.'),
             (clerk, self.bill, 'clerk@ecothrift.us is a staff login. Only a customer login merges into a staff login.'),
@@ -239,7 +237,6 @@ class LoginMergeApiTests(TestCase):
         r = api.post(API + 'merge/', {'staff_user': self.bill.pk, 'source_user': self.outlook.pk}, format='json')
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(r.json()['source_email_was'], 'bill_rollins.rf@outlook.com')
-        self.assertFalse(CustomerProfile.objects.filter(user=self.bill).exists())  # staff are not customers (2026-10-16)
         again = api.post(API + 'merge/', {'staff_user': self.bill.pk, 'source_user': self.outlook.pk}, format='json')
         self.assertEqual(again.status_code, 400)
 
@@ -275,6 +272,6 @@ class StaffTabListTests(TestCase):
         done = self.api.post('/api/thriftplus/staff-memberships/create-missing/').json()
         self.assertEqual((done['customers_made'], done['made'], done['missing_any']), (0, 3, 0))
         self.assertTrue(all(r['membership'] for r in done['staff']))
-        self.assertFalse(CustomerProfile.objects.exclude(user=self.outlook).exists())  # no staff customer record
+        self.assertFalse(CustomerProfile.objects.exists())  # nothing writes the retired customer record
         self.assertFalse(Account.objects.filter(staff_user=self.outlook).exists())
-        self.assertEqual(CustomerProfile.objects.filter(user=self.outlook).count(), 1)  # the customer is left alone
+        self.assertTrue(User.objects.get(pk=self.outlook.pk).is_active)  # the customer is left alone

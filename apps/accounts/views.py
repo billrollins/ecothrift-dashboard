@@ -23,7 +23,8 @@ from .serializers import (
 from .capabilities import capabilities_for_user, catalog_as_dicts
 from .permissions import IsAdmin, IsManagerOrAdmin, IsSuperAdmin
 
-from .models import AccountEvent, CustomerProfile
+from .models import AccountEvent
+from .services import idle
 
 User = get_user_model()
 
@@ -149,6 +150,7 @@ def login_view(request):
     # This view mints its own JWT rather than calling django.contrib.auth.login,
     # so the user_logged_in signal never fires and nothing else stamps this.
     update_last_login(None, user)
+    idle.stamp(user, force=True)
 
     refresh = RefreshToken.for_user(user)
     user_data = UserSerializer(user).data
@@ -189,6 +191,21 @@ def refresh_view(request):
         )
     try:
         refresh = RefreshToken(refresh_token)
+        user = User.objects.filter(pk=refresh.get('user_id')).first()
+        device_kind = request.META.get(idle.DEVICE_HEADER)
+        if user is not None and idle.is_idle(user, device_kind):
+            # D16: no activity for too long. The cookie is spent so this session cannot be revived.
+            try:
+                refresh.blacklist()
+            except Exception:
+                pass
+            response = Response(
+                {'detail': idle.message(idle.idle_hours(device_kind)), 'code': 'IDLE'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+            return _clear_refresh_cookie(response)
+        if user is not None:
+            idle.stamp(user, force=True)
         new_access = str(refresh.access_token)
         response = Response({'access': new_access})
         return _set_refresh_cookie(response, _renewed_refresh(refresh))
@@ -239,7 +256,7 @@ def me_view(request):
     """Return current user data with profiles. PATCH accepts language."""
     user = (
         User.objects.prefetch_related('groups')
-        .select_related('employee', 'consignee', 'customer')
+        .select_related('employee', 'consignee')
         .get(pk=request.user.pk)
     )
     if request.method == 'PATCH':
@@ -250,7 +267,7 @@ def me_view(request):
         user.save(update_fields=['language', 'updated_at'])
         user = (
             User.objects.prefetch_related('groups')
-            .select_related('employee', 'consignee', 'customer')
+            .select_related('employee', 'consignee')
             .get(pk=request.user.pk)
         )
     serializer = UserSerializer(user)
@@ -401,7 +418,7 @@ class UserViewSet(viewsets.ModelViewSet):
     User management (Admin/Manager only).
     Supports list, create, retrieve, update.
     """
-    queryset = User.objects.select_related('employee', 'consignee', 'customer').all()
+    queryset = User.objects.select_related('employee', 'consignee').all()
     permission_classes = [IsAuthenticated, IsAdmin]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ['email', 'first_name', 'last_name']
@@ -608,104 +625,130 @@ class UserViewSet(viewsets.ModelViewSet):
 # ── Customer CRUD ViewSet ─────────────────────────────────────────────────────
 
 class CustomerSerializer(serializers.Serializer):
-    """Flat serializer for customer list/detail."""
-    id = serializers.IntegerField(source='user.id', read_only=True)
-    email = serializers.EmailField(source='user.email')
-    first_name = serializers.CharField(source='user.first_name')
-    last_name = serializers.CharField(source='user.last_name')
-    phone = serializers.CharField(source='user.phone', required=False, default='', allow_blank=True)
-    full_name = serializers.CharField(source='user.full_name', read_only=True)
-    customer_number = serializers.CharField(read_only=True)
-    customer_since = serializers.DateField(read_only=True)
+    """Flat serializer for customer list/detail. The instance is the customer's website login (a ``User``); the rest of
+    what the old customer record held comes from their Thrift+ person (T62, ``one_account.customer_facts``)."""
+    id = serializers.IntegerField(source='pk', read_only=True)
+    email = serializers.EmailField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    phone = serializers.CharField(required=False, default='', allow_blank=True)
+    full_name = serializers.CharField(read_only=True)
+    # The member code ("7166 7172 0440"), blank until they have one. The old CUS-nnn number is gone.
+    customer_number = serializers.SerializerMethodField()
+    customer_since = serializers.SerializerMethodField()
     notes = serializers.CharField(required=False, default='', allow_blank=True)
-    is_active = serializers.BooleanField(source='user.is_active', required=False)
-    email_verified = serializers.BooleanField(read_only=True)
-    # Annotated on the list queryset; absent on a freshly created profile.
+    is_active = serializers.BooleanField(required=False)
+    email_verified = serializers.SerializerMethodField()
+    # Annotated on the list queryset; absent on a freshly created login.
     holds_count = serializers.IntegerField(read_only=True, default=0)
     last_hold_at = serializers.DateTimeField(read_only=True, required=False, allow_null=True)
 
+    def _facts(self, user) -> dict:
+        from apps.thriftplus.services.one_account import customer_facts
+
+        cache = self.context.setdefault('_facts', {})
+        if user.pk not in cache:
+            cache[user.pk] = customer_facts(user)
+        return cache[user.pk]
+
+    def get_customer_number(self, user):
+        return self._facts(user)['number']
+
+    def get_customer_since(self, user):
+        return self._facts(user)['since']
+
+    def get_email_verified(self, user):
+        return self._facts(user)['email_verified']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['notes'] = self._facts(instance)['notes']
+        return data
+
     def create(self, validated_data):
         from django.contrib.auth.models import Group
+        from django.utils import timezone
 
-        user_data = validated_data.pop('user', {})
+        from apps.thriftplus.services import one_account
+
+        notes = validated_data.get('notes', '')
+        if notes.strip() and not (validated_data.get('first_name') or '').strip():
+            raise ValidationError({'notes': 'Add a first name before saving a note (the note lives on their member).'})
         user = User.objects.create_user(
-            email=user_data['email'],
-            first_name=user_data.get('first_name', ''),
-            last_name=user_data.get('last_name', ''),
-            phone=user_data.get('phone', ''),
+            email=validated_data['email'],
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', ''),
+            phone=validated_data.get('phone', ''),
             password=None,  # Optional; magic-link sign-in is the default path
             is_active=True,
             is_staff=False,
         )
         group, _ = Group.objects.get_or_create(name='Customer')
         user.groups.add(group)
-        profile = CustomerProfile.objects.create(
-            user=user,
-            customer_number=CustomerProfile.generate_customer_number(),
-            notes=validated_data.get('notes', ''),
-        )
-        return profile
+        # One customer system (T62): a named customer is a Thrift+ person (pending: "finish at a register").
+        # An address typed in Dash is trusted, as for a staff-made member.
+        person = one_account.person_for_user(user)
+        if person is not None and person.email_verified_at is None:
+            person.email_verified_at = timezone.now()
+            person.save(update_fields=['email_verified_at', 'updated_at'])
+        if notes.strip():
+            one_account.save_customer_notes(user, notes)
+        return user
 
     def update(self, instance, validated_data):
         from apps.accounts.services.staff_customer import is_staff_login
+        from apps.thriftplus.services import one_account
 
-        user_data = validated_data.pop('user', {})
-        user = instance.user
+        user = instance
         if is_staff_login(user):
             # Staff are website customers too (owner 2026-10-15), but a staff login's email, name, phone and on/off
             # are changed in People (Admin only), never from a customer record a manager can edit.
             changed = [a for a in ('email', 'first_name', 'last_name', 'phone', 'is_active')
-                       if a in user_data and user_data[a] != getattr(user, a)]
+                       if a in validated_data and validated_data[a] != getattr(user, a)]
             if changed:
                 raise ValidationError({'detail': 'This is a staff login. Change its email, name, phone or on/off in '
                                                  'People, not here.'})
-            user_data = {}
+            validated_data = {k: v for k, v in validated_data.items() if k == 'notes'}
         for attr in ('email', 'first_name', 'last_name', 'phone', 'is_active'):
-            if attr in user_data:
-                setattr(user, attr, user_data[attr])
+            if attr in validated_data:
+                setattr(user, attr, validated_data[attr])
         user.save()
         if 'notes' in validated_data:
-            instance.notes = validated_data['notes']
-            instance.save(update_fields=['notes'])
-        return instance
+            try:
+                one_account.save_customer_notes(user, validated_data['notes'])
+            except ValueError as exc:
+                raise ValidationError({'notes': str(exc)})
+        return user
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
     """
     Customer management (Admin/Manager).
-    Each customer is a User + CustomerProfile.
-    URL pk is the User id (matches the flat serializer `id`).
+    Each customer is a website login (a non-staff ``User`` in the Customer group) with its Thrift+ person; the old
+    ``CustomerProfile`` is retired (T62). The URL pk is the User id.
     """
     serializer_class = CustomerSerializer
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
     filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = [
-        'user__first_name', 'user__last_name', 'user__email',
-        'user__phone', 'customer_number',
-    ]
-    ordering = ['customer_number']
-    # Serializer exposes user.id; keep URL pk aligned with that.
-    lookup_field = 'user_id'
-    lookup_url_kwarg = 'pk'
+    search_fields = ['first_name', 'last_name', 'email', 'phone']
+    ordering = ['-date_joined']
 
     def get_queryset(self):
         from django.db.models import Count, IntegerField, OuterRef, Subquery, Value
         from django.db.models.functions import Coalesce
+        from apps.thriftplus.services.one_account import _customer_users
         from apps.webstore.models import Reservation
 
-        from apps.accounts.services.staff_customer import staff_login_q
-
         # Owner 2026-10-16: staff are not customers; a staff login never shows here.
-        staff = CustomerProfile.objects.filter(staff_login_q('user__')).values('pk')
-        qs = CustomerProfile.objects.select_related('user').exclude(pk__in=staff)
+        qs = _customer_users()
         active = self.request.query_params.get('is_active')
         if active in ('0', 'false', 'False'):
-            qs = qs.filter(user__is_active=False)
+            qs = qs.filter(is_active=False)
         elif active in ('1', 'true', 'True'):
-            qs = qs.filter(user__is_active=True)
+            qs = qs.filter(is_active=True)
 
         # Holds carry an email, not a customer FK, so the rows join by address.
-        holds = Reservation.objects.filter(email__iexact=OuterRef('user__email'))
+        holds = Reservation.objects.filter(email__iexact=OuterRef('email'))
         # Group on a constant: grouping on email would split rows that differ
         # only in case, and iexact has already folded those together.
         counted = holds.order_by().annotate(g=Value(1)).values('g').annotate(n=Count('pk'))
@@ -718,40 +761,38 @@ class CustomerViewSet(viewsets.ModelViewSet):
         )
 
     @staticmethod
-    def _staff_login_refusal(profile, detail: str):
+    def _staff_login_refusal(user, detail: str):
         """A staff login (a website customer too since 2026-10-15) is never switched off, reset or sent an emailed
-        sign-in from a customer record: Dash's People page handles staff. None when ``profile`` is a customer's."""
+        sign-in from a customer record: Dash's People page handles staff. None when ``user`` is a customer's."""
         from apps.accounts.services.staff_customer import is_staff_login
 
-        if is_staff_login(profile.user):
+        if is_staff_login(user):
             return Response({'detail': f'This is a staff login. {detail}', 'code': 'STAFF_LOGIN'},
                             status=status.HTTP_400_BAD_REQUEST)
         return None
 
     def destroy(self, request, *args, **kwargs):
         """Soft-deactivate instead of hard-deleting account history."""
-        profile = self.get_object()
-        refusal = self._staff_login_refusal(profile, 'Switch it off in People, not here.')
+        user = self.get_object()
+        refusal = self._staff_login_refusal(user, 'Switch it off in People, not here.')
         if refusal is not None:
             return refusal
-        user = profile.user
         if not user.is_active:
-            return Response(CustomerSerializer(profile).data)
+            return Response(CustomerSerializer(user).data)
         user.is_active = False
         user.save(update_fields=['is_active'])
-        return Response(CustomerSerializer(profile).data)
+        return Response(CustomerSerializer(user).data)
 
     @action(detail=True, methods=['post'], url_path='reactivate')
     def reactivate(self, request, pk=None):
-        profile = self.get_object()
-        refusal = self._staff_login_refusal(profile, 'Switch it on in People, not here.')
+        user = self.get_object()
+        refusal = self._staff_login_refusal(user, 'Switch it on in People, not here.')
         if refusal is not None:
             return refusal
-        user = profile.user
         if not user.is_active:
             user.is_active = True
             user.save(update_fields=['is_active'])
-        return Response(CustomerSerializer(profile).data)
+        return Response(CustomerSerializer(user).data)
 
     @action(detail=True, methods=['post'], url_path='send-sign-in-link')
     def send_sign_in_link(self, request, pk=None):
@@ -760,18 +801,18 @@ class CustomerViewSet(viewsets.ModelViewSet):
         from apps.accounts.services.magic_link import issue_magic_link
         from apps.webstore.emails import send_sign_in_link
 
-        profile = self.get_object()
+        user = self.get_object()
         refusal = self._staff_login_refusal(
-            profile, 'Staff sign in with their Dash password (People can send a Set password link).')
+            user, 'Staff sign in with their Dash password (People can send a Set password link).')
         if refusal is not None:
             return refusal
-        email = (profile.user.email or '').strip()
+        email = (user.email or '').strip()
         if not email:
             return Response(
                 {'detail': 'This customer has no email address.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if not profile.user.is_active:
+        if not user.is_active:
             return Response(
                 {'detail': 'Reactivate the customer before sending a sign-in link.'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -799,8 +840,8 @@ class CustomerViewSet(viewsets.ModelViewSet):
         """Everything this person has done with us, for the detail drawer."""
         from apps.accounts.services.stats import customer_rollup
 
-        profile = self.get_object()
-        return Response(customer_rollup(profile))
+        user = self.get_object()
+        return Response(customer_rollup(user))
 
     @action(detail=True, methods=['post'], url_path='send-password-reset-link')
     def send_password_reset_link_action(self, request, pk=None):
@@ -810,17 +851,17 @@ class CustomerViewSet(viewsets.ModelViewSet):
         from apps.accounts.services.magic_link import issue_magic_link
         from apps.webstore.emails import send_sign_in_link
 
-        profile = self.get_object()
-        refusal = self._staff_login_refusal(profile, 'Reset its password in People, not here.')
+        user = self.get_object()
+        refusal = self._staff_login_refusal(user, 'Reset its password in People, not here.')
         if refusal is not None:
             return refusal
-        email = (profile.user.email or '').strip()
+        email = (user.email or '').strip()
         if not email:
             return Response(
                 {'detail': 'This customer has no email address.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if not profile.user.is_active:
+        if not user.is_active:
             return Response(
                 {'detail': 'Reactivate the customer before sending a sign-in link.'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -835,20 +876,6 @@ class CustomerViewSet(viewsets.ModelViewSet):
             return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
         send_sign_in_link(email=token_row.email, magic_link=_public_verify_link(token_row.token))
         return Response({'detail': 'Sign-in link sent.'})
-
-    @action(detail=False, methods=['get'], url_path='lookup/(?P<customer_number>[^/.]+)')
-    def lookup(self, request, customer_number=None):
-        """Lookup a customer by customer_number (for POS scan)."""
-        try:
-            profile = CustomerProfile.objects.select_related('user').get(
-                customer_number=customer_number,
-            )
-            return Response(CustomerSerializer(profile).data)
-        except CustomerProfile.DoesNotExist:
-            return Response(
-                {'detail': 'Customer not found.'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
 
 
 def _accounts_disabled_response():
@@ -950,7 +977,7 @@ def magic_link_consume_view(request):
 
     user = (
         User.objects.prefetch_related('groups')
-        .select_related('employee', 'consignee', 'customer')
+        .select_related('employee', 'consignee')
         .get(pk=result.user.pk)
     )
     if one_account.switched_off(user):

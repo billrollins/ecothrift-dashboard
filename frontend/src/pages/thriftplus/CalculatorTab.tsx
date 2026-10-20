@@ -36,6 +36,7 @@ import { format, parseISO } from 'date-fns';
 import { useEffect, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { CHART_INITIAL_DIMENSION } from '../../components/common/chartDefaults';
 import { fetchApprovalRequests } from '../../api/approvalRequests.api';
 import { fetchCalculator, fetchEngine, saveEngine } from '../../api/thriftplus.api';
 import { useAuth } from '../../hooks/useAuth';
@@ -408,7 +409,7 @@ export default function CalculatorTab() {
                 <Typography sx={{ fontWeight: 800 }}>Average % of retail paid, by day after launch</Typography>
                 <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>If nothing sold: the same stock, day by day.</Typography>
                 <Box sx={{ height: 260 }}>
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" initialDimension={CHART_INITIAL_DIMENSION}>
                     <LineChart data={chart} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
                       <CartesianGrid stroke={GRID} vertical={false} />
                       <XAxis dataKey="day" tickFormatter={(d: number) => (d ? `+${d}` : 'Launch')} tick={{ fontSize: 12 }} />

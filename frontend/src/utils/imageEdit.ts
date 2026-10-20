@@ -7,7 +7,7 @@ export type PixelCrop = {
   height: number;
 };
 
-/** Crop rectangle as percent of the current image (0–100). */
+/** Crop rectangle as percent of the current image (0-100). */
 export type PctRect = {
   x: number;
   y: number;

@@ -37,6 +37,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { CHART_INITIAL_DIMENSION } from '../../../components/common/chartDefaults';
 import {
   apiMessage,
   downloadShrinkCsv,
@@ -278,7 +279,7 @@ function BreakdownPanel({ countId, onOpen }: { countId: number; onOpen: (title: 
       {rows && (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.2fr) minmax(0, 1fr)' }, gap: 2 }}>
           <Box sx={{ height: pie ? 380 : upright ? 340 : Math.max(260, chartRows.length * (effectiveShow === 'both' ? 34 : 26) + 60), minWidth: 0 }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" initialDimension={CHART_INITIAL_DIMENSION}>
               {pie ? (
                 <PieChart>
                   <Pie
@@ -400,7 +401,7 @@ function HistogramCard({ hist, edges }: { hist: PriceHistogram; edges: number[] 
         {total.toLocaleString()} items with a retail ({hist.no_retail[side].toLocaleString()} have none). Dashed lines: the buckets used in the breakdown. {hist.max}% means {hist.max}% or more.
       </Typography>
       <Box sx={{ height: 260 }}>
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" initialDimension={CHART_INITIAL_DIMENSION}>
           <BarChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 8 }} barCategoryGap={0.5}>
             <CartesianGrid stroke={GRID} vertical={false} />
             <XAxis dataKey="pct" tick={{ fontSize: 11, fill: INK2 }} ticks={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]} tickFormatter={(v) => `${v}%`} />

@@ -180,7 +180,7 @@ describe('Finish joining', () => {
     await user.clear(screen.getByLabelText('Phone number (optional)'));
     await user.type(screen.getByLabelText('Phone number (optional)'), '402 555 0123');
     await user.click(next);
-    expect(screen.getByTestId('thrift-finish-readback')).toHaveTextContent('(402) 555-0123 — read it back to them');
+    expect(screen.getByTestId('thrift-finish-readback')).toHaveTextContent('(402) 555-0123 - read it back to them');
     await user.click(screen.getByRole('button', { name: 'Change it' }));
     expect(screen.getByLabelText('Phone number (optional)')).toHaveValue('402 555 0123');
     await user.click(screen.getByRole('button', { name: 'Next' }));

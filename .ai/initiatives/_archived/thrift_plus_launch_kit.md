@@ -1,13 +1,15 @@
 <!-- Last updated: 2026-10-07 (owners' meeting decisions; working page is now a simple to-do) -->
 # Thrift+ launch kit (drafts for the owner)
 
-**Retired pages (2026-10-09):** the launch kit and rulebook pages below were deleted at the owner's word; their last copies are in [`../reference/retired-pages/`](../reference/retired-pages/README.md). Every rule now lives only in [`../extended/thrift-plus-decisions.md`](../extended/thrift-plus-decisions.md).
+**Closed 2026-10-20 (owner: "we are done with all of that. It is deployed").** Thrift+ launched 10-16. The open boxes below are history, not to-dos. Rules live only in [`thrift-plus-decisions.md`](../../extended/thrift-plus-decisions.md).
+
+**Retired pages (2026-10-09):** the launch kit and rulebook pages below were deleted at the owner's word; their last copies are in [`../reference/retired-pages/`](../../reference/retired-pages/README.md). Every rule now lives only in [`../extended/thrift-plus-decisions.md`](../../extended/thrift-plus-decisions.md).
 
 **Working page (2026-10-07):** https://claude.ai/artifact/WzPhon6EJvA2S7XLk8M3oZ is now one simple to-do in six groups: Decisions, Dash, Creatives, Printing and ordering, Training, Research. The owner ticks items, picks options on decisions and writes notes there. Everything lives in the page's database collection `todos` (fields `title`, `detail`, `cat`, `who`, `due`, `status` todo/doing/done, `note`, and on decisions `options` and `choice`). Read and write it with the `ArtifactData` tool; read the notes and choices at the start of each Thrift+ session. The old collections `tasks`, `questions` and `drafts` are kept but no longer shown. This file keeps the draft text as the source.
 
-**Rules live in one place (2026-10-08):** the Thrift+ rulebook, [`../extended/thrift-plus-decisions.md`](../extended/thrift-plus-decisions.md), decided on its page https://claude.ai/artifact/GpgB6SUsKkiKkNBRJj31W4. The dated decision notes below are history; where they differ, the rulebook wins. The launch kit page keeps tasks only.
+**Rules live in one place (2026-10-08):** the Thrift+ rulebook, [`../extended/thrift-plus-decisions.md`](../../extended/thrift-plus-decisions.md), decided on its page https://claude.ai/artifact/GpgB6SUsKkiKkNBRJj31W4. The dated decision notes below are history; where they differ, the rulebook wins. The launch kit page keeps tasks only.
 
-Phase 5 of [`thrift_plus_rewards`](./thrift_plus_rewards.md). Claude drafts; the owner approves. Print and train 10-09 to 10-15; launch Tue 10-20.
+Phase 5 of [`thrift_plus_rewards`](../thrift_plus_rewards.md). Claude drafts; the owner approves. Print and train 10-09 to 10-15; launch Tue 10-20.
 
 ## Owner's answers on the launch kit page (2026-10-08)
 
@@ -77,7 +79,7 @@ These replace anything older below. The drafts in sections 1 to 4 still use the 
 
 ### Poster C: Returns (members only)
 
-> **Superseded 2026-10-01.** The owner chose defect-only returns done as a labeled **Thrift+ Limited Warranty**. Use the poster, receipt and AS IS sign text in [`extended/thrift-plus-limited-warranty.md`](../extended/thrift-plus-limited-warranty.md). The draft below is kept for history only.
+> **Superseded 2026-10-01.** The owner chose defect-only returns done as a labeled **Thrift+ Limited Warranty**. Use the poster, receipt and AS IS sign text in [`extended/thrift-plus-limited-warranty.md`](../../extended/thrift-plus-limited-warranty.md). The draft below is kept for history only.
 
 - **Headline:** If it doesn't work, bring it back.
 - **Sub:** Thrift+ members can return an item whose main job doesn't work, within 3 days, for store credit.

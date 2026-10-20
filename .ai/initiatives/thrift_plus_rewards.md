@@ -306,7 +306,7 @@ The POS handles members:
 - ~~The phone screens for the reset link (`/scan?reset=`), login setup and the portal.~~ **Built 2026-09-30** (the main session took over the retired `thrift_scanner` thread): the scanner now runs on the real API, `AccountScreens.tsx` has the new-password page, My account and the sign-in setup. Found and fixed a server bug on the way (`me/card-lost/` and `me/remove-person/` answered 405 after acting). In the scanner worktree, uncommitted; ships with the next release.
 - AI short titles: the card uses `ProductProfile.short_name`, else the title, cut at a word.
 
-### Phase 5 — Launch readiness · drafts started (09-25): [`thrift_plus_launch_kit.md`](./thrift_plus_launch_kit.md) · **ship Mon 10-12 (v2.110.0), fixes through Wed 10-14; launch Tue 10-20**
+### Phase 5 — Launch readiness · drafts started (09-25): [`thrift_plus_launch_kit.md`](./_archived/thrift_plus_launch_kit.md) · **ship Mon 10-12 (v2.110.0), fixes through Wed 10-14; launch Tue 10-20**
 - Signage, receipt copy, the staff training guide and marketing copy (Claude drafts, the owner approves).
 - An in-store dry run with the switch on for staff.
 - The launch checklist.
@@ -359,7 +359,7 @@ The POS handles members:
 ### 2026-10-07 — Owners' meeting
 - **Decided:** "Member Price Always" for the discount. Banking buys a gift card refill with your savings, plus a 5% bonus. Nothing expires and there are no fees. Limited Warranty is 7 days: a qualifying defect gets about 90% back as a gift card. A card works only after a photo, the required info, an ID check and a signature. Receipts wait until nearer testing, with many variations.
 - **Voice:** what you get now and "it might be gone tomorrow"; never wait, less or pay.
-- **Details and open items:** [`thrift_plus_launch_kit.md`](./thrift_plus_launch_kit.md) § Owners' meeting decisions. The launch to-do (one page, six groups) is the artifact's `todos` collection.
+- **Details and open items:** [`thrift_plus_launch_kit.md`](./_archived/thrift_plus_launch_kit.md) § Owners' meeting decisions. The launch to-do (one page, six groups) is the artifact's `todos` collection.
 
 ### 2026-10-08 — Text consent at sign-up (standards T59, brought forward)
 - **Why now:** one Twilio registration (Thrift+ account texts, store news, job applicants) goes in the day the EcoThrift LLC profile is approved; its opt-in description must be true on review day (master, 10-07).

@@ -22,7 +22,7 @@ export function isThriftCardCode(code: string): boolean {
 }
 
 /**
- * The card code in a scan, or null when the scan is something else (a SKU, CUS-…).
+ * The card code in a scan, or null when the scan is something else (a SKU).
  * - A `TP` scan is always a card.
  * - Bare digits count only when Thrift+ is live at this register, so SKUs and codes keep working
  *   as before while it is dark.

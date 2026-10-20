@@ -9,6 +9,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import CustomerProfile, User
+from apps.thriftplus.models import Person
 from apps.webstore.models import HoldConfirmation, Reservation, WebListing
 from apps.webstore.services.hold_confirmations import (
     MAX_ATTEMPTS,
@@ -77,7 +78,8 @@ class HoldConfirmationTests(TestCase):
         expected = confirmed_expiry()
         self.assertEqual(hold.expires_at, expected)
         user = User.objects.get(email='cust@example.com')
-        self.assertIsNotNone(CustomerProfile.objects.get(user=user).email_verified_at)
+        self.assertIsNotNone(Person.objects.get(user=user).email_verified_at)  # T62: it lives on the Thrift+ person
+        self.assertFalse(CustomerProfile.objects.exists())
 
     def test_mismatch_increments_attempts_before_compare(self):
         hold = self._pending(email='miss@example.com')

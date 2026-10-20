@@ -7,7 +7,8 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from apps.accounts.models import CustomerProfile, EmployeeProfile, MagicLinkToken, User
+from apps.accounts.models import EmployeeProfile, MagicLinkToken, User
+from apps.thriftplus.models import Account, Person
 from apps.accounts.services.staff_password import (
     consume_staff_reset, issue_staff_reset, staff_reset_link,
 )
@@ -152,9 +153,6 @@ class AdminSendResetTests(APITestCase):
 
     def test_customer_reset_action_sends_a_sign_in_link(self):  # customers have no password (owner 2026-10-16)
         shopper = _shopper('ada@example.com')
-        CustomerProfile.objects.create(
-            user=shopper, customer_number=CustomerProfile.generate_customer_number(),
-        )
 
         resp = self.client.post(
             f'/api/accounts/customers/{shopper.id}/send-password-reset-link/',
@@ -181,11 +179,11 @@ class StatsEndpointTests(APITestCase):
             hire_date=timezone.localdate(),
         )
 
+        # One customer system (T62): "email confirmed" is on the customer's Thrift+ person.
         shopper = _shopper('stats-shopper@example.com')
-        CustomerProfile.objects.create(
-            user=shopper,
-            customer_number=CustomerProfile.generate_customer_number(),
-            email_verified_at=timezone.now(),
+        Person.objects.create(
+            account=Account.objects.create(status=Account.STATUS_PENDING), first_name='Ada', last_name='Shopper',
+            email='stats-shopper@example.com', user=shopper, email_verified_at=timezone.now(),
         )
 
         self.client.force_authenticate(self.admin)
@@ -208,3 +206,16 @@ class StatsEndpointTests(APITestCase):
         self.assertEqual(resp.data['verified_pct'], 100)
         self.assertEqual(resp.data['new_this_month'], 1)
         self.assertEqual(resp.data['holds_this_month'], 0)
+
+    def test_customer_stats_counts_an_unconfirmed_person_and_a_login_with_no_person(self):
+        other = _shopper('stats-unconfirmed@example.com')
+        Person.objects.create(
+            account=Account.objects.create(status=Account.STATUS_PENDING), first_name='Una', last_name='Sure',
+            email='stats-unconfirmed@example.com', user=other,
+        )
+        nameless = _shopper('stats-nameless@example.com')  # no person: counted once it has signed in
+        nameless.last_login = timezone.now()
+        nameless.save(update_fields=['last_login'])
+        _shopper('stats-never@example.com')
+        resp = self.client.get('/api/accounts/customers/stats/')
+        self.assertEqual((resp.data['total'], resp.data['active'], resp.data['verified']), (4, 4, 2))

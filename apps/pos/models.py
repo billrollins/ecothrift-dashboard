@@ -209,6 +209,8 @@ class Cart(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
         related_name='carts',
     )
+    # Retired (T62, 2026-10-20): the old "scan CUS-nnn" customer. Nothing sets it any more; the customer on a sale is
+    # the Thrift+ member (``thriftplus.CartMember``). Old rows keep their value; a later release drops the column.
     customer = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='purchases',

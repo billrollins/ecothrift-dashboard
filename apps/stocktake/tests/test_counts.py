@@ -772,7 +772,7 @@ class InventoriesTests(Base):
 
         from apps.inventory.models import PurchaseOrder, Vendor
 
-        vendor = Vendor.objects.create(name='Target', code='TRGET')
+        vendor, _ = Vendor.objects.get_or_create(code='TRGET', defaults={'name': 'Target'})  # a migration seeds Target
         self.po = PurchaseOrder.objects.create(
             vendor=vendor, order_number='PO-1', ordered_date=datetime.date(2026, 9, 1), total_cost=Decimal('20.00'),
         )

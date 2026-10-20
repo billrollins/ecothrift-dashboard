@@ -9,7 +9,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.inventory.models import Item, ManifestRow, Product, PurchaseOrder, Vendor
+from apps.inventory.models import Category, Item, ManifestRow, Product, PurchaseOrder, Vendor
 
 
 class InventoryCategoryViewTests(TestCase):
@@ -39,7 +39,7 @@ class InventoryCategoryViewTests(TestCase):
         product = Product.objects.create(
             title='Product Category Item',
             brand='Generic',
-            category='Toys & Games',
+            category=Category.objects.get_or_create(name='Toys & Games')[0],
         )
         Item.objects.create(
             product=product,
@@ -52,7 +52,6 @@ class InventoryCategoryViewTests(TestCase):
             purchase_order=self.po,
             row_number=1,
             quantity=1,
-            description='Manifest Category Item',
             title='Manifest Category Item',
             brand='Generic',
             category='Health & Beauty',
@@ -85,7 +84,7 @@ class InventoryCategoryViewTests(TestCase):
         product = Product.objects.create(
             title='Stats Product Category',
             brand='Generic',
-            category='Toys & Games',
+            category=Category.objects.get_or_create(name='Toys & Games')[0],
         )
         Item.objects.create(
             product=product,
@@ -97,7 +96,6 @@ class InventoryCategoryViewTests(TestCase):
             purchase_order=self.po,
             row_number=2,
             quantity=1,
-            description='Stats Manifest Category',
             title='Stats Manifest Category',
             brand='Generic',
             category='Toys & Games',

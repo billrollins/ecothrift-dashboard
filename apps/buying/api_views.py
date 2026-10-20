@@ -89,7 +89,10 @@ from apps.buying.services.decision import need_level
 from apps.buying.services.wishlist import build_wishlist, buying_strip
 from apps.buying.services.won_to_po import WonToPoError, calibration, mark_lost, mark_won
 from apps.inventory.models import Product
-from apps.buying.services.manifest_upload import process_manifest_upload
+from apps.buying.services.manifest_upload import (
+    process_manifest_upload,
+    purge_orphan_ai_mappings,
+)
 from apps.buying.services.valuation import (
     load_category_stats_dict,
     recompute_active_auctions_lightweight,
@@ -557,16 +560,18 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['delete'], url_path='manifest')
     def manifest(self, request, pk=None):
-        """Delete all manifest rows for this auction; keep templates and CategoryMappings."""
-        # TODO: If a CSV was uploaded to the wrong marketplace (e.g., Target CSV on a
-        # Costco auction), AI-created CategoryMappings with the wrong prefix persist
-        # after manifest removal. Consider adding purge_ai_mappings option or admin
-        # tooling to review/delete AI-origin mappings by marketplace prefix.
+        """
+        Delete all manifest rows for this auction; keep templates and seeded/manual CategoryMappings.
+
+        AI mappings this manifest created (and no other manifest's rows use) go too, so a CSV
+        from the wrong marketplace leaves no wrong-prefix mapping behind.
+        """
         auction = self.get_object()
         with transaction.atomic():
             # Same lock the background manifest pull takes before saving, held until the
             # auction's fields match: a pull cannot slip rows in between.
             Auction.objects.select_for_update().filter(pk=auction.pk).first()
+            purge_orphan_ai_mappings(auction)
             auction.manifest_rows.all().delete()
             auction.has_manifest = False
             auction.manifest_category_distribution = None

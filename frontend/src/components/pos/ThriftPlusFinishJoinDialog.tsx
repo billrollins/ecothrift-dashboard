@@ -243,7 +243,7 @@ export default function ThriftPlusFinishJoinDialog({
         {!training && step === 'readback' ? (
           <Box data-testid="thrift-finish-readback">
             <Typography variant="h5" fontWeight={800} sx={{ my: 1 }}>
-              {`${phoneReadBack(digits)} — read it back to them`}
+              {`${phoneReadBack(digits)} - read it back to them`}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Their phone finds them at the register from now on.

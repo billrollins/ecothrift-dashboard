@@ -1101,9 +1101,13 @@ class MemberDirectoryViewSet(viewsets.ViewSet):
                     if f in d:
                         setattr(user, f, str(d[f]).strip())
                 user.save()
-                if 'notes' in d and getattr(user, 'customer', None):
-                    user.customer.notes = str(d['notes'])
-                    user.customer.save(update_fields=['notes'])
+                if 'notes' in d:  # the note lives on their membership (one customer system, T62): made pending if none
+                    from apps.thriftplus.services import one_account
+
+                    try:
+                        one_account.save_customer_notes(user, str(d['notes']))
+                    except ValueError as exc:
+                        raise MemberError(str(exc))
         except MemberError as exc:
             return _error(exc)
         return Response(self._row(pk))

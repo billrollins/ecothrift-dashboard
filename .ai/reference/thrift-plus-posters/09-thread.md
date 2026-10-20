@@ -91,7 +91,7 @@ Started. Rebuilt F-P1 as it stands (OK) and showing the owner the 10-14 pass now
 
 - **The owner's goals (10-12):** simpler; no cover tile (use the space); Add / Remove buttons back; the bigger number is the real reward (the ThriftBucks kept); poster 2's hero moment.
 
-- **Known gaps (launch hub, `.ai/reference/thrift-plus-launch-hub.md`):**
+- **Known gaps (launch hub, `.ai/reference/retired-pages/thrift-plus-launch-hub.md`):**
   - "Nothing owed, ever." (the "free" line is still open with the owner);
   - old cover / "bank" popups in `Explainers.tsx`;
   - "All you need to know": 5 lines in the app vs 6 on the terms page (no Guests line; "the Default" missing);

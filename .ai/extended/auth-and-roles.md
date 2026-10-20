@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-16 (customers: no passwords, one account with Thrift+) -->
+<!-- Last updated: 2026-10-20 (T62: CustomerProfile retired; a customer is a login in the Customer group plus a Thrift+ person) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -13,14 +13,15 @@
 2. **Refresh** (`POST /api/auth/refresh/`)
    - No body; refresh token sent via cookie
    - Returns: `{ access: "<new_jwt>" }`
-   - With `ROTATE_REFRESH_TOKENS`: new refresh token set in cookie; old one blacklisted
+   - The refresh token renews while it is used (a fresh 7 days once the old one is a day old; J19, v2.186.0), so an active sign-in keeps going; an idle one ends sooner (below)
+   - **Idle sign-out (D16, T69):** a staff login with no activity past its limit is refused: `401 { code: "IDLE", detail: "Signed out after 4 hours idle." }`, cookie cleared, token blacklisted
 
 3. **Logout** (`POST /api/auth/logout/`)
    - Blacklists refresh token, clears cookie
    - Frontend clears in-memory access token
 
 4. **Me** (`GET /api/auth/me/`) — requires auth
-   - Returns current user with nested profiles (employee, consignee, customer)
+   - Returns current user with nested profiles (employee, consignee). The old `customer` profile is gone (T62).
 
 5. **Change Password** (`POST /api/auth/change-password/`) — requires auth
    - Body: `{ old_password, new_password }`
@@ -61,6 +62,17 @@ to their website `User`.
   `POST /api/accounts/customers/{id}/send-password-reset-link/` now send a **sign-in** link
   (`purpose='sign_in'`). A staff email still gets the Dash reset.
 - A deactivated or revoked Thrift+ member is refused on the website too (`403 ACCOUNT_OFF`).
+- **One customer system (T62, 2026-10-20).** `accounts.CustomerProfile` is retired (no reads, no writes; the model and
+  table stay until a later release drops them). A website customer is a non-staff `User` in the `Customer` group (the
+  login that holds, messages and orders hang on) and, once it has a name, a Thrift+ `Person` (`Person.user`; made
+  pending by `one_account.person_for_user`). What the profile held now lives on the person: email confirmed =
+  `Person.email_verified_at` (`magic_link.customer_email_verified`: a login with no name has no person, and counts as
+  confirmed once it has signed in); notes = `Account.notes`; member number = the member code; since = the login's
+  join date. An online-sales buyer is such a login (made when a hold is confirmed or a link is used); an unconfirmed
+  guest hold stays a hold kept by email, with no login. Dash `/api/accounts/customers/` still serves the website logins (id = User id), now read from the
+  person. The POS `CUS-nnn` scan and `customers/lookup/<number>/` are gone: the customer on a sale is the Thrift+
+  member. `Consignee` is a staff-side role (a Dash login with a `ConsigneeProfile`), not a customer, and is untouched.
+  The data move is `thriftplus.0026_carry_customer_profiles` (idempotent, deletes nothing).
 - Existing accounts are linked, and every customer password removed, by the Requests-center request
   `thriftplus.one_account` (the owner approves it in production).
 
@@ -72,8 +84,22 @@ to their website `User`.
 |-------|----------|---------|
 | Access | 30 minutes | In-memory (frontend) |
 | Refresh | 7 days | httpOnly cookie, path `/api/auth/` |
-| Rotation | Enabled | New refresh on each refresh call |
-| Blacklist | After rotation | Old refresh tokens blacklisted |
+| Idle limit | 4 hours (staff), 24 hours (register / kiosk) | AppSetting `auth.idle_hours`; see Idle sign-out |
+| Blacklist | On logout and on an idle refusal | Spent refresh tokens are refused |
+
+### Idle sign-out (4 hours, D16)
+
+Code: `apps/accounts/services/idle.py`, `apps/accounts/authentication.py`. Tests: `apps/accounts/tests/test_idle_signout.py`.
+
+| Piece | How |
+|-------|-----|
+| Activity | `User.last_active_at`. Stamped at login, at every refresh, and on any request with a good access token (`IdleStampJWTAuthentication`, at most one UPDATE per 5 minutes). One time per account, not per device. |
+| Enforced | On the server, at refresh. Access tokens last 30 minutes, so a session cannot outlive the limit by more than that. |
+| Limit | AppSetting `auth.idle_hours` = `{"staff": 4, "register": 24}` (Admin only; a missing or bad value falls back to these). |
+| Registers and the kiosk | The browser sends `X-Device-Kind: register` on refresh when this computer's saved POS device type is `register` or the page is `/kiosk` (`deviceKindHeaders()` in `client.ts`). That picks the longer `register` limit (never below the staff limit). The kiosk also pings refresh while it waits, which counts as activity. |
+| Thrift+ Staff (`/staff`, store phones) | Same Dash sign-in, so the 4-hour staff limit. |
+| Not touched | Customers (website session) and the Thrift+ Member app (`tp_session`): only `is_staff_login` accounts are timed out. A session with no `last_active_at` yet (started before this shipped) is let in and stamped. |
+| Browser | A refused refresh stores the message (`rememberIdleSignOut`), sends the person to `/login`, and the sign-in page shows it once (`login-idle-notice`). The kiosk shows its manager overlay instead. |
 
 ---
 
@@ -97,7 +123,7 @@ to their website `User`.
   2. Stores new access token
   3. Retries original request with new token
   4. Queues concurrent 401s until refresh completes, then retries all
-  5. On refresh failure: clears token, redirects to `/login`
+  5. On refresh failure: clears token, redirects to `/login` (an `IDLE` refusal leaves "Signed out after 4 hours idle." for the sign-in page)
 
 ---
 

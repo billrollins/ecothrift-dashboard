@@ -217,6 +217,7 @@ class CartSerializer(serializers.ModelSerializer):
             'card_type_fixed_at', 'card_type_fixed_by', 'card_type_fixed_by_name',
             'card_type_fix_deadline', 'payroll_employee', 'payroll_employee_name',
             'savings', 'thrift_credit', 'thrift_plus',
+            'customer',  # retired (T62): the customer on a sale is the Thrift+ member (CartMember)
         ]
 
     def get_thrift_plus(self, obj):

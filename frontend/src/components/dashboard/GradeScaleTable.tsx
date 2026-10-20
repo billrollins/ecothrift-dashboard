@@ -113,7 +113,7 @@ export function GradeScaleTable({
                   }}
                 >
                   <Box component="td" sx={{ py: 0.15, pr: 1.5 }}>{row.letter}</Box>
-                  <Box component="td" sx={{ py: 0.15, pr: 1.5, textAlign: 'right' }}>{row.min ?? '—'}</Box>
+                  <Box component="td" sx={{ py: 0.15, pr: 1.5, textAlign: 'right' }}>{row.min ?? '-'}</Box>
                   <Box component="td" sx={{ py: 0.15 }}>{row.range}</Box>
                 </Box>
               );

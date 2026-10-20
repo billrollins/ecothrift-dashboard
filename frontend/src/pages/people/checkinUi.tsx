@@ -26,7 +26,7 @@ export function CheckInReadout({
           <Typography variant="caption" sx={{ color: ccTokens.ink2, fontWeight: 700 }}>
             {q.label}
           </Typography>
-          <Typography sx={{ whiteSpace: 'pre-wrap' }}>{answers.questions?.[q.key] || '—'}</Typography>
+          <Typography sx={{ whiteSpace: 'pre-wrap' }}>{answers.questions?.[q.key] || '-'}</Typography>
         </Box>
       ))}
       {form.areas.length > 0 && (
@@ -74,7 +74,7 @@ export function CheckInReadout({
       <Typography variant="caption" sx={{ color: ccTokens.ink2, fontWeight: 700 }}>
         The employee&rsquo;s comments
       </Typography>
-      <Typography sx={{ whiteSpace: 'pre-wrap' }}>{employeeComments || '—'}</Typography>
+      <Typography sx={{ whiteSpace: 'pre-wrap' }}>{employeeComments || '-'}</Typography>
     </Box>
   );
 }

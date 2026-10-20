@@ -17,9 +17,8 @@ import {
   getCustomerStats,
   getCustomerRollup,
   getEmployeeStats,
-  lookupCustomer,
 } from '../api/accounts.api';
-import type { UserParams, Customer } from '../api/accounts.api';
+import type { UserParams } from '../api/accounts.api';
 
 export function useUsers(params?: UserParams) {
   return useQuery({
@@ -240,14 +239,5 @@ export function useEmployeeStats(options?: { enabled?: boolean }) {
     // Who is clocked in changes through the day.
     staleTime: 30_000,
     refetchInterval: 60_000,
-  });
-}
-
-export function useLookupCustomer() {
-  return useMutation({
-    mutationFn: async (customerNumber: string) => {
-      const { data } = await lookupCustomer(customerNumber);
-      return data as Customer;
-    },
   });
 }

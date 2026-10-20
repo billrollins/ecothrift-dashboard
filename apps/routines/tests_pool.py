@@ -18,7 +18,7 @@ from apps.routines.command_center import (
     serialize_nudge,
 )
 from apps.routines.models import QaNudge, Routine, RoutineRun
-from apps.routines.schedule import SYSTEM_CLOSE, SYSTEM_DAY, SYSTEM_OPEN
+from apps.routines.schedule import SYSTEM_CLOSE, SYSTEM_DAY, SYSTEM_OPEN, materialize_routines
 from apps.routines.settings import NUDGE_UNSEEN_MINUTES
 from apps.webstore.services.hours import get_hours_config
 
@@ -259,3 +259,32 @@ class DayPoolTests(APITestCase):
         qa = self.client.get('/api/routines/qa/mine/')
         titles = {row['title'] for row in qa.data['today']}
         self.assertNotIn('Midday checklist', titles)
+
+    def _opening_runs(self):
+        return RoutineRun.objects.filter(routine__system_key=SYSTEM_OPEN, period_key=THURSDAY.isoformat())
+
+    def test_materialize_never_doubles_a_finished_pooled_run(self):
+        # Seen 2026-09-22 (runs 180 and 187): once the pooled Opening run took an
+        # assignee and was finished, the next materialize made a second one.
+        materialize_routines(THURSDAY)
+        self.assertEqual(self._opening_runs().count(), 1)
+        run = self._opening_runs().get()
+        assign_run(run=run, user=self.carrie)
+        run.refresh_from_db()
+        run.status = RoutineRun.STATUS_DONE
+        run.completed_at = timezone.now()
+        run.save(update_fields=['status', 'completed_at'])
+        materialize_routines(THURSDAY)
+        materialize_routines(THURSDAY)
+        self.assertEqual(self._opening_runs().count(), 1)
+        run.refresh_from_db()
+        self.assertEqual(run.status, RoutineRun.STATUS_DONE)
+        self.assertEqual(run.assigned_to_id, self.carrie.pk)
+
+    def test_materialize_never_doubles_a_missed_pooled_run(self):
+        materialize_routines(THURSDAY)
+        run = self._opening_runs().get()
+        assign_run(run=run, user=self.carrie)
+        RoutineRun.objects.filter(pk=run.pk).update(status=RoutineRun.STATUS_MISSED)
+        materialize_routines(THURSDAY)
+        self.assertEqual(self._opening_runs().count(), 1)

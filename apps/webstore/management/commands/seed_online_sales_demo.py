@@ -15,7 +15,7 @@ from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from apps.accounts.models import CustomerProfile, User
+from apps.accounts.models import User
 from apps.core.models import S3File
 from apps.webstore.models import (
     Conversation,
@@ -206,10 +206,6 @@ class Command(BaseCommand):
                 user.save()
             if not user.groups.filter(name='Customer').exists():
                 user.groups.add(group)
-            CustomerProfile.objects.get_or_create(
-                user=user,
-                defaults={'customer_number': CustomerProfile.generate_customer_number()},
-            )
 
         self.stdout.write(self.style.SUCCESS(
             f'Demo Online Sales seed complete. Customer email: {DEMO_CUSTOMER_EMAIL} '

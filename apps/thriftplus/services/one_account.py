@@ -14,6 +14,10 @@ everything ... the only passwords are for staff"; and 10-10: "a Thrift+ member i
 - **Merge everything that exists** (``plan`` / ``apply``, the ``thriftplus.one_account`` request): link every
   person and customer login by email, make a pending membership for each website-only customer, and remove every
   customer password (website and the retired app logins).
+- **No separate customer record (T62, 2026-10-20).** ``accounts.CustomerProfile`` is retired: nothing reads or writes
+  it. Its facts live on the person: email confirmed = ``Person.email_verified_at``, notes = ``Account.notes``,
+  member number = the member code, "since" = ``Account.created_at``. A website customer is a non-staff login in the
+  Customer group; ``Person.user`` links it to its member.
 """
 from __future__ import annotations
 
@@ -21,7 +25,7 @@ import logging
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Case, IntegerField, Q, Value, When
+from django.db.models import Case, F, IntegerField, Q, Value, When
 from django.utils import timezone
 
 from apps.thriftplus.models import Account, MemberLogin, MemberResetToken, MemberSession, Person
@@ -123,12 +127,45 @@ def person_for_user(user, *, make: bool = True) -> Person | None:
         account = Account.objects.create(status=Account.STATUS_PENDING, notes=WEBSITE_NOTE)
         person = Person.objects.create(account=account, role=Person.ROLE_PRIMARY, first_name=first, last_name=last,
                                        email=email, user=user)
-        if getattr(getattr(user, 'customer', None), 'email_verified_at', None):
-            person.email_verified_at = user.customer.email_verified_at
-            person.save(update_fields=['email_verified_at', 'updated_at'])
         members.log('joined_website', account=account, person=person)
         members.new_member_code(person)
     return person
+
+
+def customer_facts(user, person: Person | None = None) -> dict:
+    """What the retired customer record (``CustomerProfile``, T62) held, read from the customer's Thrift+ person:
+    ``number`` (the member code, '' until they have one), ``since``, ``notes`` (``Account.notes``) and
+    ``email_verified``. Read only."""
+    from apps.accounts.services.magic_link import customer_email_verified
+    from apps.thriftplus.models import Card
+    from apps.thriftplus.services.cards import display
+
+    person = person if person is not None else find_person(user)
+    number = ''
+    if person is not None:
+        code = (Card.objects.filter(person=person, status=Card.STATUS_ACTIVE)
+                .order_by(F('issued_at').desc(nulls_last=True), '-pk').values_list('code', flat=True).first())
+        number = display(code) if code else ''
+    return {'person': person, 'number': number,
+            'since': timezone.localtime(user.date_joined).date() if user.date_joined else None,
+            'notes': person.account.notes if person is not None else '',
+            'email_verified': customer_email_verified(user)}
+
+
+def save_customer_notes(user, notes: str) -> None:
+    """Staff notes on a customer live on their membership (``Account.notes``). A customer with no membership yet gets
+    a pending one (needs a name; ``person_for_user``). Raises ``ValueError`` when there is no place for the note."""
+    notes = str(notes or '')
+    person = find_person(user)
+    if person is None and notes.strip():
+        person = person_for_user(user)
+    if person is None:
+        if notes.strip():
+            raise ValueError('Add a first name before saving a note (the note lives on their member).')
+        return
+    if person.account.notes != notes:
+        person.account.notes = notes
+        person.account.save(update_fields=['notes', 'updated_at'])
 
 
 def switched_off(user) -> bool:
@@ -153,10 +190,6 @@ def add_website_session(response, person: Person):
         return response
     if user is None or not user.is_active or _staff_login(user):
         return response
-    profile = getattr(user, 'customer', None)
-    if profile is not None and profile.email_verified_at is None and person.email_verified_at:
-        profile.email_verified_at = person.email_verified_at
-        profile.save(update_fields=['email_verified_at'])
     return _set_refresh_cookie(response, str(RefreshToken.for_user(user)))
 
 
@@ -207,23 +240,20 @@ def end_member_session(request, response):
 # ── Merge what exists, and remove customer passwords (the one-account request) ─────
 
 def _customer_users():
-    """Website customer logins: a customer record or the Customer group, and not a staff login (superuser, staff flag
-    or staff/consignee group). A system login (no customer record, e.g. ``@system.local``) is never one."""
+    """Website customer logins: in the Customer group, and not a staff login (superuser, staff flag or staff/consignee
+    group). A system login (not in the group, e.g. ``@system.local``) is never one."""
     User = get_user_model()
     staff = Q(is_superuser=True) | Q(is_staff=True) | Q(groups__name__in=('Admin', 'Manager', 'Employee', 'Consignee'))
-    customers = User.objects.filter(Q(customer__isnull=False) | Q(groups__name__iexact='customer')).values('pk')
+    customers = User.objects.filter(groups__name__iexact='customer').values('pk')
     return User.objects.filter(pk__in=customers).exclude(pk__in=User.objects.filter(staff).values('pk'))
 
 
-def _staff_records():
-    """Customer records and Customer-group links on staff logins, left from 10-15 (staff are not customers)."""
-    from apps.accounts.models import CustomerProfile
+def _staff_in_group():
+    """Staff logins still in the Customer group, left from 10-15 (staff are not customers)."""
     from apps.accounts.services.staff_customer import staff_login_q
 
     staff = get_user_model().objects.filter(staff_login_q()).values('pk')
-    profiles = CustomerProfile.objects.select_related('user').filter(user_id__in=staff)
-    in_group = get_user_model().objects.filter(pk__in=staff, groups__name__iexact='customer').distinct()
-    return profiles, in_group
+    return get_user_model().objects.filter(pk__in=staff, groups__name__iexact='customer').distinct()
 
 
 def plan() -> dict:
@@ -231,16 +261,15 @@ def plan() -> dict:
     users = _customer_users()
     unlinked = list(users.filter(thrift_plus_person__isnull=True))
     with_member = [u for u in unlinked if _by_email(_clean(u.email)) is not None]
-    profiles, in_group = _staff_records()
+    in_group = _staff_in_group()
     return {
         'customer_logins': users.count(),
         'link_existing': len(with_member),
         'make_memberships': len(unlinked) - len(with_member),
         'customer_passwords': sum(1 for u in users.only('password') if u.has_usable_password()),
         'app_passwords': MemberLogin.objects.count(),
-        'staff_records': profiles.count(),
-        'staff_records_list': [f'{p.customer_number} {p.user.full_name}' for p in profiles.order_by('customer_number')],
         'staff_in_group': in_group.count(),
+        'staff_in_group_list': [u.full_name or u.email for u in in_group.order_by('first_name', 'last_name')],
     }
 
 
@@ -251,12 +280,12 @@ def apply(progress=None) -> dict:
        Needs Finalize (their email counts as confirmed: they have a history with us, so the 24-hour delete never
        takes them).
     2. Every customer password and old Thrift+ app login is removed. Staff passwords are not touched.
-    3. The customer records and Customer-group links on staff logins are removed. The logins themselves stay.
+    3. The Customer-group links on staff logins are removed. The logins themselves stay. (The retired
+       ``CustomerProfile`` rows are not touched: nothing reads them any more, T62.)
     """
     from django.contrib.auth.models import Group
 
-    counts = {'linked': 0, 'made': 0, 'passwords_removed': 0, 'app_passwords_removed': 0, 'staff_records_removed': 0,
-              'staff_out_of_group': 0}
+    counts = {'linked': 0, 'made': 0, 'passwords_removed': 0, 'app_passwords_removed': 0, 'staff_out_of_group': 0}
 
     def note(text):
         if progress is not None:
@@ -266,15 +295,14 @@ def apply(progress=None) -> dict:
         if not login.person.email:
             login.person.email = login.email
             login.person.save(update_fields=['email', 'updated_at'])
-    for user in _customer_users().filter(thrift_plus_person__isnull=True).select_related('customer'):
+    for user in _customer_users().filter(thrift_plus_person__isnull=True):
         had = _by_email(_clean(user.email)) is not None
         person = person_for_user(user)
         if person is None:
             continue
         counts['linked' if had else 'made'] += 1
         if person.email_verified_at is None:
-            profile = getattr(user, 'customer', None)
-            person.email_verified_at = (profile.email_verified_at if profile else None) or timezone.now()
+            person.email_verified_at = timezone.now()
             person.save(update_fields=['email_verified_at', 'updated_at'])
     note(f"Linked {counts['linked']} old customers to their member; made {counts['made']} Needs Finalize members.")
     for user in _customer_users().iterator():
@@ -286,13 +314,11 @@ def apply(progress=None) -> dict:
     MemberResetToken.objects.all().delete()
     MemberLogin.objects.all().delete()
     note(f"Removed {counts['passwords_removed']} customer and {counts['app_passwords_removed']} old app passwords.")
-    profiles, in_group = _staff_records()
-    staff = list(in_group)
-    counts['staff_records_removed'] = profiles.delete()[0]
+    staff = list(_staff_in_group())
     group = Group.objects.filter(name__iexact='customer').first()
     if group is not None:
         for user in staff:
             user.groups.remove(group)
     counts['staff_out_of_group'] = len(staff)
-    note(f"Removed {counts['staff_records_removed']} customer records from staff logins.")
+    note(f"Took {counts['staff_out_of_group']} staff logins out of the Customer group.")
     return counts

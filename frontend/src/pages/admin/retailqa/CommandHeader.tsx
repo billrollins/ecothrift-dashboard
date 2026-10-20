@@ -74,7 +74,7 @@ export function CommandHeader({
           <button type="button" className="arrow" aria-label="Next week" onClick={() => onMoveWeek(1)}>›</button>
         </div>
         <button type="button" className="hero" onClick={onScore}>
-          <div className={`big ${letterClass(weekLetter)}`}>{weekLetter ?? '—'}</div>
+          <div className={`big ${letterClass(weekLetter)}`}>{weekLetter ?? '-'}</div>
           <div className="cap"><b>Week grade</b><span>so far</span></div>
         </button>
         <div className="stats">
@@ -91,7 +91,7 @@ export function CommandHeader({
                 onClick={onScore}
                 title={excluded ? reason : undefined}
               >
-                <b>{excluded ? '—' : scoreText(score)}</b>
+                <b>{excluded ? '-' : scoreText(score)}</b>
                 <span>{bandWeightLabel(label, weekData?.weights?.[key] ?? { spot: 60, do: 25, cross: 15 }[key], excluded)}</span>
               </button>
             );
@@ -99,7 +99,7 @@ export function CommandHeader({
         </div>
         <div className="proj">
           <span className="txt">If the rest is done<br />this week</span>
-          <b className={letterClass(projectedLetter)}>{projectedLetter ?? '—'}</b>
+          <b className={letterClass(projectedLetter)}>{projectedLetter ?? '-'}</b>
         </div>
       </div>
 
@@ -133,7 +133,7 @@ export function CommandHeader({
             <span className={`v ${cross && cross.done === cross.total && cross.total ? 'ok' : ''}`}>
               {cross
                 ? `${cross.done} of ${cross.total} ${cross.done === cross.total && dueWord ? `done ${dueWord}` : 'done'}`
-                : '—'}
+                : '-'}
             </span>
             <span className="ch">›</span>
           </button>
@@ -184,7 +184,7 @@ function DayTile({
       ) : tile.is_future ? (
         <div className={`l${letter && letter.length > 1 ? ' plusminus' : ''}`}>{letter ?? 'A'}</div>
       ) : (
-        <div className={`l${letter && letter.length > 1 ? ' plusminus' : ''}`}>{letter ?? '—'}</div>
+        <div className={`l${letter && letter.length > 1 ? ' plusminus' : ''}`}>{letter ?? '-'}</div>
       )}
       <div className="n">{note}</div>
     </div>

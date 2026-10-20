@@ -5,7 +5,10 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest import mock
 
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.test import SimpleTestCase, TestCase, override_settings
+from rest_framework.test import APIClient
 
 from apps.buying.models import Auction, CategoryMapping, ManifestRow, ManifestTemplate, Marketplace
 from apps.buying.services.ai_key_mapping import map_one_fast_cat_batch
@@ -211,3 +214,105 @@ class MapFastCatBatchTests(TestCase):
         self.assertEqual(body['keys_mapped'], 0)
         self.assertEqual(body['keys_remaining'], 0)
         self.assertEqual(body['has_more'], False)
+
+
+class DeleteManifestMappingsTests(TestCase):
+    """DELETE manifest removes the AI mappings its upload brought in, and only those."""
+
+    def setUp(self) -> None:
+        self.marketplace, _ = Marketplace.objects.get_or_create(slug='costco', defaults={'name': 'Costco'})
+        cols = ['Brand', 'Category', 'Item Description', 'Qty', 'Unit Retail']
+        ManifestTemplate.objects.create(
+            marketplace=self.marketplace,
+            header_signature=compute_header_signature(cols),
+            display_name='Wrong market template',
+            column_map={
+                'title': ['Item Description'],
+                'brand': ['Brand'],
+                'quantity': ['Qty'],
+                'retail_value': ['Unit Retail'],
+            },
+            category_fields=['Category'],
+            category_field_transforms={},
+            is_reviewed=True,
+        )
+        self.auction = Auction.objects.create(marketplace=self.marketplace, external_id='del-1')
+        self.other = Auction.objects.create(marketplace=self.marketplace, external_id='del-2')
+        admin, _ = Group.objects.get_or_create(name='Admin')
+        user = get_user_model().objects.create_user(
+            'del@x.test', 'De', 'L', password='x', is_superuser=True
+        )
+        user.groups.add(admin)
+        self.client = APIClient()
+        self.client.force_authenticate(user)
+
+    def _upload(self, auction: Auction, csv_text: str) -> None:
+        body, code = process_manifest_upload(auction, csv_text.encode('utf-8'), 'm.csv')
+        self.assertEqual(code, 200, body)
+
+    def _delete(self, auction: Auction) -> None:
+        resp = self.client.delete(f'/api/buying/auctions/{auction.pk}/manifest/')
+        self.assertEqual(resp.status_code, 204)
+
+    def _ai_map(self, key: str, origin: str = CategoryMapping.RULE_AI) -> None:
+        # Made after the upload, the way the AI mapping batches do it.
+        CategoryMapping.objects.create(
+            source_key=key, canonical_category='Toys & games', rule_origin=origin
+        )
+
+    def test_wrong_marketplace_csv_leaves_no_mapping(self) -> None:
+        self._upload(
+            self.auction,
+            'Brand,Category,Item Description,Qty,Unit Retail\nAcme,SHOES,Boot,1,12.00\n',
+        )
+        key = self.auction.manifest_rows.get(row_number=1).fast_cat_key
+        self.assertTrue(key)
+        self._ai_map(key)
+        self._delete(self.auction)
+        self.assertFalse(CategoryMapping.objects.filter(source_key=key).exists())
+        self.assertEqual(self.auction.manifest_rows.count(), 0)
+
+    def test_mapping_used_by_another_manifest_stays(self) -> None:
+        csv_text = 'Brand,Category,Item Description,Qty,Unit Retail\nAcme,SHOES,Boot,1,12.00\n'
+        self._upload(self.auction, csv_text)
+        self._upload(self.other, csv_text)
+        key = self.auction.manifest_rows.get(row_number=1).fast_cat_key
+        self._ai_map(key)
+        self._delete(self.auction)
+        self.assertTrue(CategoryMapping.objects.filter(source_key=key).exists())
+
+    def test_seeded_and_manual_mappings_stay(self) -> None:
+        self._upload(
+            self.auction,
+            'Brand,Category,Item Description,Qty,Unit Retail\nAcme,SHOES,Boot,1,12.00\n'
+            'Acme,HATS,Cap,1,5.00\n',
+        )
+        k1 = self.auction.manifest_rows.get(row_number=1).fast_cat_key
+        k2 = self.auction.manifest_rows.get(row_number=2).fast_cat_key
+        self._ai_map(k1, CategoryMapping.RULE_SEEDED)
+        self._ai_map(k2, CategoryMapping.RULE_MANUAL)
+        self._delete(self.auction)
+        self.assertEqual(CategoryMapping.objects.filter(source_key__in=[k1, k2]).count(), 2)
+
+    def test_mapping_that_predates_the_manifest_stays(self) -> None:
+        CategoryMapping.objects.create(
+            source_key='cos-shoes',
+            canonical_category='Toys & games',
+            rule_origin=CategoryMapping.RULE_AI,
+        )
+        self._upload(
+            self.auction,
+            'Brand,Category,Item Description,Qty,Unit Retail\nAcme,SHOES,Boot,1,12.00\n',
+        )
+        self.assertEqual(self.auction.manifest_rows.get(row_number=1).fast_cat_key, 'cos-shoes')
+        self._delete(self.auction)
+        self.assertTrue(CategoryMapping.objects.filter(source_key='cos-shoes').exists())
+
+    def test_unrelated_ai_mapping_stays(self) -> None:
+        self._upload(
+            self.auction,
+            'Brand,Category,Item Description,Qty,Unit Retail\nAcme,SHOES,Boot,1,12.00\n',
+        )
+        self._ai_map('target-unrelated')
+        self._delete(self.auction)
+        self.assertTrue(CategoryMapping.objects.filter(source_key='target-unrelated').exists())

@@ -23,8 +23,8 @@ Stack: Django 5.2 + DRF, React 18.3 + TypeScript + MUI 7, PostgreSQL (schema `ec
 
 ## Active work
 
-- **Calendar:** [`calendar.md`](calendar.md). Read it every session. Thrift+ launches Tue 2026-10-20, and every project piece is done by Thu 10-15.
-- **Compass — Thrift+ Rewards:** [`thrift_plus_rewards`](initiatives/thrift_plus_rewards.md). Ships dark behind a switch until launch. Launch kit: [`thrift_plus_launch_kit`](initiatives/thrift_plus_launch_kit.md).
+- **Calendar:** [`calendar.md`](calendar.md). Read it every session. Thrift+ launched Fri 2026-10-16 (four days ahead of the plan of 10-20).
+- **Compass — Thrift+ Rewards:** [`thrift_plus_rewards`](initiatives/thrift_plus_rewards.md). Launched 10-16. Launch kit (archived 10-20): [`thrift_plus_launch_kit`](initiatives/_archived/thrift_plus_launch_kit.md).
 - **Data platform and the AI supervisor:** [`data_platform`](initiatives/data_platform.md). This is the owner's priority besides Thrift+.
 - **Product intelligence:** [`product_intelligence`](initiatives/product_intelligence.md). Standardize and dedupe rules: [`extended/product-standard.md`](extended/product-standard.md).
 - **Data quality and rails:** [`data_quality_rails`](initiatives/data_quality_rails.md).
@@ -99,6 +99,7 @@ Load on demand. Do not read them all at session start. When you add, rename or r
 | [`backend.md`](extended/backend.md) | Django apps, models, serializers, API patterns |
 | [`backfill-plan.md`](extended/backfill-plan.md) | Cleaning or backfilling a field (rules in `warehouse/sql/`, models in `factory/`) |
 | [`brand.md`](extended/brand.md) | Staff colours, same-colour-same-meaning, token files |
+| [`creative-method.md`](extended/creative-method.md) | Any poster, sign or social post: built from vector type plus separate AI photo plates, the QA gates, Facebook sizes |
 | [`bstock.md`](extended/bstock.md) | B-Stock API, scraper, SOCKS5 |
 | [`cash-management.md`](extended/cash-management.md) | Drops, pickups, drawer reconciliation, safe |
 | [`consignment.md`](extended/consignment.md) | Agreements, items, payouts, portal |

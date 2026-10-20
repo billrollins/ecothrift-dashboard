@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from django.db import transaction
+from django.db.models import Min
 from django.utils import timezone
 from apps.buying.models import Auction, CategoryMapping, ManifestRow
 from apps.buying.services.ai_key_mapping import (
@@ -35,6 +36,39 @@ def _load_category_mapping() -> dict[str, str]:
     return dict(
         CategoryMapping.objects.values_list('source_key', 'canonical_category')
     )
+
+
+def purge_orphan_ai_mappings(auction: Auction) -> int:
+    """
+    Delete the AI-made CategoryMappings this auction's manifest brought in, before its rows go.
+
+    A mapping goes only when all hold: it is AI-origin (seeded and manual ones are never
+    touched), its key is on this auction's rows, no other auction's row uses that key, and it
+    was created after these rows (so an older mapping the manifest merely reused stays).
+    Returns how many were removed. Call inside the delete's transaction, before the rows go.
+    """
+    rows = ManifestRow.objects.filter(auction=auction)
+    first_row_at = rows.aggregate(t=Min('created_at'))['t']
+    if first_row_at is None:
+        return 0
+    keys = set(rows.exclude(fast_cat_key='').values_list('fast_cat_key', flat=True).distinct())
+    if not keys:
+        return 0
+    used_elsewhere = set(
+        ManifestRow.objects.filter(fast_cat_key__in=keys)
+        .exclude(auction=auction)
+        .values_list('fast_cat_key', flat=True)
+        .distinct()
+    )
+    gone = keys - used_elsewhere
+    if not gone:
+        return 0
+    deleted, _ = CategoryMapping.objects.filter(
+        source_key__in=gone,
+        rule_origin=CategoryMapping.RULE_AI,
+        created_at__gte=first_row_at,
+    ).delete()
+    return deleted
 
 
 def process_manifest_upload(

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-25 (ApprovalRequest: Superuser -> Requests) -->
+<!-- Last updated: 2026-10-20 (T62: CustomerProfile retired; one customer system) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -113,7 +113,7 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** �
 | **User** | email (unique), first_name, last_name, phone, is_active, is_staff, **language** (`en`/`es`, default `en`), date_joined, updated_at; `role` property (first group), `roles` property (all groups as list) |
 | **EmployeeProfile** | user (1:1), employee_number, department (FK hr.Department), position, employment_type, pay_rate, hire_date, termination_date, **termination_type** (choices: voluntary_resignation, job_abandonment, retirement, layoff, etc.), **termination_notes**, work_location (FK core.WorkLocation) |
 | **ConsigneeProfile** | user (1:1), consignee_number, commission_rate, payout_method, status (active/paused/closed), join_date |
-| **CustomerProfile** | user (1:1), customer_number, customer_since |
+| ~~**CustomerProfile**~~ | **Deprecated (T62, 2026-10-20): nothing reads or writes it.** A customer is a non-staff `User` in the `Customer` group (the website login) plus its Thrift+ `Person` (`Person.user`). Email confirmed = `Person.email_verified_at`; notes = `Account.notes`; member number = the member code; since = `Account.created_at`. Rows were carried by `thriftplus.0026_carry_customer_profiles`; a later release drops the model and table. |
 
 `GET`/`PATCH /api/auth/me/` — `PATCH` accepts `{ language: 'en' | 'es' }`.
 
@@ -211,7 +211,7 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** �
 User (accounts)
   ├── EmployeeProfile → hr.Department, core.WorkLocation
   ├── ConsigneeProfile
-  └── CustomerProfile
+  └── (customer: thriftplus.Person.user, 1:1; CustomerProfile is retired)
 
 core.WorkLocation
   ├── hr.Department

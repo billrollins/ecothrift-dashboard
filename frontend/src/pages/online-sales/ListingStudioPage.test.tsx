@@ -22,6 +22,7 @@ vi.mock('../../hooks/useWebStore', () => ({
   useWebstoreConfig: () => ({ data: { public_base_url: 'https://ecothrift.us' } }),
   useUpdateWebListing: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUploadWebListingImage: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useReframeWebListingImage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteWebListingImage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useReorderWebListingImage: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateWebListingImageAlt: () => ({ mutateAsync: vi.fn(), isPending: false }),

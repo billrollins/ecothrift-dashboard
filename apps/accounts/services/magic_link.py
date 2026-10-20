@@ -10,7 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from apps.accounts.models import CustomerProfile, MagicLinkToken, User
+from apps.accounts.models import MagicLinkToken, User
 from apps.accounts.services.staff_customer import STAFF_LOGIN_MESSAGE, STAFF_LOGIN_ROLES, is_staff_login
 
 MAGIC_LINK_TTL = timedelta(minutes=30)
@@ -105,22 +105,31 @@ def customer_email_verified(user: User | None) -> bool:
 
     if is_active_staff(user):
         return True  # a Dash email is trusted; staff have no customer record (2026-10-16)
-    profile = getattr(user, 'customer', None)
-    return bool(profile and profile.email_verified_at)
+    # One customer system (T62): the customer's Thrift+ person holds "email confirmed". A login with no person (it has
+    # no name yet, so it can't be a member) is confirmed once it has signed in: there are no customer passwords, so a
+    # session means an emailed link was used.
+    from apps.thriftplus.services.one_account import find_person
+
+    person = find_person(user)
+    if person is None:
+        return user.last_login is not None
+    return bool(person.email_verified_at and (person.email or '').strip().lower() == _normalize_email(user.email))
 
 
 def stamp_email_verified(user: User) -> None:
+    """The customer proved their email (a link or a code): confirm it on their Thrift+ person, made pending when they
+    had none (``one_account.person_for_user``). A login with no name has no person yet; it is confirmed by its sign-in."""
     from apps.accounts.services.staff_customer import is_staff_login
+    from apps.thriftplus.services.one_account import person_for_user
 
     if is_staff_login(user):
         return  # staff are never customers (owner 2026-10-16)
-    profile, _ = CustomerProfile.objects.get_or_create(
-        user=user,
-        defaults={'customer_number': CustomerProfile.generate_customer_number()},
-    )
-    if profile.email_verified_at is None:
-        profile.email_verified_at = timezone.now()
-        profile.save(update_fields=['email_verified_at'])
+    person = person_for_user(user)
+    if person is None or (person.email or '').strip().lower() != _normalize_email(user.email):
+        return
+    if person.email_verified_at is None:
+        person.email_verified_at = timezone.now()
+        person.save(update_fields=['email_verified_at', 'updated_at'])
 
 
 @transaction.atomic
@@ -308,10 +317,6 @@ def _get_or_create_customer(
         user.save(update_fields=['first_name', 'last_name', 'updated_at'])
     if not user.groups.filter(name='Customer').exists():
         user.groups.add(group)
-    CustomerProfile.objects.get_or_create(
-        user=user,
-        defaults={'customer_number': CustomerProfile.generate_customer_number()},
-    )
     return user
 
 

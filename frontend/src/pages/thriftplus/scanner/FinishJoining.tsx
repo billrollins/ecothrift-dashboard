@@ -2,13 +2,13 @@
  * Finish joining (Join v2, owner 2026-10-19: "SMOOTH and CLEAR and SIMPLE"): right after a join's sign-in, and from the
  * Member QR's "Finish joining", a pending member does in the app what the register used to: a selfie, then a signature
  * on the terms. One screen per step, "Step 1 of 2". Then "You're all set": at the register staff only check the photo
- * ID against the selfie. There is no skip button; closing is fine, and the register can still take both (as today).
+ * ID against the selfie. Required (owner 2026-10-20): no skip and no ×; a pending member with steps left always lands
+ * here. Only Sign out leaves it. The register can still take both (as today).
  * The server's member payload says what is left (`finish_steps`).
  */
 import { useEffect, useRef, useState } from 'react';
 import { Box, ButtonBase, CircularProgress } from '@mui/material';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
-import CloseRounded from '@mui/icons-material/CloseRounded';
 import FaceRounded from '@mui/icons-material/FaceRounded';
 import type { FinishStep, ThriftPlusMember } from '../../../api/thriftPlusScanner.api';
 import { compressImageToJpeg } from '../../../services/receiving/receivingClient';
@@ -73,12 +73,12 @@ function usePreview(blob: Blob | null): string | null {
 const heading = { m: 0, fontFamily: sc.condensed, fontWeight: 700, fontSize: u(56), color: sc.titleGreen, lineHeight: 1.1 } as const;
 const line = { mt: u(12), fontSize: u(31), color: sc.ink2, lineHeight: 1.4 } as const;
 
-export function FinishJoining({ member, onDone, onClose }: {
+export function FinishJoining({ member, onDone, onSignOut }: {
   member: ThriftPlusMember;
   /** "Done": the Member QR. */
   onDone: () => void;
-  /** ×: back to the scanner (they can finish later, or at the register). */
-  onClose: () => void;
+  /** Sign out: the only way off this screen while steps are left. */
+  onSignOut: () => void;
 }) {
   const left: FinishStep[] = member.ready === false ? member.finish_steps ?? [] : [];
   // How many there were when the screen opened, so "Step 2 of 2" stays right as each one is done.
@@ -110,10 +110,12 @@ export function FinishJoining({ member, onDone, onClose }: {
             </>
           )}
         </Box>
-        <ButtonBase onClick={onClose} aria-label="Close"
-          sx={{ flexShrink: 0, width: u(76), height: u(76), borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.92)', color: sc.ink2, boxShadow: sc.tileShadow }}>
-          <CloseRounded sx={{ fontSize: u(46) }} />
-        </ButtonBase>
+        {step && (
+          <ButtonBase onClick={onSignOut} data-testid="finish-sign-out"
+            sx={{ flexShrink: 0, px: u(16), minHeight: u(76), borderRadius: u(20), fontSize: u(28), fontWeight: 600, color: sc.ink2, textDecoration: 'underline' }}>
+            Sign out
+          </ButtonBase>
+        )}
       </Box>
       <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: u(40), pt: u(24), pb: `calc(${u(44)} + env(safe-area-inset-bottom, 0px))` }}>
         {n === 1 && count === 2 && (

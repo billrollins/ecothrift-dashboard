@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   AppBar,
@@ -25,6 +25,7 @@ import LockReset from '@mui/icons-material/LockReset';
 import TranslateOutlined from '@mui/icons-material/TranslateOutlined';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
+import { LoadingScreen } from '../feedback/LoadingScreen';
 import ChangePasswordDialog from '../users/ChangePasswordDialog';
 import { Sidebar, SIDEBAR_WIDTH } from './Sidebar';
 import { PhoneTabBar } from './PhoneTabBar';
@@ -354,7 +355,9 @@ export default function MainLayout() {
           }}
         >
           <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: isRetailQa ? 'hidden' : undefined }}>
-            <Outlet />
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <Outlet />
+            </Suspense>
           </Box>
         </Box>
         {isPhoneShell ? <PhoneTabBar /> : null}

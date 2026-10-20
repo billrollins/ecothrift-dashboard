@@ -51,6 +51,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     date_joined = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Last request, login or refresh by this login (services/idle.py, the 4-hour idle sign-out). Stamped, not edited.
+    last_active_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     objects = UserManager()
 
@@ -221,7 +223,12 @@ class ConsigneeProfile(models.Model):
 
 
 class CustomerProfile(models.Model):
-    """Optional. Created if a customer registers or is created at POS for tracking."""
+    """DEPRECATED (T62, 2026-10-20): nothing reads or writes this table any more. One customer system: a customer is a
+    Thrift+ ``Person`` (``Person.user`` links their website login). Email confirmed = ``Person.email_verified_at``,
+    notes = ``Account.notes``, member number = the member code, "since" = ``Account.created_at``. The rows are kept
+    until a later release drops this model and its table (data migration:
+    ``thriftplus.0026_carry_customer_profiles``). Do not use it in new code.
+    """
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='customer')
     customer_number = models.CharField(max_length=20, unique=True)
     customer_since = models.DateField(auto_now_add=True)

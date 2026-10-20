@@ -7,7 +7,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.accounts.models import CustomerProfile, MagicLinkToken, User
+from apps.accounts.models import MagicLinkToken, User
 from apps.accounts.services.names import clean_name, split_full_name
 from apps.core.models import AppSetting
 from apps.thriftplus.models import Account, LedgerEntry, Person
@@ -78,12 +78,10 @@ class CleanupTests(TestCase):
         Group.objects.get_or_create(name='Customer')
         user = User.objects.create_user(email=email, first_name=first, last_name=last)
         user.groups.add(Group.objects.get(name='Customer'))
-        CustomerProfile.objects.create(user=user, customer_number=CustomerProfile.generate_customer_number(),
-                                       email_verified_at=timezone.now() if verified else None)
         if member:
             account = Account.objects.create(status=status)
             Person.objects.create(account=account, role=Person.ROLE_PRIMARY, first_name=first, last_name=last,
-                                  email=email, user=user)
+                                  email=email, user=user, email_verified_at=timezone.now() if verified else None)
         return user
 
     def test_plan_then_apply(self):

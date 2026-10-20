@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from rest_framework import serializers
-from .models import EmployeeProfile, ConsigneeProfile, CustomerProfile
+from .models import EmployeeProfile, ConsigneeProfile
 
 User = get_user_model()
 
@@ -42,29 +42,11 @@ class ConsigneeProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'consignee_number', 'created_at']
 
 
-class CustomerProfileSerializer(serializers.ModelSerializer):
-    email_verified = serializers.SerializerMethodField()
-
-    class Meta:
-        model = CustomerProfile
-        fields = [
-            'id', 'customer_number', 'customer_since', 'notes',
-            'email_verified_at', 'email_verified',
-        ]
-        read_only_fields = [
-            'id', 'customer_number', 'customer_since',
-            'email_verified_at', 'email_verified',
-        ]
-
-    def get_email_verified(self, obj):
-        return obj.email_verified_at is not None
-
 
 class UserSerializer(serializers.ModelSerializer):
     """Full user serializer with nested profiles."""
     employee = EmployeeProfileSerializer(read_only=True)
     consignee = ConsigneeProfileSerializer(read_only=True)
-    customer = CustomerProfileSerializer(read_only=True)
     role = serializers.CharField(read_only=True)
     roles = serializers.ListField(
         child=serializers.CharField(),
@@ -83,7 +65,7 @@ class UserSerializer(serializers.ModelSerializer):
             'last_login',
             'role', 'roles', 'full_name',
             'has_password', 'email_verified',
-            'employee', 'consignee', 'customer',
+            'employee', 'consignee',
         ]
         read_only_fields = [
             'id', 'is_superuser', 'date_joined', 'updated_at', 'last_login',

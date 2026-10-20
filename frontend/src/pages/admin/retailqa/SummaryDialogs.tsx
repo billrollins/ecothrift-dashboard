@@ -69,9 +69,9 @@ export function SummaryDialogs({
                 return (
                   <tr key={tile.date}>
                     <td>{day}</td>
-                    <td>{displayName(spot.section_name, 'auto') || '—'}</td>
-                    <td>{spot.attributed_to?.name || '—'}</td>
-                    <td className="r">{spot.spot_score ?? '—'}</td>
+                    <td>{displayName(spot.section_name, 'auto') || '-'}</td>
+                    <td>{spot.attributed_to?.name || '-'}</td>
+                    <td className="r">{spot.spot_score ?? '-'}</td>
                     <td className="r">
                       {spot.run_id ? <a href="#" onClick={(event) => { event.preventDefault(); onOpenRun(spot.run_id as number); }}>View</a> : null}
                     </td>
@@ -119,7 +119,7 @@ export function SummaryDialogs({
         <div className="cc-dialog-note">Goal: {WALK_FLOOR} walks a week. Walks never cap the grade.</div>
       </BoardDialog>
 
-      <BoardDialog open={open === 'cross'} onClose={onClose} title={`Cross-checks · due ${cross?.due_label || '—'}`}>
+      <BoardDialog open={open === 'cross'} onClose={onClose} title={`Cross-checks · due ${cross?.due_label || '-'}`}>
         <table className="cc-dialog-table">
           <thead>
             <tr>
@@ -152,7 +152,7 @@ export function SummaryDialogs({
               return (
               <tr key={row.run_id ?? row.section_id ?? row.section_name} className={stuck ? 'stuck' : undefined}>
                 <td>{displayName(row.section_name, 'auto')}</td>
-                <td>{row.owner?.name || '—'}</td>
+                <td>{row.owner?.name || '-'}</td>
                 <td>
                   {canEdit && openRow && row.section_id ? (
                     <CheckerPicker
@@ -161,7 +161,7 @@ export function SummaryDialogs({
                       choices={choices}
                       onPick={(userId) => onAssignChecker(row.section_id as number, userId)}
                     />
-                  ) : (checkerName || '—')}
+                  ) : (checkerName || '-')}
                   {stateLabel ? <span className="stuck-note">{stateLabel}</span> : null}
                 </td>
                 <td className={row.blocked && !row.waived ? 'wait' : row.tone === 'grey' ? 'tone-grey' : row.tone === 'bad' ? 'tone-bad' : ''}>
@@ -174,8 +174,8 @@ export function SummaryDialogs({
                     ) : null}
                   </span>
                 </td>
-                <td className="r">{row.items_fixed ?? '—'}</td>
-                <td className="r">{row.score ?? '—'}</td>
+                <td className="r">{row.items_fixed ?? '-'}</td>
+                <td className="r">{row.score ?? '-'}</td>
                 <td className="r">
                   {row.run_id && !openRow ? (
                     <a href="#" onClick={(event) => { event.preventDefault(); onOpenRun(row.run_id as number); }}>View</a>
@@ -187,7 +187,7 @@ export function SummaryDialogs({
             {(cross?.done ?? 0) > 0 ? (
               <tr>
                 <td colSpan={5}>Combined score</td>
-                <td className="r">{cross?.score ?? '—'}</td>
+                <td className="r">{cross?.score ?? '-'}</td>
                 <td />
               </tr>
             ) : null}
@@ -229,7 +229,7 @@ export function SummaryDialogs({
                       <td className="r">{sectionCheckDoneLabel(row)}</td>
                       <td className="r">
                         {row.on_task == null
-                          ? <span title="No POS activity">—</span>
+                          ? <span title="No POS activity">-</span>
                           : `${Math.round(row.on_task)}%`}
                       </td>
                     </tr>

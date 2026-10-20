@@ -104,18 +104,18 @@ class IntakeTestResetTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='spine',
+            title='spine',
         )
         PreprocessingRow.objects.create(
             purchase_order=self.order,
             row_number=1,
-            standard_description='old',
+            standard_brand='old',
         )
         ProcessingRow.objects.create(
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='bookmark',
+            title='bookmark',
         )
         Item.objects.create(
             purchase_order=self.order,

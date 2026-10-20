@@ -1,6 +1,8 @@
 <!-- Last updated: 2026-10-15 (/terms built with the Español toggle; the native-speaker check covers the page labels. Earlier: v2.166.0; brand plan yes) -->
 # Thrift+ launch hub
 
+**Closed 2026-10-20 (owner: "we are done with all of that. It is deployed").** Thrift+ launched 10-16. The open boxes below are history, not to-dos. Rules live only in [`thrift-plus-decisions.md`](../../extended/thrift-plus-decisions.md).
+
 ## Approve these
 
 - [ ] Carrie signs the 10-12 changes: no cover, ThriftBucks kept or redeemed instantly at 50%, 3-day returns (C1, B1, W1)

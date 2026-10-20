@@ -36,7 +36,6 @@ def _req(user):
 def _customer(email='shopper@example.com', password=PASSWORD):
     user = User.objects.create_user(email, 'Sue', 'Shopper', password=password)
     user.groups.add(Group.objects.get_or_create(name='Customer')[0])
-    CustomerProfile.objects.create(user=user, customer_number=CustomerProfile.generate_customer_number())
     return user
 
 
@@ -91,11 +90,11 @@ class IsCustomerTests(TestCase):
                     '/api/accounts/login-merge/candidates/', '/api/webstore/conversations/'):
             self.assertIn(api.get(url).status_code, (403, 404), url)
 
-    def test_a_profile_alone_or_the_group_alone_counts_and_switched_off_never(self):
+    def test_the_group_counts_a_retired_record_alone_does_not_and_switched_off_never(self):
         a = User.objects.create_user('a@example.com', 'A', 'A', password=PASSWORD)
-        CustomerProfile.objects.create(user=a, customer_number='CUS-501')
+        CustomerProfile.objects.create(user=a, customer_number='CUS-501')  # retired (T62): not a customer by itself
         b = _user('b@example.com', 'Customer')
-        self.assertTrue(IsCustomer().has_permission(_req(a), None))
+        self.assertFalse(IsCustomer().has_permission(_req(a), None))
         self.assertTrue(IsCustomer().has_permission(_req(b), None))
         b.is_active = False
         self.assertFalse(IsCustomer().has_permission(_req(b), None))

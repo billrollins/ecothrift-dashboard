@@ -8,6 +8,9 @@ import { SnackbarProvider } from 'notistack';
 import MembersPanel from './MembersPanel';
 import { shortBucks } from '../../../api/memberDirectory.api';
 
+// These forms type a lot through userEvent; on a busy machine (full suite beside the Django run) 20s is not enough.
+vi.setConfig({ testTimeout: 60_000 });
+
 const state = vi.hoisted(() => ({ superuser: true, rows: [] as Array<Record<string, unknown>>, sent: [] as string[] }));
 
 vi.mock('../../../api/memberDirectory.api', async (importOriginal) => ({

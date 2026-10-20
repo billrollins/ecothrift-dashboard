@@ -1313,7 +1313,7 @@ class ProgramV2Tests(TestCase):
         self.assertEqual(opening.title, 'Opening checklist')
         self.assertEqual(day.title, 'Midday checklist')
         self.assertEqual(close.title, 'Closing checklist')
-        self.assertIsNone(day.due_time)
+        self.assertEqual(day.due_time, time(14, 0))  # PROGRAM_TIMES: Midday is due at 2 PM
         open_ids = [check['id'] for section in opening.definition['sections'] for check in section['checks']]
         day_ids = [check['id'] for section in day.definition['sections'] for check in section['checks']]
         close_ids = [check['id'] for section in close.definition['sections'] for check in section['checks']]

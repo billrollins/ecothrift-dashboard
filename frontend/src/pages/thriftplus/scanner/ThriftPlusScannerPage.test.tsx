@@ -648,22 +648,19 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     expect(within(wallet).queryByRole('button', { name: 'Finish joining' })).toBeNull();
   });
 
-  it('a pending member with steps left sees "Finish joining" on the Member QR, and × goes to the scanner', async () => {
+  it('Finish joining is required: a pending member with steps left always lands on it, no ×, only Sign out (owner 2026-10-20)', async () => {
     await mockApi.sendCode('robin@example.com', 'Robin', 'Lee');
     await mockApi.checkCode('robin@example.com', lastCode());
     const user = userEvent.setup();
     renderPage('/scan?view=qr');
-    const wallet = await screen.findByTestId('wallet-sheet');
-    expect(within(wallet).getByTestId('my-card-line')).toHaveTextContent('Finish joining here, or at any register.');
-    expect(within(wallet).getByTestId('my-card')).toHaveTextContent('Robin');
-    await user.click(within(wallet).getByRole('button', { name: 'Finish joining' }));
     const finish = await screen.findByTestId('finish-joining');
     expect(within(finish).getByTestId('finish-progress')).toHaveTextContent('Step 1 of 2');
     expect(screen.getByTestId('where')).toHaveTextContent('?view=finish');
-    await user.click(within(finish).getByRole('button', { name: 'Close' }));
-    expect(await screen.findByTestId('see-trip')).toBeInTheDocument();
-    expect(screen.queryByTestId('finish-joining')).toBeNull();
-    expect(screen.getByTestId('where')).toHaveTextContent(/^$/);
+    expect(within(finish).queryByRole('button', { name: 'Close' })).toBeNull();
+    expect(within(finish).queryByRole('button', { name: /skip|later/i })).toBeNull();
+    expect(screen.queryByTestId('wallet-sheet')).toBeNull();
+    await user.click(within(finish).getByRole('button', { name: 'Sign out' }));
+    await waitFor(() => expect(screen.queryByTestId('finish-joining')).toBeNull());
   });
 
   it('the selfie camera opens in the app with an oval to fit the face in (owner 2026-10-19)', async () => {

@@ -10,6 +10,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import CustomerProfile, MagicLinkToken, User
+from apps.thriftplus.models import Account, Person
 from apps.accounts.services.magic_link import consume_magic_link
 from apps.core.models import S3File
 from apps.inventory.models import Item, Product
@@ -142,8 +143,8 @@ class HoldVerificationTests(TestCase):
         self.assertIsNotNone(res.expires_at)
         user = User.objects.get(email='pat@example.com')
         self.assertEqual(user.first_name, 'Pat')
-        profile = CustomerProfile.objects.get(user=user)
-        self.assertIsNotNone(profile.email_verified_at)
+        self.assertIsNotNone(Person.objects.get(user=user).email_verified_at)  # T62: it lives on the Thrift+ person
+        self.assertFalse(CustomerProfile.objects.exists())
 
         self.client.force_authenticate(self.mgr)
         staff = self.client.get('/api/webstore/reservations/')
@@ -224,10 +225,9 @@ class HoldVerificationTests(TestCase):
             email='verified@example.com', first_name='V', last_name='C', password='secret1',
         )
         verified.groups.add(Group.objects.get(name='Customer'))
-        CustomerProfile.objects.create(
-            user=verified,
-            customer_number=CustomerProfile.generate_customer_number(),
-            email_verified_at=timezone.now(),
+        Person.objects.create(
+            account=Account.objects.create(status=Account.STATUS_PENDING), first_name='V', last_name='C',
+            email='verified@example.com', user=verified, email_verified_at=timezone.now(),
         )
         self.client.force_authenticate(verified)
         mail.outbox.clear()
@@ -249,9 +249,9 @@ class HoldVerificationTests(TestCase):
             email='unverified@example.com', first_name='U', last_name='C', password='secret1',
         )
         unverified.groups.add(Group.objects.get(name='Customer'))
-        CustomerProfile.objects.create(
-            user=unverified,
-            customer_number=CustomerProfile.generate_customer_number(),
+        Person.objects.create(
+            account=Account.objects.create(status=Account.STATUS_PENDING), first_name='U', last_name='C',
+            email='unverified@example.com', user=unverified,
         )
         listing2 = _listing(slug='unv-lamp')
         self.client.force_authenticate(unverified)

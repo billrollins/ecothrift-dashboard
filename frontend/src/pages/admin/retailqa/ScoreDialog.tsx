@@ -74,7 +74,7 @@ export function ScoreDialog({
   const cashiers = weekData?.cashier_activity ?? [];
   const title = selectedDay
     ? `${selectedDay.weekday} ${format(parseISO(selectedDay.date), 'MMM d')} · Grade ${selectedDay.letter ?? scoreText(null)}`
-    : `${weekNumber} · Grade ${weekLetter ?? '—'} (projected ${projectedLetter ?? '—'})`;
+    : `${weekNumber} · Grade ${weekLetter ?? '-'} (projected ${projectedLetter ?? '-'})`;
   const daySections = (dayRow?.cross?.audits ?? [])
     .filter((row) => row.status === 'done')
     .map((row) => row.section_name)
@@ -85,7 +85,7 @@ export function ScoreDialog({
   const pos = useMemo(() => {
     if (selectedDay) {
       return cashiers.length
-        ? cashiers.map((row) => `${row.name}: ${row.on_task == null ? '—' : `${Math.round(row.on_task)}%`}`).join(' · ')
+        ? cashiers.map((row) => `${row.name}: ${row.on_task == null ? '-' : `${Math.round(row.on_task)}%`}`).join(' · ')
         : '';
     }
     return posOnTask || board?.pos_on_task || '';
@@ -94,7 +94,7 @@ export function ScoreDialog({
   return (
     <BoardDialog open={open} onClose={onClose} title={title}>
       <div className={`score-letter ${letterClass(selectedDay?.letter ?? weekLetter)}`}>
-        {selectedDay?.letter ?? weekLetter ?? '—'}
+        {selectedDay?.letter ?? weekLetter ?? '-'}
       </div>
       <div className="score-scope">
         <select value={scope} onChange={(event) => setScope(event.target.value)}>
@@ -130,7 +130,7 @@ export function ScoreDialog({
         {selectedDay ? (
           <ScoreCol
             title="Cross-checks this week"
-            scoreLabel={crossDue ? `${crossDone} of ${crossDue}` : '—'}
+            scoreLabel={crossDue ? `${crossDone} of ${crossDue}` : '-'}
             informational
             rule={RULES.cross}
             items={daySections.length ? daySections : items.cross}
@@ -184,13 +184,13 @@ function ScoreCol({
   const heading = informational
     ? title
     : excluded
-      ? `${title} —`
+      ? `${title} -`
       : weight != null
         ? `${title} · ${formatWeight(weight)}%`
         : title;
   return (
     <div className={`score-col${excluded ? ' excluded' : ''}${informational ? ' info' : ''}`}>
-      <b>{excluded ? '—' : (scoreLabel ?? scoreText(score))}</b>
+      <b>{excluded ? '-' : (scoreLabel ?? scoreText(score))}</b>
       <span className="k">{heading}</span>
       {excluded ? (
         <p className="muted">Not counted. {reason}</p>

@@ -3,9 +3,9 @@ Staff logins on the website.
 
 - **Staff are not customers** (owner 2026-10-16: "the last users are still the staff (which i have asked to be removed
   about 100 times now)"; this reverses 10-15's "every staff user is also a website customer"). A staff login never gets
-  a ``CustomerProfile`` or the Customer group, never shows on Dash → Users → Customers, and is never counted there. The
-  ``accounts.remove_staff_customers`` request removes the ones made on 10-15. ``ensure_staff_customer`` and
-  ``create_missing_customers`` are kept as names but make nothing.
+  the Customer group, never shows on Dash → Users → Customers, and is never counted there. ``ensure_staff_customer`` and
+  ``create_missing_customers`` are kept as names but make nothing. (``CustomerProfile`` is retired, T62: a customer is
+  a login in the Customer group plus its Thrift+ person.)
 - **Staff still use the storefront's own pages** (My holds, My messages) with their Dash login: ``can_use_storefront``.
 - **Staff sign in to the website with their Dash password, never an emailed link.** ``is_staff_login`` is the test
   the website uses to refuse emailed sign-in links, customer password resets and customer sign-ups for these emails.
@@ -14,8 +14,6 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from django.db.models import Q
-
-from apps.accounts.models import CustomerProfile
 
 STAFF_GROUPS_RE = r'^(admin|manager|employee)$'  # the same groups as usernames.is_staff_user
 # Dash logins: password only on the website, never an emailed sign-in link (a website session is a Dash token).
@@ -44,11 +42,10 @@ def is_staff_login(user) -> bool:
 
 
 def is_customer(user) -> bool:
-    """Has a website customer account: a CustomerProfile, or the Customer group."""
+    """Has a website customer account: is in the Customer group."""
     if user is None or not getattr(user, 'pk', None):
         return False
-    return (CustomerProfile.objects.filter(user_id=user.pk).exists()
-            or user.groups.filter(name__iexact='customer').exists())
+    return user.groups.filter(name__iexact='customer').exists()
 
 
 def can_use_storefront(user) -> bool:
@@ -64,12 +61,11 @@ def staff_login_q(prefix: str = '') -> Q:
 
 
 def has_customer_account(user) -> bool:
-    """Both halves: the Customer group and a CustomerProfile."""
-    return (CustomerProfile.objects.filter(user_id=user.pk).exists()
-            and user.groups.filter(name__iexact='customer').exists())
+    """Same as ``is_customer`` (the Customer group; the customer record is retired, T62)."""
+    return is_customer(user)
 
 
-def ensure_staff_customer(user) -> tuple[CustomerProfile | None, bool]:
+def ensure_staff_customer(user) -> tuple[None, bool]:
     """Retired 2026-10-16 (staff are not customers): makes nothing. Always ``(None, False)``."""
     return None, False
 

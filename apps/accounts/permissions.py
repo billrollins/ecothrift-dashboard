@@ -57,7 +57,7 @@ class IsStaff(IsEmployee):
 
 
 class IsCustomer(BasePermission):
-    """A website customer account: signed in, switched on, and a CustomerProfile or the Customer group.
+    """A website customer account: signed in, switched on, and in the Customer group.
 
     Not ``role == 'Customer'``: since 2026-10-15 (owner) every staff user is a website customer too, and their role
     stays their staff role (Customer is the lowest). This only opens the storefront's own pages (My holds, My

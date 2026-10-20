@@ -301,7 +301,7 @@ function JobDialog({
             </TextField>
           </Stack>
           <TextField label="One line (tagline)" value={draft.tagline} onChange={set('tagline')} fullWidth sx={changedSx('tagline')} />
-          <TextField label="About the role (2–3 sentences)" value={draft.summary} onChange={set('summary')} multiline minRows={2}
+          <TextField label="About the role (2-3 sentences)" value={draft.summary} onChange={set('summary')} multiline minRows={2}
             fullWidth sx={changedSx('summary')} />
           {LIST_FIELDS.map((field) => (
             <TextField

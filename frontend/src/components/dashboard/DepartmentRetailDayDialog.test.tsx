@@ -159,7 +159,7 @@ describe('DepartmentRetailDayDialog', () => {
     expect(scoredContributionTotal(segments)).toBeCloseTo(80);
     renderDialog(noWalk);
     expect(screen.getByText('Spot not counted · no walk that day')).toBeInTheDocument();
-    expect(formatCardWeight('Spot', 0, true)).toBe('Spot —');
+    expect(formatCardWeight('Spot', 0, true)).toBe('Spot -');
   });
 
   it('hides the scale table until Grade scale is opened', () => {

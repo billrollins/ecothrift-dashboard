@@ -59,7 +59,7 @@ def _legacy_users():
 
     taken = {e.strip().lower() for e in Person.objects.filter(removed_at__isnull=True).values_list('email', flat=True) if e}
     linked = set(Person.objects.filter(user__isnull=False).values_list('user_id', flat=True))
-    return [u for u in _customer_users().select_related('customer')
+    return [u for u in _customer_users()
             if u.pk not in linked and (u.email or '').strip().lower() not in taken]
 
 
@@ -124,15 +124,14 @@ def rows() -> list[dict]:
     for user in _legacy_users():
         email = (user.email or '').strip().lower()
         hold = holds.get(email, {})
-        profile = getattr(user, 'customer', None)
         out.append({
             'key': f'c{user.pk}', 'kind': 'legacy', 'account_id': None, 'user_id': user.pk,
-            'number': profile.customer_number if profile else '', 'name': user.full_name or email, 'second': '',
+            'number': '', 'name': user.full_name or email, 'second': '',
             'email': user.email, 'phone': user.phone or '',
             'stage': 'needs_finalize' if user.is_active else 'off', 'since': user.date_joined,
             'bucks': '0.00', 'bucks_lifetime': '0.00', 'credit': '0.00', 'returns': 0, 'sales': 0, 'spent': '0.00',
             'last_visit': None, 'holds_active': hold.get('active', 0), 'holds_total': hold.get('total', 0),
-            'needs_reply': email in waiting, 'notes': profile.notes if profile else '', 'staff': '', 'legacy': True,
+            'needs_reply': email in waiting, 'notes': '', 'staff': '', 'legacy': True,
         })
     out.sort(key=lambda r: (r['since'], r['key']), reverse=True)
     return out

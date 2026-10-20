@@ -32,7 +32,7 @@ export function ListingPhotoGrid({
   if (images.length === 0) {
     return (
       <Typography variant="body2" color="text.secondary">
-        No photos yet — a listing cannot publish without one.
+        No photos yet - a listing cannot publish without one.
       </Typography>
     );
   }

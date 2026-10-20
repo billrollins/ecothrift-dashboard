@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
@@ -26,6 +27,54 @@ def _as_decimal(value: Any) -> Decimal | None:
         return Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError):
         return None
+
+
+# Room in the money columns (max_digits=10, decimal_places=2): 8 dollar digits and cents.
+MAX_MONEY = Decimal('99999999.99')
+_PLAIN_NUMBER = re.compile(r'^[+-]?(\d+\.?\d*|\.\d+)$')
+
+
+def parse_money(value: Any, label: str, *, required: bool = False) -> Decimal | None:
+    """A dollar amount from a request body, or CardSurchargeError with a plain message.
+
+    Takes a number or a numeric string. Refuses anything else (text, NaN, Infinity, booleans, lists),
+    a negative, more than two decimals, or an amount too big for the books. Blank is None, or an error when
+    ``required``. A float's binary noise (65.60000000000001) is rounded off; a real third decimal is refused.
+    """
+    if value is None or (isinstance(value, str) and not value.strip()):
+        if required:
+            raise CardSurchargeError(f'{label} is required.')
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float, str, Decimal)):
+        raise CardSurchargeError(f'{label} must be a dollar amount like 20.00.')
+    try:
+        if isinstance(value, float):
+            if value != value or value in (float('inf'), float('-inf')):
+                raise InvalidOperation
+            amount = Decimal(repr(value))
+            if amount <= MAX_MONEY:
+                rounded = amount.quantize(MONEY, rounding=ROUND_HALF_UP)
+                if abs(float(rounded) - value) < 1e-6:
+                    amount = rounded
+        elif isinstance(value, str):
+            if not _PLAIN_NUMBER.match(value.strip()):
+                raise InvalidOperation
+            amount = Decimal(value.strip())
+        else:
+            amount = Decimal(value)
+        if not amount.is_finite():
+            raise InvalidOperation
+        if amount < 0:
+            raise CardSurchargeError(f'{label} cannot be negative.')
+        if amount > MAX_MONEY:
+            raise CardSurchargeError(f'{label} is too large.')
+        if amount != amount.quantize(MONEY, rounding=ROUND_HALF_UP):
+            raise CardSurchargeError(f'{label} can have at most two decimal places.')
+        return amount.quantize(MONEY)
+    except (InvalidOperation, ValueError, OverflowError) as exc:
+        if isinstance(exc, CardSurchargeError):
+            raise
+        raise CardSurchargeError(f'{label} must be a dollar amount like 20.00.') from None
 
 
 def get_card_surcharge_setting() -> dict[str, Any]:

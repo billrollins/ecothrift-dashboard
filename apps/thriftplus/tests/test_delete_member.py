@@ -6,7 +6,7 @@ from decimal import Decimal as D
 
 from django.contrib.auth.models import Group
 
-from apps.accounts.models import CustomerProfile, User
+from apps.accounts.models import User
 from apps.pos.models import Cart, Drawer
 from apps.texting.models import EmailConsent
 from apps.thriftplus.models import (
@@ -41,7 +41,7 @@ class DeleteTests(RegisterBase):
         EmailConsent.objects.create(email='ana@example.com', kind='thriftplus', opted_in=True, how='test',
                                     ref=f'thriftplus.person:{person.pk}')
         self.site = User.objects.create_user('Ana@Example.com', 'Ana', 'Tester', password=None)
-        CustomerProfile.objects.create(user=self.site, customer_number='CUS-900')
+        self.site.groups.add(Group.objects.get_or_create(name='Customer')[0])
 
     def test_the_preview_finds_everything_and_changes_nothing(self):
         self.api.force_authenticate(self.boss)

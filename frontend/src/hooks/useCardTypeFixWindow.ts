@@ -39,7 +39,7 @@ export function useCardTypeFixWindow(
     if (inWindow) {
       reason = `${minutesLeft} min left to fix without a manager`;
     } else if (isSuper) {
-      reason = 'Past the 15 min window — superuser override';
+      reason = 'Past the 15 min window - superuser override';
     } else {
       reason = 'Locked after 15 min. Ask Bill Rollins to change it.';
     }

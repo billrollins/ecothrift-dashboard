@@ -127,10 +127,10 @@ function Panel({ id, onClose }: { id: number; onClose: () => void }) {
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             {o.position || 'New hire'} · first day {dayText(o.start_date)}
-            {o.start_time ? ` at ${o.start_time.slice(0, 5)}` : ''} · manager {o.manager?.name ?? '—'}
+            {o.start_time ? ` at ${o.start_time.slice(0, 5)}` : ''} · manager {o.manager?.name ?? '-'}
           </Typography>
           <Typography variant="body2" sx={{ color: ccTokens.ink2 }}>
-            Dash sign-in: {o.user.username || '—'}
+            Dash sign-in: {o.user.username || '-'}
             {o.user.last_login ? ' · has signed in' : o.user.has_password ? ' · password set' : ' · no password yet'}
           </Typography>
         </Box>

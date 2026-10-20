@@ -2,6 +2,33 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "oneacct-api",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd /d C:\\Coding\\_worktrees\\ecothrift-dashboard--one-account && C:\\Coding\\ecothrift-dashboard\\venv\\Scripts\\python.exe manage.py runserver 127.0.0.1:8020"
+      ],
+      "port": 8020
+    },
+    {
+      "name": "oneacct-staff",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd /d C:\\Coding\\_worktrees\\ecothrift-dashboard--one-account\\frontend && set ECOTHRIFT_API_PORT=8020&& set ECOTHRIFT_STAFF_PORT=5187&& npm run dev -- --strictPort"
+      ],
+      "port": 5187
+    },
+    {
+      "name": "oneacct-public",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd /d C:\\Coding\\_worktrees\\ecothrift-dashboard--one-account\\frontend-public && set ECOTHRIFT_API_PORT=8020&& set ECOTHRIFT_PUBLIC_PORT=5188&& npm run dev -- --strictPort"
+      ],
+      "port": 5188
+    },
+    {
       "name": "frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
@@ -69,6 +96,36 @@
         "cd /d C:\\Coding\\_worktrees\\ecothrift-dashboard--hiring\\frontend-public && set ECOTHRIFT_API_PORT=8010&& set ECOTHRIFT_PUBLIC_PORT=5184&& npm run dev -- --strictPort"
       ],
       "port": 5184
+    },
+    {
+      "name": "mycard-staff",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd /d C:\\Coding\\_worktrees\\ecothrift-dashboard--nocardapp\\frontend && set ECOTHRIFT_STAFF_PORT=5186&& npm run dev -- --strictPort"
+      ],
+      "port": 5186
+    },
+    {
+      "name": "posters",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5195",
+        "--directory",
+        "workspace/posters2/out/S"
+      ],
+      "port": 5195
+    },
+    {
+      "name": "public-nocard",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd /d C:\\Coding\\_worktrees\\ecothrift-dashboard--nocardapp\\frontend-public && set VITE_THRIFT_PLUS_DEV_OPEN=1&& set ECOTHRIFT_PUBLIC_PORT=5194&& npm run dev -- --strictPort"
+      ],
+      "port": 5194
     }
   ]
 }

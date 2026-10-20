@@ -85,7 +85,20 @@ class CartTotalsAPITests(TestCase):
         self.assertEqual(len(data['lines']), 1)
         assert_cart_totals_match_lines(self, data)
 
-    def test_add_same_sku_twice_totals_match_incremented_quantity(self):
+    def test_add_same_sku_twice_rings_the_next_unit_and_totals_match(self):
+        # Two units of one thing from one order: the second scan of the tag rings the next unit (2026-10-20).
+        from apps.inventory.models import PurchaseOrder, Vendor
+
+        order = PurchaseOrder.objects.create(
+            vendor=Vendor.objects.create(name='Totals Vendor', code='TOV'), order_number='PO-TOT-1',
+            ordered_date='2026-10-01', purchase_cost=Decimal('10.00'), retail_value=Decimal('100.00'),
+            status='processing',
+        )
+        Item.objects.filter(pk=self.item_a.pk).update(purchase_order=order)
+        Item.objects.create(
+            sku='POS-T-SKU-A2', product=self.item_a.product, purchase_order=order, price=Decimal('7.50'),
+            status='on_shelf',
+        )
         cart = self._create_open_cart()
         cid = cart['id']
         self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': 'POS-T-SKU-A'}, format='json')
@@ -96,8 +109,9 @@ class CartTotalsAPITests(TestCase):
         )
         self.assertEqual(r.status_code, 200, r.content)
         data = r.json()
-        self.assertEqual(len(data['lines']), 1)
-        self.assertEqual(data['lines'][0]['quantity'], 2)
+        self.assertEqual(len(data['lines']), 2)
+        self.assertEqual([ln['quantity'] for ln in data['lines']], [1, 1])
+        self.assertEqual(Decimal(str(data['subtotal'])), Decimal('15.00'))
         assert_cart_totals_match_lines(self, data)
 
     def test_add_second_sku_totals_match_both_lines(self):
@@ -123,6 +137,8 @@ class CartTotalsAPITests(TestCase):
             format='json',
         )
         line_id = r0.json()['lines'][0]['id']
+        # A line already holding 5 (made before one-unit-per-line, 2026-10-20); the cashier lowers it to 4.
+        CartLine.objects.filter(pk=line_id).update(quantity=5)
         r = self.client.patch(
             f'/api/pos/carts/{cid}/lines/{line_id}/',
             {'quantity': 4},
@@ -139,6 +155,7 @@ class CartTotalsAPITests(TestCase):
         cid = cart['id']
         r0 = self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': 'POS-T-SKU-A'}, format='json')
         line_id = r0.json()['lines'][0]['id']
+        CartLine.objects.filter(pk=line_id).update(quantity=3)  # a line made before one-unit-per-line (2026-10-20)
         r = self.client.patch(
             f'/api/pos/carts/{cid}/lines/{line_id}/',
             {'quantity': 3, 'description': 'Item A', 'unit_price': 12.99},

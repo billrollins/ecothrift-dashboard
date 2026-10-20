@@ -314,9 +314,9 @@ export function PersonSheet({ person, owner, onClose, onFinish, onDeleted, onCha
               {person.email ? <Box component="span" sx={{ color: 'text.secondary', fontWeight: 400 }}>{person.email_verified ? ' · confirmed' : ' · not confirmed yet'}</Box> : null}
             </Row>
             <Row label="Phone">{person.phone_last4 ? `ends in ${person.phone_last4}` : 'None'}</Row>
-            <Row label="Joined online">{when(person.joined_at, true) || '—'}</Row>
+            <Row label="Joined online">{when(person.joined_at, true) || '-'}</Row>
             {done ? (
-              <Row label="Finished">{`${when(person.finished_at, true) || '—'}${person.finished_by ? ` by ${person.finished_by}` : ''}`}</Row>
+              <Row label="Finished">{`${when(person.finished_at, true) || '-'}${person.finished_by ? ` by ${person.finished_by}` : ''}`}</Row>
             ) : null}
             <Row label="Photo ID">{`${yes(person.id_checked)} checked · 18+ ${yes(person.verified_18)}`}</Row>
             <Row label="Signed">{person.signed_at ? when(person.signed_at, true) : 'Not yet'}</Row>

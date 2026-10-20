@@ -4,7 +4,7 @@ import type { POSDeviceConfig, Register } from '../types/pos.types';
  * The test terminal (/pos/test, owner 2026-10-16): any computer, any time, always on the training register.
  * It never reads or changes the computer's saved device config, so /pos/terminal there keeps its own register.
  */
-export const TEST_TERMINAL_TITLE = 'Test terminal — practice only, nothing is real';
+export const TEST_TERMINAL_TITLE = 'Test terminal - practice only, nothing is real';
 
 /** The training register: the active is_training one (code TRAIN first if there were ever two). */
 export function pickTrainingRegister<T extends Pick<Register, 'is_training' | 'is_active' | 'code'>>(

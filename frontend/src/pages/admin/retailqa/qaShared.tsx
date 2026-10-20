@@ -15,8 +15,8 @@ export const FLAG_LABELS: Record<string, string> = {
 };
 
 export function thirdsLine(thirds?: GradeThirds | null) {
-  if (!thirds) return '—';
-  return `Spot ${thirds.owner ?? '—'} · Do ${thirds.doing ?? '—'} · Cross ${thirds.cross ?? '—'}`;
+  if (!thirds) return '-';
+  return `Spot ${thirds.owner ?? '-'} · Do ${thirds.doing ?? '-'} · Cross ${thirds.cross ?? '-'}`;
 }
 
 export function ThirdsStrip({

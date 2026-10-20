@@ -58,8 +58,8 @@ class QueryBudgetTests(TestCase):
 
     def test_staff_listings_query_budget(self):
         self.client.force_authenticate(self.mgr)
-        # Pinned after overnight: count + page + images + s3 + channels (+ role groups).
-        with self.assertNumQueries(6):
+        # Pinned: count + page + images + s3 + image variants + channels (+ role groups).
+        with self.assertNumQueries(7):
             r = self.client.get('/api/webstore/listings/')
         self.assertEqual(r.status_code, 200)
 

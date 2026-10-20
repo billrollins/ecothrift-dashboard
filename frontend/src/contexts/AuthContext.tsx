@@ -9,7 +9,7 @@ import {
 import { roleRank } from '../auth/roles';
 import type { User } from '../types/accounts.types';
 import * as accountsApi from '../api/accounts.api';
-import { setAccessToken } from '../api/client';
+import { deviceKindHeaders, rememberIdleSignOut, setAccessToken } from '../api/client';
 
 interface AuthContextValue {
   user: User | null;
@@ -38,11 +38,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const refreshRes = await fetch('/api/auth/refresh/', {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...deviceKindHeaders() },
         body: '{}',
       });
 
       if (!refreshRes.ok) {
+        // Idle too long (D16): the sign-in page says so.
+        if (refreshRes.status === 401) rememberIdleSignOut(await refreshRes.json().catch(() => null));
         setUser(null);
         setAccessToken(null);
         setIsLoading(false);

@@ -49,12 +49,6 @@ export interface ConsigneeProfile {
   created_at: string;
 }
 
-export interface CustomerProfile {
-  id: number;
-  customer_number: string;
-  customer_since: string;
-  notes: string;
-}
 
 export interface User {
   id: number;
@@ -83,7 +77,6 @@ export interface User {
   email_verified: boolean;
   employee?: EmployeeProfile | null;
   consignee?: ConsigneeProfile | null;
-  customer?: CustomerProfile | null;
 }
 
 export interface LoginRequest {

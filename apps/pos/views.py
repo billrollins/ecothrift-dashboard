@@ -741,6 +741,35 @@ class CartViewSet(viewsets.ModelViewSet):
         # The training register (2026-10-14) never moves a real sale: a sold tag rings up for practice as it is
         # (the item stays sold, its old sale stays put; completing a practice sale changes no item).
         training = _is_training_cart(cart)
+
+        # One tag on more than one unit (an extra Quick Reprice copy, a tag stuck on two of the same thing): when the
+        # scanned item is already sold, or already on this sale, the register rings the next unsold unit of that
+        # check-in instead, never the same item twice. The sold-tag move and the "already sold" stop below only
+        # happen when no other unit is left. The training register keeps its own rules (nothing is sold there).
+        scanned_item = item
+        if not training:
+            on_this_sale = cart.lines.filter(item=item).exists()
+            if item.status == 'sold' or on_this_sale:
+                from apps.pos.services.next_unit import next_unit
+
+                spare = next_unit(item, cart)
+                if spare is not None:
+                    item = spare
+                elif on_this_sale:
+                    return Response(
+                        {
+                            'detail': (
+                                f'{item.sku} is already on this sale and there is no other unit of it on the shelf. '
+                                'If you are holding a second one, ring it as an unscannable item or ask a lead.'
+                            ),
+                            'code': 'ITEM_ALREADY_IN_CART',
+                            'item_id': item.pk,
+                            'sku': item.sku,
+                            'title': item.product.title,
+                        },
+                        status=400,
+                    )
+
         if item.status == 'sold' and not training:
             from apps.inventory.services.duplicate_tag import move_sale_to_new_item, why_not
 
@@ -901,7 +930,10 @@ class CartViewSet(viewsets.ModelViewSet):
 
         cart.recalculate()
         cart = self.get_queryset().get(pk=cart.pk)
-        return Response(CartSerializer(cart).data)
+        data = CartSerializer(cart).data
+        if item.pk != scanned_item.pk:
+            data['unit_swapped'] = {'scanned_sku': scanned_item.sku, 'added_sku': item.sku}
+        return Response(data)
 
     @action(detail=True, methods=['post'], url_path='add-resale-copy')
     def add_resale_copy(self, request, pk=None):
@@ -1645,8 +1677,8 @@ class CartViewSet(viewsets.ModelViewSet):
         """Complete a cart (finalize sale)."""
         from apps.pos.services.card_surcharge import (
             CardSurchargeError,
-            _as_decimal,
             apply_card_surcharge,
+            parse_money,
         )
 
         from apps.thriftplus.services import register as thrift_register
@@ -1654,6 +1686,8 @@ class CartViewSet(viewsets.ModelViewSet):
         cart = self.get_object()
         if cart.status != 'open':
             return Response({'detail': 'Cart is not open.'}, status=400)
+        if not hasattr(request.data, 'get'):
+            return Response({'detail': 'Send the payment as a set of fields.', 'code': 'INVALID_PAYLOAD'}, status=400)
         if cart.total < 0:
             return Response(
                 {'detail': 'Cart total cannot be negative.', 'code': 'NEGATIVE_TOTAL'},
@@ -1675,8 +1709,22 @@ class CartViewSet(viewsets.ModelViewSet):
 
         payment_method = request.data.get('payment_method', 'cash')
         allowed = {choice[0] for choice in Cart.PAYMENT_METHODS}
-        if payment_method not in allowed:
+        if not isinstance(payment_method, str) or payment_method not in allowed:
             return Response({'detail': 'Invalid payment method.'}, status=400)
+
+        # Every money field is checked before anything is written: a bad one is a plain 400, never a server error.
+        try:
+            cash_tendered = parse_money(
+                request.data.get('cash_tendered'), 'Cash tendered', required=payment_method in ('cash', 'split'),
+            )
+            change_given = parse_money(request.data.get('change_given'), 'Change given')
+            card_amount = parse_money(request.data.get('card_amount'), 'Card amount')
+            card_charged_total = parse_money(request.data.get('card_charged_total'), 'Card charged total')
+        except CardSurchargeError as exc:
+            return Response({'detail': str(exc), 'code': 'INVALID_AMOUNT'}, status=400)
+        raw_card_type = request.data.get('card_type') or ''
+        if not isinstance(raw_card_type, str):
+            return Response({'detail': 'card_type must be credit or debit.', 'code': 'INVALID_AMOUNT'}, status=400)
 
         # Payroll deduction (staff only): the owner's switch, the cap and the rules, before anything is written.
         payroll_employee = None
@@ -1684,7 +1732,11 @@ class CartViewSet(viewsets.ModelViewSet):
             from apps.accounts.models import User
             from apps.pos.services.staff_purchases import StaffPurchaseError, check_floor_day, eligibility
 
-            payroll_employee = User.objects.filter(pk=request.data.get('payroll_employee') or 0).first()
+            try:
+                payroll_pk = int(request.data.get('payroll_employee') or 0)
+            except (TypeError, ValueError, OverflowError):
+                payroll_pk = 0
+            payroll_employee = User.objects.filter(pk=payroll_pk).first() if 0 < payroll_pk < 2**31 else None
             check = eligibility(payroll_employee, cashier=request.user, amount=amount_due)
             if not check['eligible']:
                 return Response({'detail': check['reason'], 'code': 'PAYROLL_NOT_ALLOWED'}, status=400)
@@ -1693,14 +1745,14 @@ class CartViewSet(viewsets.ModelViewSet):
             except StaffPurchaseError as exc:
                 return Response({'detail': str(exc), 'code': exc.code}, status=400)
 
-        card_type = (request.data.get('card_type') or '').strip()
+        card_type = raw_card_type.strip()
         try:
             surcharge_fields = apply_card_surcharge(
                 payment_method=payment_method,
                 card_type=card_type,
                 cart_total=amount_due,
-                card_amount=request.data.get('card_amount'),
-                client_charged_total=request.data.get('card_charged_total'),
+                card_amount=card_amount,
+                client_charged_total=card_charged_total,
             )
         except CardSurchargeError as exc:
             return Response({'detail': str(exc)}, status=400)
@@ -1708,9 +1760,9 @@ class CartViewSet(viewsets.ModelViewSet):
         if training:
             with transaction.atomic():
                 cart.payment_method = payment_method
-                cart.cash_tendered = _as_decimal(request.data.get('cash_tendered'))
-                cart.change_given = _as_decimal(request.data.get('change_given'))
-                cart.card_amount = _as_decimal(request.data.get('card_amount'))
+                cart.cash_tendered = cash_tendered
+                cart.change_given = change_given
+                cart.card_amount = card_amount
                 cart.card_type = surcharge_fields['card_type']
                 cart.card_surcharge_rate = surcharge_fields['card_surcharge_rate']
                 cart.card_surcharge_amount = surcharge_fields['card_surcharge_amount']
@@ -1726,9 +1778,9 @@ class CartViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             cart.payment_method = payment_method
-            cart.cash_tendered = _as_decimal(request.data.get('cash_tendered'))
-            cart.change_given = _as_decimal(request.data.get('change_given'))
-            cart.card_amount = _as_decimal(request.data.get('card_amount'))
+            cart.cash_tendered = cash_tendered
+            cart.change_given = change_given
+            cart.card_amount = card_amount
             cart.card_type = surcharge_fields['card_type']
             cart.card_surcharge_rate = surcharge_fields['card_surcharge_rate']
             cart.card_surcharge_amount = surcharge_fields['card_surcharge_amount']
@@ -1846,10 +1898,49 @@ class CartViewSet(viewsets.ModelViewSet):
                 _cancel_delivery_job_for_line(line)
             line.delete()
         else:
+            extra_units = []
+            keep_qty = 1
+            if 'quantity' in request.data:
+                try:
+                    target_qty = int(request.data['quantity'])
+                except (TypeError, ValueError, OverflowError):
+                    return Response({'detail': 'Quantity must be a whole number.', 'code': 'INVALID_QUANTITY'}, status=400)
+                # One item is one unit: asking for more of an item line rings the next unsold units of it
+                # as their own lines (the same item is never sold twice). The training register sells nothing.
+                if (line.item_id and line.line_kind == CartLine.LINE_KIND_ITEM and not _is_training_cart(cart)
+                        and target_qty > max(line.quantity or 1, 1)):
+                    from apps.pos.services.next_unit import next_units
+
+                    need = target_qty - max(line.quantity or 1, 1)
+                    extra_units = next_units(line.item, cart, need)
+                    if len(extra_units) < need:
+                        have = len(extra_units) + max(line.quantity or 1, 1)
+                        return Response(
+                            {
+                                'detail': (
+                                    f'Only {have} of {line.item.sku} {"is" if have == 1 else "are"} on the shelf. '
+                                    'The quantity was not changed.'
+                                ),
+                                'code': 'NOT_ENOUGH_UNITS',
+                            },
+                            status=400,
+                        )
+                    keep_qty = max(line.quantity or 1, 1)
             for field in ('quantity', 'description', 'unit_price'):
                 if field in request.data:
-                    setattr(line, field, request.data[field])
+                    setattr(line, field, keep_qty if (field == 'quantity' and extra_units) else request.data[field])
             line.save()
+            for unit in extra_units:
+                extra = CartLine.objects.create(
+                    cart=cart,
+                    item=unit,
+                    description=unit.product.title,
+                    quantity=1,
+                    unit_price=line.unit_price,
+                    line_kind=CartLine.LINE_KIND_ITEM,
+                    sale_label=line.sale_label,
+                )
+                apply_sale_to_line(extra)
 
         cart.recalculate()
         cart = self.get_queryset().get(pk=cart.pk)

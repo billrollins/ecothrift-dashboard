@@ -42,7 +42,6 @@ import LocalShipping from '@mui/icons-material/LocalShipping';
 import Percent from '@mui/icons-material/Percent';
 import WbSunny from '@mui/icons-material/WbSunny';
 import PersonOff from '@mui/icons-material/PersonOff';
-import PersonOutline from '@mui/icons-material/PersonOutline';
 import PlayArrow from '@mui/icons-material/PlayArrow';
 import PointOfSale from '@mui/icons-material/PointOfSale';
 import Sell from '@mui/icons-material/Sell';
@@ -101,9 +100,8 @@ import { WorkCyclePromptDialog } from './WorkCyclePromptDialog';
 import { writeLastActivity } from './idlePrompt';
 import { useDeviceConfig } from '../../hooks/useDeviceConfig';
 import { useLocalPrintStatus } from '../../hooks/useLocalPrintStatus';
-import { useLookupCustomer } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
-import { updateCart, getCarts, getCartCardPreview, getStaffPurchaseSettings, suggestDeliveryAddresses } from '../../api/pos.api';
+import { getCarts, getCartCardPreview, getStaffPurchaseSettings, suggestDeliveryAddresses } from '../../api/pos.api';
 import { PayrollPicker } from '../../components/pos/PayrollPicker';
 import type { DeliveryAddressSuggestion } from '../../api/pos.api';
 import { localPrintService } from '../../services/localPrintService';
@@ -111,7 +109,6 @@ import type { CardPreview, Cart, CartLine, Drawer, PaymentMethod, POSDeviceConfi
 import { deriveTerminalState } from './terminalState';
 import { TEST_TERMINAL_TITLE, testTerminalDeviceConfig } from '../../utils/testTerminal';
 import type { DenominationBreakdown } from '../../types/pos.types';
-import type { Customer } from '../../api/accounts.api';
 import {
   parsePosAddItemError,
   snackbarVariantForPosAddItemError,
@@ -237,7 +234,6 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   // Training register: the sale waits here for the "THIS IS JUST A TEST" screen (2026-10-10).
   const [trainingPayload, setTrainingPayload] = useState<Record<string, unknown> | null>(null);
   const [cardPreview, setCardPreview] = useState<CardPreview | null>(null);
-  const [customer, setCustomer] = useState<Customer | null>(null);
   // Thrift+ re-ring: the last completed sale on this terminal, and whether the next member QR scan re-rings it.
   const [lastSale, setLastSale] = useState<{ id: number; total: string; at: number; live: boolean } | null>(null);
   const [reringArmed, setReringArmed] = useState(false);
@@ -427,7 +423,6 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
     if (registerId == null || trainingOpenAskedRef.current) return;
     askForTrainingDrawer(registerId);
   }, [needsTrainingDrawer, registerId, askForTrainingDrawer]);
-  const lookupCustomerMutation = useLookupCustomer();
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -570,24 +565,15 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         return;
       }
 
-      if (/^CUS-\d+$/i.test(input)) {
-        try {
-          const cust = await lookupCustomerMutation.mutateAsync(input.toUpperCase());
-          setCustomer(cust);
-          const updated = await updateCart(activeCart.id, { customer: cust.id });
-          setCart(updated.data as unknown as Cart);
-          enqueueSnackbar(`Customer: ${cust.full_name}`, { variant: 'info' });
-        } catch {
-          enqueueSnackbar('Customer not found', { variant: 'error' });
-        }
-        setSkuInput('');
-        skuInputRef.current?.focus();
-        return;
-      }
-
       try {
         const updated = await addItemMutation.mutateAsync({ cartId: activeCart.id, sku: input });
         commitCart(updated as unknown as Cart);
+        const swapped = (updated as unknown as Cart).unit_swapped;
+        if (swapped) {
+          enqueueSnackbar(`${swapped.scanned_sku} was already used. Added the next unit, ${swapped.added_sku}.`, {
+            variant: 'info',
+          });
+        }
       } catch (err: unknown) {
         const parsed = parsePosAddItemError(err);
         if (parsed.kind === 'already_sold' && parsed.itemId != null) {
@@ -616,7 +602,6 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
     startCart,
     addItemMutation,
     commitCart,
-    lookupCustomerMutation,
     enqueueSnackbar,
     markRegisterActivity,
     reringArmed,
@@ -1136,8 +1121,12 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       });
       commitCart(updated as unknown as Cart);
       setEditingLineId(null);
-    } catch {
-      enqueueSnackbar('Failed to update line', { variant: 'error' });
+    } catch (err: unknown) {
+      const detail =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      enqueueSnackbar(detail || 'Failed to update line', { variant: 'error' });
     }
   }, [cart, editingLineId, editValues, updateLineMutation, commitCart, enqueueSnackbar]);
 
@@ -1149,7 +1138,6 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       markRegisterActivity();
       setCart(null);
       cartRef.current = null;
-      setCustomer(null);
       setCashTendered('');
       setPayrollEmployee('');
       setVoidConfirmOpen(false);
@@ -1195,7 +1183,6 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       setReringArmed(false);
       setCart(null);
       cartRef.current = null;
-      setCustomer(null);
       setCashTendered('');
       setPayrollEmployee('');
       setCardTenderOpen(false);
@@ -1256,7 +1243,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         return;
       }
       if (cash >= total) {
-        enqueueSnackbar('Cash covers the total — switch to Cash.', { variant: 'error' });
+        enqueueSnackbar('Cash covers the total - switch to Cash.', { variant: 'error' });
         return;
       }
     }
@@ -1615,14 +1602,6 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                     <WorkCyclePill />
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {customer && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <PersonOutline fontSize="small" color="primary" />
-                        <Typography variant="body2" color="primary.main" fontWeight={600}>
-                          {customer.full_name} ({customer.customer_number})
-                        </Typography>
-                      </Box>
-                    )}
                     {cart && (
                       <Button
                         size="small"
@@ -1972,7 +1951,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                     inputRef={skuInputRef}
                     fullWidth
                     size="small"
-                    placeholder={cart?.thrift_plus?.live || thriftStatus.data?.live ? 'Scan a SKU, CUS-XXXX or a Thrift+ member QR' : 'Scan or type SKU (or CUS-XXXX)'}
+                    placeholder={cart?.thrift_plus?.live || thriftStatus.data?.live ? 'Scan a SKU or a Thrift+ member QR' : 'Scan or type SKU'}
                     value={skuInput}
                     onChange={(e) => setSkuInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleScanInput()}
@@ -2321,8 +2300,8 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
               variant={saleMode?.active ? 'filled' : 'outlined'}
               title={
                 saleMode?.source === 'override'
-                  ? 'Manual override — click to toggle'
-                  : 'Calendar — click to toggle'
+                  ? 'Manual override - click to toggle'
+                  : 'Calendar - click to toggle'
               }
             />
             )}

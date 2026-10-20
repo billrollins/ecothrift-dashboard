@@ -110,6 +110,11 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   const accountOpen = params.get('view') === 'account' && !!member;
   // Join v2 (owner 2026-10-19): a pending member's selfie and signature, after a join's sign-in or from the Member QR.
   const finishOpen = params.get('view') === 'finish' && !!member;
+  // Required (owner 2026-10-20): a pending member with steps left always lands on Finish joining.
+  const finishLeft = member?.ready === false && (member.finish_steps?.length ?? 0) > 0;
+  useEffect(() => {
+    if (finishLeft && params.get('view') !== 'finish') setParams({ view: 'finish' }, { replace: true });
+  }, [finishLeft, params, setParams]);
   // ecothrift.us/qr (and the old /card); ecothrift.us/join on a phone that's signed in (owner 2026-10-15, APP D9).
   const cardAsked = params.get('view') === 'qr' || params.get('view') === 'card' || params.get('view') === 'join';
 
@@ -117,12 +122,12 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   const [top, setTop] = useState<Top | null>(null);
   const [flash, setFlash] = useState(false);
   // ecothrift.us/qr lands on /scan?view=qr: open the Member QR right away (owner 2026-10-14, APP D5 and D6).
-  const [sheet, setSheet] = useState<null | 'about' | 'wallet' | 'balance' | 'camera'>(() => (cardAsked && member ? 'wallet' : null));
+  const [sheet, setSheet] = useState<null | 'about' | 'wallet' | 'balance' | 'camera'>(() => (cardAsked && member && !finishLeft ? 'wallet' : null));
   // Also when it's asked after the scanner opened: a join's code or link signs in, then the address says view=qr.
   const hasMember = !!member;
   useEffect(() => {
-    if (cardAsked && hasMember) setSheet('wallet');
-  }, [cardAsked, hasMember]);
+    if (cardAsked && hasMember && !finishLeft) setSheet('wallet');
+  }, [cardAsked, hasMember, finishLeft]);
   const [info, setInfo] = useState<Info | null>(null);
   const [feel, setFeel] = useState<Feel | null>(null);
   // A phone held sideways (owner 2026-10-15, APP D16 v2): the camera keeps scanning full screen, everything else asks
@@ -461,7 +466,7 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
         <AccountPage member={member} onBack={closeAccount} onSignOut={() => auth.signOut.mutate()} />
       )}
       {finishOpen && member && (
-        <FinishJoining member={member} onDone={() => setParams({ view: 'qr' }, { replace: true })} onClose={() => setParams({}, { replace: true })} />
+        <FinishJoining member={member} onDone={() => setParams({ view: 'qr' }, { replace: true })} onSignOut={() => auth.signOut.mutate()} />
       )}
       {sideways && (
         cameraSideways ? <SidewaysScanPill lock={lock} />

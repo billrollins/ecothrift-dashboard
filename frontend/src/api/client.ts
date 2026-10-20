@@ -30,6 +30,54 @@ export const apiPublic = axios.create({
   withCredentials: true,
 });
 
+/**
+ * Sent on the refresh call so the server picks the idle sign-out limit (house standard D16, T69). A register (this
+ * computer's saved POS device type) and the time kiosk may keep the longer named setting; every other screen gets
+ * the staff limit (4 hours by default). It only chooses a limit; it grants nothing.
+ */
+export function deviceKindHeaders(pathname: string = window.location.pathname): Record<string, string> {
+  if (pathname === '/kiosk' || pathname.startsWith('/kiosk/')) return { 'X-Device-Kind': 'register' };
+  try {
+    const raw = localStorage.getItem('pos_device_config');
+    if (raw && (JSON.parse(raw) as { deviceType?: unknown }).deviceType === 'register') {
+      return { 'X-Device-Kind': 'register' };
+    }
+  } catch {
+    // No saved device (or no storage): the staff limit applies.
+  }
+  return {};
+}
+
+// ── "Signed out after 4 hours idle." notice for the sign-in page ─────────────
+const IDLE_NOTICE_KEY = 'signed_out_idle';
+
+/** When the server refused the refresh for idleness (`code: IDLE`), keep its message for the sign-in page. */
+export function rememberIdleSignOut(data: unknown): void {
+  if (!data || typeof data !== 'object' || (data as { code?: unknown }).code !== 'IDLE') return;
+  const detail = (data as { detail?: unknown }).detail;
+  try {
+    sessionStorage.setItem(IDLE_NOTICE_KEY, typeof detail === 'string' && detail ? detail : 'Signed out after 4 hours idle.');
+  } catch {
+    // Storage blocked: the person just lands on the sign-in page without the note.
+  }
+}
+
+export function peekIdleSignOut(): string | null {
+  try {
+    return sessionStorage.getItem(IDLE_NOTICE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function clearIdleSignOut(): void {
+  try {
+    sessionStorage.removeItem(IDLE_NOTICE_KEY);
+  } catch {
+    // Nothing to clear.
+  }
+}
+
 /** Fired on window when the staff refresh fails while the kiosk owns the screen. */
 export const KIOSK_HOST_EXPIRED_EVENT = 'kiosk:host-expired';
 
@@ -110,7 +158,7 @@ api.interceptors.response.use(
         const { data } = await axios.post<{ access: string }>(
           '/api/auth/refresh/',
           {},
-          { withCredentials: true },
+          { withCredentials: true, headers: deviceKindHeaders() },
         );
         accessToken = data.access;
         processQueue(null, data.access);
@@ -122,6 +170,7 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         accessToken = null;
+        rememberIdleSignOut((refreshError as AxiosError).response?.data);
         if (shouldRedirectToLogin(window.location.pathname)) {
           window.location.href = '/login';
         } else {

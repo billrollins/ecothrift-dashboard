@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import logoImg from '../assets/logo-full-360x120.png';
 import {
@@ -11,6 +11,7 @@ import {
   Alert,
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
+import { clearIdleSignOut, peekIdleSignOut } from '../api/client';
 import { tk } from '../i18n/kiosk';
 import { useKioskLang } from './kiosk/kioskLang';
 
@@ -33,6 +34,9 @@ export default function LoginPage() {
   const [lang] = useKioskLang();
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState('');
+  // "Signed out after 4 hours idle." (D16): kept by the refresh that failed, shown once.
+  const [idleNotice] = useState(peekIdleSignOut);
+  useEffect(() => clearIdleSignOut(), []);
   const emailRef = useRef<HTMLInputElement | null>(null);
 
   const stopScanning = () => {
@@ -89,6 +93,11 @@ export default function LoginPage() {
           </Box>
 
           <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {idleNotice && !error ? (
+              <Alert severity="info" data-testid="login-idle-notice">
+                {idleNotice}
+              </Alert>
+            ) : null}
             {error && (
               <Alert severity="error" onClose={() => setError(null)}>
                 {error}

@@ -182,7 +182,6 @@ class PreprocessingRedesignTests(TestCase):
             quantity=1,
             final_price=Decimal('12.00'),
             title='Ready after receiving',
-            description='Processing gate regression',
         )
 
         resp = self._post_build_processing_data_start()
@@ -204,7 +203,6 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            standard_description='Acme Toaster 2 Slice',
             ai_title='Acme Toaster',
             standard_brand='Acme',
             standard_taxonomy={'category': 'Kitchen & dining'},
@@ -221,7 +219,6 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=2,
             quantity=1,
-            standard_description='Bright LED Lamp',
             ai_title='LED Lamp',
             standard_brand='BrightCo',
             standard_taxonomy={'category': 'Home décor & lighting'},
@@ -237,7 +234,6 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            description='Acme Toaster 2 Slice',
             title='Acme Toaster',
             brand='Acme',
             taxonomy={'category': 'Kitchen & dining'},
@@ -251,7 +247,6 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=2,
             quantity=1,
-            description='Bright LED Lamp',
             title='LED Lamp',
             brand='BrightCo',
             taxonomy={'category': 'Home décor & lighting'},
@@ -336,7 +331,6 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=2,
-            description='Acme Toaster 2 Slice',
             title='Acme Toaster',
             brand='Acme',
             model='T2',
@@ -436,7 +430,6 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            standard_description='Coffee grinder thing',
             ai_title='Grinder',
             standard_brand='Acme',
             standard_taxonomy={'category': 'Kitchen & dining'},
@@ -485,7 +478,6 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            standard_description='Coffee grinder thing',
             ai_title='Grinder',
             standard_brand='Acme',
             standard_taxonomy={'category': 'Kitchen & dining'},
@@ -815,7 +807,6 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            standard_description='x',
             ai_title='y',
             unit_retail=Decimal('10.00'),
             proposed_price=Decimal('5.00'),
@@ -858,7 +849,6 @@ class PreprocessingRedesignTests(TestCase):
                     purchase_order=self.order,
                     row_number=1,
                     quantity=1,
-                    standard_description='x',
                 )
                 request = APIRequestFactory().get(
                     f'/api/inventory/orders/{self.order.pk}/preprocessing-status/',
@@ -882,7 +872,8 @@ class PreprocessingRedesignTests(TestCase):
             f'/api/inventory/orders/{self.order.pk}/preprocessing-status/',
         )
         force_authenticate(request, user=self.user)
-        with self.assertNumQueries(12):
+        # Constant, not per row: auth + order + the roll-up counts and sums over the staging rows.
+        with self.assertNumQueries(13):
             response = view(request, pk=self.order.pk)
         self.assertEqual(response.status_code, 200)
 
@@ -928,7 +919,6 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            standard_description='Acme Toaster 2 Slice',
             ai_title='Acme Toaster',
             standard_brand='Acme',
             standard_taxonomy={'category': 'Kitchen & dining'},
@@ -942,7 +932,6 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=2,
             quantity=1,
-            standard_description='Bright LED Lamp',
             ai_title='LED Lamp',
             standard_brand='BrightCo',
             standard_taxonomy={'category': 'Home décor & lighting'},
@@ -970,8 +959,6 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(sr2.ai_taxonomy, sr2.standard_taxonomy)
         self.assertEqual(sr1.final_title, 'Acme Two Slice Toaster')
         self.assertEqual(sr2.final_title, 'BrightCo LED Desk Lamp')
-        self.assertEqual(sr1.final_description, 'Acme Toaster 2 Slice')
-        self.assertEqual(sr2.final_description, 'Bright LED Lamp')
         self.assertEqual(sr1.final_brand, 'Acme')
         self.assertEqual(sr2.final_brand, 'BrightCo')
         self.assertEqual(sr1.final_category, 'Kitchen & dining')
@@ -984,7 +971,6 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            standard_description='Thing',
             ai_title='Thing',
             standard_brand='B',
             standard_identifiers={'sku': 'REAL-SKU', 'upc': '111'},
@@ -1045,8 +1031,22 @@ class PreprocessingRedesignTests(TestCase):
 
     def test_download_cleanup_csv_staging_lean_schema_and_row_order(self):
         first, second = self._create_preprocessing_rows_for_review()
+        # The standard title lives on the manifest spine, so the export reads each row's spine.
+        for staging, spine in (
+            (first, dict(title='Acme Toaster 2 Slice', brand='Acme', condition='unknown',
+                         taxonomy={'category': 'Kitchen & dining'},
+                         identifiers={'sku': 'SKU-AAA', 'upc': '100'}, specifications={'origin': 'US'},
+                         tracking={'lot_id': 'L42'}, search_tags=['x', 'y'], notes='low confidence',
+                         unit_retail=Decimal('50.00'))),
+            (second, dict(title='Bright LED Lamp', brand='BrightCo', condition='unknown',
+                          taxonomy={'category': 'Home décor & lighting'}, unit_retail=Decimal('25.00'))),
+        ):
+            staging.manifest_row = ManifestRow.objects.create(
+                purchase_order=self.order, row_number=staging.row_number, quantity=1, **spine,
+            )
+            staging.save(update_fields=['manifest_row'])
         expected_header = (
-            'row_id,row_number,quantity,unit_retail,base_cost,ideal_price,description,brand,model,'
+            'row_id,row_number,quantity,unit_retail,base_cost,ideal_price,title,brand,model,'
             'condition,notes,identifiers_json,taxonomy_json,specifications_json,tracking_json,'
             'search_tags_json'
         )
@@ -1061,11 +1061,11 @@ class PreprocessingRedesignTests(TestCase):
         reader = csv.DictReader(io.StringIO(body))
         rows = list(reader)
         self.assertEqual(len(rows), 2)
-        self.assertEqual(rows[0]['row_id'], str(first.id))
+        self.assertEqual(rows[0]['row_id'], str(first.manifest_row_id))  # a row with a spine is keyed by the spine
         self.assertEqual(rows[0]['row_number'], '1')
-        self.assertEqual(rows[1]['row_id'], str(second.id))
+        self.assertEqual(rows[1]['row_id'], str(second.manifest_row_id))
         self.assertEqual(rows[1]['row_number'], '2')
-        self.assertEqual(rows[0]['description'], 'Acme Toaster 2 Slice')
+        self.assertEqual(rows[0]['title'], 'Acme Toaster 2 Slice')
         self.assertEqual(rows[0]['brand'], 'Acme')
         self.assertEqual(rows[0]['notes'], 'low confidence')
         self.assertEqual(json.loads(rows[0]['taxonomy_json']), {'category': 'Kitchen & dining'})
@@ -1078,7 +1078,6 @@ class PreprocessingRedesignTests(TestCase):
             'item_id',
             'current_title',
             'ai_title',
-            'title',
             'category',
             'sku',
             'upc',
@@ -1115,10 +1114,10 @@ class PreprocessingRedesignTests(TestCase):
 
         self.assertEqual(search_response.status_code, 200)
         self.assertEqual(search_response.data['count'], 1)
-        self.assertEqual(search_response.data['rows'][0]['description'], 'Bright LED Lamp')
+        self.assertEqual(search_response.data['rows'][0]['title'], 'LED Lamp')
         self.assertEqual(missing_response.status_code, 200)
         self.assertEqual(missing_response.data['count'], 1)
-        self.assertEqual(missing_response.data['rows'][0]['description'], 'Acme Toaster 2 Slice')
+        self.assertEqual(missing_response.data['rows'][0]['title'], 'Acme Toaster')
 
     def test_preprocessing_review_patch_updates_only_staging_fields_and_status(self):
         first, _second = self._create_preprocessing_rows_for_review()
@@ -1218,7 +1217,6 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=2,
-            description='Widget A standard',
             title='Widget A standard',
             brand='BrandA',
             category='Kitchen & dining',
@@ -1231,7 +1229,6 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=2,
             quantity=1,
-            description='Gadget B standard',
             title='Gadget B standard',
             brand='BrandB',
             category='Home décor & lighting',
@@ -1245,10 +1242,8 @@ class PreprocessingRedesignTests(TestCase):
             manifest_row=mr1,
             row_number=1,
             quantity=2,
-            standard_description='Widget A',
             ai_title='Widget A',
             final_title='Widget A',
-            final_description='Full widget A desc',
             standard_brand='BrandA',
             standard_taxonomy={'category': 'Kitchen & dining'},
             ai_category='Kitchen & dining',
@@ -1265,10 +1260,8 @@ class PreprocessingRedesignTests(TestCase):
             manifest_row=mr2,
             row_number=2,
             quantity=1,
-            standard_description='Gadget B',
             ai_title='Gadget B',
             final_title='Gadget B',
-            final_description='Gadget detail',
             standard_brand='BrandB',
             standard_taxonomy={'category': 'Home décor & lighting'},
             ai_category='Home décor & lighting',
@@ -1314,11 +1307,10 @@ class PreprocessingRedesignTests(TestCase):
         self.assertNotIn('ai_status', row)
         self.assertNotIn('identifiers', row)
         self.assertNotIn('ai_identifiers', row)
-        self.assertIn('description', row)
         self.assertIn('title', row)
         self.assertIn('ai_brand', row)
         self.assertIn('ai_condition', row)
-        self.assertIn('standard_description', row)
+        self.assertIn('standard_brand', row)
 
     def test_finalize_preprocessing_rejects_inline_rows_payload(self):
         PreprocessingRow.objects.create(
@@ -1326,7 +1318,6 @@ class PreprocessingRedesignTests(TestCase):
             row_number=1,
             quantity=1,
             final_title='T',
-            final_description='D',
             unit_retail=Decimal('40.00'),
             final_price=Decimal('15.00'),
             pricing_stage='final',
@@ -1346,10 +1337,8 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            standard_description='Widget',
             ai_title='AI Widget Title',
             final_title='AI Widget Title',
-            final_description='Widget body',
             standard_brand='',
             ai_brand='',
             standard_model='',
@@ -1376,9 +1365,7 @@ class PreprocessingRedesignTests(TestCase):
             purchase_order=self.order,
             row_number=1,
             quantity=1,
-            standard_description='Standard widget body copy',
             ai_title='AI Listing Title',
-            ai_description='',
             standard_brand='VendorBrand',
             ai_brand='VendorBrand',
             standard_taxonomy={'category': 'Kitchen & dining'},
@@ -1391,7 +1378,6 @@ class PreprocessingRedesignTests(TestCase):
             pricing_stage='final',
             final_title='Staff Final Title',
             final_category='Kitchen & dining',
-            final_description='Standard widget body copy',
             final_brand='Staff Brand',
         )
 
@@ -1401,19 +1387,16 @@ class PreprocessingRedesignTests(TestCase):
         row.refresh_from_db()
         self.assertEqual(row.final_title, 'Staff Final Title')
         self.assertEqual(row.final_category, 'Kitchen & dining')
-        self.assertEqual(row.final_description, 'Standard widget body copy')
         self.assertEqual(row.final_brand, 'Staff Brand')
 
         bm = ProcessingRow.objects.get(purchase_order=self.order, row_number=1)
         self.assertEqual(bm.title, 'Staff Final Title')
-        self.assertEqual(bm.description, 'Standard widget body copy')
         self.assertEqual(bm.brand, 'Staff Brand')
 
         build_resp = self._build_processing_data()
         self.assertEqual(build_resp.status_code, 200, build_resp.data)
         m = ManifestRow.objects.get(purchase_order=self.order, row_number=1)
         self.assertEqual(m.title, 'Staff Final Title')
-        self.assertEqual(m.description, 'Standard widget body copy')
         self.assertEqual(m.brand, 'Staff Brand')
 
     def test_processing_workspace_shows_bookmarks_before_build(self):
@@ -1424,7 +1407,6 @@ class PreprocessingRedesignTests(TestCase):
             row_number=1,
             quantity=1,
             final_title='T',
-            final_description='D',
             final_category='Cat',
             unit_retail=Decimal('10.00'),
             final_price=Decimal('5.00'),
@@ -1459,7 +1441,6 @@ class PreprocessingRedesignTests(TestCase):
                 final_price=Decimal('5.00'),
                 pricing_stage='final',
                 title=f'Title {i}',
-                description=f'Body {i}',
                 condition='good',
             )
             for i in range(1, 251)
@@ -1502,7 +1483,6 @@ class PreprocessingRedesignTests(TestCase):
             final_price=Decimal('5.00'),
             pricing_stage='final',
             title='T',
-            description='D',
             condition='good',
         )
         done = self._build_processing_data()
@@ -1525,7 +1505,6 @@ class PreprocessingRedesignTests(TestCase):
             final_price=Decimal('5.00'),
             pricing_stage='final',
             title='A',
-            description='Aa',
             condition='good',
         )
         ProcessingRow.objects.create(
@@ -1536,7 +1515,6 @@ class PreprocessingRedesignTests(TestCase):
             final_price=Decimal('6.00'),
             pricing_stage='final',
             title='B',
-            description='Bb',
             condition='good',
         )
 
@@ -1578,7 +1556,6 @@ class PreprocessingRedesignTests(TestCase):
                 final_price=Decimal('5.00'),
                 pricing_stage='final',
                 title=f'Title {i}',
-                description=f'Desc {i}',
                 condition='good',
             )
             for i in range(1, 102)
@@ -1622,7 +1599,6 @@ class PreprocessingRedesignTests(TestCase):
                 final_price=Decimal('5.00'),
                 pricing_stage='final',
                 title=f'Fast row {i}',
-                description=f'Fast row body {i}',
                 condition='good',
             )
             for i in range(1, 201)
@@ -1679,7 +1655,6 @@ class PreprocessingRedesignTests(TestCase):
             final_price=Decimal('5.00'),
             pricing_stage='final',
             title='Productless item',
-            description='Productless item body',
             condition='good',
         )
         self.assertEqual(self._build_processing_data().status_code, 200)
@@ -1794,7 +1769,7 @@ class PreprocessingRedesignTests(TestCase):
         raw = {'Item Description': 'BRIO 740 BOTTOM LOAD'}
         mappings = [{'target': 'description', 'formula': 'TITLE(TRIM([Item Description]))'}]
         out = normalize_row(raw, 1, mappings)
-        self.assertEqual(out['description'], 'Brio 740 Bottom Load')
+        self.assertEqual(out['title'], 'Brio 740 Bottom Load')
 
     def test_normalize_row_target_department_title_formula(self):
         raw = {'Department': 'KITCHEN'}

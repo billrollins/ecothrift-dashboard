@@ -66,6 +66,6 @@ describe('/pos/test (the test terminal, 2026-10-16)', () => {
     expect(screen.queryByTestId('terminal')).toBeNull();
     expect(screen.getByText(/There is no training register \(TRAIN\)/)).toBeInTheDocument();
     expect(screen.getByTestId('training-banner')).toBeInTheDocument();
-    expect(screen.getByText('Test terminal — practice only, nothing is real')).toBeInTheDocument();
+    expect(screen.getByText('Test terminal - practice only, nothing is real')).toBeInTheDocument();
   });
 });

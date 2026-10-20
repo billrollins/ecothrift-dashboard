@@ -148,7 +148,7 @@ export default function DepartmentDetailPage() {
             {data?.home_staff.length ? data.home_staff.map((person) => (
               <Box key={person.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.6 }}>
                 <Typography sx={{ flex: 1 }}>{shortName(person.full_name)}</Typography>
-                <Typography sx={{ fontSize: 13, color: ccTokens.ink2 }}>{person.role || '—'}</Typography>
+                <Typography sx={{ fontSize: 13, color: ccTokens.ink2 }}>{person.role || '-'}</Typography>
                 <Chip
                   size="small"
                   label={person.is_active ? 'Active' : 'Inactive'}

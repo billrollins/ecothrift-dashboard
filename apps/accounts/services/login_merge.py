@@ -11,8 +11,8 @@ The superuser runs it from Dash → Thrift+ → Staff ("Merge a customer login�
   never missed: website conversations, messages, register carts and the rest. Auth bookkeeping stays where it is: admin
   log entries, the account record (``AccountEvent``), group and permission links and issued tokens (blacklisted). A row
   that can't move (a unique clash) stays and is reported.
-- **The website customer record:** dropped (owner 2026-10-16: staff are not customers). The staff login never gets
-  one.
+- **The website customer record:** none to move or drop (``CustomerProfile`` is retired, T62; a customer is a Thrift+
+  person). The staff login never gets one (owner 2026-10-16: staff are not customers).
 - **Rows kept by email** (holds, website threads, old orders) move from the customer email to the staff email, and
   unused emailed sign-in links for the customer email are spent.
 - **Thrift+:** a customer membership whose primary person has the customer email merges into the staff member's own
@@ -34,7 +34,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import ForeignObjectRel, Q
 from django.utils import timezone
 
-from apps.accounts.models import AccountEvent, ConsigneeProfile, CustomerProfile, EmployeeProfile, MagicLinkToken
+from apps.accounts.models import AccountEvent, ConsigneeProfile, CustomerProfile, EmployeeProfile, MagicLinkToken  # noqa: F401 (CustomerProfile: skipped by the walk)
 from apps.accounts.services.staff_customer import is_active_staff, is_staff_login
 
 SUGGESTIONS = 5
@@ -144,11 +144,9 @@ def _customers():
 
 
 def _row(user, why: list[str]) -> dict:
-    profile = CustomerProfile.objects.filter(user=user).first()
     return {
         'user_id': user.pk, 'name': (user.full_name or '').strip(), 'email': user.email, 'phone': user.phone or '',
-        'customer_number': profile.customer_number if profile else '', 'why': why,
-        'joined': user.date_joined, 'last_login': user.last_login,
+        'why': why, 'joined': user.date_joined, 'last_login': user.last_login,
     }
 
 
@@ -258,14 +256,6 @@ def _merged_email(source) -> str:
     raise MergeError('Could not free the customer email.')
 
 
-def _profile_plan(source, staff) -> dict:
-    """Staff are not customers (owner 2026-10-16): the customer login's record is dropped, never moved to the staff
-    login."""
-    theirs = CustomerProfile.objects.filter(user=source).first()
-    if theirs is None:
-        return {'action': 'none', 'customer_number': ''}
-    return {'action': 'drop', 'customer_number': theirs.customer_number}
-
 
 def preview(source, staff) -> dict:
     """What a merge would do (nothing changes). Raises ``MergeError`` when it would be refused."""
@@ -285,7 +275,6 @@ def preview(source, staff) -> dict:
         'source': _row(source, []),
         'staff': {'user_id': staff.pk, 'name': (staff.full_name or '').strip(), 'email': staff.email},
         'moves': dict(moves),
-        'profile': _profile_plan(source, staff),
         'thriftplus': _thriftplus_plan(source, staff),
         'source_after': _merged_email(source),
     }
@@ -322,16 +311,6 @@ def _move_user_rows(source, staff, *, moved: Counter, left: list[str]) -> None:
         if n:
             moved[_label(rel)] += n
 
-
-def _merge_profiles(source, staff, *, moved: Counter) -> str:
-    """The customer login's website record: dropped (owner 2026-10-16: staff are not customers). Its holds, threads and
-    orders still move to the staff login by email. Answers: dropped, or none."""
-    theirs = CustomerProfile.objects.select_for_update().filter(user=source).first()
-    if theirs is None:
-        return 'none'
-    theirs.delete()
-    moved['website customer record dropped'] += 1
-    return 'dropped'
 
 
 def _move_email_rows(source_email: str, staff, *, moved: Counter) -> None:
@@ -381,7 +360,6 @@ def merge_customer_login(source_user, staff_user, actor=None) -> dict:
     source_email = source.email
     moved, left = Counter(), []
 
-    profile = _merge_profiles(source, staff, moved=moved)
     _move_user_rows(source, staff, moved=moved, left=left)
     _move_email_rows(source_email, staff, moved=moved)
     links = MagicLinkToken.objects.filter(email__iexact=source_email, used_at__isnull=True).update(
@@ -424,7 +402,6 @@ def merge_customer_login(source_user, staff_user, actor=None) -> dict:
                             f'Moved {detail}.')
     return {
         'source_user': source.pk, 'staff_user': staff.pk, 'source_email_was': source_email,
-        'source_email_now': new_email, 'moved': dict(moved), 'left': sorted(set(left)), 'profile': profile,
-        'customer_number': CustomerProfile.objects.filter(user=staff).values_list('customer_number', flat=True).first(),
+        'source_email_now': new_email, 'moved': dict(moved), 'left': sorted(set(left)),
         'sign_in_links_spent': links, 'tokens_blacklisted': tokens, 'thriftplus': thriftplus,
     }

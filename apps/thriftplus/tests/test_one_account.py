@@ -28,7 +28,6 @@ class OneAccountTests(MailMixin, TestCase):
     def _website_customer(self, email='shop@example.com', password=None):
         user = User.objects.create_user(email=email, first_name='Shop', last_name='Per', password=password)
         user.groups.add(Group.objects.get(name='Customer'))
-        CustomerProfile.objects.create(user=user, customer_number=CustomerProfile.generate_customer_number())
         return user
 
     def test_an_app_sign_in_also_signs_in_to_the_website_with_the_same_account(self):
@@ -89,20 +88,20 @@ class OneAccountTests(MailMixin, TestCase):
         self.assertNotIn('refresh_token', r.cookies)
         self.assertTrue(User.objects.get(pk=staff.pk).check_password('staff-pass-9'))
 
-    def test_the_legacy_cleanup_makes_old_customers_members_and_removes_passwords_and_staff_records(self):
+    def test_the_legacy_cleanup_makes_old_customers_members_and_removes_passwords_and_staff_group_links(self):
         shopper = self._website_customer('shop@example.com', password='old-secret-1')
         account = members.create_account(first_name='Ana', phone='4025550101', email='ana@example.com')
         MemberLogin.objects.create(person=account.people.get(), email='ana@example.com', password=make_password('x-pass-1'))
         boss = User.objects.create_user(email='boss@ecothrift.us', first_name='Bo', last_name='Ss', password='staff-pass-9')
         boss.groups.add(Group.objects.get_or_create(name='Manager')[0], Group.objects.get(name='Customer'))
-        CustomerProfile.objects.create(user=boss, customer_number='CUS-038')
+        CustomerProfile.objects.create(user=boss, customer_number='CUS-038')  # retired record: left alone (T62)
         system = User.objects.create_user(email='bot@system.local', first_name='System', last_name='Bot', password=None)
         plan = one_account.plan()
-        self.assertEqual((plan['make_memberships'], plan['customer_passwords'], plan['app_passwords'], plan['staff_records']),
+        self.assertEqual((plan['make_memberships'], plan['customer_passwords'], plan['app_passwords'], plan['staff_in_group']),
                          (1, 1, 1, 1))
         counts = one_account.apply()
         self.assertEqual((counts['made'], counts['passwords_removed'], counts['app_passwords_removed'],
-                          counts['staff_records_removed']), (1, 1, 1, 1))
+                          counts['staff_out_of_group']), (1, 1, 1, 1))
         shopper.refresh_from_db()
         self.assertFalse(shopper.has_usable_password())
         person = Person.objects.get(user=shopper)
@@ -110,7 +109,7 @@ class OneAccountTests(MailMixin, TestCase):
         self.assertFalse(MemberLogin.objects.exists())
         boss.refresh_from_db()
         self.assertTrue(boss.check_password('staff-pass-9'))  # staff keep their password
-        self.assertFalse(CustomerProfile.objects.filter(user=boss).exists())
+        self.assertTrue(CustomerProfile.objects.filter(user=boss).exists())  # never deleted: a later release drops the table
         self.assertFalse(boss.groups.filter(name='Customer').exists())
         self.assertEqual(one_account.apply()['passwords_removed'], 0)  # safe to run again
         self.assertFalse(Person.objects.filter(user=system).exists())  # a system login is never a customer
@@ -141,7 +140,6 @@ class MembersTabTests(TestCase):
         Person.objects.create(account=self.unconfirmed, first_name='Una', last_name='Clicked', email='una@example.com')
         self.old = User.objects.create_user(email='old@example.com', first_name='Old', last_name='Hold', password=None)
         self.old.groups.add(Group.objects.get(name='Customer'))
-        CustomerProfile.objects.create(user=self.old, customer_number='CUS-001')
 
     def test_a_row_carries_the_main_members_qr_and_whether_a_person_can_be_added(self):
         from apps.thriftplus.models import Card

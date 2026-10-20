@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, EmployeeProfile, ConsigneeProfile, CustomerProfile
+from .models import User, EmployeeProfile, ConsigneeProfile
 
 
 class EmployeeProfileInline(admin.StackedInline):
@@ -15,11 +15,6 @@ class ConsigneeProfileInline(admin.StackedInline):
     extra = 0
 
 
-class CustomerProfileInline(admin.StackedInline):
-    model = CustomerProfile
-    can_delete = False
-    extra = 0
-
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
@@ -27,7 +22,7 @@ class UserAdmin(BaseUserAdmin):
     list_filter = ('is_active', 'is_staff', 'groups')
     search_fields = ('email', 'first_name', 'last_name')
     ordering = ('email',)
-    inlines = [EmployeeProfileInline, ConsigneeProfileInline, CustomerProfileInline]
+    inlines = [EmployeeProfileInline, ConsigneeProfileInline]
 
     fieldsets = (
         (None, {'fields': ('email', 'password')}),

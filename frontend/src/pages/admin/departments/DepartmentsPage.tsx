@@ -337,7 +337,7 @@ function DepartmentRow({
       <TableCell align="right">{row.home_count ?? 0}</TableCell>
       <TableCell align="right">{row.shift_count ?? 0}</TableCell>
       <TableCell align="right">{row.section_count ?? 0}</TableCell>
-      <TableCell>{row.manager_name || '—'}</TableCell>
+      <TableCell>{row.manager_name || '-'}</TableCell>
       <TableCell>
         <Chip
           size="small"

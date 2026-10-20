@@ -100,6 +100,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { CHART_INITIAL_DIMENSION } from '../../components/common/chartDefaults';
 import { IconOpenExternal as OpenInNewIcon } from '../../icons/ecoIcons';
 const MANIFEST_PAGE_SIZE = 50;
 
@@ -1355,7 +1356,7 @@ export default function AuctionDetailPage() {
         </Stack>
       ) : (
         <Box sx={{ width: '100%', height: 320, mb: 3 }}>
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" initialDimension={CHART_INITIAL_DIMENSION}>
             <LineChart data={chartSeries} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis

@@ -8,10 +8,10 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from django.utils import timezone
 
-from apps.accounts.models import CustomerProfile, EmployeeProfile
+from apps.accounts.models import EmployeeProfile
 
 User = get_user_model()
 
@@ -38,16 +38,23 @@ def customer_stats() -> dict:
     month_start = _month_start(today)
     prev_start, prev_end = _previous_month_bounds(today)
 
-    from apps.accounts.services.staff_customer import staff_login_q
+    from apps.thriftplus.models import Person
+    from apps.thriftplus.services.one_account import _customer_users
 
-    staff = CustomerProfile.objects.filter(staff_login_q('user__')).values('pk')
-    counts = CustomerProfile.objects.exclude(pk__in=staff).aggregate(
+    # One customer system (T62): a customer is a website login in the Customer group; "email confirmed" is on their
+    # Thrift+ person (a login with no person yet counts once it has signed in, as ``customer_email_verified``).
+    people = Person.objects.filter(user=OuterRef('pk'), removed_at__isnull=True)
+    counts = _customer_users().annotate(
+        has_person=Exists(people),
+        person_ok=Exists(people.filter(email_verified_at__isnull=False, email__iexact=OuterRef('email'))),
+    ).aggregate(
         total=Count('pk'),
-        active=Count('pk', filter=Q(user__is_active=True)),
-        verified=Count('pk', filter=Q(user__is_active=True, email_verified_at__isnull=False)),
-        new_this_month=Count('pk', filter=Q(customer_since__gte=month_start)),
+        active=Count('pk', filter=Q(is_active=True)),
+        verified=Count('pk', filter=Q(is_active=True) & (
+            Q(person_ok=True) | Q(has_person=False, last_login__isnull=False))),
+        new_this_month=Count('pk', filter=Q(date_joined__date__gte=month_start)),
         new_last_month=Count(
-            'pk', filter=Q(customer_since__gte=prev_start, customer_since__lt=prev_end),
+            'pk', filter=Q(date_joined__date__gte=prev_start, date_joined__date__lt=prev_end),
         ),
     )
     active = counts['active'] or 0
@@ -69,13 +76,13 @@ def customer_stats() -> dict:
     }
 
 
-def customer_rollup(profile: CustomerProfile) -> dict:
-    """Per-person totals for the customer detail drawer."""
+def customer_rollup(user) -> dict:
+    """Per-person totals for the customer detail drawer (``user`` is the customer's website login)."""
     from django.db.models import DecimalField, F, Sum
     from django.db.models.functions import Coalesce
     from apps.webstore.models import Conversation, Reservation
 
-    email = (profile.user.email or '').strip()
+    email = (user.email or '').strip()
     if not email:
         return {
             'holds_total': 0, 'holds_active': 0, 'holds_completed': 0,
@@ -99,7 +106,7 @@ def customer_rollup(profile: CustomerProfile) -> dict:
         ),
     )
 
-    threads = Conversation.objects.filter(Q(customer=profile.user) | Q(guest_email__iexact=email))
+    threads = Conversation.objects.filter(Q(customer=user) | Q(guest_email__iexact=email))
     thread_totals = threads.aggregate(
         total=Count('pk', distinct=True),
         waiting=Count('pk', distinct=True, filter=Q(state='needs_reply', archived_at__isnull=True)),
@@ -108,7 +115,7 @@ def customer_rollup(profile: CustomerProfile) -> dict:
     last_hold = holds.order_by('-created_at').values_list('created_at', flat=True).first()
     last_message = threads.order_by('-last_message_at').values_list('last_message_at', flat=True).first()
     first_hold = holds.order_by('created_at').values_list('created_at', flat=True).first()
-    stamps = [s for s in (last_hold, last_message, profile.user.last_login) if s]
+    stamps = [s for s in (last_hold, last_message, user.last_login) if s]
 
     return {
         'holds_total': totals['total'] or 0,

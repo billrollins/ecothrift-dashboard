@@ -1,6 +1,6 @@
 /** Time kiosk API. Hosted calls ride the staff JWT client; public calls use
  * the cookie-only client so a 401 never triggers the refresh/redirect dance. */
-import api, { apiPublic } from './client';
+import api, { apiPublic, deviceKindHeaders } from './client';
 import type { ClockTile } from './hr.api';
 
 export type KioskRoute = 'kiosk' | 'clock';
@@ -156,7 +156,7 @@ export function verifyPassword(password: string) {
 }
 
 export function keepHostAlive() {
-  return api.post<{ access: string }>('/auth/refresh/', {});
+  return api.post<{ access: string }>('/auth/refresh/', {}, { headers: deviceKindHeaders() });
 }
 
 /** Employee card admin (Users -> employee -> Badge). */

@@ -16,7 +16,7 @@ import type { ThriftPlusAccount } from '../../types/thriftplus.types';
 import StaffTab from './StaffTab';
 
 const OUTLOOK: LoginCandidate = {
-  user_id: 8, name: 'Bill Rollins', email: 'bill_rollins.rf@outlook.com', phone: '402-555-0199', customer_number: 'CUS-002',
+  user_id: 8, name: 'Bill Rollins', email: 'bill_rollins.rf@outlook.com', phone: '402-555-0199',
   why: ['same email name', 'same phone'], joined: '2026-09-01T15:00:00Z', last_login: null,
 };
 
@@ -30,7 +30,6 @@ const LIST: StaffMemberships = {
       user_id: 1, name: 'Bill Rollins', email: 'bill_rollins@ecothrift.us', role: 'Admin',
       membership: { id: 12, status: 'active', name: 'Bill Rollins', email: 'bill_rollins@ecothrift.us', bucks: '0.00', credit: '0.00' },
       suggestions: [{ account_id: 34, status: 'active', name: 'Bill Rollins', email: 'b***@outlook.com', why: ['same name', 'same email name'], bucks: '5.00', credit: '2.50' }],
-      website: { customer_number: 'CUS-012' },
       login_suggestions: [OUTLOOK],
     },
     { user_id: 2, name: 'Cal Clerk', email: 'cal@ecothrift.us', role: 'Employee', membership: null, suggestions: [], website: null, login_suggestions: [] },
@@ -64,19 +63,18 @@ vi.mock('../../api/accounts.api', () => ({
   fetchLoginCandidates: vi.fn(),
   fetchLoginMergePreview: vi.fn(async () => ({
     source: {
-      user_id: 8, name: 'Bill Rollins', email: 'bill_rollins.rf@outlook.com', phone: '402-555-0199', customer_number: 'CUS-002',
+      user_id: 8, name: 'Bill Rollins', email: 'bill_rollins.rf@outlook.com', phone: '402-555-0199',
       why: [], joined: null, last_login: null,
     },
     staff: { user_id: 1, name: 'Bill Rollins', email: 'bill_rollins@ecothrift.us' },
     moves: { conversations: 1, messages: 2, holds: 1 },
-    profile: { action: 'drop', customer_number: 'CUS-002' },
     thriftplus: { account: 34, note: '', name: 'Bill Rollins', bucks: '5.00', credit: '2.50', moves: {}, staff_account: 12 },
     source_after: 'merged-8.bill_rollins.rf@outlook.com',
   })),
   mergeCustomerLogin: vi.fn(async () => ({
     source_user: 8, staff_user: 1, source_email_was: 'bill_rollins.rf@outlook.com',
     source_email_now: 'merged-8.bill_rollins.rf@outlook.com', moved: { conversations: 1, holds: 1 }, left: [],
-    profile: 'combined', customer_number: 'CUS-002', sign_in_links_spent: 0, tokens_blacklisted: 1,
+    sign_in_links_spent: 0, tokens_blacklisted: 1,
     thriftplus: { merged: true, source_account: 34, staff_account: 12, moved: {}, now: { bucks: '5.00', credit: '2.50' } },
   })),
 }));
@@ -96,13 +94,13 @@ beforeEach(() => {
   vi.mocked(createMissingStaffMemberships).mockResolvedValue({
     ...LIST, missing: 0, website_missing: 0, missing_any: 0, made: 1, linked: 0, customers_made: 0, customers_fixed: 0,
     staff: [LIST.staff[0], {
-      ...LIST.staff[1], website: { customer_number: 'CUS-013' },
+      ...LIST.staff[1],
       membership: { id: 13, status: 'active', name: 'Cal Clerk', email: 'cal@ecothrift.us', bucks: '0.00', credit: '0.00' },
     }],
   });
   vi.mocked(fetchLoginCandidates).mockImplementation(async (_staff: number, q = '') => ({
     suggestions: [OUTLOOK],
-    results: q ? [OUTLOOK, { ...OUTLOOK, user_id: 9, email: 'billy@example.com', customer_number: 'CUS-020', why: [] }] : [],
+    results: q ? [OUTLOOK, { ...OUTLOOK, user_id: 9, email: 'billy@example.com', why: [] }] : [],
   }));
 });
 
@@ -149,7 +147,7 @@ describe('Thrift+ Staff tab (owner 2026-10-15)', () => {
     await waitFor(() => expect(fetchLoginMergePreview).toHaveBeenCalledWith(1, 8));
     const preview = await within(dialog).findByTestId('login-merge-preview');
     expect(preview).toHaveTextContent('bill_rollins.rf@outlook.com merges into bill_rollins@ecothrift.us');
-    expect(preview).toHaveTextContent('Their customer record CUS-002 is dropped (staff are not customers)');
+    expect(preview).not.toHaveTextContent('customer record');
     expect(preview).toHaveTextContent('Moves: conversations: 1, messages: 2, holds: 1');
     expect(preview).toHaveTextContent(
       'Thrift+ membership #34 (Bill Rollins) merges into Bill Rollins’s too: ThriftBucks 5.00 · Thrift+ credit $2.50',

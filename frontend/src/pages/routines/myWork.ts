@@ -1,4 +1,4 @@
-import { format, isBefore, isToday, parseISO, startOfDay } from 'date-fns';
+import { format, isBefore, isSameDay, parseISO, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { MyRoutines, Routine, RoutineDraft, RoutineRun, RunNudge } from '../../api/routines.api';
 import { t } from '../../i18n/routines';
@@ -135,7 +135,7 @@ export function compareWork(a: WorkItem, b: WorkItem): number {
 export function isOwedToday(run: RoutineRun, state: WorkState, now: Date = new Date()): boolean {
   if (state === 'late' || state === 'now') return true;
   const due = parseISO(run.nag_at ?? run.due_at);
-  return isToday(due) || isBefore(due, startOfDay(now));
+  return isSameDay(due, now) || isBefore(due, startOfDay(now));
 }
 
 export function buildMyWork(
@@ -159,7 +159,7 @@ export function buildMyWork(
     { key: 'laterToday', tone: 'grey', items: owed.filter((item) => item.state === 'later') },
   ] as WorkSection[]).filter((section) => section.items.length > 0);
   const doneToday = (data?.done ?? []).filter(
-    (run) => run.status === 'done' && run.completed_at && isToday(parseISO(run.completed_at)),
+    (run) => run.status === 'done' && run.completed_at && isSameDay(parseISO(run.completed_at), now),
   );
   const nagging = owed.filter((item) => isNagging(item.state));
   const nagTone: NagTone = nagging.some((item) => item.state === 'late' || item.state === 'now')

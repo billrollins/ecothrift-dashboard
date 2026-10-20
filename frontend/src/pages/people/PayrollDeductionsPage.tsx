@@ -40,7 +40,7 @@ export default function PayrollDeductionsPage() {
               ← Earlier
             </Button>
             <Typography fontWeight={700}>
-              Pay period {dayText(data.start)} – {dayText(data.end)}
+              Pay period {dayText(data.start)} - {dayText(data.end)}
             </Typography>
             <Button size="small" onClick={() => setDay(data.next_start)}>
               Later →

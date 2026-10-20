@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.186.3] -->
-<!-- Last reviewed: 2026-10-20 (2.186.3) -->
+<!-- Line 1 release: ## [2.187.0] -->
+<!-- Last reviewed: 2026-10-20 (2.187.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,29 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.187.0] - 2026-10-20
+
+User-facing theme: **The loose ends, all at once (Bill, 2026-10-20: "GET IT ALL DONE NOW").** Outside initiatives, plus standards T62 and T69.
+
+### Added
+- **Dash sign-in:** staff are signed out after 4 hours with no activity, checked on the server; registers and the time kiosk keep a longer 24-hour limit. The sign-in page then says "Signed out after 4 hours idle." Both limits are an owner-only setting (`auth.idle_hours`). Standards T69.
+
+### Changed
+- **Thrift+ Member app, Finish joining is required:** no skip and no ×. A pending member with steps left always lands on it when they open the app; only Sign out leaves it (rulebook J17).
+- **One customer system:** the old separate customer record is retired; a website customer is now their Thrift+ member, which holds the confirmed email, notes and member number. Database update `thriftplus.0026` carries the 86 old records over and deletes nothing; the old table is dropped in a later release. Standards T62.
+- **Register:** no more CUS- customer scans; the Thrift+ member QR is the customer on a sale.
+- **Dash speed:** Dash loads page by page. The first download is about 80% smaller (4.9 MB to 0.9 MB), so Dash, the Thrift+ scanner and Thrift+ Staff start faster, especially on phones. The scanner's loading screen shows the version too.
+- **Tests:** every test suite passes again (stale tests brought up to date, dashes in labels became plain hyphens, `tests_*.py` collected by pytest).
+- **Docs:** the Thrift+ launch checklist and launch hub are archived (launched 10-16); the rulebook carries V10 (price words in ads) and the 10-16 production note from the main folder; adviser follow-up lines removed.
+
+### Fixed
+- **POS, already sold:** scanning a tag that's already sold, or the same tag twice, rings the next unsold unit of that item instead of showing "already sold" or selling one item twice. "Already sold" shows only when none is left. Raising a line's quantity adds the next real units, or says how many are left.
+- **POS, completing a sale:** bad money amounts (letters, negatives, too many decimals, missing cash) get a clear message instead of a server error.
+- **Buying:** deleting a B-Stock manifest also removes the AI category mappings that manifest created, so a CSV from the wrong marketplace leaves no wrong mappings behind. Mappings set by hand or seeded, and ones another manifest uses, are kept.
+- **Charts** (dashboard, auction, inventory report, Thrift+ calculator) no longer log a size warning when they first draw.
+- **Routines, My Work:** "due today" uses the date it's given, not the computer clock. Tests also lock in that Opening, Midday and Closing never get a second checklist for a day after someone finishes one.
+- **Webstore:** the two index renames the database kept skipping are now a real update (`webstore.0021`).
 
 ## [2.186.3] - 2026-10-20
 

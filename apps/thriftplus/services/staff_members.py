@@ -276,25 +276,20 @@ def staff_list(*, with_suggestions: bool = True) -> dict:
     """One row per active staff member: their membership (or none) and memberships that may be theirs; their website
     customer account (owner 2026-10-15: every staff login is a website customer too) and customer logins that may be
     theirs (``apps/accounts/services/login_merge.py``)."""
-    from apps.accounts.models import CustomerProfile
     from apps.accounts.services import login_merge
 
     accounts = {a.staff_user_id: a for a in Account.objects.filter(staff_user__isnull=False).prefetch_related('people')}
-    profiles = {p.user_id: p for p in CustomerProfile.objects.filter(user__in=staff_users())}
-    in_group = set(staff_users().filter(groups__name__iexact='customer').values_list('pk', flat=True))
     rows = []
     for user in staff_users().order_by('first_name', 'last_name', 'email'):
         account = accounts.get(user.pk)
         person = primary_person(account) if account is not None else None
-        profile = profiles.get(user.pk)
         rows.append({
             'user_id': user.pk, 'name': (user.full_name or '').strip() or user.email, 'email': user.email,
             'role': user.role or ('Superuser' if user.is_superuser else ''),
             'membership': ({'id': account.pk, 'status': account.status, 'name': _name(person),
                             'email': person.email if person else '', **_money(account)}
                            if account is not None else None),
-            'website': ({'customer_number': profile.customer_number} if profile is not None and user.pk in in_group
-                        else None),
+            'website': None,  # staff are not website customers (2026-10-16); the key stays for older clients
             'suggestions': suggestions(user, account) if with_suggestions else [],
             'login_suggestions': login_merge.suggestions(user, limit=3) if with_suggestions else [],
         })

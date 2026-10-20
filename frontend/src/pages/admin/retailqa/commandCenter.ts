@@ -163,7 +163,7 @@ export function letterClass(letter: GradeLetter | null | undefined) {
 }
 
 export function scoreText(value: number | null | undefined) {
-  return value == null ? '—' : String(Math.round(value));
+  return value == null ? '-' : String(Math.round(value));
 }
 
 export function formatWeight(value: number | null | undefined): string {
@@ -176,7 +176,7 @@ export function bandWeightLabel(
   weight: number | null | undefined,
   excluded: boolean,
 ): string {
-  return excluded ? `${name} —` : `${name} ${formatWeight(weight)}%`;
+  return excluded ? `${name} -` : `${name} ${formatWeight(weight)}%`;
 }
 
 export function tileNote(tile: {

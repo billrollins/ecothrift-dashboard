@@ -184,7 +184,7 @@ function loginMergedText(r: LoginMergeResult, row: StaffMemberRow): string {
 }
 
 function LoginPick({ who, picked, onPick }: { who: LoginCandidate; picked: boolean; onPick: () => void }) {
-  const bits = [who.name, who.customer_number, who.phone, who.why.length ? who.why.join(', ') : ''].filter(Boolean);
+  const bits = [who.name, who.phone, who.why.length ? who.why.join(', ') : ''].filter(Boolean);
   return (
     <ListItemButton selected={picked} onClick={onPick}>
       <ListItemText primary={who.email} secondary={bits.join(' · ')} />
@@ -264,10 +264,6 @@ function LoginMergeDialog({ row, onClose, onMerged }: {
                 {p.source.email} merges into {p.staff.email}:
               </Typography>
               <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-                {/* Owner 2026-10-16: staff are not customers, so the customer record is dropped, never moved. */}
-                {p.profile.action === 'drop' ? (
-                  <li>Their customer record {p.profile.customer_number} is dropped (staff are not customers)</li>
-                ) : null}
                 {counts(p.moves) ? <li>Moves: {counts(p.moves)}</li> : <li>Nothing else points at it</li>}
                 {tp?.account && !tp.refused ? (
                   <li>

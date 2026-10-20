@@ -76,7 +76,7 @@ Resume point for the overnight run. One line per todo as it lands.
 
 Things noticed during the build that are not in scope. Do not build; list them.
 
-- Pre-existing red on `main`: 9 vitest failures (6 files, above) and 123 pytest failures (102 node ids) rooted in `hr_department_name_key` duplicate seeds, grading expectations, and em-dash lint. Both predate this branch; a separate cleanup pass.
+- Pre-existing red on `main` (9 vitest, 123 pytest at the time) was cleared in the 2026-10-20 green-tests pass; both suites are green.
 - `pytest.ini` has `--reuse-db`, so the test database keeps the schema of whichever branch ran last. Switching branches without `--create-db` produces confusing `NotNullViolation` errors on columns the other branch does not have. Worth a note in `development.md`.
 - `frontend/` has no `eslint` installed; only `tsc` and vitest guard the code.
 - `makemigrations --check` on `main` reports index-rename drift in `core` and `webstore` (plus `hr` / `routines`, now folded in here). A one-line migration each would quiet it.

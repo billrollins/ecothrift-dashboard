@@ -103,8 +103,10 @@ export interface Customer {
   last_name: string;
   phone: string;
   full_name: string;
+  /** The Thrift+ member code ("7166 7172 0440"), blank until they have one. The old CUS-nnn number is gone (T62). */
   customer_number: string;
   customer_since: string;
+  /** Staff notes: kept on their Thrift+ membership. */
   notes: string;
   is_active: boolean;
   email_verified: boolean;
@@ -189,9 +191,6 @@ export function sendCustomerSignInLink(id: number): Promise<{ data: { detail: st
   return api.post<{ detail: string }>(`/accounts/customers/${id}/send-sign-in-link/`);
 }
 
-export function lookupCustomer(customerNumber: string): Promise<{ data: Customer }> {
-  return api.get<Customer>(`/accounts/customers/lookup/${encodeURIComponent(customerNumber)}/`);
-}
 
 /** Set password (T61): a one-time link, 48 hours, shown once with a QR. Nothing is emailed. */
 export interface SetPasswordLink {
@@ -230,7 +229,6 @@ export interface LoginCandidate {
   name: string;
   email: string;
   phone: string;
-  customer_number: string;
   /** Why it was suggested: "same email name", "same phone", "same name" (empty for a search hit). */
   why: string[];
   joined: string | null;
@@ -248,9 +246,7 @@ export interface LoginMergePreview {
   staff: { user_id: number; name: string; email: string };
   /** Rows that move to the staff login, by what they are ("conversations", "holds", ...). */
   moves: Record<string, number>;
-  /** The website customer account: moves to the staff login, combines with theirs (the earlier number stays), or none. */
-  /** Owner 2026-10-16: staff are not customers, so a merged-in customer record is dropped. */
-  profile: { action: 'drop' | 'none'; customer_number: string };
+
   /** A Thrift+ membership with the customer email: it merges into the staff member's own, or a note why not. */
   thriftplus: {
     account: number | null;
@@ -274,8 +270,6 @@ export interface LoginMergeResult {
   moved: Record<string, number>;
   /** Rows that could not move (a clash with one the staff login has already). */
   left: string[];
-  profile: 'moved' | 'combined' | 'none';
-  customer_number: string | null;
   sign_in_links_spent: number;
   tokens_blacklisted: number;
   thriftplus: {
