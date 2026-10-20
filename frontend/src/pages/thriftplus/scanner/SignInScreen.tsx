@@ -10,7 +10,7 @@ import { JoinForm } from './JoinScreen';
 import { FieldBanner } from './ScannerTop';
 import { viewAfterSignIn } from './scannerLogic';
 import { ThriftPlusLogo, sc, u } from './scannerTheme';
-import { ContactField, ErrorLine, Field, Primary, Secondary, SmallLink, Sub, Title } from './signInParts';
+import { ContactField, ErrorLine, Field, Primary, Secondary, SmallLink, Sub, Title, TextConsent } from './signInParts';
 import { useSignIn, useSignInOptions } from './useThriftPlus';
 
 type Mode = 'email' | 'staff' | 'join' | 'check';
@@ -35,6 +35,8 @@ export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInS
   const [first, setFirst] = useState('');
   const [last, setLast] = useState('');
   const [contact, setContact] = useState('');
+  // "Joined with an email?": members from before phone-first (owner 2026-10-20) still sign in with their email.
+  const [useEmail, setUseEmail] = useState(false);
   const [sent, setSent] = useState<SentCode | null>(null);
   const [err, setErr] = useState(notice);
   // Texts cost money (owner 2026-10-19): one tap sends once. Held while a send is in flight, and the last send's wait
@@ -66,7 +68,12 @@ export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInS
       return;
     }
     if (!read || (read.kind === 'phone' && !phoneOn)) {
-      setErr(phoneOn ? 'Enter a US phone number or an email.' : 'Check your email address.');
+      setErr(phoneOn ? (useEmail ? 'Enter your email or a US mobile number.' : 'Enter a US mobile number.') : 'Check your email address.');
+      return;
+    }
+    // Phone or Google (owner 2026-10-20). An email works only behind "Joined with an email?" on sign-in.
+    if (phoneOn && read.kind === 'email' && !(useEmail && kind === 'sign_in')) {
+      setErr('Enter your mobile number, or use Continue with Google.');
       return;
     }
     const guess: SentCode['channel'] = read.kind === 'phone' ? 'sms' : 'email';
@@ -126,7 +133,7 @@ export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInS
     try {
       signedIn(await auth.google.mutateAsync(credential));
     } catch (e) {
-      setErr(e instanceof Error && e.message ? e.message : "Google didn't sign you in. Try again, or use your email or phone.");
+      setErr(e instanceof Error && e.message ? e.message : "Google didn't sign you in. Try again, or use your mobile number.");
     }
   };
 
@@ -159,6 +166,11 @@ export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInS
               contact={contact}
               onContact={setContact}
               phone={phoneOn}
+              useEmail={useEmail}
+              onUseEmail={() => {
+                setErr('');
+                setUseEmail((v) => !v);
+              }}
               googleClientId={googleId}
               onGoogle={(c) => void google(c)}
               busy={auth.send.isPending || auth.google.isPending}
@@ -217,10 +229,12 @@ export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInS
  * Customer sign-in (Join v2, owner 2026-10-19): Google, or a code to a phone or an email; "Staff sign in" for the
  * password form.
  */
-function ContactForm({ contact, onContact, phone, googleClientId, onGoogle, busy, onSend, onStaff }: {
+function ContactForm({ contact, onContact, phone, useEmail, onUseEmail, googleClientId, onGoogle, busy, onSend, onStaff }: {
   contact: string;
   onContact: (v: string) => void;
   phone: boolean;
+  useEmail: boolean;
+  onUseEmail: () => void;
   googleClientId: string | null;
   onGoogle: (credential: string) => void;
   busy: boolean;
@@ -239,8 +253,17 @@ function ContactForm({ contact, onContact, phone, googleClientId, onGoogle, busy
       <Title>Sign in</Title>
       <Sub>No password needed.</Sub>
       {googleClientId && <GoogleButton clientId={googleClientId} joining={false} onCredential={onGoogle} />}
-      <ContactField value={contact} onChange={onContact} phone={phone} />
+      <ContactField value={contact} onChange={onContact} phone={phone} allowEmail={useEmail} />
       <Primary busy={busy} label="Send my code" />
+      {phone && <TextConsent />}
+      {phone && (
+        <Box sx={{ textAlign: 'center', mt: u(18) }}>
+          <SmallLink
+            label={useEmail ? 'Use my mobile number' : 'Joined with an email? Use your email'}
+            onClick={onUseEmail}
+          />
+        </Box>
+      )}
       {/* Customers have no password (J11): the password form is for staff. */}
       <Box sx={{ textAlign: 'center', mt: u(22) }}>
         <SmallLink label="Staff sign in" onClick={onStaff} />

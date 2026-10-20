@@ -186,6 +186,34 @@ function StoreTerms({ title, highlighted }: { title: string; highlighted: boolea
 
         <h3>Text messages</h3>
         <p data-testid="terms-no-texts">{NO_TEXTS}</p>
+        <ul data-testid="terms-sms">
+          <li>
+            <strong>Who sends:</strong> Eco-Thrift ({LEGAL_ENTITY}), from its own toll-free number.
+          </li>
+          <li>
+            <strong>What:</strong> a one-time Thrift+ sign-in code or sign-in link, when you ask for it in the Thrift+
+            app, on {SITE_URL}, or at the register.
+          </li>
+          <li>
+            <strong>How often:</strong> one text each time you ask. No marketing texts.
+          </li>
+          <li>
+            <strong>Message and data rates may apply.</strong>
+          </li>
+          <li>
+            <strong>Stop or get help:</strong> reply STOP to any text and we send no more; reply HELP for help, or call{' '}
+            <a href={`tel:${STORE.retail.phoneHref}`}>{STORE.retail.phone}</a> or email{' '}
+            <a href={`mailto:${STORE.email}`}>{STORE.email}</a>.
+          </li>
+          <li>
+            <strong>Texts are optional</strong>, and never a condition of purchase or of joining Thrift+ (you can sign
+            in with Google instead).
+          </li>
+          <li>
+            <strong>Privacy:</strong> we do not share mobile numbers or text-message consent with third parties or
+            affiliates for marketing or promotional purposes. See our <Link to="/privacy">Privacy Policy</Link>.
+          </li>
+        </ul>
 
         <h3>Contact</h3>
         <p>

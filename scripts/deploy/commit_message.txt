@@ -1,8 +1,12 @@
-v2.184.1 — Clear my scans no longer hides a scan made in the same instant as the clear
+v2.185.0 — Thrift+ is phone or Google; privacy and terms carry the text-message wording for the toll-free review
 
-User-facing theme: **Clear my scans no longer hides a scan made in the same instant as the clear (found by a test that failed now and then).** Outside initiatives (Thrift+).
+User-facing theme: **Thrift+ is phone or Google, and the website says how our texts work, for Twilio's toll-free review (Bill, 2026-10-20).** Outside initiatives (Thrift+).
 
-### Fixed
-- **Thrift+ Member, Clear my scans:** the clear hid scans by time, so a scan stamped in the same clock tick as the clear was hidden too. It now remembers the last scan it hid (by scan number). A small database update (migration 0024) fills that in for members who already cleared, so the same scans stay hidden.
+### Changed
+- **Thrift+ sign-in and join:** Continue with Google, or a **Mobile number** (the phone's number pad, "We'll text you a 6-digit code."). Joining no longer takes an email. Members who joined by email before tap **Joined with an email? Use your email** on the sign-in screen.
+- **Under every Send my code:** "A phone number gets one text with your code each time you ask. Msg & data rates may apply. Reply STOP to cancel, HELP for help. Terms · Privacy".
+- **/privacy (Text messages):** we text only a Thrift+ sign-in code or link you ask for; we do not share mobile numbers or text-message consent with third parties or affiliates for marketing or promotional purposes; Twilio delivers the texts; STOP and HELP.
+- **/terms (store terms, Text messages):** who sends (our own toll-free number), what, how often, rates, STOP and HELP with the store phone and email, texts optional (Google instead), and the no-sharing line.
+- **Rulebook:** J18 (phone or Google; our own toll-free number, (888) 812-7905, verification submitted 10-20).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

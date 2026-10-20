@@ -6,6 +6,25 @@ import { Box, ButtonBase, CircularProgress, InputBase } from '@mui/material';
 import { sc, u } from './scannerTheme';
 
 export const TERMS_URL = 'https://ecothrift.us/terms';
+export const PRIVACY_URL = 'https://ecothrift.us/privacy';
+
+/**
+ * The text-message line under "Send my code" (owner 2026-10-20, Twilio toll-free verification): asking for a code is
+ * asking for that one text. Shown only while a phone can get a code.
+ */
+export function TextConsent() {
+  const link = (href: string, label: string) => (
+    <Box component="a" href={href} target="_blank" rel="noopener" sx={{ color: 'inherit' }}>
+      {label}
+    </Box>
+  );
+  return (
+    <Box data-testid="text-consent" sx={{ mt: u(16), fontSize: u(22), color: sc.ink2, lineHeight: 1.45, textAlign: 'center' }}>
+      A phone number gets one text with your code each time you ask. Msg &amp; data rates may apply. Reply STOP to
+      cancel, HELP for help. {link(TERMS_URL, 'Terms')} · {link(PRIVACY_URL, 'Privacy')}
+    </Box>
+  );
+}
 
 export function Title({ children }: { children: React.ReactNode }) {
   return (
@@ -56,11 +75,36 @@ export function EmailField({ value, onChange, sx }: { value: string; onChange: (
 }
 
 /**
- * The one box (Join v2, owner 2026-10-19): email first, since texts cost money and email is free. "Email or phone",
- * or "Email" while texts are off, and one small line under it. Plain text, so a phone number never trips the browser's
- * email check; 18 px so iPhone doesn't zoom.
+ * The one box. Phone first (owner 2026-10-20: "the guest methods are Continue with Google OR phone number"): a mobile
+ * number with the phone's number pad. `allowEmail` (the "Joined with an email?" link on sign-in only) takes an email
+ * too, for members who joined by email before; with texts off the box is email only. 18 px so iPhone doesn't zoom.
  */
-export function ContactField({ value, onChange, phone, sx }: { value: string; onChange: (v: string) => void; phone: boolean; sx?: object }) {
+export function ContactField({ value, onChange, phone, allowEmail = false, sx }: {
+  value: string;
+  onChange: (v: string) => void;
+  phone: boolean;
+  allowEmail?: boolean;
+  sx?: object;
+}) {
+  if (phone && !allowEmail) {
+    return (
+      <Box sx={sx}>
+        <Field>
+          <InputBase
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Mobile number"
+            type="tel"
+            inputProps={{ 'aria-label': 'Mobile number', autoComplete: 'tel', inputMode: 'tel' }}
+            sx={{ flex: 1, fontSize: 18 }}
+          />
+        </Field>
+        <Box data-testid="contact-hint" sx={{ mt: u(12), fontSize: u(26), color: sc.ink2, lineHeight: 1.4 }}>
+          We&apos;ll text you a 6-digit code.
+        </Box>
+      </Box>
+    );
+  }
   return (
     <Box sx={sx}>
       {phone ? (

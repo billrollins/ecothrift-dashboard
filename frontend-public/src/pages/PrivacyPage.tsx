@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { SITE_URL, STORE } from '../data/content'
-import { LEGAL_ENTITY, LEGAL_LAST_UPDATED, NO_TEXTS, PRIVACY_NO_SHARING, THRIFT_PLUS_SIGN_IN_LINKS } from '../data/legal'
+import { LEGAL_ENTITY, LEGAL_LAST_UPDATED, NO_TEXTS, PRIVACY_NO_SHARING, SMS_NO_SHARING, THRIFT_PLUS_SIGN_IN_LINKS } from '../data/legal'
 import { useSeo } from '../useSeo'
 
 /** Public Privacy Policy (email-first, D20). See data/legal.ts. */
@@ -49,8 +49,9 @@ export default function PrivacyPage() {
 
           <h2>Text messages</h2>
           <p data-testid="privacy-no-texts">
-            {NO_TEXTS} {PRIVACY_NO_SHARING} Your mobile number is shared only with the service provider that sends
-            the codes.
+            {NO_TEXTS} <strong data-testid="privacy-sms-no-sharing">{SMS_NO_SHARING}</strong> Your mobile number
+            is shared only with the service provider that delivers the texts (Twilio), only to send them. Reply STOP
+            to any text and we send no more; reply HELP for help.
           </p>
 
           <h2>Job applications</h2>

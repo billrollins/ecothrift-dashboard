@@ -72,9 +72,17 @@ async function signInAsMember(user: User) {
   await user.click(screen.getByRole('button', { name: 'Sign in' }));
 }
 
-/** "Send my code" from the sign-in screen (Join v2: the one box, "Email or phone"). */
+/**
+ * "Send my code" from the sign-in screen. Phone first (owner 2026-10-20): the box is "Mobile number"; an email goes
+ * behind "Joined with an email? Use your email" (the box is then "Email or phone").
+ */
 async function sendMyCode(user: User, contact = 'dana@example.com') {
-  await user.type(await screen.findByLabelText('Email or phone'), contact);
+  if (contact.includes('@')) {
+    await user.click(await screen.findByRole('button', { name: 'Joined with an email? Use your email' }));
+    await user.type(await screen.findByLabelText('Email or phone'), contact);
+  } else {
+    await user.type(await screen.findByLabelText('Mobile number'), contact);
+  }
   await user.click(screen.getByRole('button', { name: 'Send my code' }));
   return screen.findByTestId('check-code');
 }
@@ -442,15 +450,25 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     delete window.google;
   });
 
-  it('signs in with a code to an email: the one box, the masked email, and the code signs in on its sixth digit', async () => {
+  it('phone first; an email still signs in behind "Joined with an email?", and the code signs in on its sixth digit', async () => {
     const user = userEvent.setup();
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
     expect(screen.getByText('No password needed.')).toBeInTheDocument();
-    // Email first (owner 2026-10-19: texts cost money, email is free).
-    const box = await screen.findByLabelText('Email or phone');
-    expect(box).toHaveAttribute('placeholder', 'you@email.com or mobile number');
-    expect(screen.getByTestId('contact-hint')).toHaveTextContent("We'll send a 6-digit code. Email is free; a text works too.");
+    // Phone or Google (owner 2026-10-20), with the text-message line Twilio's toll-free review was given.
+    const box = await screen.findByLabelText('Mobile number');
+    expect(box).toHaveAttribute('inputmode', 'tel');
+    expect(box).toHaveAttribute('autocomplete', 'tel');
+    expect(screen.getByTestId('contact-hint')).toHaveTextContent("We'll text you a 6-digit code.");
+    expect(screen.getByTestId('text-consent')).toHaveTextContent(
+      'A phone number gets one text with your code each time you ask. Msg & data rates may apply. Reply STOP to cancel, HELP for help. Terms · Privacy',
+    );
+    // An email in the phone box is caught, and nothing is sent.
+    await user.type(box, 'dana@example.com');
+    await user.click(screen.getByRole('button', { name: 'Send my code' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter your mobile number, or use Continue with Google.');
+    expect(thriftPlusMockControls.outbox()).toHaveLength(0);
+    await user.clear(box);
     expect(screen.queryByTestId('google-sign-in')).toBeNull(); // no Google client id on this server
     expect(screen.getByRole('button', { name: 'Join Thrift+' })).toBeInTheDocument();
     expect(screen.getByText('Free to join. Nothing owed.')).toBeInTheDocument();
@@ -516,7 +534,7 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     expect(screen.queryByTestId('see-trip')).toBeNull();
 
     await user.click(within(check).getByRole('button', { name: 'Change' }));
-    expect(await screen.findByLabelText('Email or phone')).toHaveValue('dana@example.com');
+    expect(await screen.findByLabelText('Email or phone')).toHaveValue('dana@example.com'); // still behind the email link
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Send my code' }));
     expect(await screen.findByTestId('check-code')).toBeInTheDocument();
@@ -558,19 +576,18 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     }
   });
 
-  it('Join: the two steps, a name and an email; the code opens Finish joining (selfie, then sign, then done)', async () => {
+  it('Join: the two steps, a name and a phone; the code opens Finish joining (selfie, then sign, then done)', async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Join Thrift+' }));
     const form = await screen.findByTestId('join-form');
     expect(within(form).getByRole('heading', { name: 'Join Thrift+' })).toBeInTheDocument();
     expect(form).toHaveTextContent('Free. Two quick steps.');
-    expect(await within(form).findByTestId('join-step-now')).toHaveTextContent('1Now: your name, then your email or your phone.');
+    expect(await within(form).findByTestId('join-step-now')).toHaveTextContent('1Now: your name, then your phone.');
     expect(within(form).getByTestId('join-step-store')).toHaveTextContent("2At the store: show your QR and your photo ID. That's it.");
     expect(form).toHaveTextContent("That's all it takes to collect ThriftBucks and get 3-day returns.");
-    expect(form).toHaveTextContent(
-      'We send your sign-in codes and receipts, and email Thrift+ news you can turn off anytime. Msg and data rates may apply. Terms: ecothrift.us/terms',
-    );
+    expect(form).toHaveTextContent('Thrift+ terms: ecothrift.us/terms');
+    expect(within(form).getByTestId('text-consent')).toBeInTheDocument();
     expect(within(form).getByTestId('join-terms')).toHaveAttribute('href', 'https://ecothrift.us/terms');
     // Owner 2026-10-16: first and last name, both required.
     expect(within(form).getByLabelText('First name')).toHaveAttribute('autocomplete', 'given-name');
@@ -582,11 +599,12 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
 
     await user.type(within(form).getByLabelText('First name'), 'Robin');
     await user.type(within(form).getByLabelText('Last name'), 'Lee');
-    await user.type(within(form).getByLabelText('Email or phone'), 'robin@example.com');
+    expect(within(form).queryByLabelText('Email or phone')).toBeNull(); // joining is phone or Google (owner 2026-10-20)
+    await user.type(within(form).getByLabelText('Mobile number'), '(402) 555-0188');
     await user.click(within(form).getByRole('button', { name: 'Send my code' }));
     const check = await screen.findByTestId('check-code');
-    expect(within(check).getByTestId('sent-line')).toHaveTextContent('Enter the 6-digit code we sent to r•••@example.com.');
-    expect(thriftPlusMockControls.outbox()).toMatchObject([{ to: 'robin@example.com', channel: 'email', purpose: 'join' }]);
+    expect(within(check).getByTestId('sent-line')).toHaveTextContent('Enter the 6-digit code we sent to (•••) •••-0188.');
+    expect(thriftPlusMockControls.outbox()).toMatchObject([{ to: '+14025550188', channel: 'sms', purpose: 'join' }]);
     await user.type(within(check).getByLabelText('6-digit code'), lastCode());
 
     // Finish joining: step 1, the selfie with the front camera.
@@ -619,9 +637,9 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     const done = await within(finish).findByTestId('finish-done');
     expect(done).toHaveTextContent("You're all set");
     expect(done).toHaveTextContent('Show this QR at the register with your photo ID.');
-    expect(thriftPlusMockControls.finished()).toEqual([
-      { step: 'selfie', contact: 'robin@example.com' },
-      { step: 'sign', contact: 'robin@example.com', terms_version: '2026-10-19' },
+    expect(thriftPlusMockControls.finished()).toMatchObject([
+      { step: 'selfie' },
+      { step: 'sign', terms_version: '2026-10-19' },
     ]);
     await user.click(within(done).getByRole('button', { name: 'Done' }));
     const wallet = await screen.findByTestId('wallet-sheet');
@@ -710,7 +728,7 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     thriftPlusMockControls.setSignInOptions({ google_client_id: null });
     renderPage('/scan?view=join');
     expect(await screen.findByTestId('join-form')).toBeInTheDocument();
-    await screen.findByLabelText('Email or phone');
+    await screen.findByLabelText('Mobile number');
     expect(screen.queryByTestId('google-sign-in')).toBeNull();
     expect(screen.queryByText('Continue with Google')).toBeNull();
   });

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.184.1] -->
-<!-- Last reviewed: 2026-10-20 (2.184.1) -->
+<!-- Line 1 release: ## [2.185.0] -->
+<!-- Last reviewed: 2026-10-20 (2.185.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.185.0] - 2026-10-20
+
+User-facing theme: **Thrift+ is phone or Google, and the website says how our texts work, for Twilio's toll-free review (Bill, 2026-10-20).** Outside initiatives (Thrift+).
+
+### Changed
+- **Thrift+ sign-in and join:** Continue with Google, or a **Mobile number** (the phone's number pad, "We'll text you a 6-digit code."). Joining no longer takes an email. Members who joined by email before tap **Joined with an email? Use your email** on the sign-in screen.
+- **Under every Send my code:** "A phone number gets one text with your code each time you ask. Msg & data rates may apply. Reply STOP to cancel, HELP for help. Terms · Privacy".
+- **/privacy (Text messages):** we text only a Thrift+ sign-in code or link you ask for; we do not share mobile numbers or text-message consent with third parties or affiliates for marketing or promotional purposes; Twilio delivers the texts; STOP and HELP.
+- **/terms (store terms, Text messages):** who sends (our own toll-free number), what, how often, rates, STOP and HELP with the store phone and email, texts optional (Google instead), and the no-sharing line.
+- **Rulebook:** J18 (phone or Google; our own toll-free number, (888) 812-7905, verification submitted 10-20).
 
 ## [2.184.1] - 2026-10-20
 

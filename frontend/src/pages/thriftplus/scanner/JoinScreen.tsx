@@ -9,7 +9,7 @@
  */
 import { Box, InputBase } from '@mui/material';
 import { GoogleButton } from './GoogleButton';
-import { ContactField, Field, Primary, Secondary, TERMS_URL, Title } from './signInParts';
+import { ContactField, Field, Primary, Secondary, TERMS_URL, TextConsent, Title } from './signInParts';
 import { sc, u } from './scannerTheme';
 
 /** One numbered line: step 1 (now) and step 2 (at the store) look alike. */
@@ -32,9 +32,9 @@ function Step({ n, lead, text, testId }: { n: number; lead: string; text: string
   );
 }
 
-/** "Google, your email or your phone" (email first: it's free, owner 2026-10-19), less what this server has off. */
+/** "Google or your phone" (owner 2026-10-20: phone or Google, no email); email only while texts are off. */
 function ways(google: boolean, phone: boolean): string {
-  const list = [...(google ? ['Google'] : []), 'your email', ...(phone ? ['your phone'] : [])];
+  const list = [...(google ? ['Google'] : []), phone ? 'your phone' : 'your email'];
   return list.length === 1 ? list[0] : `${list.slice(0, -1).join(', ')} or ${list[list.length - 1]}`;
 }
 
@@ -94,13 +94,13 @@ export function JoinForm({ first, last, contact, onFirst, onLast, onContact, pho
       </Field>
       <ContactField value={contact} onChange={onContact} phone={phone} sx={{ mt: u(16) }} />
       <Primary busy={busy} label="Send my code" />
+      {phone && <TextConsent />}
 
       <Box sx={{ mt: u(30), textAlign: 'center', fontWeight: 700, fontSize: u(33), color: sc.greenDeep, lineHeight: 1.35 }}>
         That's all it takes to collect ThriftBucks and get 3-day returns.
       </Box>
       <Box sx={{ mt: u(16), fontSize: u(24), color: sc.ink2, lineHeight: 1.45, textAlign: 'center' }}>
-        We send your sign-in codes and receipts, and email Thrift+ news you can turn off anytime.
-        {phone ? ' Msg and data rates may apply.' : ''} Terms:{' '}
+        Thrift+ terms:{' '}
         <Box component="a" href={TERMS_URL} target="_blank" rel="noopener" data-testid="join-terms" sx={{ color: 'inherit' }}>
           ecothrift.us/terms
         </Box>
