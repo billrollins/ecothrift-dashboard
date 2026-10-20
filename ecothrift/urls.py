@@ -20,6 +20,9 @@ urlpatterns = [
     re_path(r'^card/?$', RedirectView.as_view(url='/scan?view=qr', permanent=False), name='thriftplus-card'),
     # ecothrift.us/join (owner 2026-10-15, J8; poster 1's join QR and terms 1.3): the scanner opened on Join Thrift+.
     re_path(r'^join/?$', RedirectView.as_view(url='/scan?view=join', permanent=False), name='thriftplus-join'),
+    # The Thrift+ sign-in screen with its text-message line, for Twilio's toll-free review (2026-10-20); the file is
+    # frontend-public/public/sms-opt-in.png, served with the public site's files.
+    path('sms-opt-in.png', RedirectView.as_view(url='/static/site/sms-opt-in.png', permanent=False), name='sms-opt-in'),
     # The interview short link in texts (ecothrift.us/i/<code>, owner 2026-10-12).
     re_path(r'^i/(?P<code>[A-Za-z0-9]{1,12})/?$', hiring_short_link, name='hiring-short-link'),
     path('sitemap.xml', sitemap_xml, name='sitemap-xml'),

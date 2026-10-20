@@ -1,12 +1,8 @@
-v2.185.0 — Thrift+ is phone or Google; privacy and terms carry the text-message wording for the toll-free review
+v2.185.1 — The text opt-in screenshot for Twilio's toll-free review
 
-User-facing theme: **Thrift+ is phone or Google, and the website says how our texts work, for Twilio's toll-free review (Bill, 2026-10-20).** Outside initiatives (Thrift+).
+User-facing theme: **The text opt-in screenshot Twilio's reviewers were given now opens (Bill, 2026-10-20).** Outside initiatives (Thrift+).
 
-### Changed
-- **Thrift+ sign-in and join:** Continue with Google, or a **Mobile number** (the phone's number pad, "We'll text you a 6-digit code."). Joining no longer takes an email. Members who joined by email before tap **Joined with an email? Use your email** on the sign-in screen.
-- **Under every Send my code:** "A phone number gets one text with your code each time you ask. Msg & data rates may apply. Reply STOP to cancel, HELP for help. Terms · Privacy".
-- **/privacy (Text messages):** we text only a Thrift+ sign-in code or link you ask for; we do not share mobile numbers or text-message consent with third parties or affiliates for marketing or promotional purposes; Twilio delivers the texts; STOP and HELP.
-- **/terms (store terms, Text messages):** who sends (our own toll-free number), what, how often, rates, STOP and HELP with the store phone and email, texts optional (Google instead), and the no-sharing line.
-- **Rulebook:** J18 (phone or Google; our own toll-free number, (888) 812-7905, verification submitted 10-20).
+### Added
+- **ecothrift.us/sms-opt-in.png:** a screenshot of the live Thrift+ sign-in screen (Continue with Google, Mobile number, Send my code, and the text-message line with Terms and Privacy), the opt-in proof in the toll-free verification.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.185.0] -->
-<!-- Last reviewed: 2026-10-20 (2.185.0) -->
+<!-- Line 1 release: ## [2.185.1] -->
+<!-- Last reviewed: 2026-10-20 (2.185.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.185.1] - 2026-10-20
+
+User-facing theme: **The text opt-in screenshot Twilio's reviewers were given now opens (Bill, 2026-10-20).** Outside initiatives (Thrift+).
+
+### Added
+- **ecothrift.us/sms-opt-in.png:** a screenshot of the live Thrift+ sign-in screen (Continue with Google, Mobile number, Send my code, and the text-message line with Terms and Privacy), the opt-in proof in the toll-free verification.
 
 ## [2.185.0] - 2026-10-20
 

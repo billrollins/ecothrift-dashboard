@@ -24,8 +24,9 @@ from django.template.loader import render_to_string
 # Paths that must keep working on a public host (shared API, assets, admin, media).
 _PASSTHROUGH_PREFIXES = ('/api/', '/static/', '/assets/', '/media/', '/db-admin/')
 
-# Exact paths served by Django views on the public host (SEO endpoints).
-_PASSTHROUGH_PATHS = ('/robots.txt', '/sitemap.xml')
+# Exact paths served by Django views on the public host (SEO endpoints, and the text opt-in screenshot that Twilio's
+# toll-free review was given as ecothrift.us/sms-opt-in.png, 2026-10-20).
+_PASSTHROUGH_PATHS = ('/robots.txt', '/sitemap.xml', '/sms-opt-in.png')
 
 # The interview short link in texts (ecothrift.us/i/<code>): a Django redirect, on any public host.
 _SHORT_LINK_PREFIX = '/i/'

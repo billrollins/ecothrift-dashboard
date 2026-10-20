@@ -25,6 +25,10 @@ class ScannerPassthroughTests(SimpleTestCase):
     def test_other_paths_still_get_the_public_site(self):
         self.assertEqual(self._get('www.ecothrift.us', '/scanner').status_code, 301)  # to the apex, like any page
 
+    def test_the_sms_opt_in_screenshot_reaches_django(self):
+        response = self._get('ecothrift.us', '/sms-opt-in.png')
+        self.assertEqual((response.status_code, response.content), (200, b'dashboard'))
+
     def test_the_interview_short_link_reaches_django_on_both_public_hosts(self):
         for host in ('www.ecothrift.us', 'ecothrift.us'):
             response = self._get(host, '/i/k3X9pQr')
@@ -79,3 +83,10 @@ class AccountPagesTests(SimpleTestCase):
         self.assertEqual(rewrite_legacy_path('/account/register'), '/account/sign-in')
         self.assertEqual(rewrite_legacy_path('/account/orders/abc123'), '/account')
         self.assertEqual(rewrite_legacy_path('/account/addresses'), '/account')
+
+
+class SmsOptInRedirectTests(SimpleTestCase):
+    def test_the_address_given_to_twilio_redirects_to_the_image(self):
+        response = self.client.get('/sms-opt-in.png')
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], '/static/site/sms-opt-in.png')
