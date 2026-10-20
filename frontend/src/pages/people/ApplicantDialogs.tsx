@@ -29,6 +29,9 @@ import {
   type Job,
   type Option,
 } from '../../api/hiring.api';
+import { PayLevelField } from '../../components/hr/PayLevelField';
+import { usePayLevels } from '../../hooks/usePayLevels';
+import { levelForPay } from '../../utils/payLevels';
 import { EmailCompose, useEmailReview } from './EmailReview';
 import { errorText } from './peopleUi';
 
@@ -174,6 +177,9 @@ export function CreateEmployeeDialog({
   onDone: (updated: ApplicationDetail, note: string) => void;
 }) {
   const [payRate, setPayRate] = useState('15.00');
+  const payLevels = usePayLevels();
+  const [level, setLevel] = useState('entry');
+  const [levelTouched, setLevelTouched] = useState(false);
   const [startDate, setStartDate] = useState(nextMonday());
   const [startTime, setStartTime] = useState('09:00');
   const [position, setPosition] = useState('');
@@ -190,6 +196,8 @@ export function CreateEmployeeDialog({
   useEffect(() => {
     if (open) {
       setPosition(signed?.position || application.jobs.map((j) => j.title).join(', '));
+      setLevelTouched(Boolean(signed?.level));
+      setLevel(signed?.level || levelForPay(signed?.pay_rate ?? '15.00', payLevels));
       if (signed) {
         setPayRate(signed.pay_rate);
         setStartDate(signed.start_date);
@@ -209,6 +217,7 @@ export function CreateEmployeeDialog({
         start_date: startDate,
         position,
         employment_type: employmentType,
+        level,
         department: null,
         start_onboarding: startOnboarding,
         send_first_day: startOnboarding && sendFirstDay,
@@ -257,7 +266,10 @@ export function CreateEmployeeDialog({
             <TextField
               label="Pay rate ($/hr)"
               value={payRate}
-              onChange={(e) => setPayRate(e.target.value)}
+              onChange={(e) => {
+                setPayRate(e.target.value);
+                if (!levelTouched) setLevel(levelForPay(e.target.value, payLevels));
+              }}
               inputProps={{ inputMode: 'decimal' }}
               fullWidth
             />
@@ -270,6 +282,15 @@ export function CreateEmployeeDialog({
               fullWidth
             />
           </Stack>
+          <PayLevelField
+            size="medium"
+            value={level}
+            pay={payRate}
+            onChange={(next) => {
+              setLevelTouched(true);
+              setLevel(next);
+            }}
+          />
           <TextField
             label="First day starts at"
             type="time"

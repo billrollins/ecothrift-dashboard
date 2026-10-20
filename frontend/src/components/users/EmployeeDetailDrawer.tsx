@@ -39,6 +39,8 @@ import { useIsMobileLayout } from '../../hooks/useIsMobileLayout';
 import { formatPhone, maskPhoneInput, stripPhone } from '../../utils/formatPhone';
 import { DrawerSection, Fact, PersonAvatar, formatDay, tenureFrom } from './userChrome';
 import { BadgeBlock } from './BadgeBlock';
+import { PayLevelField } from '../hr/PayLevelField';
+import { OverHoursAlert } from '../hr/OverHoursFlag';
 import { SetPasswordLinkDialog } from './SetPasswordLinkDialog';
 import { IconClose as Close } from '../../icons/ecoIcons';
 
@@ -89,6 +91,8 @@ type ProfileForm = {
   position: string;
   employment_type: string;
   pay_rate: string;
+  level: string;
+  overtime_allowance_hours: string;
   hire_date: string;
   department: string;
   work_location: string;
@@ -105,7 +109,7 @@ const EMPTY_ACCOUNT: AccountForm = {
 };
 
 const EMPTY_PROFILE: ProfileForm = {
-  position: '', employment_type: 'full_time', pay_rate: '', hire_date: '',
+  position: '', employment_type: 'full_time', pay_rate: '', level: 'entry', overtime_allowance_hours: '0', hire_date: '',
   department: '', work_location: '', emergency_name: '', emergency_phone: '',
   termination_date: '', termination_type: '', termination_notes: '', notes: '',
 };
@@ -152,6 +156,8 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
       position: p?.position || '',
       employment_type: p?.employment_type || 'full_time',
       pay_rate: p?.pay_rate || '',
+      level: p?.level || 'entry',
+      overtime_allowance_hours: String(Number(p?.overtime_allowance_hours ?? 0)),
       hire_date: p?.hire_date || '',
       department: p?.department != null ? String(p.department) : '',
       work_location: p?.work_location != null ? String(p.work_location) : '',
@@ -196,6 +202,8 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
             position: profile.position.trim(),
             employment_type: profile.employment_type,
             pay_rate: profile.pay_rate || 0,
+            level: profile.level,
+            overtime_allowance_hours: profile.overtime_allowance_hours || 0,
             hire_date: profile.hire_date || null,
             department: profile.department ? Number(profile.department) : null,
             work_location: profile.work_location ? Number(profile.work_location) : null,
@@ -317,6 +325,11 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
           <LoadingScreen message="Loading employee…" />
         ) : (
           <Box sx={{ p: 2, pb: 4, overflow: 'auto' }}>
+            {user.hours_flag ? (
+              <Box sx={{ mb: 2 }}>
+                <OverHoursAlert flag={user.hours_flag} />
+              </Box>
+            ) : null}
             <DrawerSection title="Access">
               <Fact
                 label="Can sign in"
@@ -525,6 +538,26 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
                         startAdornment: <InputAdornment position="start">$</InputAdornment>,
                       }}
                       helperText="Per hour"
+                    />
+                  </Stack>
+                  <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                    <PayLevelField
+                      value={profile.level}
+                      pay={profile.pay_rate}
+                      onChange={(level) => setP('level', level)}
+                    />
+                    <TextField
+                      label="Overtime allowed"
+                      type="number"
+                      size="small"
+                      fullWidth
+                      value={profile.overtime_allowance_hours}
+                      onChange={(e) => setP('overtime_allowance_hours', e.target.value)}
+                      InputProps={{
+                        endAdornment: <InputAdornment position="end">h over 40</InputAdornment>,
+                      }}
+                      inputProps={{ min: 0, max: 40, step: 0.5 }}
+                      helperText="0 means no overtime. Past 40 plus this is flagged red."
                     />
                   </Stack>
                 </Stack>

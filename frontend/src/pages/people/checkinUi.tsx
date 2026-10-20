@@ -1,6 +1,7 @@
 import { Box, Chip, Typography } from '@mui/material';
 import { getCheckinPdf, type CheckInAnswers, type CheckInForm } from '../../api/hiring.api';
 import { ccTokens } from '../../theme';
+import { levelLabel } from '../../utils/payLevels';
 import { errorText } from './peopleUi';
 
 const RATING_COLOR: Record<string, 'success' | 'info' | 'warning' | 'default'> = {
@@ -69,6 +70,17 @@ export function CheckInReadout({
               : `No change yet ($${answers.pay.current || '?'} an hour)`}
           </Typography>
           <Typography sx={{ whiteSpace: 'pre-wrap' }}>{answers.pay.note}</Typography>
+        </Box>
+      )}
+      {form.level_review && answers.level && (
+        <Box sx={{ mb: 1.5 }}>
+          <Typography variant="caption" sx={{ color: ccTokens.ink2, fontWeight: 700 }}>
+            Level after this review
+          </Typography>
+          <Typography sx={{ fontWeight: 600 }}>
+            {levelLabel(answers.level)}
+            {answers.level_before && answers.level_before !== answers.level ? ` (was ${levelLabel(answers.level_before)})` : ''}
+          </Typography>
         </Box>
       )}
       <Typography variant="caption" sx={{ color: ccTokens.ink2, fontWeight: 700 }}>

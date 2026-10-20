@@ -40,6 +40,7 @@ def _row(c: CheckIn, *, full: bool = False) -> dict:
             'can_close_onboarding': bool(c.onboarding_id) and service.is_last(c),
             'manager_name': c.manager_name, 'employee_name': c.employee_name,
             'current_pay': service.current_pay(c.user) if c.status == CheckIn.STATUS_SCHEDULED else '',
+            'current_level': service.current_level(c.user) if c.status == CheckIn.STATUS_SCHEDULED else '',
         })
     return out
 

@@ -100,7 +100,11 @@ export const KIOSK_STRINGS: Record<string, { en: string; es: string }> = {
 
   // Warnings (never blocking)
   warnStoreClosed: { en: 'The store is closed today.', es: 'La tienda esta cerrada hoy.' },
-  warnOvertime: { en: "You're at 40 hours this week. No overtime is approved.", es: 'Llegaste a 40 horas esta semana. No hay horas extra aprobadas.' },
+  warnOvertime: { en: "You're at {limit} hours this week. No more overtime is approved.", es: 'Llegaste a {limit} horas esta semana. No hay mas horas extra aprobadas.' },
+  warnOverHours: {
+    en: 'Over your hours: {hours} of {limit}. Forgot to clock out? Ask a manager to fix the time entry.',
+    es: 'Pasaste tus horas: {hours} de {limit}. Olvidaste salir? Pide a un gerente que corrija tu registro.',
+  },
   warnLate: { en: "You're {minutes} min late for {shift}.", es: 'Llegas {minutes} min tarde para {shift}.' },
   alreadyIn: { en: 'Already clocked in.', es: 'Ya estas en turno.' },
 

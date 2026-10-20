@@ -46,8 +46,8 @@ class AppSettingViewSet(viewsets.ModelViewSet):
     # The Thrift+ switch and its settings: the owner's call alone (2026-10-07).
     SUPERUSER_PREFIXES = ('thrift_plus_',)
     # Staff purchases (payroll deduction, staff Thrift+): the owner (Admin) only, though managers edit the rest.
-    # Idle sign-out hours (auth.idle_hours, house standard D16): the owner's call too.
-    ADMIN_ONLY = {'pos.staff_purchases', 'auth.idle_hours'}
+    # Idle sign-out hours (auth.idle_hours, house standard D16) and the pay-level ranges (hr.pay_levels): the owner's call too.
+    ADMIN_ONLY = {'pos.staff_purchases', 'auth.idle_hours', 'hr.pay_levels'}
 
     def _owner_only(self, key: str) -> None:
         user = self.request.user

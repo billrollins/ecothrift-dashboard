@@ -85,7 +85,12 @@ export interface KioskPreview {
   tiles: KioskTile[];
   warnings: {
     store_closed: boolean;
+    /** At their weekly limit (40, or 40 plus an overtime allowance). */
     overtime: boolean;
+    /** The limit they are cleared for, in hours ("40", or "45" with an allowance). */
+    overtime_limit?: string;
+    /** Past it: a big red flag. Hours worked and the limit they are cleared for. */
+    over_hours?: { hours: string; limit: string } | null;
     late: { minutes: number; shift_name: string } | null;
   };
   stale: { since: string; suggested_clock_out: string } | null;

@@ -173,6 +173,7 @@ export interface ApplicationDetail extends ApplicationRow {
     employee_number: string;
     position: string;
     pay_rate: string;
+    level?: string;
     hire_date: string | null;
   } | null;
   interviews: Interview[];
@@ -342,6 +343,7 @@ export const createEmployee = (
     start_date: string;
     position: string;
     employment_type: string;
+    level?: string;
     department: number | null;
     start_onboarding?: boolean;
     send_first_day?: boolean;
@@ -655,6 +657,8 @@ export interface Offer {
   position: string;
   pay_rate: string;
   employment_type: 'part_time' | 'full_time' | 'seasonal';
+  /** Pay level they start at (entry, senior, manager); '' = the level the pay falls in. */
+  level: string;
   start_date: string;
   start_time: string | null;
   schedule: string;
@@ -686,6 +690,7 @@ export interface OfferTerms {
   start_time?: string;
   schedule?: string;
   employment_type?: string;
+  level?: string;
   supervisor?: number | null;
   respond_by?: string;
   note?: string;
@@ -735,6 +740,8 @@ export interface OnboardingTask {
   due_date: string;
   kind: OnboardingKind;
   auto: string;
+  /** A person may tick it: ticks and counts, plus the first-day email and the check-ins that Dash also watches. */
+  can_tick?: boolean;
   status: 'open' | 'done' | 'skipped';
   done_at: string | null;
   /** Who ticked it, or "Dash" when Dash saw it done. */
@@ -866,6 +873,8 @@ export interface CheckInForm {
   employee_statement: string;
   /** This check-in also decides pay (the 90-day one by default). */
   pay_review?: boolean;
+  /** This check-in also sets their level (Entry, Senior, Manager): "Level after this review". */
+  level_review?: boolean;
 }
 
 export interface CheckInPay {
@@ -881,6 +890,9 @@ export interface CheckInAnswers {
   questions: Record<string, string>;
   areas: Record<string, { rating: string; note: string }>;
   pay?: CheckInPay;
+  /** Level after this review (entry, senior, manager); signing sets it on the employee. */
+  level?: string;
+  level_before?: string;
 }
 
 export interface CheckInRow {
@@ -910,6 +922,8 @@ export interface CheckInDetail extends CheckInRow {
   employee_name: string;
   /** Today's rate in Dash, on a check-in still to be signed. */
   current_pay: string;
+  /** Their level in Dash today, on a check-in still to be signed. */
+  current_level: string;
 }
 
 export const getCheckins = (when: 'due' | 'upcoming' | 'done' | 'all' = 'due') =>

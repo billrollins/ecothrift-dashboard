@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dutyColors } from '../duty/tokens';
-import { greetingKey, weekStatusLine } from './weekStatus';
+import { greetingKey, overHoursFlagLine, weekStatusLine } from './weekStatus';
 import type { WeeklyHoursStatus } from '../../types/hr.types';
 
 function weekly(overrides: Partial<WeeklyHoursStatus> = {}): WeeklyHoursStatus {
@@ -64,6 +64,24 @@ describe('weekStatusLine', () => {
     const line = weekStatusLine(weekly(), false, 0, 'en');
     expect(line.text).toBe('17.50 h left this week');
     expect(line.color).toBe(dutyColors.ink40);
+  });
+});
+
+describe('overHoursFlagLine', () => {
+  it('is quiet at the limit and flags only past it', () => {
+    expect(overHoursFlagLine(weekly({ hours_worked: '40.00', is_at_limit: true }), 'en')).toBeNull();
+    expect(overHoursFlagLine(weekly({ hours_worked: '43.20', is_over_limit: true }), 'en')).toBe(
+      'Over your hours: 43.2 of 40. Forgot to clock out? Ask a manager to fix the time entry.',
+    );
+  });
+
+  it('uses the limit they are cleared for (40 plus an overtime allowance)', () => {
+    const cleared = { hours_limit: '45.00', overtime_allowance: '5.00' };
+    expect(overHoursFlagLine(weekly({ ...cleared, hours_worked: '44.00', is_at_limit: false }), 'en')).toBeNull();
+    expect(overHoursFlagLine(weekly({ ...cleared, hours_worked: '45.50', is_over_limit: true }), 'en')).toContain(
+      '45.5 of 45',
+    );
+    expect(overHoursFlagLine(undefined, 'en')).toBeNull();
   });
 });
 

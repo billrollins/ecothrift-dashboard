@@ -133,6 +133,11 @@ class EmployeeProfile(models.Model):
     position = models.CharField(max_length=100, blank=True, default='')
     employment_type = models.CharField(max_length=20, choices=EMPLOYMENT_TYPES, default='full_time')
     pay_rate = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    # Pay level (owner 2026-10-20): Entry, Senior, Manager. The ranges are the ``hr.pay_levels`` setting.
+    LEVEL_CHOICES = [('entry', 'Entry'), ('senior', 'Senior'), ('manager', 'Manager')]
+    level = models.CharField(max_length=10, choices=LEVEL_CHOICES, default='entry')
+    # Hours past the weekly 40 this person is cleared to work (0 = no overtime). Over 40 + this is flagged.
+    overtime_allowance_hours = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     hire_date = models.DateField()
     termination_date = models.DateField(null=True, blank=True)
     termination_type = models.CharField(

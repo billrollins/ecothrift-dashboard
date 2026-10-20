@@ -25,6 +25,7 @@ from rest_framework.exceptions import ValidationError
 from apps.core.files import save_upload
 from apps.hiring import emails
 from apps.hiring.careers import fill, load_setting, template as email_template, universal_template
+from apps.accounts.services.pay_levels import LEVELS
 from apps.hiring.models import Application, ApplicationEvent, Offer
 
 EMPLOYMENT_LABEL = {'part_time': 'Part time', 'full_time': 'Full time', 'seasonal': 'Seasonal'}
@@ -163,6 +164,9 @@ def clean_terms(raw: dict, application: Application) -> dict:
     employment_type = raw.get('employment_type') or 'part_time'
     if employment_type not in EMPLOYMENT_LABEL:
         errors['employment_type'] = 'Part time, full time or seasonal.'
+    level = str(raw.get('level') or '').strip().lower()
+    if level and level not in LEVELS:
+        errors['level'] = 'Entry, Senior or Manager.'
     supervisor = None
     if raw.get('supervisor'):
         supervisor = staff_users().filter(pk=raw.get('supervisor')).first()
@@ -176,7 +180,7 @@ def clean_terms(raw: dict, application: Application) -> dict:
         'job': job, 'position': position, 'pay_rate': pay_rate, 'start_date': start_date, 'start_time': start_time,
         'schedule': (raw.get('schedule') or (job.schedule if job else '') or '').strip()[:300],
         'employment_type': employment_type, 'supervisor': supervisor, 'respond_by': respond_by,
-        'note': (raw.get('note') or '').strip()[:2000],
+        'note': (raw.get('note') or '').strip()[:2000], 'level': level,
     }
 
 
@@ -200,7 +204,8 @@ def make(application: Application, raw: dict, *, by, send: bool) -> tuple[Offer,
     cfg = load_setting()['offer']
     offer = Offer.objects.create(
         application=application, job=terms['job'], token=secrets.token_urlsafe(24), position=terms['position'],
-        pay_rate=terms['pay_rate'], employment_type=terms['employment_type'], start_date=terms['start_date'],
+        pay_rate=terms['pay_rate'], employment_type=terms['employment_type'], level=terms['level'],
+        start_date=terms['start_date'],
         start_time=terms['start_time'], schedule=terms['schedule'], supervisor=terms['supervisor'],
         respond_by=terms['respond_by'], note=terms['note'], letter_subject=subject, letter_text=text,
         acknowledgments=list(cfg['acknowledgments']), consent_text=cfg['consent'], sent_at=timezone.now(),
@@ -300,7 +305,7 @@ def _signature_png(data_url: str) -> bytes:
 
 @transaction.atomic
 def sign(offer: Offer, *, name: str, signature: str, acks, consent, ip: str | None, user_agent: str,
-         texts_consent=False) -> Offer:
+         texts_consent=False, auto_start: bool = True) -> Offer:
     offer = Offer.objects.select_for_update().get(pk=offer.pk)
     refresh(offer)
     if offer.status not in Offer.OPEN:
@@ -342,6 +347,12 @@ def sign(offer: Offer, *, name: str, signature: str, acks, consent, ip: str | No
     staff = emails.alert_recipients(application)
     if staff:
         _send(offer, 'offer_notice', staff, attachment=pdf, action='signed', reason='')
+    # Owner 2026-10-20: signing starts the new hire (a Dash login, the first-day email, the checklist, the
+    # check-ins). It never blocks the signature: what stops it is written on the history instead.
+    if auto_start:
+        from apps.hiring import hire
+
+        hire.hire_from_offer(application, offer)
     return offer
 
 

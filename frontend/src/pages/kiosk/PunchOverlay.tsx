@@ -124,7 +124,9 @@ export function PunchOverlay({
 
   const warnings: string[] = [];
   if (preview.warnings.store_closed) warnings.push(tk('warnStoreClosed', lang));
-  if (preview.warnings.overtime) warnings.push(tk('warnOvertime', lang));
+  // Past 40 (plus any overtime they are cleared for) is a big red flag; just reaching it is the amber note.
+  const overHours = preview.warnings.over_hours;
+  if (preview.warnings.overtime) warnings.push(tk('warnOvertime', lang, { limit: preview.warnings.overtime_limit ?? '40' }));
   if (preview.warnings.late && screen === 'out') {
     warnings.push(tk('warnLate', lang, { minutes: preview.warnings.late.minutes, shift: preview.warnings.late.shift_name }));
   }
@@ -141,9 +143,19 @@ export function PunchOverlay({
   }
 
   function warningLines() {
-    if (!warnings.length) return null;
+    if (!warnings.length && !overHours) return null;
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mb: 2 }}>
+        {overHours && (
+          <Box
+            role="alert"
+            data-testid="over-hours-flag"
+            sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 2, py: 1.5, borderRadius: 2, bgcolor: '#C62828', color: '#fff', fontWeight: 800, fontSize: 21, lineHeight: 1.25 }}
+          >
+            <WarningAmber />
+            {tk('warnOverHours', lang, { hours: overHours.hours, limit: overHours.limit })}
+          </Box>
+        )}
         {warnings.map((line) => (
           <Box key={line} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1, borderRadius: 2, bgcolor: kioskColors.amber, color: kioskColors.amberInk, fontWeight: 700, fontSize: 17 }}>
             <WarningAmber fontSize="small" />

@@ -69,19 +69,24 @@ def _sales(day: date) -> dict:
 def _labor(day: date, now: datetime) -> dict:
     from apps.accounts.models import User
     from apps.hr.models import TimeEntry, TimeEntryModificationRequest
-    from apps.hr.services.time_clock_utils import weekly_status_for_employee
+    from apps.hr.services.time_clock_utils import over_hours_flag, weekly_status_for_employee
 
     worked = TimeEntry.objects.filter(date=day).aggregate(hours=Sum('total_hours'), people=Count('employee', distinct=True))
     open_punches = []
     for entry in TimeEntry.objects.filter(clock_out__isnull=True).select_related('employee'):
         hours = (now - entry.clock_in).total_seconds() / 3600
         open_punches.append({'who': entry.employee.full_name, 'since': entry.clock_in.isoformat(), 'hours_open': round(hours, 1)})
-    near_limit = []
+    near_limit, over_hours = [], []
     week_start = now.date() - timedelta(days=now.weekday())
     ids = TimeEntry.objects.filter(date__gte=week_start).values_list('employee', flat=True).distinct()
-    for employee in User.objects.filter(pk__in=list(ids)):
+    for employee in User.objects.filter(pk__in=list(ids)).select_related('employee'):
         status = weekly_status_for_employee(employee, now)
-        if status['hours_worked'] >= 36:
+        # The limit is 40 plus any overtime allowance the owner cleared (Ashley: 5). Past it is a red flag.
+        flag = over_hours_flag(status['hours_worked'], status['overtime_allowance'], employee.pk)
+        if flag:
+            over_hours.append({'who': employee.full_name, 'hours': flag['hours_text'], 'limit': flag['limit_text'],
+                               'text': flag['text'], 'link': flag['link']})
+        elif status['hours_worked'] >= 36:
             near_limit.append({'who': employee.full_name, 'hours': str(status['hours_worked']), 'limit': str(status['hours_limit'])})
     return {
         'hours_worked': _money(worked['hours']),
@@ -89,6 +94,7 @@ def _labor(day: date, now: datetime) -> dict:
         'open_punches': open_punches,
         'stale_open_punches': [p for p in open_punches if p['hours_open'] >= 14],
         'near_weekly_limit': near_limit,
+        'over_their_hours': over_hours,
         'time_change_requests_waiting': TimeEntryModificationRequest.objects.filter(status='pending').count(),
     }
 

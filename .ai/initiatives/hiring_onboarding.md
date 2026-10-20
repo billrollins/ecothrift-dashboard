@@ -1,5 +1,5 @@
 <!-- initiative: slug=hiring-onboarding status=active updated=2026-10-08 -->
-<!-- Last updated: 2026-10-07 (Phase 5, Applicants timeline and read-before-send shipped in v2.148.0) -->
+<!-- Last updated: 2026-10-20 (Owner 10-20: signing an offer starts everything; the checklist; pay levels; overtime flag) -->
 
 # Initiative: Hiring and onboarding
 
@@ -491,6 +491,18 @@ Everything is built and live through v2.154.0. None of these is code; whoever pi
   - Tests: `test_acceptance.py`.
 - [ ] Nothing ships with an inventory or Thrift+ release, in the freeze, or in the database-switch window. So far every hiring release has shipped on its own (v2.136.0 to v2.149.0). This stays open through the launch and the storage switch.
 - [x] Out-of-scope items stay out (checked 2026-10-08: no E-Verify, no SSN or bank storage, no QuickBooks API, no background checks, no job-board posting, no calendar sync, no AI scoring; texts held)
+
+---
+
+## Owner 10-20: signing starts everything, the new checklist, pay levels, overtime
+
+Bill approved this on 2026-10-20 (four real hires were stuck: Hired, no Dash login, no onboarding).
+
+- **Signing an offer starts the new hire** (`apps/hiring/hire.py`, called from `offers.sign`). The same work as Create employee (position, pay, type and level from the offer; department from the role) and then Start onboarding (first-day email, checklist, check-ins) with the offer's start date and time and its supervisor as manager. The signature never fails because of it. No email, a Dash account already on the email, or any error: the offer stays signed, the applicant stays Hired, a line on the history says what blocked it (`data.auto_start = blocked`), and the Create employee and Start onboarding buttons work as before. Practice applicants get nothing.
+- **Catch-up request** `hiring.catch_up_hires` (Superuser → Requests, `apps/hiring/approval_kinds.py`): for every real applicant with a signed offer, stage Hired and no employee, the same work. The preview lists who, the terms, and that each gets the first-day email (blocked ones are marked and skipped). Optional param `overtime: [{"employee": <user id or email>, "hours": 5}]` sets overtime allowances. Run it again and it finds nobody. No undo.
+- **The checklist** (default in `careers.py`), the owner's order: handbook; I-9 (Section 1, Section 2); got a schedule; got 2 T-shirts; first-day email sent and orientation day set (Dash ticks it, or tick by hand); QuickBooks (added, set up); added to WhatsApp (manager); signed in to Dash and knows their login; first payroll, no issues (owner, due about 3 weeks in, bucket `week3`); the 30, 60 and 90-day check-ins (owner; `auto: checkin_30` etc., ticked when that check-in is signed or skipped with a reason; the 30-day one, "a meeting set with Bill and Carrie", can also be ticked by hand). Then emergency contact, time clock explained, kiosk badge, first clock-in, introduced to the team, trained, Nebraska new-hire report. New due buckets: `week3`, `day30`, `day60`, `day90`. Onboarding now stays open until day 90 (the owner's items); the new hire's own view hides the owner's items and counts only theirs. Migration `hiring/0019` swaps a saved checklist that is still the old default for the new one; an edited one keeps his items and gets the missing new ones added at the end.
+- **Three levels** (`apps/accounts/services/pay_levels.py`, `EmployeeProfile.level`): Entry $15 to $17, Senior $18 to $19, Manager $20+, in one owner-editable setting `hr.pay_levels` (Admin only). Pay between ranges (17.50) is the lower level. Shown and edited next to pay: the employee drawer, Add employee, the offer form (`Offer.level`; blank = the level the pay falls in) and Create employee. A pay outside its level's range is a warning, never a block. The 90-day check-in form has "Level after this review" (`checkin.level_review_days`, default `[90]`; `answers.level`); signing sets the employee's level. Migration `accounts/0013` backfills every employee by pay and seeds the setting.
+- **Overtime flag** (`EmployeeProfile.overtime_allowance_hours`, default 0; Ashley is cleared for 5 over 40, set through the catch-up request). `weekly_status_for_employee` now returns `hours_limit` = 40 + allowance (and `base_limit`, `overtime_allowance`). Past it: a big red flag on the kiosk punch screen (`warnings.over_hours`), on the employee's Hours & pay, on People (a chip on the row, an alert on the employee drawer; `hours_flag` on the user), and in the morning brief (`labor.over_their_hours`, worded "Over their hours: 43.2 of 40. Forgot to clock out? Fix the time entry.", linking to `/admin/time-payroll?employee=ID`). The brief's old "no overtime is approved" line is gone.
 
 ---
 

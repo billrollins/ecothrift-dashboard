@@ -371,7 +371,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 application, by=request.user, request=request, pay_rate=data.get('pay_rate'), start_date=start,
                 position=data.get('position') or '',
                 department=int(department) if str(department or '').isdigit() else None,
-                employment_type=data.get('employment_type') or 'part_time',
+                employment_type=data.get('employment_type') or 'part_time', level=str(data.get('level') or ''),
             )
             # Usually straight on to onboarding: the checklist, and the first-day email when asked.
             result['onboarding'] = None

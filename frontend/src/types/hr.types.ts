@@ -88,7 +88,12 @@ export interface WeeklyHoursStatus {
   week_start: string;
   week_end: string;
   hours_worked: string;
+  /** What they are cleared for: 40 plus their overtime allowance. */
   hours_limit: string;
+  /** The base weekly limit (40). */
+  base_limit?: string;
+  /** Hours past 40 the owner cleared this person for (0 = no overtime). */
+  overtime_allowance?: string;
   hours_remaining: string;
   is_at_limit: boolean;
   is_over_limit: boolean;

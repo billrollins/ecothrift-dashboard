@@ -10,6 +10,26 @@ export function greetingKey(now: Date): 'goodMorning' | 'goodAfternoon' | 'goodE
   return 'goodEvening';
 }
 
+/** 43.20 -> "43.2", 40.00 -> "40". */
+function hoursText(value: string | number): string {
+  const n = typeof value === 'number' ? value : parseFloat(value);
+  return Number.isFinite(n) ? String(Number(n.toFixed(2))) : '0';
+}
+
+/**
+ * The big red flag when the week is past 40 plus the overtime allowance (``hours_limit`` already includes it):
+ * "Over your hours: 43.2 of 40. Forgot to clock out?" Null when they are within their hours.
+ */
+export function overHoursFlagLine(weekly: WeeklyHoursStatus | undefined, lang: string): string | null {
+  if (!weekly) return null;
+  const worked = parseFloat(weekly.hours_worked);
+  const limit = parseFloat(weekly.hours_limit);
+  if (!(weekly.is_over_limit || worked > limit)) return null;
+  return t('overHoursFlag', lang)
+    .replace('{hours}', hoursText(weekly.hours_worked))
+    .replace('{limit}', hoursText(weekly.hours_limit));
+}
+
 export function weekStatusLine(
   weekly: WeeklyHoursStatus | undefined,
   onBreak: boolean,

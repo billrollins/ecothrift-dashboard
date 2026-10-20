@@ -39,7 +39,10 @@ import {
   type CheckInRow,
 } from '../../api/hiring.api';
 import { PageHeader } from '../../components/common/PageHeader';
+import { PayLevelField } from '../../components/hr/PayLevelField';
 import { useAuth } from '../../hooks/useAuth';
+import { usePayLevels } from '../../hooks/usePayLevels';
+import { levelLabel } from '../../utils/payLevels';
 import { ccTokens } from '../../theme';
 import { CheckInReadout, openCheckinPdf } from './checkinUi';
 import { dayText, errorText, shortDate } from './peopleUi';
@@ -135,6 +138,7 @@ function Panel({ id, onClose }: { id: number; onClose: () => void }) {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
+  const payLevels = usePayLevels();
   const detail = useQuery({ queryKey: ['hiring', 'checkin', id], queryFn: async () => (await getCheckin(id)).data });
   const c = detail.data;
   const [answers, setAnswers] = useState<CheckInAnswers>(EMPTY);
@@ -156,6 +160,8 @@ function Panel({ id, onClose }: { id: number; onClose: () => void }) {
       questions: { ...(c.answers.questions ?? {}) },
       areas: { ...(c.answers.areas ?? {}) },
       ...(c.form.pay_review ? { pay: { ...EMPTY_PAY, ...(c.answers.pay ?? {}) } } : {}),
+      // "Level after this review" starts on the level they have now.
+      ...(c.form.level_review ? { level: c.answers.level || c.current_level || 'entry' } : {}),
     });
     setComments(c.employee_comments);
     setClose(c.close_onboarding);
@@ -323,6 +329,23 @@ function Panel({ id, onClose }: { id: number; onClose: () => void }) {
                 setErrors((e) => ({ ...e, pay: '' }));
               }}
             />
+          )}
+          {c.form.level_review && (
+            <Box sx={{ p: 2, borderRadius: ccTokens.r, border: `1px solid ${ccTokens.line}`, bgcolor: '#fafaf7' }}>
+              <Typography sx={{ fontWeight: 700 }}>Performance review: their level</Typography>
+              <Typography variant="body2" sx={{ color: ccTokens.ink2, mb: 1.25 }}>
+                Now: {levelLabel(c.current_level, payLevels) || 'not set'}. Signing sets the level below in Dash.
+              </Typography>
+              <Box sx={{ maxWidth: 360 }}>
+                <PayLevelField
+                  size="medium"
+                  label="Level after this review"
+                  value={answers.level ?? 'entry'}
+                  pay={c.answers.pay?.decision === 'raise' && c.answers.pay.new_rate ? c.answers.pay.new_rate : c.current_pay}
+                  onChange={(level) => setAnswers((a) => ({ ...a, level }))}
+                />
+              </Box>
+            </Box>
           )}
           <TextField
             label="The employee's comments (they say or write these)"

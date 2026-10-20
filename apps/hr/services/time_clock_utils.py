@@ -104,20 +104,62 @@ def completed_hours_this_week_for_employee(employee, as_of: datetime | None = No
     return completed_hours_for_employee(employee, week_start, week_end)
 
 
+def overtime_allowance_for(employee) -> Decimal:
+    """Hours past the weekly 40 this person is cleared to work (0 when none, or no employee profile)."""
+    profile = getattr(employee, 'employee', None)
+    allowance = getattr(profile, 'overtime_allowance_hours', None)
+    return Decimal(allowance) if allowance and allowance > 0 else Decimal('0.00')
+
+
+def week_hours_by_user(as_of: datetime | None = None) -> dict:
+    """{user id: hours this calendar week} for everyone with a time entry this week (one query)."""
+    as_of = as_of or timezone.now()
+    week_start, week_end = week_bounds(timezone.localtime(as_of).date())
+    totals: dict = {}
+    for entry in TimeEntry.objects.filter(date__gte=week_start, date__lte=week_end, deleted_at__isnull=True):
+        totals[entry.employee_id] = totals.get(entry.employee_id, Decimal('0')) + _entry_hours(entry, as_of)
+    return {key: value.quantize(Decimal('0.01')) for key, value in totals.items()}
+
+
+def hours_text(value) -> str:
+    """43.20 -> '43.2', 40.00 -> '40'."""
+    return f'{Decimal(value):.2f}'.rstrip('0').rstrip('.')
+
+
+def over_hours_flag(hours, allowance, employee_id=None) -> dict | None:
+    """The red flag when a week is past 40 plus the allowance: ``hours``, ``limit`` (what they are cleared for),
+    ``base`` (40) and ``link`` to their time entries so the entry can be fixed. None when they are within it."""
+    hours, allowance = Decimal(hours or 0), Decimal(allowance or 0)
+    limit = WEEKLY_HOUR_LIMIT + allowance
+    if hours <= limit:
+        return None
+    return {
+        'hours': hours.quantize(Decimal('0.01')), 'limit': limit, 'base': WEEKLY_HOUR_LIMIT, 'allowance': allowance,
+        'hours_text': hours_text(hours), 'limit_text': hours_text(limit),
+        'text': f'Over their hours: {hours_text(hours)} of {hours_text(limit)}. Forgot to clock out? '
+                f'Fix the time entry.',
+        'link': f'/admin/time-payroll?employee={employee_id}' if employee_id else '/admin/time-payroll',
+    }
+
+
 def weekly_status_for_employee(employee, as_of: datetime | None = None) -> dict:
-    """Payload for weekly overtime UI."""
+    """Payload for weekly overtime UI. ``hours_limit`` is what this person is cleared for: 40 plus their overtime
+    allowance (0 for almost everyone). ``overtime_hours`` is the part past the base 40 (what payroll pays at 1.5)."""
     as_of = as_of or timezone.now()
     week_start, week_end = week_bounds(as_of.date())
     hours = weekly_hours_for_employee(employee, as_of)
-    limit = WEEKLY_HOUR_LIMIT
+    allowance = overtime_allowance_for(employee)
+    limit = WEEKLY_HOUR_LIMIT + allowance
     remaining = max(limit - hours, Decimal('0'))
     return {
         'week_start': week_start.isoformat(),
         'week_end': week_end.isoformat(),
         'hours_worked': hours,
         'hours_limit': limit,
+        'base_limit': WEEKLY_HOUR_LIMIT,
+        'overtime_allowance': allowance,
         'hours_remaining': remaining,
         'is_at_limit': hours >= limit,
         'is_over_limit': hours > limit,
-        'overtime_hours': max(hours - limit, Decimal('0')),
+        'overtime_hours': max(hours - WEEKLY_HOUR_LIMIT, Decimal('0')),
     }

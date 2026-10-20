@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarProvider } from 'notistack';
+import { MemoryRouter } from 'react-router-dom';
 import EmployeesPanel from './EmployeesPanel';
 
 const state = vi.hoisted(() => ({
@@ -122,8 +123,24 @@ describe('EmployeesPanel directory', () => {
   it('orders identity, number, then the facts you edit, then status', () => {
     wrap(<EmployeesPanel onSelect={() => {}} />);
     expect(screen.getByTestId('headers').textContent).toBe(
-      'Employee|#|Dept|Job|Role|Type|Phone|Tenure|Access',
+      'Employee|#|Dept|Job|Level|Role|Type|Phone|Tenure|Access',
     );
+  });
+
+  it('shows the red over-hours chip on the row and saves the level on the row', async () => {
+    state.users = [{
+      ...EMPLOYEE,
+      hours_flag: {
+        hours: '43.2', limit: '40', link: '/admin/time-payroll?employee=11',
+        text: 'Over their hours: 43.2 of 40. Forgot to clock out? Fix the time entry.',
+      },
+    }];
+    const user = userEvent.setup();
+    wrap(<MemoryRouter><EmployeesPanel onSelect={() => {}} /></MemoryRouter>);
+    expect(screen.getByTestId('over-hours-chip')).toHaveTextContent('Over hours 43.2/40');
+    const level = await screen.findByLabelText('Level for Ana Reyes');
+    await user.selectOptions(level, 'senior');
+    expect(state.saveProfile).toHaveBeenCalledWith({ userId: 11, data: { level: 'senior' } });
   });
 
   it('saves department and job on the row', async () => {

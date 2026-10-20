@@ -23,12 +23,12 @@ from apps.core.files import save_upload, upload_has_signature
 from apps.hiring import emails
 from apps.hiring.careers import HANDBOOK_CONFIRM, load_setting, template as email_template
 from apps.hiring.models import (
-    ApplicationEvent, Handbook, HandbookSignature, I9File, I9Record, Onboarding, OnboardingTask,
+    ApplicationEvent, CheckIn, Handbook, HandbookSignature, I9File, I9Record, Onboarding, OnboardingTask,
 )
 
 DUE_LABELS = {
     'before_day1': 'Before day 1', 'day1': 'Day 1', 'i9': 'Within 3 business days', 'week1': 'Week 1',
-    'day20': 'By day 20',
+    'week3': 'About 3 weeks in', 'day20': 'By day 20', 'day30': 'Day 30', 'day60': 'Day 60', 'day90': 'Day 90',
 }
 OWNER_LABELS = {'new_hire': 'New hire', 'manager': 'Manager', 'owner': 'Owner'}
 HANDBOOK_CONSENT = (
@@ -50,13 +50,18 @@ def add_business_days(day: date, count: int) -> date:
 
 
 def due_date_for(due: str, start: date) -> date:
-    """before_day1: the day before; day1: the start; i9: 3 business days after; week1: +6 days; day20: +20 days."""
+    """before_day1: the day before; day1: the start; i9: 3 business days after; week1: +6 days; week3: +21 days;
+    day20: +20 days; day30 / day60 / day90: the check-in days."""
     return {
         'before_day1': start - timedelta(days=1),
         'day1': start,
         'i9': add_business_days(start, 3),
         'week1': start + timedelta(days=6),
+        'week3': start + timedelta(days=21),
         'day20': start + timedelta(days=20),
+        'day30': start + timedelta(days=30),
+        'day60': start + timedelta(days=60),
+        'day90': start + timedelta(days=90),
     }.get(due, start)
 
 
@@ -141,6 +146,7 @@ def send_first_day(onboarding: Onboarding, *, by=None) -> bool:
     if sent and not compose.capturing():
         onboarding.first_day_email_sent_at = timezone.now()
         onboarding.save(update_fields=['first_day_email_sent_at'])
+        refresh(onboarding)  # ticks "First-day email sent and orientation day set"
     # The email goes on the applicant's history with its words (send_template).
     return sent
 
@@ -187,6 +193,15 @@ def auto_state(onboarding: Onboarding, task: OnboardingTask) -> bool | None:
         return ShiftAssignment.objects.filter(employee=user).exists()
     if task.auto == 'kiosk_badge':
         return bool(profile and profile.badge_issued_at and not profile.badge_revoked_at)
+    if task.auto == 'first_day_email':  # the email went out and there is a start (orientation) day
+        return bool(onboarding.first_day_email_sent_at and onboarding.start_date)
+    if task.auto.startswith('checkin_'):  # that check-in was signed, or skipped with a reason
+        try:
+            day = int(task.auto.split('_', 1)[1])
+        except ValueError:
+            return None
+        return onboarding.checkins.filter(
+            day=day, status__in=(CheckIn.STATUS_DONE, CheckIn.STATUS_SKIPPED)).exists()
     return None
 
 
@@ -226,7 +241,7 @@ def set_task(task: OnboardingTask, *, by, status: str, data: dict | None = None,
         raise ValidationError({'detail': 'This onboarding was cancelled.'})
     if as_new_hire and (task.owner != 'new_hire' or task.kind != 'tick' or status == OnboardingTask.STATUS_SKIPPED):
         raise PermissionDenied('Your manager ticks this one.')
-    if status == OnboardingTask.STATUS_DONE and task.kind not in ('tick', 'count'):
+    if status == OnboardingTask.STATUS_DONE and task.kind not in ('tick', 'count') and not hand_tickable(task):
         raise ValidationError({'detail': 'Dash ticks this one itself when it sees it done.'})
     if task.kind == 'count' and status == OnboardingTask.STATUS_DONE:
         data = data or {}
@@ -245,6 +260,12 @@ def set_task(task: OnboardingTask, *, by, status: str, data: dict | None = None,
     task.save()
     refresh(task.onboarding)
     return task
+
+
+def hand_tickable(task: OnboardingTask) -> bool:
+    """Dash-watched items a person may also tick: the first-day email (told them another way) and a check-in
+    (the 30-day one is often just "the meeting is set")."""
+    return task.kind == 'auto' and (task.auto == 'first_day_email' or task.auto.startswith('checkin_'))
 
 
 def overdue(task: OnboardingTask, today: date | None = None) -> bool:

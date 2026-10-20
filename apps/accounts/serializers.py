@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from rest_framework import serializers
 from .models import EmployeeProfile, ConsigneeProfile
+from .services import pay_levels
 
 User = get_user_model()
 
@@ -20,7 +21,7 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
         model = EmployeeProfile
         fields = [
             'id', 'employee_number', 'department', 'department_name',
-            'position', 'employment_type', 'pay_rate', 'hire_date',
+            'position', 'employment_type', 'pay_rate', 'level', 'overtime_allowance_hours', 'hire_date',
             'termination_date', 'termination_type', 'termination_type_display',
             'termination_notes', 'work_location', 'work_location_name',
             'emergency_name', 'emergency_phone', 'notes', 'created_at',
@@ -30,6 +31,11 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
             'id', 'employee_number', 'created_at',
             'badge_status', 'badge_issued_at', 'badge_revoked_at',
         ]
+
+    def validate_overtime_allowance_hours(self, value):
+        if value < 0 or value > 40:
+            raise serializers.ValidationError('Hours past 40 a week, from 0 to 40 (0 means no overtime).')
+        return value
 
 
 class ConsigneeProfileSerializer(serializers.ModelSerializer):
@@ -55,6 +61,7 @@ class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
     has_password = serializers.SerializerMethodField()
     email_verified = serializers.SerializerMethodField()
+    hours_flag = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -64,13 +71,27 @@ class UserSerializer(serializers.ModelSerializer):
             'date_joined', 'updated_at',
             'last_login',
             'role', 'roles', 'full_name',
-            'has_password', 'email_verified',
+            'has_password', 'email_verified', 'hours_flag',
             'employee', 'consignee',
         ]
         read_only_fields = [
             'id', 'is_superuser', 'date_joined', 'updated_at', 'last_login',
-            'has_password', 'email_verified',
+            'has_password', 'email_verified', 'hours_flag',
         ]
+
+    def get_hours_flag(self, obj):
+        """The big red flag when this week is past 40 plus their overtime allowance. Only the People screens ask
+        (they put ``week_hours`` in the context, one query for everyone); anywhere else it is null."""
+        week_hours = self.context.get('week_hours')
+        profile = getattr(obj, 'employee', None)
+        if week_hours is None or profile is None or profile.termination_date:
+            return None
+        from apps.hr.services.time_clock_utils import over_hours_flag
+
+        flag = over_hours_flag(week_hours.get(obj.pk, 0), profile.overtime_allowance_hours, obj.pk)
+        if flag is None:
+            return None
+        return {'hours': flag['hours_text'], 'limit': flag['limit_text'], 'text': flag['text'], 'link': flag['link']}
 
     def get_has_password(self, obj):
         return obj.has_usable_password()
@@ -100,6 +121,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
     pay_rate = serializers.DecimalField(
         max_digits=8, decimal_places=2, write_only=True, required=False, default=0,
     )
+    level = serializers.ChoiceField(choices=['entry', 'senior', 'manager'], write_only=True, required=False)
     hire_date = serializers.DateField(write_only=True, required=False)
     work_location = serializers.IntegerField(write_only=True, required=False, allow_null=True)
     # Optional consignee fields
@@ -115,7 +137,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'email', 'username', 'first_name', 'last_name', 'phone', 'password', 'role', 'is_active',
-            'department', 'position', 'employment_type', 'pay_rate',
+            'department', 'position', 'employment_type', 'pay_rate', 'level',
             'hire_date', 'work_location',
             'commission_rate', 'payout_method',
         ]
@@ -139,6 +161,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         position = validated_data.pop('position', '')
         employment_type = validated_data.pop('employment_type', 'full_time')
         pay_rate = validated_data.pop('pay_rate', 0)
+        level = validated_data.pop('level', None)
         hire_date = validated_data.pop('hire_date', None)
         work_location = validated_data.pop('work_location', None)
         commission_rate = validated_data.pop('commission_rate', 40.00)
@@ -168,6 +191,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
                 position=position,
                 employment_type=employment_type,
                 pay_rate=pay_rate,
+                # Not told: the level the pay rate falls in (Entry when no pay is set yet).
+                level=level or pay_levels.level_for_pay(pay_rate),
                 hire_date=hire_date or timezone.now().date(),
                 work_location_id=work_location,
             )

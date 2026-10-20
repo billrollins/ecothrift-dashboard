@@ -1,14 +1,14 @@
-v2.187.1 — The register's one Thrift+ member button, the Thrift+ members page, cart Refresh, and the returns popup at checkout
+v2.187.2 — Signing an offer starts onboarding; the owner's checklist, three pay levels and a red overtime flag
 
-User-facing theme: **Members at the register, simple (Bill, 2026-10-20: register and returns plan, release 1).** Outside initiatives (Thrift+).
+User-facing theme: **Onboarding runs by itself once an offer is signed, with the owner's checklist, three pay levels and an overtime flag (Bill, 2026-10-20).** Initiative: hiring_onboarding.
 
 ### Added
-- **Register: one "Thrift+ member" button.** Scan their QR or search by name, phone, email or member #, and they go on the sale. Tap the member to see their ThriftBucks, credit, trips and people, **Add a 2nd person**, or **Finalize** someone who joined online (just the ID check: Name matches, Photo matches, 18 or older, then **Match**).
-- **Thrift+ members page** in the Cashier menu (`/pos/members`): look up any member and see the same view.
-- **Refresh** on the register's cart: reloads the sale with the member's current ThriftBucks, credit and status.
-- **Returns popup at checkout:** after a member's sale with a 3-day-return item, the cashier taps through "Say: Returns are valid through Fri Oct 23 and are 80% store credit" (with the closed-days note when it applies).
+- **Signing an offer does the rest:** the new hire gets their Dash login, the onboarding checklist, the 30/60/90-day check-ins and the first-day email (once). If something blocks it (no email, or a Dash account already uses it), the offer still signs and the applicant's history says why; Create employee and Start onboarding still work. Practice runs never send anything.
+- **Catch-up request:** "Start hires whose offer was already signed" (Dash → Requests) starts the hires who got stuck before this and can set overtime allowances.
+- **Three pay levels:** Entry $15–17, Senior $18–19, Manager $20+ (a setting only the owner edits). The level shows next to pay on the offer, Create employee, Add employee and the employee page, with a warning (never a block) when pay is outside its range. The 90-day review sets the level. Existing employees got the level their pay falls in.
+- **Over their hours:** a big red flag when someone's week goes past 40 plus their overtime allowance (none unless set): on the kiosk, their Hours & pay, People, and the morning brief, with a link to fix the time entry ("Forgot to clock out?").
 
 ### Changed
-- The register's "Thrift+ finish joining" and "Thrift+ 3-day return" buttons and the scan/phone boxes are gone; the one member button replaces them. Returns move to their own page next.
+- **The onboarding checklist** follows the owner's list: handbook; I-9; schedule; 2 T-shirts; first-day email and orientation day; QuickBooks; added to WhatsApp; signed in to Dash; first payroll, no issues (about 3 weeks in); the 30, 60 and 90-day check-ins (they tick themselves when signed or skipped); then emergency contact, time clock, kiosk badge, first clock-in, team intro, training and the Nebraska report. An edited checklist keeps its items and gains the new ones; onboardings already in progress are unchanged.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

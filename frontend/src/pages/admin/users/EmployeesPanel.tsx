@@ -54,6 +54,10 @@ import {
   useUsers,
 } from '../../../hooks/useEmployees';
 import { useIsMobileLayout } from '../../../hooks/useIsMobileLayout';
+import { usePayLevels } from '../../../hooks/usePayLevels';
+import { PayLevelField } from '../../../components/hr/PayLevelField';
+import { OverHoursChip } from '../../../components/hr/OverHoursFlag';
+import { levelForPay, type PayLevelKey } from '../../../utils/payLevels';
 import { maskPhoneInput, stripPhone } from '../../../utils/formatPhone';
 import { IconAdd as Add, IconSearch as Search } from '../../../icons/ecoIcons';
 
@@ -88,6 +92,7 @@ const EMPTY_FORM = {
   position: '',
   employment_type: 'full_time',
   pay_rate: '',
+  level: 'entry',
 };
 
 /** Fields that save on the row. A click here must not open the drawer. */
@@ -100,6 +105,7 @@ type EmployeePatch = {
   department_name?: string | null;
   position?: string;
   employment_type?: EmploymentType;
+  level?: PayLevelKey;
 };
 
 function departmentChoices(
@@ -128,6 +134,7 @@ function applyEmployeePatch(user: User, patch?: EmployeePatch): User {
               : user.employee.department_name,
           position: patch.position ?? user.employee.position,
           employment_type: patch.employment_type ?? user.employee.employment_type,
+          level: patch.level ?? user.employee.level,
         }
       : user.employee,
   };
@@ -196,9 +203,12 @@ function EmployeeMobileRow({ user, onSelect }: { user: User; onSelect: (id: numb
         seed={user.email || String(user.id)}
         muted={!user.is_active}
         trailing={
-          <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', flexShrink: 0 }}>
-            {user.employee?.employee_number || '-'}
-          </Typography>
+          <>
+            {user.hours_flag ? <OverHoursChip flag={user.hours_flag} /> : null}
+            <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', flexShrink: 0 }}>
+              {user.employee?.employee_number || '-'}
+            </Typography>
+          </>
         }
       />
       <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.75 }}>
@@ -280,6 +290,13 @@ export default function EmployeesPanel({ onSelect }: Props) {
     () => STAFF_ROLES.map((r) => ({ value: r, label: r })),
     [],
   );
+  const payLevels = usePayLevels();
+  const levelOptions = useMemo(
+    () => payLevels.map((l) => ({ value: l.key, label: l.label })),
+    [payLevels],
+  );
+  // The new person's level follows their pay until someone picks one.
+  const [levelTouched, setLevelTouched] = useState(false);
 
   const patchRow = useCallback((id: number, next: EmployeePatch) => {
     setPatches((prev) => ({ ...prev, [id]: { ...prev[id], ...next } }));
@@ -333,6 +350,7 @@ export default function EmployeesPanel({ onSelect }: Props) {
             secondary={row.email}
             seed={row.email || String(row.id)}
             muted={!row.is_active}
+            trailing={row.hours_flag ? <OverHoursChip flag={row.hours_flag} /> : undefined}
           />
         ),
       },
@@ -396,6 +414,25 @@ export default function EmployeesPanel({ onSelect }: Props) {
               placeholder="Job title"
               onCommit={(next) => {
                 void saveProfile(row, { position: next }, { position: next });
+              }}
+            />
+          ) : (
+            <InlineEmpty>No record</InlineEmpty>
+          ),
+      },
+      {
+        field: 'level',
+        headerName: 'Level',
+        width: 112,
+        sortable: false,
+        renderCell: ({ row }) =>
+          row.employee ? (
+            <InlineSelect
+              ariaLabel={`Level for ${row.full_name || row.email}`}
+              value={row.employee.level || 'entry'}
+              options={levelOptions}
+              onCommit={(next) => {
+                void saveProfile(row, { level: next }, { level: next as PayLevelKey });
               }}
             />
           ) : (
@@ -490,7 +527,7 @@ export default function EmployeesPanel({ onSelect }: Props) {
         },
       },
     ],
-    [departmentOptions, roleOptions, saveAccount, saveProfile, typeOptions],
+    [departmentOptions, levelOptions, roleOptions, saveAccount, saveProfile, typeOptions],
   );
 
   const handleCreate = async () => {
@@ -509,6 +546,7 @@ export default function EmployeesPanel({ onSelect }: Props) {
         department: createForm.department ? Number(createForm.department) : undefined,
         employment_type: createForm.employment_type,
         pay_rate: createForm.pay_rate || undefined,
+        level: createForm.level,
         // They set their own on first sign-in; nobody types a password for them.
         password: crypto.randomUUID(),
       });
@@ -517,6 +555,7 @@ export default function EmployeesPanel({ onSelect }: Props) {
       });
       setCreateOpen(false);
       setCreateForm({ ...EMPTY_FORM });
+      setLevelTouched(false);
       onSelect(created.id);
     } catch (err) {
       const detail = (err as { response?: { data?: Record<string, string[]> } })?.response?.data;
@@ -730,14 +769,31 @@ export default function EmployeesPanel({ onSelect }: Props) {
                 fullWidth
               />
             </Stack>
-            <TextField
-              label="Pay rate"
-              type="number"
-              value={createForm.pay_rate}
-              onChange={(e) => setCreateForm((f) => ({ ...f, pay_rate: e.target.value }))}
-              fullWidth
-              InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
-            />
+            <Stack direction="row" spacing={2} alignItems="flex-start">
+              <TextField
+                label="Pay rate"
+                type="number"
+                value={createForm.pay_rate}
+                onChange={(e) =>
+                  setCreateForm((f) => ({
+                    ...f,
+                    pay_rate: e.target.value,
+                    level: levelTouched ? f.level : levelForPay(e.target.value, payLevels),
+                  }))
+                }
+                fullWidth
+                InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+              />
+              <PayLevelField
+                size="medium"
+                value={createForm.level}
+                pay={createForm.pay_rate}
+                onChange={(level) => {
+                  setLevelTouched(true);
+                  setCreateForm((f) => ({ ...f, level }));
+                }}
+              />
+            </Stack>
             <Typography variant="caption" color="text.secondary">
               No password is set here. Open the new record and send a reset link so they choose
               their own.

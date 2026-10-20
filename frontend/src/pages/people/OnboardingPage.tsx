@@ -199,7 +199,7 @@ function Panel({ id, onClose }: { id: number; onClose: () => void }) {
         <Checklist
           tasks={o.tasks}
           busyId={busyId}
-          canTick={(t) => active && (t.kind === 'tick' || t.kind === 'count')}
+          canTick={(t) => active && (t.kind === 'tick' || t.kind === 'count' || Boolean(t.can_tick))}
           onTick={(task, done) => {
             if (done && task.kind === 'count') setCountTask(task);
             else void setStatus(task, done ? 'done' : 'open');

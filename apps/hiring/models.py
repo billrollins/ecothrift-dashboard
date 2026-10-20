@@ -303,6 +303,8 @@ class Offer(models.Model):
     position = models.CharField(max_length=120)
     pay_rate = models.DecimalField(max_digits=8, decimal_places=2)
     employment_type = models.CharField(max_length=20, default='part_time')
+    # Pay level (Entry, Senior, Manager) the new hire starts at; blank = the level the pay rate falls in.
+    level = models.CharField(max_length=10, blank=True, default='')
     start_date = models.DateField()
     start_time = models.TimeField(null=True, blank=True)
     schedule = models.CharField(max_length=300, blank=True, default='')
@@ -470,7 +472,7 @@ class OnboardingTask(models.Model):
     label = models.CharField(max_length=200)
     help = models.CharField(max_length=400, blank=True, default='')
     owner = models.CharField(max_length=10)  # new_hire, manager, owner
-    due = models.CharField(max_length=12)  # before_day1, day1, i9, week1, day20
+    due = models.CharField(max_length=12)  # before_day1, day1, i9, week1, week3, day20, day30, day60, day90
     due_date = models.DateField()
     kind = models.CharField(max_length=10)  # tick, count, i9, handbook, auto
     auto = models.CharField(max_length=20, blank=True, default='')

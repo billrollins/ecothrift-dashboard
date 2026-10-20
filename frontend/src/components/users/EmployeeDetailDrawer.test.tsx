@@ -126,6 +126,34 @@ describe('EmployeeDetailDrawer', () => {
     expect(screen.getByRole('button', { name: /Send reset link/ })).toBeEnabled();
   });
 
+  it('shows the level and the overtime allowance next to pay', () => {
+    state.user = { ...FULL_USER, employee: { ...FULL_USER.employee, level: 'senior', overtime_allowance_hours: '5.00' } };
+    wrap();
+    expect(screen.getByTestId('pay-level-field')).toBeInTheDocument();
+    expect(screen.getByLabelText('Overtime allowed')).toHaveValue(5);
+    // $16.50 is outside Senior ($18 to $19): a warning, not a block.
+    expect(screen.getByText(/outside the Senior range/)).toBeInTheDocument();
+  });
+
+  it('puts the red over-hours flag at the top when the week is past their hours', () => {
+    state.user = {
+      ...FULL_USER,
+      hours_flag: {
+        hours: '43.2',
+        limit: '40',
+        text: 'Over their hours: 43.2 of 40. Forgot to clock out? Fix the time entry.',
+        link: '/admin/time-payroll?employee=7',
+      },
+    };
+    wrap();
+    expect(screen.getByTestId('over-hours-flag')).toHaveTextContent('Over their hours: 43.2 of 40.');
+  });
+
+  it('has no flag when they are within their hours', () => {
+    wrap();
+    expect(screen.queryByTestId('over-hours-flag')).not.toBeInTheDocument();
+  });
+
   it('offers Reactivate instead of Deactivate once someone is off', () => {
     state.user = { ...FULL_USER, is_active: false };
     wrap();

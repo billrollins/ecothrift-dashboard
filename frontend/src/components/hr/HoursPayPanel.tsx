@@ -16,7 +16,7 @@ import { daysLeftInPeriod } from './PayReveal';
 import { RecentShiftsList } from './RecentShiftsList';
 import { eyebrowSx } from './ShiftPicker';
 import { TimeChangeDialog } from './TimeChangeDialog';
-import { weekStatusLine } from './weekStatus';
+import { overHoursFlagLine, weekStatusLine } from './weekStatus';
 
 type WeekLevel = 'ok' | 'near' | 'at' | 'over';
 
@@ -183,7 +183,15 @@ export function HoursPayPanel({ fill = false }: { fill?: boolean }) {
         ...(stretch ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : {}),
       }}
     >
-      {level === 'at' || level === 'over' ? (
+      {level === 'over' && overHoursFlagLine(week, lang) ? (
+        <Box
+          role="alert"
+          data-testid="over-hours-flag"
+          sx={{ mt: 1.25, px: 1.5, py: 1.25, borderRadius: 1.5, bgcolor: dutyColors.red, color: '#fff', fontSize: 14, fontWeight: 800 }}
+        >
+          {overHoursFlagLine(week, lang)}
+        </Box>
+      ) : level === 'at' || level === 'over' ? (
         <Typography sx={{ mt: 1.25, fontSize: 13, fontWeight: 700, color: dutyColors.red }}>
           {weekStatusLine(week, false, 0, lang).text}
         </Typography>

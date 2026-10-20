@@ -341,42 +341,61 @@ DEFAULT_OFFER = {
 
 # Onboarding (Phase 4): the checklist every new hire gets. Each item:
 #   owner  who does it: new_hire, manager or owner
-#   due    before_day1, day1, i9 (3 business days after the start), week1, day20 (Nebraska new-hire report)
+#   due    before_day1, day1, i9 (3 business days after the start), week1, week3 (+21 days), day20 (Nebraska new-hire
+#          report), day30 / day60 / day90 (the check-ins)
 #   kind   tick; count (how many and what size); i9 (the I-9 files, Admin only); handbook (signed in Dash);
-#          auto (Dash marks it done itself; see ONBOARDING_AUTO)
+#          auto (Dash marks it done itself; see ONBOARDING_AUTO). first_day_email and the check-ins (checkin_30,
+#          checkin_60, checkin_90: "checkin_<days>") can also be ticked by hand.
 ONBOARDING_OWNERS = ('new_hire', 'manager', 'owner')
-ONBOARDING_DUES = ('before_day1', 'day1', 'i9', 'week1', 'day20')
+ONBOARDING_DUES = ('before_day1', 'day1', 'i9', 'week1', 'week3', 'day20', 'day30', 'day60', 'day90')
 ONBOARDING_KINDS = ('tick', 'count', 'i9', 'handbook', 'auto')
-ONBOARDING_AUTO = ('emergency_contact', 'dash_login', 'first_clock_in', 'schedule', 'kiosk_badge')
+ONBOARDING_AUTO = ('emergency_contact', 'dash_login', 'first_clock_in', 'schedule', 'kiosk_badge', 'first_day_email')
+CHECKIN_AUTO = re.compile(r'^checkin_\d{1,3}$')  # "checkin_30": done when that check-in is signed or skipped
 
+# The owner's list, in his order (2026-10-20), then the rest we keep.
 DEFAULT_ONBOARDING = {
     'items': [
-        {'key': 'quickbooks_added', 'label': 'Added in QuickBooks Payroll (name, phone, email)', 'owner': 'owner',
-         'due': 'before_day1', 'kind': 'tick',
-         'help': 'QuickBooks then emails them the W-4 and the direct deposit setup.'},
-        {'key': 'schedule', 'label': 'On the schedule for their first two weeks', 'owner': 'manager',
-         'due': 'before_day1', 'kind': 'auto', 'auto': 'schedule'},
+        {'key': 'handbook', 'label': 'Handbook read and signed', 'owner': 'new_hire', 'due': 'day1',
+         'kind': 'handbook'},
         {'key': 'i9_section1', 'label': 'Form I-9 Section 1 filled in (on paper)', 'owner': 'new_hire', 'due': 'day1',
          'kind': 'tick', 'help': 'By the end of the first day. They fill it in themselves.'},
         {'key': 'i9_section2', 'label': 'Form I-9 Section 2: original documents seen in person, form and copies '
          'uploaded', 'owner': 'owner', 'due': 'i9', 'kind': 'i9',
          'help': 'Within 3 business days of the start. Kept apart from the employee record, Admin only.'},
+        {'key': 'schedule', 'label': 'Got a schedule (on it for their first two weeks)', 'owner': 'manager',
+         'due': 'before_day1', 'kind': 'auto', 'auto': 'schedule'},
+        {'key': 'shirts', 'label': 'Got 2 T-shirts', 'owner': 'manager', 'due': 'day1', 'kind': 'count',
+         'help': 'How many (2 to start), and what size.'},
+        {'key': 'first_day_email', 'label': 'First-day email sent and orientation day set', 'owner': 'manager',
+         'due': 'before_day1', 'kind': 'auto', 'auto': 'first_day_email',
+         'help': 'Dash ticks it when the email has gone out and the start date is set. Tick it by hand if you told '
+                 'them another way.'},
+        {'key': 'quickbooks_added', 'label': 'Added in QuickBooks Payroll (name, phone, email)', 'owner': 'owner',
+         'due': 'before_day1', 'kind': 'tick',
+         'help': 'QuickBooks then emails them the W-4 and the direct deposit setup.'},
         {'key': 'quickbooks_setup', 'label': 'QuickBooks setup finished (W-4 and direct deposit)', 'owner': 'new_hire',
          'due': 'day1', 'kind': 'tick', 'help': 'From the QuickBooks email. Bank numbers never go in Dash.'},
+        {'key': 'whatsapp', 'label': 'Added to WhatsApp', 'owner': 'manager', 'due': 'day1', 'kind': 'tick'},
+        {'key': 'dash_login', 'label': 'Signed in to Dash and knows their login', 'owner': 'new_hire', 'due': 'day1',
+         'kind': 'auto', 'auto': 'dash_login', 'help': 'Show them the Set password code on day one.'},
+        {'key': 'first_payroll', 'label': 'First payroll, no issues', 'owner': 'owner', 'due': 'week3', 'kind': 'tick',
+         'help': 'About three weeks in: the first paycheck is right (hours, rate, taxes).'},
+        {'key': 'checkin_30', 'label': '30-day check-in: a meeting set with Bill and Carrie', 'owner': 'owner',
+         'due': 'day30', 'kind': 'auto', 'auto': 'checkin_30',
+         'help': 'At least the meeting is on the calendar. Dash ticks it when the check-in is signed or skipped.'},
+        {'key': 'checkin_60', 'label': '60-day check-in', 'owner': 'owner', 'due': 'day60', 'kind': 'auto',
+         'auto': 'checkin_60', 'help': 'Dash ticks it when the check-in is signed or skipped.'},
+        {'key': 'checkin_90', 'label': '90-day check-in: the performance review', 'owner': 'owner', 'due': 'day90',
+         'kind': 'auto', 'auto': 'checkin_90',
+         'help': 'Sets their level (Entry, Senior, Manager). Dash ticks it when the check-in is signed or skipped.'},
         {'key': 'emergency_contact', 'label': 'Emergency contact (ICE) on their profile', 'owner': 'new_hire',
          'due': 'day1', 'kind': 'auto', 'auto': 'emergency_contact'},
-        {'key': 'dash_login', 'label': 'Signed in to Dash on their own phone', 'owner': 'new_hire', 'due': 'day1',
-         'kind': 'auto', 'auto': 'dash_login', 'help': 'Show them the Set password code on day one.'},
-        {'key': 'handbook', 'label': 'Handbook read and signed', 'owner': 'new_hire', 'due': 'day1',
-         'kind': 'handbook'},
         {'key': 'time_clock', 'label': 'Time clock explained', 'owner': 'manager', 'due': 'day1', 'kind': 'tick'},
         {'key': 'kiosk_badge', 'label': 'Kiosk badge issued', 'owner': 'manager', 'due': 'day1', 'kind': 'auto',
          'auto': 'kiosk_badge'},
         {'key': 'first_clock_in', 'label': 'First clock-in', 'owner': 'new_hire', 'due': 'day1', 'kind': 'auto',
          'auto': 'first_clock_in'},
         {'key': 'team_intro', 'label': 'Introduced to the team', 'owner': 'manager', 'due': 'day1', 'kind': 'tick'},
-        {'key': 'shirts', 'label': 'T-shirts given', 'owner': 'manager', 'due': 'day1', 'kind': 'count',
-         'help': 'How many, and what size.'},
         {'key': 'trained', 'label': 'Trained with their manager', 'owner': 'manager', 'due': 'week1', 'kind': 'tick'},
         {'key': 'new_hire_report', 'label': 'Nebraska new-hire report filed', 'owner': 'owner', 'due': 'day20',
          'kind': 'tick', 'help': 'Within 20 days of hire. Tick it when QuickBooks has filed it, or file it yourself.'},
@@ -391,6 +410,8 @@ DEFAULT_CHECKIN = {
     'days': [30, 60, 90],
     # These check-ins also decide pay: a raise (new rate, from a date) or no change yet, with the reason.
     'pay_review_days': [90],
+    # The check-in that asks "Level after this review" (Entry, Senior, Manager); signing it sets the level.
+    'level_review_days': [90],
     'questions': [
         {'key': 'going_well', 'label': 'What is going well?', 'type': 'long_text'},
         {'key': 'training', 'label': 'Where is more training needed?', 'type': 'long_text'},
@@ -1080,8 +1101,9 @@ def _check_onboarding(raw, current: dict, errors: list[str]) -> dict:
         entry = {'key': key, 'label': label, 'owner': owner, 'due': due, 'kind': kind}
         if kind == 'auto':
             auto = _text(item.get('auto'))
-            if auto not in ONBOARDING_AUTO:
-                errors.append(f'{where}: auto must be one of {", ".join(ONBOARDING_AUTO)}.')
+            if auto not in ONBOARDING_AUTO and not CHECKIN_AUTO.match(auto):
+                errors.append(f'{where}: auto must be one of {", ".join(ONBOARDING_AUTO)}, or checkin_30 (any '
+                              'check-in day).')
             entry['auto'] = auto
         if _text(item.get('help')):
             entry['help'] = _text(item.get('help'), limit=400)
@@ -1116,8 +1138,8 @@ def _check_checkin(raw, current: dict, errors: list[str]) -> dict:
     if raw is None:
         return out
     if not isinstance(raw, dict):
-        errors.append('checkin must be an object (days, pay_review_days, questions, areas, area_ratings, '
-                      'employee_statement).')
+        errors.append('checkin must be an object (days, pay_review_days, level_review_days, questions, areas, '
+                      'area_ratings, employee_statement).')
         return out
     if 'days' in raw:
         try:
@@ -1132,6 +1154,14 @@ def _check_checkin(raw, current: dict, errors: list[str]) -> dict:
             out['pay_review_days'] = sorted({int(d) for d in raw.get('pay_review_days') or []})
         except (TypeError, ValueError):
             errors.append('checkin.pay_review_days must be whole numbers of days from checkin.days (e.g. [90]).')
+    if 'level_review_days' in raw:
+        try:
+            out['level_review_days'] = sorted({int(d) for d in raw.get('level_review_days') or []})
+        except (TypeError, ValueError):
+            errors.append('checkin.level_review_days must be whole numbers of days from checkin.days (e.g. [90]).')
+    stray = [d for d in out.get('level_review_days', []) if d not in out['days']]
+    if stray:
+        errors.append(f'checkin.level_review_days: {", ".join(map(str, stray))} is not one of checkin.days.')
     stray = [d for d in out.get('pay_review_days', []) if d not in out['days']]
     if stray:
         errors.append(f'checkin.pay_review_days: {", ".join(map(str, stray))} is not one of checkin.days.')

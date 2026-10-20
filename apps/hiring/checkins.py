@@ -18,6 +18,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
+from apps.accounts.services.pay_levels import LABELS, LEVELS
 from apps.core.files import save_upload
 from apps.hiring.careers import load_setting
 from apps.hiring.models import CheckIn, Onboarding, OnboardingTask
@@ -56,10 +57,16 @@ def form_of(row: CheckIn) -> dict:
     cfg = load_setting()['checkin']
     form = {k: cfg[k] for k in ('questions', 'areas', 'area_ratings', 'employee_statement')}
     form['pay_review'] = row.day in (cfg.get('pay_review_days') or [])
+    form['level_review'] = row.day in (cfg.get('level_review_days') or [])  # "Level after this review"
     return form
 
 
 PAY_RAISE, PAY_SAME = 'raise', 'no_change'
+
+
+def current_level(user) -> str:
+    """The pay level in Dash today ('' if they have no employee profile)."""
+    return getattr(getattr(user, 'employee', None), 'level', '') or ''
 
 
 def current_pay(user) -> str:
@@ -121,6 +128,11 @@ def _clean_answers(form: dict, raw, *, current: str = '') -> dict:
         out['areas'][area] = {'rating': rating, 'note': str(given.get('note') or '').strip()[:1000]}
     if form.get('pay_review'):
         out['pay'] = _clean_pay(raw.get('pay'), current)
+    if form.get('level_review'):
+        level = str(raw.get('level') or '').strip().lower()
+        if level and level not in LEVELS:
+            raise ValidationError({'level': 'Entry, Senior or Manager.'})
+        out['level'] = level
     return out
 
 
@@ -132,6 +144,8 @@ def save(row: CheckIn, *, answers=None, employee_comments=None, close_onboarding
         row.form = form_of(row)
     if answers is not None:
         row.answers = _clean_answers(row.form, answers, current=current_pay(row.user))
+        if row.form.get('level_review'):
+            row.answers['level_before'] = current_level(row.user)
     if employee_comments is not None:
         row.employee_comments = str(employee_comments).strip()[:4000]
     if close_onboarding is not None:
@@ -195,9 +209,30 @@ def sign(row: CheckIn, *, manager_name: str, manager_signature: str, employee_na
     pay = row.answers.get('pay') or {}
     if row.form.get('pay_review') and pay.get('decision') == PAY_RAISE:
         _apply_raise(row, pay)
+    if row.form.get('level_review'):
+        _apply_level(row)
+    if row.onboarding_id:
+        from apps.hiring.onboarding import refresh
+
+        refresh(row.onboarding)  # ticks "N-day check-in" on the checklist
     if row.close_onboarding and row.onboarding_id and row.onboarding.status == Onboarding.STATUS_ACTIVE:
         _close_onboarding(row, by=by)
     return row
+
+
+def _apply_level(row: CheckIn) -> None:
+    """The level chosen in the review becomes the employee's level (the 90-day review sets it)."""
+    level = (row.answers or {}).get('level')
+    profile = getattr(row.user, 'employee', None)
+    if profile is None or level not in LEVELS or profile.level == level:
+        return
+    before = profile.level
+    profile.level = level
+    profile.save(update_fields=['level'])
+    if row.onboarding_id:
+        from apps.hiring.onboarding import _event
+
+        _event(row.onboarding, f'Level after the {row.day}-day check-in: {LABELS[level]} (was {LABELS.get(before, before)}).')
 
 
 def _apply_raise(row: CheckIn, pay: dict) -> None:
@@ -232,6 +267,10 @@ def skip(row: CheckIn, *, reason: str, by) -> CheckIn:
         raise ValidationError({'reason': 'Say why (for example: they left).'})
     row.status, row.skipped_reason = CheckIn.STATUS_SKIPPED, reason
     row.save(update_fields=['status', 'skipped_reason', 'updated_at'])
+    if row.onboarding_id:
+        from apps.hiring.onboarding import refresh
+
+        refresh(row.onboarding)  # a skipped check-in (with its reason) also ticks the checklist
     return row
 
 
@@ -266,6 +305,11 @@ def _html(row: CheckIn) -> str:
         else:
             parts.append(f'<p><b>No change yet</b> (${html.escape(pay.get("current") or "?")} an hour).</p>')
         parts.append(f'<p>{"<br>".join(html.escape(t) for t in pay.get("note", "").splitlines())}</p>')
+    level = answers.get('level')
+    if form.get('level_review') and level in LEVELS:
+        was = answers.get('level_before')
+        parts.append(f'<h2>Level</h2><p><b>Level after this review:</b> {LABELS[level]}'
+                     f'{f" (was {LABELS.get(was, was)})" if was and was != level else ""}.</p>')
     parts.append(f'<h2>The employee\'s comments</h2><p>{html.escape(row.employee_comments or "(none)")}</p>')
     if row.close_onboarding:
         parts.append('<p><b>This check-in closes onboarding.</b></p>')

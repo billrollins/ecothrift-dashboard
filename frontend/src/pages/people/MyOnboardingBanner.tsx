@@ -26,7 +26,8 @@ export function MyOnboardingBanner() {
   const o = query.data?.onboarding;
   const box = { mx: { xs: 1.5, md: 3 }, mt: 1.5, p: 1.5, borderRadius: '10px', bgcolor: '#e7f0ff', display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' } as const;
 
-  if (o && o.status === 'active') {
+  // Their own items all done: onboarding may run on to day 90 for the owner's items, but there is nothing left here.
+  if (o && o.status === 'active' && o.done < o.total) {
     const handbookToSign = Boolean(query.data?.handbook && !query.data.handbook.signed);
     return (
       <Box sx={box}>

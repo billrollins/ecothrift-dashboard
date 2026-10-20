@@ -26,7 +26,7 @@ from apps.hr.models import (
     Department, KioskEvent, Shift, ShiftAssignment, TimeEntry,
     TimeEntryModificationRequest,
 )
-from apps.hr.services.time_clock_utils import weekly_status_for_employee
+from apps.hr.services.time_clock_utils import hours_text, over_hours_flag, weekly_status_for_employee
 from apps.hr.shifts import active_punch_codes
 from apps.webstore.services.hours import close_on, get_hours_config, is_open_day
 
@@ -354,9 +354,13 @@ def preview(user, *, now: datetime | None = None, redacted: bool = False, ctx: K
             late = {'minutes': minutes, 'shift_name': rows[0].shift.name}
 
     weekly = weekly_status_for_employee(user, now)
+    # Past 40 plus their allowance is a big red flag ("over_hours"); at the limit is the amber "overtime" note.
+    over = over_hours_flag(weekly['hours_worked'], weekly['overtime_allowance'], user.pk)
     warnings = {
         'store_closed': (not rows) and (not is_open_day(day, cfg=cfg)),
-        'overtime': bool(weekly.get('is_at_limit') or weekly.get('is_over_limit')),
+        'overtime': bool(weekly.get('is_at_limit') and not over),
+        'overtime_limit': hours_text(weekly['hours_limit']),
+        'over_hours': ({'hours': over['hours_text'], 'limit': over['limit_text']} if over else None),
         'late': late,
     }
 

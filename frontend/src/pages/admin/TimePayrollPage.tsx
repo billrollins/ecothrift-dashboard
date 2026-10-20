@@ -329,7 +329,11 @@ export default function TimePayrollPage() {
   );
 
   // ── Roster filters ───────────────────────────────────────────
-  const [employeeFilter, setEmployeeFilter] = useState<number | ''>('');
+  // `?employee=ID` (the "over their hours" flag's link) opens the roster on that person.
+  const [employeeFilter, setEmployeeFilter] = useState<number | ''>(() => {
+    const id = Number(new URLSearchParams(window.location.search).get('employee'));
+    return Number.isInteger(id) && id > 0 ? id : '';
+  });
   const [hoursFilters, setHoursFilters] = useState<HoursFilter[]>([]);
 
   const employeesInRoster = useMemo(() => {

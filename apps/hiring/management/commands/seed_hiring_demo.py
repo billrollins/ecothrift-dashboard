@@ -173,7 +173,7 @@ class Command(BaseCommand):
             offer, _, _ = offers.make(app, {'job': job.pk, 'pay_rate': '15.00',
                                             'start_date': (today + timedelta(days=1)).isoformat()}, by=by, send=False)
             offers.sign(offer, name=f'{first} {last}', signature=_signature(), acks=[True] * len(offer.acknowledgments),
-                        consent=True, ip='127.0.0.1', user_agent='seed_hiring_demo')
+                        consent=True, ip='127.0.0.1', user_agent='seed_hiring_demo', auto_start=False)
             start = today - timedelta(days=started_days_ago)
             type(offer).objects.filter(pk=offer.pk).update(start_date=start)
             app.refresh_from_db()

@@ -76,6 +76,10 @@ export const STRINGS: Record<string, { en: string; es: string }> = {
   approachingLimit: { en: 'Approaching weekly limit', es: 'Cerca del limite semanal' },
   limitReached: { en: 'Weekly limit reached · clock out now. No overtime is approved.', es: 'Limite semanal alcanzado · sal ahora. No hay horas extra aprobadas.' },
   overtimeNotAllowed: { en: 'Over the weekly limit · clock out now. No overtime is approved.', es: 'Sobre el limite semanal · sal ahora. No hay horas extra aprobadas.' },
+  overHoursFlag: {
+    en: 'Over your hours: {hours} of {limit}. Forgot to clock out? Ask a manager to fix the time entry.',
+    es: 'Pasaste tus horas: {hours} de {limit}. Olvidaste salir? Pide a un gerente que corrija tu registro.',
+  },
   hoursLeftWeek: { en: 'left this week', es: 'restantes esta semana' },
   hoursReached: { en: 'hours reached this week', es: 'horas cumplidas esta semana' },
   clockOutBy: { en: 'Clock out by', es: 'Sal antes de las' },

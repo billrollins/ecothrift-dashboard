@@ -250,6 +250,15 @@ def capability_catalog_view(request):
     return Response({'results': catalog_as_dicts()})
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsManagerOrAdmin])
+def pay_levels_view(request):
+    """The pay levels and their hourly ranges (the ``hr.pay_levels`` setting), for the pay warnings on screen."""
+    from .services import pay_levels
+
+    return Response({'levels': pay_levels.payload()})
+
+
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def me_view(request):
@@ -431,6 +440,15 @@ class UserViewSet(viewsets.ModelViewSet):
         if self.action in ('update', 'partial_update'):
             return UserUpdateSerializer
         return UserSerializer
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        if self.action in ('list', 'retrieve'):
+            # One query for everyone's hours this week: the red "over their hours" flag on the People screens.
+            from apps.hr.services.time_clock_utils import week_hours_by_user
+
+            context['week_hours'] = week_hours_by_user()
+        return context
 
     def get_queryset(self):
         qs = super().get_queryset()

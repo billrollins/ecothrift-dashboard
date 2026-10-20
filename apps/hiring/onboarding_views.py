@@ -39,7 +39,8 @@ def _task(task: OnboardingTask, today: date) -> dict:
         'id': task.pk, 'key': task.key, 'label': task.label, 'help': task.help,
         'owner': task.owner, 'owner_label': service.OWNER_LABELS.get(task.owner, task.owner),
         'due': task.due, 'due_label': service.DUE_LABELS.get(task.due, task.due), 'due_date': task.due_date,
-        'kind': task.kind, 'auto': task.auto, 'status': task.status, 'done_at': task.done_at,
+        'kind': task.kind, 'auto': task.auto, 'can_tick': task.kind in ('tick', 'count') or service.hand_tickable(task),
+        'status': task.status, 'done_at': task.done_at,
         'done_by': (task.done_by.full_name or task.done_by.email) if task.done_by_id else ('Dash' if task.done_at else ''),
         'note': task.note, 'data': task.data, 'overdue': service.overdue(task, today),
     }
@@ -320,8 +321,15 @@ def _mine_payload(user) -> dict:
     profile = service._profile(user)
     latest = service.latest_handbook()
     signed = HandbookSignature.objects.filter(user=user, handbook=latest).first() if latest else None
+    row = _row(o, full=True) if o else None
+    if row:
+        # The new hire sees their own and their manager's items. The owner's (payroll, the check-in reviews that run
+        # to day 90) are not theirs to chase, so they do not count toward "X of Y done" either.
+        row['tasks'] = [t for t in row['tasks'] if t['owner'] != 'owner']
+        row['done'] = sum(t['status'] != 'open' for t in row['tasks'])
+        row['total'] = len(row['tasks'])
     return {
-        'onboarding': _row(o, full=True) if o else None,
+        'onboarding': row,
         'emergency_contact': {'name': profile.emergency_name if profile else '',
                               'phone': profile.emergency_phone if profile else ''},
         'handbook': None if latest is None else {

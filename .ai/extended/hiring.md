@@ -112,9 +112,9 @@ The careers page, applications, and the People workspace. Design and phases: [`i
   - `I9Record` and `I9File`: Admin only. `keep_until` is 3 years from hire, or 1 year after `left_on`;
   - `Handbook` (numbered versions) and `HandbookSignature`.
 - **Service:** `apps/hiring/onboarding.py`.
-  - `start` copies `careers.onboarding.items` with `due_date_for` (before_day1 = start − 1; day1; i9 = 3 business days; week1 = +6; day20 = +20), makes the I-9 record, and sends `first_day`.
+  - `start` copies `careers.onboarding.items` with `due_date_for` (before_day1 = start − 1; day1; i9 = 3 business days; week1 = +6; week3 = +21; day20 = +20; day30, day60, day90), makes the I-9 record, and sends `first_day`.
   - `refresh` ticks the items Dash can see (`auto_state`) and finishes the onboarding when nothing is open. It reopens an auto item it had ticked when the fact goes away, e.g. a revoked badge.
-  - `set_task`: tick and count kinds only; a new hire only their own tick items; anything can be "Not needed".
+  - `set_task`: tick and count kinds only (and the hand-tickable autos: `first_day_email`, `checkin_N`); a new hire only their own tick items; anything can be "Not needed".
   - `password_link`: the set-password link for a new hire (Employee role; an Admin for anyone). Nothing is emailed.
   - The I-9: `i9_upload` (PDF, JPEG, PNG or HEIC, 20 MB, S3 `hiring/i9`), `i9_delete_file` (only before Section 2), and `i9_section2` (needs a form file and "documents seen").
   - The handbook: `publish_handbook` (refused while a `[confirm` mark remains or nothing changed), and `sign_handbook` (the latest version, once per person; the PDF is the text through `pymupdf.Story`, plus a page with the signature and the audit, under S3 `hiring/handbook`).
@@ -130,6 +130,13 @@ The careers page, applications, and the People workspace. Design and phases: [`i
   - `onboardingUi.tsx` (Checklist, CountDialog, I9Dialog, StartOnboardingDialog, HandbookText) and `SignaturePad.tsx`;
   - `SetPasswordLinkDialog` takes `fetchLink`.
 - **Careers file:** `onboarding.items` (owner, due and kind are checked against `ONBOARDING_*`), `handbook` (title, text, acknowledgment; `## ` headings, `- ` bullets), and the `first_day` email.
+
+## Signing starts everything (owner 2026-10-20)
+
+- `offers.sign` calls `apps/hiring/hire.py::hire_from_offer` after the signature is saved: `services.create_employee` (level from `Offer.level`, else the level the pay falls in), then `onboarding.start` (offer start date and time, supervisor as manager). Each half runs in its own savepoint and never raises; a block is an `ApplicationEvent` (kind `employee`, `data.auto_start = blocked`). `sign(..., auto_start=False)` is for the demo seed.
+- The checklist's autos: `first_day_email` (the email went out and a start date is set), `checkin_<days>` (that check-in is done or skipped). `hand_tickable` lets a person tick those two kinds.
+- `hiring.catch_up_hires` request (`approval_kinds.py`): does the above for stuck hires; `overtime` param sets `overtime_allowance_hours`.
+- Pay levels: `apps/accounts/services/pay_levels.py` and the `hr.pay_levels` setting; `GET /api/accounts/pay-levels/` for the screens. The 90-day check-in `form.level_review` / `answers.level`; `checkins._apply_level` sets `EmployeeProfile.level` when signed.
 
 ## Check-ins (Phase 5)
 

@@ -1,5 +1,6 @@
 import type { PaginatedResponse } from '../types/index';
 import type { User, LoginResponse } from '../types/accounts.types';
+import type { PayLevel } from '../utils/payLevels';
 import api from './client';
 
 export type { User, LoginResponse };
@@ -67,6 +68,11 @@ export function getUsers(params?: UserParams): Promise<{ data: PaginatedResponse
 
 export function getUser(id: number): Promise<{ data: User }> {
   return api.get<User>(`/accounts/users/${id}/`);
+}
+
+/** The pay levels and their hourly ranges (the hr.pay_levels setting). */
+export function getPayLevels(): Promise<{ data: { levels: PayLevel[] } }> {
+  return api.get<{ levels: PayLevel[] }>('/accounts/pay-levels/');
 }
 
 export function createUser(data: Record<string, unknown>): Promise<{ data: User }> {

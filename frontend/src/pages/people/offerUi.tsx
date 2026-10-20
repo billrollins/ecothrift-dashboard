@@ -29,6 +29,9 @@ import {
   type OfferTerms,
 } from '../../api/hiring.api';
 import { ccTokens } from '../../theme';
+import { PayLevelField } from '../../components/hr/PayLevelField';
+import { usePayLevels } from '../../hooks/usePayLevels';
+import { levelForPay } from '../../utils/payLevels';
 import { useEmailReview } from './EmailReview';
 import { errorText } from './peopleUi';
 import { TextDialog } from './outreachUi';
@@ -93,6 +96,7 @@ export function OfferDialog({
   const fresh = (): OfferTerms => ({
     job: firstJob?.id ?? null,
     pay_rate: '15.00',
+    level: 'entry',
     start_date: nextMonday(),
     start_time: '09:00',
     schedule: '',
@@ -102,6 +106,8 @@ export function OfferDialog({
     note: '',
   });
   const [terms, setTerms] = useState<OfferTerms>(fresh);
+  const payLevels = usePayLevels();
+  const [levelTouched, setLevelTouched] = useState(false);
   const [preview, setPreview] = useState<{ subject: string; letter: string; acknowledgments: string[] } | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -110,6 +116,7 @@ export function OfferDialog({
   useEffect(() => {
     if (!open) return;
     setTerms(fresh());
+    setLevelTouched(false);
     setPreview(null);
     setError('');
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -188,14 +195,31 @@ export function OfferDialog({
                 </MenuItem>
               ))}
             </TextField>
-            <TextField label="Pay ($/hr)" value={terms.pay_rate} onChange={set('pay_rate')} inputProps={{ inputMode: 'decimal' }}
-              sx={{ minWidth: 140 }} />
+            <TextField label="Pay ($/hr)" value={terms.pay_rate} inputProps={{ inputMode: 'decimal' }} sx={{ minWidth: 140 }}
+              onChange={(e) => {
+                const pay = e.target.value;
+                // The level follows the pay until someone picks one.
+                setTerms((t) => ({ ...t, pay_rate: pay, level: levelTouched ? t.level : levelForPay(pay, payLevels) }));
+                setPreview(null);
+              }} />
             <TextField select label="Type" value={terms.employment_type ?? 'part_time'} onChange={set('employment_type')} sx={{ minWidth: 150 }}>
               <MenuItem value="part_time">Part time</MenuItem>
               <MenuItem value="full_time">Full time</MenuItem>
               <MenuItem value="seasonal">Seasonal</MenuItem>
             </TextField>
           </Stack>
+          <Box sx={{ maxWidth: { sm: 360 } }}>
+            <PayLevelField
+              size="medium"
+              label="Level they start at"
+              value={terms.level ?? 'entry'}
+              pay={terms.pay_rate}
+              onChange={(level) => {
+                setLevelTouched(true);
+                setTerms((t) => ({ ...t, level }));
+              }}
+            />
+          </Box>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField label="Start date" type="date" value={terms.start_date} onChange={set('start_date')}
               InputLabelProps={{ shrink: true }} fullWidth />

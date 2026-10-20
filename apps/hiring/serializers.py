@@ -283,6 +283,7 @@ class ApplicationDetailSerializer(ApplicationListSerializer):
             'employee_number': getattr(profile, 'employee_number', ''),
             'position': getattr(profile, 'position', ''),
             'pay_rate': str(getattr(profile, 'pay_rate', '') or ''),
+            'level': getattr(profile, 'level', ''),
             'hire_date': getattr(profile, 'hire_date', None),
         }
 
@@ -354,7 +355,7 @@ class OfferSerializer(serializers.ModelSerializer):
     class Meta:
         model = Offer
         fields = [
-            'id', 'application', 'job', 'status', 'status_label', 'position', 'pay_rate', 'employment_type',
+            'id', 'application', 'job', 'status', 'status_label', 'position', 'pay_rate', 'employment_type', 'level',
             'start_date', 'start_time', 'schedule', 'supervisor', 'supervisor_person', 'respond_by', 'note',
             'letter_subject', 'letter_text', 'acknowledgments', 'sent_at', 'viewed_at', 'signed_at', 'declined_at',
             'decline_reason', 'withdrawn_at', 'signer_name', 'link', 'has_pdf', 'created_at',

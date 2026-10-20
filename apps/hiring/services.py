@@ -383,7 +383,7 @@ def mark_not_now(application, *, reason: str, note: str, send: bool, subject: st
 
 @transaction.atomic
 def create_employee(application, *, by, request, pay_rate, start_date: date | None, position: str = '',
-                    department: int | None = None, employment_type: str = 'part_time') -> dict:
+                    department: int | None = None, employment_type: str = 'part_time', level: str = '') -> dict:
     """Hired → a Dash user (Employee role) with an employee profile. Nothing is emailed: the new hire picks a password
     from a one-time link shown as a QR on day one (D16; People → Onboarding → Set password)."""
     from apps.accounts.models import User
@@ -420,6 +420,7 @@ def create_employee(application, *, by, request, pay_rate, start_date: date | No
         'pay_rate': str(rate),
         'hire_date': (start_date or timezone.localdate()).isoformat(),
         'department': department,
+        **({'level': level} if level in ('entry', 'senior', 'manager') else {}),  # else: the level the pay falls in
     })
     serializer.is_valid(raise_exception=True)
     user = serializer.save()

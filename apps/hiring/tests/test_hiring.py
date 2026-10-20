@@ -995,7 +995,8 @@ class OfferTests(Base):
         self.assertEqual(len(offer.letter_sha256), 64)
         self.app.refresh_from_db()
         self.assertEqual(self.app.stage, 'hired')
-        welcome, notice = mail.outbox
+        welcome, notice, first_day = mail.outbox  # signing also starts the new hire: the first-day email goes last
+        self.assertIn('first day', first_day.subject.lower())
         self.assertIn('Welcome to Eco-Thrift', welcome.subject)
         self.assertEqual(welcome.attachments[0][2], 'application/pdf')
         self.assertIn('boss@example.com', notice.to)
@@ -1206,7 +1207,9 @@ class OnboardingTests(Base):
         self.assertEqual(str(self.task('i9_section2', data)['due_date']), str(date(2026, 10, 21)))
         self.assertEqual(str(self.task('quickbooks_added', data)['due_date']), str(date(2026, 10, 15)))
         summary = self.staff.get(f'/api/hiring/applications/{self.app.pk}/').data['onboarding']
-        self.assertEqual((summary['done'], summary['total']), (0, data['total']))
+        # Only "First-day email sent and orientation day set" is done: Dash sees the email went out.
+        self.assertEqual((summary['done'], summary['total']), (1, data['total']))
+        self.assertEqual(self.task('first_day_email', data)['status'], 'done')
 
     def test_ticks_counts_and_the_items_dash_sees_itself(self):
         self.hire()

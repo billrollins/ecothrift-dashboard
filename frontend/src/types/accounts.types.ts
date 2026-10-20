@@ -21,6 +21,10 @@ export interface EmployeeProfile {
   position: string;
   employment_type: EmploymentType;
   pay_rate: string;
+  /** Pay level; the ranges are the hr.pay_levels setting. */
+  level?: 'entry' | 'senior' | 'manager';
+  /** Hours past the weekly 40 this person is cleared for (0 = no overtime). */
+  overtime_allowance_hours?: string;
   hire_date: string;
   termination_date: string | null;
   termination_type: string;
@@ -77,6 +81,8 @@ export interface User {
   email_verified: boolean;
   employee?: EmployeeProfile | null;
   consignee?: ConsigneeProfile | null;
+  /** Set on the People screens when this week is past 40 plus their overtime allowance. */
+  hours_flag?: { hours: string; limit: string; text: string; link: string } | null;
 }
 
 export interface LoginRequest {
