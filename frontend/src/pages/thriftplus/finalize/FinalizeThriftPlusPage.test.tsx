@@ -124,6 +124,7 @@ describe('Finalize Thrift+', () => {
     await user.click(await screen.findByText('Cara Joyner'));
     await user.click(await screen.findByRole('button', { name: 'Check their ID now' }));
     await screen.findByTestId('finalize-verify');
+    await waitFor(() => expect(document.querySelector('.MuiDrawer-root')).toBeNull()); // the sheet has finished sliding away (MUI 7.3.11 keeps the page behind it hidden until then)
     expect(screen.queryByLabelText(/Phone number/)).not.toBeInTheDocument();
     const done = screen.getByRole('button', { name: 'Done' });
     expect(done).toBeDisabled();
@@ -170,6 +171,7 @@ describe('Finalize Thrift+', () => {
     await user.click(await screen.findByText('Cara Joyner'));
     await user.click(await screen.findByRole('button', { name: 'Check their ID now' }));
     await screen.findByTestId('finalize-verify');
+    await waitFor(() => expect(document.querySelector('.MuiDrawer-root')).toBeNull()); // the sheet has finished sliding away (MUI 7.3.11 keeps the page behind it hidden until then)
     expect(screen.getByRole('img', { name: "Cara Joyner's selfie" })).toHaveAttribute('src', '/media/cara.jpg');
     expect(screen.queryByRole('button', { name: 'Take their photo' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retake photo' })).toBeInTheDocument();
@@ -257,6 +259,7 @@ describe('Finalize Thrift+', () => {
     expect(onMidway).toHaveBeenLastCalledWith(false);
     await user.click(await screen.findByRole('button', { name: 'Check their ID now' }));
     await screen.findByTestId('finalize-verify');
+    await waitFor(() => expect(document.querySelector('.MuiDrawer-root')).toBeNull()); // the sheet has finished sliding away (MUI 7.3.11 keeps the page behind it hidden until then)
     expect(onMidway).toHaveBeenLastCalledWith(true);
     unmount();
     expect(onMidway).toHaveBeenLastCalledWith(false);
@@ -424,6 +427,7 @@ describe('Finalize Thrift+', () => {
       await user.click(await screen.findByText('Cara Joyner'));
       await user.click(await screen.findByRole('button', { name: 'Check their ID now' }));
       await screen.findByTestId('finalize-verify');
+    await waitFor(() => expect(document.querySelector('.MuiDrawer-root')).toBeNull()); // the sheet has finished sliding away (MUI 7.3.11 keeps the page behind it hidden until then)
       expect(screen.getByRole('button', { name: 'Retake photo' })).toBeInTheDocument();
       const photo = new File(['jpg'], 'new.jpg', { type: 'image/jpeg' });
       await user.upload(screen.getByTestId('selfie-check-retake-input'), photo);

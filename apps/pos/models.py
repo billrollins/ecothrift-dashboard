@@ -1357,7 +1357,7 @@ class DeliveryJobItem(models.Model):
                 name='pos_djitem_active_position',
             ),
             models.CheckConstraint(
-                check=models.Q(quantity__gte=1),
+                condition=models.Q(quantity__gte=1),
                 name='pos_djitem_qty_positive',
             ),
         ]

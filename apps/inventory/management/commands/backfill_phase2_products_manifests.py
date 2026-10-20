@@ -1,5 +1,5 @@
 """
-Backfill Phase 2: legacy V1/V2 products and manifest rows into V3 (raw psycopg2 reads).
+Backfill Phase 2: legacy V1/V2 products and manifest rows into V3 (raw psycopg reads).
 
 Products: individual Product.save() so generate_product_number() applies (idempotent on description tag).
 ManifestRows: bulk_create in batches (no custom save on model).
@@ -14,11 +14,11 @@ import re
 from decimal import Decimal
 from typing import Any
 
-import psycopg2
+import psycopg
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import IntegrityError  # noqa: F401 - kept for future retry logic
-from psycopg2.extras import RealDictCursor
+from psycopg.rows import dict_row
 
 from apps.inventory.management.command_db import (
     add_database_argument,
@@ -31,7 +31,7 @@ from apps.inventory.models import ManifestRow, Product, PurchaseOrder
 
 def legacy_connect(dbname: str):
     cfg = settings.DATABASES["default"]
-    return psycopg2.connect(
+    return psycopg.connect(
         host=cfg["HOST"],
         port=cfg["PORT"],
         user=cfg["USER"],
@@ -84,7 +84,7 @@ V2_PO_TAG = re.compile(r"^BACKFILL:v2:(\d+)$")
 class Command(BaseCommand):
     help = (
         "Backfill products and manifest rows from ecothrift_v1 / ecothrift_v2 "
-        "(psycopg2 reads; products via save(), manifests via bulk_create)."
+        "(psycopg reads; products via save(), manifests via bulk_create)."
     )
 
     def add_arguments(self, parser):
@@ -216,7 +216,7 @@ class Command(BaseCommand):
         next_num = self._next_product_number_start(db)
         n = 0
         with legacy_connect("ecothrift_v1") as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql)
                 while True:
                     rows = cur.fetchmany(2000)
@@ -276,7 +276,7 @@ class Command(BaseCommand):
         next_num = self._next_product_number_start(db)
         n = 0
         with legacy_connect("ecothrift_v2") as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql)
                 while True:
                     rows = cur.fetchmany(2000)
@@ -347,7 +347,7 @@ class Command(BaseCommand):
         batch_size = 1500
         n = 0
         with legacy_connect("ecothrift_v1") as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql)
                 while True:
                     rows = cur.fetchmany(2000)
@@ -431,7 +431,7 @@ class Command(BaseCommand):
         batch_size = 1500
         n = 0
         with legacy_connect("ecothrift_v2") as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql)
                 while True:
                     rows = cur.fetchmany(2000)

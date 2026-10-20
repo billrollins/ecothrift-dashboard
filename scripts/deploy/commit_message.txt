@@ -1,12 +1,13 @@
-v2.188.1 — Sales counted the owner's way: Net item sales, Returns and Thrift+ revenue on the dashboard and Transactions
+v2.189.0 — Newer software underneath: Python 3.14, Django 5.2.18, psycopg 3, Node 24, newer MUI and Vite
 
-User-facing theme: **Sales are counted the way the owner thinks about them: item sales to match buying spend, with Thrift+ as extra (Bill, 2026-10-20).** Outside initiatives (POS, Thrift+).
+User-facing theme: **Dash runs on current software underneath; nothing changes on screen (Bill, 2026-10-20: "do it").** Standards T25-T28, T30, T33.
 
 ### Changed
-- **Dashboard Sales is now Net item sales:** each item's price after markdowns, minus all the ThriftBucks it collected (kept or redeemed instantly), minus 3-day returns on the day they happen. The weekly goal, the chart and the AI brief use it. Two small lines under it show **Returns** and **Thrift+ revenue** for the same period.
-- **Transactions totals** are one block for your filters: Item sales, Returns, Net item sales, Thrift+ revenue, Tax, Fees (customers paid / we pay, 1% of debit cards), and Paid with (cash, card as debit / credit / not set, Thrift+ credit, earlier ThriftBucks). Thrift+ revenue is the half not given on instant redemptions plus ThriftBucks that expire unused; a returned item takes back 80% of its item sales (and 80% of its Thrift+ revenue when it was redeemed instantly). Example: the $80 lamp with 35 ThriftBucks is $45.00 item sales.
-
-### Added
-- **Settings → Store: "Debit card fee we pay"** (default 1%).
+- **Python 3.14** (`.python-version`), **Django 5.2.18** (LTS), DRF 3.18.3, simplejwt 5.5.1, django-cors-headers 4.9.0, django-filter 26.2, dj-database-url 3.1.2, gunicorn 26.2.0, whitenoise 6.12.0, Pillow 11.3.0.
+- **psycopg 3.3.6** replaces psycopg2: the bulk buying upsert and the old import commands use psycopg 3; two category-stats queries use `= ANY(%s)` (psycopg 3 refuses a tuple for `IN %s`).
+- **Exact version pins** for every Python package (pymupdf 1.28.2, anthropic 1.15.0, openai 3.35.1, bleach 6.4.0, requests 2.34.2, msal 1.39.0, PySocks 1.7.1, pytest 9.1.1, pytest-django 4.14.0).
+- **Node 24** (`engines` node 24.x, npm 11.x); MUI 7.3.11, MUI X 8.29.5, Vite 7.3.7, Vitest 4.1.12 (React stays 18.3).
+- `CheckConstraint(check=...)` becomes `condition=...` (Django 6 deprecation); no schema change.
+- The Heroku stack move (heroku-26, T29) is its own release next.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -77,7 +77,7 @@ Two coders can share this repo. Each one has one peer inbox, `comm/inbox-<slug>.
 ## Environment
 
 - Windows + PowerShell (`;` not `&&`).
-- Python: `venv\` at the repo root (3.12, `.python-version`; this PC also has 3.14 as `py`). Node: `engines` 22.x (this PC runs 24.19 since 2026-09-30).
+- Python: `venv\` at the repo root, 3.14 (`.python-version`; a venv built before the T25 release is on 3.12: rebuild it with `py -3.14 -m venv venv` then `pip install -r requirements.txt`). Node: `engines` 24.x (this PC runs 24.19).
 - Dev ports: Django `8000`, staff Vite `5173`, public Vite `5174` (registered in `C:\Coding\.ai\standards\projects.md`). `scripts\dev\start.bat` / `kill.bat`.
 - Database: local `local_shared`, schema `ecothrift` (`search_path` set in settings). V1/V2 archives: [`extended/databases.md`](extended/databases.md).
 - Env files (house D8): `.env` (local values) and `.envprod` (mirror of Heroku Config Vars), both at the repo root and gitignored. No other env files. Production keys never go into `.env`. Sync with the house env-sync tool in `scripts\env\` via [`protocols/env-sync.md`](protocols/env-sync.md). Names are listed in [`extended/development.md`](extended/development.md), never values.

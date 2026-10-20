@@ -21,8 +21,8 @@
 
 ## Prerequisites
 
-- Python 3.12
-- Node.js 20+
+- Python 3.14 (`.python-version`; Heroku reads the same file)
+- Node.js 24 LTS (root `package.json` `engines`: 24.x, npm 11.x)
 - PostgreSQL 15+
 
 ## First-Time Setup
@@ -154,7 +154,7 @@ If **POS registers** or **supplemental drawer** rows are missing, run `python ma
 | `scripts/dev/kill.bat` | Stops this project's dev servers (8000 / 5173 / 5174 only). |
 | `scripts/dev/kill.bat` | Stops this project's dev servers (8000 / 5173 / 5174 only). |
 | `scripts/dev/kill.bat` | Stops this project's dev servers (8000 / 5173 / 5174 only). |
-| `python scripts/data/extract_po_descriptions.py` (if present locally) | **Historical sell-through —** reads POs from local **ecothrift_v1** / **ecothrift_v2** / **ecothrift_v3**; writes CSV under **`workspace/data/`** (**`CHANGELOG`** **2.7.1**). Requires **`psycopg2`** and root **`.env`** DB vars. |
+| `python scripts/data/extract_po_descriptions.py` (if present locally) | **Historical sell-through —** reads POs from local **ecothrift_v1** / **ecothrift_v2** / **ecothrift_v3**; writes CSV under **`workspace/data/`** (**`CHANGELOG`** **2.7.1**). Requires **`psycopg`** (psycopg 3) and root **`.env`** DB vars. |
 | `printserver/dev_print_label_test.bat` | Prints sample inventory labels **without** starting the print server (defaults to **Rollo Printer**). Pass `--dry-run` to write PNGs under `printserver/output/` instead. Example: `dev_print_label_test.bat --preset 3x2 --row 0` |
 | `printserver/dev_print_receipt_test.bat` | Renders a sample receipt to **PNG** under `printserver/output/` (no printer). Pass `--print` to also send to Windows (uses `receipt_printer` from settings or `--printer`). Optional JSON path (same shape as POST `/print/receipt` `receipt_data`). |
 | `scripts/env/pull.bat` / `diff.bat` / `push.bat` | House **env-sync** package (vendored from master; never edit here). `pull` writes `.envprod` from Heroku Config Vars and never touches `.env`; `diff` shows names only; `push` sets changed keys only after you type the app name (risk M: only on the owner's order). Protocol: [`env-sync.md`](../protocols/env-sync.md). Local-only key names: `scripts/env/env_sync.json`. |

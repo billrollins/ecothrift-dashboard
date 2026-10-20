@@ -15,8 +15,8 @@ Expected:
 Idempotent: skips rows where (source_db, legacy_cart_id) already exists.
 """
 
-import psycopg2
-import psycopg2.extras
+import psycopg
+from psycopg.rows import dict_row
 from django.core.management.base import BaseCommand
 
 from apps.pos.models import HistoricalTransaction
@@ -125,13 +125,13 @@ class Command(BaseCommand):
         clause = f'LIMIT {limit}' if limit else ''
 
         try:
-            conn = psycopg2.connect(**db_config)
-        except psycopg2.OperationalError as e:
+            conn = psycopg.connect(**db_config)
+        except psycopg.OperationalError as e:
             self.stderr.write(self.style.ERROR(f'{source_db.upper()} connection failed: {e}'))
             return
 
         try:
-            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(query.format(limit_clause=clause))
                 rows = cur.fetchall()
         finally:

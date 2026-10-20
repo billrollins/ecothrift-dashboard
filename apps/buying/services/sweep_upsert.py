@@ -9,7 +9,7 @@ from typing import Any
 from decimal import Decimal
 
 from django.db import connection
-from psycopg2.extras import Json
+from psycopg.types.json import Json
 
 from apps.buying.models import AuctionSnapshot
 from apps.buying.services.listing_mapping import map_listing_raw_to_auction_fields

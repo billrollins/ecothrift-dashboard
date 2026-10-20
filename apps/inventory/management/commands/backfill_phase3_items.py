@@ -1,5 +1,5 @@
 """
-Backfill Phase 3: historical V1/V2 items into V3 Item (psycopg2 reads, bulk_create with search_text).
+Backfill Phase 3: historical V1/V2 items into V3 Item (psycopg reads, bulk_create with search_text).
 
 Recon (local ecothrift_v1 / ecothrift_v2): V1 sold via latest item_status (16 Sales - Sold, 23 Retail - Sold);
 no sold_items table. V1 sold_for left null (no legacy sold price column on item). V2 sold_at / sold_for on
@@ -17,11 +17,11 @@ import re
 from decimal import Decimal
 from typing import Any
 
-import psycopg2
+import psycopg
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from psycopg2.extras import RealDictCursor
+from psycopg.rows import dict_row
 
 from apps.inventory.management.command_db import (
     add_database_argument,
@@ -42,7 +42,7 @@ MISFIT_V2 = "MISFIT-V2-2025"
 
 def legacy_connect(dbname: str):
     cfg = settings.DATABASES["default"]
-    return psycopg2.connect(
+    return psycopg.connect(
         host=cfg["HOST"],
         port=cfg["PORT"],
         user=cfg["USER"],
@@ -460,7 +460,7 @@ class Command(BaseCommand):
         n = 0
         stop = False
         with legacy_connect("ecothrift_v1") as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql)
                 while not stop:
                     rows = cur.fetchmany(2000)
@@ -602,7 +602,7 @@ class Command(BaseCommand):
         n = 0
         stop = False
         with legacy_connect("ecothrift_v2") as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql)
                 while not stop:
                     rows = cur.fetchmany(2000)

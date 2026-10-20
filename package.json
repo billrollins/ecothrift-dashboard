@@ -1,9 +1,9 @@
 {
   "name": "ecothrift-dashboard",
-  "version": "2.188.1",
+  "version": "2.189.0",
   "engines": {
-    "node": "22.x",
-    "npm": "10.x"
+    "node": "24.x",
+    "npm": "11.x"
   },
   "scripts": {
     "heroku-postbuild": "cd frontend && npm install --include=dev && npm run build && cd ../frontend-public && npm install --include=dev && npm run build"

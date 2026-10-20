@@ -277,14 +277,14 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name='product',
             constraint=models.CheckConstraint(
-                check=~models.Q(('title', '')),
+                condition=~models.Q(('title', '')),
                 name='inventory_product_title_nonempty',
             ),
         ),
         migrations.AddConstraint(
             model_name='product',
             constraint=models.CheckConstraint(
-                check=~models.Q(('brand', '')),
+                condition=~models.Q(('brand', '')),
                 name='inventory_product_brand_nonempty',
             ),
         ),

@@ -162,7 +162,7 @@ export default function SettingsPage() {
   useEffect(() => {
     const target = highlight ? `setting-${highlight}` : askedSection ? `section-${tab.id}-${askedSection}` : null;
     if (!target || !settings) return;
-    const t = window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250);
+    const t = window.setTimeout(() => document.getElementById(target)?.scrollIntoView?.({ behavior: 'smooth', block: 'center' }), 250);
     return () => window.clearTimeout(t);
   }, [highlight, askedSection, tab.id, settings]);
 

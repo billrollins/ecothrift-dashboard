@@ -9,11 +9,11 @@ from __future__ import annotations
 import re
 from typing import Any
 
-import psycopg2
+import psycopg
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db.models import F, OuterRef, Subquery
-from psycopg2.extras import RealDictCursor
+from psycopg.rows import dict_row
 
 from apps.inventory.management.command_db import (
     add_database_argument,
@@ -31,7 +31,7 @@ CHUNK = 2000
 
 def legacy_connect(dbname: str):
     cfg = settings.DATABASES["default"]
-    return psycopg2.connect(
+    return psycopg.connect(
         host=cfg["HOST"],
         port=cfg["PORT"],
         user=cfg["USER"],
@@ -112,7 +112,7 @@ class Command(BaseCommand):
                     sql = f"""
                         SELECT code, retail_amt FROM item WHERE code IN ({placeholders})
                     """
-                    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    with conn.cursor(row_factory=dict_row) as cur:
                         cur.execute(sql, chunk)
                         for row in cur.fetchall():
                             c = (row.get("code") or "").strip()
@@ -156,7 +156,7 @@ class Command(BaseCommand):
                     sql = f"""
                         SELECT id, retail_amt FROM inventory_item WHERE id IN ({placeholders})
                     """
-                    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    with conn.cursor(row_factory=dict_row) as cur:
                         cur.execute(sql, chunk)
                         for row in cur.fetchall():
                             lid = row.get("id")

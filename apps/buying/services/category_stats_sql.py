@@ -157,13 +157,13 @@ def _in_building_rows(*, using: str = 'default') -> list[tuple[str, int, Decimal
             FROM inventory_item i
             LEFT JOIN inventory_product p ON i.product_id = p.id
             LEFT JOIN inventory_manifestrow mr ON i.manifest_row_id = mr.id
-            WHERE i.status IN %s
+            WHERE i.status = ANY(%s)
         ) b
         GROUP BY b.bucket
     """
     out: list[tuple[str, int, Decimal]] = []
     with connections[using].cursor() as cursor:
-        cursor.execute(sql, [IN_BUILDING_ITEM_STATUSES])
+        cursor.execute(sql, [list(IN_BUILDING_ITEM_STATUSES)])
         for bucket, units, retail in cursor.fetchall():
             out.append((bucket, int(units or 0), Decimal(str(retail or 0))))
     return out
@@ -226,13 +226,13 @@ def _on_order_rows(*, using: str = 'default') -> list[tuple[str, int, Decimal]]:
                COALESCE(SUM(GREATEST(COALESCE(mr.quantity, 1), 1) * COALESCE(mr.unit_retail, 0)), 0)::numeric
         FROM inventory_manifestrow mr
         JOIN inventory_purchaseorder po ON po.id = mr.purchase_order_id
-        WHERE po.status IN %s
+        WHERE po.status = ANY(%s)
           AND po.ordered_date >= %s
           AND NOT EXISTS (SELECT 1 FROM inventory_item i WHERE i.manifest_row_id = mr.id)
         GROUP BY 1
     """
     with connections[using].cursor() as cursor:
-        cursor.execute(sql, [OPEN_PO_STATUSES, since])
+        cursor.execute(sql, [list(OPEN_PO_STATUSES), since])
         raw = [(code or '', int(units or 0), Decimal(str(retail or 0))) for code, units, retail in cursor.fetchall()]
     names = category_code_to_taxonomy({code for code, _, _ in raw if code}, using=using)
     totals: dict[str, tuple[int, Decimal]] = {}

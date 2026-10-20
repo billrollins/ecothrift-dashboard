@@ -1,5 +1,5 @@
 """
-Backfill Phase 1: legacy V1/V2 vendors and purchase orders into V3 (raw psycopg2 reads).
+Backfill Phase 1: legacy V1/V2 vendors and purchase orders into V3 (raw psycopg reads).
 
 Idempotent: get_or_create on Vendor.code and PurchaseOrder.order_number.
 Skips Misfit POs MISFIT-V1-2024 / MISFIT-V2-2025. Does not recreate vendor MIS (Phase 0).
@@ -13,10 +13,10 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-import psycopg2
+import psycopg
 from django.conf import settings
 from django.core.management.base import BaseCommand
-from psycopg2.extras import RealDictCursor
+from psycopg.rows import dict_row
 
 from apps.inventory.management.command_db import (
     add_database_argument,
@@ -43,7 +43,7 @@ V1_PREFIX_TO_VENDOR = {
 
 def legacy_connect(dbname: str):
     cfg = settings.DATABASES['default']
-    return psycopg2.connect(
+    return psycopg.connect(
         host=cfg['HOST'],
         port=cfg['PORT'],
         user=cfg['USER'],
@@ -228,7 +228,7 @@ def append_json_last_line(notes: str, payload: dict[str, Any]) -> str:
 class Command(BaseCommand):
     help = (
         'Backfill vendors and purchase orders from ecothrift_v1 / ecothrift_v2 into V3 '
-        '(psycopg2 reads; idempotent get_or_create).'
+        '(psycopg reads; idempotent get_or_create).'
     )
 
     def add_arguments(self, parser):
@@ -255,7 +255,7 @@ class Command(BaseCommand):
         warn_prefix = warn_v1_cond = warn_v2_cond = 0
 
         with legacy_connect('ecothrift_v2') as conn_v2:
-            with conn_v2.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn_v2.cursor(row_factory=dict_row) as cur:
                 cur.execute(
                     """
                     SELECT id, name, code, vendor_type
@@ -301,7 +301,7 @@ class Command(BaseCommand):
             ORDER BY po.purchased_on NULLS LAST
         """
         with legacy_connect('ecothrift_v1') as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql_v1)
                 v1_rows = cur.fetchall()
 
@@ -361,7 +361,7 @@ class Command(BaseCommand):
             ORDER BY po.purchase_date NULLS LAST
         """
         with legacy_connect('ecothrift_v2') as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql_v2)
                 v2_rows = cur.fetchall()
 

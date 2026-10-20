@@ -17,8 +17,8 @@ Expected row counts (rough):
 Idempotent: skips items whose notes already contain HISTORICAL:db2 or HISTORICAL:db1.
 """
 
-import psycopg2
-import psycopg2.extras
+import psycopg
+from psycopg.rows import dict_row
 from django.core.management.base import BaseCommand
 from django.utils import timezone as tz
 
@@ -91,9 +91,9 @@ BATCH_SIZE = 500
 
 def _fetch_db2_sold(limit=None):
     clause = f'LIMIT {limit}' if limit else ''
-    conn = psycopg2.connect(**DB2_CONFIG)
+    conn = psycopg.connect(**DB2_CONFIG)
     try:
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+        with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(DB2_SOLD_QUERY.format(limit_clause=clause))
             return cur.fetchall()
     finally:
@@ -103,9 +103,9 @@ def _fetch_db2_sold(limit=None):
 def _fetch_db1_sold(limit=None):
     """Query ecothrift_v1 (DB1 archive) directly for sold items via cart + cart_line join."""
     clause = f'LIMIT {limit}' if limit else ''
-    conn = psycopg2.connect(**DB1_CONFIG)
+    conn = psycopg.connect(**DB1_CONFIG)
     try:
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+        with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(DB1_DIRECT_QUERY.format(limit_clause=clause))
             return cur.fetchall(), 'db1_direct'
     finally:

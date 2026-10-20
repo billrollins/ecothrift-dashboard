@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.188.1] -->
-<!-- Last reviewed: 2026-10-20 (2.188.1) -->
+<!-- Line 1 release: ## [2.189.0] -->
+<!-- Last reviewed: 2026-10-20 (2.189.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.189.0] - 2026-10-20
+
+User-facing theme: **Dash runs on current software underneath; nothing changes on screen (Bill, 2026-10-20: "do it").** Standards T25-T28, T30, T33.
+
+### Changed
+- **Python 3.14** (`.python-version`), **Django 5.2.18** (LTS), DRF 3.18.3, simplejwt 5.5.1, django-cors-headers 4.9.0, django-filter 26.2, dj-database-url 3.1.2, gunicorn 26.2.0, whitenoise 6.12.0, Pillow 11.3.0.
+- **psycopg 3.3.6** replaces psycopg2: the bulk buying upsert and the old import commands use psycopg 3; two category-stats queries use `= ANY(%s)` (psycopg 3 refuses a tuple for `IN %s`).
+- **Exact version pins** for every Python package (pymupdf 1.28.2, anthropic 1.15.0, openai 3.35.1, bleach 6.4.0, requests 2.34.2, msal 1.39.0, PySocks 1.7.1, pytest 9.1.1, pytest-django 4.14.0).
+- **Node 24** (`engines` node 24.x, npm 11.x); MUI 7.3.11, MUI X 8.29.5, Vite 7.3.7, Vitest 4.1.12 (React stays 18.3).
+- `CheckConstraint(check=...)` becomes `condition=...` (Django 6 deprecation); no schema change.
+- The Heroku stack move (heroku-26, T29) is its own release next.
 
 ## [2.188.1] - 2026-10-20
 

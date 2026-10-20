@@ -1548,11 +1548,11 @@ class Product(models.Model):
         ordering = ['title']
         constraints = [
             models.CheckConstraint(
-                check=~models.Q(title=''),
+                condition=~models.Q(title=''),
                 name='inventory_product_title_nonempty',
             ),
             models.CheckConstraint(
-                check=~models.Q(brand=''),
+                condition=~models.Q(brand=''),
                 name='inventory_product_brand_nonempty',
             ),
         ]

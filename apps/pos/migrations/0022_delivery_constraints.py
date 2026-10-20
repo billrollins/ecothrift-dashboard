@@ -67,7 +67,7 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name='deliveryjobitem',
             constraint=models.CheckConstraint(
-                check=models.Q(quantity__gte=1),
+                condition=models.Q(quantity__gte=1),
                 name='pos_djitem_qty_positive',
             ),
         ),

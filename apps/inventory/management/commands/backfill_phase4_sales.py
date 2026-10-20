@@ -1,5 +1,5 @@
 """
-Backfill Phase 4: legacy V1/V2 POS carts and cart lines into V3 Cart / CartLine (psycopg2 reads).
+Backfill Phase 4: legacy V1/V2 POS carts and cart lines into V3 Cart / CartLine (psycopg reads).
 
 Infrastructure: WorkLocation "Eco-Thrift Main", Register code BACKFILL, system User backfill@system.local,
 one Drawer per distinct sale date (America/Chicago) on that register.
@@ -19,11 +19,11 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any
 
-import psycopg2
+import psycopg
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
-from psycopg2.extras import RealDictCursor
+from psycopg.rows import dict_row
 from zoneinfo import ZoneInfo
 
 from apps.accounts.models import User
@@ -47,7 +47,7 @@ CHI = ZoneInfo("America/Chicago")
 
 def legacy_connect(dbname: str):
     cfg = settings.DATABASES["default"]
-    return psycopg2.connect(
+    return psycopg.connect(
         host=cfg["HOST"],
         port=cfg["PORT"],
         user=cfg["USER"],
@@ -341,7 +341,7 @@ class Command(BaseCommand):
             GROUP BY cart_cde
         """
         with legacy_connect("ecothrift_v1") as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql)
                 for row in cur.fetchall():
                     code = (row["cart_cde"] or "").strip()
@@ -360,7 +360,7 @@ class Command(BaseCommand):
             GROUP BY cart_id
         """
         with legacy_connect("ecothrift_v2") as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql)
                 for row in cur.fetchall():
                     cid = row["cart_id"]
@@ -440,7 +440,7 @@ class Command(BaseCommand):
             return out
         sys_pk = system_user.pk
         with legacy_connect("ecothrift_v2") as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute("SELECT id, email FROM core_user WHERE email IS NOT NULL AND email != ''")
                 rows = cur.fetchall()
         emails = [r["email"].strip().lower() for r in rows if r.get("email")]
@@ -482,7 +482,7 @@ class Command(BaseCommand):
         n = 0
         stop = False
         with legacy_connect("ecothrift_v1") as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql)
                 while not stop:
                     rows = cur.fetchmany(1000)
@@ -564,7 +564,7 @@ class Command(BaseCommand):
         batch: list[CartLine] = []
         batch_size = 2000
         with legacy_connect("ecothrift_v1") as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql)
                 while True:
                     rows = cur.fetchmany(2000)
@@ -644,7 +644,7 @@ class Command(BaseCommand):
             pks = set(v2_cashier.values()) | {system_user.pk}
             users_by_pk = {u.pk: u for u in User.objects.using(db).filter(pk__in=pks)}
         with legacy_connect("ecothrift_v2") as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql)
                 while not stop:
                     rows = cur.fetchmany(1000)
@@ -738,7 +738,7 @@ class Command(BaseCommand):
         batch: list[CartLine] = []
         batch_size = 2000
         with legacy_connect("ecothrift_v2") as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql)
                 while True:
                     rows = cur.fetchmany(2000)
