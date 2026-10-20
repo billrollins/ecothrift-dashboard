@@ -150,6 +150,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Transactions',
     icon: 'receipt',
   },
+  // Owner 2026-10-20: Returns is its own page (find the receipt, tick the lines, the owner PIN past the 3 days).
+  posReturns: {
+    id: 'posReturns',
+    path: '/pos/returns',
+    label: 'Returns',
+    icon: 'undo',
+  },
   // A cashier finishes an online join on a phone beside her, away from the register (owner 2026-10-16). All staff.
   // It opens the Thrift+ Staff app (owner 2026-10-16), on its Finalize tab.
   thriftPlusFinalize: {

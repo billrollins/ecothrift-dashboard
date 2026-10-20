@@ -1,14 +1,23 @@
-v2.187.2 — Signing an offer starts onboarding; the owner's checklist, three pay levels and a red overtime flag
+v2.188.0 — Suspend, a fast Returns page with the owner PIN, the member app's bottom bar, phone required, and our own texting number (off until Twilio approves)
 
-User-facing theme: **Onboarding runs by itself once an offer is signed, with the owner's checklist, three pay levels and an overtime flag (Bill, 2026-10-20).** Initiative: hiring_onboarding.
+User-facing theme: **The register and returns plan (releases 2 and 3) and the Thrift+ revision Phases 2-4, shipped together (Bill, 2026-10-20: "the more that is done and can be ship/deployed together the better").** Outside initiatives (POS, Thrift+).
 
 ### Added
-- **Signing an offer does the rest:** the new hire gets their Dash login, the onboarding checklist, the 30/60/90-day check-ins and the first-day email (once). If something blocks it (no email, or a Dash account already uses it), the offer still signs and the applicant's history says why; Create employee and Start onboarding still work. Practice runs never send anything.
-- **Catch-up request:** "Start hires whose offer was already signed" (Dash → Requests) starts the hires who got stuck before this and can set overtime allowances.
-- **Three pay levels:** Entry $15–17, Senior $18–19, Manager $20+ (a setting only the owner edits). The level shows next to pay on the offer, Create employee, Add employee and the employee page, with a warning (never a block) when pay is outside its range. The 90-day review sets the level. Existing employees got the level their pay falls in.
-- **Over their hours:** a big red flag when someone's week goes past 40 plus their overtime allowance (none unless set): on the kiosk, their Hours & pay, People, and the morning brief, with a link to fix the time entry ("Forgot to clock out?").
+- **Suspend (register):** a button above the sale sets it aside and starts a new one. Each set-aside sale is a bookmark tab (member first name or "Sale", items, total, time). Click to bring it back; right-click to delete. Its items can't be sold on any register until it's back or deleted. Closing the drawer warns, and closing anyway deletes them.
+- **Returns page** (Cashier menu, `/pos/returns`), built to be fast: find the receipt by the member (QR, name, phone, email), the receipt # / date / total, or an item (scan a tag or type words). The receipt opens split into **Returnable** and **AS IS**; tick what comes back (scan a tag to tick it), see the summary (credit, ThriftBucks), **Confirm**. Several items go back at once, and the member's view opens after.
+- **Owner PIN** (Settings → Thrift+): the owner sets and resets it; anyone given it can OK a return past the 3 days. Five wrong tries lock it for 15 minutes; every use is logged. A late return asks for a reason and is recorded as a **mark against Retail** on the cashier who rang the sale, listed under **Late returns** (managers and the owner).
+- **Thrift+ Member app bottom bar:** Scan · Bucks · My QR · Account. Account shows your name, phone and photo ("Ask at the register to change your photo") and Sign out.
+- **"Put Thrift+ on your home screen"** card on phones (Install on Android, three picture steps on iPhone); hidden for 2 weeks when dismissed, always in Account, never inside the installed app.
+- **Phone required:** a member with no mobile number (Google or older email joins) sees one "Add your mobile number" screen first: a 6-digit text, then it's saved.
+- **Website sign-in** matches the app: Continue with Google, or your mobile number and a 6-digit text (email stays a small link for members who joined with one).
+- **Our own texting number, built OFF:** sign-in codes from (888) 812-7905 with STOP and HELP answered, and a **Text sign-in link** button in the Staff app. Both stay off (`thrift_plus.own_number_codes`) until Twilio approves the toll-free verification; codes keep going through Verify.
 
-### Changed
-- **The onboarding checklist** follows the owner's list: handbook; I-9; schedule; 2 T-shirts; first-day email and orientation day; QuickBooks; added to WhatsApp; signed in to Dash; first payroll, no issues (about 3 weeks in); the 30, 60 and 90-day check-ins (they tick themselves when signed or skipped); then emergency contact, time clock, kiosk badge, first clock-in, team intro, training and the Nebraska report. An edited checklist keeps its items and gains the new ones; onboardings already in progress are unchanged.
+### Fixed
+- **Add to Home Screen** from any ecothrift.us page installs the Thrift+ app instead of making a bookmark.
+- In the app, the selfie and signature steps show the right next step after each save.
+- The register's old 3-day-return dialog is gone; returns live on the Returns page.
+
+### Database
+- pos 0037 (suspended sales), thriftplus 0027 (owner PIN, late-return marks) and 0028 (own-number codes, the switch seeded off). No existing data changes.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

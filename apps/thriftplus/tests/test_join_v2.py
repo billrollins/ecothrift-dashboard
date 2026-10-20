@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from PIL import Image
 from rest_framework.test import APIClient
@@ -71,7 +71,7 @@ class TwilioMixin:
         return Person.objects.get(phone=PHONE)
 
 
-class PhoneCodesUnitTests(SimpleTestCase):
+class PhoneCodesUnitTests(TestCase):  # the own-number switch is read from the database
     def test_us_numbers_only(self):
         ok = {'(402) 867-5309': PHONE, '+1 402 867 5309': PHONE, '14028675309': PHONE, '402.867.5309': PHONE}
         for raw, want in ok.items():

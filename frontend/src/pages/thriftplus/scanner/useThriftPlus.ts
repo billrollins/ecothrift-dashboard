@@ -14,6 +14,8 @@ import {
   removeFromCart,
   removePerson,
   sendCode,
+  sendPhoneCode,
+  savePhone,
   setMyNews,
   sendPriceFeel,
   clearHistory,
@@ -88,6 +90,21 @@ export function useFinishJoining() {
     sign: useMutation({
       mutationFn: ({ signature, termsVersion }: { signature: string; termsVersion: string }) => signTerms(signature, termsVersion),
       onSuccess: setMember,
+    }),
+  };
+}
+
+/**
+ * Phone first (owner 2026-10-20): a member with no phone texts a code to the number and saves it with the code. The save
+ * answers the member (`needs_phone` now false), which replaces the session so the required screen goes away.
+ */
+export function useAddPhone() {
+  const qc = useQueryClient();
+  return {
+    send: useMutation({ mutationFn: (phone: string) => sendPhoneCode(phone) }),
+    save: useMutation({
+      mutationFn: ({ phone, code }: { phone: string; code: string }) => savePhone(phone, code),
+      onSuccess: (member: ThriftPlusMember) => qc.setQueryData<ThriftPlusSession>(thriftPlusKeys.session, { status: 'member', member }),
     }),
   };
 }

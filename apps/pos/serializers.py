@@ -207,11 +207,11 @@ class CartSerializer(serializers.ModelSerializer):
             'card_charged_total',
             'card_type_fixed_at', 'card_type_fixed_by', 'card_type_fixed_by_name',
             'card_type_fix_deadline', 'payroll_employee', 'payroll_employee_name',
-            'completed_at', 'created_at',
+            'completed_at', 'suspended_at', 'created_at',
             'lines', 'receipt', 'savings', 'thrift_credit', 'thrift_plus', 'thrift_row',
         ]
         read_only_fields = [
-            'id', 'cashier', 'subtotal', 'tax_amount', 'total', 'tax_rate', 'created_at',
+            'id', 'cashier', 'subtotal', 'tax_amount', 'total', 'tax_rate', 'created_at', 'suspended_at',
             'card_type', 'card_surcharge_rate', 'card_surcharge_amount',
             'card_charged_total',
             'card_type_fixed_at', 'card_type_fixed_by', 'card_type_fixed_by_name',

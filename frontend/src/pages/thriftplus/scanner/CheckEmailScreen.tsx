@@ -32,7 +32,21 @@ function words(e: unknown, fallback: string): string {
   return e instanceof Error && e.message ? e.message : fallback;
 }
 
-export function CheckCode({ sent, onChange, onSignedIn, onResent }: {
+/**
+ * A code that is not a sign-in (Phone first, owner 2026-10-20: adding a mobile number to a signed-in member): the screen
+ * hands the code and the resend to these instead of signing in.
+ */
+export interface OwnCode {
+  /** The six digits; throws the words to show when they are wrong. */
+  check: (code: string) => Promise<void>;
+  /** Send the code again; throws the words to show (a `TOO_SOON` error carries `retryAfter`). */
+  send: () => Promise<void>;
+  /** The green button's words. */
+  label: string;
+}
+
+export function CheckCode({ sent, onChange, onSignedIn, onResent, own }: {
+  own?: OwnCode;
   sent: SentCode;
   /** "Change": back to the form, the contact kept. */
   onChange: () => void;
@@ -64,6 +78,7 @@ export function CheckCode({ sent, onChange, onSignedIn, onResent }: {
   const latest = useRef({ adopt: auth.adopt, onSignedIn, kind: sent.kind });
   latest.current = { adopt: auth.adopt, onSignedIn, kind: sent.kind };
   useEffect(() => {
+    if (own) return undefined; // already signed in: nothing to adopt
     const onShow = () => {
       if (document.visibilityState !== 'visible') return;
       void getSession().then((s) => {
@@ -83,13 +98,19 @@ export function CheckCode({ sent, onChange, onSignedIn, onResent }: {
     setUntil(t + seconds * 1000);
   };
 
+  const [checking, setChecking] = useState(false);
   const submit = async (value: string) => {
-    if (value.length !== 6 || auth.check.isPending) return;
+    if (value.length !== 6 || auth.check.isPending || checking) return;
     setErr('');
     try {
-      onSignedIn(await auth.check.mutateAsync({ contact: sent.contact, code: value }));
+      if (own) {
+        setChecking(true);
+        await own.check(value);
+      } else onSignedIn(await auth.check.mutateAsync({ contact: sent.contact, code: value }));
     } catch (e) {
       setErr(words(e, "That code didn't work. Check it and try again."));
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -98,7 +119,8 @@ export function CheckCode({ sent, onChange, onSignedIn, onResent }: {
     resending.current = true;
     setErr('');
     try {
-      await auth.send.mutateAsync(sent.kind === 'join' ? { contact: sent.contact, first: sent.first, last: sent.last } : { contact: sent.contact });
+      if (own) await own.send();
+      else await auth.send.mutateAsync(sent.kind === 'join' ? { contact: sent.contact, first: sent.first, last: sent.last } : { contact: sent.contact });
       setSends((n) => n + 1);
       restart(RESEND_SECONDS);
       onResent?.(RESEND_SECONDS);
@@ -157,7 +179,7 @@ export function CheckCode({ sent, onChange, onSignedIn, onResent }: {
         />
       </Field>
       {err && <ErrorLine>{err}</ErrorLine>}
-      <Primary busy={auth.check.isPending} disabled={code.length !== 6} label={sent.kind === 'join' ? 'Continue' : 'Sign in'} />
+      <Primary busy={auth.check.isPending || checking} disabled={code.length !== 6} label={own ? own.label : sent.kind === 'join' ? 'Continue' : 'Sign in'} />
       <Box data-testid="resend" sx={{ mt: u(26), textAlign: 'center', fontSize: u(28), color: sc.ink2, lineHeight: 1.4 }}>
         {sends >= MAX_SENDS ? (
           'Still nothing? Ask at any register.'

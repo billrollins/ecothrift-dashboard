@@ -66,6 +66,9 @@ type AuthContextValue = {
   requestReset: (email: string) => Promise<{ detail: string }>
   resendVerification: () => Promise<{ detail: string }>
   logout: () => Promise<void>
+  /** After a Thrift+ phone or Google sign-in (the server set this site's cookie too): load the signed-in customer. Null when
+   * that sign-in did not also sign in to the site (a staff login). */
+  completeSignIn: () => Promise<PublicUser | null>
   authFetch: (url: string, init?: RequestInit) => Promise<Response>
 }
 
@@ -155,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessionHint(false)
   }, [])
 
-  const loadUser = useCallback(async () => {
+  const loadUser = useCallback(async (): Promise<PublicUser | null> => {
     try {
       const refreshRes = await fetch('/api/auth/refresh/', {
         method: 'POST',
@@ -165,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       if (!refreshRes.ok) {
         clearSession()
-        return
+        return null
       }
       const refreshData = await refreshRes.json()
       setAccessToken(refreshData.access)
@@ -179,11 +182,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       if (!meRes.ok) {
         clearSession()
-        return
+        return null
       }
-      setUser((await meRes.json()) as PublicUser)
+      const me = (await meRes.json()) as PublicUser
+      setUser(me)
+      return me
     } catch {
       clearSession()
+      return null
     } finally {
       setIsLoading(false)
     }
@@ -382,6 +388,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearSession()
   }, [clearSession])
 
+  const completeSignIn = useCallback(() => loadUser(), [loadUser])
+
   const authFetch = useCallback(async (url: string, init: RequestInit = {}) => {
     const headers = new Headers(init.headers || {})
     headers.set('Accept', 'application/json')
@@ -407,6 +415,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         requestReset,
         resendVerification,
         logout,
+        completeSignIn,
         authFetch,
       }}
     >

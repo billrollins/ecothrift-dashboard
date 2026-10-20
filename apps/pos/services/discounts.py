@@ -144,7 +144,7 @@ def assert_google_review_available(cart, username, stars) -> tuple[str, int, str
     prior = (
         CartLine.objects.filter(
             line_kind=CartLine.LINE_KIND_DISCOUNT,
-            cart__status__in=('open', 'completed'),
+            cart__status__in=('open', 'suspended', 'completed'),
             meta__reason=REASON_GOOGLE_REVIEW,
             meta__google_review_username_key=key,
         )
@@ -175,7 +175,7 @@ def list_google_review_usernames(query: str = '') -> list[dict]:
     rows = (
         CartLine.objects.filter(
             line_kind=CartLine.LINE_KIND_DISCOUNT,
-            cart__status__in=('open', 'completed'),
+            cart__status__in=('open', 'suspended', 'completed'),
             meta__reason=REASON_GOOGLE_REVIEW,
         )
         .order_by('-created_at')

@@ -11,6 +11,7 @@ import { getAppVersion, type Setting } from '../../../api/core.api';
 import { AiPanel } from './AiPanel';
 import { CardSurchargeEditor } from './CardSurchargeEditor';
 import { HolidayHoursCard } from './HolidayHoursCard';
+import { OwnerPinCard } from './OwnerPinCard';
 import { PermissionsPanel } from './PermissionsPanel';
 import { PrintingPanel } from './PrintingPanel';
 import { RetailQaLog, RetailQaTables } from './RetailQaTables';
@@ -169,6 +170,8 @@ export function Piece({ piece, settings }: { piece: CustomPiece; settings: Setti
           Try rules in the Thrift+ calculator
         </Button>
       );
+    case 'owner-pin':
+      return <OwnerPinCard />;
     case 'shipping-formula':
       return (
         <Box sx={{ py: 2 }}>

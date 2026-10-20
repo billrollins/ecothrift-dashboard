@@ -4,7 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Thrift+ Member on every page (owner 2026-10-20): Add to Home Screen from any ecothrift.us page installs the app, not a
+         bookmark. The same tags the scanner puts in its own head (frontend installApp.ts); keep the two in step. -->
+    <link rel="manifest" href="/scan/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/scan/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Thrift+ Member" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="theme-color" content="#18452d" />
     <title>Eco-Thrift - Restore, Reuse, Reimagine</title>
     <meta name="description" content="Eco-Thrift is a liquidation and thrift store in Omaha, NE. Quality goods at fair prices, with new finds every week. Shop in person or pick up at our store." />

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-20 (register: Thrift+ member button, Refresh, returns popup; Members page; T62: no CUS-nnn scan) -->
+<!-- Last updated: 2026-10-20 (register: Thrift+ member button, Refresh, returns popup; Members page; Suspend bookmark tabs; T62: no CUS-nnn scan) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -35,7 +35,7 @@
 
 ### Cart
 
-- **Status**: `open` | `completed` | `voided`
+- **Status**: `open` | `completed` | `voided` | `training` | `suspended` (set aside, see Suspend below; `suspended_at` is when)
 - **Payment methods**: `cash` | `card` | `split`
 - Belongs to `Drawer`, `cashier`; optional `customer`
 - `subtotal`, `tax_rate`, `tax_amount`, `total`, `payment_method`, `cash_tendered`, `change_given`, `card_amount`, `completed_at`
@@ -111,6 +111,15 @@ Denomination counts (JSON) are used at each step for reconciliation.
 - No drawer cash and no card fields (`apply_card_surcharge` treats it like cash). A void takes it off the list.
 - **People → Payroll deductions** (`/people/payroll-deductions`): per pay period, per person, the sales and a total to enter in QuickBooks Payroll for the paycheck after the period. **Mark entered** writes `PayrollDeductionMark` (the amount then); a later void shows a mismatch.
 - API: `/api/pos/staff-purchases/settings/` (GET staff, PUT Admin), `people/`, `eligibility/?employee=&amount=`, `deductions/?day=`, `deductions/mark/`.
+
+## Suspend (owner 2026-10-20, `pos.0037`)
+
+- **What it is.** A cashier sets the current sale aside, rings someone else, and brings it back. In the header above the cart the terminal shows a **Suspend** button and one **bookmark tab** per sale set aside at that register (`components/pos/SuspendedSalesBar.tsx`): label = the Thrift+ member's first name, or "Sale"; item count, total, time set aside. Click a tab to bring it back. **Right-click** a tab (long-press on touch) opens "Delete suspended sale" with a confirm.
+- **Server** (`apps/pos/services/suspend.py`, actions on `CartViewSet`): `POST carts/{id}/suspend/` (open, at least one line), `POST carts/{id}/resume/` (body `current` = the sale on screen: set aside in its place when it has lines, voided when empty; answers the fresh cart, totals and Thrift+ block worked out again), `POST carts/{id}/delete-suspended/` (any cashier; voids it), `GET carts/suspended/?drawer=&cashier=` (the tabs). `?status=suspended` also filters the cart list; `open` and `all` never show suspended sales, so the terminal's restore-on-load ignores them.
+- **Items are held, not sold.** A suspended cart changes no item (they stay `on_shelf`). `add-item` refuses an item that is on any other register's suspended sale (`ITEM_SET_ASIDE`), and `complete` refuses an open sale holding such an item. Training register sales neither hold nor are held. Resume refuses (`ITEM_SOLD`) if an item sold in the meantime. A suspended cart cannot be edited or paid until it is back (`SALE_SET_ASIDE`). Deleting it, or the drawer closing, voids it: no drawer cash and no item change (it never sold), delivery jobs cancelled, Thrift+ ledger reversed if any.
+- **Drawer close.** `POST drawers/{id}/close/` answers **409 `SUSPENDED_SALES`** (count and tabs) while sales are set aside and nothing closes. Sending `void_suspended: true` voids them and closes. Drawers page shows the warning ("Close and delete them").
+- **Shared drawer.** Suspended sales belong to the drawer, not the cashier (a handoff keeps them). The test terminal passes `cashier` so each computer sees only its own tabs.
+- Thrift+: a suspended sale holds no member credit; resume works it out again (rulebook, Owner 10-20).
 
 ## Void Flow
 
@@ -223,7 +232,7 @@ The `useDeviceConfig` hook (`frontend/src/hooks/useDeviceConfig.ts`) reads/write
 ## API & Hooks
 
 ### `pos.api.ts`
-Functions: `getRegisters`, `getDrawers`, `openDrawer`, `drawerHandoff`, `drawerTakeover`, `closeDrawer`, `reopenDrawer`, `cashDrop`, `getSupplemental`, `drawFromSupplemental`, `returnToSupplemental`, `auditSupplemental`, `getSupplementalTransactions`, `getBankTransactions`, `createBankTransaction`, `updateBankTransaction`, `completeBankTransaction`, `createCart`, `updateCart`, `getCart`, `addItemToCart`, `updateCartLine`, `removeCartLine`, `completeCart`, `getCartCardPreview`, `voidCart`, `setCartCardType`, `getCarts`, `getDashboardMetrics`, `getDashboardAlerts`
+Functions: `getRegisters`, `getDrawers`, `openDrawer`, `drawerHandoff`, `drawerTakeover`, `closeDrawer`, `reopenDrawer`, `cashDrop`, `getSupplemental`, `drawFromSupplemental`, `returnToSupplemental`, `auditSupplemental`, `getSupplementalTransactions`, `getBankTransactions`, `createBankTransaction`, `updateBankTransaction`, `completeBankTransaction`, `createCart`, `updateCart`, `getCart`, `addItemToCart`, `updateCartLine`, `removeCartLine`, `completeCart`, `getCartCardPreview`, `voidCart`, `getSuspendedCarts`, `suspendCart`, `resumeCart`, `deleteSuspendedCart`, `setCartCardType`, `getCarts`, `getDashboardMetrics`, `getDashboardAlerts`
 
 ### `usePOS.ts`
 Hooks: `useRegisters`, `useDrawers` (accepts `options.enabled`), `useCarts` (accepts `options.enabled`), `useOpenDrawer`, `useCloseDrawer`, `useReopenDrawer`, `useDrawerHandoff`, `useDrawerTakeover`, `useCreateCart`, `useAddItemToCart`, `useUpdateCartLine`, `useRemoveCartLine`, `useCompleteCart`, `useCardPreview`, `useVoidCart`, `useSetCartCardType`, `useCardTypeFixWindow`

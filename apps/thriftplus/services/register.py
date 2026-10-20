@@ -899,18 +899,16 @@ def pending(query: str = '', *, limit: int = 10, rows=None) -> list[dict]:
 FIND_LIMIT = 25
 
 
-def find_people(query: str, *, limit: int = FIND_LIMIT) -> list[dict]:
-    """Find on the Thrift+ Staff app (owner 2026-10-20: "check in/lookup their account"): everyone, still to finish or
-    a member, by member code (their QR), phone digits (any 3 or more, anywhere in the number), or name and email words.
-    An older couple who joined by email had no phone on file and weren't in the recent list (10-19), so one box looks
-    everywhere. Newest first."""
+def find_people_qs(query: str):
+    """The people a Find box means: everyone, still to finish or a member, by member code (their QR), phone digits (any
+    3 or more, anywhere in the number), or name and email words. None when nothing is typed. Newest first."""
     from django.db.models import Q
 
     from apps.thriftplus.services.cards import parse
 
     q = (query or '').strip()
     if not q:
-        return []
+        return None
     people = Person.objects.select_related('account').filter(
         removed_at__isnull=True, account__status__in=[Account.STATUS_PENDING, Account.STATUS_ACTIVE],
     )
@@ -923,7 +921,15 @@ def find_people(query: str, *, limit: int = FIND_LIMIT) -> list[dict]:
     else:
         for word in q.split():
             people = people.filter(Q(first_name__icontains=word) | Q(last_name__icontains=word) | Q(email__icontains=word))
-    return [finalize_row(p) for p in people.distinct().order_by('-account__created_at', '-pk')[:limit]]
+    return people.distinct().order_by('-account__created_at', '-pk')
+
+
+def find_people(query: str, *, limit: int = FIND_LIMIT) -> list[dict]:
+    """Find on the Thrift+ Staff app (owner 2026-10-20: "check in/lookup their account"): ``find_people_qs``, each as
+    Finalize's row. An older couple who joined by email had no phone on file and weren't in the recent list (10-19), so
+    one box looks everywhere."""
+    people = find_people_qs(query)
+    return [] if people is None else [finalize_row(p) for p in people[:limit]]
 
 
 # Finalize Thrift+'s list before anything is typed (owner 2026-10-16): the newest online joins, scrollable.
@@ -951,6 +957,7 @@ def finalize_row(person: Person) -> dict:
     from django.utils import timezone
 
     from apps.thriftplus.services.cards import display
+    from apps.thriftplus.services.member_auth import can_text_link
 
     row = pending_person(person)
     code = row['qr'][2:] if row.get('qr') else ''
@@ -966,6 +973,9 @@ def finalize_row(person: Person) -> dict:
         'signed_at': person.signed_at, 'finished_at': finished.created_at if finished else None,
         'finished_by': _who(finished.actor) if finished else '',
         'app_signed_in': person.sessions.filter(expires_at__gt=timezone.now(), revoked_at__isnull=True).exists(),
+        # Phase 4: the Staff app's "Text sign-in link" shows only when the own-number switch is on, they have a phone and
+        # have not said STOP.
+        'can_text_link': can_text_link(person),
     }
 
 

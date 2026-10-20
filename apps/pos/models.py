@@ -191,6 +191,7 @@ class Cart(models.Model):
         ('completed', 'Completed'),
         ('voided', 'Voided'),
         ('training', 'Training (not a sale)'),  # a training register's "sale": nothing real changed
+        ('suspended', 'Suspended'),  # set aside at the register (owner 2026-10-20): its items stay held
     ]
     PAYMENT_METHODS = [
         ('cash', 'Cash'),
@@ -246,6 +247,10 @@ class Cart(models.Model):
         help_text='Thrift+ credit spent: a payment after tax. Cash or card covers the rest of the total.',
     )
     completed_at = models.DateTimeField(null=True, blank=True)
+    suspended_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text='When the sale was set aside (status suspended); the register shows it as a bookmark tab.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

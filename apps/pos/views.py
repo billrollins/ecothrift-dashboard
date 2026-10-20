@@ -34,6 +34,7 @@ from .serializers import (
     DeliveryAvailabilitySerializer, DeliveryJobSerializer, DeliveryDayWriteSerializer,
 )
 from .filters import CartFilter, DrawerFilter
+from .services import suspend as suspend_service
 from .services.discounts import (
     REASON_GOOGLE_REVIEW,
     REASON_STORE_CREDIT,
@@ -429,20 +430,41 @@ class DrawerViewSet(viewsets.ModelViewSet):
                 {'detail': 'Drawer is not open.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        # Sales set aside at this register (Suspend, owner 2026-10-20) do not survive the day: warn first, and the
+        # close that says so voids them (nothing was sold, so no item or cash changes).
+        set_aside = list(suspend_service.suspended_in_drawer(drawer.pk))
+        void_suspended = str(request.data.get('void_suspended', '')).strip().lower() in _TRUE_PARAM
+        if set_aside and not void_suspended:
+            return Response(
+                {
+                    'detail': (
+                        f'{len(set_aside)} sale{"s" if len(set_aside) != 1 else ""} set aside at this register '
+                        'will be deleted when the drawer closes.'
+                    ),
+                    'code': 'SUSPENDED_SALES',
+                    'suspended_count': len(set_aside),
+                    'suspended': [suspend_service.tab_payload(c) for c in set_aside],
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         closing_count = request.data.get('closing_count', {})
         closing_total = Decimal(str(request.data.get('closing_total', 0)))
 
-        expected = self._drawer_expected_cash(drawer)
-        variance = closing_total - expected
+        with transaction.atomic():
+            if set_aside:
+                suspend_service.void_all_for_drawer(drawer.pk, request.user)
 
-        drawer.status = 'closed'
-        drawer.closed_by = request.user
-        drawer.closed_at = timezone.now()
-        drawer.closing_count = closing_count
-        drawer.closing_total = closing_total
-        drawer.expected_cash = expected
-        drawer.variance = variance
-        drawer.save()
+            expected = self._drawer_expected_cash(drawer)
+            variance = closing_total - expected
+
+            drawer.status = 'closed'
+            drawer.closed_by = request.user
+            drawer.closed_at = timezone.now()
+            drawer.closing_count = closing_count
+            drawer.closing_total = closing_total
+            drawer.expected_cash = expected
+            drawer.variance = variance
+            drawer.save()
 
         return Response(DrawerSerializer(drawer).data)
 
@@ -720,6 +742,8 @@ class CartViewSet(viewsets.ModelViewSet):
     def add_item(self, request, pk=None):
         """Add item to cart by SKU."""
         cart = self.get_object()
+        if cart.status == 'suspended':
+            return Response({'detail': 'This sale is set aside. Bring it back first.', 'code': 'SALE_SET_ASIDE'}, status=400)
         sku = (request.data.get('sku') or '').strip()
         if not sku:
             return Response(
@@ -734,6 +758,21 @@ class CartViewSet(viewsets.ModelViewSet):
                 {'detail': 'Item not found.', 'code': 'ITEM_NOT_FOUND'},
                 status=404,
             )
+
+        # A sale set aside holds its items (any register): this one cannot take them until that sale is back or gone.
+        if not _is_training_cart(cart):
+            holder = suspend_service.held_elsewhere(item, exclude_cart_id=cart.pk)
+            if holder is not None:
+                return Response(
+                    {
+                        'detail': suspend_service.held_message(holder),
+                        'code': suspend_service.HELD_CODE,
+                        'item_id': item.pk,
+                        'sku': item.sku,
+                        'title': item.product.title,
+                    },
+                    status=400,
+                )
 
         # A sold tag in hand means two items shared one tag: the one here is real. Its old sale moves to a new item
         # number and this one rings up as usual (owner, 2026-10-06: the register always adds). Only consignment
@@ -1699,6 +1738,15 @@ class CartViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Cart is not open.'}, status=400)
         if not hasattr(request.data, 'get'):
             return Response({'detail': 'Send the payment as a set of fields.', 'code': 'INVALID_PAYLOAD'}, status=400)
+        if not _is_training_cart(cart):
+            for line in cart.lines.filter(item__isnull=False).select_related('item'):
+                holder = suspend_service.held_elsewhere(line.item, exclude_cart_id=cart.pk)
+                if holder is not None:
+                    return Response(
+                        {'detail': suspend_service.held_message(holder), 'code': suspend_service.HELD_CODE,
+                         'sku': line.item.sku},
+                        status=400,
+                    )
         if cart.total < 0:
             return Response(
                 {'detail': 'Cart total cannot be negative.', 'code': 'NEGATIVE_TOTAL'},
@@ -1850,6 +1898,57 @@ class CartViewSet(viewsets.ModelViewSet):
 
         return Response(CartSerializer(cart).data)
 
+    # ── Suspend (owner 2026-10-20): set a sale aside, ring another, bring it back ─────────────────────────────
+
+    @action(detail=False, methods=['get'], url_path='suspended')
+    def suspended(self, request):
+        """The bookmark tabs: sales set aside on a drawer (``?drawer=``; ``?cashier=`` narrows it, as the shared test
+        terminal needs). Oldest first."""
+        try:
+            drawer_id = int(request.query_params.get('drawer') or 0)
+        except (TypeError, ValueError):
+            drawer_id = 0
+        if not drawer_id:
+            return Response({'detail': 'drawer is required.'}, status=400)
+        cashier = request.query_params.get('cashier')
+        carts = suspend_service.suspended_in_drawer(drawer_id, int(cashier) if str(cashier or '').isdigit() else None)
+        return Response({'results': [suspend_service.tab_payload(c) for c in carts]})
+
+    def _suspend_error(self, exc):
+        return Response({'detail': str(exc), 'code': exc.code}, status=400)
+
+    @action(detail=True, methods=['post'], url_path='suspend')
+    def suspend(self, request, pk=None):
+        """Set this open sale aside. Its items stay held; nothing is sold."""
+        cart = self.get_object()
+        try:
+            suspend_service.suspend(cart.pk)
+        except suspend_service.SuspendError as exc:
+            return self._suspend_error(exc)
+        return Response(suspend_service.tab_payload(self.get_queryset().get(pk=cart.pk)))
+
+    @action(detail=True, methods=['post'], url_path='resume')
+    def resume(self, request, pk=None):
+        """Bring a set-aside sale back as the open one. ``current`` (optional) is the sale on screen: it is set aside
+        in its place when it has items, and dropped when it is empty. Answers the fresh cart."""
+        cart = self.get_object()
+        try:
+            suspend_service.resume(cart.pk, request.data.get('current'))
+        except suspend_service.SuspendError as exc:
+            return self._suspend_error(exc)
+        return Response(CartSerializer(self.get_queryset().get(pk=cart.pk)).data)
+
+    @action(detail=True, methods=['post'], url_path='delete-suspended')
+    def delete_suspended(self, request, pk=None):
+        """Delete a set-aside sale (any cashier; the manager-only Void is for paid sales). Voids it; the items were
+        never sold, so they are simply free for the next sale."""
+        cart = self.get_object()
+        try:
+            suspend_service.delete_suspended(cart.pk, request.user)
+        except suspend_service.SuspendError as exc:
+            return self._suspend_error(exc)
+        return Response(CartSerializer(self.get_queryset().get(pk=cart.pk)).data)
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
     def void(self, request, pk=None):
         """Void a cart (manager only).
@@ -1899,6 +1998,8 @@ class CartViewSet(viewsets.ModelViewSet):
     def manage_line(self, request, pk=None, line_id=None):
         """Update (PATCH) or remove (DELETE) a cart line."""
         cart = self.get_object()
+        if cart.status == 'suspended':
+            return Response({'detail': 'This sale is set aside. Bring it back first.', 'code': 'SALE_SET_ASIDE'}, status=400)
         try:
             line = cart.lines.get(id=line_id)
         except CartLine.DoesNotExist:

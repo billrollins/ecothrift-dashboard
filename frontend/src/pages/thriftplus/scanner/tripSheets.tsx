@@ -27,7 +27,7 @@ import { tbNumber } from '../../../components/thriftplus/ThriftBucks';
 import { FieldBanner } from './ScannerTop';
 import { bucksReady, hasFinishSteps, money, wouldPayChoices } from './scannerLogic';
 import { ThriftPlusLogo, art, sc, u } from './scannerTheme';
-import { canInstall, installPrompt, isStandalone } from './installApp';
+import { TabScreen } from './memberTabs';
 import { BigButton, Sheet } from './tripUi';
 import { MY_CARD_KEY, thriftPlusKeys, useMe } from './useThriftPlus';
 
@@ -234,11 +234,12 @@ export function SidewaysQr() {
 }
 
 /**
- * Member QR (owner 2026-10-14, APP D1, D6 and D11): the member's QR to show at the register (there is no card), kept on
- * the phone so it shows with no signal, with the screen kept awake while it's open, and the home-screen link. Nothing else,
- * except "Finish joining" while a pending member still has a selfie or a signature to do (Join v2, owner 2026-10-19).
+ * My QR (owner 2026-10-14, APP D1, D6 and D11; a tab of the bottom bar since 2026-10-20): the member's QR to show at the
+ * register (there is no card), kept on the phone so it shows with no signal, with the screen kept awake while it's open.
+ * Nothing else, except "Finish joining" while a pending member still has a selfie or a signature to do (Join v2,
+ * owner 2026-10-19).
  */
-export function WalletSheet({ member, onClose, onFinish }: { member: ThriftPlusMember; onClose: () => void; onFinish?: () => void }) {
+export function WalletScreen({ member, onFinish }: { member: ThriftPlusMember; onFinish?: () => void }) {
   const steps = hasFinishSteps(member);
   const card = useQuery({ queryKey: thriftPlusKeys.myCard, queryFn: getMyCard, initialData: cachedCard, staleTime: 60_000 });
   useEffect(() => {
@@ -262,9 +263,8 @@ export function WalletSheet({ member, onClose, onFinish }: { member: ThriftPlusM
   }, []);
   const c = card.data;
   return (
-    <Sheet onClose={onClose} testId="wallet-sheet">
-      <Box component="h2" sx={{ m: 0, pr: u(90), fontFamily: sc.condensed, fontWeight: 700, fontSize: u(52), color: sc.titleGreen }}>Member QR</Box>
-      <Box data-testid="my-card" sx={{ mt: u(22), borderRadius: u(40), px: u(36), py: u(34), color: '#fff',
+    <TabScreen testId="wallet-screen" title="Member QR">
+      <Box data-testid="my-card" sx={{ borderRadius: u(40), px: u(36), py: u(34), color: '#fff',
         background: 'linear-gradient(165deg, #3f9f35 0%, #2e8a2c 55%, #237a26 100%)', boxShadow: `0 ${u(10)} ${u(28)} rgba(35,122,38,0.30)` }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: u(20) }}>
           <ThriftPlusLogo width={u(230)} />
@@ -306,23 +306,15 @@ export function WalletSheet({ member, onClose, onFinish }: { member: ThriftPlusM
           <BigButton primary onClick={onFinish} testId="finish-joining-button">Finish joining</BigButton>
         </Box>
       )}
-      <AddToHome />
-    </Sheet>
+    </TabScreen>
   );
 }
 
 /**
- * The balance (owner 2026-10-15, APP D11): the left half of the header pill. Thrift+ credit and every ThriftBuck in the
- * order the register uses them (B3), the B12 line, My account, Sign out, and a way back to the Member QR.
+ * Bucks (owner 2026-10-15, APP D11; a tab of the bottom bar since 2026-10-20): Thrift+ credit and every ThriftBuck in the
+ * order the register uses them (B3) with each one's use-by date, and the B12 line. Sign out is in Account.
  */
-export function BalanceSheet({ member, tripTotal, onClose, onAccount, onSignOut, onShowQr }: {
-  member: ThriftPlusMember;
-  tripTotal: number;
-  onClose: () => void;
-  onAccount: () => void;
-  onSignOut: () => void;
-  onShowQr: () => void;
-}) {
+export function BalanceScreen({ member, tripTotal }: { member: ThriftPlusMember; tripTotal: number }) {
   const me = useMe();
   const lots = me.data?.rewards ?? [];
   const credit = me.data?.credit ?? member.credit_balance;
@@ -340,10 +332,9 @@ export function BalanceSheet({ member, tripTotal, onClose, onAccount, onSignOut,
           : `Collected ${day(l.earned_on)} · use by ${day(l.use_by)}`,
     })),
   ];
-  const link = { fontSize: u(28), color: sc.ink2, textDecoration: 'underline', px: u(16), py: u(10), borderRadius: u(12), fontFamily: sc.font } as const;
   return (
-    <Sheet onClose={onClose} testId="balance-sheet">
-      <Box sx={{ fontSize: u(26), color: sc.ink2, letterSpacing: '0.14em', textTransform: 'uppercase', pr: u(90) }}>Your ThriftBucks</Box>
+    <TabScreen testId="balance-screen">
+      <Box sx={{ fontSize: u(26), color: sc.ink2, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Your ThriftBucks</Box>
       <Box sx={{ display: 'flex', alignItems: 'baseline', gap: u(14), mt: u(6) }}>
         <Box data-testid="balance-ready" sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(110), lineHeight: 1, color: sc.priceGreen }}>{tbNumber(ready.now)}</Box>
         <Box sx={{ fontSize: u(30), color: sc.ink2 }}>ready to use</Box>
@@ -391,60 +382,7 @@ export function BalanceSheet({ member, tripTotal, onClose, onAccount, onSignOut,
       )}
 
       <Box sx={{ mt: u(26), fontSize: u(24), lineHeight: 1.4, color: sc.ink3 }}>{CARD_TERMS}</Box>
-
-      <Box sx={{ mt: u(28), display: 'flex', justifyContent: 'center', gap: u(20) }}>
-        <ButtonBase onClick={onAccount} data-testid="my-account" sx={link}>My account</ButtonBase>
-        <ButtonBase onClick={onSignOut} data-testid="sign-out" sx={link}>Sign out</ButtonBase>
-      </Box>
-      <ButtonBase onClick={onShowQr} data-testid="show-qr"
-        sx={{ mt: u(18), width: '100%', py: u(18), gap: u(12), borderRadius: u(16), fontSize: u(30), color: sc.ink2, fontFamily: sc.font }}>
-        <QrCode2Rounded sx={{ fontSize: u(40), color: '#3f9f35' }} />
-        Show my member QR
-      </ButtonBase>
-    </Sheet>
-  );
-}
-
-/**
- * "Add your member QR to your home screen" (owner 2026-10-14, APP D5 and D6): hidden in the home-screen app and where adding isn't
- * possible. Android: the browser's own Install prompt. iPhone Safari: how to do it (Share, then Add to Home Screen).
- */
-function AddToHome() {
-  const [how, setHow] = useState(false);
-  const [, bump] = useState(0);
-  useEffect(() => installPrompt.listen(() => bump((n) => n + 1)), []);
-  const way = canInstall();
-  if (isStandalone() || !way) return null;
-  return (
-    <>
-      <Box sx={{ mt: u(22), textAlign: 'center' }}>
-        <ButtonBase
-          data-testid="add-to-home"
-          onClick={() => (way === 'prompt' ? void installPrompt.show() : setHow(true))}
-          sx={{ fontFamily: sc.font, fontWeight: 700, fontSize: u(28), color: '#237a26', textDecoration: 'underline', px: u(12), py: u(8), borderRadius: u(12) }}
-        >
-          Add your member QR to your home screen
-        </ButtonBase>
-      </Box>
-      {how && (
-        <Sheet onClose={() => setHow(false)} testId="add-to-home-sheet">
-          <Box component="h2" sx={{ m: 0, pr: u(90), fontFamily: sc.condensed, fontWeight: 700, fontSize: u(52), color: sc.titleGreen }}>
-            Add it to your home screen
-          </Box>
-          <Box sx={{ mt: u(24), display: 'flex', alignItems: 'center', gap: u(24) }}>
-            <Box component="img" src="/scan/icons/apple-touch-icon.png" alt="" sx={{ width: u(150), height: u(150), borderRadius: u(34), flexShrink: 0 }} />
-            <Box sx={{ fontSize: u(31), lineHeight: 1.4, color: sc.ink }}>Then one tap opens your member QR at the register.</Box>
-          </Box>
-          <Box sx={{ mt: u(28), fontSize: u(31), lineHeight: 1.5, color: sc.ink }}>
-            <Box>1. Tap <b>Share</b> at the bottom of Safari (the square with the arrow).</Box>
-            <Box sx={{ mt: u(10) }}>2. Tap <b>Add to Home Screen</b>, then <b>Add</b>.</Box>
-          </Box>
-          <Box sx={{ mt: u(34), display: 'flex' }}>
-            <BigButton primary onClick={() => setHow(false)} testId="add-to-home-done">Got it</BigButton>
-          </Box>
-        </Sheet>
-      )}
-    </>
+    </TabScreen>
   );
 }
 

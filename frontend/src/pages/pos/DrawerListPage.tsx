@@ -43,7 +43,8 @@ import { useUsers } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDeviceConfig } from '../../hooks/useDeviceConfig';
 import type { DenominationBreakdown } from '../../types/pos.types';
-import type { Drawer } from '../../types/pos.types';
+import type { Drawer, SuspendedSaleTab } from '../../types/pos.types';
+import { tabDetail, tabLabel } from '../../components/pos/SuspendedSalesBar';
 import { format } from 'date-fns';
 import { IconAdd as Add, IconRemove as Remove } from '../../icons/ecoIcons';
 import { TRAINING_REGISTER_LABEL, sortRegistersForSetup } from '../../utils/trainingRegister';
@@ -85,6 +86,8 @@ export default function DrawerListPage() {
   const [dropDrawer, setDropDrawer] = useState<number | null>(null);
   const [count, setCount] = useState<DenominationBreakdown>(EMPTY_BREAKDOWN);
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
+  // Sales set aside at the register (Suspend): closing warns, and the second try deletes them.
+  const [setAside, setSetAside] = useState<SuspendedSaleTab[] | null>(null);
 
   const { data: registersData, isLoading: regLoading } = useRegisters();
   // The server leaves the training register's drawer out of lists unless asked; this page asks so it
@@ -132,21 +135,31 @@ export default function DrawerListPage() {
     }
   };
 
-  const handleCloseDrawer = async () => {
+  const handleCloseDrawer = async (voidSuspended = false) => {
     if (!selectedDrawer) return;
     const closingTotal = calculateTotal(count);
-    const expected = expectedCash(selectedDrawer);
-    const variance = closingTotal - expected;
     try {
       await closeDrawerMutation.mutateAsync({
         id: selectedDrawer.id,
-        data: { closing_count: count, closing_total: closingTotal },
+        data: {
+          closing_count: count,
+          closing_total: closingTotal,
+          ...(voidSuspended ? { void_suspended: true } : {}),
+        },
       });
-      enqueueSnackbar('Drawer closed', { variant: 'success' });
+      enqueueSnackbar(voidSuspended ? 'Drawer closed. Sales set aside were deleted.' : 'Drawer closed', {
+        variant: 'success',
+      });
+      setSetAside(null);
       setOpenDialog(null);
       setSelectedDrawer(null);
       setCount(EMPTY_BREAKDOWN);
-    } catch {
+    } catch (err: unknown) {
+      const body = (err as { response?: { data?: { code?: string; suspended?: SuspendedSaleTab[] } } })?.response?.data;
+      if (body?.code === 'SUSPENDED_SALES') {
+        setSetAside(body.suspended ?? []);
+        return;
+      }
       enqueueSnackbar('Failed to close drawer', { variant: 'error' });
     }
   };
@@ -458,7 +471,7 @@ export default function DrawerListPage() {
           <Button
             variant="contained"
             color="error"
-            onClick={handleCloseDrawer}
+            onClick={() => handleCloseDrawer()}
             disabled={closeDrawerMutation.isPending}
           >
             Close drawer
@@ -507,6 +520,32 @@ export default function DrawerListPage() {
           <Button onClick={resetDialog}>Cancel</Button>
           <Button variant="contained" onClick={handleCashDrop} disabled={cashDropMutation.isPending}>
             {cashDropMutation.isPending ? 'Processing…' : 'Drop'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={setAside != null} onClose={() => setSetAside(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Sales are set aside</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            {setAside?.length === 1 ? '1 sale is' : `${setAside?.length ?? 0} sales are`} set aside at this register.
+            Closing the drawer deletes {setAside?.length === 1 ? 'it' : 'them'}, and the items go back on the shelf.
+          </Typography>
+          {(setAside ?? []).map((tab) => (
+            <Typography key={tab.id} variant="body2" fontWeight={600}>
+              {tabLabel(tab)}: {tabDetail(tab)}
+            </Typography>
+          ))}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSetAside(null)}>Go back</Button>
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={() => handleCloseDrawer(true)}
+            disabled={closeDrawerMutation.isPending}
+          >
+            Close and delete them
           </Button>
         </DialogActions>
       </Dialog>

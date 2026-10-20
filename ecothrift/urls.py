@@ -48,6 +48,7 @@ urlpatterns = [
     path('api/routines/', include('apps.routines.urls')),
     path('api/documents/', include('apps.documents.urls')),
     path('api/thriftplus/', include('apps.thriftplus.urls')),
+    path('api/texting/', include('apps.texting.urls')),  # Twilio's STOP / HELP webhook (Phase 4)
     path('api/qa/', include('apps.qa.urls')),
     path('api/stocktake/', include('apps.stocktake.urls')),
     path('api/hiring/', include('apps.hiring.urls')),

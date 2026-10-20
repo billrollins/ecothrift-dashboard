@@ -22,7 +22,7 @@ class CartFilter(filters.FilterSet):
     def filter_status(self, qs, name, value):
         if value == 'all':
             return qs.filter(status__in=['completed', 'voided'])
-        if value in ('completed', 'voided', 'open'):
+        if value in ('completed', 'voided', 'open', 'suspended'):
             return qs.filter(status=value)
         return qs
 

@@ -1,7 +1,9 @@
 /**
  * The scanner as a home-screen app (owner 2026-10-14, APP D5): the web app manifest and the iPhone tags go in the page
- * head only while the scanner is open, and Android's install prompt is kept until the member taps "Add your member
- * QR to your home screen" (D6). The manifest and icons live in frontend/public/scan/.
+ * head only while the scanner is open, and Android's install prompt is kept until the member taps Install on the
+ * "Put Thrift+ on your home screen" card (owner 2026-10-20). The manifest and icons live in frontend/public/scan/. The
+ * public site (frontend-public/index.html) carries the same tags on every page, so Add to Home Screen from any
+ * ecothrift.us page installs the app, not a bookmark (owner 2026-10-20): keep the two in step.
  */
 
 interface BeforeInstallPromptEvent extends Event {
@@ -58,6 +60,28 @@ export function canInstall(): 'prompt' | 'ios' | null {
   if (deferred) return 'prompt';
   if (isIphoneSafari()) return 'ios';
   return null;
+}
+
+/** "Put Thrift+ on your home screen" (owner 2026-10-20): a dismissed prompt stays away this long. Account always shows it. */
+export const HOME_CARD_QUIET_DAYS = 14;
+const HOME_CARD_KEY = 'tp-home-card-dismissed';
+
+/** True while the prompt is in its two quiet weeks. Private mode (no storage) never counts as dismissed. */
+export function homeCardDismissed(now = Date.now()): boolean {
+  try {
+    const at = Number(localStorage.getItem(HOME_CARD_KEY));
+    return at > 0 && now - at < HOME_CARD_QUIET_DAYS * 86_400_000;
+  } catch {
+    return false;
+  }
+}
+
+export function dismissHomeCard(now = Date.now()): void {
+  try {
+    localStorage.setItem(HOME_CARD_KEY, String(now));
+  } catch {
+    /* private mode: it just comes back next time */
+  }
 }
 
 /**

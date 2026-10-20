@@ -9,6 +9,7 @@ from apps.thriftplus.views import (
     CardViewSet,
     MemberDirectoryViewSet,
     OverstockViewSet,
+    OwnerPinViewSet,
     PersonViewSet,
     RegisterViewSet,
     RestrictedProductViewSet,
@@ -28,6 +29,8 @@ router.register(r'overstock', OverstockViewSet, basename='thriftplus-overstock')
 router.register(r'register', RegisterViewSet, basename='thriftplus-register')
 router.register(r'restricted', RestrictedProductViewSet, basename='thriftplus-restricted')
 router.register(r'returns', ReturnsViewSet, basename='thriftplus-returns')
+# Owner 2026-10-20: the owner PIN (set in Dash Settings; anyone may type it where it is asked).
+router.register(r'owner-pin', OwnerPinViewSet, basename='thriftplus-owner-pin')
 # Owner 2026-10-15: every staff member's own membership, made, linked or merged from Dash.
 router.register(r'staff-memberships', StaffMembershipsViewSet, basename='thriftplus-staff-memberships')
 # Owner 2026-10-16: Dash -> Users -> Members (every member, the drawer's actions).
@@ -88,6 +91,9 @@ public = [
     # Join v2: a pending member's selfie and signature, taken in the app before the register.
     path('me/selfie/', public_views.selfie),
     path('me/signature/', public_views.signature),
+    # Phone first (owner 2026-10-20): a member with no phone adds one with a texted code.
+    path('me/phone/send/', public_views.phone_send),
+    path('me/phone/', public_views.phone_save),
 ]
 
 # Every public route is behind the Thrift+ switch (owner, 2026-10-07), except signing in: while it is off, only staff

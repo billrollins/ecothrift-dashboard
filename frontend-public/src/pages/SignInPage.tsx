@@ -1,10 +1,28 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
+import GoogleSignInButton from '../components/GoogleSignInButton'
+import { checkCode, getSignInOptions, sendCode, signInWithGoogle, type SignInOptions } from '../lib/memberSignIn'
 import { useOnlineSalesConfig } from '../onlineSalesConfig'
 import { useSeo } from '../useSeo'
 
-type Step = 'email' | 'password' | 'link_sent' | 'register' | 'register_sent' | 'reset_sent'
+// 'start' = the same two ways as the Thrift+ app (owner 2026-10-20): Continue with Google, or a mobile number and a text.
+// 'email' is the old way, kept behind "Joined with an email? Use your email" until those members have moved over.
+type Step = 'start' | 'code' | 'email' | 'password' | 'link_sent' | 'register' | 'register_sent' | 'reset_sent'
+
+const RESEND_SECONDS = 30
+const NO_PHONE_WORDS =
+  "You're signed in to Thrift+, but not to this site. Use your email below."
+
+/** The text-message line under "Send my code": the same words the Thrift+ app shows (Twilio's toll-free review, J18). */
+function TextConsent() {
+  return (
+    <p data-testid="text-consent" style={{ marginTop: 14, fontSize: 13, lineHeight: 1.45, color: '#5d605a' }}>
+      A phone number gets one text with your code each time you ask. Msg &amp; data rates may apply. Reply STOP to
+      cancel, HELP for help. <Link to="/terms">Terms</Link> Â· <Link to="/privacy">Privacy</Link>
+    </p>
+  )
+}
 
 export default function SignInPage() {
   useSeo({ title: 'Sign in', noindex: true })
@@ -15,11 +33,17 @@ export default function SignInPage() {
     signInWithPassword,
     lookupEmail,
     requestReset,
+    completeSignIn,
     user,
   } = useAuth()
   const [params] = useSearchParams()
   const navigate = useNavigate()
-  const [step, setStep] = useState<Step>('email')
+  const [step, setStep] = useState<Step>('start')
+  const [options, setOptions] = useState<SignInOptions | null>(null)
+  const [phone, setPhone] = useState('')
+  const [code, setCode] = useState('')
+  const [resendLeft, setResendLeft] = useState(0)
+  const sending = useRef(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   // A staff login (owner 2026-10-15): staff are website customers too and sign in with their Dash password. Customers
@@ -32,6 +56,22 @@ export default function SignInPage() {
   useEffect(() => {
     if (user && !tokenFromUrl) navigate('/account', { replace: true })
   }, [user, navigate, tokenFromUrl])
+
+  useEffect(() => {
+    if (tokenFromUrl) return
+    let active = true
+    getSignInOptions().then((o) => active && setOptions(o))
+    return () => {
+      active = false
+    }
+  }, [tokenFromUrl])
+
+  // "Send it again" opens 30 seconds after a text went out (texts cost money: one tap sends once).
+  useEffect(() => {
+    if (resendLeft <= 0) return
+    const t = window.setTimeout(() => setResendLeft((n) => n - 1), 1000)
+    return () => window.clearTimeout(t)
+  }, [resendLeft])
 
   useEffect(() => {
     if (!tokenFromUrl) return
@@ -105,6 +145,93 @@ export default function SignInPage() {
     )
   }
 
+  const phoneOn = options?.phone === true
+  const googleId = options?.google_client_id ?? null
+  // Neither Google nor texts (a server without them): the email form, as before.
+  const view: Step = step === 'start' && options && !phoneOn && !googleId ? 'email' : step
+
+  /** A good code or Google answer signed in to Thrift+ and, by the server's cookie, to this site: load the customer. */
+  const finishSignIn = async () => {
+    const signedIn = await completeSignIn()
+    if (signedIn) navigate('/account', { replace: true })
+    else {
+      setError(NO_PHONE_WORDS)
+      setStep('email')
+    }
+  }
+
+  const onSendCode = async (e: FormEvent) => {
+    e.preventDefault()
+    if (sending.current) return
+    if (phone.replace(/\D/g, '').length < 10) {
+      setError('Enter a US mobile number.')
+      return
+    }
+    sending.current = true
+    setBusy(true)
+    setError(null)
+    try {
+      await sendCode(phone)
+      setCode('')
+      setResendLeft(RESEND_SECONDS)
+      setStep('code')
+    } catch (err) {
+      const wait = (err as { code?: string; retryAfter?: number })
+      // One went there moments ago: go and enter it.
+      if (wait.code === 'TOO_SOON') {
+        setCode('')
+        setResendLeft(wait.retryAfter ?? RESEND_SECONDS)
+        setStep('code')
+      } else setError(err instanceof Error ? err.message : 'Could not send the code. Try again.')
+    } finally {
+      sending.current = false
+      setBusy(false)
+    }
+  }
+
+  const submitCode = async (value: string) => {
+    if (value.length !== 6 || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await checkCode(phone, value)
+      await finishSignIn()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That code didn't work. Check it and try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const onResend = async () => {
+    if (sending.current) return
+    sending.current = true
+    setError(null)
+    try {
+      await sendCode(phone)
+      setResendLeft(RESEND_SECONDS)
+    } catch (err) {
+      const wait = err as { code?: string; retryAfter?: number }
+      if (wait.code === 'TOO_SOON') setResendLeft(wait.retryAfter ?? RESEND_SECONDS)
+      else setError(err instanceof Error ? err.message : 'Could not send the code. Try again.')
+    } finally {
+      sending.current = false
+    }
+  }
+
+  const onGoogle = async (credential: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await signInWithGoogle(credential)
+      await finishSignIn()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google didn't sign you in. Try again, or use your mobile number.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const onEmailContinue = async (e: FormEvent) => {
     e.preventDefault()
     setBusy(true)
@@ -165,7 +292,124 @@ export default function SignInPage() {
         </h1>
       </div>
 
-      {step === 'email' && (
+      {view === 'start' && !options && (
+        <p className="lead" style={{ opacity: 0.6 }}>
+          One momentâ€¦
+        </p>
+      )}
+
+      {view === 'start' && options && (
+        <div className="checkout-form" style={{ maxWidth: 420 }}>
+          <p className="lead">Sign in to your Thrift+ account.</p>
+          {googleId && (
+            <>
+              <GoogleSignInButton clientId={googleId} onCredential={(c) => void onGoogle(c)} />
+              {phoneOn && (
+                <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '18px 0', color: '#8a8d85' }}>
+                  <span style={{ flex: 1, height: 1, background: '#d6d9d0' }} />
+                  or
+                  <span style={{ flex: 1, height: 1, background: '#d6d9d0' }} />
+                </div>
+              )}
+            </>
+          )}
+          {phoneOn && (
+            <form onSubmit={onSendCode}>
+              <label className="field">
+                <span>Mobile number</span>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  disabled={busy}
+                  autoComplete="tel"
+                  inputMode="tel"
+                />
+              </label>
+              <p style={{ margin: '6px 0 0', fontSize: 14, color: '#5d605a' }}>We&apos;ll text you a 6-digit code.</p>
+              {error && <div className="formerror">{error}</div>}
+              <button className="btn btn--primary" type="submit" disabled={busy}>
+                {busy ? 'Workingâ€¦' : 'Send my code'}
+              </button>
+              <TextConsent />
+            </form>
+          )}
+          {!phoneOn && error && <div className="formerror">{error}</div>}
+          <div className="hbtns" style={{ marginTop: 16 }}>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => {
+                setError(null)
+                setStep('email')
+              }}
+            >
+              Joined with an email? Use your email
+            </button>
+          </div>
+          <p style={{ marginTop: 14, fontSize: 14 }}>
+            New to Thrift+? <a href="/join">Join Thrift+</a>
+          </p>
+        </div>
+      )}
+
+      {view === 'code' && (
+        <form
+          className="checkout-form"
+          style={{ maxWidth: 420 }}
+          onSubmit={(e) => {
+            e.preventDefault()
+            void submitCode(code)
+          }}
+        >
+          <p className="lead" data-testid="sent-line">
+            Enter the 6-digit code we sent to <strong>{phone.trim()}</strong>.{' '}
+            <button
+              type="button"
+              className="btn btn--ghost"
+              style={{ padding: 0, minHeight: 0, textDecoration: 'underline' }}
+              onClick={() => {
+                setError(null)
+                setStep('start')
+              }}
+            >
+              Change
+            </button>
+          </p>
+          <label className="field">
+            <span>6-digit code</span>
+            <input
+              autoFocus
+              value={code}
+              onChange={(e) => {
+                const v = e.target.value.replace(/\D/g, '').slice(0, 6)
+                const sixth = v.length === 6 && code.length < 6
+                setCode(v)
+                if (error) setError(null)
+                if (sixth) void submitCode(v)
+              }}
+              disabled={busy}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+            />
+          </label>
+          {error && <div className="formerror">{error}</div>}
+          <button className="btn btn--primary" type="submit" disabled={busy || code.length !== 6}>
+            {busy ? 'Workingâ€¦' : 'Sign in'}
+          </button>
+          <p data-testid="resend" style={{ marginTop: 14, fontSize: 14, color: '#5d605a' }}>
+            {resendLeft > 0 ? (
+              `Didn't get it? Send it again in ${Math.floor(resendLeft / 60)}:${String(resendLeft % 60).padStart(2, '0')}`
+            ) : (
+              <button type="button" className="btn btn--ghost" onClick={() => void onResend()}>
+                Send it again
+              </button>
+            )}
+          </p>
+        </form>
+      )}
+
+      {view === 'email' && (
         <>
           <p className="lead">Enter your email to continue.</p>
           <form className="checkout-form" onSubmit={onEmailContinue} style={{ maxWidth: 420 }}>
@@ -184,6 +428,19 @@ export default function SignInPage() {
             <button className="btn btn--primary" type="submit" disabled={busy}>
               {busy ? 'Working…' : 'Continue'}
             </button>
+            {(phoneOn || googleId) && (
+              <button
+                type="button"
+                className="btn btn--ghost"
+                style={{ marginTop: 8 }}
+                onClick={() => {
+                  setError(null)
+                  setStep('start')
+                }}
+              >
+                {googleId && phoneOn ? 'Use Google or your mobile number' : googleId ? 'Use Google' : 'Use your mobile number'}
+              </button>
+            )}
           </form>
         </>
       )}

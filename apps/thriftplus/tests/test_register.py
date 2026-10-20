@@ -568,7 +568,8 @@ class ReturnTests(RegisterBase):
         row = self.api.get('/api/thriftplus/returns/lookup/', {'code': self.codes[0]}).json()['lines'][0]
         self.assertEqual((row['ok'], row['late_only']), (False, True))  # the owner may allow it at the register
         self.api.force_authenticate(self.manager)
-        self.assertEqual(self._return(line_id, late_ok=True, note='closed').status_code, 403)
+        refused = self._return(line_id, late_ok=True, note='closed')  # not the owner, and no PIN set yet (owner 2026-10-20)
+        self.assertEqual((refused.status_code, refused.json()['code']), (403, 'PIN_NOT_SET'))
         owner = User.objects.create_superuser(email='owner@example.com', first_name='O', last_name='W', password='x-pass-123')
         owner.groups.add(Group.objects.get_or_create(name='Admin')[0])
         self.api.force_authenticate(owner)

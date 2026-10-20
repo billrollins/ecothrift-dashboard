@@ -33,7 +33,7 @@ def next_units(item: Item, cart, count: int = 1) -> list[Item]:
     group = _group(item)
     if group is None or count < 1:
         return []
-    taken = CartLine.objects.filter(item_id=OuterRef('pk'), cart__status='open')
+    taken = CartLine.objects.filter(item_id=OuterRef('pk'), cart__status__in=('open', 'suspended'))  # a set-aside sale holds its items
     return list(
         group.filter(
             product_id=item.product_id,

@@ -117,6 +117,7 @@ import { buildReceiptData } from '../../utils/posReceipt';
 import ReturnsPopup from '../../components/pos/ReturnsPopup';
 import ThriftMemberDialog from '../../components/pos/ThriftMemberDialog';
 import ThriftPlusPanel from '../../components/pos/ThriftPlusPanel';
+import SuspendedSalesBar from '../../components/pos/SuspendedSalesBar';
 import ThriftPlusPhoneFind from '../../components/pos/ThriftPlusPhoneFind';
 import ThriftPlusSignupDialog from '../../components/pos/ThriftPlusSignupDialog';
 import { useQuery } from '@tanstack/react-query';
@@ -1189,6 +1190,20 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       setRefreshing(false);
     }
   }, [commitCart, enqueueSnackbar]);
+
+  /** Suspend (owner 2026-10-20): put another sale on screen (null = empty, the next scan starts a new one). */
+  const swapCart = useCallback(
+    (next: Cart | null) => {
+      pendingScrollLineIdRef.current = null;
+      cartRef.current = next;
+      setCart(next);
+      setCashTendered('');
+      setPayrollEmployee('');
+      setEditingLineId(null);
+      markRegisterActivity();
+    },
+    [markRegisterActivity],
+  );
 
   const finishCompletedSale = useCallback(
     async (
@@ -2387,6 +2402,16 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       />
 
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {(terminalState === 'ready' || terminalState === 'active_sale') && (
+          <SuspendedSalesBar
+            drawerId={cart?.drawer ?? todayDrawer?.id}
+            cashierId={testMode ? user?.id : undefined}
+            cart={cart}
+            disabled={createCartMutation.isPending || completeCartMutation.isPending || cardTenderOpen}
+            onSuspended={() => swapCart(null)}
+            onResumed={(fresh) => swapCart(fresh)}
+          />
+        )}
         {renderContent()}
       </Box>
 

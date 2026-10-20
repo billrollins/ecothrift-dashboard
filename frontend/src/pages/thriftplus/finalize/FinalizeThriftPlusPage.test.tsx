@@ -9,11 +9,12 @@ import FinalizeThriftPlusPage, { SIGNATURE_WORDS, codeMemberMessage } from './Fi
 // These forms type a lot through userEvent; on a busy machine (full suite beside the Django run) 20s is not enough.
 vi.setConfig({ testTimeout: 60_000 });
 
-const api = vi.hoisted(() => ({ findPendingOrMember: vi.fn(), finishThriftJoin: vi.fn() }));
+const api = vi.hoisted(() => ({ findPendingOrMember: vi.fn(), finishThriftJoin: vi.fn(), textSignInLink: vi.fn() }));
 vi.mock('../../../api/thriftplusRegister.api', async (orig) => ({
   ...(await orig<typeof import('../../../api/thriftplusRegister.api')>()),
   findPendingOrMember: api.findPendingOrMember,
   finishThriftJoin: api.finishThriftJoin,
+  textSignInLink: api.textSignInLink,
 }));
 
 // jsdom has no camera: the test plays the decoder, handing the page what the camera "read".
@@ -49,6 +50,7 @@ const READY: ThriftPendingPerson = {
 beforeEach(() => {
   api.findPendingOrMember.mockReset();
   api.finishThriftJoin.mockReset();
+  api.textSignInLink.mockReset().mockResolvedValue(undefined);
   api.findPendingOrMember.mockResolvedValue({ people: [CARA] });
   api.finishThriftJoin.mockResolvedValue({ person_id: 7, account_id: 3, first_name: 'Cara', last_name: 'Joyner', status: 'active', signed: true, cart: null });
   camera.onDecode = null;
@@ -285,6 +287,41 @@ describe('Finalize Thrift+', () => {
     await user.click(screen.getByTestId('finalize-person-pending'));
     await user.click(await screen.findByRole('button', { name: 'Check their ID now' }));
     expect(await screen.findByTestId('finalize-verify')).toBeInTheDocument();
+  });
+
+  // Phase 4 (owner 2026-10-20): the Staff app's "Text sign-in link", only when the server offers it.
+  describe('Text sign-in link', () => {
+    const MEMBER: ThriftPendingPerson = { ...CARA, person_id: 8, first_name: 'Dee', last_name: 'Done', status: 'active', phone_last4: '4567' };
+
+    async function openSheet(person: ThriftPendingPerson) {
+      const user = userEvent.setup();
+      api.findPendingOrMember.mockResolvedValue({ people: [person] });
+      renderPage();
+      await user.click(await screen.findByTestId('finalize-person-done'));
+      await screen.findByTestId('finalize-person-sheet');
+      return user;
+    }
+
+    it('is hidden when the switch is off, there is no phone, or they said STOP (the server sends can_text_link false)', async () => {
+      await openSheet(MEMBER);
+      expect(screen.getByTestId('person-sign-in-qr')).toBeInTheDocument(); // the QR stays
+      expect(screen.queryByTestId('person-text-link')).not.toBeInTheDocument();
+    });
+
+    it('texts the link once when tapped and says where it went', async () => {
+      const user = await openSheet({ ...MEMBER, can_text_link: true });
+      await user.click(screen.getByTestId('person-text-link'));
+      expect(api.textSignInLink).toHaveBeenCalledTimes(1);
+      expect(api.textSignInLink).toHaveBeenCalledWith(8);
+      expect(await screen.findByTestId('finalize-sheet-note')).toHaveTextContent('Texted a sign-in link to the phone ending 4567. It works once, for 15 minutes.');
+    });
+
+    it('shows the server\'s words when it could not go out', async () => {
+      api.textSignInLink.mockRejectedValue({ response: { data: { detail: 'Texts to this number are turned off.' } } });
+      const user = await openSheet({ ...MEMBER, can_text_link: true });
+      await user.click(screen.getByTestId('person-text-link'));
+      expect(await screen.findByTestId('finalize-sheet-note')).toHaveTextContent('Texts to this number are turned off.');
+    });
   });
 
   it('marks who took a selfie and signed in the app: their selfie small and "Ready: selfie + signed" (Join v2)', async () => {

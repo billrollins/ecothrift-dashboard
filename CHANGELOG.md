@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.187.2] -->
-<!-- Last reviewed: 2026-10-20 (2.187.2) -->
+<!-- Line 1 release: ## [2.188.0] -->
+<!-- Last reviewed: 2026-10-20 (2.188.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,28 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.188.0] - 2026-10-20
+
+User-facing theme: **The register and returns plan (releases 2 and 3) and the Thrift+ revision Phases 2-4, shipped together (Bill, 2026-10-20: "the more that is done and can be ship/deployed together the better").** Outside initiatives (POS, Thrift+).
+
+### Added
+- **Suspend (register):** a button above the sale sets it aside and starts a new one. Each set-aside sale is a bookmark tab (member first name or "Sale", items, total, time). Click to bring it back; right-click to delete. Its items can't be sold on any register until it's back or deleted. Closing the drawer warns, and closing anyway deletes them.
+- **Returns page** (Cashier menu, `/pos/returns`), built to be fast: find the receipt by the member (QR, name, phone, email), the receipt # / date / total, or an item (scan a tag or type words). The receipt opens split into **Returnable** and **AS IS**; tick what comes back (scan a tag to tick it), see the summary (credit, ThriftBucks), **Confirm**. Several items go back at once, and the member's view opens after.
+- **Owner PIN** (Settings → Thrift+): the owner sets and resets it; anyone given it can OK a return past the 3 days. Five wrong tries lock it for 15 minutes; every use is logged. A late return asks for a reason and is recorded as a **mark against Retail** on the cashier who rang the sale, listed under **Late returns** (managers and the owner).
+- **Thrift+ Member app bottom bar:** Scan · Bucks · My QR · Account. Account shows your name, phone and photo ("Ask at the register to change your photo") and Sign out.
+- **"Put Thrift+ on your home screen"** card on phones (Install on Android, three picture steps on iPhone); hidden for 2 weeks when dismissed, always in Account, never inside the installed app.
+- **Phone required:** a member with no mobile number (Google or older email joins) sees one "Add your mobile number" screen first: a 6-digit text, then it's saved.
+- **Website sign-in** matches the app: Continue with Google, or your mobile number and a 6-digit text (email stays a small link for members who joined with one).
+- **Our own texting number, built OFF:** sign-in codes from (888) 812-7905 with STOP and HELP answered, and a **Text sign-in link** button in the Staff app. Both stay off (`thrift_plus.own_number_codes`) until Twilio approves the toll-free verification; codes keep going through Verify.
+
+### Fixed
+- **Add to Home Screen** from any ecothrift.us page installs the Thrift+ app instead of making a bookmark.
+- In the app, the selfie and signature steps show the right next step after each save.
+- The register's old 3-day-return dialog is gone; returns live on the Returns page.
+
+### Database
+- pos 0037 (suspended sales), thriftplus 0027 (owner PIN, late-return marks) and 0028 (own-number codes, the switch seeded off). No existing data changes.
 
 ## [2.187.2] - 2026-10-20
 

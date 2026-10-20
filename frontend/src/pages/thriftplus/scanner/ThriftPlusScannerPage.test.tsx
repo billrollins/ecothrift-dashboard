@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigationType } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as mockApi from '../../../api/thriftPlusMock';
 import { thriftPlusMockControls } from '../../../api/thriftPlusMock';
@@ -13,7 +13,10 @@ vi.mock('../../../api/thriftPlusScanner.api', async () => {
   return {
     ...mock,
     confirmPasswordReset: vi.fn(),
-    getMe: vi.fn(async () => ({ credit: '8.56', rewards: [{ amount: '10.25', earned_on: '2026-10-02', use_by: '2026-11-01', past_due: false }] })),
+    getMe: vi.fn(async () => ({
+      banked: '10.25', credit: '8.56', can_change: true, people: [], money: [],
+      rewards: [{ amount: '10.25', earned_on: '2026-10-02', use_by: '2026-11-01', past_due: false }],
+    })),
     removePerson: vi.fn(),
     setUpLogin: vi.fn(),
     isOpen: vi.fn(async () => true),
@@ -47,7 +50,12 @@ vi.mock('./useQrCamera', async (orig) => ({
 
 /** The address the page is on now (`?signin=` comes off it, a join adds `view=qr`). */
 function Where() {
-  return <div data-testid="where">{useLocation().search}</div>;
+  return (
+    <>
+      <div data-testid="where">{useLocation().search}</div>
+      <div data-testid="nav-type">{useNavigationType()}</div>
+    </>
+  );
 }
 
 function renderPage(path = '/scan') {
@@ -63,6 +71,8 @@ function renderPage(path = '/scan') {
 }
 
 type User = ReturnType<typeof userEvent.setup>;
+
+const IPHONE_SAFARI = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 
 /** The password form is "Staff sign in" now (owner 2026-10-15, APP D9); the mock takes any login. */
 async function signInAsMember(user: User) {
@@ -273,67 +283,78 @@ describe('Thrift+ trip scanner (owner 2026-10-13)', () => {
     expect(qr).toHaveAccessibleName('Member QR: show it at the register');
     expect(screen.queryByTestId('my-card-button')).not.toBeInTheDocument();
     await user.click(qr);
-    const wallet = await screen.findByTestId('wallet-sheet');
+    const wallet = await screen.findByTestId('wallet-screen');
+    expect(screen.getByTestId('where')).toHaveTextContent('?view=qr');
     // My card (owner 2026-10-14): the QR to show at the register, its code to type, and the card's B12 line.
     expect(await within(wallet).findByTestId('my-card-code')).toHaveTextContent('4021 5583 1907');
     await waitFor(() => expect(within(wallet).getByTestId('my-card-qr').querySelector('svg')).not.toBeNull());
     expect(within(wallet).getByTestId('my-card')).toHaveTextContent('Show this at the register.');
-    expect(within(wallet).getByTestId('my-card')).toHaveTextContent('ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value.'); 
-    // The QR sheet holds the QR and nothing else (D11).
+    expect(within(wallet).getByTestId('my-card')).toHaveTextContent('ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value.');
+    // The QR screen holds the QR and nothing else (D11).
     expect(within(wallet).queryByTestId('wallet-row')).toBeNull();
-    expect(within(wallet).queryByTestId('sign-out')).toBeNull();
-    await user.click(within(wallet).getByRole('button', { name: 'Close' }));
-    await waitFor(() => expect(screen.queryByTestId('wallet-sheet')).not.toBeInTheDocument());
+    expect(within(wallet).queryByRole('button', { name: 'Sign out' })).toBeNull();
 
-    // The balance: credit and ThriftBucks in the order used, the B12 line, sign out, and back to the QR.
+    // The balance: credit and ThriftBucks in the order used, and the B12 line (Sign out is in Account).
     await user.click(screen.getByTestId('wallet-pill'));
-    const sheet = await screen.findByTestId('balance-sheet');
+    const sheet = await screen.findByTestId('balance-screen');
+    expect(screen.queryByTestId('wallet-screen')).toBeNull();
+    expect(screen.getByTestId('where')).toHaveTextContent('?view=bucks');
     const rows = await within(sheet).findAllByTestId('wallet-row');
     expect(rows[0]).toHaveTextContent('Thrift+ credit');
     expect(rows[0]).toHaveTextContent('$8.56');
     expect(rows[1]).toHaveTextContent('use by Nov 1');
     expect(sheet).toHaveTextContent('ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value.');
-    expect(within(sheet).getByTestId('sign-out')).toBeInTheDocument();
-    await user.click(within(sheet).getByTestId('show-qr'));
-    expect(await screen.findByTestId('wallet-sheet')).toBeInTheDocument();
-    expect(screen.queryByTestId('balance-sheet')).toBeNull();
+    expect(within(sheet).queryByRole('button', { name: 'Sign out' })).toBeNull();
   });
 
-  it('ecothrift.us/qr signs in, then opens the Member QR; on iPhone Safari it shows how to add it to the home screen', async () => {
+  it('ecothrift.us/qr signs in, then opens the My QR tab, with the bar under it; on iPhone Safari the home-screen banner is on Scan', async () => {
     // Owner 2026-10-14 (APP D5 and D6). /qr redirects to /scan?view=qr (and the old /card too).
-    const ua = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
-      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
-    );
-    const user = userEvent.setup();
-    renderPage('/scan?view=qr');
-    await signInAsMember(user);
-    const wallet = await screen.findByTestId('wallet-sheet');
-    expect(within(wallet).getByRole('heading', { name: 'Member QR' })).toBeInTheDocument();
-    expect(await within(wallet).findByTestId('my-card-code')).toHaveTextContent('4021 5583 1907');
-    expect(within(wallet).getByTestId('add-to-home')).toHaveTextContent('Add your member QR to your home screen');
-    expect(document.head.querySelector('link[rel="manifest"]')).toHaveAttribute('href', '/scan/manifest.webmanifest');
-    await user.click(within(wallet).getByTestId('add-to-home'));
-    const how = await screen.findByTestId('add-to-home-sheet');
-    expect(how).toHaveTextContent('Add it to your home screen');
-    expect(how).toHaveTextContent('Then one tap opens your member QR at the register.');
-    expect(how).toHaveTextContent('1. Tap Share at the bottom of Safari (the square with the arrow).');
-    expect(how).toHaveTextContent('2. Tap Add to Home Screen, then Add.');
-    await user.click(within(how).getByTestId('add-to-home-done'));
-    await waitFor(() => expect(screen.queryByTestId('add-to-home-sheet')).toBeNull());
-    // × goes back to the scanner.
-    await user.click(within(screen.getByTestId('wallet-sheet')).getByRole('button', { name: 'Close' }));
-    await waitFor(() => expect(screen.queryByTestId('wallet-sheet')).toBeNull());
-    expect(await screen.findByLabelText('Tag number')).toBeInTheDocument();
-    ua.mockRestore();
+    const ua = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(IPHONE_SAFARI);
+    try {
+      const user = userEvent.setup();
+      renderPage('/scan?view=qr');
+      await signInAsMember(user);
+      const wallet = await screen.findByTestId('wallet-screen');
+      expect(within(wallet).getByRole('heading', { name: 'Member QR' })).toBeInTheDocument();
+      expect(await within(wallet).findByTestId('my-card-code')).toHaveTextContent('4021 5583 1907');
+      expect(screen.getByTestId('member-tab-qr')).toHaveClass('Mui-selected');
+      expect(document.head.querySelector('link[rel="manifest"]')).toHaveAttribute('href', '/scan/manifest.webmanifest');
+      // The banner is on Scan (not on My QR); Show me opens the three picture steps.
+      expect(screen.queryByTestId('home-banner')).toBeNull();
+      await user.click(screen.getByTestId('member-tab-scan'));
+      const banner = await screen.findByTestId('home-banner');
+      expect(banner).toHaveTextContent('Put Thrift+ on your home screen');
+      expect(banner).toHaveTextContent('It stays signed in and opens faster.');
+      await user.click(within(banner).getByTestId('home-go'));
+      const how = await screen.findByTestId('home-steps');
+      expect(within(how).getByTestId('home-step-1')).toHaveTextContent('Tap Share at the bottom of Safari.');
+      expect(within(how).getByTestId('home-step-2')).toHaveTextContent('Add to Home Screen');
+      expect(within(how).getByTestId('home-step-3')).toHaveTextContent('Tap Add at the top right.');
+      await user.click(within(how).getByTestId('home-steps-done'));
+      await waitFor(() => expect(screen.queryByTestId('home-steps')).toBeNull());
+      // Not now hides the banner; Account still has the card.
+      await user.click(screen.getByTestId('home-dismiss'));
+      expect(screen.queryByTestId('home-banner')).toBeNull();
+      await user.click(screen.getByTestId('member-tab-account'));
+      expect(await screen.findByTestId('home-card')).toHaveTextContent('Put Thrift+ on your home screen');
+    } finally {
+      ua.mockRestore();
+    }
   });
 
-  it('hides "Add My card to your home screen" where a phone cannot add it', async () => {
+  it('shows no home-screen banner or card where a phone cannot add it (a computer)', async () => {
     const user = userEvent.setup();
     renderPage('/scan?view=card');
     await signInAsMember(user);
-    const wallet = await screen.findByTestId('wallet-sheet');
+    const wallet = await screen.findByTestId('wallet-screen');
     expect(await within(wallet).findByTestId('my-card-code')).toBeInTheDocument();
-    expect(within(wallet).queryByTestId('add-to-home')).toBeNull();
+    expect(screen.queryByTestId('home-banner')).toBeNull();
+    await user.click(screen.getByTestId('member-tab-scan'));
+    expect(await screen.findByLabelText('Tag number')).toBeInTheDocument();
+    expect(screen.queryByTestId('home-banner')).toBeNull();
+    await user.click(screen.getByTestId('member-tab-account'));
+    expect(await screen.findByTestId('account-page')).toBeInTheDocument();
+    expect(screen.queryByTestId('home-card')).toBeNull();
   });
 
   it('shows a clear miss for a code that is not a price tag, and helps when the camera does not work', async () => {
@@ -487,7 +508,7 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     // Digits only; the sixth signs in by itself (no "Sign in" tap).
     await user.type(code, `${lastCode().slice(0, 3)} -${lastCode().slice(3)}`);
     expect(await screen.findByTestId('see-trip')).toBeInTheDocument();
-    expect(screen.queryByTestId('wallet-sheet')).toBeNull();
+    expect(screen.queryByTestId('wallet-screen')).toBeNull();
     expect(screen.getByTestId('where')).toHaveTextContent(/^$/);
   });
 
@@ -610,6 +631,7 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     // Finish joining: step 1, the selfie with the front camera.
     const finish = await screen.findByTestId('finish-joining');
     expect(screen.getByTestId('where')).toHaveTextContent('?view=finish');
+    expect(screen.queryByTestId('member-bar')).toBeNull(); // required: no way around it by the bar
     expect(within(finish).getByTestId('finish-progress')).toHaveTextContent('Step 1 of 2');
     expect(within(finish).getByTestId('finish-intro')).toHaveTextContent('Two quick steps: 1. Selfie 2. Sign. Then show your QR at the register.');
     expect(within(finish).getByTestId('selfie-tip')).toHaveTextContent('Fit your face in the oval. No hat or sunglasses.');
@@ -642,10 +664,13 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
       { step: 'sign', terms_version: '2026-10-19' },
     ]);
     await user.click(within(done).getByRole('button', { name: 'Done' }));
-    const wallet = await screen.findByTestId('wallet-sheet');
+    const wallet = await screen.findByTestId('wallet-screen');
     expect(screen.getByTestId('where')).toHaveTextContent('?view=qr');
     expect(within(wallet).getByTestId('my-card-line')).toHaveTextContent('Show this QR at the register with your photo ID.');
     expect(within(wallet).queryByRole('button', { name: 'Finish joining' })).toBeNull();
+    // Finished: the bar is back, on My QR.
+    expect(screen.getByTestId('member-bar')).toBeInTheDocument();
+    expect(screen.getByTestId('member-tab-qr')).toHaveClass('Mui-selected');
   });
 
   it('Finish joining is required: a pending member with steps left always lands on it, no ×, only Sign out (owner 2026-10-20)', async () => {
@@ -658,7 +683,8 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     expect(screen.getByTestId('where')).toHaveTextContent('?view=finish');
     expect(within(finish).queryByRole('button', { name: 'Close' })).toBeNull();
     expect(within(finish).queryByRole('button', { name: /skip|later/i })).toBeNull();
-    expect(screen.queryByTestId('wallet-sheet')).toBeNull();
+    expect(screen.queryByTestId('wallet-screen')).toBeNull();
+    expect(screen.queryByTestId('member-bar')).toBeNull(); // no bar while Finish joining is up
     await user.click(within(finish).getByRole('button', { name: 'Sign out' }));
     await waitFor(() => expect(screen.queryByTestId('finish-joining')).toBeNull());
   });
@@ -750,13 +776,97 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     expect(within(finish).getByTestId('finish-progress')).toHaveTextContent('Step 1 of 2');
   });
 
+  // Phase 3 (owner 2026-10-20): the phone is required. A member with none sees only "Add your mobile number".
+  describe('Add your mobile number (needs_phone)', () => {
+    beforeEach(() => thriftPlusMockControls.setRequirePhone(true));
+
+    it('a Google joiner adds a phone with a checked code first, then goes on to Finish joining', async () => {
+      const user = userEvent.setup();
+      thriftPlusMockControls.setSignInOptions({ google_client_id: 'test-client.apps.googleusercontent.com' });
+      const gsi = { initialize: vi.fn(), renderButton: vi.fn() };
+      window.google = { accounts: { id: gsi } };
+      renderPage('/scan?view=join');
+      await waitFor(() => expect(gsi.renderButton).toHaveBeenCalled());
+      await act(async () => {
+        gsi.initialize.mock.calls[0][0].callback({ credential: thriftPlusMockControls.googleCredential('robin@example.com', 'Robin', 'Lee') });
+      });
+      const add = await screen.findByTestId('add-phone');
+      expect(add).toHaveTextContent('Add your mobile number');
+      expect(add).toHaveTextContent('Robin, we need a mobile number on your Thrift+ account.');
+      // Required: no close, no skip; Sign out is the only way out. The consent line is the submitted one, unchanged.
+      expect(within(add).queryByRole('button', { name: /close|skip|later|not now/i })).toBeNull();
+      expect(within(add).getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+      expect(within(add).getByTestId('text-consent')).toHaveTextContent(
+        'A phone number gets one text with your code each time you ask. Msg & data rates may apply. Reply STOP to cancel, HELP for help.',
+      );
+      // A number that is not a US mobile number is refused before any text.
+      await user.type(within(add).getByLabelText('Mobile number'), '123');
+      await user.click(within(add).getByRole('button', { name: 'Send my code' }));
+      expect(await within(add).findByRole('alert')).toHaveTextContent('Enter a US mobile number.');
+      expect(thriftPlusMockControls.outbox()).toHaveLength(0);
+      await user.clear(within(add).getByLabelText('Mobile number'));
+      await user.type(within(add).getByLabelText('Mobile number'), '(402) 555-0177');
+      await user.click(within(add).getByRole('button', { name: 'Send my code' }));
+      const check = await within(add).findByTestId('check-code');
+      expect(within(check).getByTestId('sent-line')).toHaveTextContent('Enter the 6-digit code we sent to (•••) •••-0177.');
+      expect(thriftPlusMockControls.outbox().at(-1)).toMatchObject({ to: '+14025550177', channel: 'sms' });
+      // A wrong code says so and keeps the screen; nothing is saved.
+      await user.type(within(check).getByLabelText('6-digit code'), '000000');
+      expect(await within(check).findByRole('alert')).toHaveTextContent("That code didn't work. Check it and try again.");
+      expect(screen.getByTestId('add-phone')).toBeInTheDocument();
+      await user.clear(within(check).getByLabelText('6-digit code'));
+      await user.type(within(check).getByLabelText('6-digit code'), lastCode());
+      await waitFor(() => expect(screen.queryByTestId('add-phone')).toBeNull());
+      // Then the steps that were waiting: Finish joining.
+      const finish = await screen.findByTestId('finish-joining');
+      expect(within(finish).getByTestId('finish-progress')).toHaveTextContent('Step 1 of 2');
+    });
+
+    it('an email member with no phone is asked too, and lands on the scanner once it is saved', async () => {
+      const user = userEvent.setup();
+      await mockApi.requestSignInEmail('dana@example.com');
+      renderPage(`/scan?signin=${thriftPlusMockControls.outbox()[0].token}`);
+      const add = await screen.findByTestId('add-phone');
+      await user.type(within(add).getByLabelText('Mobile number'), '402-555-0166');
+      await user.click(within(add).getByRole('button', { name: 'Send my code' }));
+      const check = await within(add).findByTestId('check-code');
+      expect(within(check).getByRole('button', { name: 'Save my number' })).toBeDisabled();
+      await user.type(within(check).getByLabelText('6-digit code'), lastCode());
+      await waitFor(() => expect(screen.queryByTestId('add-phone')).toBeNull());
+      expect(screen.getByTestId('see-trip')).toBeInTheDocument();
+      expect(screen.getByTestId('where')).toHaveTextContent(/^$/);
+    });
+
+    it('Sign out leaves the screen', async () => {
+      const user = userEvent.setup();
+      await mockApi.requestSignInEmail('dana@example.com');
+      renderPage(`/scan?signin=${thriftPlusMockControls.outbox()[0].token}`);
+      const add = await screen.findByTestId('add-phone');
+      await user.click(within(add).getByRole('button', { name: 'Sign out' }));
+      expect(await screen.findByRole('button', { name: 'Send my code' })).toBeInTheDocument();
+      expect(screen.queryByTestId('add-phone')).toBeNull();
+    });
+
+    it('a member who joined with a phone is never asked', async () => {
+      const user = userEvent.setup();
+      renderPage('/scan?view=join');
+      await user.type(await screen.findByLabelText('First name'), 'Pat');
+      await user.type(screen.getByLabelText('Last name'), 'Lee');
+      await user.type(screen.getByLabelText('Mobile number'), '402-555-0155');
+      await user.click(screen.getByRole('button', { name: 'Send my code' }));
+      await user.type(await screen.findByLabelText('6-digit code'), lastCode());
+      expect(await screen.findByTestId('finish-joining')).toBeInTheDocument();
+      expect(screen.queryByTestId('add-phone')).toBeNull();
+    });
+  });
+
   it('the email link (?signin=) signs in to the scanner and comes off the address', async () => {
     await mockApi.requestSignInEmail('dana@example.com');
     const { token } = thriftPlusMockControls.outbox()[0];
     renderPage(`/scan?signin=${token}`);
     expect(await screen.findByTestId('see-trip')).toBeInTheDocument();
     expect(screen.getByTestId('where')).toHaveTextContent(/^$/);
-    expect(screen.queryByTestId('wallet-sheet')).toBeNull();
+    expect(screen.queryByTestId('wallet-screen')).toBeNull();
   });
 
   it("a join's link opens Finish joining (view=finish)", async () => {
@@ -788,7 +898,7 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
 
     await mockApi.signIn('dana', 'secret');
     renderPage('/scan?view=join');
-    const wallet = await screen.findByTestId('wallet-sheet');
+    const wallet = await screen.findByTestId('wallet-screen');
     expect(await within(wallet).findByText('Show this at the register.')).toBeInTheDocument();
   });
 
@@ -822,5 +932,93 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Staff sign in' }));
     expect(await screen.findByLabelText('Email or username')).toBeInTheDocument();
+  });
+});
+
+describe('Member bottom bar and Account (owner 2026-10-20)', () => {
+  it('has Scan, Bucks, My QR and Account; a tap switches in place and the address is replaced, never stacked', async () => {
+    await mockApi.signIn('dana', 'secret');
+    const user = userEvent.setup();
+    renderPage();
+    const bar = await screen.findByTestId('member-bar');
+    expect(within(bar).getAllByRole('button').map((b) => b.textContent)).toEqual(['Scan', 'Bucks', 'My QR', 'Account']);
+    expect(screen.getByTestId('member-tab-scan')).toHaveClass('Mui-selected');
+    expect(await screen.findByLabelText('Tag number')).toBeInTheDocument();
+
+    const steps: Array<[string, string, string]> = [
+      ['bucks', 'balance-screen', '?view=bucks'],
+      ['qr', 'wallet-screen', '?view=qr'],
+      ['account', 'account-page', '?view=account'],
+    ];
+    for (const [tab, screenId, search] of steps) {
+      await user.click(screen.getByTestId(`member-tab-${tab}`));
+      expect(await screen.findByTestId(screenId)).toBeInTheDocument();
+      expect(screen.getByTestId(`member-tab-${tab}`)).toHaveClass('Mui-selected');
+      expect(screen.getByTestId('where')).toHaveTextContent(search);
+      expect(screen.getByTestId('nav-type')).toHaveTextContent('REPLACE'); // Back never walks the tabs
+      expect(screen.getByTestId('member-bar')).toBeInTheDocument(); // the screen sits above the bar
+    }
+    // Only one screen at a time; Scan brings the scanner back and clears the address.
+    expect(screen.queryByTestId('balance-screen')).toBeNull();
+    expect(screen.queryByTestId('wallet-screen')).toBeNull();
+    await user.click(screen.getByTestId('member-tab-scan'));
+    expect(await screen.findByLabelText('Tag number')).toBeInTheDocument();
+    expect(screen.queryByTestId('account-page')).toBeNull();
+    expect(screen.getByTestId('where')).toHaveTextContent(/^$/);
+  });
+
+  it('the header pill opens the same tabs, and a tab leaves an open sheet behind', async () => {
+    await mockApi.signIn('dana', 'secret');
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByTestId('about-thriftplus'));
+    expect(await screen.findByTestId('thriftplus-sheet')).toBeInTheDocument();
+    await user.click(screen.getByTestId('member-tab-bucks'));
+    expect(await screen.findByTestId('balance-screen')).toBeInTheDocument();
+    expect(screen.queryByTestId('thriftplus-sheet')).toBeNull();
+    await user.click(screen.getByTestId('qr-pill'));
+    expect(await screen.findByTestId('wallet-screen')).toBeInTheDocument();
+  });
+
+  it('is not there signed out or for a non-member who scans without signing in', async () => {
+    const out = renderPage();
+    expect(await screen.findByRole('button', { name: 'Staff sign in' })).toBeInTheDocument();
+    expect(screen.queryByTestId('member-bar')).toBeNull();
+    out.unmount();
+
+    await mockApi.continueAsGuest();
+    renderPage();
+    expect(await screen.findByTestId('see-trip')).toBeInTheDocument();
+    expect(screen.queryByTestId('member-bar')).toBeNull();
+    expect(screen.getByTestId('trip-summary')).toBeInTheDocument();
+  });
+
+  it('Account: your name, phone and photo with no retake ("Ask at the register"), and Sign out', async () => {
+    const api = await import('../../../api/thriftPlusScanner.api');
+    const original = vi.mocked(api.getMe).getMockImplementation();
+    vi.mocked(api.getMe).mockResolvedValue({
+      banked: '10.25', credit: '8.56', can_change: true, money: [], people: [],
+      you: { name: 'Dana Rivera', phone: '4025550188', photo_url: 'https://photos.example/dana.jpg' },
+    });
+    try {
+      await mockApi.signIn('dana', 'secret');
+      const user = userEvent.setup();
+      renderPage('/scan?view=account');
+      const page = await screen.findByTestId('account-page');
+      expect(screen.getByTestId('member-tab-account')).toHaveClass('Mui-selected');
+      expect(within(page).getByRole('heading', { name: 'Account' })).toBeInTheDocument();
+      expect(await within(page).findByTestId('account-name')).toHaveTextContent('Dana Rivera');
+      expect(within(page).getByTestId('account-phone')).toHaveTextContent('(402) 555-0188');
+      expect(within(page).getByTestId('account-photo')).toHaveAttribute('src', 'https://photos.example/dana.jpg');
+      expect(within(page).getByTestId('account-photo-note')).toHaveTextContent('Ask at the register to change your photo.');
+      // No retake, no camera, no way to change the photo in the app.
+      expect(within(page).queryByRole('button', { name: /retake|photo|selfie/i })).toBeNull();
+      expect(within(page).queryByTestId('selfie-input')).toBeNull();
+      await user.click(within(page).getByRole('button', { name: 'Sign out' }));
+      expect(await screen.findByRole('button', { name: 'Send my code' })).toBeInTheDocument();
+      expect(screen.queryByTestId('member-bar')).toBeNull();
+    } finally {
+      vi.mocked(api.getMe).mockImplementation(original as never);
+    }
   });
 });

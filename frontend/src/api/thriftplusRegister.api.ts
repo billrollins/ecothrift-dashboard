@@ -108,6 +108,8 @@ export interface ThriftPendingPerson {
   signed?: boolean;
   /** Join v2: how they joined, masked ("c***@example.com" or "••0123"). */
   contact?: string;
+  /** Phase 4 (owner 2026-10-20): "Text sign-in link" is offered: the own-number switch is on, they have a phone and have not said STOP. */
+  can_text_link?: boolean;
 }
 
 /** Pending joins by name, email or member code, newest first (at most 10). A POST, so names stay out of request logs. */
@@ -408,6 +410,11 @@ const multipart = {
 export async function staffSignInQr(personId: number): Promise<{ link: string; expires_at: string }> {
   const { data } = await api.post<{ link: string; expires_at: string }>(`/thriftplus/people/${personId}/sign-in-qr/`, {});
   return data;
+}
+
+/** Phase 4: texts them a one-use sign-in link (15 minutes) from the store's number. Only when `can_text_link`. */
+export async function textSignInLink(personId: number): Promise<void> {
+  await api.post(`/thriftplus/people/${personId}/text-link/`, {});
 }
 
 /** Their name and mobile number (a blank phone removes it); answers Find's row. */

@@ -6,6 +6,7 @@
  * soon and staff sign in to test it (a yellow test bar). /scan?type=1 tests without a camera (test tags to pick).
  * Email sign-in (owner 2026-10-15, APP D9): the email's link opens /scan?signin=<token>; a join lands on the Member QR,
  * a sign-in on the scanner. ecothrift.us/join opens /scan?view=join: Join, or the Member QR when already signed in.
+ * Members get a bottom bar (owner 2026-10-20): Scan, Bucks, My QR, Account (memberTabs.tsx, TripScanner.tsx).
  * Data: ../../../api/thriftPlusScanner.api.ts (the real API).
  */
 import { useEffect, useRef, useState } from 'react';
@@ -18,6 +19,7 @@ import { SignInScreen } from './SignInScreen';
 import { TripScanner } from './TripScanner';
 import { UNIT_CSS, sc, useScannerFonts } from './scannerTheme';
 import { installScannerHead } from './installApp';
+import { MEMBER_BAR_HEIGHT, memberBarShown } from './memberTabs';
 import { TurnUprightScreen } from './Sideways';
 import { useSideways, useStandaloneLock, useUprightLock } from './screenLock';
 import { loadDetector } from './useQrCamera';
@@ -105,6 +107,8 @@ export default function ThriftPlusScannerPage() {
   }, []);
 
   const tripShown = open.data !== false && !resetToken && !signinToken && !!session.data && session.data.status !== 'signed_out' && !joinShown;
+  // The members' bottom bar (owner 2026-10-20) is in TripScanner; the version in the corner sits above it.
+  const barShown = tripShown && memberBarShown({ isMember: session.data?.status === 'member', view: pageParams.get('view'), sideways });
 
   return (
     <Box
@@ -119,7 +123,7 @@ export default function ThriftPlusScannerPage() {
       }}
     >
       {/* The release, in the corner on every screen (owner 2026-10-20): the splash is gone in an instant on an iPhone. */}
-      <VersionTag />
+      <VersionTag bottom={barShown ? MEMBER_BAR_HEIGHT : 0} />
       <Box
         sx={{
           position: 'relative',

@@ -15,6 +15,7 @@ import type {
   DeliveryRun,
   SaleMode,
   CardPreview,
+  SuspendedSaleTab,
 } from '../types/pos.types';
 import api from './client';
 
@@ -727,6 +728,28 @@ export function getCartCardPreview(
 
 export function voidCart(cartId: number): Promise<{ data: Cart }> {
   return api.post<Cart>(`/pos/carts/${cartId}/void/`);
+}
+
+/** The sales set aside on a drawer (the bookmark tabs). `cashier` narrows it for the shared test terminal. */
+export function getSuspendedCarts(drawer: number, cashier?: number): Promise<{ data: { results: SuspendedSaleTab[] } }> {
+  return api.get<{ results: SuspendedSaleTab[] }>('/pos/carts/suspended/', {
+    params: { drawer, ...(cashier != null ? { cashier } : {}) },
+  });
+}
+
+/** Set the open sale aside; its items stay held. */
+export function suspendCart(cartId: number): Promise<{ data: SuspendedSaleTab }> {
+  return api.post<SuspendedSaleTab>(`/pos/carts/${cartId}/suspend/`);
+}
+
+/** Bring a set-aside sale back. `current` (the sale on screen) is set aside in its place. Answers the fresh cart. */
+export function resumeCart(cartId: number, current?: number | null): Promise<{ data: Cart }> {
+  return api.post<Cart>(`/pos/carts/${cartId}/resume/`, current ? { current } : {});
+}
+
+/** Delete a set-aside sale (any cashier). It is voided; its items were never sold. */
+export function deleteSuspendedCart(cartId: number): Promise<{ data: Cart }> {
+  return api.post<Cart>(`/pos/carts/${cartId}/delete-suspended/`);
 }
 
 export function setCartCardType(

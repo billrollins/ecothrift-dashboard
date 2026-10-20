@@ -117,6 +117,10 @@ export interface ThriftPlusMember {
   phone_verified?: boolean;
   /** Join v2: what's left in the app before the register, in order. Empty when done or active; missing on older servers. */
   finish_steps?: FinishStep[];
+  /** Phone first (owner 2026-10-20): no mobile number on file, so the app asks for one (with a texted code) before anything else. */
+  needs_phone?: boolean;
+  /** The mobile number on file, 10 digits ('' when none). Missing on older servers. */
+  phone?: string;
 }
 
 /** Join v2 (owner 2026-10-19): the steps a pending member finishes in the app, then shows the QR and an ID at a register. */
@@ -440,6 +444,8 @@ interface StoredSession {
   phone_verified?: boolean;
   /** Join v2: who this is in `state.joins` (an email or a +1 phone number). */
   contact?: string;
+  /** Phase 3: a mobile number added with a checked code (+1 and 10 digits). */
+  phone?: string;
 }
 
 export type MockSignal =
@@ -481,6 +487,8 @@ const state = {
   options: { ...DEFAULT_OPTIONS } as SignInOptions,
   /** The selfies and signatures sent from the app (Join v2), newest last. */
   finished: [] as Array<{ step: FinishStep; contact: string; terms_version?: string }>,
+  /** Phase 3 (owner 2026-10-20): members with no phone must add one. Off by default so older flows stay as they were. */
+  requirePhone: false,
 };
 
 function wait(ms = state.latencyMs): Promise<void> {
@@ -516,6 +524,8 @@ function readSession(): ThriftPlusSession {
       signed,
       phone_verified: !!s.phone_verified,
       finish_steps: steps,
+      needs_phone: state.requirePhone && !s.phone && s.kind !== 'phone',
+      phone: s.phone ? s.phone.replace(/\D/g, '').slice(-10) : '',
       ...(s.kind ? { session_kind: s.kind } : {}),
     },
   };
@@ -837,6 +847,35 @@ export async function signTerms(signature: string, termsVersion: string): Promis
   return memberNow();
 }
 
+/** Phase 3: "Send my code" for the number a signed-in member adds (`me/phone/send/`). */
+export async function sendPhoneCode(phone: string): Promise<{ status: 'sent' }> {
+  await wait();
+  const read = readContact(phone);
+  if (!read || read.kind !== 'phone') throw new ThriftPlusError('Enter a US phone number or an email.', 'CONTACT_BAD');
+  if (!state.options.phone) throw new ThriftPlusError('Texts are off right now. Enter your email.', 'PHONE_OFF');
+  sendEmail(read.value, 'sign_in', 'sms');
+  return { status: 'sent' };
+}
+
+/** Phase 3: the code from that text saves the phone (`me/phone/`); the member comes back with `needs_phone` false. */
+export async function savePhone(phone: string, code: string): Promise<ThriftPlusMember> {
+  await wait();
+  const stored = readJson<StoredSession | null>(LS.session, null);
+  if (!stored || stored.status !== 'member') throw new ThriftPlusError('Sign in first.', 'NOT_SIGNED_IN');
+  const read = readContact(phone);
+  const bad = new ThriftPlusError("That code didn't work. Check it and try again.", 'CODE_BAD');
+  if (!read || read.kind !== 'phone') throw bad;
+  const sent = [...state.emails].reverse().find((e) => e.to === read.value && e.channel === 'sms' && !e.used);
+  if (!sent || expired(sent)) throw bad;
+  if (code.trim() !== sent.code) {
+    sent.wrong += 1;
+    throw bad;
+  }
+  sent.used = true;
+  writeJson(LS.session, { ...stored, phone: read.value, phone_verified: true } satisfies StoredSession);
+  return memberNow();
+}
+
 /** Scan without an account: guests see what members would collect. */
 export async function continueAsGuest(): Promise<ThriftPlusSession> {
   writeJson(LS.session, { status: 'guest' } satisfies StoredSession);
@@ -949,6 +988,10 @@ export const thriftPlusMockControls = {
     const part = (o: object) => btoa(JSON.stringify(o)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
     return `${part({ alg: 'none' })}.${part({ email, given_name: givenName, family_name: familyName })}.mock`;
   },
+  /** Phase 3: members with no phone are asked for one (the server's `needs_phone`). */
+  setRequirePhone(on: boolean): void {
+    state.requirePhone = on;
+  },
   /** The selfies and signatures sent from the app (Join v2), oldest first. */
   finished(): Array<{ step: FinishStep; contact: string; terms_version?: string }> {
     return state.finished.map((f) => ({ ...f }));
@@ -960,6 +1003,7 @@ export const thriftPlusMockControls = {
     state.joins.clear();
     state.options = { ...DEFAULT_OPTIONS };
     state.finished = [];
+    state.requirePhone = false;
     for (const key of Object.values(LS)) writeJson(key, null);
   },
 };

@@ -54,20 +54,52 @@ beforeEach(() => {
 });
 
 describe('AccountPage', () => {
-  const props = { member, onBack: () => undefined, onSignOut: () => undefined };
+  const props = { member, onSignOut: () => undefined };
+  const you = { name: 'Dana Rivera', phone: '4025550188', photo_url: 'https://photos.example/dana.jpg' };
 
-  it('shows balances and who is on the account, with no card rows (owner 2026-10-14: no card)', async () => {
+  it('shows who is on the account and recent activity, with no card rows (owner 2026-10-14: no card)', async () => {
     mocked.getMe.mockResolvedValue(me());
     wrap(<AccountPage {...props} />);
     expect(await screen.findByText('Sam')).toBeInTheDocument();
     expect(screen.getByText('Second adult')).toBeInTheDocument();
     expect(screen.queryByText(/card/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Lost it?' })).not.toBeInTheDocument();
-    expect(screen.getAllByText('12.50').length).toBeGreaterThan(0); // ThriftBucks: a number, never "$"
-    // Two balances (B2): ThriftBucks and Thrift+ credit; no cover, no "Return $" (10-12).
-    expect(screen.getAllByText('Thrift+ credit').length).toBe(2); // the balance, and the credit row in Recent activity
+    // The balances live on the Bucks tab now; Recent activity keeps its rows (a number for ThriftBucks, never "$").
+    expect(screen.getByText('5.25')).toBeInTheDocument();
+    expect(screen.getAllByText('Thrift+ credit').length).toBe(1); // the credit row in Recent activity
     expect(screen.queryByText(/cover/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Return \$/)).not.toBeInTheDocument();
+  });
+
+  it('shows your name, phone and photo, and says to ask at the register to change the photo (no retake)', async () => {
+    mocked.getMe.mockResolvedValue(me({ you }));
+    wrap(<AccountPage {...props} />);
+    await waitFor(() => expect(screen.getByTestId('account-name')).toHaveTextContent('Dana Rivera'));
+    expect(screen.getByTestId('account-phone')).toHaveTextContent('(402) 555-0188');
+    expect(screen.getByTestId('account-photo')).toHaveAttribute('src', you.photo_url);
+    expect(screen.getByText('Ask at the register to change your photo.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /retake|take|photo|selfie/i })).not.toBeInTheDocument();
+    expect(document.querySelector('input[type="file"]')).toBeNull();
+  });
+
+  it('with no photo on file shows the first letter, and the first name until the account answers', async () => {
+    mocked.getMe.mockResolvedValue(me({ you: { ...you, photo_url: null } }));
+    wrap(<AccountPage {...props} />);
+    expect(screen.getByTestId('account-name')).toHaveTextContent('Dana');
+    expect(await screen.findByText('Sam')).toBeInTheDocument();
+    expect(screen.queryByTestId('account-photo')).not.toBeInTheDocument();
+    expect(screen.getByTestId('account-photo-none')).toHaveTextContent('D');
+    expect(screen.getByTestId('account-name')).toHaveTextContent('Dana Rivera');
+  });
+
+  it('has Sign out', async () => {
+    mocked.getMe.mockResolvedValue(me({ you }));
+    const onSignOut = vi.fn();
+    const user = userEvent.setup();
+    wrap(<AccountPage {...props} onSignOut={onSignOut} />);
+    await screen.findByTestId('account-name');
+    await user.click(screen.getByRole('button', { name: 'Sign out' }));
+    expect(onSignOut).toHaveBeenCalledTimes(1);
   });
 
   it('lets the main member take the second adult off', async () => {

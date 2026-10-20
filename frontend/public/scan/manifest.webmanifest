@@ -2,7 +2,7 @@
   "id": "/qr",
   "name": "Thrift+ Member",
   "short_name": "Thrift+",
-  "start_url": "/qr",
+  "start_url": "/scan",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f2f2ee",

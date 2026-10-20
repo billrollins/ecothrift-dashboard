@@ -216,7 +216,7 @@ export interface Cart {
   cashier_name: string | null;
   customer: number | null;
   /** 'training': a practice sale on the training register (nothing real written). */
-  status: 'open' | 'completed' | 'voided' | 'training';
+  status: 'open' | 'completed' | 'voided' | 'training' | 'suspended';
   subtotal: string;
   tax_rate: string;
   tax_amount: string;
@@ -237,6 +237,8 @@ export interface Cart {
   payroll_employee?: number | null;
   payroll_employee_name?: string | null;
   completed_at: string | null;
+  /** When the sale was set aside (status 'suspended'); null otherwise. */
+  suspended_at?: string | null;
   created_at: string;
   lines: CartLine[];
   receipt?: Receipt | null;
@@ -249,6 +251,17 @@ export interface Cart {
   thrift_row?: { member: string; earned: string; used: string; credit_used: string; instant: string } | null;
   /** add-item only: the scanned tag was sold or already on the sale, so the register rang the next unit of it. */
   unit_swapped?: { scanned_sku: string; added_sku: string };
+}
+
+/** One sale set aside at the register (Suspend, owner 2026-10-20): a bookmark tab. */
+export interface SuspendedSaleTab {
+  id: number;
+  /** The Thrift+ member's first name; '' for a guest sale. */
+  member_first_name: string;
+  item_count: number;
+  total: string;
+  suspended_at: string | null;
+  cashier_name: string;
 }
 
 /** A receipt line's 3-day returns mark (W10, A3), frozen on the line at the sale. */

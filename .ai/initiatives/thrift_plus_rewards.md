@@ -235,6 +235,7 @@ The POS handles members:
 - **API** under `/api/thriftplus/`:
   - `register/`: `status`, `attach`, `detach`, `choice`, `balance`, `rering`;
   - `returns/`: `lookup`, create, `photo`, list, `done`;
+  - `returns/` for the Returns page (`/pos/returns`, owner 2026-10-20): `find`, `receipt`, `preview`, `batch` (several lines in one go; past the 3 days it needs the owner signed in or the owner PIN, and a reason, and writes a `LateReturnMark` against Retail) and `late` (the Late returns list). Services `returns_find.py` and `owner_pin.py`; models `OwnerPin` and `LateReturnMark` in migration `thriftplus.0026`; `owner-pin/` (GET status, POST set or reset, owner only) behind Settings → Thrift+ → Owner PIN. The old Return dialog stays until the register button goes;
   - `restricted/`.
 - **POS:**
   - `CartLine.thrift_savings` and `Cart.thrift_credit` (`pos.0033`);

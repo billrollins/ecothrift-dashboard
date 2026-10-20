@@ -11,12 +11,15 @@
  * - **Every code gets an answer** (owner 2026-10-15, APP D13 to D15): a product barcode or other text says "That's
  *   not our price tag", our code with no item "We can't find that item", one of our links "That QR code is a link";
  *   each with Scan again. The camera zooms with the phone's own levels (CameraCard, useQrCamera).
- * - **The header:** tap it for what Thrift+ is; the Your ThriftBucks pill shows Thrift+ credit and every ThriftBuck
- *   in the order the register uses them, with My account and Sign out.
+ * - **The header:** tap it for what Thrift+ is; the pill's two halves open the Bucks and My QR tabs.
+ * - **The bottom bar** (owner 2026-10-20): Scan, Bucks, My QR, Account (memberTabs.tsx), for signed-in members; each tab is
+ *   a screen above the bar, picked by `?view=` and replaced in the address so Back never walks the tabs. Hidden while
+ *   Finish joining is open (it is required) and for non-members. A "Put Thrift+ on your home screen" banner shows on
+ *   Scan in mobile browsers (homeScreen.tsx).
  * The ThriftBucks are the engine's, from the calculator's saved setting (before launch: launch day).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Box, ButtonBase, CircularProgress } from '@mui/material';
 import AddRounded from '@mui/icons-material/AddRounded';
@@ -48,10 +51,13 @@ import { InfoPopup } from './Explainers';
 import { CantFindItem, NotOurTag, OurLink } from './ScanAnswers';
 import { SidewaysGotIt, SidewaysScanPill, TurnUprightScreen } from './Sideways';
 import { bankInto } from './TicketRain';
-import { ScanGate, classifyCode, money, type ScannedCode } from './scannerLogic';
+import { ScanGate, classifyCode, hasFinishSteps, money, type ScannedCode } from './scannerLogic';
+import { AddPhone } from './AddPhone';
 import { CategoryBadge, art, sc, u } from './scannerTheme';
 import { FinishJoining } from './FinishJoining';
-import { BalanceSheet, FeelSheet, InfoSheet, RETAIL_INFO, RETURNS_INFO, SidewaysQr, ThriftPlusSheet, TripHeader, WalletSheet, type Feel, type Info } from './tripSheets';
+import { HomeScreenCard } from './homeScreen';
+import { MemberTabBar, memberBarShown, tabOfView, viewOfTab, type MemberTab } from './memberTabs';
+import { BalanceScreen, FeelSheet, InfoSheet, RETAIL_INFO, RETURNS_INFO, SidewaysQr, ThriftPlusSheet, TripHeader, WalletScreen, type Feel, type Info } from './tripSheets';
 import { BigBucks, BigButton, QtyStepper, ReturnsBadge, SwipeRow, useCountUp, useSwipe, useUndo } from './tripUi';
 import { loadDetector, useQrCamera } from './useQrCamera';
 import { useSideways, useUprightLock } from './screenLock';
@@ -105,29 +111,32 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   const actions = useCartActions();
   const auth = useSignIn();
   const [params, setParams] = useSearchParams();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const accountOpen = params.get('view') === 'account' && !!member;
+  // The bottom bar's tab (owner 2026-10-20) comes from the address: ecothrift.us/qr is /scan?view=qr (the My QR tab), and
+  // ecothrift.us/join on a phone that's signed in lands there too (owner 2026-10-15, APP D9). Non-members only scan.
+  const view = params.get('view');
+  const tab: MemberTab = member ? tabOfView(view) : 'scan';
   // Join v2 (owner 2026-10-19): a pending member's selfie and signature, after a join's sign-in or from the Member QR.
-  const finishOpen = params.get('view') === 'finish' && !!member;
-  // Required (owner 2026-10-20): a pending member with steps left always lands on Finish joining.
+  const finishShown = view === 'finish' && !!member;
+  // Phone first (owner 2026-10-20): a member with no phone sees only "Add your mobile number" (like Finish joining, no skip).
+  const phoneOpen = !!member?.needs_phone;
+  const finishOpen = finishShown || phoneOpen;
+  // Required (owner 2026-10-20): a pending member with steps left always lands on Finish joining (after the phone).
   const finishLeft = member?.ready === false && (member.finish_steps?.length ?? 0) > 0;
   useEffect(() => {
-    if (finishLeft && params.get('view') !== 'finish') setParams({ view: 'finish' }, { replace: true });
-  }, [finishLeft, params, setParams]);
-  // ecothrift.us/qr (and the old /card); ecothrift.us/join on a phone that's signed in (owner 2026-10-15, APP D9).
-  const cardAsked = params.get('view') === 'qr' || params.get('view') === 'card' || params.get('view') === 'join';
+    if (finishLeft && !phoneOpen && view !== 'finish') setParams({ view: 'finish' }, { replace: true });
+  }, [finishLeft, phoneOpen, view, setParams]);
+
+  // The phone was just saved and there are steps left to do in the app: on to Finish joining.
+  const wasPhoneOpen = useRef(false);
+  useEffect(() => {
+    if (wasPhoneOpen.current && !phoneOpen && hasFinishSteps(member)) setParams({ view: 'finish' }, { replace: true });
+    wasPhoneOpen.current = phoneOpen;
+  }, [phoneOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [mode, setMode] = useState<Mode>('scan');
   const [top, setTop] = useState<Top | null>(null);
   const [flash, setFlash] = useState(false);
-  // ecothrift.us/qr lands on /scan?view=qr: open the Member QR right away (owner 2026-10-14, APP D5 and D6).
-  const [sheet, setSheet] = useState<null | 'about' | 'wallet' | 'balance' | 'camera'>(() => (cardAsked && member && !finishLeft ? 'wallet' : null));
-  // Also when it's asked after the scanner opened: a join's code or link signs in, then the address says view=qr.
-  const hasMember = !!member;
-  useEffect(() => {
-    if (cardAsked && hasMember && !finishLeft) setSheet('wallet');
-  }, [cardAsked, hasMember, finishLeft]);
+  const [sheet, setSheet] = useState<null | 'about' | 'camera'>(null);
   const [info, setInfo] = useState<Info | null>(null);
   const [feel, setFeel] = useState<Feel | null>(null);
   // A phone held sideways (owner 2026-10-15, APP D16 v2): the camera keeps scanning full screen, everything else asks
@@ -166,7 +175,7 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
     // Finish joining's selfie needs the front camera: the scanner lets go of the back one (a paused stream still holds
     // it, and phones won't open two cameras at once).
     enabled: !typeOnly && !finishOpen,
-    paused: mode !== 'scan' || sheet != null || info != null || feel != null || accountOpen || finishOpen,
+    paused: mode !== 'scan' || sheet != null || info != null || feel != null || tab !== 'scan' || finishOpen,
     onDecode: (raw, format) => handleCodeRef.current(raw, 'camera', format),
   });
 
@@ -268,7 +277,7 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
 
   // A laptop: right arrow adds, left arrow or Escape passes; on a trip line's tag, they go back to the trip.
   useEffect(() => {
-    if ((mode !== 'card' && mode !== 'item') || sheet || info || feel || accountOpen || finishOpen) return;
+    if ((mode !== 'card' && mode !== 'item') || sheet || info || feel || tab !== 'scan' || finishOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
       if (mode === 'item') {
@@ -286,27 +295,31 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const openAccount = () => {
+  // A tab of the bottom bar: the address is replaced (Back never walks the tabs), and what a sheet or a tag had open goes away.
+  const goTab = (next: MemberTab) => {
     setSheet(null);
-    setParams({ view: 'account' }, { state: { tpCart: true } });
-  };
-  const closeAccount = () => {
-    if ((location.state as { tpCart?: boolean } | null)?.tpCart) navigate(-1);
-    else setParams({}, { replace: true });
+    setInfo(null);
+    setFeel(null);
+    const nextView = viewOfTab(next);
+    setParams(nextView ? { view: nextView } : {}, { replace: true });
   };
 
-  const overlayOpen = !!sheet || !!info || !!feel || accountOpen || finishOpen;
+  const overlayOpen = !!sheet || !!info || !!feel || tab !== 'scan' || finishOpen;
   const cameraSideways = sideways && mode === 'scan' && !overlayOpen;
   // A code read while sideways (the tag is ready underneath), and the Member QR shown alone to a cashier.
   const readSideways = mode === 'card' && !overlayOpen;
-  const qrSideways = sheet === 'wallet' && !!member && !info && !feel && !accountOpen && !finishOpen;
+  const qrSideways = tab === 'qr' && !!member && !info && !feel && !finishOpen;
+  const barShown = memberBarShown({ isMember: !!member, view, sideways }) && !phoneOpen; // not over Add your mobile number
+  const homeBanner = tab === 'scan' && !finishOpen && !!member;
 
   return (
+    <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
     <Box ref={rootRef} onPointerDown={() => camera.poke()} sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
       {member?.test_mode && <TestModeBar />}
-      <TripHeader member={member} onAbout={() => setSheet('about')} onWallet={() => setSheet('wallet')} onBalance={() => setSheet('balance')} onSignIn={() => auth.signOut.mutate()} />
-      <Box sx={{ flex: 1, minHeight: 0, width: u(900), mx: 'auto', px: u(20), pt: u(18), pb: `calc(${u(20)} + env(safe-area-inset-bottom, 0px))`,
+      <TripHeader member={member} onAbout={() => setSheet('about')} onWallet={() => goTab('qr')} onBalance={() => goTab('bucks')} onSignIn={() => auth.signOut.mutate()} />
+      <Box sx={{ flex: 1, minHeight: 0, width: u(900), mx: 'auto', px: u(20), pt: u(18), pb: barShown ? u(20) : `calc(${u(20)} + env(safe-area-inset-bottom, 0px))`,
         display: 'flex', flexDirection: 'column', gap: u(18) }}>
+        {homeBanner && <HomeScreenCard variant="banner" />}
         <SummaryBar count={count} total={shown} lines={lines} open={mode === 'trip' || mode === 'item'} onToggle={toggleTrip} isGuest={isGuest} />
 
         <Box data-testid="stage" sx={cameraSideways ? { position: 'fixed', inset: 0, zIndex: 70 } : { position: 'relative', flex: 1, minHeight: 0 }}>
@@ -434,21 +447,9 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
       </Box>
 
       {sheet === 'about' && <ThriftPlusSheet onClose={() => setSheet(null)} />}
-      {sheet === 'wallet' && member && (
-        <WalletSheet member={member}
-          onClose={() => {
-            setSheet(null);
-            if (cardAsked) setParams({}, { replace: true });
-          }}
-          onFinish={() => {
-            setSheet(null);
-            setParams({ view: 'finish' }, { replace: true });
-          }} />
-      )}
-      {sheet === 'balance' && member && (
-        <BalanceSheet member={member} tripTotal={total} onAccount={openAccount} onClose={() => setSheet(null)}
-          onSignOut={() => auth.signOut.mutate()} onShowQr={() => setSheet('wallet')} />
-      )}
+      {tab === 'qr' && member && <WalletScreen member={member} onFinish={() => setParams({ view: 'finish' }, { replace: true })} />}
+      {tab === 'bucks' && member && <BalanceScreen member={member} tripTotal={total} />}
+      {tab === 'account' && member && <AccountPage member={member} onSignOut={() => auth.signOut.mutate()} />}
       {sheet === 'camera' && (
         <InfoPopup topic="camera" origin={null} member={member} cart={cart.data} onClose={() => setSheet(null)} onRetryCamera={camera.wake} />
       )}
@@ -462,18 +463,18 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
           onClose={() => setFeel(null)}
         />
       )}
-      {accountOpen && member && (
-        <AccountPage member={member} onBack={closeAccount} onSignOut={() => auth.signOut.mutate()} />
-      )}
-      {finishOpen && member && (
+      {finishShown && member && (
         <FinishJoining member={member} onDone={() => setParams({ view: 'qr' }, { replace: true })} onSignOut={() => auth.signOut.mutate()} />
       )}
+      {phoneOpen && member && <AddPhone firstName={member.first_name} onSignOut={() => auth.signOut.mutate()} />}
       {sideways && (
         cameraSideways ? <SidewaysScanPill lock={lock} />
           : readSideways ? <SidewaysGotIt />
             : qrSideways ? <SidewaysQr />
               : <TurnUprightScreen lock={lock} />
       )}
+    </Box>
+    {barShown && <MemberTabBar tab={tab} onTab={goTab} />}
     </Box>
   );
 }

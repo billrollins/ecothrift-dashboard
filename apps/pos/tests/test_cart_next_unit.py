@@ -127,6 +127,19 @@ class NextUnitTests(TestCase):
         self.assertEqual(r.status_code, 400, r.content)
         self.assertEqual(r.json()['code'], 'ITEM_ALREADY_IN_CART')
 
+    def test_a_unit_on_a_suspended_sale_is_not_picked(self):
+        from apps.pos.models import Cart
+
+        Item.objects.filter(pk=self.units[1].pk).update(price=Decimal('15.00'))
+        other = self._cart()
+        self.assertEqual(self._scan(other, 'NEXT-3').status_code, 200)
+        Cart.objects.filter(pk=other).update(status='suspended')  # set aside: it still holds NEXT-3
+        cid = self._cart()
+        self.assertEqual(self._scan(cid, 'NEXT-1').status_code, 200)
+        r = self._scan(cid, 'NEXT-1')
+        self.assertEqual(r.status_code, 400, r.content)
+        self.assertEqual(r.json()['code'], 'ITEM_ALREADY_IN_CART')
+
     def test_a_held_online_unit_is_not_picked(self):
         from apps.webstore.models import WebListing
 

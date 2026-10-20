@@ -6,6 +6,7 @@ import {
   retakePersonPhoto,
   setPersonDetails,
   staffSignInQr,
+  textSignInLink,
   thriftErrorMessage,
   type ThriftPendingPerson,
 } from '../../../api/thriftplusRegister.api';
@@ -263,6 +264,20 @@ export function PersonSheet({ person, owner, onClose, onFinish, onDeleted, onCha
     }
   }
 
+  async function textLink() {
+    if (!person) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      await textSignInLink(person.person_id);
+      setNote({ ok: true, text: `Texted a sign-in link to the phone ending ${person.phone_last4 ?? ''}. It works once, for 15 minutes.` });
+    } catch (err) {
+      setNote({ ok: false, text: thriftErrorMessage(err, 'Could not text it. Try again, or use the Sign-in QR.') });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function resend() {
     if (!person) return;
     setBusy(true);
@@ -346,6 +361,12 @@ export function PersonSheet({ person, owner, onClose, onFinish, onDeleted, onCha
             <Button variant={done ? 'contained' : 'outlined'} size="large" onClick={() => setQrFor(person)} sx={big} data-testid="person-sign-in-qr">
               Sign-in QR
             </Button>
+            {/* Phase 4 (owner 2026-10-20): only when the own-number switch is on, they have a phone and have not said STOP. */}
+            {person.can_text_link ? (
+              <Button variant="outlined" size="large" disabled={busy} onClick={() => void textLink()} sx={big} data-testid="person-text-link">
+                Text sign-in link
+              </Button>
+            ) : null}
             <Button variant="outlined" size="large" disabled={busy} onClick={() => photoInput.current?.click()} sx={big} data-testid="person-retake-photo">
               {busy && !confirm ? <CircularProgress size={22} /> : person.photo_url ? 'Retake photo' : 'Take their photo'}
             </Button>

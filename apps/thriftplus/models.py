@@ -491,6 +491,55 @@ class ReturnRecord(models.Model):
         return f'return of line {self.cart_line_id} ({self.paid})'
 
 
+class OwnerPin(models.Model):
+    """
+    The owner's PIN (owner 2026-10-20): the owner sets it in Dash Settings and gives it out; anyone may type it where
+    it is asked (a late return past the 3 days). One row. Stored hashed and never shown. Five wrong tries in a row lock
+    it for 15 minutes (``services/owner_pin.py``); every use is logged as an ``owner_pin_*`` Event.
+    """
+
+    pin_hash = models.CharField(max_length=128, blank=True, default='')
+    set_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    set_at = models.DateTimeField(null=True, blank=True)
+    failures = models.PositiveSmallIntegerField(default=0, help_text='Wrong tries in a row since the last right one.')
+    locked_until = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return 'Owner PIN (set)' if self.pin_hash else 'Owner PIN (not set)'
+
+
+class LateReturnMark(models.Model):
+    """
+    A mark against Retail (owner 2026-10-20): a return taken after the 3 days. It sits on the original sale's cashier
+    with the reason and who entered the PIN, and is listed under Late returns (Returns page).
+    """
+
+    REASON_TOLD_WRONG = 'told_wrong'
+    REASON_CLOSED = 'closed'
+    REASON_OWNER = 'owner'
+    REASON_CHOICES = [
+        (REASON_TOLD_WRONG, "Cashier told them wrong"), (REASON_CLOSED, 'Store was closed'), (REASON_OWNER, "Owner's choice"),
+    ]
+
+    return_record = models.OneToOneField(ReturnRecord, on_delete=models.CASCADE, related_name='late_mark')
+    department = models.CharField(max_length=20, default='retail', db_index=True)
+    cashier = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                help_text='The cashier who rang the original sale.')
+    cashier_name = models.CharField(max_length=200, blank=True, default='')
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES)
+    note = models.TextField(blank=True, default='')
+    entered_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                   help_text='Who was signed in when the owner PIN was typed (or the owner who allowed it).')
+    by_pin = models.BooleanField(default=True, help_text='False when the owner was signed in (no PIN typed).')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'late return {self.return_record_id} ({self.reason})'
+
+
 # ── The customer side: sign-in, the scanner app's cart and signals (Phase 4) ─────
 
 
@@ -550,8 +599,10 @@ class MemberEmailToken(models.Model):
     PURPOSE_JOIN = 'join'
     PURPOSE_SIGN_IN = 'sign_in'
     PURPOSE_STAFF_QR = 'staff_qr'  # the sign-in QR on the Thrift+ Staff app (owner 2026-10-20): no email involved
+    PURPOSE_STAFF_TEXT = 'staff_text'  # the "Text sign-in link" on the Staff app (Phase 4): texted, 15 minutes
     PURPOSE_CHOICES = [
         (PURPOSE_JOIN, 'Confirm the email and join'), (PURPOSE_SIGN_IN, 'Sign in'), (PURPOSE_STAFF_QR, 'Sign-in QR from staff'),
+        (PURPOSE_STAFF_TEXT, 'Sign-in link texted by staff'),
     ]
 
     person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name='email_tokens')
@@ -571,6 +622,24 @@ class MemberEmailToken(models.Model):
 
     def __str__(self):
         return f'{self.purpose} token {self.pk} for person {self.person_id}'
+
+
+class PhoneCode(models.Model):
+    """A sign-in code texted from our own number (Phase 4, owner 2026-10-20; ``thrift_plus.own_number_codes`` on). Only
+    keyed hashes are kept (the number and the code), never the digits; 10 minutes; 5 wrong tries kill it; used once."""
+
+    phone_hash = models.CharField(max_length=64, db_index=True)
+    code_hash = models.CharField(max_length=64)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    wrong_codes = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'texted code {self.pk}'
 
 
 class AppCart(models.Model):

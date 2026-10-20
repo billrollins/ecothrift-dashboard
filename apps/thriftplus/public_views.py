@@ -22,7 +22,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import SimpleRateThrottle
 
 from apps.thriftplus.models import Account, MemberSession
-from apps.thriftplus.services import ledger, member_auth, members, one_account, scanner
+from apps.thriftplus.services import ledger, member_auth, members, one_account, phone_codes, scanner
 from apps.thriftplus.services.member_auth import AuthError, IsMember, MemberSessionAuthentication
 
 AUTH = [MemberSessionAuthentication]
@@ -78,7 +78,10 @@ def _finish_state(person, account) -> dict:
     if account.status == Account.STATUS_PENDING:
         steps = [step for step, done in (('selfie', selfie), ('sign', signed)) if not done]
     return {'selfie': selfie, 'signed': signed, 'phone_verified': person.phone_verified_at is not None,
-            'finish_steps': steps}
+            'finish_steps': steps,
+            # Phone first (owner 2026-10-20): no phone on file, so the app asks for one before anything else (only
+            # where a code can be texted, so nobody is stuck on a screen that cannot work).
+            'needs_phone': member_auth.needs_phone(person) and phone_codes.available(), 'phone': person.phone or ''}
 
 
 def _signed_in(request, person, kind: str) -> Response:
@@ -556,6 +559,9 @@ def _me_payload(request) -> dict:
         'can_change': request.user.session.kind in member_auth.CHANGE_KINDS,
         # Your own email (T74): account email follows the address; store news can be turned off.
         'emails': {**member_email.choices(you), 'has_email': bool(you.email), 'note': member_email.NOTE},
+        # The Account tab (owner 2026-10-20): your name, phone (digits) and photo. The photo is read-only in the app;
+        # changing it is done at the register.
+        'you': {'name': str(you), 'phone': you.phone, 'photo_url': you.photo.url if you.photo else None},
     }
 
 
@@ -675,6 +681,45 @@ def signature(request):
     person.signed_at, person.signed_terms_version = now, version
     person.save(update_fields=['signature', 'signed_at', 'signed_terms_version', 'updated_at'])
     members.log('app_signature', account=person.account, person=person, terms_version=version)
+    return Response(_session_payload(request))
+
+
+# ── Phone first: add your mobile number with a checked code (owner 2026-10-20) ──
+
+@api_view(['POST'])
+@authentication_classes(AUTH)
+@permission_classes([IsMember])
+def phone_send(request):
+    """``me/phone/send/``: ``{phone}``. Texts a 6-digit code to the number a member with no phone wants to add.
+    ``{status: 'sent'}``. 400 CONTACT_BAD, PHONE_SET, PHONE_TAKEN, PHONE_OFF or TEXTS_OFF; 429 over the limits."""
+    refused = _password_session(request)
+    if refused:
+        return refused
+    try:
+        member_auth.send_phone_add(request.user.person, str(request.data.get('phone') or ''), ip=_client_ip(request))
+    except member_auth.LimitError as exc:
+        return _limited(exc)
+    except AuthError as exc:
+        return _error(exc)
+    return Response(SENT)
+
+
+@api_view(['POST'])
+@authentication_classes(AUTH)
+@permission_classes([IsMember])
+def phone_save(request):
+    """``me/phone/``: ``{phone, code}``. Saves the phone when the code texted to it is right. Answers the session
+    payload (``needs_phone`` now false). 400 CODE_BAD, CONTACT_BAD, PHONE_SET, PHONE_TAKEN or PHONE_OFF; 429."""
+    refused = _password_session(request)
+    if refused:
+        return refused
+    try:
+        member_auth.confirm_phone_add(request.user.person, str(request.data.get('phone') or ''),
+                                      str(request.data.get('code') or ''), ip=_client_ip(request))
+    except member_auth.LimitError as exc:
+        return _limited(exc)
+    except AuthError as exc:
+        return _error(exc)
     return Response(_session_payload(request))
 
 

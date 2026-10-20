@@ -18,6 +18,11 @@ Thrift+ 3-day returns (the 10-12 policy, W1-W14; owner answers 2026-10-14): a re
 - **Settled on the return day** (W11): new ledger rows that day; the sale and its receipt are never changed.
 - **Training register:** the result is worked out and shown, and nothing is written.
 
+- **Past the 3 days** (owner 2026-10-20): the owner signed in, or anyone with the owner PIN (``owner_pin.py``), lets
+  it through with a reason; it is recorded as a mark against Retail on the original sale's cashier (``LateReturnMark``)
+  and listed under Late returns. The Returns page (``returns_find.py``) finds the receipt and returns several lines at
+  once (``batch``).
+
 Staff decide what happens to the returned item (``ReturnRecord.status``). Its inventory status is not changed here.
 """
 from __future__ import annotations
@@ -30,7 +35,7 @@ from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from django.db import transaction
 from django.utils import timezone
 
-from apps.thriftplus.models import Account, CartMember, LedgerEntry, ReturnRecord, SalePhoto
+from apps.thriftplus.models import Account, CartMember, LateReturnMark, LedgerEntry, ReturnRecord, SalePhoto
 from apps.thriftplus.services import ledger, members
 from apps.thriftplus.services.register import RegisterError, found, paid_by_line
 
@@ -301,14 +306,23 @@ def purchases(code: str = '', *, person=None, days: int = 10, training: bool = F
     }
 
 
+def is_late(line, today: date | None = None) -> bool:
+    """The 3 days are over for this line's sale."""
+    return bool(line.cart.completed_at) and (today or timezone.localdate()) > deadline(timezone.localdate(line.cart.completed_at))
+
+
+LATE_REASONS = dict(LateReturnMark.REASON_CHOICES)
+
+
 def do_return(line, code: str = '', *, person=None, note: str = '', user=None, training: bool = False,
-              late_ok: bool = False) -> dict:
+              late_ok: bool = False, late_reason: str = '', by_pin: bool = False) -> dict:
     """Take the line back (W3, W4, W11): Thrift+ credit for 80% of what was paid, tax included; 80% of the ThriftBucks
     used on it back as fresh ThriftBucks; 80% of the ThriftBucks it collected taken back, soonest first, any shortfall
     off the credit. On a training register the result is worked out and nothing is written.
 
-    The member is their QR scanned (``code``) or found by phone (``person``, an id). ``late_ok`` (the owner only, O1;
-    the view checks who) lets a return past the window through; it is logged."""
+    The member is their QR scanned (``code``) or found by phone (``person``, an id). ``late_ok`` (the owner signed in or
+    the owner PIN, O1; the view checks) lets a return past the window through; it is logged and, with ``late_reason``,
+    marked against Retail (``LateReturnMark``)."""
     who, card = found(code, person)
     account = who.account
     parts = refund_parts(line)
@@ -349,6 +363,12 @@ def do_return(line, code: str = '', *, person=None, note: str = '', user=None, t
         if late and late_ok:
             members.log('return_late_ok', account=account, person=who, card=card, actor=user,
                         cart=line.cart_id, cart_line=line.pk, why=note[:200])
+            cashier = line.cart.cashier
+            LateReturnMark.objects.create(
+                return_record=record, cashier=cashier, cashier_name=(cashier.full_name or cashier.email) if cashier else '',
+                reason=late_reason if late_reason in LATE_REASONS else LateReturnMark.REASON_OWNER, note=note[:500],
+                entered_by=user, by_pin=by_pin,
+            )
     return {'id': record.pk, 'credit': str(credit), 'bucks_back': str(parts['bucks_back']), 'bucks_taken': str(taken),
             'shortfall': str(shortfall), 'training': False}
 
@@ -356,3 +376,85 @@ def do_return(line, code: str = '', *, person=None, note: str = '', user=None, t
 def needs_photo(line) -> bool:
     """A $100+ item bought by a member: photograph its serial number and condition at the sale."""
     return line.line_kind == 'item' and (line.unit_price or 0) >= PHOTO_OVER and not SalePhoto.objects.filter(cart_line=line).exists()
+
+
+# ── The Returns page: several lines at once, and the Late returns list (owner 2026-10-20) ──────────────────────────
+
+
+def preview(lines: list, account, *, training: bool = False) -> dict:
+    """The summary before Confirm: per line and in all, the Thrift+ credit, ThriftBucks given back and taken back, and the
+    shortfall (ThriftBucks already spent come off the credit). The lines are worked in order, as ``batch`` writes them.
+    The 3 days are not a problem here: ``late`` says so, and the page asks for the owner PIN."""
+    today = timezone.localdate()
+    available = ledger.bucks_total(account, today)
+    rules = guide()
+    rows, totals = [], {'credit': ZERO, 'refund': ZERO, 'bucks_back': ZERO, 'bucks_taken': ZERO, 'shortfall': ZERO}
+    for line in lines:
+        parts = refund_parts(line, rules=rules)
+        issues = problems(line, account, today, late_ok=True, training=training, parts=parts)
+        available += parts['bucks_back']
+        taken = min(parts['bucks_take'], available)
+        available -= taken
+        shortfall = parts['bucks_take'] - taken
+        credit = max(ZERO, parts['refund'] - shortfall)
+        rows.append({
+            'cart_line': line.pk, 'sku': line.item.sku if line.item_id else '', 'title': line.description,
+            'refund': str(parts['refund']), 'credit': str(credit), 'bucks_back': str(parts['bucks_back']),
+            'bucks_taken': str(taken), 'shortfall': str(shortfall), 'late': is_late(line, today), 'problems': issues,
+        })
+        for key, value in (('credit', credit), ('refund', parts['refund']), ('bucks_back', parts['bucks_back']),
+                           ('bucks_taken', taken), ('shortfall', shortfall)):
+            totals[key] += value
+    return {'lines': rows, 'totals': {k: str(v) for k, v in totals.items()}, 'late': any(r['late'] for r in rows),
+            'ok': all(not r['problems'] for r in rows)}
+
+
+def batch(lines: list, code: str = '', *, person=None, note: str = '', user=None, training: bool = False,
+          late_ok: bool = False, late_reason: str = '', by_pin: bool = False) -> dict:
+    """Take several lines of one receipt back in one go: all of them, or none (one transaction). The owner's OK for a
+    late line is checked by the caller before this (a wrong PIN must be counted even though the return stops)."""
+    results = []
+    if training:  # worked out and nothing written, line by line in order, so the shortfall is right
+        who, _ = found(code, person)
+        shown = preview(lines, who.account, training=True)
+        if not shown['ok']:
+            raise RegisterError('NOT_RETURNABLE', ' '.join(p for r in shown['lines'] for p in r['problems']))
+        return {'returns': shown['lines'], 'totals': shown['totals'], 'training': True, 'person_id': who.pk,
+                'account_id': who.account_id}
+    with transaction.atomic():
+        for line in lines:
+            results.append(do_return(line, code, person=person, note=note, user=user, late_ok=late_ok,
+                                     late_reason=late_reason, by_pin=by_pin))
+        who, _ = found(code, person)
+    totals = {
+        'credit': sum((Decimal(r['credit']) for r in results), ZERO),
+        'bucks_back': sum((Decimal(r['bucks_back']) for r in results), ZERO),
+        'bucks_taken': sum((Decimal(r['bucks_taken']) for r in results), ZERO),
+        'shortfall': sum((Decimal(r['shortfall']) for r in results), ZERO),
+    }
+    return {'returns': results, 'totals': {k: str(v) for k, v in totals.items()}, 'training': False, 'person_id': who.pk,
+            'account_id': who.account_id, **ledger.balances(who.account)}
+
+
+def late_list(limit: int = 200) -> list[dict]:
+    """The Late returns list (mark against Retail): newest first."""
+    marks = (LateReturnMark.objects.select_related('return_record__person', 'return_record__cart_line__cart__receipt',
+                                                   'return_record__item', 'entered_by')
+             .order_by('-created_at')[:limit])
+    rows = []
+    for m in marks:
+        record = m.return_record
+        cart = record.cart_line.cart
+        receipt = getattr(cart, 'receipt', None)
+        sold = timezone.localdate(cart.completed_at) if cart.completed_at else None
+        rows.append({
+            'id': m.pk, 'created_at': m.created_at, 'department': m.department,
+            'receipt_number': receipt.receipt_number if receipt else f'Sale {cart.pk}', 'cart': cart.pk,
+            'sold_at': cart.completed_at, 'days_late': (timezone.localdate(m.created_at) - deadline(sold)).days if sold else None,
+            'sku': record.item.sku if record.item_id else '', 'title': record.cart_line.description,
+            'member': f'{record.person.first_name} {record.person.last_name}'.strip(), 'credit': str(record.credit),
+            'cashier': m.cashier_name, 'reason': m.reason, 'reason_label': LATE_REASONS.get(m.reason, m.reason),
+            'note': m.note, 'entered_by': (m.entered_by.full_name or m.entered_by.email) if m.entered_by else '',
+            'by_pin': m.by_pin,
+        })
+    return rows

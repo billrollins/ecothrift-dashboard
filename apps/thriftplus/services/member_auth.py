@@ -15,6 +15,9 @@ Django users, and their session can't reach anything staff-side (the auth map of
   - a password: **staff only** (their Dash login; owner 2026-10-16, "the only passwords are for staff"). The old
     member logins and their reset links are retired (``one_account``);
   - or the Thrift+ card plus the last 4 digits of the member's phone (gone 10-14; old sessions only).
+  - **Phone first** (owner 2026-10-20): a member with no phone (a Google or email joiner) is asked for one before
+    anything else (``needs_phone``): a texted code to that number (``send_phone_add``), then the phone is saved
+    (``confirm_phone_add``). Staff can also text a member a one-use sign-in link (``text_sign_in_link``, Phase 4).
   - **Join v2** (owner 2026-10-19): "Continue with Google" (``google_sign_in``), and one "Phone or email" box: a
     6-digit code by email (the ways above) or by text (Twilio Verify, ``phone_codes``), with the same never-says-
     whether-a-member answers, limits on top of Verify's, and every send and check logged with the number masked.
@@ -505,15 +508,18 @@ def _failed(row: MemberEmailToken | None, code: str, how: str, email: str = '') 
 def _matches(row: MemberEmailToken) -> bool:
     """The token still belongs to the person: they can sign in, and the email is still theirs (or they have none). A
     staff sign-in QR is tied to the person only."""
-    if row.purpose == MemberEmailToken.PURPOSE_STAFF_QR:
+    if row.purpose in STAFF_PURPOSES:
         return _can_sign_in(row.person)
     return _can_sign_in(row.person) and row.person.email in ('', row.email)
 
 
 STAFF_QR_MINUTES = 5
+STAFF_TEXT_MINUTES = 15
+STAFF_PURPOSES = (MemberEmailToken.PURPOSE_STAFF_QR, MemberEmailToken.PURPOSE_STAFF_TEXT)
 
 
-def staff_sign_in_link(person: Person, *, base_url: str, user=None) -> tuple[str, MemberEmailToken]:
+def staff_sign_in_link(person: Person, *, base_url: str, user=None, purpose: str = MemberEmailToken.PURPOSE_STAFF_QR,
+                       minutes: int = STAFF_QR_MINUTES) -> tuple[str, MemberEmailToken]:
     """The sign-in QR on the Thrift+ Staff app (owner 2026-10-20, "a QR that will link AND sign them into the app in one
     go"): a ``/scan?signin=<token>`` link that works once, for five minutes. Scanned with the member app's own camera it
     signs the installed app in; scanned with a phone camera it signs that browser in. Nothing is emailed or texted."""
@@ -523,12 +529,66 @@ def staff_sign_in_link(person: Person, *, base_url: str, user=None) -> tuple[str
         raise AuthError('LINK_BAD', 'This membership is not active.')
     token = secrets.token_urlsafe(32)
     row = MemberEmailToken.objects.create(
-        person=person, purpose=MemberEmailToken.PURPOSE_STAFF_QR, email=person.email or '',
+        person=person, purpose=purpose, email=person.email or '',
         token_hash=_hash(token, 'email-link'), code_hash=_hash(secrets.token_urlsafe(16), 'unused-code'),
-        expires_at=timezone.now() + timedelta(minutes=STAFF_QR_MINUTES),
+        expires_at=timezone.now() + timedelta(minutes=minutes),
     )
-    members.log('sign_in_qr_made', account=person.account, person=person, actor=user)
+    members.log('sign_in_qr_made' if purpose == MemberEmailToken.PURPOSE_STAFF_QR else 'sign_in_text_made',
+                account=person.account, person=person, actor=user)
     return f'{base_url.rstrip("/")}/scan?signin={token}', row
+
+
+TEXT_LINK_GAP_SECONDS = 60  # between sign-in link texts to one person
+TEXT_LINKS_PER_HOUR = 5  # per person
+TEXTS_OFF_TEXT = 'Texts to this number are turned off.'
+TEXT_LINK_OFF_TEXT = 'Texting a sign-in link is not on.'
+
+
+def can_text_link(person: Person) -> bool:
+    """Staff may text this person a sign-in link: the own-number switch is on, they have a US phone, and it has not said
+    STOP. (Whether the text really leaves is the sender's own gate, ``texting.sender_ready``.)"""
+    from apps.texting import service as texting
+
+    return bool(texting.own_number_on() and texting.digits(person.phone) and not texting.stopped(person.phone))
+
+
+def text_sign_in_link(person: Person, *, base_url: str, user=None):
+    """Phase 4 (owner 2026-10-20): staff text a member a one-use sign-in link, good for 15 minutes (the Sign-in QR's
+    cousin: the same ``/scan?signin=`` link, sent to their phone instead of shown). Only with the own-number switch on,
+    a phone on file, and no STOP. Answers the recorded ``TextMessage``; raises ``AuthError`` (``TEXT_LINK_OFF``,
+    ``NO_PHONE``, ``TEXTS_OFF``, ``TEXT_FAILED``) or ``LimitError``."""
+    from apps.texting import service as texting
+
+    if not texting.own_number_on():
+        raise AuthError('TEXT_LINK_OFF', TEXT_LINK_OFF_TEXT)
+    number = texting.digits(person.phone)
+    if not number:
+        raise AuthError('NO_PHONE', 'Add their mobile number first.')
+    if texting.stopped(number):
+        raise AuthError('TEXTS_OFF', TEXTS_OFF_TEXT)
+    if not _can_sign_in(person):
+        raise AuthError('LINK_BAD', 'This membership is not active.')
+    key = _phone_key(number, 'link')
+    last = cache.get(f'{key}:last')
+    now = time.time()
+    if last and now - float(last) < TEXT_LINK_GAP_SECONDS:
+        raise LimitError('TOO_SOON', retry_after=max(1, math.ceil(TEXT_LINK_GAP_SECONDS - (now - float(last)))))
+    if _counted(f'{key}:1h') >= TEXT_LINKS_PER_HOUR:
+        raise LimitError('TOO_MANY')
+    cache.set(f'{key}:last', now, TEXT_LINK_GAP_SECONDS)
+    _count(f'{key}:1h', 60 * 60)
+    link, row = staff_sign_in_link(person, base_url=base_url, user=user, purpose=MemberEmailToken.PURPOSE_STAFF_TEXT,
+                                   minutes=STAFF_TEXT_MINUTES)
+    message = texting.send_sign_in_text(
+        phone=number, key='sign_in_link', ref=f'person:{person.pk}', by=user,
+        body=f'Eco-Thrift: Tap to sign in to Thrift+: {link} It works once, for {STAFF_TEXT_MINUTES} minutes. '
+             f'Reply STOP to opt out.')
+    if message.status != message.STATUS_SENT:
+        MemberEmailToken.objects.filter(pk=row.pk).update(used_at=timezone.now())  # a link nobody got is dead
+        if message.status == message.STATUS_OPTED_OUT:
+            raise AuthError('TEXTS_OFF', TEXTS_OFF_TEXT)
+        raise AuthError('TEXT_FAILED', 'The text did not go out. Try again, or use the Sign-in QR.')
+    return message
 
 
 def check_link(token: str) -> MemberEmailToken:
@@ -578,9 +638,10 @@ def redeem(row: MemberEmailToken, *, how: str) -> Person:
     row.used_at = now
     row.save(update_fields=['used_at'])
     person = row.person
-    if row.purpose == MemberEmailToken.PURPOSE_STAFF_QR:
+    if row.purpose in STAFF_PURPOSES:
         # Staff vouched for who is holding the phone; no email was sent, so nothing about the email changes.
-        members.log('sign_in_qr_used', account=person.account, person=person)
+        members.log('sign_in_qr_used' if row.purpose == MemberEmailToken.PURPOSE_STAFF_QR else 'sign_in_text_used',
+                    account=person.account, person=person)
         return person
     fields = []
     if not person.email:
@@ -707,6 +768,16 @@ def _text_code(digits: str, person: Person | None, purpose: str) -> None:
     _phone_log('phone_code_sent', person, digits, purpose=purpose, sent=sent)
 
 
+def _refuse_stopped(digits: str, would_text: bool) -> None:
+    """Our own number never texts a number on the stop list (Phase 4): say so, so they are not left waiting for a text
+    that will not come. Only when a code would have gone out, so it says nothing about numbers we would ignore."""
+    from apps.texting import service as texting
+    from apps.thriftplus.services import phone_codes
+
+    if would_text and phone_codes.own_number_on() and texting.stopped(digits):
+        raise AuthError('TEXTS_OFF', TEXTS_OFF_TEXT + ' Use Google, or ask at the register.')
+
+
 def send_code(contact: str, first_name: str = '', last_name: str = '', *, base_url: str, ip: str | None = None) -> str:
     """One "Phone or email" box (Join v2): with both names a join, with none a sign in. Answers the channel ('sms' or
     'email'), the same whether or not the contact is a member's.
@@ -738,6 +809,7 @@ def send_code(contact: str, first_name: str = '', last_name: str = '', *, base_u
     ip = _ip(ip)
     _limit_phone_send(digits, ip)
     person = member_by_phone(digits)
+    _refuse_stopped(digits, person is not None or names is not None)
     if person is None:
         off = _phone_off(digits)
         if off is not None:
@@ -804,6 +876,80 @@ def _phone_join(digits: str, names: dict) -> Person:
     members.log('joined_online', account=account, person=person, to=masked(digits), by='phone')
     members.new_member_code(person)
     _phone_log('phone_code_used', person, digits, purpose=MemberEmailToken.PURPOSE_JOIN)
+    return person
+
+
+# ── Phone first: a member with no phone adds one with a checked code (owner 2026-10-20) ──
+
+PHONE_TAKEN_TEXT = 'That number is already on a Thrift+ membership. Ask at the register.'
+PHONE_SET_TEXT = 'Ask at the register to change your number.'
+
+
+def needs_phone(person: Person) -> bool:
+    """A member with no phone must add one before anything else (like Finish joining). Not a staff member's own
+    membership (they sign in with their Dash login) and not a practice member."""
+    account = person.account
+    return not person.phone and not account.staff_user_id and not account.is_practice
+
+
+def _phone_holder_blocks(person: Person, digits: str) -> bool:
+    """The number is on another membership (a second adult on this one may share it)."""
+    other = member_by_phone(digits) or _phone_off(digits)
+    return other is not None and other.account_id != person.account_id
+
+
+def send_phone_add(person: Person, contact: str, *, ip: str | None = None) -> None:
+    """Text a code to the number a signed-in member with no phone wants to add. Same limits as a sign-in code."""
+    from apps.thriftplus.services import phone_codes
+
+    if person.phone:
+        raise AuthError('PHONE_SET', PHONE_SET_TEXT)
+    digits = phone_codes.us_number(contact)
+    if not digits:
+        raise AuthError('CONTACT_BAD', CONTACT_BAD_TEXT)
+    if not phone_codes.available():
+        raise AuthError('PHONE_OFF', PHONE_OFF_TEXT)
+    _limit_phone_send(digits, _ip(ip))
+    if _phone_holder_blocks(person, digits):
+        raise AuthError('PHONE_TAKEN', PHONE_TAKEN_TEXT)
+    _refuse_stopped(digits, True)
+    _text_code(digits, person, 'add_phone')
+
+
+def confirm_phone_add(person: Person, contact: str, code: str, *, ip: str | None = None) -> Person:
+    """Save the phone once the code texted to it is right: the phone is then on the person, verified. A wrong code counts
+    against the number (the fifth locks it for 15 minutes), as for a sign-in code."""
+    from apps.thriftplus.services import members, phone_codes
+
+    if person.phone:
+        raise AuthError('PHONE_SET', PHONE_SET_TEXT)
+    digits = phone_codes.us_number(contact)
+    if not digits:
+        raise AuthError('CONTACT_BAD', CONTACT_BAD_TEXT)
+    if not phone_codes.available():
+        raise AuthError('PHONE_OFF', PHONE_OFF_TEXT)
+    _limit_code_try(_ip(ip))
+    locked = _phone_locked(digits)
+    if locked:
+        raise LimitError('LOCKED', retry_after=locked)
+    given = ''.join(ch for ch in str(code or '') if ch.isdigit())
+    ok = False
+    if len(given) == 6:
+        try:
+            ok = phone_codes.check(digits, given)
+        except phone_codes.PhoneCodeError:
+            logger.exception('thrift+ add-phone code check for %s failed', phone_codes.masked(digits))
+            raise AuthError('CODE_BAD', LINK_TEXT['CODE_BAD']) from None
+    if not ok:
+        _phone_log('phone_code_failed', person, digits, wrong=_phone_wrong(digits), purpose='add_phone')
+        raise AuthError('CODE_BAD', LINK_TEXT['CODE_BAD'])
+    cache.delete(_phone_key(digits, 'wrong'))
+    if _phone_holder_blocks(person, digits):  # taken since the code went out
+        raise AuthError('PHONE_TAKEN', PHONE_TAKEN_TEXT)
+    person.phone = digits
+    person.phone_verified_at = timezone.now()
+    person.save(update_fields=['phone', 'phone_verified_at', 'updated_at'])
+    members.log('phone_added', account=person.account, person=person, to=phone_codes.masked(digits), how='texted code')
     return person
 
 

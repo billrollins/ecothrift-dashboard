@@ -74,6 +74,7 @@ const ItemDetailPage = lazy(() => import('./pages/inventory/ItemDetailPage'));
 const TerminalPage = lazy(() => import('./pages/pos/TerminalPage'));
 const TestTerminalPage = lazy(() => import('./pages/pos/TestTerminalPage'));
 const DrawerListPage = lazy(() => import('./pages/pos/DrawerListPage'));
+const ReturnsPage = lazy(() => import('./pages/pos/ReturnsPage'));
 const CashManagementPage = lazy(() => import('./pages/pos/CashManagementPage'));
 const TransactionListPage = lazy(() => import('./pages/pos/TransactionListPage'));
 const PosPrintablesPage = lazy(() => import('./pages/pos/PosPrintablesPage'));
@@ -358,6 +359,7 @@ function AppRoutes() {
         <Route path="/pos/cash" element={<CashManagementPage />} />
         <Route path="/pos/transactions" element={<TransactionListPage />} />
         <Route path="/pos/members" element={<MembersLookupPage />} />
+        <Route path="/pos/returns" element={<ReturnsPage />} />
         <Route path="/pos/printables" element={<PosPrintablesPage />} />
         <Route path="/pos/deliveries" element={<DeliveriesEntryRedirect />} />
         <Route path="/pos/deliveries/schedule" element={<DeliveriesEntryRedirect page="schedule" />} />

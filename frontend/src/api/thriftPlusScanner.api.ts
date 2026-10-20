@@ -132,6 +132,9 @@ const PLAIN: Record<string, (retryAfter?: number) => string> = {
   LOCKED: (s) => `Too many tries. Try again ${waitWords(s)}.`,
   CONTACT_BAD: () => 'Enter a US phone number or an email.',
   PHONE_OFF: () => 'Texts are off right now. Enter your email.',
+  PHONE_TAKEN: () => 'That number is already on a Thrift+ membership. Ask at the register.',
+  PHONE_SET: () => 'Ask at the register to change your number.',
+  TEXTS_OFF: () => 'Texts to this number are turned off. Use Google, or ask at the register.',
   GOOGLE_OFF: () => 'Google sign-in is off. Use your email or phone.',
   GOOGLE_BAD: () => "Google didn't sign you in. Try again, or use your email or phone.",
   NAME_NEEDED: () => 'Enter your first and last name.',
@@ -304,6 +307,12 @@ export async function signInWithGoogle(credential: string): Promise<EmailSignIn>
   }
 }
 
+/** The member out of a session answer: `me/selfie/`, `me/signature/` and `me/phone/` answer the session payload. */
+function memberOf(data: unknown): ThriftPlusMember {
+  const d = data as { status?: string; member?: ThriftPlusMember };
+  return d && d.status === 'member' && d.member ? d.member : (data as ThriftPlusMember);
+}
+
 /**
  * "Use this photo": the selfie of a pending member (an active member's photo is changed by staff). Send a JPEG the app
  * redrew (FinishJoining.tsx): the server reads images with Pillow and refuses HEIC.
@@ -313,8 +322,8 @@ export async function uploadSelfie(photo: Blob): Promise<ThriftPlusMember> {
   form.append('photo', photo, photo.type === 'image/png' ? 'selfie.png' : 'selfie.jpg');
   try {
     const { data } = await http.post<ThriftPlusMember>('/me/selfie/', form);
-    member = data;
-    return data;
+    member = memberOf(data);
+    return member;
   } catch (err) {
     throw problem(err, 'Could not save your photo. Try again.');
   }
@@ -324,10 +333,33 @@ export async function uploadSelfie(photo: Blob): Promise<ThriftPlusMember> {
 export async function signTerms(signature: string, termsVersion: string): Promise<ThriftPlusMember> {
   try {
     const { data } = await http.post<ThriftPlusMember>('/me/signature/', { signature, terms_version: termsVersion });
-    member = data;
-    return data;
+    member = memberOf(data);
+    return member;
   } catch (err) {
     throw problem(err, 'Could not save your signature. Try again.');
+  }
+}
+
+// ── Phone first (owner 2026-10-20): a member with no phone adds one with a texted code ─────────────────────
+
+/** "Send my code" for the number being added: a text with a 6-digit code to that number. */
+export async function sendPhoneCode(phone: string): Promise<{ status: 'sent' }> {
+  try {
+    const { data } = await http.post<{ status: 'sent' }>('/me/phone/send/', { phone: phone.trim() });
+    return data;
+  } catch (err) {
+    throw problem(err, 'Could not send the code. Try again.');
+  }
+}
+
+/** The code from that text: the phone is saved, and the member (with `needs_phone` now false) comes back. */
+export async function savePhone(phone: string, code: string): Promise<ThriftPlusMember> {
+  try {
+    const { data } = await http.post<ThriftPlusMember>('/me/phone/', { phone: phone.trim(), code: code.trim() });
+    member = memberOf(data);
+    return member;
+  } catch (err) {
+    throw problem(err, "That code didn't work. Check it and try again.");
   }
 }
 
@@ -493,6 +525,8 @@ export interface ThriftPlusMe {
   can_change: boolean;
   /** Your email (T74): receipts and updates follow the address; store news can be turned off. */
   emails?: { updates: boolean; news: boolean; has_email: boolean; note: string };
+  /** The Account tab (owner 2026-10-20): your name, phone (digits) and photo. Missing on older servers. */
+  you?: { name: string; phone: string; photo_url: string | null };
 }
 
 /** The code behind the app's Member QR (owner 2026-10-14: no card, APP D6): the QR the register scans. */

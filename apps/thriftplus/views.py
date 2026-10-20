@@ -40,7 +40,19 @@ from apps.thriftplus.serializers import (
     CardSerializer,
     PersonSerializer,
 )
-from apps.thriftplus.services import calculator, card_pdf, cards, floor_plan, ledger, members, register, returns, rewards
+from apps.thriftplus.services import (
+    calculator,
+    card_pdf,
+    cards,
+    floor_plan,
+    ledger,
+    members,
+    owner_pin,
+    register,
+    returns,
+    returns_find,
+    rewards,
+)
 from apps.thriftplus.services import emails as member_email
 from apps.thriftplus.services.members import MemberError
 
@@ -421,6 +433,23 @@ class PersonViewSet(viewsets.GenericViewSet):
         except member_auth.AuthError as exc:
             return _error(MemberError(str(exc)))
         return Response({'link': link, 'expires_at': row.expires_at})
+
+    @action(detail=True, methods=['post'], url_path='text-link')
+    def text_link(self, request, pk=None):
+        """Thrift+ Staff "Text sign-in link" (Phase 4, owner 2026-10-20): texts the person a one-use sign-in link, good
+        for 15 minutes. Only with the ``thrift_plus.own_number_codes`` switch on, a phone on file and no STOP."""
+        from apps.thriftplus.services import member_auth
+
+        try:
+            member_auth.text_sign_in_link(self.get_object(), base_url=_public_base(), user=request.user)
+        except member_auth.LimitError as exc:
+            body = {'detail': str(exc), 'code': exc.code}
+            if exc.retry_after:
+                body['retry_after'] = exc.retry_after
+            return Response(body, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        except member_auth.AuthError as exc:
+            return _error(MemberError(str(exc)))
+        return Response({'sent': True})
 
     @action(detail=True, methods=['post'], url_path='photo-fix', parser_classes=[MultiPartParser, FormParser])
     def photo_fix(self, request, pk=None):
@@ -963,8 +992,13 @@ class ReturnsViewSet(viewsets.ViewSet):
     - ``lookup`` ``?code=`` or ``?person=`` (and optional ``register=``): the member's recent purchases, each with its
       mark, what a return gives back and takes back, its deadline, and why not when it can't come back;
     - ``create`` ``{code | person, cart_line, note?, register}``: take one back as Thrift+ credit. On the training
-      register the result is worked out and nothing is written (``training: true``). ``late_ok`` (the owner only, O1)
-      lets a return past the 3 days through, with the note saying why;
+      register the result is worked out and nothing is written (``training: true``). ``late_ok`` (the owner signed in or
+      the owner PIN as ``pin``, O1; owner 2026-10-20) lets a return past the 3 days through, with the note saying why;
+    - The Returns page (owner 2026-10-20, ``returns_find.py``): ``find`` ``{q | person, register?}`` (a POST, so names stay
+      out of the logs), ``receipt`` ``?cart=`` (one ticket, Returnable and AS IS), ``preview`` ``{cart, cart_lines}`` (the
+      summary), ``batch`` ``{cart, cart_lines, late?: {reason, note}, pin?}`` (several lines in one go; past the 3 days it
+      needs the owner signed in or ``pin``, a reason, and is marked against Retail) and ``late`` (the Late returns list,
+      managers);
     - ``photo``: the serial and condition photo of a $100+ item at the sale;
     - ``list`` and ``done``: returned items waiting for staff.
     """
@@ -1007,19 +1041,105 @@ class ReturnsViewSet(viewsets.ViewSet):
         line = get_object_or_404(CartLine.objects.select_related('cart', 'item__product__profile'), pk=request.data.get('cart_line'))
         late_ok = _truthy(request.data.get('late_ok'))
         note = str(request.data.get('note') or '')
-        if late_ok and not request.user.is_superuser:
-            return Response({'detail': 'Only the owner can allow a return after the 3 days.', 'code': 'OWNER_ONLY'},
-                            status=status.HTTP_403_FORBIDDEN)
+        training = self._training(request.data.get('register'))
+        by_pin = False
         if late_ok and not note.strip():
             return Response({'detail': 'Say why the late return is allowed (the store was closed).', 'code': 'SAY_WHY'},
                             status=status.HTTP_400_BAD_REQUEST)
-        training = self._training(request.data.get('register'))
+        if late_ok and not training:  # the owner signed in, or the owner PIN (owner 2026-10-20)
+            try:
+                by_pin = owner_pin.authorize(request.user, str(request.data.get('pin') or ''), 'late return', cart_line=line.pk)
+            except owner_pin.PinError as exc:
+                return Response(exc.payload(), status=exc.http)
         try:
             result = returns.do_return(line, str(request.data.get('code') or ''), person=request.data.get('person'),
-                                       note=note, user=request.user, training=training, late_ok=late_ok)
+                                       note=note, user=request.user, training=training, late_ok=late_ok, by_pin=by_pin)
         except register.RegisterError as exc:
             return Response(exc.payload(), status=status.HTTP_400_BAD_REQUEST)
         return Response(result, status=status.HTTP_200_OK if training else status.HTTP_201_CREATED)
+
+    # ── The Returns page (owner 2026-10-20) ───────────────────────────────────
+
+    @action(detail=False, methods=['post'])
+    def find(self, request):
+        """Step 1: ``{q, person?, register?}``. A single ticket comes back already open as ``receipt``."""
+        d = request.data
+        return Response(returns_find.find(str(d.get('q') or ''), person=d.get('person'), training=self._training(d.get('register'))))
+
+    @action(detail=False, methods=['get'])
+    def receipt(self, request):
+        """Step 2: ``?cart=<id>&register=``: one ticket, Returnable (with late ones marked) and AS IS."""
+        cart = str(request.query_params.get('cart') or '')
+        body = returns_find.receipt(int(cart), training=self._training(request.query_params.get('register'))) if cart.isdigit() else None
+        if body is None:
+            return Response({'detail': 'No finished sale with that number.', 'code': 'NO_TICKET'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(body)
+
+    def _ticket_lines(self, request):
+        """The ticket and its ticked lines for ``preview`` and ``batch``: (cart member, lines, error response)."""
+        from apps.pos.models import CartLine
+        from apps.thriftplus.models import CartMember
+
+        d = request.data
+        cart_id = str(d.get('cart') or '')
+        ids = [int(i) for i in (d.get('cart_lines') or []) if str(i).isdigit()]
+        member = CartMember.objects.select_related('person', 'account').filter(cart_id=cart_id).first() if cart_id.isdigit() else None
+        if member is None:
+            return None, [], Response({'detail': 'Not sold to a Thrift+ member. All sales final.', 'code': 'NOT_RETURNABLE'},
+                                      status=status.HTTP_400_BAD_REQUEST)
+        lines = list(CartLine.objects.filter(cart_id=cart_id, pk__in=ids, line_kind='item')
+                     .select_related('cart', 'cart__cashier', 'item__product__profile').order_by('pk'))
+        if not lines or len(lines) != len(set(ids)):
+            return None, [], Response({'detail': 'Tick the lines that are coming back.', 'code': 'NO_LINES'},
+                                      status=status.HTTP_400_BAD_REQUEST)
+        return member, lines, None
+
+    @action(detail=False, methods=['post'])
+    def preview(self, request):
+        """Step 3's summary: per line and in all, what Confirm would give and take back."""
+        member, lines, error = self._ticket_lines(request)
+        if error is not None:
+            return error
+        body = returns.preview(lines, member.account, training=self._training(request.data.get('register')))
+        body.update(pin_set=owner_pin.status()['set'], owner_signed_in=bool(request.user.is_superuser),
+                    reasons=[{'value': k, 'label': v} for k, v in returns.LATE_REASONS.items()])
+        return Response(body)
+
+    @action(detail=False, methods=['post'])
+    def batch(self, request):
+        """Step 3's Confirm: every ticked line back in one go (all or none). Past the 3 days it needs ``late``
+        ``{reason, note?}`` and the owner signed in or ``pin``; each late line is marked against Retail."""
+        member, lines, error = self._ticket_lines(request)
+        if error is not None:
+            return error
+        d = request.data
+        training = self._training(d.get('register'))
+        late = any(returns.is_late(line) for line in lines)
+        info = d.get('late') if isinstance(d.get('late'), dict) else {}
+        reason, note = str(info.get('reason') or ''), str(info.get('note') or d.get('note') or '').strip()
+        by_pin = False
+        if late:
+            if reason not in returns.LATE_REASONS:
+                return Response({'detail': 'Pick why the late return is allowed.', 'code': 'SAY_WHY'}, status=status.HTTP_400_BAD_REQUEST)
+            note = f'Late return: {returns.LATE_REASONS[reason]}.{" " + note if note else ""}'
+            if not training:
+                try:
+                    by_pin = owner_pin.authorize(request.user, str(d.get('pin') or ''), 'late return',
+                                                 cart=member.cart_id, cart_lines=[l.pk for l in lines], reason=reason)
+                except owner_pin.PinError as exc:
+                    return Response(exc.payload(), status=exc.http)
+        person = returns_find.acting_person(member, d.get('person'))
+        try:
+            result = returns.batch(lines, person=person, note=note, user=request.user, training=training, late_ok=late,
+                                   late_reason=reason, by_pin=by_pin)
+        except register.RegisterError as exc:
+            return Response(exc.payload(), status=status.HTTP_400_BAD_REQUEST)
+        return Response(result, status=status.HTTP_200_OK if training else status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
+    def late(self, request):
+        """The Late returns list: marks against Retail, newest first (managers and the owner)."""
+        return Response(returns.late_list())
 
     @action(detail=False, methods=['post'])
     def photo(self, request):
@@ -1036,6 +1156,29 @@ class ReturnsViewSet(viewsets.ViewSet):
     def done(self, request, pk=None):
         ReturnRecord.objects.filter(pk=pk).update(status=ReturnRecord.STATUS_DONE)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class OwnerPinViewSet(viewsets.ViewSet):
+    """
+    The owner PIN (owner 2026-10-20), in Dash Settings. ``GET`` says whether one is set (and, for the owner, when and by
+    whom); ``POST {pin}`` sets or resets it: the owner (a superuser) only, 4 to 8 digits. The PIN is never sent back.
+    """
+
+    permission_classes = [IsAuthenticated, IsTeamMember]
+
+    def list(self, request):
+        body = owner_pin.status()
+        if not request.user.is_superuser:
+            body = {'set': body['set'], 'locked': body['locked']}
+        return Response(body)
+
+    def create(self, request):
+        if not request.user.is_superuser:
+            return Response({'detail': 'Only the owner can set the PIN.', 'code': 'OWNER_ONLY'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            return Response(owner_pin.set_pin(request.user, str(request.data.get('pin') or '')))
+        except owner_pin.PinError as exc:
+            return Response(exc.payload(), status=exc.http)
 
 
 class MemberDirectoryViewSet(viewsets.ViewSet):
