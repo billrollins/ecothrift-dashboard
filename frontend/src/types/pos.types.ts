@@ -351,6 +351,10 @@ export interface WeeklyDayMetric {
   revenue: string;
   items_sold: number;
   card_surcharge_total?: string;
+  /** Thrift+ 3-day returns taken on this day (negative). `revenue` is already net of them. */
+  returns?: string;
+  /** Thrift+ revenue on this day: ThriftBucks not given on instant redemptions, and ThriftBucks that expired. */
+  thriftplus_revenue?: string;
   goal?: string;
 }
 
@@ -367,6 +371,8 @@ export interface SalesWeeklyRow {
   week_start: string;
   week_end: string;
   week_total: string;
+  week_returns?: string;
+  week_thriftplus_revenue?: string;
   week_items_sold: number;
   label: string;
   days: WeeklyDayMetric[];
@@ -384,6 +390,9 @@ export interface SalesMetrics {
   today: string;
   yesterday: string;
   same_weekday_last_week: string;
+  /** Today's Thrift+ returns (negative) and Thrift+ revenue; `today` is net item sales. */
+  today_returns?: string;
+  today_thriftplus_revenue?: string;
   goal: DashboardSalesGoal | null;
   daily_last_90_days: SalesDailyMetric[];
   weekly_last_14_weeks: SalesWeeklyRow[];

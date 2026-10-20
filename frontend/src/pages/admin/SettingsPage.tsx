@@ -81,7 +81,7 @@ function SectionView({ tab, section, settings, open, onToggle, highlight }: {
             <SettingRow
               key={key}
               settingKey={key}
-              value={row?.value ?? (meta.kind === 'switch' ? false : meta.kind === 'list' ? [] : '')}
+              value={row?.value ?? meta.defaultValue ?? (meta.kind === 'switch' ? false : meta.kind === 'list' ? [] : '')}
               description={row?.description as string | undefined}
               meta={meta}
               changedBy={row?.updated_by_name as string | null | undefined}

@@ -54,7 +54,7 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
     access: 'all',
     sections: [
       { id: 'hours', title: 'Hours', help: 'Open days and times, and holidays. Online Sales holds use the same clock.', custom: ['store-hours', 'holiday-hours'] },
-      { id: 'register', title: 'Register and payments', keys: ['tax_rate'], custom: ['card-surcharge'] },
+      { id: 'register', title: 'Register and payments', keys: ['tax_rate', 'debit_card_fee_rate'], custom: ['card-surcharge'] },
       { id: 'staff-purchases', title: 'Staff purchases', help: 'Payroll deduction at the register.', custom: ['staff-purchases'] },
       {
         id: 'business',

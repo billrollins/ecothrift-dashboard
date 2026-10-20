@@ -47,6 +47,8 @@ function SalesHoverTooltip({
   salesLabel,
   revenue,
   itemsSold,
+  returns,
+  thriftplusRevenue,
   children,
 }: {
   headline: string;
@@ -54,6 +56,8 @@ function SalesHoverTooltip({
   salesLabel: string;
   revenue: string;
   itemsSold: number;
+  returns?: string;
+  thriftplusRevenue?: string;
   children: ReactElement;
 }) {
   const hoverCapable = useMediaQuery('(hover: hover)');
@@ -88,6 +92,8 @@ function SalesHoverTooltip({
           salesLabel={salesLabel}
           revenue={revenue}
           itemsSold={itemsSold}
+          returns={returns}
+          thriftplusRevenue={thriftplusRevenue}
         />
       }
     >
@@ -103,6 +109,8 @@ function WeekTotalCell({
   weekEnd,
   revenue,
   itemsSold,
+  returns,
+  thriftplusRevenue,
 }: {
   label: string;
   value: string;
@@ -110,6 +118,8 @@ function WeekTotalCell({
   weekEnd: string;
   revenue: string;
   itemsSold: number;
+  returns?: string;
+  thriftplusRevenue?: string;
 }) {
   const cell = (
     <Box
@@ -145,6 +155,8 @@ function WeekTotalCell({
       salesLabel="Weekly Sales"
       revenue={revenue}
       itemsSold={itemsSold}
+      returns={returns}
+      thriftplusRevenue={thriftplusRevenue}
     >
       {cell}
     </SalesHoverTooltip>
@@ -159,6 +171,8 @@ function DailyCell({
   date,
   revenue,
   itemsSold,
+  returns,
+  thriftplusRevenue,
 }: {
   title: string;
   value: string;
@@ -167,6 +181,8 @@ function DailyCell({
   date: string;
   revenue: string;
   itemsSold: number;
+  returns?: string;
+  thriftplusRevenue?: string;
 }) {
   const variantSx = DAILY_VARIANT_SX[variant];
   const emphasized = variant !== 'default';
@@ -206,6 +222,8 @@ function DailyCell({
       salesLabel="Daily Sales"
       revenue={revenue}
       itemsSold={itemsSold}
+      returns={returns}
+      thriftplusRevenue={thriftplusRevenue}
     >
       {cell}
     </SalesHoverTooltip>
@@ -245,6 +263,8 @@ export function WeeklySalesRow({
           weekEnd={week.week_end}
           revenue={week.week_total}
           itemsSold={weekItemsSold}
+          returns={week.week_returns}
+          thriftplusRevenue={week.week_thriftplus_revenue}
         />
         {week.days.map((d) => (
           <DailyCell
@@ -256,6 +276,8 @@ export function WeeklySalesRow({
             date={d.date}
             revenue={d.revenue}
             itemsSold={d.items_sold ?? 0}
+            returns={d.returns}
+            thriftplusRevenue={d.thriftplus_revenue}
           />
         ))}
       </Box>

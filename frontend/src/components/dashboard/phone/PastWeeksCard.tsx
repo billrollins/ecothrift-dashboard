@@ -40,6 +40,8 @@ export function PastWeeksCard({
     headline: string;
     revenue: string;
     itemsSold: number;
+    returns?: string;
+    thriftplusRevenue?: string;
   } | null>(null);
 
   const closeSheet = () => {
@@ -97,6 +99,8 @@ export function PastWeeksCard({
                 headline: longDayTitle(day.day, day.date),
                 revenue: day.revenue,
                 itemsSold: day.items_sold ?? 0,
+                returns: day.returns,
+                thriftplusRevenue: day.thriftplus_revenue,
               })
             }
           />
@@ -121,6 +125,8 @@ export function PastWeeksCard({
         salesLabel="Daily Sales"
         revenue={detail?.revenue ?? '0'}
         itemsSold={detail?.itemsSold ?? 0}
+        returns={detail?.returns}
+        thriftplusRevenue={detail?.thriftplusRevenue}
       />
     </>
   );

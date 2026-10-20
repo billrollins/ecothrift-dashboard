@@ -8,6 +8,7 @@ import {
   parseDashboardAmount,
 } from './dashboardFormatters';
 import { SalesGoalDialog } from './SalesGoalDialog';
+import { SalesSubLines } from './SalesSubLines';
 import { SalesTrendChart } from './SalesTrendChart';
 import {
   buildSalesChartData,
@@ -209,6 +210,7 @@ export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
                 </Typography>
               </Box>
             </Tooltip>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'stretch', sm: 'flex-end' }, gap: 0.5, minWidth: 0 }}>
             <Stack
               direction="row"
               spacing={2}
@@ -243,6 +245,15 @@ export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
                 />
               )}
             </Stack>
+            {!isMobile && (
+              <SalesSubLines
+                align="right"
+                period="Today"
+                returns={sales.today_returns}
+                thriftplusRevenue={sales.today_thriftplus_revenue}
+              />
+            )}
+            </Box>
           </Box>
           <Box
             sx={{

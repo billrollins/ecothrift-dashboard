@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { SnackbarProvider } from 'notistack';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
+import * as core from '../../api/core.api';
 import SettingsPage from './SettingsPage';
 
 const SETTINGS = [
@@ -22,6 +23,10 @@ vi.mock('../../api/core.api', async (orig) => ({
   ...(await orig<typeof import('../../api/core.api')>()),
   getSettings: vi.fn(async () => ({ data: SETTINGS })),
   getAppVersion: vi.fn(async () => ({ data: { version: '2.147.0' } })),
+  updateSetting: vi.fn(async () => {
+    throw new Error('404: no such setting yet');
+  }),
+  createSetting: vi.fn(async () => ({ data: {} })),
 }));
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { role: 'Admin', is_superuser: true }, hasRole: () => true }),
@@ -77,5 +82,19 @@ describe('SettingsPage (owner, 2026-10-07)', () => {
     expect(within(list).getByText('Default PO est. shrink')).toBeInTheDocument();
     await userEvent.click(within(list).getByText('Default PO est. shrink'));
     expect(await screen.findByRole('tab', { name: 'Buying', selected: true })).toBeInTheDocument();
+  });
+
+  it('shows the debit card fee at its 1% default with no row yet, and the first save creates the row', async () => {
+    renderAt('/admin/settings?tab=store&section=register');
+    const label = await screen.findByText('Debit card fee we pay');
+    const row = label.parentElement!.parentElement as HTMLElement;
+    expect(within(row).getByText('1%')).toBeInTheDocument();
+    await userEvent.click(within(row).getByRole('button', { name: 'Edit' }));
+    const field = within(row).getByLabelText('Percent');
+    await userEvent.clear(field);
+    await userEvent.type(field, '2');
+    await userEvent.click(within(row).getByRole('button', { name: 'Save' }));
+    expect(core.updateSetting).toHaveBeenCalledWith('debit_card_fee_rate', { value: 0.02 });
+    expect(core.createSetting).toHaveBeenCalledWith(expect.objectContaining({ key: 'debit_card_fee_rate', value: 0.02 }));
   });
 });

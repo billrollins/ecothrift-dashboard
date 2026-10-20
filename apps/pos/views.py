@@ -1,8 +1,10 @@
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from django.db import IntegrityError, transaction
 from django.db.models import Sum, Q, Count
 from django.db.models.functions import TruncMonth, TruncYear, TruncWeek, Coalesce
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes as perm_classes
 from rest_framework.permissions import IsAuthenticated
@@ -715,7 +717,35 @@ class CartViewSet(viewsets.ModelViewSet):
             'voided_count': voided,
             'thrift_count': thrift_count,
             'by_method': by_method,
+            'sales_numbers': self._sales_numbers(qs),
         })
+
+    def _sales_numbers(self, qs):
+        """The Transactions block (owner 10-20): item sales, returns, Thrift+ revenue, tax, fees and how it was paid, for
+        the page's filters. Returns count by return day inside the date filter (and only the other filters that can be
+        read off a sale: register, cashier, how paid, search); expired ThriftBucks are Thrift+ revenue inside the dates."""
+        from apps.pos.filters import CartFilter
+        from apps.pos.services import sales_numbers
+        from apps.thriftplus.models import ReturnRecord
+
+        params = self.request.query_params
+        lo, hi = parse_date(params.get('date_from') or ''), parse_date(params.get('date_to') or '')
+        other = {k: v for k, v in params.items()
+                 if k in ('drawer', 'cashier', 'payment_method', 'card_type', 'receipt_number', 'q') and v}
+        returns = ReturnRecord.objects.all()
+        if lo:
+            returns = returns.filter(created_at__date__gte=lo)
+        if hi:
+            returns = returns.filter(created_at__date__lte=hi)
+        if other:
+            sold_to = CartFilter(data=other, queryset=Cart.objects.all()).qs
+            returns = returns.filter(cart_line__cart__in=sold_to.values('pk'))
+        expired = None  # ThriftBucks that ran out are the store's, not any one sale's: only when nothing narrows the sales
+        if params.get('status') in ('voided', 'open'):
+            returns = returns.none()
+        elif not other:
+            expired = (lo or date(2000, 1, 1), hi or timezone.localdate())
+        return sales_numbers.for_carts(qs, returns, expired=expired)
 
     def perform_create(self, serializer):
         from apps.core.models import AppSetting

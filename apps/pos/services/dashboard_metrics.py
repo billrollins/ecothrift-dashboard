@@ -19,6 +19,7 @@ from apps.pos.models import (
     DashboardDepartmentGoal,
     DashboardSalesGoal,
 )
+from apps.pos.services import sales_numbers
 DASHBOARD_CACHE_SECONDS = 45
 QUICK_REPRICE_NOTE = 'Quick reprice'
 DEFAULT_DEPARTMENT_WEEKS = 8
@@ -95,17 +96,8 @@ def _day_range(start: date, end: date) -> tuple[datetime, datetime]:
 
 
 def _daily_sales_series(start: date, end: date) -> dict[date, Decimal]:
-    start_dt, end_dt = _day_range(start, end)
-    rows = (
-        Cart.objects.filter(
-            status='completed',
-            completed_at__gte=start_dt,
-            completed_at__lt=end_dt,
-        )
-        .values('completed_at__date')
-        .annotate(total=Sum('total'))
-    )
-    return {row['completed_at__date']: _dec(row['total']) for row in rows}
+    """Net item sales by day (owner 10-20, ``sales_numbers``): item sales plus returns. Dash's Sales number."""
+    return sales_numbers.net_item_sales_by_day(start, end)
 
 
 def _daily_surcharge_series(start: date, end: date) -> dict[date, Decimal]:
@@ -141,13 +133,18 @@ def _day_payload(
     revenue: Decimal,
     items_sold: int,
     card_surcharge_total: Decimal = Decimal('0'),
+    returns: Decimal = Decimal('0'),
+    thriftplus_revenue: Decimal = Decimal('0'),
 ) -> dict[str, str | int]:
+    # ``revenue`` is net item sales (item sales + returns); returns and Thrift+ revenue ride along for the small lines.
     return {
         'date': day.isoformat(),
         'day': day.strftime('%A'),
         'revenue': _str_dec(revenue),
         'items_sold': items_sold,
         'card_surcharge_total': _str_dec(card_surcharge_total),
+        'returns': _str_dec(returns),
+        'thriftplus_revenue': _str_dec(thriftplus_revenue),
     }
 
 
@@ -166,7 +163,10 @@ def build_sales_metrics(today: date | None = None) -> dict[str, Any]:
     current_week_start = _week_start_sunday(today)
     earliest_week_start = current_week_start - timedelta(weeks=13)
     revenue_start = min(earliest_week_start, ninety_start - timedelta(days=27))
-    revenue_by_day = _daily_sales_series(revenue_start, today)
+    numbers_by_day = sales_numbers.by_day(revenue_start, today)
+    revenue_by_day = {day: Decimal(n['net_item_sales']) for day, n in numbers_by_day.items()}
+    returns_by_day = {day: Decimal(n['returns']) for day, n in numbers_by_day.items()}
+    thriftplus_by_day = {day: Decimal(n['thriftplus_revenue']) for day, n in numbers_by_day.items()}
     items_by_day = _daily_items_sold_series(revenue_start, today)
     surcharge_by_day = _daily_surcharge_series(revenue_start, today)
 
@@ -197,17 +197,25 @@ def build_sales_metrics(today: date | None = None) -> dict[str, Any]:
         week_end = week_start + timedelta(days=6)
         days = []
         week_total = Decimal('0')
+        week_returns = Decimal('0')
+        week_thriftplus = Decimal('0')
         week_items_sold = 0
         for day in _monday_sunday_days(week_start):
             rev = revenue_by_day.get(day, Decimal('0'))
             items = items_by_day.get(day, 0)
+            returned = returns_by_day.get(day, Decimal('0'))
+            thriftplus = thriftplus_by_day.get(day, Decimal('0'))
             week_total += rev
+            week_returns += returned
+            week_thriftplus += thriftplus
             week_items_sold += items
-            days.append(_day_payload(day, rev, items, surcharge_by_day.get(day, Decimal('0'))))
+            days.append(_day_payload(day, rev, items, surcharge_by_day.get(day, Decimal('0')), returned, thriftplus))
         weekly_last_14_weeks.append({
             'week_start': week_start.isoformat(),
             'week_end': week_end.isoformat(),
             'week_total': _str_dec(week_total),
+            'week_returns': _str_dec(week_returns),
+            'week_thriftplus_revenue': _str_dec(week_thriftplus),
             'week_items_sold': week_items_sold,
             'days': days,
             'label': 'This Week' if week_index == 0 else (
@@ -221,6 +229,8 @@ def build_sales_metrics(today: date | None = None) -> dict[str, Any]:
         'today': _str_dec(revenue_by_day.get(today, Decimal('0'))),
         'yesterday': _str_dec(revenue_by_day.get(yesterday, Decimal('0'))),
         'same_weekday_last_week': _str_dec(revenue_by_day.get(same_weekday_last_week, Decimal('0'))),
+        'today_returns': _str_dec(returns_by_day.get(today, Decimal('0'))),
+        'today_thriftplus_revenue': _str_dec(thriftplus_by_day.get(today, Decimal('0'))),
         'goal': {
             'id': goal.id,
             'amount': _str_dec(goal.amount),

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.188.0] -->
-<!-- Last reviewed: 2026-10-20 (2.188.0) -->
+<!-- Line 1 release: ## [2.188.1] -->
+<!-- Last reviewed: 2026-10-20 (2.188.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.188.1] - 2026-10-20
+
+User-facing theme: **Sales are counted the way the owner thinks about them: item sales to match buying spend, with Thrift+ as extra (Bill, 2026-10-20).** Outside initiatives (POS, Thrift+).
+
+### Changed
+- **Dashboard Sales is now Net item sales:** each item's price after markdowns, minus all the ThriftBucks it collected (kept or redeemed instantly), minus 3-day returns on the day they happen. The weekly goal, the chart and the AI brief use it. Two small lines under it show **Returns** and **Thrift+ revenue** for the same period.
+- **Transactions totals** are one block for your filters: Item sales, Returns, Net item sales, Thrift+ revenue, Tax, Fees (customers paid / we pay, 1% of debit cards), and Paid with (cash, card as debit / credit / not set, Thrift+ credit, earlier ThriftBucks). Thrift+ revenue is the half not given on instant redemptions plus ThriftBucks that expire unused; a returned item takes back 80% of its item sales (and 80% of its Thrift+ revenue when it was redeemed instantly). Example: the $80 lamp with 35 ThriftBucks is $45.00 item sales.
+
+### Added
+- **Settings → Store: "Debit card fee we pay"** (default 1%).
 
 ## [2.188.0] - 2026-10-20
 

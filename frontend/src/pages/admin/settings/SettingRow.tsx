@@ -318,7 +318,12 @@ export function SettingRow({
       return;
     }
     try {
-      await updateSetting(settingKey, { value: parsed.value });
+      try {
+        await updateSetting(settingKey, { value: parsed.value });
+      } catch {
+        // No row yet (a setting the app has a default for): the first save creates it.
+        await createSetting({ key: settingKey, value: parsed.value, description: meta.help });
+      }
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       enqueueSnackbar('Setting saved', { variant: 'success' });
       setEditing(false);

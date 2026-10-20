@@ -39,7 +39,7 @@ class DashboardMetricsTests(TestCase):
         )
         self.today = timezone.now().date()
 
-    def _complete_cart(self, amount: str, *, day=None):
+    def _complete_cart(self, amount: str, *, day=None, with_line=True):
         day = day or self.today
         completed_at = timezone.make_aware(datetime.combine(day, datetime.min.time()))
         drawer, _ = Drawer.objects.get_or_create(
@@ -53,7 +53,7 @@ class DashboardMetricsTests(TestCase):
                 'current_cashier': self.user,
             },
         )
-        return Cart.objects.create(
+        cart = Cart.objects.create(
             drawer=drawer,
             cashier=self.user,
             status='completed',
@@ -64,6 +64,10 @@ class DashboardMetricsTests(TestCase):
             payment_method='cash',
             completed_at=completed_at,
         )
+        # Sales are counted from their item lines (net item sales, owner 10-20).
+        if with_line:
+            CartLine.objects.create(cart=cart, description='Sale', quantity=1, unit_price=Decimal(amount), line_total=Decimal(amount))
+        return cart
 
     def test_sales_today_and_last_7_days(self):
         self._complete_cart('100.00', day=self.today)
@@ -79,8 +83,32 @@ class DashboardMetricsTests(TestCase):
         self.assertIn('four_week_weekly_avg', sales['daily_last_90_days'][-1])
         self.assertEqual(len(sales['weekly_last_14_weeks']), 14)
 
+    def test_sales_are_net_item_sales_with_returns_and_thriftplus_revenue_alongside(self):
+        from apps.thriftplus.models import ReturnRecord
+        from apps.thriftplus.services import members
+
+        cart = self._complete_cart('80.00', day=self.today)
+        line = cart.lines.get()
+        # The W5 lamp: tag $80, 35 ThriftBucks kept, so item sales are 80 - 35 = 45.
+        line.meta = {'thrift_plus': {'collected': '35.00', 'kept': '35.00', 'instant_bucks': '0.00', 'instant_off': '0.00'}}
+        line.save()
+        account = members.create_account(first_name='Ana', phone='4025550101')
+        ReturnRecord.objects.create(
+            account=account, person=account.people.get(),
+            cart_line=line, paid=Decimal('68.48'), credit=Decimal('68.48'), taxable_back=Decimal('64.00'),
+            tax_back=Decimal('4.48'), bucks_taken=Decimal('28.00'),
+        )
+        sales = build_dashboard_metrics(self.today)['sales']
+        self.assertEqual(sales['today'], '9.00')  # 45.00 item sales - 36.00 returned
+        self.assertEqual((sales['today_returns'], sales['today_thriftplus_revenue']), ('-36.00', '0.00'))
+        week = sales['weekly_last_14_weeks'][0]
+        day = next(d for d in week['days'] if d['date'] == self.today.isoformat())
+        self.assertEqual((day['revenue'], day['returns'], day['thriftplus_revenue']), ('9.00', '-36.00', '0.00'))
+        self.assertEqual((week['week_total'], week['week_returns'], week['week_thriftplus_revenue']), ('9.00', '-36.00', '0.00'))
+        self.assertEqual(sales['daily_last_90_days'][-1]['rolling_week_total'], '9.00')
+
     def test_weekly_calendar_includes_items_sold(self):
-        cart = self._complete_cart('120.00', day=self.today)
+        cart = self._complete_cart('120.00', day=self.today, with_line=False)
         CartLine.objects.create(
             cart=cart,
             description='Test item',

@@ -50,9 +50,11 @@ interface DayRowProps {
   itemsSold: number;
   variant: DailyVariant;
   salesLabel: string;
+  returns?: string;
+  thriftplusRevenue?: string;
 }
 
-function DayRow({ dayName, date, revenue, itemsSold, variant, salesLabel }: DayRowProps) {
+function DayRow({ dayName, date, revenue, itemsSold, variant, salesLabel, returns, thriftplusRevenue }: DayRowProps) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const variantSx = VARIANT_SX[variant];
   const open = Boolean(anchor);
@@ -119,6 +121,8 @@ function DayRow({ dayName, date, revenue, itemsSold, variant, salesLabel }: DayR
           salesLabel={salesLabel}
           revenue={revenue}
           itemsSold={itemsSold}
+          returns={returns}
+          thriftplusRevenue={thriftplusRevenue}
         />
       </Popover>
     </>
@@ -147,6 +151,8 @@ function WeekDayList({
           date={d.date}
           revenue={d.revenue}
           itemsSold={d.items_sold ?? 0}
+          returns={d.returns}
+          thriftplusRevenue={d.thriftplus_revenue}
           variant={variantFor(d, { isThisWeek, todayIso, todayDay })}
           salesLabel={salesLabel}
         />

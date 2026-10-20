@@ -8,6 +8,8 @@ export function DayDetailSheet({
   salesLabel,
   revenue,
   itemsSold,
+  returns,
+  thriftplusRevenue,
 }: {
   open: boolean;
   onClose: () => void;
@@ -15,6 +17,8 @@ export function DayDetailSheet({
   salesLabel: string;
   revenue: string;
   itemsSold: number;
+  returns?: string;
+  thriftplusRevenue?: string;
 }) {
   return (
     <DashboardPhoneSheet open={open} title="Day detail" onClose={onClose}>
@@ -23,6 +27,8 @@ export function DayDetailSheet({
         salesLabel={salesLabel}
         revenue={revenue}
         itemsSold={itemsSold}
+        returns={returns}
+        thriftplusRevenue={thriftplusRevenue}
       />
     </DashboardPhoneSheet>
   );

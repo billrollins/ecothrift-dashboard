@@ -42,6 +42,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { localPrintService } from '../../services/localPrintService';
 import type { Cart, CartLine } from '../../types/pos.types';
 import { CartCardBreakdown } from '../../components/pos/CartCardBreakdown';
+import { SalesNumbersBlock } from '../../components/pos/SalesNumbersBlock';
 import { CardTypeFixControls } from '../../components/pos/CardTypeFixControls';
 import { buildReceiptData } from '../../utils/posReceipt';
 import { format, startOfMonth, startOfWeek, subDays } from 'date-fns';
@@ -75,8 +76,6 @@ function datePresets(): { label: string; from: string; to: string }[] {
 function thriftMoney(value: number): string {
   return value > 0 ? formatCurrency(value) : '';
 }
-
-const METHOD_LABELS: Record<string, string> = { cash: 'Cash', card: 'Card', split: 'Split', payroll: 'Payroll' };
 
 const DB_COLORS: Record<string, string> = { db1: '#9e9e9e', db2: '#1976d2', db3: '#2e7d32' };
 const DB_LABELS: Record<string, string> = { db1: 'DB1 Legacy', db2: 'DB2 Production', db3: 'DB3 Current' };
@@ -565,37 +564,7 @@ export default function TransactionListPage() {
         ))}
       </Stack>
 
-      {summary && (
-        <Paper
-          variant="outlined"
-          sx={{ px: 1.5, py: 0.75, mb: 1 }}
-          title="Completed sales only, for the filters above. Split sales count under Split."
-        >
-          <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap', rowGap: 0.5 }}>
-            {[
-              { label: 'Sales', value: summary.count.toLocaleString('en-US') },
-              { label: 'Total', value: formatCurrency(summary.total) },
-              { label: 'Average sale', value: formatCurrency(summary.average) },
-              ...Object.entries(summary.by_method)
-                .sort(([, a], [, b]) => parseFloat(b) - parseFloat(a))
-                .map(([method, total]) => ({ label: METHOD_LABELS[method] ?? method, value: formatCurrency(total) })),
-              ...(summary.thrift_count
-                ? [{ label: 'Thrift+ sales', value: summary.thrift_count.toLocaleString('en-US') }]
-                : []),
-              ...(summary.voided_count
-                ? [{ label: 'Voided', value: summary.voided_count.toLocaleString('en-US') }]
-                : []),
-            ].map((t) => (
-              <Typography key={t.label} variant="body2" color="text.secondary">
-                {t.label}{' '}
-                <Box component="span" sx={{ color: 'text.primary', fontWeight: 700 }}>
-                  {t.value}
-                </Box>
-              </Typography>
-            ))}
-          </Stack>
-        </Paper>
-      )}
+      {summary && <SalesNumbersBlock summary={summary} />}
 
       {/* The table takes the rest of the screen (about 70% of it on a laptop). */}
       <Box sx={{ height: 'calc(100vh - 300px)', minHeight: 420 }}>

@@ -28,7 +28,7 @@ export function DashboardPhone({ metrics }: { metrics: DashboardMetrics }) {
       <TodayHero sales={metrics.sales} />
       <SectionHeader
         title="Sales"
-        hint="Daily completed POS sales, with this week and the last 14 weeks."
+        hint="Net item sales (after Thrift+ returns), with this week and the last 14 weeks."
       />
       <TrendCardPhone sales={metrics.sales} />
       <ThisWeekCard

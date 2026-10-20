@@ -11,6 +11,9 @@ export interface SalesDayDetailContentProps {
   salesLabel: string;
   revenue: string;
   itemsSold: number;
+  /** Thrift+ returns (negative) and Thrift+ revenue for the same period; shown when given. */
+  returns?: string;
+  thriftplusRevenue?: string;
 }
 
 export function SalesDayDetailContent({
@@ -19,6 +22,8 @@ export function SalesDayDetailContent({
   salesLabel,
   revenue,
   itemsSold,
+  returns,
+  thriftplusRevenue,
 }: SalesDayDetailContentProps) {
   return (
     <Box>
@@ -33,6 +38,16 @@ export function SalesDayDetailContent({
       <Typography variant="body2" lineHeight={1.5} sx={{ m: 0 }}>
         {salesLabel}: {formatDashboardCurrencyExact(revenue)}
       </Typography>
+      {returns !== undefined ?
+        <Typography variant="body2" lineHeight={1.5} sx={{ m: 0 }}>
+          Returns: {formatDashboardCurrencyExact(returns)}
+        </Typography>
+      : null}
+      {thriftplusRevenue !== undefined ?
+        <Typography variant="body2" lineHeight={1.5} sx={{ m: 0 }}>
+          Thrift+ revenue: {formatDashboardCurrencyExact(thriftplusRevenue)}
+        </Typography>
+      : null}
       <Typography variant="body2" lineHeight={1.5} sx={{ m: 0 }}>
         Items Sold: {formatItemsSold(itemsSold)}
       </Typography>

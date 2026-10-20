@@ -763,6 +763,43 @@ export function getCarts(params?: Record<string, unknown>): Promise<{ data: Pagi
   return api.get<PaginatedResponse<Cart>>('/pos/carts/', { params });
 }
 
+/** How sales are counted (owner 10-20): see `.ai/extended/pos-system.md`, "Sales numbers". Money strings. */
+export interface SalesNumbers {
+  item_sales: string;
+  /** Negative: Thrift+ 3-day returns, counted on the return day. */
+  returns: string;
+  net_item_sales: string;
+  thriftplus_revenue: string;
+  thriftplus_revenue_instant: string;
+  /** Negative: the return share of an instant sale's Thrift+ revenue, on the return day. */
+  thriftplus_revenue_returned: string;
+  thriftplus_revenue_expired: string;
+  /** Tax on sales less tax refunded on returns. */
+  tax: string;
+  tax_collected: string;
+  tax_refunded: string;
+  fees_customers_paid: string;
+  fees_card_surcharge: string;
+  fees_delivery: string;
+  fees_we_pay: string;
+  fees_we_pay_percent: string;
+  debit_charged: string;
+  card_type_not_set: string;
+  paid_with: {
+    cash: string;
+    card: string;
+    card_debit: string;
+    card_credit: string;
+    card_type_not_set: string;
+    payroll: string;
+    thriftplus_credit: string;
+    earlier_thriftbucks: string;
+  };
+  thriftbucks_owed_new: string;
+  sales_count: number;
+  reconciles: { money_in: string; accounted_for: string; difference: string };
+}
+
 export interface CartSummary {
   count: number;
   total: string;
@@ -770,6 +807,7 @@ export interface CartSummary {
   voided_count: number;
   thrift_count: number;
   by_method: Record<string, string>;
+  sales_numbers: SalesNumbers;
 }
 
 /** Totals for the Transactions page: same filters as getCarts, money from completed sales only. */

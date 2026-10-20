@@ -55,6 +55,8 @@ const metrics: DashboardMetrics = {
     today: '420',
     yesterday: '390',
     same_weekday_last_week: '400',
+    today_returns: '-36',
+    today_thriftplus_revenue: '17.5',
     goal: { id: 1, amount: '5000', description: '' },
     daily_last_90_days: [
       {
@@ -149,6 +151,8 @@ describe('DashboardPhone', () => {
     expect(screen.getByText('$420')).toBeInTheDocument();
     expect(screen.getByText(/Last Thu \$400/)).toBeInTheDocument();
     expect(screen.getByText('+$20')).toBeInTheDocument();
+    expect(screen.getByText('Returns -$36.00')).toBeInTheDocument();
+    expect(screen.getByText('Thrift+ revenue $17.50')).toBeInTheDocument();
     expect(screen.getByText('This week')).toBeInTheDocument();
     expect(screen.getByText('Past weeks')).toBeInTheDocument();
     expect(screen.getByText('Buying')).toBeInTheDocument();

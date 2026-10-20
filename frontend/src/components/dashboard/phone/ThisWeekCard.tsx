@@ -8,6 +8,7 @@ import {
   longDayTitle,
   weekDateRange,
 } from '../dashboardFormatters';
+import { SalesSubLines } from '../SalesSubLines';
 import { DayDetailSheet } from './DayDetailSheet';
 import { VARIANT_SX, variantFor } from './salesDayVariant';
 
@@ -25,6 +26,8 @@ export function ThisWeekCard({
     headline: string;
     revenue: string;
     itemsSold: number;
+    returns?: string;
+    thriftplusRevenue?: string;
   } | null>(null);
 
   return (
@@ -73,6 +76,8 @@ export function ThisWeekCard({
                       headline: longDayTitle(day.day, day.date),
                       revenue: day.revenue,
                       itemsSold: day.items_sold ?? 0,
+                      returns: day.returns,
+                      thriftplusRevenue: day.thriftplus_revenue,
                     })
                   }
                   sx={{
@@ -131,6 +136,12 @@ export function ThisWeekCard({
             <Typography sx={{ fontSize: '1.1rem', fontWeight: 900 }}>
               {formatDashboardCurrency(thisWeek?.week_total ?? '0')}
             </Typography>
+            <SalesSubLines
+              period="This week"
+              returns={thisWeek?.week_returns}
+              thriftplusRevenue={thisWeek?.week_thriftplus_revenue}
+              color="inherit"
+            />
           </Box>
         </Box>
       </Card>
@@ -141,6 +152,8 @@ export function ThisWeekCard({
         salesLabel="Daily Sales"
         revenue={detail?.revenue ?? '0'}
         itemsSold={detail?.itemsSold ?? 0}
+        returns={detail?.returns}
+        thriftplusRevenue={detail?.thriftplusRevenue}
       />
     </>
   );

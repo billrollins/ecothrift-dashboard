@@ -153,6 +153,8 @@
 - **P9. Numbers on signs** (Decided). Only numbers the Calculator shows true on launch day.
   - Source: 10-07. Built: n/a.
 
+- **Owner 10-20, how sales are counted** (Decided 10-20). Dash's Sales is **Net item sales**: each item's price after markdowns less the full ThriftBucks it collected (kept or redeemed instantly), plus 3-day returns on their own day (negative). Thrift+ revenue (the half not given on an instant redemption, and ThriftBucks that expire unused) is shown beside it, not inside it. Earlier ThriftBucks used are a payment from what we owe, not a cut in item sales. Definitions, the lamp worked through, and the reconciliation: `.ai/extended/pos-system.md`, "Sales numbers (owner 10-20)". Built: Yes.
+
 ## Thrift+ credit
 
 *Saving rewards, refunds, and spending them.*

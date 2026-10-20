@@ -62,6 +62,8 @@ export interface SettingMeta {
   help: string;
   tab: SettingsTab;
   kind: SettingKind;
+  /** What the app uses while no row exists yet (shown in the field; the row is created on the first save). */
+  defaultValue?: unknown;
   /** A link made from the value, shown under it (e.g. the staff preview link with the code in it). */
   linkFor?: (value: string) => string | null;
 }
@@ -316,6 +318,13 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     help: 'Applied to new POS carts. Stored as a fraction (0.07 = 7%). Omaha default is 7%.',
     tab: 'store',
     kind: 'percent',
+  },
+  debit_card_fee_rate: {
+    label: 'Debit card fee we pay',
+    help: 'What the card processor takes on a debit card charge (default 1%). Shown under Fees we pay on Transactions. Not charged to the customer.',
+    tab: 'store',
+    kind: 'percent',
+    defaultValue: 0.01,
   },
   'online_sales.hours': {
     label: 'Store hours',

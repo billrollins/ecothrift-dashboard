@@ -71,7 +71,7 @@ export default function DashboardPage() {
       >
         <SectionHeader
           title="Sales"
-          hint="Daily completed POS sales over 90 days, with weekly totals."
+          hint="Net item sales (after Thrift+ returns) over 90 days, with weekly totals."
         />
         <Grid
           container

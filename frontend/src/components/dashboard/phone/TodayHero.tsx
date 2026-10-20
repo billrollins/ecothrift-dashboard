@@ -8,6 +8,7 @@ import {
   parseDashboardAmount,
 } from '../dashboardFormatters';
 import { SalesGoalDialog } from '../SalesGoalDialog';
+import { SalesSubLines } from '../SalesSubLines';
 
 export function TodayHero({ sales }: { sales: SalesMetrics }) {
   const { user } = useAuth();
@@ -63,6 +64,13 @@ export function TodayHero({ sales }: { sales: SalesMetrics }) {
           >
             {formatDashboardCurrency(sales.today)}
           </Typography>
+          <Box sx={{ mt: 0.5 }}>
+            <SalesSubLines
+              period="Today"
+              returns={sales.today_returns}
+              thriftplusRevenue={sales.today_thriftplus_revenue}
+            />
+          </Box>
           <Typography
             sx={{
               mt: 0.75,
