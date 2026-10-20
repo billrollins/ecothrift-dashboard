@@ -400,6 +400,36 @@ class PersonViewSet(viewsets.GenericViewSet):
         return Response({**AccountDetailSerializer(person.account).data, 'sent': purpose,
                          'sent_to': member_auth.mask(person.email)})
 
+    @action(detail=True, methods=['post'])
+    def details(self, request, pk=None):
+        """Thrift+ Staff quick fix (owner 2026-10-20): ``{first_name, last_name, phone}``; a blank phone removes it."""
+        try:
+            person = members.set_details(self.get_object(), first_name=str(request.data.get('first_name') or ''),
+                                         last_name=str(request.data.get('last_name') or ''),
+                                         phone=str(request.data.get('phone') or ''), user=request.user)
+        except MemberError as exc:
+            return _error(exc)
+        return Response(register.finalize_row(person))
+
+    @action(detail=True, methods=['post'], url_path='sign-in-qr')
+    def sign_in_qr(self, request, pk=None):
+        """Thrift+ Staff (owner 2026-10-20): ``{link, expires_at}``, a one-use link for five minutes, shown as a QR."""
+        from apps.thriftplus.services import member_auth
+
+        try:
+            link, row = member_auth.staff_sign_in_link(self.get_object(), base_url=_public_base(), user=request.user)
+        except member_auth.AuthError as exc:
+            return _error(MemberError(str(exc)))
+        return Response({'link': link, 'expires_at': row.expires_at})
+
+    @action(detail=True, methods=['post'], url_path='photo-fix', parser_classes=[MultiPartParser, FormParser])
+    def photo_fix(self, request, pk=None):
+        """Thrift+ Staff "Retake photo" (owner 2026-10-20): the new photo, answered as Find's row."""
+        upload = request.FILES.get('photo')
+        if not upload:
+            return _error(MemberError('Attach a photo.'))
+        return Response(register.finalize_row(members.set_photo(self.get_object(), upload, user=request.user)))
+
     @action(detail=True, methods=['post'], url_path='issue-card')
     def issue_card(self, request, pk=None):
         person = self.get_object()
@@ -809,7 +839,8 @@ class RegisterViewSet(viewsets.ViewSet):
             # Finalize (owner 2026-10-16): the newest 50 with nothing typed; a search's pending joins with the same detail.
             if not q.strip():
                 return Response({'people': register.recent_joins()})
-            people = register.pending(q, rows=register.finalize_row)
+            # Find (owner 2026-10-20): everyone, still to finish or a member, by name, phone, email or member code.
+            people = register.find_people(q)
         else:
             people = register.pending(q)
         body = {'people': people}

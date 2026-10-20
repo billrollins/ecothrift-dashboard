@@ -11,9 +11,10 @@ import { FieldBanner } from './ScannerTop';
 import { viewAfterSignIn } from './scannerLogic';
 import { ThriftPlusLogo, sc, u } from './scannerTheme';
 import { ContactField, ErrorLine, Field, Primary, Secondary, SmallLink, Sub, Title, TextConsent } from './signInParts';
+import { StoreQrScan } from './StoreQrScan';
 import { useSignIn, useSignInOptions } from './useThriftPlus';
 
-type Mode = 'email' | 'staff' | 'join' | 'check';
+type Mode = 'email' | 'staff' | 'join' | 'check' | 'store';
 
 /** Where the screen opens: customer sign-in, the staff password form (Coming soon's "Staff sign in"), or Join (ecothrift.us/join). */
 export type SignInStart = 'email' | 'staff' | 'join';
@@ -176,6 +177,20 @@ export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInS
               busy={auth.send.isPending || auth.google.isPending}
               onSend={() => void send('sign_in')}
               onStaff={() => go('staff')}
+              onStoreQr={() => go('store')}
+            />
+          )}
+          {/* The cashier's sign-in QR (owner 2026-10-20): the token goes in the address, and the page signs in. */}
+          {mode === 'store' && (
+            <StoreQrScan
+              onClose={() => go('email')}
+              onToken={(token) =>
+                setParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.set('signin', token);
+                  return next;
+                }, { replace: true })
+              }
             />
           )}
           {mode === 'staff' && (
@@ -229,7 +244,7 @@ export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInS
  * Customer sign-in (Join v2, owner 2026-10-19): Google, or a code to a phone or an email; "Staff sign in" for the
  * password form.
  */
-function ContactForm({ contact, onContact, phone, useEmail, onUseEmail, googleClientId, onGoogle, busy, onSend, onStaff }: {
+function ContactForm({ contact, onContact, phone, useEmail, onUseEmail, googleClientId, onGoogle, busy, onSend, onStaff, onStoreQr }: {
   contact: string;
   onContact: (v: string) => void;
   phone: boolean;
@@ -240,6 +255,7 @@ function ContactForm({ contact, onContact, phone, useEmail, onUseEmail, googleCl
   busy: boolean;
   onSend: () => void;
   onStaff: () => void;
+  onStoreQr: () => void;
 }) {
   return (
     <Box
@@ -264,6 +280,8 @@ function ContactForm({ contact, onContact, phone, useEmail, onUseEmail, googleCl
           />
         </Box>
       )}
+      {/* At the store (owner 2026-10-20): a cashier shows a sign-in QR on the Thrift+ Staff app. */}
+      <Secondary label="At the store? Scan the store's sign-in QR" onClick={onStoreQr} />
       {/* Customers have no password (J11): the password form is for staff. */}
       <Box sx={{ textAlign: 'center', mt: u(22) }}>
         <SmallLink label="Staff sign in" onClick={onStaff} />

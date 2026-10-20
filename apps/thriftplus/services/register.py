@@ -64,7 +64,7 @@ RERING_WINDOW = timedelta(minutes=30)
 BUCKS_TAG = 'bucks'
 BUCKS_LABEL = 'ThriftBucks used'
 ERROR_TEXT = 'Thrift+ could not work out this sale. It is priced as a non-member sale; call a manager.'
-PENDING_TEXT = 'Joined online. Finish joining first: ask the phone number, check the ID, take the photo.'
+PENDING_TEXT = 'Joined online. Finish joining first: check their photo ID against their photo.'
 PHONE_TAKEN_TEXT = 'That phone number is on another membership. Check the ID and ask a manager.'
 
 
@@ -887,6 +887,36 @@ def pending(query: str = '', *, limit: int = 10, rows=None) -> list[dict]:
     return [(rows or pending_person)(p) for p in people.distinct().order_by('-account__created_at', '-pk')[:limit]]
 
 
+FIND_LIMIT = 25
+
+
+def find_people(query: str, *, limit: int = FIND_LIMIT) -> list[dict]:
+    """Find on the Thrift+ Staff app (owner 2026-10-20: "check in/lookup their account"): everyone, still to finish or
+    a member, by member code (their QR), phone digits (any 3 or more, anywhere in the number), or name and email words.
+    An older couple who joined by email had no phone on file and weren't in the recent list (10-19), so one box looks
+    everywhere. Newest first."""
+    from django.db.models import Q
+
+    from apps.thriftplus.services.cards import parse
+
+    q = (query or '').strip()
+    if not q:
+        return []
+    people = Person.objects.select_related('account').filter(
+        removed_at__isnull=True, account__status__in=[Account.STATUS_PENDING, Account.STATUS_ACTIVE],
+    )
+    code = parse(q)
+    digits = ''.join(ch for ch in q if ch.isdigit())
+    if code:
+        people = people.filter(cards__code=code)
+    elif len(digits) >= 3 and not any(ch.isalpha() for ch in q):
+        people = people.filter(phone__contains=members.normalize_phone(digits) if len(digits) == 11 else digits)
+    else:
+        for word in q.split():
+            people = people.filter(Q(first_name__icontains=word) | Q(last_name__icontains=word) | Q(email__icontains=word))
+    return [finalize_row(p) for p in people.distinct().order_by('-account__created_at', '-pk')[:limit]]
+
+
 # Finalize Thrift+'s list before anything is typed (owner 2026-10-16): the newest online joins, scrollable.
 RECENT_JOINS = 50
 
@@ -926,7 +956,7 @@ def finalize_row(person: Person) -> dict:
         'id_checked': person.id_checked, 'verified_18': person.verified_18,
         'signed_at': person.signed_at, 'finished_at': finished.created_at if finished else None,
         'finished_by': _who(finished.actor) if finished else '',
-        'app_signed_in': person.sessions.filter(expires_at__gt=timezone.now()).exists(),
+        'app_signed_in': person.sessions.filter(expires_at__gt=timezone.now(), revoked_at__isnull=True).exists(),
     }
 
 

@@ -549,7 +549,10 @@ class MemberEmailToken(models.Model):
 
     PURPOSE_JOIN = 'join'
     PURPOSE_SIGN_IN = 'sign_in'
-    PURPOSE_CHOICES = [(PURPOSE_JOIN, 'Confirm the email and join'), (PURPOSE_SIGN_IN, 'Sign in')]
+    PURPOSE_STAFF_QR = 'staff_qr'  # the sign-in QR on the Thrift+ Staff app (owner 2026-10-20): no email involved
+    PURPOSE_CHOICES = [
+        (PURPOSE_JOIN, 'Confirm the email and join'), (PURPOSE_SIGN_IN, 'Sign in'), (PURPOSE_STAFF_QR, 'Sign-in QR from staff'),
+    ]
 
     person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name='email_tokens')
     purpose = models.CharField(max_length=10, choices=PURPOSE_CHOICES)

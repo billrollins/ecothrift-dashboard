@@ -18,21 +18,26 @@ def _read(rel: str) -> str:
 
 
 class PublicLegalPagesSourceTests(SimpleTestCase):
-    def test_the_wording_says_no_texts_and_no_sharing(self):
-        # Owner 2026-10-19 (J17, master D20/D13): the only texts are Thrift+ sign-in codes the customer asks for.
+    def test_the_wording_says_which_texts_and_no_sharing(self):
+        # Owner 2026-10-20 (J18): only the sign-in code or link the customer asks for, from our own toll-free number;
+        # the carriers' no-sharing line (Twilio's toll-free review compares the live pages with the submission).
         legal = _read('data/legal.ts')
-        self.assertIn("'Eco-Thrift sends a text message only when you ask for a Thrift+ sign-in code. We send no other texts.", legal)
+        self.assertIn("'Eco-Thrift sends a text message only when you ask for one: a Thrift+ sign-in code or sign-in link", legal)
+        self.assertIn('We send no marketing texts and no other texts.', legal)
+        self.assertIn("'We do not share mobile numbers or text-message consent with third parties or affiliates for marketing or promotional purposes.'", legal)
         self.assertIn("'We do not sell or share your email address or phone number with anyone for their marketing.'", legal)
 
-    def test_pages_carry_no_text_program_and_say_how_to_stop_emails(self):
+    def test_pages_carry_the_text_wording_and_say_how_to_stop_emails(self):
         privacy, terms = _read('pages/PrivacyPage.tsx'), _read('pages/TermsPage.tsx')
         for page in (privacy, terms):
             self.assertIn('{NO_TEXTS}', page)
             self.assertIn('unsubscribe link', page)
-            for gone in ('Reply STOP', 'replying STOP', 'Message and data rates', 'Carriers are not liable'):
-                self.assertNotIn(gone, page, gone)
+        self.assertIn('{SMS_NO_SHARING}', privacy)
         self.assertIn('{PRIVACY_NO_SHARING}', privacy)
-        for needed in ('Giving an email is optional', 'never a condition of purchase', 'honor it', 'to="/privacy"'):
+        self.assertIn('reply STOP', privacy.replace('Reply STOP', 'reply STOP'))
+        for needed in ('Giving an email is optional', 'never a condition of purchase', 'honor it', 'to="/privacy"',
+                       'own toll-free number', 'reply STOP to any text', 'Message and data rates may apply',
+                       'Texts are optional'):
             self.assertIn(needed, terms, needed)
 
     def test_routes_exist_and_the_footer_links_to_both(self):

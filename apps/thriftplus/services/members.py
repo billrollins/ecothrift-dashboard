@@ -334,6 +334,39 @@ def remove_second_adult(person: Person, *, removed_by: str, user=None) -> Person
 
 
 @transaction.atomic
+@transaction.atomic
+def set_details(person: Person, *, first_name: str, last_name: str, phone: str, user=None) -> Person:
+    """A quick fix on the Thrift+ Staff app (owner 2026-10-20): the name and the mobile number, typed by staff with the
+    customer in front of them. A new number counts as checked in person (J8) and must not be on another membership."""
+    from apps.accounts.services.names import clean_name
+
+    if not (first_name or '').strip() or not (last_name or '').strip():
+        raise MemberError('Type their first and last name.')
+    first, last = clean_name(first_name, last_name)
+    digits = normalize_phone(phone)
+    if digits and len(digits) != 10:
+        raise MemberError('Type the 10-digit mobile number.')
+    person = Person.objects.select_for_update().select_related('account').get(pk=person.pk)
+    if digits and digits != person.phone:
+        taken = Person.objects.filter(
+            phone=digits, removed_at__isnull=True, account__status__in=(Account.STATUS_ACTIVE, Account.STATUS_PENDING),
+        ).exclude(pk=person.pk).exists()
+        if taken:
+            raise MemberError('That phone number is on another membership. Check the ID and ask a manager.')
+    before = {'first_name': person.first_name, 'last_name': person.last_name, 'phone': person.phone[-4:] if person.phone else ''}
+    person.first_name, person.last_name = first, last
+    fields = ['first_name', 'last_name', 'updated_at']
+    if digits != person.phone:
+        person.phone = digits
+        person.phone_verified_at = timezone.now() if digits else None
+        person.phone_verified_by = user if digits else None
+        fields += ['phone', 'phone_verified_at', 'phone_verified_by']
+    person.save(update_fields=fields)
+    log('details', account=person.account, person=person, actor=user, before=before,
+        after={'first_name': first, 'last_name': last, 'phone': digits[-4:] if digits else ''})
+    return person
+
+
 def set_photo(person: Person, photo, *, user=None) -> Person:
     person.photo = photo
     person.save(update_fields=['photo', 'updated_at'])

@@ -359,3 +359,37 @@ export async function refreshCart(cartId: number): Promise<Cart> {
   const { data } = await api.get<Cart>(`/pos/carts/${cartId}/`);
   return data;
 }
+
+// ── Thrift+ Staff quick fixes (owner 2026-10-20) ──────────────────────────────
+
+const multipart = {
+  transformRequest: [
+    (b: unknown, headers: Record<string, unknown>) => {
+      if (b instanceof FormData) delete headers['Content-Type'];
+      return b;
+    },
+  ],
+};
+
+/** A one-use sign-in link for five minutes, shown as a QR: the member app's "Scan the store's sign-in QR", or a camera. */
+export async function staffSignInQr(personId: number): Promise<{ link: string; expires_at: string }> {
+  const { data } = await api.post<{ link: string; expires_at: string }>(`/thriftplus/people/${personId}/sign-in-qr/`, {});
+  return data;
+}
+
+/** Their name and mobile number (a blank phone removes it); answers Find's row. */
+export async function setPersonDetails(
+  personId: number,
+  body: { first_name: string; last_name: string; phone: string },
+): Promise<ThriftPendingPerson> {
+  const { data } = await api.post<ThriftPendingPerson>(`/thriftplus/people/${personId}/details/`, body);
+  return data;
+}
+
+/** Retake their photo; answers Find's row. */
+export async function retakePersonPhoto(personId: number, photo: Blob): Promise<ThriftPendingPerson> {
+  const form = new FormData();
+  form.append('photo', photo, photo instanceof File ? photo.name : 'photo.jpg');
+  const { data } = await api.post<ThriftPendingPerson>(`/thriftplus/people/${personId}/photo-fix/`, form, multipart);
+  return data;
+}

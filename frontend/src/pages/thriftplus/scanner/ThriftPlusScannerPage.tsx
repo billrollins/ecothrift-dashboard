@@ -13,7 +13,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Box, ButtonBase, CircularProgress } from '@mui/material';
 import { isOpen, setPreviewCode, type EmailSignIn } from '../../../api/thriftPlusScanner.api';
-import { APP_VERSION } from '../../../utils/appVersion';
+import VersionTag from '../../../components/common/VersionTag';
 import { SignInScreen } from './SignInScreen';
 import { TripScanner } from './TripScanner';
 import { UNIT_CSS, sc, useScannerFonts } from './scannerTheme';
@@ -118,6 +118,8 @@ export default function ThriftPlusScannerPage() {
         '--u': UNIT_CSS,
       }}
     >
+      {/* The release, in the corner on every screen (owner 2026-10-20): the splash is gone in an instant on an iPhone. */}
+      <VersionTag />
       <Box
         sx={{
           position: 'relative',
@@ -148,10 +150,6 @@ export default function ThriftPlusScannerPage() {
         ) : signinToken || !session.data ? (
           <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
             <CircularProgress sx={{ color: sc.green }} />
-            {/* The splash shows the release, muted (owner 2026-10-19). */}
-            {APP_VERSION ? (
-              <Box data-testid="app-version" sx={{ fontSize: 13, color: sc.ink2, opacity: 0.7 }}>{APP_VERSION}</Box>
-            ) : null}
           </Box>
         ) : session.data.status === 'signed_out' || joinShown ? (
           <Box sx={{ flex: 1, overflowY: 'auto' }}>

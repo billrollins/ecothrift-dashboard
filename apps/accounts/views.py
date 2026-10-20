@@ -160,6 +160,23 @@ def login_view(request):
     return _set_refresh_cookie(response, str(refresh))
 
 
+# A sign-in stays alive while it is used (owner 2026-10-20: "ensure they do not need to sign in each time"): once the
+# refresh token is a day old, a refresh hands out a fresh one, so someone who comes back within the week stays signed in.
+# The old one is not blacklisted: two tabs (or two store phones) refreshing at once must not sign each other out.
+REFRESH_RENEW_AFTER_SECONDS = 24 * 60 * 60
+
+
+def _renewed_refresh(refresh: RefreshToken) -> str:
+    from django.utils import timezone
+    from rest_framework_simplejwt.settings import api_settings
+
+    issued = refresh.payload.get('iat')
+    if issued is None or timezone.now().timestamp() - float(issued) < REFRESH_RENEW_AFTER_SECONDS:
+        return str(refresh)
+    user = User.objects.filter(pk=refresh.payload.get(api_settings.USER_ID_CLAIM), is_active=True).first()
+    return str(RefreshToken.for_user(user)) if user is not None else str(refresh)
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def refresh_view(request):
@@ -174,11 +191,7 @@ def refresh_view(request):
         refresh = RefreshToken(refresh_token)
         new_access = str(refresh.access_token)
         response = Response({'access': new_access})
-        # If token rotation is enabled, set the new refresh token cookie
-        if hasattr(refresh, 'access_token'):
-            new_refresh = str(refresh)
-            response = _set_refresh_cookie(response, new_refresh)
-        return response
+        return _set_refresh_cookie(response, _renewed_refresh(refresh))
     except Exception:
         response = Response(
             {'detail': 'Invalid or expired refresh token.'},

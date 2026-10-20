@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.185.2] -->
-<!-- Last reviewed: 2026-10-20 (2.185.2) -->
+<!-- Line 1 release: ## [2.186.0] -->
+<!-- Last reviewed: 2026-10-20 (2.186.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,26 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.186.0] - 2026-10-20
+
+User-facing theme: **The Thrift+ Staff app finds anyone and fixes things fast: one search box, a sign-in QR, retake photo, edit name or phone; the version in the corner (Bill, 2026-10-20).** Thrift+ revision, Phase 1.
+
+### Added
+- **Find (Thrift+ Staff):** the bar is now **Find · Scan · Join QR**. One box finds **anyone with Thrift+**, still to finish or already a member: a name, any part of the phone number, an email, or the member number; or scan their member QR. The newest online joins show underneath. A member's QR opens their sheet; someone still to finish goes to the ID check.
+- **Quick fixes on a person's sheet**, for any staff member: **Check their ID now**, **Sign-in QR**, **Retake photo** (or Take their photo), **Edit name or phone** (a number typed by staff counts as checked in person; never one already on another membership), and Resend join email for email joins.
+- **Sign-in QR:** works once, for five minutes, with a countdown. In the Thrift+ app the member taps **At the store? Scan the store's sign-in QR** and is signed straight in; with no app, the phone's camera signs that browser in. Nothing is emailed or texted.
+- **The version, small and grey in the bottom-right corner** of the member app and the Staff app, and in the ecothrift.us footer. It is off the splash screens.
+- **One list of every join, sign-in and finalize surface** (`.ai/extended/thrift-plus-surfaces.md`), and a ship rule: a change to any of them ships only when every row is updated.
+
+### Changed
+- The Staff app's Finalize and Members tabs folded into Find (the old addresses open Find). Dash's sidebar link opens Find.
+- **Website and Dash sign-in stays alive while it is used:** a refresh after a day hands out a fresh week, instead of signing everyone out a week after they signed in.
+- The register's pending-join message says what's left: "check their photo ID against their photo".
+
+### Fixed
+- The register's "Finish on the store phone" QR now shows for people who already took their selfie and signed in the app (the usual case).
+- A person's sheet no longer says "Signed in" to the app for a session that was ended.
 
 ## [2.185.2] - 2026-10-20
 

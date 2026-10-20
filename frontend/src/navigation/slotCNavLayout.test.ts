@@ -208,7 +208,7 @@ describe('Finalize Thrift+ placement', () => {
   it('sits in Cashier right after Terminal, for every staff role', () => {
     const storeSales = SLOT_C_NAV_GROUPS.find((g) => g.id === 'storeSales');
     expect(storeSales?.itemIds.slice(0, 2)).toEqual(['posTerminal', 'thriftPlusFinalize']);
-    expect(NAV_ITEM_CATALOG.thriftPlusFinalize).toMatchObject({ path: '/staff/finalize', label: 'Thrift+ Staff' });
+    expect(NAV_ITEM_CATALOG.thriftPlusFinalize).toMatchObject({ path: '/staff/find', label: 'Thrift+ Staff' });
     expect(NAV_ITEM_CATALOG.thriftPlusFinalize?.roles).toBeUndefined();
     expect(NAV_ITEM_CATALOG.thriftPlusFinalize?.superuserOnly).toBeUndefined();
     const groups = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS);

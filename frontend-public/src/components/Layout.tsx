@@ -12,6 +12,7 @@ import { useThriftPlusOpen } from '../thriftPlusOpen'
 import AnnouncementBanner from './AnnouncementBanner'
 import CartDrawer from './CartDrawer'
 import ScanIcon from './ScanIcon'
+import { APP_VERSION } from '../appVersion'
 
 const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'on' : undefined)
 
@@ -157,7 +158,14 @@ export default function Layout() {
             <span>
               © 2026 Eco-Thrift · <Link to="/privacy">Privacy</Link> · <Link to="/terms">Terms</Link>
             </span>
-            <span>{STORE.tagline}</span>
+            <span>
+              {STORE.tagline}
+              {APP_VERSION ? (
+                <span data-testid="site-version" style={{ marginLeft: 8, opacity: 0.45, fontSize: '0.8em' }}>
+                  {APP_VERSION}
+                </span>
+              ) : null}
+            </span>
           </div>
         </div>
       </footer>

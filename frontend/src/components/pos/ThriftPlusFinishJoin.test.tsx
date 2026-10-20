@@ -161,7 +161,7 @@ describe('Finish joining', () => {
       />,
     );
     expect(screen.getByText('Needs to finalize Thrift+')).toBeInTheDocument();
-    expect(screen.getByTestId('thrift-finish-qr')).toHaveTextContent('Open Finalize and scan this QR. Or finish here below.');
+    expect(screen.getByTestId('thrift-finish-qr')).toHaveTextContent('Open Find on the Thrift+ Staff app and scan this QR. Or finish here below.');
     expect(screen.getByRole('img', { name: "Cara Joyner's member QR" })).toBeInTheDocument();
     expect(screen.getByText('Member code ending 1907')).toBeInTheDocument();
   });
@@ -276,7 +276,7 @@ describe('Finish joining, the selfie path (Join v2, owner 2026-10-19)', () => {
     expect(screen.getByTestId('thrift-finish-verify')).toHaveTextContent('c***@example.com');
     expect(screen.getByText('Check their photo ID')).toBeInTheDocument();
     expect(screen.queryByLabelText(/Phone number/)).not.toBeInTheDocument();
-    expect(screen.queryByTestId('thrift-finish-qr')).not.toBeInTheDocument();
+    // Since 2026-10-20 the store-phone QR shows on this path too, when they have a member QR.
     expect(screen.queryByTestId('thrift-finish-signature')).not.toBeInTheDocument();
     expect(screen.queryByText('Take or add a photo')).not.toBeInTheDocument();
     const verified = screen.getByRole('button', { name: 'Verified' });

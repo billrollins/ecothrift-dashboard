@@ -503,8 +503,32 @@ def _failed(row: MemberEmailToken | None, code: str, how: str, email: str = '') 
 
 
 def _matches(row: MemberEmailToken) -> bool:
-    """The token still belongs to the person: they can sign in, and the email is still theirs (or they have none)."""
+    """The token still belongs to the person: they can sign in, and the email is still theirs (or they have none). A
+    staff sign-in QR is tied to the person only."""
+    if row.purpose == MemberEmailToken.PURPOSE_STAFF_QR:
+        return _can_sign_in(row.person)
     return _can_sign_in(row.person) and row.person.email in ('', row.email)
+
+
+STAFF_QR_MINUTES = 5
+
+
+def staff_sign_in_link(person: Person, *, base_url: str, user=None) -> tuple[str, MemberEmailToken]:
+    """The sign-in QR on the Thrift+ Staff app (owner 2026-10-20, "a QR that will link AND sign them into the app in one
+    go"): a ``/scan?signin=<token>`` link that works once, for five minutes. Scanned with the member app's own camera it
+    signs the installed app in; scanned with a phone camera it signs that browser in. Nothing is emailed or texted."""
+    from apps.thriftplus.services import members
+
+    if not _can_sign_in(person):
+        raise AuthError('LINK_BAD', 'This membership is not active.')
+    token = secrets.token_urlsafe(32)
+    row = MemberEmailToken.objects.create(
+        person=person, purpose=MemberEmailToken.PURPOSE_STAFF_QR, email=person.email or '',
+        token_hash=_hash(token, 'email-link'), code_hash=_hash(secrets.token_urlsafe(16), 'unused-code'),
+        expires_at=timezone.now() + timedelta(minutes=STAFF_QR_MINUTES),
+    )
+    members.log('sign_in_qr_made', account=person.account, person=person, actor=user)
+    return f'{base_url.rstrip("/")}/scan?signin={token}', row
 
 
 def check_link(token: str) -> MemberEmailToken:
@@ -554,6 +578,10 @@ def redeem(row: MemberEmailToken, *, how: str) -> Person:
     row.used_at = now
     row.save(update_fields=['used_at'])
     person = row.person
+    if row.purpose == MemberEmailToken.PURPOSE_STAFF_QR:
+        # Staff vouched for who is holding the phone; no email was sent, so nothing about the email changes.
+        members.log('sign_in_qr_used', account=person.account, person=person)
+        return person
     fields = []
     if not person.email:
         person.email = row.email

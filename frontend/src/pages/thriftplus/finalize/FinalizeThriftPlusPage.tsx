@@ -48,9 +48,6 @@ export const SIGNATURE_WORDS = 'I agree to the Thrift+ terms and photo release. 
  */
 type Step = 'find' | 'verify' | 'done' | 'add';
 
-/** The numbered steps of the store-phone path (the selfie path is one screen, unnumbered). */
-const STEP_NUMBER: Partial<Record<Step, number>> = { find: 1, verify: 2 };
-const STEPS = 2;
 
 /** What the cashier hears when a scanned QR is no pending join. */
 export function codeMemberMessage(member: ThriftCodeMember | undefined): string {
@@ -160,7 +157,7 @@ function QrScan({ onCode, onClose, busy }: { onCode: (raw: string) => void; onCl
  * Owner 2026-10-16 (J13): a home-screen app on the store phones, full screen. The Join QR shows a customer who hasn't
  * joined; the terms open in a popup; Back, a swipe, a pull-down or a long press can't take a customer off the page.
  *
- * Owner 2026-10-16: it is the Finalize tab of the Thrift+ Staff app (/staff/finalize, StaffApp.tsx), which owns the
+ * Owner 2026-10-16: it is the Find tab of the Thrift+ Staff app (/staff/find since 2026-10-20, StaffApp.tsx), which owns the
  * page head (the staff manifest). `onMidway` tells the app when someone is part way through, so it hides its bottom bar
  * and a customer holding the phone can't open another tab.
  */
@@ -244,7 +241,13 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
     try {
       const found = await findPendingOrMember(`TP${code}`);
       if (found.people.length > 0) {
-        pick(found.people[0]);
+        // Find (owner 2026-10-20): a member opens their sheet (quick fixes); someone still to finish goes to the ID check.
+        if (found.people[0].status === 'active') {
+          setScanning(false);
+          setInfo(found.people[0]);
+        } else {
+          pick(found.people[0]);
+        }
       } else {
         setScanning(false);
         setFindNote(codeMemberMessage(found.member));
@@ -314,7 +317,6 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
   }
 
   const back: Partial<Record<Step, Step>> = { verify: 'find', add: 'done' };
-  const number = STEP_NUMBER[step];
   const joinButton = (
     <Button variant="outlined" size="large" startIcon={<QrCode2Rounded />} onClick={() => setJoinQr(true)} sx={big} data-testid="finalize-show-join">
       Not joined yet? Show the Join QR
@@ -345,8 +347,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
             Back
           </Button>
         ) : null}
-        <Typography variant="h5" fontWeight={800} sx={{ flex: 1 }}>Finalize Thrift+</Typography>
-        {number ? <Typography color="text.secondary" fontWeight={700}>{`${number} of ${STEPS}`}</Typography> : null}
+        <Typography variant="h5" fontWeight={800} sx={{ flex: 1 }}>{step === 'find' ? 'Find' : 'Check their ID'}</Typography>
         {/* In a browser tab (not the home-screen app), the way back to Dash: only before anyone is picked. */}
         {step === 'find' && !isStandalone() ? (
           <Button size="small" onClick={() => navigate('/dashboard')} sx={{ minHeight: 44 }}>Dash</Button>
@@ -355,7 +356,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
       {step === 'find' ? (
         <Stack spacing={2}>
           <Typography color="text.secondary">
-            For someone who joined online: scan their member QR, then check their photo ID.
+            Anyone with Thrift+: scan their member QR, or search by name, phone or email.
           </Typography>
           {findNote ? <Alert severity="info" data-testid="finalize-find-note">{findNote}</Alert> : null}
           {!scanning ? joinButton : null}
@@ -375,10 +376,10 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
               >
                 Scan their member QR
               </Button>
-              <Typography color="text.secondary" textAlign="center">or search by name or email</Typography>
+              <Typography color="text.secondary" textAlign="center">or search</Typography>
               <Stack direction="row" spacing={1}>
                 <TextField
-                  label="Name or email"
+                  label="Name, phone, email or member #"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   onKeyDown={(e) => {
@@ -396,7 +397,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
               </Stack>
               {people && people.length === 0 ? (
                 <Typography color="text.secondary">
-                  {searched ? 'No one who joined online by that name or email.' : 'No one has joined online yet.'}
+                  {searched ? 'No one by that name, phone, email or member number.' : 'No one has joined online yet.'}
                 </Typography>
               ) : null}
               {people && people.length > 0 ? (
@@ -503,6 +504,10 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
         onClose={() => setInfo(null)}
         onFinish={pick}
         onDeleted={() => void search(searched)}
+        onChanged={(p) => {
+          setInfo(p);
+          setPeople((list) => (list ? list.map((x) => (x.person_id === p.person_id ? { ...x, ...p } : x)) : list));
+        }}
       />
       <JoinQrDialog open={joinQr} onClose={() => setJoinQr(false)} />
       <TermsDialog open={terms} onClose={() => setTerms(false)} />

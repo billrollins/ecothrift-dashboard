@@ -94,7 +94,6 @@ describe('Finalize Thrift+', () => {
     expect(box).toHaveTextContent('No photo yet. Take their photo below.');
     expect(screen.getByRole('button', { name: 'Take their photo' })).toBeInTheDocument();
     expect(screen.getByTestId('thrift-signature-pad')).toBeInTheDocument(); // not signed in the app
-    expect(screen.getByText('2 of 2')).toBeInTheDocument();
   });
 
   it('tells the cashier when the QR is already an active member, and ignores codes that are not member QRs', async () => {
@@ -114,11 +113,11 @@ describe('Finalize Thrift+', () => {
     const user = userEvent.setup();
     renderPage();
     expect(await screen.findByText('Cara Joyner')).toBeInTheDocument(); // the newest joins first
-    await user.type(screen.getByLabelText('Name or email'), 'joyner{Enter}');
+    await user.type(screen.getByLabelText('Name, phone, email or member #'), 'joyner{Enter}');
     expect(api.findPendingOrMember).toHaveBeenNthCalledWith(1, '', { recent: true }); // the newest 50 online joins
     expect(api.findPendingOrMember).toHaveBeenLastCalledWith('joyner', { recent: true });
     await user.click(await screen.findByText('Cara Joyner'));
-    await user.click(await screen.findByRole('button', { name: 'Finish now' }));
+    await user.click(await screen.findByRole('button', { name: 'Check their ID now' }));
     await screen.findByTestId('finalize-verify');
     expect(screen.queryByLabelText(/Phone number/)).not.toBeInTheDocument();
     const done = screen.getByRole('button', { name: 'Done' });
@@ -164,7 +163,7 @@ describe('Finalize Thrift+', () => {
     api.findPendingOrMember.mockResolvedValue({ people: [HALF] });
     renderPage();
     await user.click(await screen.findByText('Cara Joyner'));
-    await user.click(await screen.findByRole('button', { name: 'Finish now' }));
+    await user.click(await screen.findByRole('button', { name: 'Check their ID now' }));
     await screen.findByTestId('finalize-verify');
     expect(screen.getByRole('img', { name: "Cara Joyner's selfie" })).toHaveAttribute('src', '/media/cara.jpg');
     expect(screen.queryByRole('button', { name: 'Take their photo' })).not.toBeInTheDocument();
@@ -186,7 +185,7 @@ describe('Finalize Thrift+', () => {
     });
     renderPage();
     await user.click(await screen.findByText('Cara Joyner'));
-    await user.click(await screen.findByRole('button', { name: 'Finish now' }));
+    await user.click(await screen.findByRole('button', { name: 'Check their ID now' }));
     await user.upload(await screen.findByTestId('selfie-check-retake-input'), new File(['jpg'], 'c.jpg', { type: 'image/jpeg' }));
     await checkId(user);
     sign();
@@ -201,7 +200,7 @@ describe('Finalize Thrift+', () => {
     api.findPendingOrMember.mockResolvedValue({ people: [READY] });
     renderPage();
     await user.click(await screen.findByText('Cara Joyner'));
-    await user.click(await screen.findByRole('button', { name: 'Finish now' }));
+    await user.click(await screen.findByRole('button', { name: 'Check their ID now' }));
     await checkId(user);
     await user.click(screen.getByRole('button', { name: 'Done' }));
     await screen.findByTestId('finalize-done');
@@ -251,7 +250,7 @@ describe('Finalize Thrift+', () => {
     await user.click(await screen.findByText('Cara Joyner'));
     expect(document.head.querySelector('link[rel="manifest"]')).toBeNull();
     expect(onMidway).toHaveBeenLastCalledWith(false);
-    await user.click(await screen.findByRole('button', { name: 'Finish now' }));
+    await user.click(await screen.findByRole('button', { name: 'Check their ID now' }));
     await screen.findByTestId('finalize-verify');
     expect(onMidway).toHaveBeenLastCalledWith(true);
     unmount();
@@ -267,18 +266,21 @@ describe('Finalize Thrift+', () => {
     expect(list).toHaveStyle({ overflowY: 'auto' });
     expect(screen.getByText('Joined online, newest first · 1 to finish')).toBeInTheDocument();
     const done = screen.getByTestId('finalize-person-done');
-    expect(done).toHaveTextContent(/Dee Done.*Finished/);
+    expect(done).toHaveTextContent(/Dee Done.*Member/);
     // The finished one opens its panel, with nothing to finish.
     await user.click(done);
-    expect(await screen.findByTestId('finalize-person-sheet')).toHaveTextContent('Finished');
-    expect(screen.queryByRole('button', { name: 'Finish now' })).not.toBeInTheDocument();
+    expect(await screen.findByTestId('finalize-person-sheet')).toHaveTextContent('Member');
+    // Quick fixes for a member (owner 2026-10-20).
+    expect(screen.getByTestId('person-sign-in-qr')).toBeInTheDocument();
+    expect(screen.getByTestId('person-edit')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Check their ID now' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('finalize-delete')).not.toBeInTheDocument(); // the owner only
     await user.click(screen.getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByTestId('finalize-person-sheet')).not.toBeInTheDocument());
     // The line: #number · phone · when; a pending one has no phone yet.
     expect(screen.getAllByTestId('finalize-person-line')[0]).toHaveTextContent('4021 5583 1907· no phone yet');
     await user.click(screen.getByTestId('finalize-person-pending'));
-    await user.click(await screen.findByRole('button', { name: 'Finish now' }));
+    await user.click(await screen.findByRole('button', { name: 'Check their ID now' }));
     expect(await screen.findByTestId('finalize-verify')).toBeInTheDocument();
   });
 
@@ -367,7 +369,7 @@ describe('Finalize Thrift+', () => {
       api.findPendingOrMember.mockResolvedValue({ people: [READY] });
       renderPage();
       await user.click(await screen.findByText('Cara Joyner'));
-      await user.click(await screen.findByRole('button', { name: 'Finish now' }));
+      await user.click(await screen.findByRole('button', { name: 'Check their ID now' }));
       await user.click(await screen.findByRole('checkbox', { name: 'Name matches' }));
       await user.click(screen.getByRole('checkbox', { name: 'Face matches the photo' }));
       await user.click(screen.getByRole('button', { name: 'Done' }));
@@ -380,7 +382,7 @@ describe('Finalize Thrift+', () => {
       api.findPendingOrMember.mockResolvedValue({ people: [READY] });
       renderPage();
       await user.click(await screen.findByText('Cara Joyner'));
-      await user.click(await screen.findByRole('button', { name: 'Finish now' }));
+      await user.click(await screen.findByRole('button', { name: 'Check their ID now' }));
       await screen.findByTestId('finalize-verify');
       expect(screen.getByRole('button', { name: 'Retake photo' })).toBeInTheDocument();
       const photo = new File(['jpg'], 'new.jpg', { type: 'image/jpeg' });
@@ -404,7 +406,7 @@ describe('Finalize Thrift+', () => {
       api.finishThriftJoin.mockRejectedValueOnce({ response: { data: { code: 'NOT_PENDING', detail: 'Cara is already a Thrift+ member.' } } });
       renderPage();
       await user.click(await screen.findByText('Cara Joyner'));
-      await user.click(await screen.findByRole('button', { name: 'Finish now' }));
+      await user.click(await screen.findByRole('button', { name: 'Check their ID now' }));
       await user.click(await screen.findByRole('checkbox', { name: 'Name matches' }));
       await user.click(screen.getByRole('checkbox', { name: 'Face matches the photo' }));
       await user.click(screen.getByRole('button', { name: 'Done' }));

@@ -187,11 +187,12 @@ export default function ThriftPlusFinishJoinDialog({
           </Box>
         ) : null}
         {/* Owner 2026-10-16: their QR, big, so the Finalize app on the store phone scans it straight off this screen. */}
-        {person?.qr && step === 'phone' ? (
+        {/* Also for someone ready to verify (they did the selfie and signature in the app): the most common case. */}
+        {person?.qr && (step === 'phone' || step === 'verify') ? (
           <Box data-testid="thrift-finish-qr" sx={{ mb: 2, p: 1.5, borderRadius: 2, border: 1, borderColor: 'divider', textAlign: 'center' }}>
             <Typography fontWeight={800}>Finish on the store phone</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              Open Finalize and scan this QR. Or finish here below.
+              Open Find on the Thrift+ Staff app and scan this QR. Or finish here below.
             </Typography>
             <QrSvg text={person.qr} label={`${name}'s member QR`} sx={{ width: 220, maxWidth: '100%' }} />
             {person.code_last4 ? <Typography variant="caption" color="text.secondary">{`Member code ending ${person.code_last4}`}</Typography> : null}

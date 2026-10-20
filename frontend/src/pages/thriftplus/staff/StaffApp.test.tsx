@@ -74,25 +74,21 @@ describe('Thrift+ Staff', () => {
     expect(document.head.querySelector('link[rel="manifest"]')).toBeNull();
   });
 
-  it('has Finalize, Members, Scan and Join QR on the bottom bar, and the bar switches tabs', async () => {
+  it('has Find, Scan and Join QR on the bottom bar, and the bar switches tabs (owner 2026-10-20)', async () => {
     const user = userEvent.setup();
-    auth.user = { is_superuser: false, role: 'Manager' };
+    auth.user = { is_superuser: false, role: 'Employee' };
     renderApp('/staff');
     const bar = screen.getByRole('navigation', { name: 'Thrift+ Staff' });
-    expect(within(bar).getAllByRole('button').map((b) => b.textContent)).toEqual(['Finalize', 'Members', 'Scan', 'Join QR']);
-    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/staff/finalize'));
+    expect(within(bar).getAllByRole('button').map((b) => b.textContent)).toEqual(['Find', 'Scan', 'Join QR']);
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/staff/find'));
     expect(screen.getByTestId('finalize-thriftplus')).toBeInTheDocument();
-
-    await user.click(within(bar).getByText('Members'));
-    expect(screen.getByTestId('where')).toHaveTextContent('/staff/members');
-    expect(screen.getByTestId('members-panel')).toBeInTheDocument();
 
     await user.click(within(bar).getByText('Scan'));
     expect(screen.getByTestId('where')).toHaveTextContent('/staff/scan');
     expect(screen.getByTestId('staff-scan')).toBeInTheDocument();
 
-    await user.click(within(bar).getByText('Finalize'));
-    expect(screen.getByTestId('where')).toHaveTextContent('/staff/finalize');
+    await user.click(within(bar).getByText('Find'));
+    expect(screen.getByTestId('where')).toHaveTextContent('/staff/find');
   });
 
   it('opens the Join QR full screen without leaving the tab', async () => {
@@ -101,7 +97,7 @@ describe('Thrift+ Staff', () => {
     await user.click(screen.getByTestId('staff-tab-join'));
     expect(await screen.findByTestId('finalize-join-sheet')).toBeInTheDocument();
     expect(screen.getByTestId('finalize-join-url')).toHaveTextContent('ecothrift.us/join');
-    expect(screen.getByTestId('where')).toHaveTextContent('/staff/finalize');
+    expect(screen.getByTestId('where')).toHaveTextContent('/staff/find');
     await user.click(screen.getByRole('button', { name: 'Done' }));
     await waitFor(() => expect(screen.queryByTestId('finalize-join-sheet')).toBeNull());
   });
@@ -115,10 +111,13 @@ describe('Thrift+ Staff', () => {
     expect(screen.getByRole('navigation', { name: 'Thrift+ Staff' })).toBeInTheDocument();
   });
 
-  it('Members is for managers: a cashier sees who to ask', () => {
-    renderApp('/staff/members');
-    expect(screen.getByTestId('staff-members-managers')).toHaveTextContent('Finding members is for managers.');
-    expect(screen.queryByTestId('members-panel')).toBeNull();
+  it('the old Finalize and Members addresses open Find', async () => {
+    for (const path of ['/staff/finalize', '/staff/members']) {
+      const { unmount } = renderApp(path);
+      await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/staff/find'));
+      expect(screen.getByTestId('finalize-thriftplus')).toBeInTheDocument();
+      unmount();
+    }
   });
 
   it('the test scanner shows the item card for a typed tag: price, ThriftBucks, 3-day returns', async () => {

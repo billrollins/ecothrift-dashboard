@@ -154,7 +154,8 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   // It opens the Thrift+ Staff app (owner 2026-10-16), on its Finalize tab.
   thriftPlusFinalize: {
     id: 'thriftPlusFinalize',
-    path: '/staff/finalize',
+    path: '/staff/find',
+    pathAliases: ['/staff/finalize', '/staff/scan'],
     label: 'Thrift+ Staff', // the staff app (owner 2026-10-16): Finalize, Members, Scan, Join QR
     icon: 'thriftPlus',
   },

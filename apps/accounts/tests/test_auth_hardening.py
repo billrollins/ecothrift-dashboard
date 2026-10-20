@@ -177,3 +177,39 @@ class AuthThrottleTests(APITestCase):
             format='json',
         )
         self.assertEqual(resp.status_code, 429, resp.data)
+
+
+class RefreshRenewalTests(APITestCase):
+    """A sign-in stays alive while it is used (owner 2026-10-20): a day-old refresh token is swapped for a fresh one."""
+
+    def setUp(self):
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        self.user = _user(email='renew@example.com')
+        self.RefreshToken = RefreshToken
+
+    def _refresh(self, token):
+        self.client.cookies['refresh_token'] = str(token)
+        return self.client.post('/api/auth/refresh/')
+
+    def test_a_new_token_keeps_its_refresh_token(self):
+        token = self.RefreshToken.for_user(self.user)
+        resp = self._refresh(token)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.cookies['refresh_token'].value, str(token))
+
+    def test_a_day_old_token_gets_a_fresh_one_and_the_old_one_still_works(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        token = self.RefreshToken.for_user(self.user)
+        token.set_iat(at_time=timezone.now() - timedelta(days=2))
+        old = str(token)
+        resp = self._refresh(old)
+        self.assertEqual(resp.status_code, 200)
+        fresh = resp.cookies['refresh_token'].value
+        self.assertNotEqual(fresh, old)
+        self.assertGreater(self.RefreshToken(fresh)['iat'], self.RefreshToken(old)['iat'])
+        # A second tab refreshing with the old token is not signed out.
+        self.assertEqual(self._refresh(old).status_code, 200)

@@ -134,9 +134,9 @@ function StaffRoute({ children }: { children: React.ReactNode }) {
 function StaffAppGate() {
   const location = useLocation();
   return (
-    <ProtectedRoute next={`${location.pathname}${location.search}`} version>
+    <ProtectedRoute next={`${location.pathname}${location.search}`}>
       <StaffRoute>
-        <Suspense fallback={<LoadingScreen message="Loading…" version />}>
+        <Suspense fallback={<LoadingScreen message="Loading…" />}>
           <StaffApp />
         </Suspense>
       </StaffRoute>
@@ -705,7 +705,7 @@ export default function App() {
           it installs as its own home-screen app (scope /staff/) and a customer holding the phone can't wander into Dash.
           Finalize, Members, Scan and Join QR on its bottom bar. The old Finalize address lands in it. */}
       <Route path="/staff/*" element={<StaffAppGate />} />
-      <Route path="/thriftplus/finalize" element={<Navigate to="/staff/finalize" replace />} />
+      <Route path="/thriftplus/finalize" element={<Navigate to="/staff/find" replace />} />
 
       {/* Hosted time kiosk - full-bleed, keeps the host's staff JWT, outside MainLayout. */}
       <Route
