@@ -62,7 +62,7 @@ function BigCheck({ label, checked, disabled, onChange }: {
  * phone and by the register's Finish joining. The parent shows the Verified button (Finalize passes it as children).
  */
 export default function SelfieCheck({
-  person, checks, onChecks, retake, onRetake, disabled = false, capture = 'environment', imageMaxHeight = 360, children,
+  person, checks, onChecks, retake, onRetake, disabled = false, capture = 'environment', imageMaxHeight = 360, faceLabel = 'Face matches the photo', children,
 }: {
   person: ThriftPendingPerson;
   /** Shown above Retake photo: Finalize's Verified button and any message. */
@@ -76,6 +76,8 @@ export default function SelfieCheck({
   /** The store phone points its back camera at the customer; the register uses its own camera. */
   capture?: 'environment' | 'user';
   imageMaxHeight?: number;
+  /** The second check's words (the register says "Photo matches"). */
+  faceLabel?: string;
 }) {
   const input = useRef<HTMLInputElement | null>(null);
   const [retakeUrl, setRetakeUrl] = useState<string | null>(null);
@@ -122,7 +124,7 @@ export default function SelfieCheck({
       </Box>
       <Typography variant="h6" fontWeight={800}>Check their photo ID</Typography>
       <BigCheck label="Name matches" checked={checks.name} disabled={disabled} onChange={(v) => set({ name: v })} />
-      <BigCheck label="Face matches the photo" checked={checks.face} disabled={disabled} onChange={(v) => set({ face: v })} />
+      <BigCheck label={faceLabel} checked={checks.face} disabled={disabled} onChange={(v) => set({ face: v })} />
       <BigCheck label="18 or older" checked={checks.over18} disabled={disabled || !idDone} onChange={(v) => set({ over18: v })} />
       <Typography variant="body2" color="text.secondary">Never scan or keep the ID itself.</Typography>
       {children}

@@ -114,23 +114,23 @@ import {
   snackbarVariantForPosAddItemError,
 } from '../../utils/posAddItemError';
 import { buildReceiptData } from '../../utils/posReceipt';
-import ThriftPlusFinishJoinDialog from '../../components/pos/ThriftPlusFinishJoinDialog';
+import ReturnsPopup from '../../components/pos/ReturnsPopup';
+import ThriftMemberDialog from '../../components/pos/ThriftMemberDialog';
 import ThriftPlusPanel from '../../components/pos/ThriftPlusPanel';
 import ThriftPlusPhoneFind from '../../components/pos/ThriftPlusPhoneFind';
-import ThriftPlusReturnDialog from '../../components/pos/ThriftPlusReturnDialog';
 import ThriftPlusSignupDialog from '../../components/pos/ThriftPlusSignupDialog';
 import { useQuery } from '@tanstack/react-query';
 import {
   attachThriftCard,
   getThriftRegisterStatus,
   pendingFromError,
+  refreshCart,
   reringThriftCard,
   reringThriftMember,
   thriftErrorMessage,
-  type ThriftPendingPerson,
 } from '../../api/thriftplusRegister.api';
 import { thriftCardCode } from '../../utils/thriftPlusCard';
-import { IconConfirm as Check, IconDelete as Delete, IconEdit as Edit, IconSearch as Search } from '../../icons/ecoIcons';
+import { IconConfirm as Check, IconDelete as Delete, IconEdit as Edit, IconRefresh as Refresh, IconSearch as Search } from '../../icons/ecoIcons';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -218,6 +218,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   const [deviceSetupOpen, setDeviceSetupOpen] = useState(false);
   const [managerDrawerId, setManagerDrawerId] = useState<number | ''>('');
   const [cart, setCart] = useState<Cart | null>(null);
+  const thriftLive = Boolean(cart?.thrift_plus?.live || thriftStatus.data?.live);
   const [skuInput, setSkuInput] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [cashTendered, setCashTendered] = useState('');
@@ -237,10 +238,13 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   // Thrift+ re-ring: the last completed sale on this terminal, and whether the next member QR scan re-rings it.
   const [lastSale, setLastSale] = useState<{ id: number; total: string; at: number; live: boolean } | null>(null);
   const [reringArmed, setReringArmed] = useState(false);
-  const [thriftReturnOpen, setThriftReturnOpen] = useState(false);
   const [thriftSignupOpen, setThriftSignupOpen] = useState(false);
-  // Joined online and not finished (owner 2026-10-15, J8): their QR scanned, or picked under "Joined online?".
-  const [thriftFinishJoin, setThriftFinishJoin] = useState<ThriftPendingPerson | null>(null);
+  // The one "Thrift+ member" button (owner 2026-10-20): Find, or the member's card. ``personId``: open on that card
+  // (a pending join's QR was scanned, J8).
+  const [memberDialog, setMemberDialog] = useState<{ open: boolean; personId: number | null }>({ open: false, personId: null });
+  // After a member's sale with a 3-day-return item: the date to say (owner 2026-10-20).
+  const [returnsPopup, setReturnsPopup] = useState<{ until: string; note: string } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [openDrawerDialog, setOpenDrawerDialog] = useState(false);
   const [openingCount, setOpeningCount] = useState<DenominationBreakdown>(EMPTY_BREAKDOWN);
   const [editingLineId, setEditingLineId] = useState<number | null>(null);
@@ -555,9 +559,9 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
             enqueueSnackbar(`Thrift+ member: ${updated.thrift_plus?.member?.name ?? ''}`, { variant: 'info' });
           }
         } catch (err: unknown) {
-          // Joined online and not finished (J8): open Finish joining for them instead of an error.
+          // Joined online and not finished (J8): open their card to Finalize instead of an error.
           const pending = pendingFromError(err);
-          if (pending) setThriftFinishJoin(pending);
+          if (pending) setMemberDialog({ open: true, personId: pending.person_id });
           else enqueueSnackbar(thriftErrorMessage(err), { variant: 'error' });
         }
         setSkuInput('');
@@ -1147,6 +1151,45 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
     }
   }, [cart, voidCartMutation, enqueueSnackbar, markRegisterActivity]);
 
+  /** The sale in progress, made first when there is none (picking a Thrift+ member needs one). */
+  const ensureSale = useCallback(async (): Promise<Cart | null> => {
+    const current = cartRef.current;
+    if (current) return current;
+    const liveDrawer = todayDrawerRef.current;
+    const targetDrawerId: number | undefined = isRegister
+      ? (typeof liveDrawer?.id === 'number' ? liveDrawer.id : undefined)
+      : typeof managerDrawerId === 'number'
+        ? managerDrawerId
+        : undefined;
+    if (typeof targetDrawerId !== 'number') {
+      enqueueSnackbar('Open a drawer first before starting a sale.', { variant: 'warning' });
+      return null;
+    }
+    try {
+      const made = await startCart(targetDrawerId);
+      markRegisterActivity();
+      return made;
+    } catch {
+      enqueueSnackbar('Failed to create cart', { variant: 'error' });
+      return null;
+    }
+  }, [isRegister, managerDrawerId, startCart, enqueueSnackbar, markRegisterActivity]);
+
+  /** Refresh (owner 2026-10-20): the sale from the server, with the Thrift+ member's ThriftBucks, credit and status of now. */
+  const handleRefresh = useCallback(async () => {
+    const current = cartRef.current;
+    if (!current) return;
+    setRefreshing(true);
+    try {
+      commitCart(await refreshCart(current.id), { scroll: false });
+      enqueueSnackbar('Sale refreshed', { variant: 'info' });
+    } catch (err: unknown) {
+      enqueueSnackbar(thriftErrorMessage(err, 'Could not refresh the sale.'), { variant: 'error' });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [commitCart, enqueueSnackbar]);
+
   const finishCompletedSale = useCallback(
     async (
       completedCart: Cart,
@@ -1174,6 +1217,9 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         });
       }
 
+      // Owner 2026-10-20: a member's sale with a 3-day-return item ends with the date to say, tapped through.
+      const returnsUntil = completedCart.thrift_plus?.member ? completedCart.thrift_plus.returns_until : undefined;
+      if (returnsUntil) setReturnsPopup({ until: returnsUntil, note: completedCart.thrift_plus?.return_note ?? '' });
       setLastSale({
         id: completedCart.id,
         total: completedCart.total,
@@ -1602,6 +1648,29 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                     <WorkCyclePill />
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {thriftLive && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color={cart?.thrift_plus?.member ? 'success' : 'primary'}
+                        onClick={() => setMemberDialog({ open: true, personId: null })}
+                        data-testid="thrift-member-button"
+                      >
+                        Thrift+ member
+                      </Button>
+                    )}
+                    {cart && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<Refresh />}
+                        onClick={() => void handleRefresh()}
+                        disabled={refreshing}
+                        data-testid="cart-refresh"
+                      >
+                        Refresh
+                      </Button>
+                    )}
                     {cart && (
                       <Button
                         size="small"
@@ -1894,7 +1963,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                 <ThriftPlusPanel
                   cart={cart}
                   onCart={(next) => commitCart(next, { scroll: false })}
-                  onFinishJoin={setThriftFinishJoin}
+                  onOpenCard={() => setMemberDialog({ open: true, personId: null })}
                 />
               ) : null}
               {!cart?.thrift_plus?.member && lastSale?.live && Date.now() - lastSale.at < RERING_WINDOW_MS ? (
@@ -1932,16 +2001,6 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                   </Button>
                 </Paper>
               ) : null}
-              {cart?.thrift_plus?.live || thriftStatus.data?.live ? (
-                <Box sx={{ mb: 1, flexShrink: 0, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                  <Button size="small" variant="outlined" onClick={() => setThriftSignupOpen(true)}>
-                    {todayDrawer?.register_is_training ? 'Thrift+ sign up (practice)' : 'Thrift+ finish joining'}
-                  </Button>
-                  <Button size="small" variant="outlined" onClick={() => setThriftReturnOpen(true)}>
-                    Thrift+ 3-day return
-                  </Button>
-                </Box>
-              ) : null}
               <Paper sx={{ p: 2, mb: 2, flexShrink: 0 }}>
                 <Typography variant="subtitle1" fontWeight={600} gutterBottom>
                   Add item
@@ -1951,7 +2010,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                     inputRef={skuInputRef}
                     fullWidth
                     size="small"
-                    placeholder={cart?.thrift_plus?.live || thriftStatus.data?.live ? 'Scan a SKU or a Thrift+ member QR' : 'Scan or type SKU'}
+                    placeholder={thriftLive ? 'Scan a SKU or a Thrift+ member QR' : 'Scan or type SKU'}
                     value={skuInput}
                     onChange={(e) => setSkuInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleScanInput()}
@@ -2872,11 +2931,24 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         loading={voidCartMutation.isPending}
       />
 
-      <ThriftPlusReturnDialog
-        open={thriftReturnOpen}
-        onClose={() => setThriftReturnOpen(false)}
-        registerCode={config?.registerCode ?? ''}
-        training={Boolean(todayDrawer?.register_is_training)}
+      <ThriftMemberDialog
+        open={memberDialog.open}
+        personId={memberDialog.personId}
+        onClose={() => {
+          setMemberDialog({ open: false, personId: null });
+          skuInputRef.current?.focus();
+        }}
+        cart={cart}
+        ensureCart={ensureSale}
+        onCart={(next) => commitCart(next, { scroll: false })}
+        onPracticeSignup={
+          todayDrawer?.register_is_training
+            ? () => {
+                setMemberDialog({ open: false, personId: null });
+                setThriftSignupOpen(true);
+              }
+            : undefined
+        }
       />
       <ThriftPlusSignupDialog
         open={thriftSignupOpen}
@@ -2888,23 +2960,15 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         lastSale={lastSale?.live && Date.now() - lastSale.at < RERING_WINDOW_MS ? lastSale : null}
         onCart={(next) => commitCart(next, { scroll: false })}
         training={Boolean(todayDrawer?.register_is_training)}
-        onFinishJoin={setThriftFinishJoin}
+        onFinishJoin={(person) => setMemberDialog({ open: true, personId: person.person_id })}
       />
-      <ThriftPlusFinishJoinDialog
-        open={thriftFinishJoin !== null}
-        person={thriftFinishJoin}
+      <ReturnsPopup
+        until={returnsPopup?.until ?? null}
+        note={returnsPopup?.note}
         onClose={() => {
-          setThriftFinishJoin(null);
+          setReturnsPopup(null);
           skuInputRef.current?.focus();
         }}
-        cart={cart}
-        lastSale={lastSale?.live && Date.now() - lastSale.at < RERING_WINDOW_MS ? lastSale : null}
-        onCart={(next) => commitCart(next, { scroll: false })}
-        onRerung={() => {
-          setReringArmed(false);
-          setLastSale(null);
-        }}
-        training={Boolean(todayDrawer?.register_is_training)}
       />
 
       <CardTenderDialog

@@ -3,6 +3,7 @@ import {
   Avatar,
   Box,
   Button,
+  ButtonBase,
   Chip,
   Paper,
   Stack,
@@ -13,45 +14,36 @@ import {
 import { useSnackbar } from 'notistack';
 import { useState } from 'react';
 import {
-  attachThriftMember,
   detachThriftCard,
-  pendingFromError,
   refreshCart,
   setThriftChoice,
   thriftErrorMessage,
   uploadThriftSalePhoto,
   useThriftBucks as setThriftBucksUse,
-  type ThriftPendingPerson,
 } from '../../api/thriftplusRegister.api';
 import { TbAmount, tbNumber, tbText } from '../thriftplus/ThriftBucks';
 import type { Cart } from '../../types/pos.types';
 import { formatCurrency } from '../../utils/format';
 import { instantOffer, useByText } from '../../utils/thriftPlusRegister';
-import ThriftPlusPendingFind from './ThriftPlusPendingFind';
-import ThriftPlusPhoneFind from './ThriftPlusPhoneFind';
 
 interface Props {
   cart: Cart;
   onCart: (cart: Cart) => void;
-  /** Someone who joined online and isn't finished yet (J8): open Finish joining for them. */
-  onFinishJoin?: (person: ThriftPendingPerson) => void;
+  /** Tapping the member opens their member card (owner 2026-10-20). */
+  onOpenCard?: () => void;
 }
 
 /**
- * Thrift+ on the register (the 10-12 policy, owner answers 10-14). No member yet: scan the member QR in their
- * Thrift+ app, or find them by phone and pick the person by their photo (owner 2026-10-14: there is no Thrift+ card).
- * Joined online and not finished (owner 2026-10-15, J8): "Joined online?" finds them by name or email (their QR
- * scanned does the same), and Finish joining asks the phone, the ID and the photo.
- * The member on the sale, with their photo so the cashier can check it; the choice (V4): keep this trip's ThriftBucks
- * (the Default) or redeem them instantly, offered only on what is left after Thrift+ credit and kept ThriftBucks;
- * Thrift+ credit used first; kept ThriftBucks applied by the register on its own, with a one-tap "Don't use
- * ThriftBucks today"; both balances. For a non-member, what membership would have collected. Shown only while
- * Thrift+ is live at this register.
+ * Thrift+ on the register. Finding and attaching a member is the cart's one "Thrift+ member" button (owner 2026-10-20;
+ * ThriftMemberDialog); this panel is the member on the sale, with their photo so the cashier can check it. Tapping them
+ * opens their member card. The choice (V4): keep this trip's ThriftBucks (the Default) or redeem them instantly,
+ * offered only on what is left after Thrift+ credit and kept ThriftBucks; Thrift+ credit used first; kept ThriftBucks
+ * applied by the register on its own, with a one-tap "Don't use ThriftBucks today"; both balances. For a non-member,
+ * what membership would have collected. Shown only while Thrift+ is live at this register.
  */
-export default function ThriftPlusPanel({ cart, onCart, onFinishJoin }: Props) {
+export default function ThriftPlusPanel({ cart, onCart, onOpenCard }: Props) {
   const { enqueueSnackbar } = useSnackbar();
   const [busy, setBusy] = useState(false);
-  const [joinedOnline, setJoinedOnline] = useState(false);
   const block = cart.thrift_plus;
   if (!block) return null;
   const member = block.member;
@@ -62,55 +54,21 @@ export default function ThriftPlusPanel({ cart, onCart, onFinishJoin }: Props) {
       onCart(await step());
       return true;
     } catch (err) {
-      const pending = pendingFromError(err);
-      if (pending && onFinishJoin) onFinishJoin(pending);
-      else enqueueSnackbar(thriftErrorMessage(err), { variant: 'error' });
+      enqueueSnackbar(thriftErrorMessage(err), { variant: 'error' });
       return false;
     } finally {
       setBusy(false);
     }
   }
 
+  // A guest: what the trip would have collected. Finding a member is the cart's Thrift+ member button.
   if (!member) {
-    return (
+    return block.guest_line ? (
       <Paper variant="outlined" sx={{ p: 1.5, mb: 2, flexShrink: 0 }}>
         <Typography variant="subtitle2" fontWeight={700}>Thrift+</Typography>
-        <Typography variant="body2" color="text.secondary">
-          A Thrift+ member? Scan the QR in their Thrift+ app, or find them by phone.
-        </Typography>
-        {block.guest_line ? (
-          <Typography variant="body2" sx={{ mt: 0.5 }}>{block.guest_line}</Typography>
-        ) : null}
-        {cart.status === 'open' ? (
-          <Box sx={{ mt: 1 }}>
-            <ThriftPlusPhoneFind
-              disabled={busy}
-              onPick={(person) => run(() => attachThriftMember(cart.id, person.person_id))}
-            />
-          </Box>
-        ) : null}
-        {cart.status === 'open' && onFinishJoin ? (
-          joinedOnline ? (
-            <Box sx={{ mt: 1 }}>
-              <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 0.5 }}>
-                Joined online? Find them by name or email, or scan the QR in their Thrift+ app.
-              </Typography>
-              <ThriftPlusPendingFind
-                autoFocus
-                disabled={busy}
-                onPick={(person) => {
-                  setJoinedOnline(false);
-                  onFinishJoin(person);
-                }}
-              />
-              <Button size="small" sx={{ mt: 0.5 }} onClick={() => setJoinedOnline(false)}>Cancel</Button>
-            </Box>
-          ) : (
-            <Button size="small" sx={{ mt: 0.5 }} onClick={() => setJoinedOnline(true)}>Joined online?</Button>
-          )
-        ) : null}
+        <Typography variant="body2">{block.guest_line}</Typography>
       </Paper>
-    );
+    ) : null;
   }
 
   const open = cart.status === 'open';
@@ -128,21 +86,29 @@ export default function ThriftPlusPanel({ cart, onCart, onFinishJoin }: Props) {
   return (
     <Paper variant="outlined" sx={{ p: 1.5, mb: 2, flexShrink: 0, borderColor: 'success.main' }}>
       <Stack direction="row" spacing={1.5} alignItems="center">
-        <Avatar src={member.photo_url ?? undefined} alt={member.name} sx={{ width: 64, height: 64 }}>
-          {member.name.slice(0, 1)}
-        </Avatar>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="subtitle1" fontWeight={800}>{member.name}</Typography>
-          <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', rowGap: 0.5 }}>
-            <Chip
-              size="small"
-              color={member.verified_18 ? 'success' : 'default'}
-              label={member.verified_18 ? '18+ verified' : 'Not ID-checked'}
-            />
-            {member.practice ? <Chip size="small" color="warning" label="Practice member" /> : null}
-            {member.rering ? <Chip size="small" color="info" label="Re-rung" /> : null}
-          </Stack>
-        </Box>
+        <ButtonBase
+          onClick={onOpenCard}
+          disabled={!onOpenCard}
+          aria-label={`Open ${member.name}'s ThriftBucks and credit`}
+          data-testid="thrift-member-open"
+          sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0, textAlign: 'left', borderRadius: 1 }}
+        >
+          <Avatar src={member.photo_url ?? undefined} alt={member.name} sx={{ width: 64, height: 64 }}>
+            {member.name.slice(0, 1)}
+          </Avatar>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="subtitle1" fontWeight={800}>{member.name}</Typography>
+            <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', rowGap: 0.5 }}>
+              <Chip
+                size="small"
+                color={member.verified_18 ? 'success' : 'default'}
+                label={member.verified_18 ? '18+ verified' : 'Not ID-checked'}
+              />
+              {member.practice ? <Chip size="small" color="warning" label="Practice member" /> : null}
+              {member.rering ? <Chip size="small" color="info" label="Re-rung" /> : null}
+            </Stack>
+          </Box>
+        </ButtonBase>
         {open ? (
           <Button size="small" disabled={busy} onClick={() => void run(() => detachThriftCard(cart.id))}>
             Remove
@@ -150,7 +116,7 @@ export default function ThriftPlusPanel({ cart, onCart, onFinishJoin }: Props) {
         ) : null}
       </Stack>
       <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 1 }}>
-        Check the photo matches the person paying.
+        Check the photo matches the person paying.{onOpenCard ? ' Tap them for their ThriftBucks and credit.' : ''}
       </Typography>
 
       {open && showChoice ? (

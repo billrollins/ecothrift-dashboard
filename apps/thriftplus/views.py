@@ -850,6 +850,25 @@ class RegisterViewSet(viewsets.ViewSet):
                 body['member'] = who
         return Response(body)
 
+    @action(detail=False, methods=['get'])
+    def member(self, request):
+        """The member card (owner 2026-10-20): ``?person=<id>`` (or ``?code=<member QR>``). Their photo and status
+        (pending / member / off), ThriftBucks earned, used and left, Thrift+ credit, recent trips and the people on the
+        membership. The register's Thrift+ member button and Dash's Members page show it."""
+        from apps.thriftplus.services import member_card
+
+        person = None
+        if str(request.query_params.get('person') or '').isdigit():
+            person = Person.objects.select_related('account').filter(pk=int(request.query_params['person'])).first()
+        elif request.query_params.get('code'):
+            from apps.thriftplus.services.cards import parse
+
+            code = parse(str(request.query_params['code']).strip())
+            person = Person.objects.select_related('account').filter(cards__code=code).first() if code else None
+        if person is None:
+            return Response({'detail': 'That member is not in the system.', 'code': 'MEMBER_UNKNOWN'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(member_card.card(person))
+
     @action(detail=False, methods=['post'], parser_classes=[JSONParser, MultiPartParser, FormParser])
     def finish(self, request):
         """Finish joining at the register (J8): the phone the cashier read back, the ID check, 18+ and the photo, as at

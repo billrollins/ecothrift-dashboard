@@ -4,6 +4,9 @@ import QrSvg from '../../../components/thriftplus/QrSvg';
 // The terms the customer signs under, word for word from the public site's copy (one source, J5).
 import { THRIFT_PLUS_TERMS_EN as TERMS } from '../../../../../frontend-public/src/data/thriftPlusTerms.en';
 
+/** J5: the words the customer signs under. The terms open in a popup, never a link (J13). */
+export const SIGNATURE_WORDS = 'I agree to the Thrift+ terms and photo release. I can read them at ecothrift.us/terms.';
+
 /** ecothrift.us/join: the customer starts on their own phone (J8), then a cashier finishes them here. */
 export const JOIN_URL = 'https://ecothrift.us/join';
 export const JOIN_SHOWN = 'ecothrift.us/join';

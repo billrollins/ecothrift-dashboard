@@ -53,7 +53,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'storeSales',
     label: 'Cashier',
     // Every shift on top; practice, printing and setup below (owner, 2026-10-19: "the cashier workspace is messy").
-    itemIds: ['posTerminal', 'thriftPlusFinalize', 'posTransactions', 'posDrawers', 'posCash'],
+    itemIds: ['posTerminal', 'thriftPlusFinalize', 'thriftPlusMembers', 'posTransactions', 'posDrawers', 'posCash'],
     setupItemIds: ['posTestTerminal', 'posPrintables', 'posSetup', 'thriftPlus'],
     guestItemIds: ['retailQa'],
   },

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-20 (first list: phone or Google, Staff app Find, sign-in QR) -->
+<!-- Last updated: 2026-10-20 (register: one Thrift+ member button, the member card, the Members page) -->
 # Thrift+ surfaces: every place someone joins, signs in or is finalized
 
 **The rule (owner 2026-10-20):** a change to joining, signing in or finalizing ships only when **every row below** is
@@ -35,11 +35,12 @@ The rules themselves live in the one rulebook (`thrift-plus-decisions.md`: J8, J
 | S3 | A person's sheet | S2 → tap · `finalize/finalizePeople.tsx` | Check their ID now (pending) · Sign-in QR · Retake photo · Edit name or phone · Resend join email (email joins only) · Delete (owner) | `people/<id>/sign-in-qr/`, `photo-fix/`, `details/`, `email-link/`, `accounts/<id>/delete/` |
 | S4 | The ID check | S2 → Check their ID · `FinalizeThriftPlusPage.tsx`, `components/thriftplus/SelfieCheck.tsx` | Name matches, Face matches, 18+; signature if not signed in the app; Add a person | `register/finish/` |
 | S5 | Join QR | S1 bar · `finalize/finalizeParts.tsx` | ecothrift.us/join full screen | — |
-| S6 | POS Terminal, Thrift+ panel | /pos/terminal · `pages/pos/TerminalPage.tsx`, `components/pos/ThriftPlusPanel.tsx`, `ThriftPlusPhoneFind.tsx`, `ThriftPlusPendingFind.tsx` | Scan the member QR, find by phone, "Joined online?" | `register/attach/`, `register/find/`, `register/pending/` |
-| S7 | POS, Finish joining dialog | `components/pos/ThriftPlusFinishJoinDialog.tsx` | The member's QR big for the Staff phone; or finish at the register | `register/finish/` |
-| S8 | POS, Thrift+ finish joining button | `components/pos/ThriftPlusSignupDialog.tsx` | Join QR; pending finder; practice sign-up on the training register | `accounts/ {practice}` |
+| S6 | POS Terminal, the Thrift+ member button | /pos/terminal, in the cart's top bar · `pages/pos/TerminalPage.tsx`, `components/pos/ThriftMemberDialog.tsx`, `ThriftPlusPanel.tsx` | **One button** (10-20): Find (their QR scanned, name, phone, email or member #) → pick → on the sale. A member's QR scanned into the item box still attaches. Someone still to finish opens their card to Finalize | `register/pending/ {q, recent}`, `register/attach/` |
+| S7 | The member card | the S6 button when a member is on the sale, tapping them in the panel, and S11 · `components/thriftplus/MemberCard.tsx` | Status, ThriftBucks, credit, trips, people; **Finalize** (only the ID check: Name matches, Photo matches, 18 or older, then Match; a signature only if they never signed); **Add a 2nd person** | `register/member/`, `register/finish/` (with `cart`), `accounts/<id>/second-adult/` |
+| S8 | POS, practice sign-up (training register only) | S6 → Practice sign-up · `components/pos/ThriftPlusSignupDialog.tsx` | Join QR; pending finder; practice sign-up. The "Thrift+ finish joining" and "Thrift+ 3-day return" buttons are gone (10-20) | `accounts/ {practice}` |
 | S9 | Dash Users → Members | /admin/users?tab=members · `pages/admin/users/MembersPanel.tsx`, `components/users/MemberDrawer.tsx` | Manager+: the whole list, See QR, Send sign-in link | `member-directory/` |
 | S10 | Dash Thrift+ → Members | /thrift-plus?tab=members · `pages/thriftplus/MembersTab.tsx` | Superuser | `accounts/?q=` |
+| S11 | Thrift+ members (lookup) | /pos/members, Cashier menu · `pages/pos/MembersLookupPage.tsx` | Find, then the member card (S7). `?person=<person_id>` opens that card (the Returns page links here) | `register/pending/`, `register/member/` |
 
 ## Versions
 

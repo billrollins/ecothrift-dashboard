@@ -855,6 +855,15 @@ def contact(person: Person) -> str:
     return masked(person.phone) if person.phone else ''
 
 
+def standing(person: Person) -> str:
+    """``pending`` (joined online, not finished), ``member`` or ``off`` (removed, deactivated or revoked)."""
+    if person.removed_at is not None:
+        return 'off'
+    if person.account.status == Account.STATUS_PENDING:
+        return 'pending'
+    return 'member' if person.account.status == Account.STATUS_ACTIVE else 'off'
+
+
 def pending_person(person: Person) -> dict:
     """One pending join, for the cashier to pick and finish. ``qr`` is their member QR (staff screens only): the
     terminal shows it so the Finalize phone can scan it off the screen (owner 2026-10-16). Join v2 (owner 2026-10-19):
@@ -1128,10 +1137,18 @@ def cart_block(cart) -> dict | None:
         return None  # dark here: exactly as before
     try:
         block = _cart_block(cart, member, live)
-        if member is not None and cart.status == 'open':
-            from apps.thriftplus.services.returns import closed_note
+        if member is not None:
+            from apps.thriftplus.services.returns import MARK_RETURN, closed_note, deadline
 
-            block['return_note'] = closed_note()  # closed days in the 3-day window: say it at the sale
+            sold_on = timezone.localdate(cart.completed_at) if cart.status != 'open' and cart.completed_at else timezone.localdate()
+            if cart.status == 'open':
+                block['return_note'] = closed_note()  # closed days in the 3-day window: say it at the sale
+            # Owner 10-20: the last day this sale's 3-day returns are taken, only when it has such a line. The checkout
+            # popup says it and the receipt prints it (a finished sale keeps the same day).
+            if any(l.get('mark') == MARK_RETURN for l in block['lines'].values()):
+                block['returns_until'] = deadline(sold_on).isoformat()
+                if cart.status != 'open':
+                    block['return_note'] = closed_note(sold_on)
         return block
     except Exception:
         logger.exception('thrift+ cart block failed for cart %s', cart.pk)
@@ -1247,7 +1264,7 @@ def _cart_block(cart, member: CartMember | None, live: bool) -> dict:
             'first_name': person.first_name,  # the receipt prints the first name only (owner 2026-10-14)
             'role': person.role, 'photo_url': person.photo.url if person.photo else None, 'verified_18': person.verified_18,
             'card_last4': member.card.code[-4:], 'practice': bool(account.is_practice), 'choice': member.reward_choice,
-            'rering': member.rering,
+            'rering': member.rering, 'standing': standing(person),
         },
         'instant_offered': offered, 'instant_reason': '' if offered else reason,
         'collected': _money(collected_total), 'use_by': use_by.isoformat() if use_by else None,

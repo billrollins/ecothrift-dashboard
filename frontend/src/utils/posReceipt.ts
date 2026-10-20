@@ -118,7 +118,7 @@ export function buildReceiptData(cart: Cart): Record<string, unknown> {
         ? parseFloat(cart.savings.total)
         : undefined,
     thrift_plus: thriftPlusReceipt(cart),
-    // Print server 1.9.7 prints "Returns through Thu Oct 23 · 80% of value as store credit" under a member's
+    // Print server 1.9.7 prints the last return day and the 80% (W15) under a member's
     // 3-DAY RETURN heading; without this key (an older server) it works the day out as the sale date + 3.
     ...(cart.thrift_plus?.member && cart.thrift_plus.returns_until
       ? { returns_until: cart.thrift_plus.returns_until.slice(0, 10) }

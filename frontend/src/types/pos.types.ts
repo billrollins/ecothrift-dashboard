@@ -276,6 +276,8 @@ export interface ThriftPlusCartBlock {
     /** 'bank' = Kept (the Default); 'instant' = redeemed instantly at the instant share. */
     choice: 'bank' | 'instant';
     rering: boolean;
+    /** pending (joined online, not finished), member or off (owner 2026-10-20). Older servers leave it out. */
+    standing?: 'pending' | 'member' | 'off';
   } | null;
   /** False when Thrift+ credit and kept ThriftBucks leave nothing, or no member. */
   instant_offered: boolean;
@@ -309,7 +311,7 @@ export interface ThriftPlusCartBlock {
   guest_line: string;
   /** Closed days in this sale's 3-day return window: say it to the member (owner 2026-10-20). '' when none. */
   return_note?: string;
-  /** The last day for 3-day returns on this sale (ISO date; closed days already counted). The receipt prints it. */
+  /** ISO date: the last day this sale's 3-day returns are taken (sale day + 3). Only for a member with a 3-day-return line. */
   returns_until?: string | null;
   /** Keyed by cart line id. */
   /** Per line: ThriftBucks, savings and the mark; a non-member's line also says what it would be for a member. */

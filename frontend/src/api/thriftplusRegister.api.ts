@@ -355,8 +355,41 @@ export async function unmarkRestricted(productId: number): Promise<void> {
   await api.delete(`/thriftplus/restricted/${productId}/`);
 }
 
+/**
+ * Reload the sale from the server (the register's Refresh button, owner 2026-10-20): an open sale is worked out again, so
+ * the Thrift+ member's ThriftBucks, credit and status are today's.
+ */
 export async function refreshCart(cartId: number): Promise<Cart> {
-  const { data } = await api.get<Cart>(`/pos/carts/${cartId}/`);
+  const { data } = await api.post<Cart>(`/pos/carts/${cartId}/refresh/`, {});
+  return data;
+}
+
+// -- The member card (owner 2026-10-20) ---------------------------------------
+
+/** The card's person: Find's row plus the name and where the membership stands. */
+export interface ThriftCardPerson extends ThriftPendingPerson {
+  name: string;
+  /** pending = joined online and not finished; member; off = removed, deactivated or revoked. */
+  standing: 'pending' | 'member' | 'off';
+  role: 'primary' | 'secondary';
+  practice: boolean;
+}
+
+export interface ThriftMemberCardData {
+  person: ThriftCardPerson;
+  /** ThriftBucks collected, used and left (with the soonest use-by date, ISO) and Thrift+ credit. Dollars as strings. */
+  rewards: { collected: string; used: string; balance: string; usable_today: string; use_by: string | null; credit: string };
+  /** Newest finished sales: the receipt's ticket number, the day (ISO), items and total. */
+  trips: Array<{ cart_id: number; ticket: string; date: string | null; items: number; total: string }>;
+  /** Everyone on the membership. */
+  people: Array<{
+    person_id: number; first_name: string; name: string; role: 'primary' | 'secondary'; photo_url: string | null; verified_18: boolean;
+  }>;
+}
+
+/** One person's Thrift+ standing: photo, status, ThriftBucks, credit, recent trips and the people on the membership. */
+export async function getMemberCard(personId: number): Promise<ThriftMemberCardData> {
+  const { data } = await api.get<ThriftMemberCardData>('/thriftplus/register/member/', { params: { person: personId } });
   return data;
 }
 

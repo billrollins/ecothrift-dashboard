@@ -122,7 +122,9 @@ describe('Thrift+ register, receipt and Dash words (the 10-12 policy)', () => {
     // DiscountDialog and discountUtils are the store's own discounts (not Thrift+): their "In-store credit
     // (return)" reason prints on every receipt today, so renaming it would change receipts with Thrift+ off.
     const files = [
-      ...sourceFiles(join(SRC, 'components/pos'), ['DiscountDialog.tsx', 'discountUtils.ts']),
+      // ReturnsPopup is the owner's own sentence for the cashier to say (10-20): "Returns are valid through ... and are
+      // 80% store credit." It stays word for word.
+      ...sourceFiles(join(SRC, 'components/pos'), ['DiscountDialog.tsx', 'discountUtils.ts', 'ReturnsPopup.tsx']),
       ...sourceFiles(join(SRC, 'components/thriftplus')),
       join(SRC, 'utils/posReceipt.ts'),
       join(SRC, 'utils/thriftPlusRegister.ts'),

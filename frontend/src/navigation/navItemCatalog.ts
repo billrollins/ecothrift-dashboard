@@ -159,6 +159,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Thrift+ Staff', // the staff app (owner 2026-10-16): Finalize, Members, Scan, Join QR
     icon: 'thriftPlus',
   },
+  // Thrift+ member lookup (owner 2026-10-20): Find, then the member's card. All staff.
+  thriftPlusMembers: {
+    id: 'thriftPlusMembers',
+    path: '/pos/members',
+    label: 'Thrift+ members',
+    icon: 'thriftPlus',
+  },
   posPrintables: {
     id: 'posPrintables',
     path: '/pos/printables',

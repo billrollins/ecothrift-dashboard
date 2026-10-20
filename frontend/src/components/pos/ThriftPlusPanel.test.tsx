@@ -170,44 +170,28 @@ function wrap(node: ReactNode) {
 }
 
 describe('Thrift+ at the register', () => {
-  it('asks a guest for their app QR or phone, and shows what the trip would have collected', () => {
+  it('shows a non-member only what the trip would have collected: finding a member is the cart\'s Thrift+ member button', () => {
     const line = 'This trip would have collected 35.00 ThriftBucks.';
     wrap(<ThriftPlusPanel cart={cartWith(block({ member: null, instant_offered: false, guest_line: line }))} onCart={() => undefined} />);
-    expect(screen.getByText('A Thrift+ member? Scan the QR in their Thrift+ app, or find them by phone.')).toBeInTheDocument();
     expect(screen.getByText(line)).toBeInTheDocument();
-    expect(screen.getByLabelText('Phone number')).toBeInTheDocument();
+    // Owner 2026-10-20: the scan and phone boxes and "Joined online?" are gone from the panel.
+    expect(screen.queryByLabelText('Phone number')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Joined online/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Scan the QR in their Thrift\+ app/)).not.toBeInTheDocument();
     expectNoCardWords();
   });
 
-  it('finds a member by phone, shows both adults with their photos, and puts the one picked on the sale', async () => {
-    const user = userEvent.setup();
-    const onCart = vi.fn();
-    wrap(<ThriftPlusPanel cart={cartWith(block({ member: null, instant_offered: false }))} onCart={onCart} />);
-    const find = screen.getByRole('button', { name: 'Find' });
-    await user.type(screen.getByLabelText('Phone number'), '555-01');
-    expect(find).toBeDisabled(); // under 7 digits
-    await user.type(screen.getByLabelText('Phone number'), '01');
-    await user.click(find);
-    const people = await screen.findByTestId('thrift-phone-people');
-    expect(calls.phones).toEqual(['555-0101']);
-    expect(within(people).getByText('Ana D.')).toBeInTheDocument();
-    expect(within(people).getByText('Ben D.')).toBeInTheDocument();
-    expect(within(people).getByAltText('Ana D.')).toHaveAttribute('src', '/media/ana.jpg');
-    expect(within(people).getByText('Second adult')).toBeInTheDocument();
-    expect(within(people).getByText('Not ID-checked')).toBeInTheDocument();
-    expect(screen.getByText('Pick the person: check their face against the photo.')).toBeInTheDocument();
-    expectNoCardWords();
-    await user.click(within(people).getByText('Ben D.'));
-    expect(calls.attached).toEqual([[3, 6]]);
-    expect(onCart).toHaveBeenCalled();
+  it('shows nothing for a non-member when there is no line to say', () => {
+    const { container } = wrap(<ThriftPlusPanel cart={cartWith(block({ member: null, instant_offered: false }))} onCart={() => undefined} />);
+    expect(container).toBeEmptyDOMElement();
   });
 
-  it('says so when no member has that phone', async () => {
+  it('tapping the member opens their ThriftBucks and credit', async () => {
     const user = userEvent.setup();
-    wrap(<ThriftPlusPanel cart={cartWith(block({ member: null, instant_offered: false }))} onCart={() => undefined} />);
-    await user.type(screen.getByLabelText('Phone number'), '(402) 555-9999{Enter}');
-    expect(await screen.findByText('No member with that phone number.')).toBeInTheDocument();
-    expect(calls.attached).toEqual([]);
+    const onOpenCard = vi.fn();
+    wrap(<ThriftPlusPanel cart={cartWith(block())} onCart={() => undefined} onOpenCard={onOpenCard} />);
+    await user.click(screen.getByTestId('thrift-member-open'));
+    expect(onOpenCard).toHaveBeenCalledTimes(1);
   });
 
   it('tells the cashier what to say when the store is closed in the 3-day window (owner 2026-10-20)', () => {

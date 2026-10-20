@@ -24,23 +24,22 @@ import {
   finishThriftJoin,
   findPendingOrMember,
   thriftErrorMessage,
-  type ThriftCodeMember,
   type ThriftPendingPerson,
 } from '../../../api/thriftplusRegister.api';
 import { pendingName } from '../../../components/pos/ThriftPlusPendingFind';
 import SelfieCheck, { NO_CHECKS, checksDone, type FaceChecks } from '../../../components/thriftplus/SelfieCheck';
 import AddPersonPanel from '../../../components/thriftplus/AddPersonPanel';
+import { codeMemberMessage } from '../../../components/thriftplus/MemberFind';
 import { compressImageToJpeg } from '../../../services/receiving/receivingClient';
 import { thriftCardCode } from '../../../utils/thriftPlusCard';
 import { isStandalone } from '../scanner/installApp';
 import { useQrCamera } from '../scanner/useQrCamera';
-import { JoinQrDialog, TermsDialog, useStayOnPage } from './finalizeParts';
+import { JoinQrDialog, SIGNATURE_WORDS, TermsDialog, useStayOnPage } from './finalizeParts';
 import { PersonCard, PersonSheet } from './finalizePeople';
 import { useAuth } from '../../../contexts/AuthContext';
 import ThriftSignaturePad, { type ThriftSignaturePadHandle } from './ThriftSignaturePad';
 
-/** J5: the words the customer signs under. The terms open in a popup here, never a link (J13). */
-export const SIGNATURE_WORDS = 'I agree to the Thrift+ terms and photo release. I can read them at ecothrift.us/terms.';
+export { SIGNATURE_WORDS };
 
 /**
  * `verify`: the one screen for a selfie and a signature from the app (Join v2, owner 2026-10-19). Otherwise the store
@@ -49,13 +48,7 @@ export const SIGNATURE_WORDS = 'I agree to the Thrift+ terms and photo release. 
 type Step = 'find' | 'verify' | 'done' | 'add';
 
 
-/** What the cashier hears when a scanned QR is no pending join. */
-export function codeMemberMessage(member: ThriftCodeMember | undefined): string {
-  if (!member || member.status === 'unknown') return "That QR isn't a Thrift+ member code we know. Search by name or email.";
-  const name = member.first_name || 'They';
-  if (member.status === 'active') return `${name} is already a Thrift+ member. Nothing to finalize: they can shop as a member now.`;
-  return `${name}'s membership is not active. Ask a manager.`;
-}
+export { codeMemberMessage };
 
 function joinedOn(iso: string): string {
   try {

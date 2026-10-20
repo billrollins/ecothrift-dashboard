@@ -1,24 +1,14 @@
-v2.187.0 — Loose ends: POS next unit and safe cash amounts, one customer system, 4-hour idle sign-out, Dash 80% lighter, Finish joining required, all tests green
+v2.187.1 — The register's one Thrift+ member button, the Thrift+ members page, cart Refresh, and the returns popup at checkout
 
-User-facing theme: **The loose ends, all at once (Bill, 2026-10-20: "GET IT ALL DONE NOW").** Outside initiatives, plus standards T62 and T69.
+User-facing theme: **Members at the register, simple (Bill, 2026-10-20: register and returns plan, release 1).** Outside initiatives (Thrift+).
 
 ### Added
-- **Dash sign-in:** staff are signed out after 4 hours with no activity, checked on the server; registers and the time kiosk keep a longer 24-hour limit. The sign-in page then says "Signed out after 4 hours idle." Both limits are an owner-only setting (`auth.idle_hours`). Standards T69.
+- **Register: one "Thrift+ member" button.** Scan their QR or search by name, phone, email or member #, and they go on the sale. Tap the member to see their ThriftBucks, credit, trips and people, **Add a 2nd person**, or **Finalize** someone who joined online (just the ID check: Name matches, Photo matches, 18 or older, then **Match**).
+- **Thrift+ members page** in the Cashier menu (`/pos/members`): look up any member and see the same view.
+- **Refresh** on the register's cart: reloads the sale with the member's current ThriftBucks, credit and status.
+- **Returns popup at checkout:** after a member's sale with a 3-day-return item, the cashier taps through "Say: Returns are valid through Fri Oct 23 and are 80% store credit" (with the closed-days note when it applies).
 
 ### Changed
-- **Thrift+ Member app, Finish joining is required:** no skip and no ×. A pending member with steps left always lands on it when they open the app; only Sign out leaves it (rulebook J17).
-- **One customer system:** the old separate customer record is retired; a website customer is now their Thrift+ member, which holds the confirmed email, notes and member number. Database update `thriftplus.0026` carries the 86 old records over and deletes nothing; the old table is dropped in a later release. Standards T62.
-- **Register:** no more CUS- customer scans; the Thrift+ member QR is the customer on a sale.
-- **Dash speed:** Dash loads page by page. The first download is about 80% smaller (4.9 MB to 0.9 MB), so Dash, the Thrift+ scanner and Thrift+ Staff start faster, especially on phones. The scanner's loading screen shows the version too.
-- **Tests:** every test suite passes again (stale tests brought up to date, dashes in labels became plain hyphens, `tests_*.py` collected by pytest).
-- **Docs:** the Thrift+ launch checklist and launch hub are archived (launched 10-16); the rulebook carries V10 (price words in ads) and the 10-16 production note from the main folder; adviser follow-up lines removed.
-
-### Fixed
-- **POS, already sold:** scanning a tag that's already sold, or the same tag twice, rings the next unsold unit of that item instead of showing "already sold" or selling one item twice. "Already sold" shows only when none is left. Raising a line's quantity adds the next real units, or says how many are left.
-- **POS, completing a sale:** bad money amounts (letters, negatives, too many decimals, missing cash) get a clear message instead of a server error.
-- **Buying:** deleting a B-Stock manifest also removes the AI category mappings that manifest created, so a CSV from the wrong marketplace leaves no wrong mappings behind. Mappings set by hand or seeded, and ones another manifest uses, are kept.
-- **Charts** (dashboard, auction, inventory report, Thrift+ calculator) no longer log a size warning when they first draw.
-- **Routines, My Work:** "due today" uses the date it's given, not the computer clock. Tests also lock in that Opening, Midday and Closing never get a second checklist for a day after someone finishes one.
-- **Webstore:** the two index renames the database kept skipping are now a real update (`webstore.0021`).
+- The register's "Thrift+ finish joining" and "Thrift+ 3-day return" buttons and the scan/phone boxes are gone; the one member button replaces them. Returns move to their own page next.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

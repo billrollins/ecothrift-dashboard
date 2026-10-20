@@ -1166,6 +1166,17 @@ class CartViewSet(viewsets.ModelViewSet):
         cart = self.get_queryset().get(pk=cart.pk)
         return Response(CartSerializer(cart).data)
 
+    @action(detail=True, methods=['post'], url_path='refresh')
+    def refresh(self, request, pk=None):
+        """Reload the sale from the server (the register's Refresh button, owner 2026-10-20). An open sale is worked out
+        again, so the Thrift+ member's ThriftBucks, credit and status are today's, whatever changed while it was open
+        or set aside. Any other sale is answered as it is."""
+        cart = self.get_object()
+        if cart.status == 'open':
+            cart.recalculate()
+        cart = self.get_queryset().get(pk=cart.pk)
+        return Response(CartSerializer(cart).data)
+
     @action(detail=False, methods=['get'], url_path='google-review-usernames')
     def google_review_usernames(self, request):
         q = (request.query_params.get('q') or '').strip()

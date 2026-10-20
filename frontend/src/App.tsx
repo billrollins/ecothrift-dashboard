@@ -77,6 +77,7 @@ const DrawerListPage = lazy(() => import('./pages/pos/DrawerListPage'));
 const CashManagementPage = lazy(() => import('./pages/pos/CashManagementPage'));
 const TransactionListPage = lazy(() => import('./pages/pos/TransactionListPage'));
 const PosPrintablesPage = lazy(() => import('./pages/pos/PosPrintablesPage'));
+const MembersLookupPage = lazy(() => import('./pages/pos/MembersLookupPage'));
 const DeliveriesEntryRedirect = lazy(() => import('./pages/pos/deliveries/DeliveriesEntryRedirect'));
 const LegacyDeliveryDayRedirect = lazy(() =>
   import('./pages/pos/deliveries/DeliveriesEntryRedirect').then((m) => ({ default: m.LegacyDeliveryDayRedirect })),
@@ -356,6 +357,7 @@ function AppRoutes() {
         <Route path="/pos/drawers" element={<DrawerListPage />} />
         <Route path="/pos/cash" element={<CashManagementPage />} />
         <Route path="/pos/transactions" element={<TransactionListPage />} />
+        <Route path="/pos/members" element={<MembersLookupPage />} />
         <Route path="/pos/printables" element={<PosPrintablesPage />} />
         <Route path="/pos/deliveries" element={<DeliveriesEntryRedirect />} />
         <Route path="/pos/deliveries/schedule" element={<DeliveriesEntryRedirect page="schedule" />} />

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.187.0] -->
-<!-- Last reviewed: 2026-10-20 (2.187.0) -->
+<!-- Line 1 release: ## [2.187.1] -->
+<!-- Last reviewed: 2026-10-20 (2.187.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.187.1] - 2026-10-20
+
+User-facing theme: **Members at the register, simple (Bill, 2026-10-20: register and returns plan, release 1).** Outside initiatives (Thrift+).
+
+### Added
+- **Register: one "Thrift+ member" button.** Scan their QR or search by name, phone, email or member #, and they go on the sale. Tap the member to see their ThriftBucks, credit, trips and people, **Add a 2nd person**, or **Finalize** someone who joined online (just the ID check: Name matches, Photo matches, 18 or older, then **Match**).
+- **Thrift+ members page** in the Cashier menu (`/pos/members`): look up any member and see the same view.
+- **Refresh** on the register's cart: reloads the sale with the member's current ThriftBucks, credit and status.
+- **Returns popup at checkout:** after a member's sale with a 3-day-return item, the cashier taps through "Say: Returns are valid through Fri Oct 23 and are 80% store credit" (with the closed-days note when it applies).
+
+### Changed
+- The register's "Thrift+ finish joining" and "Thrift+ 3-day return" buttons and the scan/phone boxes are gone; the one member button replaces them. Returns move to their own page next.
 
 ## [2.187.0] - 2026-10-20
 

@@ -39,6 +39,11 @@ describe('No Thrift+ card in register or receipt words (owner 2026-10-14)', () =
       'components/pos/ThriftPlusPhoneFind.tsx',
       'components/pos/ThriftPlusSignupDialog.tsx',
       'components/pos/ThriftPlusReturnDialog.tsx',
+      'components/pos/ThriftMemberDialog.tsx',
+      'components/pos/ReturnsPopup.tsx',
+      'components/thriftplus/MemberCard.tsx',
+      'components/thriftplus/MemberFind.tsx',
+      'pages/pos/MembersLookupPage.tsx',
       'utils/thriftPlusRegister.ts',
       'utils/posReceipt.ts',
     ];
