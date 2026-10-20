@@ -1,21 +1,13 @@
-v2.186.0 — Thrift+ Staff Find for everyone, a sign-in QR and quick fixes; the version in the corner
+v2.186.1 — Closed days in the 3-day return window: the register and the app say when returns end
 
-User-facing theme: **The Thrift+ Staff app finds anyone and fixes things fast: one search box, a sign-in QR, retake photo, edit name or phone; the version in the corner (Bill, 2026-10-20).** Thrift+ revision, Phase 1.
+User-facing theme: **When the store is closed on a day of a sale's 3-day return window, the member hears it at the sale (Bill, 2026-10-20).** Outside initiatives (Thrift+).
 
 ### Added
-- **Find (Thrift+ Staff):** the bar is now **Find · Scan · Join QR**. One box finds **anyone with Thrift+**, still to finish or already a member: a name, any part of the phone number, an email, or the member number; or scan their member QR. The newest online joins show underneath. A member's QR opens their sheet; someone still to finish goes to the ID check.
-- **Quick fixes on a person's sheet**, for any staff member: **Check their ID now**, **Sign-in QR**, **Retake photo** (or Take their photo), **Edit name or phone** (a number typed by staff counts as checked in person; never one already on another membership), and Resend join email for email joins.
-- **Sign-in QR:** works once, for five minutes, with a countdown. In the Thrift+ app the member taps **At the store? Scan the store's sign-in QR** and is signed straight in; with no app, the phone's camera signs that browser in. Nothing is emailed or texted.
-- **The version, small and grey in the bottom-right corner** of the member app and the Staff app, and in the ecothrift.us footer. It is off the splash screens.
-- **One list of every join, sign-in and finalize surface** (`.ai/extended/thrift-plus-surfaces.md`), and a ship rule: a change to any of them ships only when every row is updated.
-
-### Changed
-- The Staff app's Finalize and Members tabs folded into Find (the old addresses open Find). Dash's sidebar link opens Find.
-- **Website and Dash sign-in stays alive while it is used:** a refresh after a day hands out a fresh week, instead of signing everyone out a week after they signed in.
-- The register's pending-join message says what's left: "check their photo ID against their photo".
+- **Register (Thrift+ panel):** when a member's sale has a closed day in its 3 days, a yellow box tells the cashier what to say, e.g. "Tell them: Heads up: we're closed Sun Oct 18 and Mon Oct 19. Returns for today's items end Sat Oct 17." The window itself stays 3 calendar days (rulebook W2).
+- **Thrift+ Member app:** the same line shows under the 3-day returns badge on a returnable item.
+- Closed days come from Dash **Settings → Hours** (the open-day checkboxes and Holiday hours), so a holiday closure added there shows up on its own.
 
 ### Fixed
-- The register's "Finish on the store phone" QR now shows for people who already took their selfie and signed in the app (the usual case).
-- A person's sheet no longer says "Signed in" to the app for a session that was ended.
+- **Settings → Hours:** with every weekday ticked open (7 days a week), Sunday was still counted as closed. An empty closed-day list now means open every day.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

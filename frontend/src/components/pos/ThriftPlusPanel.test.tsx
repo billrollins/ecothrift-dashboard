@@ -210,6 +210,12 @@ describe('Thrift+ at the register', () => {
     expect(calls.attached).toEqual([]);
   });
 
+  it('tells the cashier what to say when the store is closed in the 3-day window (owner 2026-10-20)', () => {
+    const note = "Heads up: we're closed Sun Oct 18 and Mon Oct 19. Returns for today's items end Sat Oct 17.";
+    wrap(<ThriftPlusPanel cart={cartWith(block({ return_note: note }))} onCart={() => undefined} />);
+    expect(screen.getByTestId('thrift-return-note')).toHaveTextContent(`Tell them: ${note}`);
+  });
+
   it('shows the member on the sale with no card and no last 4', () => {
     wrap(<ThriftPlusPanel cart={cartWith(block({ credit_used: '10.00', amount_due: '75.60' }))} onCart={() => undefined} />);
     expect(screen.getByText('Ana')).toBeInTheDocument();

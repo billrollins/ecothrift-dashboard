@@ -642,6 +642,11 @@ function FoundTag({ item, isGuest, verified18, qty, onFeel, onRetail, onReturns 
       </Box>
       <Box sx={{ mt: u(14) }}>
         <ReturnsBadge ok={item.returnable} onClick={() => onReturns(item.returnable)} />
+        {item.returnable && item.return_note ? (
+          <Box data-testid="return-note" sx={{ mt: u(10), fontSize: u(26), fontWeight: 600, color: sc.warnText, lineHeight: 1.3 }}>
+            {item.return_note}
+          </Box>
+        ) : null}
       </Box>
       <Box sx={{ width: '70%', height: u(2), bgcolor: sc.line, my: u(18) }} />
       {item.retail_price && <RetailPrice value={item.retail_price} onClick={onRetail} />}

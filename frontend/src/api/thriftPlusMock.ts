@@ -67,6 +67,8 @@ export interface ThriftPlusItemCard {
   age_restricted: boolean;
   /** false = AS IS: no Thrift+ 3-day returns (W6's guide, e.g. clothing and soft goods, AS IS words). */
   returnable: boolean;
+  /** The store is closed on a day of the 3-day window: when returns end (owner 2026-10-20). '' or absent when not. */
+  return_note?: string;
   /** false = sold or off the floor. It cannot go in the cart. */
   available: boolean;
 }

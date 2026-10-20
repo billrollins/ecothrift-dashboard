@@ -172,6 +172,11 @@ export default function ThriftPlusPanel({ cart, onCart, onFinishJoin }: Props) {
               {`or redeem instantly: ${formatCurrency(offer)} off today`}
             </ToggleButton>
           </ToggleButtonGroup>
+          {block.return_note ? (
+            <Alert severity="warning" sx={{ mt: 1 }} data-testid="thrift-return-note">
+              Tell them: {block.return_note}
+            </Alert>
+          ) : null}
           {!block.instant_offered && block.instant_reason ? (
             <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
               {block.instant_reason}

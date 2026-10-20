@@ -94,6 +94,46 @@ def deadline(sold_on: date) -> date:
     return sold_on + timedelta(days=WINDOW_DAYS)
 
 
+_NOTE_CACHE: dict[tuple, str] = {}
+
+
+def _day(d: date) -> str:
+    return f'{d:%a} {d:%b} {d.day}'
+
+
+def _join(parts: list[str]) -> str:
+    return parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} and {parts[-1]}"
+
+
+def closed_note(sold_on: date | None = None) -> str:
+    """What to tell a member when the store is closed on a day of this sale's 3-day window (owner 2026-10-20): the
+    window doesn't grow (W2), so they hear it at the sale. '' when every day is open. Closed days are the store hours
+    in Dash (weekly closed days and holiday closures). Never raises; cached a minute (the app's lists call it per item)."""
+    import time
+
+    sold_on = sold_on or timezone.localdate()
+    key = (sold_on, int(time.time() // 60))
+    if key in _NOTE_CACHE:
+        return _NOTE_CACHE[key]
+    try:
+        from apps.webstore.services.hours import _active_overrides, get_hours_config, is_open_day
+
+        cfg, overrides = get_hours_config(), _active_overrides()
+        window = [sold_on + timedelta(days=n) for n in range(1, WINDOW_DAYS + 1)]
+        closed = [d for d in window if not is_open_day(d, cfg=cfg, overrides=overrides)]
+        if not closed:
+            note = ''
+        else:
+            last = max((d for d in window if d not in closed), default=sold_on)
+            end = 'today only' if last == sold_on else f'{_day(last)}'
+            note = f"Heads up: we're closed {_join([_day(d) for d in closed])}. Returns for today's items end {end}."
+    except Exception:
+        note = ''
+    _NOTE_CACHE.clear()
+    _NOTE_CACHE[key] = note
+    return note
+
+
 # ── Which items qualify (W6, W10) ──────────────────────────────────────────────
 
 

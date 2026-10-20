@@ -305,6 +305,8 @@ export interface ThriftPlusCartBlock {
   balances: { bucks: string; bucks_use_by: string | null; credit: string };
   /** Guests: "This trip would have collected 35.00 ThriftBucks." */
   guest_line: string;
+  /** Closed days in this sale's 3-day return window: say it to the member (owner 2026-10-20). '' when none. */
+  return_note?: string;
   /** Keyed by cart line id. */
   /** Per line: ThriftBucks, savings and the mark; a non-member's line also says what it would be for a member. */
   lines: Record<string, { reward: string; savings: string; mark: ThriftPlusLineMark; join_mark?: ThriftPlusLineMark }>;

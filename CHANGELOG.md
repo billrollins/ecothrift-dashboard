@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.186.0] -->
-<!-- Last reviewed: 2026-10-20 (2.186.0) -->
+<!-- Line 1 release: ## [2.186.1] -->
+<!-- Last reviewed: 2026-10-20 (2.186.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.186.1] - 2026-10-20
+
+User-facing theme: **When the store is closed on a day of a sale's 3-day return window, the member hears it at the sale (Bill, 2026-10-20).** Outside initiatives (Thrift+).
+
+### Added
+- **Register (Thrift+ panel):** when a member's sale has a closed day in its 3 days, a yellow box tells the cashier what to say, e.g. "Tell them: Heads up: we're closed Sun Oct 18 and Mon Oct 19. Returns for today's items end Sat Oct 17." The window itself stays 3 calendar days (rulebook W2).
+- **Thrift+ Member app:** the same line shows under the 3-day returns badge on a returnable item.
+- Closed days come from Dash **Settings → Hours** (the open-day checkboxes and Holiday hours), so a holiday closure added there shows up on its own.
+
+### Fixed
+- **Settings → Hours:** with every weekday ticked open (7 days a week), Sunday was still counted as closed. An empty closed-day list now means open every day.
 
 ## [2.186.0] - 2026-10-20
 

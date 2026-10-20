@@ -77,7 +77,9 @@ def effective_day(day: date, cfg: dict | None = None, overrides=None) -> DayHour
         if ov.closed:
             return DayHours(False, ov.open or open_hhmm, ov.close or close_hhmm, ov)
         return DayHours(True, ov.open or open_hhmm, ov.close or close_hhmm, ov)
-    closed = set(cfg.get('closed_weekdays') or [6])
+    # An empty list means open 7 days (owner 2026-10-20: opening 7 days a week); only a missing value falls back.
+    weekdays = cfg.get('closed_weekdays')
+    closed = set(weekdays if isinstance(weekdays, list) else [6])
     return DayHours(day.weekday() not in closed, open_hhmm, close_hhmm, None)
 
 

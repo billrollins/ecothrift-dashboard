@@ -1127,7 +1127,12 @@ def cart_block(cart) -> dict | None:
     if member is None and not live:
         return None  # dark here: exactly as before
     try:
-        return _cart_block(cart, member, live)
+        block = _cart_block(cart, member, live)
+        if member is not None and cart.status == 'open':
+            from apps.thriftplus.services.returns import closed_note
+
+            block['return_note'] = closed_note()  # closed days in the 3-day window: say it at the sale
+        return block
     except Exception:
         logger.exception('thrift+ cart block failed for cart %s', cart.pk)
         try:

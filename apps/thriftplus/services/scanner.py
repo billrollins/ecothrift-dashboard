@@ -101,7 +101,7 @@ def item_card(item, *, factor: Decimal | None = None, guide=None) -> dict:
     """``ThriftPlusItemCard`` for one item. ``guide`` (``returns.guide()``) saves reading the return settings per item
     in a list."""
     from apps.thriftplus.models import RestrictedProduct
-    from apps.thriftplus.services.returns import qualifies
+    from apps.thriftplus.services.returns import closed_note, qualifies
 
     product = item.product
     profile = getattr(product, 'profile', None)
@@ -131,7 +131,8 @@ def item_card(item, *, factor: Decimal | None = None, guide=None) -> dict:
         'sku': item.sku, 'title': short_title(name), 'category': category, 'category_label': CATEGORY_LABELS[category],
         'details': details, 'retail_price': _money(retail) if retail and retail > price else None,
         'price': _money(price), 'reward': _money(reward), 'member_price': _money(price - reward),
-        'age_restricted': restricted, 'returnable': qualifies(item, price=price, reward=reward, rules=guide),
+        'age_restricted': restricted, 'returnable': (ok := qualifies(item, price=price, reward=reward, rules=guide)),
+        'return_note': closed_note() if ok else '',  # closed days in the 3-day window (owner 2026-10-20)
         'available': item.status == 'on_shelf',
     }
 
