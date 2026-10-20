@@ -3,10 +3,12 @@ import {
   Avatar,
   Box,
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   List,
   ListItemButton,
   ListItemText,
@@ -27,6 +29,7 @@ import {
   type ThriftReturnWho,
 } from '../../api/thriftplusRegister.api';
 import { tbNumber, tbText } from '../thriftplus/ThriftBucks';
+import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../utils/format';
 import { thriftCardCode } from '../../utils/thriftPlusCard';
 import ThriftPlusPhoneFind from './ThriftPlusPhoneFind';
@@ -56,9 +59,12 @@ function whyNot(line: ThriftReturnLine): string {
  * and give 80% of what they paid, tax included, as Thrift+ credit. No reason is asked and nothing is tested; staff
  * only glance that it isn't broken or heavily used since the sale. ThriftBucks used on it come back (80%), and 80% of
  * the ThriftBucks it collected are taken back. Never back the way they paid.
+ * Past the 3 days only the owner may allow it (O1; owner 2026-10-20, closed Sun-Mon): signed in as the owner, a late
+ * line can be picked, with "Owner OK: late return" ticked and a note saying why.
  */
 export default function ThriftPlusReturnDialog({ open, onClose, registerCode = '', training = false }: Props) {
   const { enqueueSnackbar } = useSnackbar();
+  const owner = Boolean(useAuth().user?.is_superuser);
   const [scan, setScan] = useState('');
   const [who, setWho] = useState<ThriftReturnWho | null>(null);
   const [found, setFound] = useState<ThriftReturnLookup | null>(null);
@@ -66,6 +72,7 @@ export default function ThriftPlusReturnDialog({ open, onClose, registerCode = '
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [practice, setPractice] = useState<ThriftReturnResult | null>(null);
+  const [lateOk, setLateOk] = useState(false);
 
   function reset() {
     setScan('');
@@ -74,6 +81,7 @@ export default function ThriftPlusReturnDialog({ open, onClose, registerCode = '
     setPicked(null);
     setNote('');
     setPractice(null);
+    setLateOk(false);
   }
 
   function close() {
@@ -107,8 +115,9 @@ export default function ThriftPlusReturnDialog({ open, onClose, registerCode = '
     if (picked == null || !who) return;
     setBusy(true);
     try {
-      const body: ThriftReturnWho & { cart_line: number; note?: string; register: string } = { ...who, cart_line: picked, register: registerCode };
+      const body: ThriftReturnWho & { cart_line: number; note?: string; register: string; late_ok?: boolean } = { ...who, cart_line: picked, register: registerCode };
       if (note.trim()) body.note = note.trim();
+      if (line && !line.ok && line.late_only) body.late_ok = true;
       const done = await returnThriftItem(body);
       if (done.training) {
         setPractice(done);
@@ -128,6 +137,8 @@ export default function ThriftPlusReturnDialog({ open, onClose, registerCode = '
   }
 
   const line = found?.lines.find((l) => l.cart_line === picked) ?? null;
+  const late = Boolean(line && !line.ok && line.late_only);
+  const ready = Boolean(line) && (!late || (lateOk && note.trim() !== ''));
   return (
     <Dialog open={open} onClose={close} maxWidth="sm" fullWidth>
       <DialogTitle>{training ? 'Thrift+ 3-day return (practice)' : 'Thrift+ 3-day return'}</DialogTitle>
@@ -183,8 +194,11 @@ export default function ThriftPlusReturnDialog({ open, onClose, registerCode = '
                   <ListItemButton
                     key={l.cart_line}
                     selected={picked === l.cart_line}
-                    disabled={!l.ok}
-                    onClick={() => setPicked(l.cart_line)}
+                    disabled={!l.ok && !(owner && l.late_only)}
+                    onClick={() => {
+                      setPicked(l.cart_line);
+                      setLateOk(false);
+                    }}
                   >
                     <ListItemText
                       primary={`${l.title}${l.mark ? ` · ${l.mark}` : ''}`}
@@ -211,7 +225,22 @@ export default function ThriftPlusReturnDialog({ open, onClose, registerCode = '
                 <Typography variant="caption" color="text.secondary">
                   Any reason; don&apos;t ask why. Just check it isn&apos;t broken or heavily used since the sale.
                 </Typography>
-                <TextField size="small" label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+                {late ? (
+                  <Alert severity="warning" data-testid="thrift-return-late">
+                    {whyNot(line!)} Only the owner can allow it.
+                    <FormControlLabel
+                      sx={{ display: 'flex', mt: 0.5 }}
+                      control={<Checkbox checked={lateOk} onChange={(e) => setLateOk(e.target.checked)} />}
+                      label="Owner OK: late return"
+                    />
+                  </Alert>
+                ) : null}
+                <TextField
+                  size="small"
+                  label={late ? 'Why it is allowed (required)' : 'Note (optional)'}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                />
               </>
             ) : null}
           </Stack>
@@ -220,7 +249,7 @@ export default function ThriftPlusReturnDialog({ open, onClose, registerCode = '
       <DialogActions>
         <Button onClick={close}>{practice ? 'Done' : 'Cancel'}</Button>
         {practice || !found ? null : (
-          <Button variant="contained" color="success" disabled={busy || !line} onClick={() => void giveCredit()}>
+          <Button variant="contained" color="success" disabled={busy || !ready} onClick={() => void giveCredit()}>
             {line ? `Give ${formatCurrency(refundOf(line))} Thrift+ credit` : 'Pick an item'}
           </Button>
         )}

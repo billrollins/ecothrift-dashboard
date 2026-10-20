@@ -1,8 +1,8 @@
-v2.185.1 — The text opt-in screenshot for Twilio's toll-free review
+v2.185.2 — Owner OK for a late Thrift+ return at the register
 
-User-facing theme: **The text opt-in screenshot Twilio's reviewers were given now opens (Bill, 2026-10-20).** Outside initiatives (Thrift+).
+User-facing theme: **The owner can allow a late Thrift+ return at the register (Bill, 2026-10-20: bought Friday, closed Sunday and Monday, back Tuesday).** Outside initiatives (Thrift+).
 
 ### Added
-- **ecothrift.us/sms-opt-in.png:** a screenshot of the live Thrift+ sign-in screen (Continue with Google, Mobile number, Send my code, and the text-message line with Terms and Privacy), the opt-in proof in the toll-free verification.
+- **Thrift+ 3-day return (register):** an item whose only problem is the 3 days can now be picked when the owner is signed in. Tick **Owner OK: late return** and say why (required), then give the credit. Cashiers still see it greyed out with the reason. The server already allowed this for the owner only, with a note, and logs who allowed it (rulebook O1, W2).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -20,7 +20,10 @@ const calls = vi.hoisted(() => ({
   rerung: [] as Array<[number, number]>,
   created: [] as unknown[],
   training: false,
+  owner: false,
 }));
+
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { is_superuser: calls.owner } }) }));
 
 /** Two adults on one membership share a phone (owner 2026-10-14: find them by phone, pick by the photo). */
 const PEOPLE = vi.hoisted(() => [
@@ -77,6 +80,11 @@ vi.mock('../../api/thriftplusRegister.api', () => ({
         bucks_take: '0.00', sold_at: '2026-10-21T15:00:00Z', deadline: '2026-10-24', photos: [], ok: false,
         problem: 'Sold AS IS: no 3-day return.',
       },
+      {
+        cart_line: 9, cart: 2, sku: 'ITM3', title: 'Oak chair', mark: '3-day return', refund: '20.00', bucks_back: '0.00',
+        bucks_take: '0.00', sold_at: '2026-10-16T15:00:00Z', deadline: '2026-10-19', photos: [], ok: false,
+        problem: 'The 3-day return window closed Oct 19.', late_only: true,
+      },
     ],
     };
   },
@@ -96,6 +104,7 @@ beforeEach(() => {
   calls.rerung = [];
   calls.created = [];
   calls.training = false;
+  calls.owner = false;
 });
 
 /** Owner 2026-10-14: there is no Thrift+ card. No Thrift+ screen at the register says "card". */
@@ -274,6 +283,29 @@ describe('Thrift+ at the register', () => {
     await user.click(screen.getByRole('button', { name: 'Give $68.48 Thrift+ credit' }));
     expect(calls.lookups).toEqual([{ code: '100000000008' }]);
     expect(calls.returned).toEqual([{ code: '100000000008', cart_line: 7, register: 'R1' }]);
+  });
+
+  it('past the 3 days only the owner can allow it: Owner OK and a note (owner 2026-10-20, closed Sun-Mon)', async () => {
+    const user = userEvent.setup();
+    const { unmount } = wrap(<ThriftPlusReturnDialog open onClose={() => undefined} registerCode="R1" />);
+    await user.type(screen.getByLabelText('Scan the QR in their Thrift+ app'), 'TP100000000008');
+    await user.click(screen.getByRole('button', { name: 'Look up' }));
+    expect((await screen.findByText(/Oak chair/)).closest('[role="button"]')).toHaveAttribute('aria-disabled', 'true'); // a cashier
+    unmount();
+
+    calls.owner = true;
+    wrap(<ThriftPlusReturnDialog open onClose={() => undefined} registerCode="R1" />);
+    await user.type(screen.getByLabelText('Scan the QR in their Thrift+ app'), 'TP100000000008');
+    await user.click(screen.getByRole('button', { name: 'Look up' }));
+    await user.click(await screen.findByText(/Oak chair/));
+    expect(screen.getByTestId('thrift-return-late')).toHaveTextContent('The 3-day return window closed Oct 19. Only the owner can allow it.');
+    const give = screen.getByRole('button', { name: 'Give $20.00 Thrift+ credit' });
+    expect(give).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: 'Owner OK: late return' }));
+    expect(give).toBeDisabled(); // and why
+    await user.type(screen.getByLabelText('Why it is allowed (required)'), 'Closed Sun and Mon');
+    await user.click(give);
+    expect(calls.returned).toEqual([{ code: '100000000008', cart_line: 9, register: 'R1', note: 'Closed Sun and Mon', late_ok: true }]);
   });
 
   it('takes a return for a member found by phone', async () => {

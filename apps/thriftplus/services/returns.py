@@ -244,13 +244,15 @@ def purchases(code: str = '', *, person=None, days: int = 10, training: bool = F
     for line in lines:
         parts = refund_parts(line, rules=rules)
         issues = problems(line, account, training=training, parts=parts)
+        # Only the 3 days stand in the way: the owner may allow it (O1, W2).
+        late_only = bool(issues) and not problems(line, account, training=training, parts=parts, late_ok=True)
         rows.append({
             'cart_line': line.pk, 'cart': line.cart_id, 'sku': line.item.sku if line.item_id else '',
             'title': line.description, 'paid': str(parts['refund']), 'refund': str(parts['refund']),
             'mark': parts['mark'], 'bucks_back': str(parts['bucks_back']), 'bucks_take': str(parts['bucks_take']),
             'sold_at': line.cart.completed_at, 'deadline': deadline(timezone.localdate(line.cart.completed_at)).isoformat(),
             'photos': [p.photo.url for p in SalePhoto.objects.filter(cart_line=line)],
-            'ok': not issues, 'problems': issues, 'problem': ' '.join(issues),
+            'ok': not issues, 'problems': issues, 'problem': ' '.join(issues), 'late_only': late_only,
         })
     return {
         'member': {'name': f'{who.first_name} {who.last_name}'.strip(), 'account_id': account.pk,

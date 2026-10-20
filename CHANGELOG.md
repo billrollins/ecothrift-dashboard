@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.185.1] -->
-<!-- Last reviewed: 2026-10-20 (2.185.1) -->
+<!-- Line 1 release: ## [2.185.2] -->
+<!-- Last reviewed: 2026-10-20 (2.185.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.185.2] - 2026-10-20
+
+User-facing theme: **The owner can allow a late Thrift+ return at the register (Bill, 2026-10-20: bought Friday, closed Sunday and Monday, back Tuesday).** Outside initiatives (Thrift+).
+
+### Added
+- **Thrift+ 3-day return (register):** an item whose only problem is the 3 days can now be picked when the owner is signed in. Tick **Owner OK: late return** and say why (required), then give the credit. Cashiers still see it greyed out with the reason. The server already allowed this for the owner only, with a note, and logs who allowed it (rulebook O1, W2).
 
 ## [2.185.1] - 2026-10-20
 

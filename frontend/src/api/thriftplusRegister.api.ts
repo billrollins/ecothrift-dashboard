@@ -249,6 +249,8 @@ export interface ThriftReturnLine {
   problem?: string;
   /** Older servers: the reasons as a list. */
   problems?: string[];
+  /** Only the 3 days stand in the way: the owner may allow it (O1). */
+  late_only?: boolean;
 }
 
 export interface ThriftReturnLookup {
@@ -286,7 +288,7 @@ export interface ThriftReturnResult {
 
 /** Take one line back as Thrift+ credit. ``register``: this terminal's code (the training register writes nothing). */
 export async function returnThriftItem(
-  body: ThriftReturnWho & { cart_line: number; note?: string; register: string },
+  body: ThriftReturnWho & { cart_line: number; note?: string; register: string; late_ok?: boolean },
 ): Promise<ThriftReturnResult> {
   const { data } = await api.post<ThriftReturnResult>('/thriftplus/returns/', body);
   return data;

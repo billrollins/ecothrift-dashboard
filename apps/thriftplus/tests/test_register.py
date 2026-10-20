@@ -565,6 +565,8 @@ class ReturnTests(RegisterBase):
         Cart.objects.filter(pk=sale['id']).update(completed_at=timezone.now() - timedelta(days=4))
         late = self._return(line_id)
         self.assertIn('3-day return window closed', late.json()['detail'])
+        row = self.api.get('/api/thriftplus/returns/lookup/', {'code': self.codes[0]}).json()['lines'][0]
+        self.assertEqual((row['ok'], row['late_only']), (False, True))  # the owner may allow it at the register
         self.api.force_authenticate(self.manager)
         self.assertEqual(self._return(line_id, late_ok=True, note='closed').status_code, 403)
         owner = User.objects.create_superuser(email='owner@example.com', first_name='O', last_name='W', password='x-pass-123')
