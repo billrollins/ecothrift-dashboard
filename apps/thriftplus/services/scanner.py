@@ -20,7 +20,7 @@ import re
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Max
 from django.utils import timezone
 
 from apps.thriftplus.models import AppCart, AppCartLine, ItemReward, ScanSignal
@@ -251,16 +251,17 @@ def clear_history(account) -> list[dict]:
     """'Clear my scans' (owner 2026-10-10): the member's list starts over. The scan rows stay; they are data."""
     cart = cart_for(account)
     cart.history_cleared_at = timezone.now()
-    cart.save(update_fields=['history_cleared_at', 'updated_at'])
+    cart.history_cleared_through = ScanSignal.objects.filter(account=account).aggregate(m=Max('pk'))['m'] or 0
+    cart.save(update_fields=['history_cleared_at', 'history_cleared_through', 'updated_at'])
     return []
 
 
 def history(account, limit: int = 300) -> list[dict]:
     """``ThriftPlusHistoryEntry[]``: newest first, one row per tag, with what they did."""
     rows = ScanSignal.objects.filter(account=account, kind__in=['scan', 'add', 'pass'], item__isnull=False)
-    cleared = AppCart.objects.filter(account=account).values_list('history_cleared_at', flat=True).first()
-    if cleared:
-        rows = rows.filter(created_at__gt=cleared)  # "Clear my scans": hidden, not deleted
+    through = AppCart.objects.filter(account=account).values_list('history_cleared_through', flat=True).first()
+    if through is not None:
+        rows = rows.filter(pk__gt=through)  # "Clear my scans": hidden, not deleted
     rows = rows.select_related('item__product__profile').order_by('-created_at')[:2000]
     seen: dict[int, dict] = {}
     factor = _sale_factor()

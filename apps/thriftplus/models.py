@@ -579,6 +579,8 @@ class AppCart(models.Model):
     choice_at = models.DateTimeField(null=True, blank=True)
     # Owner 2026-10-10: "Clear my scans" hides the scans before this from the member's list; the scan rows are kept.
     history_cleared_at = models.DateTimeField(null=True, blank=True)
+    # The last ScanSignal id that clear hid. By id, not time: a scan in the same clock tick as the clear must still show.
+    history_cleared_through = models.BigIntegerField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
 

@@ -149,3 +149,14 @@ class TestToolsTests(TestCase):
         self.assertEqual(ScanSignal.objects.filter(account=account).count(), 1)  # kept: it is data
         scanner.signal('scan', self.lamp, account)
         self.assertEqual(len(scanner.history(account)), 1)  # new scans show again
+
+    def test_a_scan_in_the_same_clock_tick_as_the_clear_still_shows(self):
+        from unittest import mock
+
+        account = members.make_practice_member()
+        with mock.patch('django.utils.timezone.now', return_value=timezone.now()):  # every stamp the same
+            scanner.signal('scan', self.lamp, account)
+            scanner.clear_history(account)
+            self.assertEqual(scanner.history(account), [])
+            scanner.signal('scan', self.lamp, account)
+            self.assertEqual(len(scanner.history(account)), 1)

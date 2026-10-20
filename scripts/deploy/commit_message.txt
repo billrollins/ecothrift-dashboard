@@ -1,13 +1,8 @@
-v2.184.0 — A tidier sidebar (Setup section in Cashier and People) and Text the offer
+v2.184.1 — Clear my scans no longer hides a scan made in the same instant as the clear
 
-User-facing theme: **A tidier sidebar (daily pages on top, a small Setup section below) and Text the offer, like the interview text (Bill, 2026-10-19).** Outside initiatives (navigation, People).
+User-facing theme: **Clear my scans no longer hides a scan made in the same instant as the clear (found by a test that failed now and then).** Outside initiatives (Thrift+).
 
-### Added
-- **Text the offer (People):** an open offer's card has **Text the offer**. It opens the same dialog as the interview text: on a phone, **Open text message** with the number and the words filled in; anywhere, tap to copy the number and the message (the offer's private link, one text). **Text sent** puts it on the history.
-
-### Changed
-- **Sidebar, Cashier:** Terminal, Thrift+ Staff, Transactions, Drawers and Cash management on top; **Setup** below with Test terminal, Printables, POS setup and Thrift+; Command Center after a line.
-- **Sidebar, People:** Users, Applicants, Interviews, Onboarding and Check-ins on top; **Setup** below with Payroll deductions, Jobs & careers page and Emails.
-- "Cash Management" reads "Cash management", like the other pages. Workspace descriptions in the switcher match what is in them (Admin no longer lists Users; Studios lists announcements).
+### Fixed
+- **Thrift+ Member, Clear my scans:** the clear hid scans by time, so a scan stamped in the same clock tick as the clear was hidden too. It now remembers the last scan it hid (by scan number). A small database update (migration 0024) fills that in for members who already cleared, so the same scans stay hidden.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

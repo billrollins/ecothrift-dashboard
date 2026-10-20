@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.184.0] -->
-<!-- Last reviewed: 2026-10-19 (2.184.0) -->
+<!-- Line 1 release: ## [2.184.1] -->
+<!-- Last reviewed: 2026-10-20 (2.184.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.184.1] - 2026-10-20
+
+User-facing theme: **Clear my scans no longer hides a scan made in the same instant as the clear (found by a test that failed now and then).** Outside initiatives (Thrift+).
+
+### Fixed
+- **Thrift+ Member, Clear my scans:** the clear hid scans by time, so a scan stamped in the same clock tick as the clear was hidden too. It now remembers the last scan it hid (by scan number). A small database update (migration 0024) fills that in for members who already cleared, so the same scans stay hidden.
 
 ## [2.184.0] - 2026-10-19
 
