@@ -8,11 +8,9 @@ Dash screens are superuser-only in the nav; the API itself is staff-level, like 
 """
 from __future__ import annotations
 
-import base64
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -25,7 +23,6 @@ from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin, IsStaff, IsS
 from apps.thriftplus.models import (
     Account,
     Card,
-    CardBatch,
     LedgerEntry,
     Person,
     RestrictedProduct,
@@ -36,13 +33,11 @@ from apps.thriftplus.models import (
 from apps.thriftplus.serializers import (
     AccountDetailSerializer,
     AccountSerializer,
-    CardBatchSerializer,
     CardSerializer,
     PersonSerializer,
 )
 from apps.thriftplus.services import (
     calculator,
-    card_pdf,
     cards,
     floor_plan,
     ledger,
@@ -500,44 +495,6 @@ class CardViewSet(viewsets.GenericViewSet):
     def kill(self, request, pk=None):
         card = members.kill_card(self.get_object(), reason=request.data.get('reason', 'lost'), user=request.user)
         return Response(CardSerializer(card).data)
-
-
-# Retired (owner 2026-10-14: no physical card; Dash's tab is gone). Kept, unused, for the old batches' data.
-class CardBatchViewSet(viewsets.ReadOnlyModelViewSet):
-    """Blank-card batches: generate codes, print their backs through the print server, mark printed."""
-
-    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
-    serializer_class = CardBatchSerializer
-    queryset = CardBatch.objects.all()
-
-    def create(self, request, *args, **kwargs):
-        try:
-            batch = cards.generate_batch(int(request.data.get('size') or 0), user=request.user, note=request.data.get('note', ''))
-        except (TypeError, ValueError) as exc:
-            return _error(exc)
-        return Response(CardBatchSerializer(batch).data, status=status.HTTP_201_CREATED)
-
-    @action(detail=True, methods=['get'])
-    def backs(self, request, pk=None):
-        """The backs as one PDF (download), or ``?jobs=1`` as print-server jobs of 10 pages (base64)."""
-        batch = get_object_or_404(CardBatch, pk=pk)
-        codes = list(batch.cards.filter(status=Card.STATUS_UNISSUED).values_list('code', flat=True))
-        if not codes:
-            return _error(ValueError('No blank cards left in this batch.'))
-        if _truthy(request.query_params.get('jobs')):
-            jobs = [base64.b64encode(chunk).decode('ascii') for chunk in card_pdf.pdf_chunks(codes)]
-            return Response({'cards': len(codes), 'jobs': jobs})
-        response = HttpResponse(card_pdf.card_backs_pdf(codes), content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="thrift-plus-card-backs-{batch.pk}.pdf"'
-        return response
-
-    @action(detail=True, methods=['post'], url_path='mark-printed')
-    def mark_printed(self, request, pk=None):
-        batch = get_object_or_404(CardBatch, pk=pk)
-        batch.printed_at = timezone.now()
-        batch.save(update_fields=['printed_at'])
-        members.log('batch_printed', actor=request.user, batch=batch.pk, size=batch.size)
-        return Response(CardBatchSerializer(batch).data)
 
 
 class OverstockViewSet(viewsets.ViewSet):

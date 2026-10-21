@@ -4,7 +4,6 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     AnnouncementViewSet,
     ConversationViewSet,
-    OrderViewSet,
     ReservationViewSet,
     StoreHoursOverrideViewSet,
     WebListingViewSet,
@@ -43,7 +42,6 @@ from .views import (
 
 router = DefaultRouter()
 router.register(r'listings', WebListingViewSet, basename='weblisting')
-router.register(r'orders', OrderViewSet, basename='weborder')
 router.register(r'reservations', ReservationViewSet, basename='webreservation')
 router.register(r'conversations', ConversationViewSet, basename='webconversation')
 router.register(r'announcements', AnnouncementViewSet, basename='announcement')

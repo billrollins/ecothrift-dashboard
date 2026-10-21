@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (Me page two columns; pay numbers; Messages; Schedule page and My week) -->
+<!-- Last updated: 2026-10-21 (Me page two columns; pay numbers; Messages; Schedule page and My week; Me page; Time & payroll; Messages page; dead pages removed: old workbench, item list, web orders, product review, TARS legacy studio; old redirects) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -113,7 +113,7 @@ Separate Vite + React 18.3 + TypeScript build for shoppers (`ecothrift.us` / `ww
 - **Stack:** React Router v7, shared design tokens in `styles.css`, `useSeo` + JSON-LD, client cart (`localStorage`), code-split lazy routes.
 - **Safety net:** `components/ErrorBoundary.tsx` wraps the site: a crash shows "Something went wrong" + Reload and goes to the owner's error alerts (path starts `ecothrift.us`); an old tab after a deploy shows "This page was updated" + Reload.
 - **API:** `AllowAny` `/api/webstore/catalog/*`, `checkout/`, `order-status/<number>/`, **`GET /api/webstore/config/`** — `hours` comes from AppSetting `online_sales.hours` (Python weekdays 0=Mon … 6=Sun) plus `overrides` / `today` / `resume_label` from `StoreHoursOverride`. Home, Visit, footer, checkout, holds, and account build the schedule from that payload; `StoreHoursBlock` prints a two-column weekly grid plus dated **Holiday hours** lines (`Mon, Sep 7 (Labor Day): 9 AM to 6 PM, note.`) when overrides are in the 7-day window. Visit/Home `.vinfo` rows are label | value (brand-green small-cap labels). **`GET /api/webstore/public/announcements/`** feeds `AnnouncementBanner` (Layout, above `.hdr`), `AnnouncementCard` (Home / Visit / Shop), and `AnnouncementGallery`. Dash CRUD: `/announcements` (Studios, Manager+) and Settings → Store → Holiday & special hours.
-- Staff catalog + order management: **`WebStorePage`** (`/admin/web-store`), **`WebOrdersPage`** (`/admin/web-orders`) — Admin workspace, Manager/Admin.
+- Staff catalog: **`WebStorePage`** (`/admin/web-store`), Admin workspace, Manager/Admin. (The web orders page and its `/api/webstore/orders/` staff API were removed 2026-10-21.)
 - **Listing photos:** public grid, PDP, cart, and holds use the full gallery file with `object-fit: contain`. Click the PDP photo for `ListingLightbox` (full). Staff can still frame main / grid / thumb in Listing Studio.
 
 **Online Sales (staff):** Listing Studio drop / multi-select opens `ListingPhotoEditorDialog` (Main 1600×1200 default; Full / Grid / Thumb chips; one Apply). `useListingDraft` autosaves title, price, and Facebook fields. Mark posted turns on when Posted URL is entered. Messages (`MessagesPanel`): owner chip + Owner column, Unassign, Mine filter; Resolve asks first. Reply sends `notify` (Email the customer / Post without email). Hold drawer: **Undo Complete** for a staff Complete misclick; **Reopen hold** still needs an internal note.
@@ -355,8 +355,7 @@ Sidebar footer shows `v{appVersion.version}` from `getAppVersion()` → `/api/co
 
 ### New Files
 - `frontend/src/hooks/useLocalPrintStatus.ts` — polls `/health` every 30s; returns `{ online, version, printersAvailable, lastChecked }`
-- `frontend/src/components/inventory/ProcessingDrawer.tsx` — right-side MUI `Drawer` (width 420px); exports `ProcessingDrawer`, `buildItemForm`, `buildBatchForm`, `EMPTY_FORM`, `DRAWER_WIDTH`, `DrawerMode`, `ProcessingFormState` types
-- `frontend/src/components/inventory/ProcessingStatsBar.tsx` — session stats bar; shows elapsed, items/hr, ETA, session count, auto-advance toggle
+- `frontend/src/components/inventory/ProcessingDrawer.tsx` and `ProcessingStatsBar.tsx` — history: removed 2026-10-21 with the old Processing page; the Item Processor is `ProcessingWorkspacePage`.
 
 ### ProcessingPage.tsx (redesign)
 - **Layout**: "Command Center + Side Drawer" — PageHeader → Order Context Bar → Scanner Card → Tabbed Queue Card → Stats Bar + right-anchored Drawer

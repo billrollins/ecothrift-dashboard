@@ -8,7 +8,7 @@
  * - **Guests:** the cart and history stay on the phone (localStorage). Only tag lookups and signals
  *   go to the server.
  * - **Totals:** the trip's units, tag prices and the ThriftBucks it collects (the server's for a member,
- *   `computeCartTotals` from the mock for a guest). The scanner shows only ThriftBucks: Thrift+ credit, kept
+ *   `computeCartTotals` for a guest). The scanner shows only ThriftBucks: Thrift+ credit, kept
  *   ThriftBucks and any instant redemption are worked out at the register (B1, B3, V8).
  */
 import axios from 'axios';
@@ -30,7 +30,7 @@ import {
   type ThriftPlusMember,
   type ThriftPlusSession,
   type SignInOptions,
-} from './thriftPlusMock';
+} from './thriftPlusTypes';
 
 export { computeCartTotals, readContact, ThriftPlusError };
 export type {

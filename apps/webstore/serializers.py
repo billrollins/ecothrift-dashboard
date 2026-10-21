@@ -618,34 +618,6 @@ class OrderPublicSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class OrderStaffSerializer(serializers.ModelSerializer):
-    lines = OrderLineSerializer(many=True, read_only=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-    payment_status_display = serializers.CharField(source='get_payment_status_display', read_only=True)
-    fulfillment_display = serializers.CharField(source='get_fulfillment_display', read_only=True)
-    item_count = serializers.IntegerField(read_only=True)
-
-    class Meta:
-        model = Order
-        fields = [
-            'id', 'order_number', 'status', 'status_display',
-            'payment_provider', 'payment_status', 'payment_status_display', 'payment_reference',
-            'fulfillment', 'fulfillment_display',
-            'customer_name', 'email', 'phone',
-            'ship_address1', 'ship_address2', 'ship_city', 'ship_state', 'ship_postal',
-            'subtotal', 'shipping', 'tax', 'total', 'item_count',
-            'customer_note', 'staff_note', 'lines', 'created_at', 'updated_at',
-        ]
-        read_only_fields = [
-            'id', 'order_number', 'status', 'status_display', 'payment_provider',
-            'payment_status_display', 'fulfillment', 'fulfillment_display',
-            'customer_name', 'email', 'phone',
-            'ship_address1', 'ship_address2', 'ship_city', 'ship_state', 'ship_postal',
-            'subtotal', 'shipping', 'tax', 'total', 'item_count',
-            'customer_note', 'lines', 'created_at', 'updated_at',
-        ]
-
-
 class StoreHoursOverrideSerializer(serializers.ModelSerializer):
     sentence = serializers.SerializerMethodField()
 

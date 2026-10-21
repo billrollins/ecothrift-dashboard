@@ -1,4 +1,4 @@
-import type { TagLookup } from './thriftPlusMock';
+import type { TagLookup } from './thriftPlusTypes';
 import api from './client';
 
 /**

@@ -554,7 +554,7 @@ export default function QuickRepricePage({ embedded = false }: { embedded?: bool
                 <ListItem key={`${row.id}-${index}`} disablePadding>
                   <ListItemButton
                     component={Link}
-                    to={`/inventory/items/${row.id}`}
+                    to={`/inventory/search?open=item:${row.id}`}
                     sx={{ py: 1, px: 2 }}
                   >
                     <ListItemText

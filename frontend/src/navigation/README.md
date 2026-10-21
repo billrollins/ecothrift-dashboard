@@ -21,9 +21,10 @@ Workspaces (assigned digits; letter is the first letter of the short name):
 
 The same digit always opens the same workspace. A key for a workspace the user cannot see does nothing. Superuser **Enhancements** lives as a Restoration guest item (`/admin/enhancement-requests`). **Users** is Manager+; Employees is first and default for Admin, Customers is `?tab=customers`. Managers only see Customers.
 
-Deprecated paths (`/online-sales/inbox`, `/online-sales/customers`, `/online-sales/sales`, `/admin/web-store`, …) keep
-working as redirects in `App.tsx` and deliberately have no catalog entry — the catalog only
-holds links that appear in the sidebar.
+Recently moved paths (e.g. `/inventory/workbench`, `/inventory/quick-reprice`, old count links) keep working as
+redirects in `App.tsx` for a bookmark window and deliberately have no catalog entry — the catalog only holds links
+that appear in the sidebar. Redirects older than that window are removed (2026-10-21: about 25 from before October);
+an old URL then lands on the person's home page.
 
 ## Shared data
 

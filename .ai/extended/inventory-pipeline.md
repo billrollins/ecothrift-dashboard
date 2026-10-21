@@ -491,7 +491,7 @@ Moved to **`/inventory/processing-legacy`**. The primary staff flow is **Item Pr
 - **Progress ring** (CircularProgress, 52px) with % overlaid; stats chips for pending/on-shelf/batch counts
 - **SKU scanner input** always visible; F2 focuses it; Enter finds item by SKU and opens Drawer
 - **Three-tab DataGrid** (Batches / Items / Checked In) with badge counts; compact density
-- **Right-side Drawer** (`ProcessingDrawer.tsx`) — form + collapsible source context, Copy from Last, Save/Check-In/Reprint, keyboard hints
+- **Right-side Drawer** (`ProcessingDrawer.tsx`, removed 2026-10-21 with the old Processing page) — form + collapsible source context, Copy from Last, Save/Check-In/Reprint, keyboard hints
 - **Bulk check-in**: checkbox selection on Items tab → dialog with shared overrides → `check-in-items` endpoint
 - **Batch labels**: staggered `Promise.allSettled` with 200ms stagger; progress alert
 - **Reprint**: per-row printer icon on Checked In tab + Reprint button in drawer after check-in

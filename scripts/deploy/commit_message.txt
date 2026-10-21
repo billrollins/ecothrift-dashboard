@@ -1,13 +1,12 @@
-v2.201.0 — Thrift+ guardrails: Member is here, return warnings, ThriftBucks alerts
+v2.202.0 — Backlog page and dead-page cleanup
 
-User-facing theme: **Thrift+ guardrails at the register and alerts for the owner (Bill, 2026-10-21, critic review point 6).** Outside initiatives (critic-review release list).
+User-facing theme: **A backlog page for parked work, and a big cleanup of dead pages (Bill, 2026-10-21, critic review point 7).** Outside initiatives (critic-review release list).
 
 ### Added
-- **"Member is here":** a member found by name or phone keeps their ThriftBucks until the cashier taps Member is here (logged with who tapped). Their QR still spends at once.
-- **Returns on the member card:** return trips in the last 30 days, with a warning to staff at 3 (both numbers are your settings in Settings → Thrift+). A warning only.
-- **Owner page alerts:** Needs you warns when the nightly ThriftBucks run didn't finish, or a member sale's ThriftBucks were never recorded.
+- **Backlog page** (`.ai/initiatives/backlog.md`): the parked areas (Documents, Deliveries, the model factory, Online Sales, Consignment), with what's built and what's left.
 
-### Changed
-- **Deleting a member account stays the owner's alone;** everyone else uses Deactivate, which keeps everything.
+### Removed
+- Old unused pages and code (about 14,000 lines): the old inventory workbench, the old item list, web orders, product review, the old TARS studio, card batch printing, and about 25 old links that only forwarded elsewhere. Nothing you use changes.
+- The "All-Time Revenue History (DB1 + DB2 + DB3)" panel on Transactions.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

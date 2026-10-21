@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (relative paths, D21) -->
+<!-- Last updated: 2026-10-21 (backlog of parked areas) -->
 # Initiatives — ecothrift-dashboard
 
 Bounded work (hours to days), one `.md` per initiative. Not a session log. Rules: [`protocols/initiative-create.md`](../protocols/initiative-create.md), [`protocols/initiative-review.md`](../protocols/initiative-review.md) (§ Filing rules). **Human gate:** do not archive without explicit approval.
@@ -27,6 +27,10 @@ Bounded work (hours to days), one `.md` per initiative. Not a session log. Rules
 | [hiring_onboarding](./hiring_onboarding.md) | **Phase 6 when gated** | Opened 2026-10-06; urgent, runs beside inventory_effort in the worktree `--hiring`. Shipped: Phase 1 careers page, apply, Applicants, Not now, Create employee (v2.136.0); fuller role pages, the JSON bundle for AI, hiring manager and interviewers (v2.137.0); Phase 2 interview calendar, AI help per role and email, the Emails page with role versions (v2.139.0); Phase 3 offers signed with a finger, and practice runs (v2.143.0); Phase 4 onboarding (checklist, I-9, handbook) and 4b staff purchases, off at first (v2.146.0); Phase 5 check-ins, the Applicants timeline (phone-first) and read-before-send for hiring emails (v2.148.0); Phase 6 texts built and held, `apps/texting` shared with Thrift+ (v2.149.0). Next: go live when the Twilio account, key and campaign clear. |
 | [intake_updates](./intake_updates.md) | **Phase 4** | Opened 2026-10-02. Shipped: 1 Orders page numbers (v2.129.0); 2 order modal, faster new-order form, EXP date; 6 vendor metrics; 3's Request code (v2.130.0); 5 the AI picks formulas on upload and templates are gone (v2.131.0; old columns dropped in v2.132.0). Waiting: the owner approves Request #11 (`TGT` → `TRGET`) in production. 4 (dispute refunds) and 7 (next intake screen) need the owner's detail. |
 | [product_intelligence](./product_intelligence.md) | **Phase 2** | Phase 2 structure shipped in v2.101.0: profiles, proposals, review page, pgvector vectors (a title alone places 90.5%), reversible merges. Loading the proposals, merges and embeddings into production waits on owner OK. |
+
+## Backlog
+
+[`backlog.md`](backlog.md): parked areas (Documents, Deliveries, the model factory, Online Sales, Consignment), each with what is built and what is left. Needed later; nobody builds on them until one comes back.
 
 ## Archived
 

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-25 (inspect form, nav badges, hold story) -->
+<!-- Last updated: 2026-10-21 (legacy fullscreen Studio removed) -->
 # Restoration / TARS
 
 Staff restoration: Ashley prices grades, Mike runs the bench, Bill sees what it earned. Initiative: [`finalize_tars_app`](../initiatives/_archived/finalize_tars_app.md). Shipped **v2.71.0** (GitHub; not Heroku).
@@ -15,7 +15,6 @@ House rule: **nothing may shift the page** when state changes. Standing conditio
 | **`/restoration/bench`** | Command deck (item, notes, grade & value, dispatch) + grades + purchase summaries + current action and one history. |
 | **`/restoration/parts-requests`** | Superuser command center: live pipeline board + history by item. Sidebar badge counts approvals, cancel asks, and reviews. |
 | **`/restoration/tars`** | Old Studio bookmarks → in-dashboard bench, else overview. |
-| **`/restoration/tars-legacy`** | Fullscreen Studio (`TarsPage`). No sidebar link. Delete once the floor has moved. |
 | **`/inventory/restorations`** | Processing TO/FROM hub (grade setup + returns desk). |
 
 No role gate on overview or bench.

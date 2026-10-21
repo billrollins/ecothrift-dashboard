@@ -21,7 +21,7 @@ import TrendingUpRounded from '@mui/icons-material/TrendingUpRounded';
 import SavingsRounded from '@mui/icons-material/SavingsRounded';
 import SellRounded from '@mui/icons-material/SellRounded';
 import VolunteerActivismRounded from '@mui/icons-material/VolunteerActivismRounded';
-import { toCents, type PriceFeelReason, type ThriftPlusItemCard, type ThriftPlusMember } from '../../../api/thriftPlusMock';
+import { toCents, type PriceFeelReason, type ThriftPlusItemCard, type ThriftPlusMember } from '../../../api/thriftPlusTypes';
 import { getMyCard, type MyCard } from '../../../api/thriftPlusScanner.api';
 import { tbNumber } from '../../../components/thriftplus/ThriftBucks';
 import { FieldBanner } from './ScannerTop';

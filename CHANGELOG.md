@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.201.0] -->
-<!-- Last reviewed: 2026-10-21 (2.201.0) -->
+<!-- Line 1 release: ## [2.202.0] -->
+<!-- Last reviewed: 2026-10-21 (2.202.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.202.0] - 2026-10-21
+
+User-facing theme: **A backlog page for parked work, and a big cleanup of dead pages (Bill, 2026-10-21, critic review point 7).** Outside initiatives (critic-review release list).
+
+### Added
+- **Backlog page** (`.ai/initiatives/backlog.md`): the parked areas (Documents, Deliveries, the model factory, Online Sales, Consignment), with what's built and what's left.
+
+### Removed
+- Old unused pages and code (about 14,000 lines): the old inventory workbench, the old item list, web orders, product review, the old TARS studio, card batch printing, and about 25 old links that only forwarded elsewhere. Nothing you use changes.
+- The "All-Time Revenue History (DB1 + DB2 + DB3)" panel on Transactions.
 
 ## [2.201.0] - 2026-10-21
 

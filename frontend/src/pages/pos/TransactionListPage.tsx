@@ -1,36 +1,24 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { keepPreviousData } from '@tanstack/react-query';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Box,
   Button,
   Chip,
   Dialog,
   DialogContent,
   DialogTitle,
-  Divider,
   FormControl,
   Grid,
   IconButton,
   InputAdornment,
   InputLabel,
   MenuItem,
-  Paper,
   Select,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
   Typography,
 } from '@mui/material';
 import Clear from '@mui/icons-material/Clear';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import HistoryIcon from '@mui/icons-material/History';
 import { DataGrid, type GridColDef, type GridRowsProp } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -46,11 +34,6 @@ import { SalesNumbersBlock } from '../../components/pos/SalesNumbersBlock';
 import { CardTypeFixControls } from '../../components/pos/CardTypeFixControls';
 import { buildReceiptData } from '../../utils/posReceipt';
 import { format, startOfMonth, startOfWeek, subDays } from 'date-fns';
-import {
-  getHistoricalRevenue,
-  type HistoricalRevenueResponse,
-  type HistoricalRevenueDataPoint,
-} from '../../api/pos.api';
 import { IconSearch as Search } from '../../icons/ecoIcons';
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -75,178 +58,6 @@ function datePresets(): { label: string; from: string; to: string }[] {
 /** A Thrift+ money cell: blank for a guest sale or nothing, so the column reads at a glance. */
 function thriftMoney(value: number): string {
   return value > 0 ? formatCurrency(value) : '';
-}
-
-const DB_COLORS: Record<string, string> = { db1: '#9e9e9e', db2: '#1976d2', db3: '#2e7d32' };
-const DB_LABELS: Record<string, string> = { db1: 'DB1 Legacy', db2: 'DB2 Production', db3: 'DB3 Current' };
-
-function HistoricalRevenuePanel() {
-  const [data, setData] = useState<HistoricalRevenueResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [period, setPeriod] = useState<'yearly' | 'monthly'>('yearly');
-  const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    if (!expanded) return;
-    setLoading(true);
-    getHistoricalRevenue({ period, sources: 'all' })
-      .then(r => setData(r.data))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, [expanded, period]);
-
-  const summary = data?.summary;
-  const grandTotal = summary
-    ? (
-        parseFloat(summary.db1_total) +
-        parseFloat(summary.db2_total) +
-        parseFloat(summary.db3_total)
-      ).toFixed(2)
-    : '0.00';
-
-  type PivotRow = { period: string; db1?: number; db2?: number; db3?: number };
-
-  // Group data points by period, pivot by source_db
-  const pivoted = useMemo((): PivotRow[] => {
-    if (!data?.data) return [];
-    const map = new Map<string, Record<string, number>>();
-    for (const row of data.data) {
-      if (!map.has(row.period)) map.set(row.period, {});
-      map.get(row.period)![row.source_db] = parseFloat(row.total);
-    }
-    return Array.from(map.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([period, vals]) => ({ period, ...vals } as PivotRow));
-  }, [data]);
-
-  return (
-    <Accordion
-      expanded={expanded}
-      onChange={(_, e) => setExpanded(e)}
-      sx={{ mb: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}
-    >
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-        <Stack direction="row" alignItems="center" spacing={1.5}>
-          <HistoryIcon color="action" />
-          <Typography variant="subtitle1" fontWeight={600}>
-            All-Time Revenue History (DB1 + DB2 + DB3)
-          </Typography>
-          {summary && (
-            <Chip
-              label={`$${parseFloat(grandTotal).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} total all-time`}
-              size="small"
-              color="primary"
-              variant="outlined"
-            />
-          )}
-        </Stack>
-      </AccordionSummary>
-      <AccordionDetails sx={{ pt: 0 }}>
-        {/* Controls */}
-        <Stack direction="row" spacing={2} mb={2} alignItems="center">
-          <FormControl size="small" sx={{ width: 150 }}>
-            <InputLabel>Group by</InputLabel>
-            <Select
-              value={period}
-              label="Group by"
-              onChange={e => setPeriod(e.target.value as 'yearly' | 'monthly')}
-            >
-              <MenuItem value="yearly">Year</MenuItem>
-              <MenuItem value="monthly">Month</MenuItem>
-            </Select>
-          </FormControl>
-          {loading && <Typography variant="body2" color="text.secondary">Loading...</Typography>}
-        </Stack>
-
-        {/* Summary tiles */}
-        {summary && (
-          <Stack direction="row" spacing={2} mb={3} flexWrap="wrap">
-            {(['db1', 'db2', 'db3'] as const).map(db => (
-              <Paper
-                key={db}
-                variant="outlined"
-                sx={{ p: 1.5, minWidth: 160, borderLeft: `4px solid ${DB_COLORS[db]}` }}
-              >
-                <Typography variant="overline" color="text.secondary">
-                  {DB_LABELS[db]}
-                </Typography>
-                <Typography variant="h6" fontWeight={700}>
-                  ${parseFloat(summary[`${db}_total` as keyof typeof summary] as string).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {(summary[`${db}_transactions` as keyof typeof summary] as number).toLocaleString()} transactions
-                </Typography>
-              </Paper>
-            ))}
-            <Paper variant="outlined" sx={{ p: 1.5, minWidth: 160, borderLeft: '4px solid #7b1fa2' }}>
-              <Typography variant="overline" color="text.secondary">Grand Total</Typography>
-              <Typography variant="h6" fontWeight={700} color="primary.main">
-                ${parseFloat(grandTotal).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {(
-                  summary.db1_transactions + summary.db2_transactions + summary.db3_transactions
-                ).toLocaleString()} total transactions
-              </Typography>
-            </Paper>
-          </Stack>
-        )}
-
-        {/* Data table */}
-        {pivoted.length > 0 && (
-          <>
-            <Divider sx={{ mb: 1.5 }} />
-            <Box sx={{ maxHeight: 350, overflow: 'auto' }}>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell><strong>Period</strong></TableCell>
-                    {['db1', 'db2', 'db3'].map(db => (
-                      <TableCell key={db} align="right">
-                        <strong style={{ color: DB_COLORS[db] }}>{DB_LABELS[db]}</strong>
-                      </TableCell>
-                    ))}
-                    <TableCell align="right"><strong>Period Total</strong></TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {pivoted.map(row => {
-                    const rowTotal = (['db1', 'db2', 'db3'] as const).reduce(
-                      (s, db) => s + (row[db] ?? 0),
-                      0,
-                    );
-                    return (
-                      <TableRow key={row.period} hover>
-                        <TableCell>{row.period}</TableCell>
-                        {(['db1', 'db2', 'db3'] as const).map(db => (
-                          <TableCell key={db} align="right">
-                            {row[db]
-                              ? `$${row[db].toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                              : '-'}
-                          </TableCell>
-                        ))}
-                        <TableCell align="right">
-                          <strong>
-                            ${rowTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </strong>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </Box>
-          </>
-        )}
-
-        {!loading && data && pivoted.length === 0 && (
-          <Typography variant="body2" color="text.secondary">
-            No historical data available yet. Run import_historical_transactions to populate.
-          </Typography>
-        )}
-      </AccordionDetails>
-    </Accordion>
-  );
 }
 
 export default function TransactionListPage() {
@@ -438,8 +249,6 @@ export default function TransactionListPage() {
   return (
     <Box>
       <PageHeader title="Transactions" dense />
-
-      <HistoricalRevenuePanel />
 
       <Grid container spacing={2} sx={{ mb: 1 }}>
         <Grid size={{ xs: 12, md: 2 }}>

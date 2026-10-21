@@ -39,7 +39,6 @@ from .serializers import (
     ConversationStaffListSerializer,
     ConversationStaffSerializer,
     MessagePublicSerializer,
-    OrderStaffSerializer,
     ReservationDetailSerializer,
     ReservationEventSerializer,
     ReservationPublicSerializer,
@@ -1975,18 +1974,3 @@ def sales_log(request):
 
     qs = qs[:500]
     return Response({'results': ReservationStaffSerializer(qs, many=True).data})
-
-
-class OrderViewSet(
-    mixins.ListModelMixin,
-    mixins.RetrieveModelMixin,
-    mixins.UpdateModelMixin,
-    viewsets.GenericViewSet,
-):
-    queryset = Order.objects.prefetch_related('lines').all()
-    serializer_class = OrderStaffSerializer
-    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'payment_status', 'fulfillment']
-    search_fields = ['order_number', 'email', 'customer_name']
-    ordering_fields = ['created_at', 'total', 'status']

@@ -59,13 +59,6 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Processing',
     icon: 'processing',
   },
-  searchItems: {
-    id: 'searchItems',
-    path: '/inventory/items',
-    label: 'Search items',
-    icon: 'findItem',
-    legacy: true,
-  },
   inventoryWorkbench: {
     id: 'inventoryWorkbench',
     path: '/inventory/search',
@@ -77,13 +70,6 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     path: '/floor-ops/floorplans',
     label: 'Floorplans',
     icon: 'floorplan',
-  },
-  productReview: {
-    id: 'productReview',
-    path: '/inventory/product-review',
-    label: 'Product review',
-    icon: 'productReview',
-    roles: ['Manager', 'Admin'],
   },
   inventoryCount: {
     id: 'inventoryCount',

@@ -14,8 +14,6 @@ import {
   getSalesLog,
   getWebListing,
   getWebListings,
-  getWebOrder,
-  getWebOrders,
   getWebstoreConfig,
   getWorkQueue,
   removeWorkQueueItem,
@@ -35,14 +33,12 @@ import {
   unarchiveConversation,
   updateWebListing,
   updateWebListingImageAlt,
-  updateWebOrder,
   uploadWebListingImage,
   type ConversationParams,
   type ReservationActionName,
   type ReservationParams,
   type SalesLogParams,
   type WebListingParams,
-  type WebOrderParams,
 } from '../api/webstore.api';
 
 export function useWebListings(params?: WebListingParams) {
@@ -235,44 +231,6 @@ export function useCategoryOptions() {
         .map((c) => ({ id: c.id as number, name: c.name, slug: c.slug }));
     },
     staleTime: 5 * 60 * 1000,
-  });
-}
-
-// ── Orders ────────────────────────────────────────────────────────────────
-
-export function useWebOrders(params?: WebOrderParams) {
-  return useQuery({
-    queryKey: ['webOrders', params],
-    queryFn: async () => {
-      const { data } = await getWebOrders(params);
-      return data;
-    },
-  });
-}
-
-export function useWebOrder(id: number | null) {
-  return useQuery({
-    queryKey: ['webOrders', id],
-    queryFn: async () => {
-      if (!id) return null;
-      const { data } = await getWebOrder(id);
-      return data;
-    },
-    enabled: id != null,
-  });
-}
-
-export function useUpdateWebOrder() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Record<string, unknown> }) => {
-      const { data: result } = await updateWebOrder(id, data);
-      return result;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['webOrders'] });
-      queryClient.invalidateQueries({ queryKey: ['webOrders', variables.id] });
-    },
   });
 }
 

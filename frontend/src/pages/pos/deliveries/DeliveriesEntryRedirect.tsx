@@ -1,7 +1,6 @@
-import { Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
-import type { DeliveryExperience } from '../../../utils/delivery/experiencePreference';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { resolveDeliveryExperience } from '../../../utils/delivery/experiencePreference';
-import { deliveryDayPath, deliveryListPath, type DeliveryListKind } from './deliveryPaths';
+import { deliveryListPath, type DeliveryListKind } from './deliveryPaths';
 
 /**
  * `/pos/deliveries` and `/pos/deliveries/{schedule|table}` land on Desk (desktop)
@@ -23,11 +22,4 @@ export default function DeliveriesEntryRedirect({
   if (date) next.set('q', date);
   const qs = next.toString();
   return <Navigate to={deliveryListPath(experience, page, qs ? `?${qs}` : '')} replace />;
-}
-
-/** Old `/days/:dayId` bookmarks → `/schedule/:dayId`. */
-export function LegacyDeliveryDayRedirect({ experience }: { experience: DeliveryExperience }) {
-  const { dayId } = useParams();
-  const { search } = useLocation();
-  return <Navigate to={deliveryDayPath(experience, dayId ?? '', search)} replace />;
 }

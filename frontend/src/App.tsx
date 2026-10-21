@@ -13,8 +13,6 @@ const AnnouncementEditorPage = lazy(() => import('./pages/announcements/Announce
 
 // Full-screen floorplan editor - lazy so the SVG editor bundle stays out of the main chunk.
 const FloorplanEditorPage = lazy(() => import('./pages/floorplan/FloorplanEditorPage'));
-// Legacy fullscreen TARS Studio - parked off the sidebar, still out of the main chunk.
-const TarsPage = lazy(() => import('./pages/restoration/tars/TarsPage'));
 // Time kiosk: hosted (/kiosk, staff JWT) and public (/clock, no login). Both own the window.
 const KioskPage = lazy(() => import('./pages/kiosk/KioskPage'));
 const ClockPage = lazy(() => import('./pages/kiosk/ClockPage'));
@@ -72,10 +70,7 @@ const LegacyWorkbenchRedirect = lazy(() =>
   import('./pages/inventory/InventorySearchPage').then((m) => ({ default: m.LegacyWorkbenchRedirect })),
 );
 const ProductPage = lazy(() => import('./pages/inventory/ProductPage'));
-import { inventoryWorkbenchUrl, legacyItemParamsToRichSearch } from './utils/richInventorySearch';
 import { landingPath } from './utils/landing';
-const ItemListPage = lazy(() => import('./pages/inventory/ItemListPage'));
-const ItemDetailPage = lazy(() => import('./pages/inventory/ItemDetailPage'));
 const TerminalPage = lazy(() => import('./pages/pos/TerminalPage'));
 const TestTerminalPage = lazy(() => import('./pages/pos/TestTerminalPage'));
 const DrawerListPage = lazy(() => import('./pages/pos/DrawerListPage'));
@@ -85,9 +80,6 @@ const TransactionListPage = lazy(() => import('./pages/pos/TransactionListPage')
 const PosPrintablesPage = lazy(() => import('./pages/pos/PosPrintablesPage'));
 const MembersLookupPage = lazy(() => import('./pages/pos/MembersLookupPage'));
 const DeliveriesEntryRedirect = lazy(() => import('./pages/pos/deliveries/DeliveriesEntryRedirect'));
-const LegacyDeliveryDayRedirect = lazy(() =>
-  import('./pages/pos/deliveries/DeliveriesEntryRedirect').then((m) => ({ default: m.LegacyDeliveryDayRedirect })),
-);
 const DeliveryExperienceLayout = lazy(() => import('./pages/pos/deliveries/DeliveryExperienceLayout'));
 const DeskDaysPage = lazy(() => import('./pages/pos/deliveries/desk/DeskDaysPage'));
 const DeskDayDetailPage = lazy(() => import('./pages/pos/deliveries/desk/DeskDayDetailPage'));
@@ -169,24 +161,6 @@ function ManagerRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/** Old Online Sales Customers/Inbox URLs. Keeps the thread someone was looking at. */
-function MessagesRedirect() {
-  const [searchParams] = useSearchParams();
-  const next = new URLSearchParams();
-  const q = searchParams.get('q');
-  const thread = searchParams.get('thread');
-  if (q) next.set('q', q);
-  if (thread) next.set('thread', thread);
-  const search = next.toString();
-  return <Navigate to={`/online-sales/messages${search ? `?${search}` : ''}`} replace />;
-}
-
-function LegacyManageProductsRedirect() {
-  const [searchParams] = useSearchParams();
-  const q = (searchParams.get('q') || searchParams.get('search') || '').trim() || undefined;
-  return <Navigate to={inventoryWorkbenchUrl({ q })} replace />;
-}
-
 /** Old count links (Sessions, Report, Not found) open the inventory's page on the matching tab (2026-10-06). */
 function LegacyCountRedirect({ tab }: { tab?: string }) {
   const { id } = useParams();
@@ -198,12 +172,6 @@ function LegacyQuickRepriceRedirect() {
   const [params] = useSearchParams();
   const sku = params.get('sku');
   return <Navigate to={`/inventory/pr-fixit?tab=reprice${sku ? `&sku=${encodeURIComponent(sku)}` : ''}`} replace />;
-}
-
-function LegacyManageItemsRedirect() {
-  const [searchParams] = useSearchParams();
-  const q = (searchParams.get('q') || legacyItemParamsToRichSearch(searchParams) || '').trim() || undefined;
-  return <Navigate to={inventoryWorkbenchUrl({ tab: 'items', q })} replace />;
 }
 
 function SuperAdminRoute({ children }: { children: React.ReactNode }) {
@@ -289,7 +257,6 @@ function AppRoutes() {
           }
         />
         <Route path="/routines" element={<RoutinesPage />} />
-        <Route path="/routines/qa" element={<Navigate to="/today" replace />} />
         <Route path="/routines/catalog" element={<RoutinesPage />} />
         <Route path="/routines/new" element={<SuperAdminRoute><RoutinesPage /></SuperAdminRoute>} />
         <Route path="/routines/:id/edit" element={<SuperAdminRoute><RoutinesPage /></SuperAdminRoute>} />
@@ -303,13 +270,8 @@ function AppRoutes() {
             </Suspense>
           }
         />
-        {/* Hours & pay live on Today; old links open it expanded. */}
-        <Route path="/hr/time-clock" element={<Navigate to="/today?hours=1" replace />} />
+        {/* Hours & pay live on Today; /pay opens it expanded. */}
         <Route path="/pay" element={<Navigate to="/today?hours=1" replace />} />
-        <Route path="/hr/modification-requests" element={<Navigate to="/admin/time-payroll" replace />} />
-        <Route path="/hr/time-history" element={<Navigate to="/today?hours=1" replace />} />
-        <Route path="/hr/employees" element={<Navigate to="/admin/users" replace />} />
-        <Route path="/hr/employees/:id" element={<Navigate to="/admin/users" replace />} />
         <Route path="/hr/sick-leave" element={<Navigate to="/dashboard" replace />} />
         <Route path="/inventory/vendors" element={<VendorListPage />} />
         <Route path="/inventory/vendors/:id" element={<VendorDetailPage />} />
@@ -324,20 +286,10 @@ function AppRoutes() {
         <Route path="/inventory/processing" element={<ProcessingEntryRedirect />} />
         <Route path="/inventory/processing/:id" element={<ProcessingWorkspacePage />} />
         <Route path="/inventory/restorations" element={<RestorationsPage />} />
-        <Route
-          path="/inventory/restoration-returns"
-          element={<Navigate to="/inventory/restorations?lane=from" replace />}
-        />
         <Route path="/inventory/search" element={<InventorySearchPage />} />
         <Route path="/inventory/products/:id" element={<ProductPage />} />
         {/* The old Catalog page: its links land on Inventory search with the same thing open. */}
         <Route path="/inventory/workbench" element={<LegacyWorkbenchRedirect />} />
-        <Route path="/inventory/manage-products" element={<LegacyManageProductsRedirect />} />
-        <Route path="/inventory/manage-items" element={<LegacyManageItemsRedirect />} />
-        {/* Legacy Search items - kept for code reference until Find item ships */}
-        <Route path="/inventory/items" element={<ItemListPage />} />
-        <Route path="/inventory/items/:id" element={<ItemDetailPage />} />
-        <Route path="/inventory/inbound" element={<Navigate to="/inventory/processing" replace />} />
         {/* Quick reprice lives in PR Fix-it (2026-10-02); old links land on its tab. */}
         <Route path="/inventory/quick-reprice" element={<LegacyQuickRepriceRedirect />} />
         {/* The review queue is closed (2026-10-02): products get the standard at intake and from the pipeline. */}
@@ -383,9 +335,6 @@ function AppRoutes() {
         <Route path="/inventory/count/:id/shrink" element={<LegacyCountRedirect tab="shrinkage" />} />
         <Route path="/inventory/count/:id/report" element={<LegacyCountRedirect />} />
         <Route path="/floor-ops/floorplans" element={<FloorplanListPage />} />
-        <Route path="/inventory/inbound/receiving" element={<Navigate to="/inventory/receiving" replace />} />
-        <Route path="/inventory/inbound/finalization" element={<Navigate to="/inventory/processing" replace />} />
-        <Route path="/inventory/inbound/disputes" element={<Navigate to="/inventory/processing" replace />} />
         <Route path="/pos/terminal" element={<TerminalPage />} />
         <Route path="/pos/test" element={<TestTerminalPage />} />
         <Route path="/pos/drawers" element={<DrawerListPage />} />
@@ -397,22 +346,15 @@ function AppRoutes() {
         <Route path="/pos/deliveries" element={<DeliveriesEntryRedirect />} />
         <Route path="/pos/deliveries/schedule" element={<DeliveriesEntryRedirect page="schedule" />} />
         <Route path="/pos/deliveries/table" element={<DeliveriesEntryRedirect page="table" />} />
-        <Route path="/pos/deliveries/legacy" element={<Navigate to="/pos/deliveries" replace />} />
         <Route path="/pos/deliveries/desk" element={<DeliveryExperienceLayout experience="desk" />}>
           <Route path="schedule" element={<DeskDaysPage />} />
           <Route path="schedule/:dayId" element={<DeskDayDetailPage />} />
           <Route path="table" element={<DeskTotalDeliveriesPage />} />
-          <Route path="days" element={<Navigate to="/pos/deliveries/desk/schedule" replace />} />
-          <Route path="days/:dayId" element={<LegacyDeliveryDayRedirect experience="desk" />} />
-          <Route path="total" element={<Navigate to="/pos/deliveries/desk/table" replace />} />
         </Route>
         <Route path="/pos/deliveries/field" element={<DeliveryExperienceLayout experience="field" />}>
           <Route path="schedule" element={<FieldDaysLandingPage />} />
           <Route path="schedule/:dayId" element={<FieldDayDetailPage />} />
           <Route path="table" element={<FieldTotalDeliveriesPage />} />
-          <Route path="days" element={<Navigate to="/pos/deliveries/field/schedule" replace />} />
-          <Route path="days/:dayId" element={<LegacyDeliveryDayRedirect experience="field" />} />
-          <Route path="total" element={<Navigate to="/pos/deliveries/field/table" replace />} />
         </Route>
         <Route path="/buying/auctions" element={<AuctionListPage />} />
         <Route path="/buying/auctions/:id" element={<AuctionDetailPage />} />
@@ -424,7 +366,6 @@ function AppRoutes() {
           <Route path="overview" element={<RestorationQueuePage />} />
           <Route path="queue" element={<Navigate to="/restoration/overview" replace />} />
           <Route path="bench" element={<RestorationBenchPage />} />
-          <Route path="tars-2" element={<Navigate to="/restoration/tars-legacy" replace />} />
           <Route path="parts-requests" element={<PartsCommandCenterPage />} />
         </Route>
         <Route
@@ -455,10 +396,6 @@ function AppRoutes() {
           path="/admin/users"
           element={<ManagerRoute><UsersPage /></ManagerRoute>}
         />
-        <Route
-          path="/admin/customers"
-          element={<Navigate to="/admin/users" replace />}
-        />
         <Route path="/online-sales" element={<Navigate to="/online-sales/listings" replace />} />
         <Route
           path="/online-sales/listings"
@@ -476,16 +413,6 @@ function AppRoutes() {
           path="/online-sales/messages"
           element={<ManagerRoute><OnlineSalesMessagesPage /></ManagerRoute>}
         />
-        {/* The Directory tab moved to Admin > Users; bookmarks land on the inbox. */}
-        <Route path="/online-sales/customers" element={<MessagesRedirect />} />
-        <Route path="/online-sales/inbox" element={<MessagesRedirect />} />
-        <Route
-          path="/online-sales/sales"
-          element={<Navigate to="/online-sales/holds?tab=completed" replace />}
-        />
-        <Route path="/online-sales/marketing" element={<Navigate to="/online-sales/listings" replace />} />
-        <Route path="/admin/web-store" element={<Navigate to="/online-sales/listings" replace />} />
-        <Route path="/admin/web-orders" element={<Navigate to="/online-sales/holds" replace />} />
         <Route
           path="/admin/permissions"
           element={<Navigate to="/admin/settings?tab=people&section=permissions" replace />}
@@ -683,7 +610,6 @@ function AppRoutes() {
             </ManagerRoute>
           }
         />
-        <Route path="/admin/payroll-hours" element={<Navigate to="/admin/time-payroll" replace />} />
         <Route
           path="/admin/settings"
           element={
@@ -806,19 +732,6 @@ function AppRoutes() {
         }
       />
 
-      {/* Legacy fullscreen studio - no sidebar link; delete once the floor has moved. */}
-      <Route
-        path="/restoration/tars-legacy"
-        element={
-          <ProtectedRoute>
-            <StaffRoute>
-              <Suspense fallback={<LoadingScreen message="Loading TARS Studio…" />}>
-                <TarsPage />
-              </Suspense>
-            </StaffRoute>
-          </ProtectedRoute>
-        }
-      />
 
       {/* Redirects */}
       <Route path="/" element={<HomeRedirect />} />

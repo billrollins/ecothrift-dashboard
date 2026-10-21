@@ -24,7 +24,7 @@ import TvRounded from '@mui/icons-material/TvRounded';
 import WeekendRounded from '@mui/icons-material/WeekendRounded';
 import YardRounded from '@mui/icons-material/YardRounded';
 import type { SvgIconComponent } from '@mui/icons-material';
-import type { ThriftPlusCategory } from '../../../api/thriftPlusMock';
+import type { ThriftPlusCategory } from '../../../api/thriftPlusTypes';
 import { WORDMARK_PLUS, WORDMARK_THRIFT, WORDMARK_VIEWBOX } from './wordmarkPath';
 import brushUrl from '../../../assets/thriftplus/brush.webp';
 import cartUrl from '../../../assets/thriftplus/cart-bag.webp';

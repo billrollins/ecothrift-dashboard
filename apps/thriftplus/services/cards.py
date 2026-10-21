@@ -62,7 +62,11 @@ def display(code: str) -> str:
 
 
 def generate_batch(size: int, *, user=None, note: str = '') -> CardBatch:
-    """``size`` new blank cards (``unissued``) with unique codes, as one batch."""
+    """``size`` new blank cards (``unissued``) with unique codes, as one batch.
+
+    No physical cards since 2026-10-14 (the Dash tab and the card-batch API are gone); tests still use this to make
+    cards. A member's app QR is a Card made by ``members.new_member_code``.
+    """
     if not 1 <= size <= MAX_BATCH:
         raise ValueError(f'A batch is 1 to {MAX_BATCH} cards.')
     with transaction.atomic():

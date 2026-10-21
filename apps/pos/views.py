@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from django.db import IntegrityError, transaction
 from django.db.models import F, Sum, Q, Count
-from django.db.models.functions import TruncMonth, TruncYear, TruncWeek, Coalesce
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from rest_framework import viewsets, status
@@ -19,7 +19,7 @@ from apps.inventory.services.resale_duplicate import duplicate_item_for_resale
 from .models import (
     Register, Drawer, DrawerHandoff, CashDrop,
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
-    Cart, CartLine, Receipt, RevenueGoal, HistoricalTransaction, DashboardSalesGoal,
+    Cart, CartLine, Receipt, RevenueGoal, DashboardSalesGoal,
     DashboardDepartmentGoal,
     DeliveryAvailability, DeliveryDay, DeliveryJob, DeliveryJobItem,
     DeliveryRun, DeliveryRunStop, DeliveryAttachment,
@@ -3576,98 +3576,6 @@ def dashboard_department_goals(request):
         serializer.data,
         status=status.HTTP_200_OK if existing else status.HTTP_201_CREATED,
     )
-
-
-@api_view(['GET'])
-@perm_classes([IsAuthenticated, IsManagerOrAdmin])
-def historical_revenue(request):
-    """Aggregate revenue across all three database generations for reporting charts.
-
-    Query params:
-        period: 'monthly' (default) | 'yearly' | 'weekly'
-        sources: 'all' (default) | 'db3_only' | 'db1_db2_only'
-        years:   comma-separated list of years to include (default: all)
-
-    Returns aggregated totals grouped by period, broken out by source_db.
-    """
-    period = request.query_params.get('period', 'monthly')
-    sources_filter = request.query_params.get('sources', 'all')
-    years_str = request.query_params.get('years', '')
-
-    trunc_fn = {
-        'monthly': TruncMonth,
-        'yearly': TruncYear,
-        'weekly': TruncWeek,
-    }.get(period, TruncMonth)
-
-    db3_summary_qs = Cart.objects.filter(status='completed', completed_at__isnull=False)
-    db3_qs = Cart.objects.filter(status='completed', completed_at__isnull=False)
-    if years_str:
-        years = [int(y.strip()) for y in years_str.split(',') if y.strip().isdigit()]
-        db3_qs = db3_qs.filter(completed_at__year__in=years)
-
-    db3_data = (
-        db3_qs
-        .annotate(period=trunc_fn('completed_at'))
-        .values('period')
-        .annotate(total=Sum('total'), count=Count('id'))
-        .order_by('period')
-    )
-
-    # Build historical (DB1 + DB2) from HistoricalTransaction
-    hist_qs = HistoricalTransaction.objects.all()
-    if sources_filter == 'db3_only':
-        hist_qs = hist_qs.none()
-    if years_str:
-        years = [int(y.strip()) for y in years_str.split(',') if y.strip().isdigit()]
-        hist_qs = hist_qs.filter(sale_date__year__in=years)
-
-    hist_data = (
-        hist_qs
-        .annotate(period=trunc_fn('sale_date'))
-        .values('period', 'source_db')
-        .annotate(total=Sum('total'), count=Count('id'))
-        .order_by('period', 'source_db')
-    )
-
-    # Combine all into a flat list of {period, source_db, total, count}
-    result = []
-    if sources_filter != 'db1_db2_only':
-        for row in db3_data:
-            result.append({
-                'period': row['period'].date().isoformat() if row['period'] else None,
-                'source_db': 'db3',
-                'total': str(row['total'] or 0),
-                'transaction_count': row['count'],
-            })
-    if sources_filter != 'db3_only':
-        for row in hist_data:
-            result.append({
-                'period': row['period'].isoformat() if row['period'] else None,
-                'source_db': row['source_db'],
-                'total': str(row['total'] or 0),
-                'transaction_count': row['count'],
-            })
-
-    # Summary totals
-    summary = {
-        'db1_total': str(
-            HistoricalTransaction.objects.filter(source_db='db1').aggregate(t=Sum('total'))['t'] or 0
-        ),
-        'db2_total': str(
-            HistoricalTransaction.objects.filter(source_db='db2').aggregate(t=Sum('total'))['t'] or 0
-        ),
-        'db3_total': str(db3_summary_qs.aggregate(t=Sum('total'))['t'] or 0),
-        'db1_transactions': HistoricalTransaction.objects.filter(source_db='db1').count(),
-        'db2_transactions': HistoricalTransaction.objects.filter(source_db='db2').count(),
-        'db3_transactions': db3_summary_qs.count(),
-    }
-
-    return Response({
-        'period': period,
-        'data': result,
-        'summary': summary,
-    })
 
 
 def _parse_bool_param(raw, default=False) -> bool:

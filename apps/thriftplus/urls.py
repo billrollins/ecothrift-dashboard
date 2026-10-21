@@ -5,7 +5,6 @@ from apps.thriftplus import public_views
 
 from apps.thriftplus.views import (
     AccountViewSet,
-    CardBatchViewSet,
     CardViewSet,
     MemberDirectoryViewSet,
     OverstockViewSet,
@@ -23,7 +22,6 @@ router = DefaultRouter()
 router.register(r'accounts', AccountViewSet, basename='thriftplus-account')
 router.register(r'people', PersonViewSet, basename='thriftplus-person')
 router.register(r'cards', CardViewSet, basename='thriftplus-card')
-router.register(r'card-batches', CardBatchViewSet, basename='thriftplus-card-batch')
 router.register(r'rewards', RewardsViewSet, basename='thriftplus-rewards')
 router.register(r'overstock', OverstockViewSet, basename='thriftplus-overstock')
 router.register(r'register', RegisterViewSet, basename='thriftplus-register')

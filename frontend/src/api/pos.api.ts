@@ -844,38 +844,6 @@ export function getDashboardAlerts(): Promise<{ data: unknown[] }> {
   return api.get('/pos/dashboard/alerts/');
 }
 
-// ── Historical Revenue ─────────────────────────────────────────────────────────
-
-export interface HistoricalRevenueDataPoint {
-  period: string;
-  source_db: 'db1' | 'db2' | 'db3';
-  total: string;
-  transaction_count: number;
-}
-
-export interface HistoricalRevenueSummary {
-  db1_total: string;
-  db2_total: string;
-  db3_total: string;
-  db1_transactions: number;
-  db2_transactions: number;
-  db3_transactions: number;
-}
-
-export interface HistoricalRevenueResponse {
-  period: string;
-  data: HistoricalRevenueDataPoint[];
-  summary: HistoricalRevenueSummary;
-}
-
-export function getHistoricalRevenue(params?: {
-  period?: 'monthly' | 'yearly' | 'weekly';
-  sources?: 'all' | 'db3_only' | 'db1_db2_only';
-  years?: string;
-}): Promise<{ data: HistoricalRevenueResponse }> {
-  return api.get<HistoricalRevenueResponse>('/pos/historical-revenue/', { params });
-}
-
 // ── Staff purchases (owner, 2026-10-07): payroll deduction ─────────
 
 export interface StaffPurchaseSettings {

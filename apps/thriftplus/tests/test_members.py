@@ -1,8 +1,5 @@
-"""Thrift+ Phase 1: card codes, member rules, card-back PDFs, and the staff API."""
+"""Thrift+ Phase 1: card codes, member rules, and the staff API."""
 from __future__ import annotations
-
-import base64
-import re
 
 from django.contrib.auth.models import Group
 from django.test import TestCase
@@ -10,7 +7,7 @@ from rest_framework.test import APITestCase
 
 from apps.accounts.models import User
 from apps.thriftplus.models import Account, Card, Event, Person
-from apps.thriftplus.services import card_pdf, cards, members
+from apps.thriftplus.services import cards, members
 from apps.thriftplus.services.members import MemberError
 
 
@@ -40,33 +37,6 @@ class CardCodeTests(TestCase):
         self.assertEqual(len(set(batch.cards.values_list('code', flat=True))), 25)
         with self.assertRaises(ValueError):
             cards.generate_batch(0)
-
-    def test_card_backs_pdf_has_one_page_per_card_in_jobs_of_ten(self):
-        codes = [cards.new_code() for _ in range(23)]
-        pdf = card_pdf.card_backs_pdf(codes[:2])
-        self.assertTrue(pdf.startswith(b'%PDF'))
-        self.assertEqual(len(re.findall(rb'/Type\s*/Page(?![s\w])', pdf)), 2)
-        self.assertEqual(len(card_pdf.pdf_chunks(codes)), 3)
-
-    def test_card_back_prints_the_b12_rewards_line_word_for_word(self):
-        import pymupdf
-
-        self.assertEqual(
-            card_pdf.CARD_TERMS_LINE,
-            'ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value. '
-            'Terms: ecothrift.us/terms',
-        )
-        self.assertEqual(' '.join(card_pdf.terms_lines()), card_pdf.CARD_TERMS_LINE)
-        self.assertGreaterEqual(card_pdf.TERMS_SIZE, 6.5)  # legible at card size
-        doc = pymupdf.open(stream=card_pdf.card_backs_pdf([cards.new_code()]), filetype='pdf')
-        text = ' '.join(doc[0].get_text().split())
-        self.assertIn(card_pdf.CARD_TERMS_LINE, text)
-        self.assertIn('Free to join. Nothing owed.', text)
-        self.assertNotIn('Never a bill', text)
-        for block in doc[0].get_text('blocks'):  # nothing runs off the card
-            x0, y0, x1, y1 = block[:4]
-            self.assertTrue(0 <= x0 and x1 <= card_pdf.CARD_W and 0 <= y0 and y1 <= card_pdf.CARD_H, block)
-
 
 class MemberRuleTests(TestCase):
     def setUp(self):
@@ -173,16 +143,9 @@ class ThriftPlusApiTests(APITestCase):
         bad = self.client.post('/api/thriftplus/accounts/', {'first_name': 'Hal 2', 'phone': '4025550104'}, format='multipart')
         self.assertEqual(bad.status_code, 400)
 
-    def test_revoke_and_batches_are_for_managers(self):
+    def test_revoke_is_for_managers(self):
         account = members.create_account(first_name='Ivy')
         self.client.force_authenticate(self.cashier)
         self.assertEqual(self.client.post(f'/api/thriftplus/accounts/{account.pk}/revoke/', {'reason': 'x'}).status_code, 403)
-        self.assertEqual(self.client.post('/api/thriftplus/card-batches/', {'size': 5}).status_code, 403)
         self.client.force_authenticate(self.manager)
         self.assertEqual(self.client.post(f'/api/thriftplus/accounts/{account.pk}/revoke/', {'reason': 'return abuse'}).data['status'], 'revoked')
-        batch = self.client.post('/api/thriftplus/card-batches/', {'size': 12, 'note': 'test'}).data
-        jobs = self.client.get(f"/api/thriftplus/card-batches/{batch['id']}/backs/", {'jobs': '1'}).data
-        self.assertEqual((jobs['cards'], len(jobs['jobs'])), (12, 2))
-        self.assertTrue(base64.b64decode(jobs['jobs'][0]).startswith(b'%PDF'))
-        pdf = self.client.get(f"/api/thriftplus/card-batches/{batch['id']}/backs/")
-        self.assertEqual(pdf['Content-Type'], 'application/pdf')

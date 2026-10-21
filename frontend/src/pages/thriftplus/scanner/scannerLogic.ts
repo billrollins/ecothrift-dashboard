@@ -1,5 +1,5 @@
 /** Pure helpers for the Thrift+ scanner: reading tag codes, price-feel choices, money text. */
-import { fromCents, readContact, toCents, type EmailSignIn, type Money, type ThriftPlusMember } from '../../../api/thriftPlusMock';
+import { fromCents, readContact, toCents, type EmailSignIn, type Money, type ThriftPlusMember } from '../../../api/thriftPlusTypes';
 
 /**
  * What a code the camera read (or someone typed) is, so every one gets an answer (owner 2026-10-15, APP D14, D15).

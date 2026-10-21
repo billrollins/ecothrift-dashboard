@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from apps.thriftplus.models import Account, Card, CardBatch, Event, Person
+from apps.thriftplus.models import Account, Card, Event, Person
 from apps.thriftplus.services.cards import display
 
 
@@ -96,16 +96,3 @@ class AccountDetailSerializer(AccountSerializer):
         return EventSerializer(obj.events.select_related('actor', 'person', 'card')[:30], many=True).data
 
 
-class CardBatchSerializer(serializers.ModelSerializer):
-    unissued = serializers.SerializerMethodField()
-    active = serializers.SerializerMethodField()
-
-    class Meta:
-        model = CardBatch
-        fields = ['id', 'size', 'note', 'printed_at', 'created_at', 'unissued', 'active']
-
-    def get_unissued(self, obj) -> int:
-        return obj.cards.filter(status=Card.STATUS_UNISSUED).count()
-
-    def get_active(self, obj) -> int:
-        return obj.cards.filter(status=Card.STATUS_ACTIVE).count()

@@ -184,8 +184,7 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 | Page | Path | What it does |
 |------|------|----------------|
 | **Catalog** | `/inventory/workbench` | Unified catalog UI for products, check-ins, and items (search-heavy). Primary inventory records home. |
-| **Item detail** | `/inventory/items/:id` | Single item: price, status, history, reprice/print (usually reached from Catalog / POS / processing). |
-| **Search items (legacy)** | `/inventory/items` | Older item list; **not in Slot-C nav** but route still exists. |
+| **Item** | `/inventory/search?open=item:<id>` | Single item window over Inventory search: price, status, history, reprice/print. The old `/inventory/items` list and page were removed 2026-10-21. |
 
 ### Retail Floor workspace
 
@@ -205,9 +204,8 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 | **Transactions** | `/pos/transactions` | Historical completed sales / lookups. |
 | **Returns** | `/pos/returns` | Thrift+ 3-day returns (owner 2026-10-20): Find the receipt, tick lines, summary, owner PIN past the 3 days; **Late returns** tab for managers. `?practice=1` = training. |
 | **Deliveries** | `/pos/deliveries` | Entry redirect into **Delivery Desk** (desktop) or **Delivery Field** (mobile) Days. |
-| **Delivery Desk** | `/pos/deliveries/desk/days`, `/desk/total`, `/desk/days/:dayId` | Office planning/review + live run/route/ETA monitor on day detail; never renders the Field driver wizard. |
-| **Delivery Field** | `/pos/deliveries/field/days`, `/field/total`, `/field/days/:dayId` | Mobile full-day run: Contact → Load → Routes → Deliveries → Finish; Routes API ETAs; sticky timer + step rail. |
-| **Deliveries (legacy)** | `/pos/deliveries/legacy` | Redirects to `/pos/deliveries` (retired in v2.57.0). |
+| **Delivery Desk** | `/pos/deliveries/desk/schedule`, `/desk/table`, `/desk/schedule/:dayId` | Office planning/review + live run/route/ETA monitor on day detail; never renders the Field driver wizard. |
+| **Delivery Field** | `/pos/deliveries/field/schedule`, `/field/table`, `/field/schedule/:dayId` | Mobile full-day run: Contact → Load → Routes → Deliveries → Finish; Routes API ETAs; sticky timer + step rail. |
 | **Drawers** | `/pos/drawers` | Cash drawer open/close status by register/day. |
 | **Cash management** | `/pos/cash` | Drops, pickups, safe / reconciliation workflows. |
 | **Printables** | `/pos/printables` | Policy sheets / driver logs and similar printables. |

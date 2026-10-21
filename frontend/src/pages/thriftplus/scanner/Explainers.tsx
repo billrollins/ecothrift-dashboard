@@ -7,7 +7,7 @@ import { useState, type ReactNode } from 'react';
 import { Box, ButtonBase } from '@mui/material';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import NoPhotographyRounded from '@mui/icons-material/NoPhotographyRounded';
-import type { ThriftPlusCart, ThriftPlusMember } from '../../../api/thriftPlusMock';
+import type { ThriftPlusCart, ThriftPlusMember } from '../../../api/thriftPlusTypes';
 import { sc, u } from './scannerTheme';
 
 export type Topic = 'camera';

@@ -568,33 +568,6 @@ export interface WebOrder {
   updated_at: string;
 }
 
-export interface WebOrderParams {
-  search?: string;
-  status?: string;
-  payment_status?: string;
-  fulfillment?: string;
-  ordering?: string;
-  page?: number;
-  [key: string]: unknown;
-}
-
-export function getWebOrders(
-  params?: WebOrderParams,
-): Promise<{ data: PaginatedResponse<WebOrder> }> {
-  return api.get('/webstore/orders/', { params });
-}
-
-export function getWebOrder(id: number): Promise<{ data: WebOrder }> {
-  return api.get(`/webstore/orders/${id}/`);
-}
-
-export function updateWebOrder(
-  id: number,
-  data: Record<string, unknown>,
-): Promise<{ data: WebOrder }> {
-  return api.patch(`/webstore/orders/${id}/`, data);
-}
-
 export type AnnouncementKind = 'promotion' | 'notice' | 'holiday' | 'event';
 export type AnnouncementStyle = 'sale' | 'info' | 'warning' | 'holiday' | 'seasonal';
 export type AnnouncementPlacement = 'banner' | 'home_hero' | 'home_card' | 'visit' | 'shop';
