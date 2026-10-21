@@ -2380,6 +2380,16 @@ class CartViewSet(viewsets.ModelViewSet):
                     return Response(exc.payload(), status=exc.http)
                 line.meta = {**(line.meta or {}), 'price_edit': {**manager_ok.stamp(approval),
                                                                  'before': str(line.unit_price)}}
+            # "No tax" (Bill, 2026-10-21: pop): any cashier, no PIN. A discount line follows the line it is aimed at.
+            if 'tax_exempt' in request.data:
+                raw = request.data.get('tax_exempt')
+                if not isinstance(raw, bool):
+                    return Response({'detail': 'tax_exempt must be true or false.', 'code': 'INVALID_TAX_EXEMPT'},
+                                    status=400)
+                if line.line_kind == CartLine.LINE_KIND_DISCOUNT:
+                    return Response({'detail': 'A discount is taxed like the line it is on.', 'code': 'INVALID_TARGET'},
+                                    status=400)
+                line.tax_exempt = raw
             for field in ('quantity', 'description'):
                 if field in request.data:
                     setattr(line, field, keep_qty if (field == 'quantity' and extra_units) else request.data[field])
@@ -2395,6 +2405,7 @@ class CartViewSet(viewsets.ModelViewSet):
                     unit_price=line.unit_price,
                     line_kind=CartLine.LINE_KIND_ITEM,
                     sale_label=line.sale_label,
+                    tax_exempt=line.tax_exempt,
                 )
                 apply_sale_to_line(extra)
 

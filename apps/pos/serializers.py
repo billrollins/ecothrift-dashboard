@@ -173,10 +173,10 @@ class CartLineSerializer(serializers.ModelSerializer):
             'resale_source_sku', 'resale_source_item_id',
             'line_kind', 'meta',
             'sale_label', 'sale_percent', 'sale_display', 'list_total', 'sale_savings', 'thrift_savings',
-            'created_at',
+            'tax_exempt', 'created_at',
         ]
         read_only_fields = [
-            'id', 'line_total', 'created_at',
+            'id', 'line_total', 'created_at', 'tax_exempt',
             'resale_source_sku', 'resale_source_item_id',
             'line_kind', 'meta',
             'sale_label', 'sale_percent', 'list_total', 'sale_savings', 'thrift_savings',

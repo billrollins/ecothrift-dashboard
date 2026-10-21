@@ -8,8 +8,9 @@ so earlier months work too. Days are store days (America/Chicago), by when the s
 
 - **Left out:** open carts, training-register "sales", and voided sales. Voided sales with a completed time in the
   period are counted on their own line, so a void after filing is easy to spot.
-- **Taxable sales** are the sales' subtotals: merchandise after sale prices, less discount lines, plus delivery and
-  assembly fees (the register taxes the whole subtotal). No sale at the register is tax-exempt, so exempt sales are 0.
+- **Gross sales** are the sales' subtotals: merchandise after sale prices, less discount lines, plus delivery and
+  assembly fees. **Exempt sales** are the lines marked "No tax" at the register (Bill, 2026-10-21: pop), with any
+  discount aimed at them; **taxable sales** are gross less exempt.
 - **Tax collected** is the sales' own tax, rounded on each receipt. **Tax at the rate** is taxable sales × the rate,
   split into Nebraska's state rate (5.5%) and the local rest; the small gap to tax collected is rounding.
 - **Not sales:** the CardX card surcharge (record only, not revenue, not taxed). Thrift+ credit spent is a payment, so
@@ -63,19 +64,27 @@ def report(start: date, end: date) -> dict:
         count=Count('id'), taxable=Sum('subtotal'), tax=Sum('tax_amount'), total=Sum('total'),
         surcharge=Sum('card_surcharge_amount'), thrift_credit=Sum('thrift_credit'),
     )
-    taxable = totals['taxable'] or ZERO
+    gross = totals['taxable'] or ZERO
     tax = totals['tax'] or ZERO
+    exempt_lines = CartLine.objects.filter(cart__in=sales, tax_exempt=True)
+    exempt = exempt_lines.aggregate(s=Sum('line_total'))['s'] or ZERO
+    taxable = gross - exempt
+    exempt_by_rate = {row['cart__tax_rate']: row['s'] or ZERO
+                      for row in exempt_lines.values('cart__tax_rate').annotate(s=Sum('line_total'))}
+    exempt_by_day = {row['day']: row['s'] or ZERO
+                     for row in exempt_lines.annotate(day=TruncDate('cart__completed_at')).values('day')
+                     .annotate(s=Sum('line_total'))}
 
     parts = {'merchandise': ZERO, 'discounts': ZERO, 'delivery_fees': ZERO, 'assembly': ZERO}
     for row in CartLine.objects.filter(cart__in=sales).values('line_kind').annotate(amount=Sum('line_total')):
         key = KIND_GROUPS.get(row['line_kind'], 'merchandise')
         parts[key] += row['amount'] or ZERO
-    other = taxable - sum(parts.values(), ZERO)  # sales whose lines don't add up to their subtotal (none expected)
+    other = gross - sum(parts.values(), ZERO)  # sales whose lines don't add up to their subtotal (none expected)
 
     rates = []
     for row in sales.values('tax_rate').annotate(count=Count('id'), taxable=Sum('subtotal'), tax=Sum('tax_amount')).order_by('tax_rate'):
         rate = row['tax_rate'] or ZERO
-        base = row['taxable'] or ZERO
+        base = (row['taxable'] or ZERO) - exempt_by_rate.get(row['tax_rate'], ZERO)
         at_rate = (base * rate).quantize(CENT)
         state = (base * min(rate, STATE_RATE)).quantize(CENT)
         rates.append({
@@ -86,7 +95,8 @@ def report(start: date, end: date) -> dict:
     at_rate_total = sum((Decimal(r['tax_at_rate']) for r in rates), ZERO)
 
     days = [
-        {'day': row['day'].isoformat(), 'count': row['count'], 'taxable': _money(row['taxable']), 'tax': _money(row['tax'])}
+        {'day': row['day'].isoformat(), 'count': row['count'],
+         'taxable': _money((row['taxable'] or ZERO) - exempt_by_day.get(row['day'], ZERO)), 'tax': _money(row['tax'])}
         for row in sales.annotate(day=TruncDate('completed_at')).values('day')
         .annotate(count=Count('id'), taxable=Sum('subtotal'), tax=Sum('tax_amount')).order_by('day')
     ]
@@ -102,8 +112,8 @@ def report(start: date, end: date) -> dict:
         'start': start.isoformat(),
         'end': end.isoformat(),
         'sales': totals['count'],
-        'gross_sales': _money(taxable),
-        'exempt_sales': _money(ZERO),
+        'gross_sales': _money(gross),
+        'exempt_sales': _money(exempt),
         'taxable_sales': _money(taxable),
         'parts': {k: _money(v) for k, v in parts.items()} | ({'other': _money(other)} if other else {}),
         'tax_collected': _money(tax),

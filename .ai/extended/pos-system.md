@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (lock the till, manager OK, paid with Thrift+, Open drawer, loud print failures, COPY reprints) -->
+<!-- Last updated: 2026-10-21 (no tax on a line: pop; lock the till, manager OK, paid with Thrift+, Open drawer, loud print failures, COPY reprints) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -102,6 +102,13 @@ Denomination counts (JSON) are used at each step for reconciliation.
 7. **Fix card type** — `POST /pos/carts/{id}/card-type/` with `{card_type: credit|debit}` on a completed card/split sale. Recomputes surcharge from stored `card_amount` via `apply_card_surcharge`. 400 if not completed, cash, invalid/same type. 403 `CARD_TYPE_FIX_LOCKED` after 15 minutes unless `is_superuser`. Stamps `card_type_fixed_at` / `card_type_fixed_by`. Does not change `total`, `sold_for`, or drawer cash.
 
 ---
+
+## No tax on a line (Bill, 2026-10-21: "we started selling pop", `pos.0041_cartline_tax_exempt`)
+
+- Each line on the register has a **No tax** chip: one tap, any cashier, no PIN (`PATCH .../lines/{id}/` `{tax_exempt: true|false}`). `Cart.recalculate` taxes only the lines not marked; a discount aimed at a marked line (`meta.target_line_id`) is untaxed with it (a discount line itself can't be toggled). Extra units of a marked line stay marked.
+- The receipt prints "Pop (No tax)"; Transactions shows "· No tax" on the line. Sales numbers need nothing: the sale's tax is just lower.
+- **Sales tax report:** gross sales = the subtotals; **exempt sales** = the marked lines (with their discounts); taxable sales, the rate table and the days are gross less exempt. The CSV already has the Exempt sales row.
+- Known edge (small): Thrift+'s plan for how many kept ThriftBucks bring the total down to the member's credit still taxes the whole subtotal, so on a sale with a No-tax line it may use a few cents more ThriftBucks than needed.
 
 ## Paid with Thrift+ (Bill, 2026-10-21, `pos.0039`)
 

@@ -179,6 +179,8 @@ export interface CartLine {
   sale_savings?: string;
   /** Thrift+: the member rebate taken off this line (0 while Thrift+ is dark). */
   thrift_savings?: string;
+  /** "No tax" (2026-10-21, pop): this line is not taxed; the rest of the sale is. */
+  tax_exempt?: boolean;
   created_at: string;
 }
 

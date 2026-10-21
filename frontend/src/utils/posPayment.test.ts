@@ -48,6 +48,17 @@ describe('posPayment', () => {
     expect(buildReceiptData(c, { copy: 2 }).receipt_number).toBe('R-20261020-009 COPY 2');
   });
 
+  it('a "No tax" line says so on the receipt (pop, 2026-10-21)', () => {
+    const c = cart({
+      lines: [
+        { id: 9, line_kind: 'item', description: 'Lamp', quantity: 1, line_total: '20.00' },
+        { id: 10, line_kind: 'manual', description: 'Pop', quantity: 1, line_total: '1.50', tax_exempt: true },
+      ] as Cart['lines'],
+    });
+    const names = (buildReceiptData(c).items as { name: string }[]).map((i) => i.name);
+    expect(names).toEqual(['Lamp', 'Pop (No tax)']);
+  });
+
   it('the receipt says Thrift+ and no cash', () => {
     const data = buildReceiptData(cart({ status: 'completed', payment_method: 'thrift', thrift_credit: '54.16' }));
     expect(data.payment_method).toBe('Thrift+');

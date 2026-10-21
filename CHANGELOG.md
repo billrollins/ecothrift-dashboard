@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.203.0] -->
-<!-- Last reviewed: 2026-10-21 (2.203.0) -->
+<!-- Line 1 release: ## [2.204.0] -->
+<!-- Last reviewed: 2026-10-21 (2.204.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.204.0] - 2026-10-21
+
+User-facing theme: **No tax on a line, for pop (Bill, 2026-10-21).** Outside initiatives.
+
+### Added
+- **No tax on a line:** tap "No tax" on any cart line at the Terminal (pop, for example) and the rest of the sale is taxed as usual. The receipt and Transactions say "No tax", and the sales tax report shows Exempt sales separately (also in the CSV).
 
 ## [2.203.0] - 2026-10-21
 

@@ -278,9 +278,18 @@ class Cart(models.Model):
         # Thrift+ member prices; answers False (and does nothing) while Thrift+ is dark at this register.
         live = sync_if_live(self)
         # Query CartLine directly so we never sum a stale prefetch_related cache on `cart.lines`.
-        lines = self.lines.model.objects.filter(cart_id=self.pk)
+        lines = list(self.lines.model.objects.filter(cart_id=self.pk))
         self.subtotal = sum((line.line_total for line in lines), Decimal('0'))
-        self.tax_amount = (self.subtotal * self.tax_rate).quantize(Decimal('0.01'))
+        # "No tax" lines (Bill, 2026-10-21: pop) are left out of the taxed amount; a discount aimed at one follows it.
+        exempt_ids = {line.pk for line in lines if line.tax_exempt and line.line_kind != CartLine.LINE_KIND_DISCOUNT}
+        for line in lines:
+            if line.line_kind == CartLine.LINE_KIND_DISCOUNT:
+                follows = (line.meta or {}).get('target_line_id') in exempt_ids
+                if line.tax_exempt != follows:
+                    CartLine.objects.filter(pk=line.pk).update(tax_exempt=follows)
+                    line.tax_exempt = follows
+        taxable = max(Decimal('0'), sum((line.line_total for line in lines if not line.tax_exempt), Decimal('0')))
+        self.tax_amount = (taxable * self.tax_rate).quantize(Decimal('0.01'))
         self.total = self.subtotal + self.tax_amount
         self.save(update_fields=['subtotal', 'tax_amount', 'total'])
         if live:  # Thrift+ credit pays first, after tax (never runs on a dark register)
@@ -296,6 +305,8 @@ class CartLine(models.Model):
     quantity = models.IntegerField(default=1)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     line_total = models.DecimalField(max_digits=10, decimal_places=2)
+    # "No tax" (Bill, 2026-10-21: pop): this line is not taxed; the rest of the sale is. Any cashier sets it.
+    tax_exempt = models.BooleanField(default=False)
     resale_source_sku = models.CharField(max_length=20, blank=True, default='')
     resale_source_item_id = models.PositiveIntegerField(null=True, blank=True)
     LINE_KIND_ITEM = 'item'

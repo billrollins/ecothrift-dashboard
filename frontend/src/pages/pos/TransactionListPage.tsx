@@ -444,6 +444,7 @@ export default function TransactionListPage() {
                     <Box sx={{ minWidth: 0 }}>
                       <Typography variant="body2">
                         {line.description} × {line.quantity}
+                        {line.tax_exempt && line.line_kind !== 'discount' ? ' · No tax' : ''}
                       </Typography>
                       {line.resale_source_sku ? (
                         <Typography variant="caption" color="text.secondary" display="block">

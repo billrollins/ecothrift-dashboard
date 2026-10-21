@@ -1162,6 +1162,24 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
     }
   }, [cart, editingLineId, editValues, updateLineMutation, commitCart, enqueueSnackbar, runWithManagerOk]);
 
+  const handleToggleNoTax = useCallback(
+    async (line: CartLine) => {
+      if (!cart) return;
+      try {
+        const updated = await updateLineMutation.mutateAsync({
+          cartId: cart.id,
+          lineId: line.id,
+          data: { tax_exempt: !line.tax_exempt },
+        });
+        commitCart(updated as unknown as Cart);
+      } catch (err: unknown) {
+        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+        enqueueSnackbar(detail || 'Could not change the tax on that line', { variant: 'error' });
+      }
+    },
+    [cart, updateLineMutation, commitCart, enqueueSnackbar],
+  );
+
   const handleVoidSale = useCallback(async () => {
     if (!cart) return;
     setVoidConfirmOpen(false);
@@ -1988,6 +2006,19 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                                       color="success"
                                       label={line.sale_display || `${Number(line.sale_percent || 50)}% Summer`}
                                       sx={{ height: 22 }}
+                                    />
+                                  )}
+                                  {line.line_kind !== 'discount' && (
+                                    // "No tax" (Bill, 2026-10-21: pop): one tap, no PIN; the rest of the sale is taxed.
+                                    <Chip
+                                      size="small"
+                                      label="No tax"
+                                      color={line.tax_exempt ? 'warning' : 'default'}
+                                      variant={line.tax_exempt ? 'filled' : 'outlined'}
+                                      onClick={() => void handleToggleNoTax(line)}
+                                      aria-pressed={Boolean(line.tax_exempt)}
+                                      data-testid={`no-tax-${line.id}`}
+                                      sx={{ height: 22, opacity: line.tax_exempt ? 1 : 0.7 }}
                                     />
                                   )}
                                 </Box>

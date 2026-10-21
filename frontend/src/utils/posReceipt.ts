@@ -21,7 +21,7 @@ export function receiptLineFromCartLine(line: CartLine): {
   const qty = line.quantity || 1;
   const lineTotal = parseFloat(String(line.line_total));
   return {
-    name: `${line.description}${saleSuffix(line)}`,
+    name: `${line.description}${saleSuffix(line)}${line.tax_exempt && line.line_kind !== 'discount' ? ' (No tax)' : ''}`,
     quantity: line.quantity,
     unit_price: lineTotal / qty,
     line_total: lineTotal,
