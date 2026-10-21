@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.189.1] -->
-<!-- Last reviewed: 2026-10-21 (2.189.1) -->
+<!-- Line 1 release: ## [2.189.3] -->
+<!-- Last reviewed: 2026-10-21 (2.189.3) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.189.3] - 2026-10-21
+
+User-facing theme: **Dash moves between PCs cleanly: one file says where things are on each machine, and nothing else names a drive; nothing changes on screen (master's D21, Bill 2026-10-21).** Standards T77-T79.
+
+### Added
+- **`docs/machines.md`** (D21): the Bench row (computer name, board UUID), current build machine Bench, the tool paths scripts may need (psql 18, headless Edge), and a ship and deploy log that starts with one history row for v1.0.0-v2.189.2. Each ship and deploy adds a row from now on.
+- **Path lint:** `python scripts/dev/lean_test.py paths` fails when a tracked file holds a drive-letter path; it runs in the `quick` and `ship` suites. It skips `docs/machines.md`, every `CHANGELOG.md`, `.ai/comm/` and archive or retired folders.
+
+### Changed
+- **Relative paths everywhere else:** master's files are written `{master}/...`, this repo's paths are repo-relative, and the main checkout is found with `git worktree list` (AGENTS.md, `.ai/` docs and protocols, the runner protocol, reports, notebooks, the env-sync script headers).
+- **Protocols re-copied from master** with this repo's steps kept: startup v1.2 (checks which machine it is on), ship v4 and deploy v4 (a log row each), and the header and path updates check_comm v4.1, standards-review v1.1, env-sync v1.2, initiative-create v1.1, initiative-review v2.1.
+- **Print server installer:** the old V2 folders are found on the system drive (`%SystemDrive%`) instead of a written `C:`; same result on every store PC. No print-server version change.
+- `.claude/launch.json`: dropped eight dev-server entries for finished worktrees.
 
 ## [2.189.2] - 2026-10-21
 

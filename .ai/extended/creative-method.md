@@ -26,7 +26,7 @@ copy (JSON, every line from the rulebook) + shared CSS (brand tokens) + a Jinja2
 ```
 
 - Tools and assets: `workspace/posters2/` (gitignored, rebuildable). Logos (`assets/logos/`), icons, vector QR, the photo shoots (`art/R/shoot/`), plates (`art/*/out/`), the S collection tokens (`templates/S/collection.css`).
-- Edge: `C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe --headless`, with `--virtual-time-budget` so web fonts land first.
+- Edge: `msedge --headless` (not on PATH on Bench: use the `EDGE` env var, else `docs/machines.md` § Machine paths), with `--virtual-time-budget` so web fonts land first.
 - Type: Manrope for words, Nunito for numbers. Colours: the S collection greens (`--gt #1d5424`, `--gd #237a26`, `--g #3f9f35`) on `--dpage #f2f2ee`.
 
 ## The rules

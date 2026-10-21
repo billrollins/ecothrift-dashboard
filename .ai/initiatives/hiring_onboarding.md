@@ -426,7 +426,7 @@ Held texts are never sent later; each event sends its own.
 
 **Rules:**
 
-1. **Separate trees.** Hiring is built only in `C:\Coding\_worktrees\ecothrift-dashboard--hiring` (branch `hiring`, from `origin/main` v2.133.0). The inventory session owns the main checkout. This file is edited only in the hiring worktree. Mail with master stays in the main checkout's `.ai/comm/`.
+1. **Separate trees.** Hiring is built only in `_worktrees/ecothrift-dashboard--hiring` (branch `hiring`, from `origin/main` v2.133.0). The inventory session owns the main checkout. This file is edited only in the hiring worktree. Mail with master stays in the main checkout's `.ai/comm/`.
 2. **Shipping:** each hiring phase ships from the worktree when tested and the owner says **ship** / **deploy**. The order: `git fetch`, merge `origin/main`, bump past the newest version.
 3. **Shared files are merged by hand at each ship:**
    - `CHANGELOG.md`, `.version`, `package.json`;
@@ -796,4 +796,4 @@ Claude's calls:
 - Index: [`_index.md`](./_index.md)
 - Runs beside: [`inventory_effort.md`](./inventory_effort.md); compass [`thrift_plus_rewards.md`](./thrift_plus_rewards.md)
 - Signing: [`extended/documents.md`](../extended/documents.md) · Forms format: [`extended/routines.md`](../extended/routines.md) · Roles: [`extended/auth-and-roles.md`](../extended/auth-and-roles.md)
-- Texting rule D17: `C:\Coding\.ai\standards\texting.md`
+- Texting rule D17: `{master}/standards/texting.md`

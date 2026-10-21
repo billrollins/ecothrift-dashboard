@@ -5,12 +5,12 @@ Bundled as setup.exe by PyInstaller.  Run this on each workstation.
 
 What it does:
   1. Stops anything on port 8888 and removes legacy V2 print server (Startup VBS,
-     C:\\DashPrintServer / C:\\PrintServer when they look like Python+v2 installs)
+     %SystemDrive%\\DashPrintServer / %SystemDrive%\\PrintServer when they look like Python+v2 installs)
   2. Copies ecothrift-printserver.exe to %LOCALAPPDATA%/EcoThrift/PrintServer/
   3. Removes any previous V3 install dir first (clean overwrite)
   4. Optionally registers auto-start (HKCU Run -- no admin rights needed)
 
-Removing C:\\... legacy folders may require Run as administrator if ACLs were locked down.
+Removing %SystemDrive%\\... legacy folders may require Run as administrator if ACLs were locked down.
 """
 
 # ---------------------------------------------------------------------------
@@ -122,7 +122,8 @@ def cleanup_legacy_prior(log: "callable[[str], None]") -> None:
                 except OSError as exc:
                     log(f"Could not remove {v2_startup}: {exc}")
 
-    for legacy_root in (Path("C:/DashPrintServer"), Path("C:/PrintServer")):
+    system_drive = Path(os.environ.get("SystemDrive", "C:") + os.sep)
+    for legacy_root in (system_drive / "DashPrintServer", system_drive / "PrintServer"):
         if not legacy_root.is_dir():
             continue
         if not _is_likely_v2_install(legacy_root):

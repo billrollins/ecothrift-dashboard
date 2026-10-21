@@ -1,7 +1,7 @@
 <!-- Last updated: 2026-10-06 (Inventories pages, a manager starts the inventory: see inventory_effort Phase 6) -->
 # Initiative: inventory_count
 
-**Status:** Active. v1 shipped 2026-10-01 (v2.112.0, v2.113.0). **v2 shipped 2026-10-01 13:32 in v2.114.0** (commit `53462bb2`, Heroku v377, backup `b013`; branch `count-v2`, worktree `C:\Coding\_worktrees\ecothrift-dashboard--ship-2112`). **Needed by Mon 2026-10-05** for the first shelf count. The owner plans to count every Monday.
+**Status:** Active. v1 shipped 2026-10-01 (v2.112.0, v2.113.0). **v2 shipped 2026-10-01 13:32 in v2.114.0** (commit `53462bb2`, Heroku v377, backup `b013`; branch `count-v2`, worktree `_worktrees/ecothrift-dashboard--ship-2112`). **Needed by Mon 2026-10-05** for the first shelf count. The owner plans to count every Monday.
 
 ## Version 3 (inventory_effort Phases 1 and 2, 2026-10-06)
 
@@ -45,7 +45,7 @@ Sections "What it does", "Decisions" and the trial sheet below describe v1; wher
 
 - Backend: new app `apps/stocktake` (own migration `0001`, depends on `inventory.0100`; it does not touch ProductProfile, ProductProposal or the pending `inventory` migrations). API under `/api/stocktake/`. Tests: `apps/stocktake/tests/test_counts.py` (7).
 - Front end: `frontend/src/pages/inventory/count/` (`CountPage`, `CountReportPage`, `countQueue`, `countSound`), `frontend/src/api/stocktake.api.ts`. Nav: Retail floor → **Inventory count**.
-- Built in the worktree `C:\Coding\_worktrees\ecothrift-dashboard--inventory-count` (branch `inventory-count`, from `origin/main` v2.111.0), **uncommitted**, so the running standardize job and the main tree's unshipped files are untouched.
+- Built in the worktree `_worktrees/ecothrift-dashboard--inventory-count` (branch `inventory-count`, from `origin/main` v2.111.0), **uncommitted**, so the running standardize job and the main tree's unshipped files are untouched.
 
 ## Decisions I made (easy to change)
 

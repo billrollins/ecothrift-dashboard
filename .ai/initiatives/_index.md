@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-13 (thrift_plus_families opened: planning) -->
+<!-- Last updated: 2026-10-21 (relative paths, D21) -->
 # Initiatives — ecothrift-dashboard
 
 Bounded work (hours to days), one `.md` per initiative. Not a session log. Rules: [`protocols/initiative-create.md`](../protocols/initiative-create.md), [`protocols/initiative-review.md`](../protocols/initiative-review.md) (§ Filing rules). **Human gate:** do not archive without explicit approval.
@@ -9,7 +9,7 @@ Bounded work (hours to days), one `.md` per initiative. Not a session log. Rules
 
 | Initiative | What |
 |------------|------|
-| [`standards`](standards.md) | What this repo still owes the house standards, and when (`C:\Coding\.ai\standards\`) |
+| [`standards`](standards.md) | What this repo still owes the house standards, and when (`{master}/standards/`) |
 
 ## Active
 

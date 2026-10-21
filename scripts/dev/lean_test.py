@@ -9,6 +9,7 @@ coder or a free runner model can babysit it cheaply.
     python scripts/dev/lean_test.py vitest src/pages/admin/QAPage.test.tsx
     python scripts/dev/lean_test.py tsc
     python scripts/dev/lean_test.py migrations
+    python scripts/dev/lean_test.py paths                  # D21 lint: no drive-letter paths in tracked files
     python scripts/dev/lean_test.py warehouse              # rebuild the Analytical layer; its checks
 
 - **The result file:** every run also writes its output to `workspace/lean/last-<name>.txt`. A runner
@@ -43,11 +44,11 @@ SUITES: dict[str, dict] = {
     'core': {'py': ['apps/core', 'apps/accounts', 'apps/ai'], 'vitest': ['src/pages/admin/RequestsPage.test.tsx', 'src/pages/brief']},
     'buying': {'py': ['apps/buying'], 'vitest': ['src/pages/buying']},
     'hiring': {'py': ['apps/hiring'], 'vitest': ['src/pages/people'], 'tsc': True},
-    'quick': {'tsc': True, 'migrations': True},
+    'quick': {'tsc': True, 'migrations': True, 'paths': True},
     'ship': {
         'py': ['apps/thriftplus', 'apps/pos', 'apps/core', 'apps/accounts', 'apps/ai', 'apps/qa', 'apps/inventory', 'apps/stocktake', 'apps/hiring', 'apps/buying',
                'apps/webstore', 'apps/routines/tests.py::NoDashesTests'],
-        'vitest': ['*'], 'tsc': True, 'migrations': True,
+        'vitest': ['*'], 'tsc': True, 'migrations': True, 'paths': True,
     },
 }
 
@@ -143,6 +144,35 @@ def warehouse() -> bool:
     return code == 0
 
 
+# D21 § 1.6: a drive-letter path (a letter, a colon, then a slash or backslash) in a tracked file. Not after a letter or digit (https:),
+# and not a single backslash escape like the \n in a notebook's "except Exception as e:\n".
+DRIVE_PATH = re.compile(r'(?<![A-Za-z0-9_])[A-Za-z]:(?:\\\\|/|\\(?![nrt"](?![A-Za-z0-9])))')
+PATH_LINT_SKIP = ('docs/machines.md', '.ai/comm/')  # plus every CHANGELOG.md and archive or retired folders (history)
+
+
+def paths() -> bool:
+    _, out = _run(['git', 'ls-files', '-z'], ROOT)
+    hits = []
+    for rel in filter(None, out.split('\0')):
+        parts = rel.split('/')
+        if (rel.startswith(PATH_LINT_SKIP) or parts[-1] == 'CHANGELOG.md'
+                or any('archive' in p.lower() or 'retired' in p.lower() for p in parts[:-1])):
+            continue
+        try:
+            text = (ROOT / rel).read_bytes()
+        except OSError:
+            continue
+        if b'\0' in text[:8000]:
+            continue  # binary
+        for n, line in enumerate(text.decode('utf-8', errors='replace').splitlines(), 1):
+            if DRIVE_PATH.search(line):
+                hits.append(f'{rel}:{n}: {line.strip()[:160]}')
+    say(f'paths: {len(hits)} drive-letter paths in tracked files (D21: repo-relative, {{master}}/..., or docs/machines.md)')
+    for h in hits[:25]:
+        say('  NEW ' + h)
+    return not hits
+
+
 def suite(name: str) -> bool:
     if name not in SUITES:
         say(f'Unknown suite {name!r}. Suites: {", ".join(SUITES)}')
@@ -156,6 +186,8 @@ def suite(name: str) -> bool:
         ok &= tsc()
     if s.get('migrations'):
         ok &= migrations()
+    if s.get('paths'):
+        ok &= paths()
     return ok
 
 
@@ -165,7 +197,7 @@ def main() -> int:
         return 2
     kind, rest = sys.argv[1], sys.argv[2:]
     runners = {'suite': lambda: suite(rest[0] if rest else ''), 'py': lambda: py(rest), 'vitest': lambda: vitest(rest),
-               'tsc': tsc, 'migrations': migrations, 'warehouse': warehouse}
+               'tsc': tsc, 'migrations': migrations, 'warehouse': warehouse, 'paths': paths}
     if kind not in runners:
         print(__doc__)
         return 2

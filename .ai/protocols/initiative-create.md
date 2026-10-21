@@ -1,4 +1,4 @@
-<!-- Canonical: C:\Coding\.ai\templates\protocols\initiative-create.md — v1 2026-09-30 (from ecothrift-dashboard). Copy unchanged into <project>/.ai/protocols/. Project-only steps go in the marked section at the end. -->
+<!-- Canonical: {master}/templates/protocols/initiative-create.md — v1.1 2026-10-21 (relative paths, D21; v1 2026-09-30 from ecothrift-dashboard). Copy unchanged into <project>/.ai/protocols/. Project-only steps go in the marked section at the end. -->
 # Protocol: Create initiative
 
 The initiative file **is** the design, start to finish. Later phases may stay high-level until earlier ones are built.

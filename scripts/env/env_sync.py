@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """House env sync: repo-root .envprod <-> Heroku Config Vars.
 
-Vendored from C:\\Coding\\.ai\\packages\\env-sync — do not edit here; send changes to master
-via .ai/reference/to-master/. Standard: C:\\Coding\\.ai\\standards\\scripts-and-env.md.
+Vendored from {master}/packages/env-sync — do not edit here; send changes to master
+via .ai/reference/to-master/. Standard: {master}/standards/scripts-and-env.md.
 
 Commands (run from anywhere; the repo root is two levels up from this file):
   pull   Heroku -> .envprod (the production mirror). Never touches .env.

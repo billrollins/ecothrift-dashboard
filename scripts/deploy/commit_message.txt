@@ -1,11 +1,17 @@
-v2.189.2 — Clear history keeps up with same-tick actions; the flaky tests pass every time
+v2.189.3 — D21: docs/machines.md, relative paths with a lint, protocols re-copied (startup v1.2, ship v4, deploy v4)
 
-User-facing theme: **Clear history on a TARS item now clears an action's own "started" line when it was stamped in the same clock tick as the action, and the tests that failed now and then pass every time (Bill, 2026-10-21).** Outside initiatives (TARS, tests).
+## [2.189.3] - 2026-10-21
 
-### Fixed
-- **TARS history, Clear history:** history lines were split by action using the clock, so an action's own "started" line, stamped in the same clock tick as the action, counted toward the action before it and was never cleared as replaced. Lines are now split by the order they were written (the action's "started" line id); time is only the fallback for an action with no such line. Found by a test that failed now and then.
+User-facing theme: **Dash moves between PCs cleanly: one file says where things are on each machine, and nothing else names a drive; nothing changes on screen (master's D21, Bill 2026-10-21).** Standards T77-T79.
 
-### Tests
-- Made the known flaky tests reliable without loosening what they check: the TARS Clear history test gets a coarse-clock twin that fails on the old code; the routines "mine" overlap test pins Thursday 1 pm instead of reading the clock (it failed after 3 pm); the Thrift+ scanner's 3-second Scan again window runs on a test clock instead of a real wait; the Requests, Hold detail and scanner tests fill text boxes in one change where typing is not the point, and the scanner count-up lands at once; the no-dashes check reads files in parallel without jsdom; B-Stock pull runner waits up to 5 s for its mocked requests; the webstore pickup-code test no longer fails on an all-digit code (about 1 run in 22).
+### Added
+- **`docs/machines.md`** (D21): the Bench row (computer name, board UUID), current build machine Bench, the tool paths scripts may need (psql 18, headless Edge), and a ship and deploy log that starts with one history row for v1.0.0-v2.189.2. Each ship and deploy adds a row from now on.
+- **Path lint:** `python scripts/dev/lean_test.py paths` fails when a tracked file holds a drive-letter path; it runs in the `quick` and `ship` suites. It skips `docs/machines.md`, every `CHANGELOG.md`, `.ai/comm/` and archive or retired folders.
+
+### Changed
+- **Relative paths everywhere else:** master's files are written `{master}/...`, this repo's paths are repo-relative, and the main checkout is found with `git worktree list` (AGENTS.md, `.ai/` docs and protocols, the runner protocol, reports, notebooks, the env-sync script headers).
+- **Protocols re-copied from master** with this repo's steps kept: startup v1.2 (checks which machine it is on), ship v4 and deploy v4 (a log row each), and the header and path updates check_comm v4.1, standards-review v1.1, env-sync v1.2, initiative-create v1.1, initiative-review v2.1.
+- **Print server installer:** the old V2 folders are found on the system drive (`%SystemDrive%`) instead of a written `C:`; same result on every store PC. No print-server version change.
+- `.claude/launch.json`: dropped eight dev-server entries for finished worktrees.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

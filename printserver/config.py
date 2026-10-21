@@ -595,7 +595,7 @@ ESC/POS (the ``POST /print/receipt`` path), GDI text and PNG print the same line
 ### Added
 - Windows installer (`setup.py`) runs `cleanup_legacy_prior()` on **Install** and at start of **Uninstall**:
   stops `ecothrift-printserver.exe` and listeners on port 8888, removes V2 Startup
-  `Eco-Thrift Print Server.vbs`, deletes `C:\\DashPrintServer` / `C:\\PrintServer` only when
+  `Eco-Thrift Print Server.vbs`, deletes `%SystemDrive%\\DashPrintServer` / `%SystemDrive%\\PrintServer` only when
   both `print_server.py` and `venv\\` are present (avoids wiping unrelated folders)
 - Optional IT batch: `printserver/installer/uninstall_legacy_prior.bat` (best-effort CMD mirror)
 

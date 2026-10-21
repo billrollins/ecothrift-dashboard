@@ -56,7 +56,7 @@ psql "postgresql://USER:PASSWORD@HOST:5432/DATABASE_NAME" -c "SELECT 1;"
 Uses **`DATABASES['default']`** from Django settings (including **`search_path`** toward **`ecothrift`**), so **`SELECT * FROM pos_cart`** may work **without** the **`ecothrift.`** prefix depending on server session defaults.
 
 ```powershell
-cd "E:\Cursor Projects\ecothrift-dashboard"
+cd (git rev-parse --show-toplevel)   # the repo root
 .\venv\Scripts\Activate.ps1
 python manage.py dbshell
 ```

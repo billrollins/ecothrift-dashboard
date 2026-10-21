@@ -3,7 +3,7 @@ setlocal EnableDelayedExpansion
 echo Eco-Thrift — remove legacy print stacks (V2 Python + V3 frozen) — best-effort
 echo Primary path: run ecothrift-printserver-setup.exe Install — it runs the same cleanup in Python.
 echo.
-echo This batch may need "Run as administrator" to delete C:\DashPrintServer or C:\PrintServer.
+echo This batch may need "Run as administrator" to delete %SystemDrive%\DashPrintServer or %SystemDrive%\PrintServer.
 pause
 
 echo Stopping ecothrift-printserver.exe...
@@ -25,8 +25,8 @@ if exist "%VBS2%" (
   del /f /q "%VBS2%"
 )
 
-call :TryRemoveV2 "C:\DashPrintServer"
-call :TryRemoveV2 "C:\PrintServer"
+call :TryRemoveV2 "%SystemDrive%\DashPrintServer"
+call :TryRemoveV2 "%SystemDrive%\PrintServer"
 
 echo Removing HKCU Run EcoThriftPrintServer...
 reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v EcoThriftPrintServer /f >nul 2>&1

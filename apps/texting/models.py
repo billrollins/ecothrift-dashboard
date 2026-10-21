@@ -1,4 +1,4 @@
-"""Texting records (house standard `C:\\Coding\\.ai\\standards\\texting.md`, D17).
+"""Texting records (house standard `{master}/standards/texting.md`, D17).
 
 - ``TextConsent``: every change to someone's consent to be texted, newest wins. Who (the number), which kind, when,
   how it was captured, and the wording version. Turning it off is recorded the same way, and the history is kept.

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-08 (check_comm protocol) -->
+<!-- Last updated: 2026-10-21 (relative paths, D21) -->
 ```
                     ╔═══════════════════════════════════════════════════════════╗
                     ║                                                           ║
@@ -84,7 +84,7 @@ Built different. Built fast. Built to last.
 
 ### AI steering
 
-AI agents start at [`AGENTS.md`](AGENTS.md), which points into [`.ai/context.md`](.ai/context.md) (the compass). The protocol list (start, check messages, ship, initiatives, print server, runner) is in the compass under **Quick reference**. House standards: `C:\Coding\.ai\standards\` (what this repo still owes them: [`.ai/initiatives/standards.md`](.ai/initiatives/standards.md)).
+AI agents start at [`AGENTS.md`](AGENTS.md), which points into [`.ai/context.md`](.ai/context.md) (the compass). The protocol list (start, check messages, ship, initiatives, print server, runner) is in the compass under **Quick reference**. House standards: `{master}/standards/` (what this repo still owes them: [`.ai/initiatives/standards.md`](.ai/initiatives/standards.md)).
 
 **Notebook research:** [`.ai/extended/development.md`](.ai/extended/development.md) (*Jupyter*); category work under **`workspace/notebooks/category-research/`**. **B-Stock / buying:** archived initiative [`.ai/initiatives/_archived/bstock_auction_intelligence.md`](.ai/initiatives/_archived/bstock_auction_intelligence.md). Detailed setup: [`.ai/extended/development.md`](.ai/extended/development.md).
 

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-12 (hiring: reaching applicants, list marks, scorecard autosave, interview questions on roles) -->
+<!-- Last updated: 2026-10-21 (relative paths, D21) -->
 # ecothrift-dashboard — AI Context
 
 ## Project summary
@@ -12,7 +12,7 @@ Full-stack business management for Eco-Thrift, a thrift store in Omaha, NE. It c
 - restoration (TARS), routines and Retail QA
 - the data platform (Requests center, AI brief, local warehouse)
 
-Stack: Django 5.2 + DRF, React 18.3 + TypeScript + MUI 7, PostgreSQL (schema `ecothrift` on the shared add-on). Runs on Heroku (stack heroku-26 since 2026-10-21) app `ecothrift-dashboard` (`dash.ecothrift.us`, public site `ecothrift.us`). Tier: core (house standards: `C:\Coding\.ai\standards\projects.md`).
+Stack: Django 5.2 + DRF, React 18.3 + TypeScript + MUI 7, PostgreSQL (schema `ecothrift` on the shared add-on). Runs on Heroku (stack heroku-26 since 2026-10-21) app `ecothrift-dashboard` (`dash.ecothrift.us`, public site `ecothrift.us`). Tier: core (house standards: `{master}/standards/projects.md`).
 
 ## Release and version
 
@@ -38,13 +38,13 @@ Stack: Django 5.2 + DRF, React 18.3 + TypeScript + MUI 7, PostgreSQL (schema `ec
 
 ### Two coders
 
-Two coders can share this repo. Each one has one peer inbox, `comm/inbox-<slug>.md`. The rules for it are in [`protocols/check_comm.md`](protocols/check_comm.md). **The post office is always the main checkout's `C:\Coding\ecothrift-dashboard\.ai\comm\`**, whatever tree you work in.
+Two coders can share this repo. Each one has one peer inbox, `comm/inbox-<slug>.md`. The rules for it are in [`protocols/check_comm.md`](protocols/check_comm.md). **The post office is always the main checkout's `.ai/comm/` (the first folder `git worktree list` prints)**, whatever tree you work in.
 
 | Slug | Owns | Workspace | Runner IDs |
 |------|------|-----------|------------|
 | `data_platform` | Thrift+ core (members, cards, reward engine, POS, returns, signup), the Requests center, the data platform and AI brief, buying | main checkout | R-071 to R-099 |
 | `thrift_scanner` | **Retired 2026-09-30** (the owner turned that coder off). Its lane, the Thrift+ customer scanner (`/scan`), is now worked from the main session | worktree and branch removed 2026-10-07 (its work shipped in v2.145.0) | R-100 and up |
-| `hiring` | **Closed 2026-10-08** (its work is shipped through v2.154.0; Bill ends the session). It owned [`hiring_onboarding`](initiatives/hiring_onboarding.md): `apps/hiring`, `/careers`, the People workspace, and `apps/texting` (parked) with the shared `EmailConsent`. All of it is the main coder's now; docs: `extended/hiring.md`. Open, none of it code: texting stays parked, the handbook waits on the attorney, no practice run of email delivery in production yet | worktree `C:\Coding\_worktrees\ecothrift-dashboard--hiring` (branch `hiring`, matches origin/main; remove when Bill says) | - |
+| `hiring` | **Closed 2026-10-08** (its work is shipped through v2.154.0; Bill ends the session). It owned [`hiring_onboarding`](initiatives/hiring_onboarding.md): `apps/hiring`, `/careers`, the People workspace, and `apps/texting` (parked) with the shared `EmailConsent`. All of it is the main coder's now; docs: `extended/hiring.md`. Open, none of it code: texting stays parked, the handbook waits on the attorney, no practice run of email delivery in production yet | worktree `_worktrees/ecothrift-dashboard--hiring` (branch `hiring`, matches origin/main; remove when Bill says) | - |
 | `standards` (was `tech_target`) | **Closed 2026-10-02** (the owner ended the Helper session). Everything it owned is the main coder's now: the count app, PR Fix-it, AI cleanup job, public legal pages, the scanner lane, `standards.md` and master's mail. Handoff: [`reference/reports/2026-10-02-helper-handoff.md`](reference/reports/2026-10-02-helper-handoff.md) | - | - |
 
 - **Never share a working tree.** `scripts/deploy/ship.bat` stages everything (`git add -A`), so it would commit the other coder's half-done work.
@@ -78,7 +78,7 @@ Two coders can share this repo. Each one has one peer inbox, `comm/inbox-<slug>.
 
 - Windows + PowerShell (`;` not `&&`).
 - Python: `venv\` at the repo root, 3.14 (`.python-version`; a venv built before the T25 release is on 3.12: rebuild it with `py -3.14 -m venv venv` then `pip install -r requirements.txt`). Node: `engines` 24.x (this PC runs 24.19).
-- Dev ports: Django `8000`, staff Vite `5173`, public Vite `5174` (registered in `C:\Coding\.ai\standards\projects.md`). `scripts\dev\start.bat` / `kill.bat`.
+- Dev ports: Django `8000`, staff Vite `5173`, public Vite `5174` (registered in `{master}/standards/projects.md`). `scripts\dev\start.bat` / `kill.bat`.
 - Database: local `local_shared`, schema `ecothrift` (`search_path` set in settings). V1/V2 archives: [`extended/databases.md`](extended/databases.md).
 - Env files (house D8): `.env` (local values) and `.envprod` (mirror of Heroku Config Vars), both at the repo root and gitignored. No other env files. Production keys never go into `.env`. Sync with the house env-sync tool in `scripts\env\` via [`protocols/env-sync.md`](protocols/env-sync.md). Names are listed in [`extended/development.md`](extended/development.md), never values.
 - Dev and prod (house D10): local uses the same keys as production but writes only `dashboard-basic/ecothrift/dev/` (`ENVIRONMENT=dev`, `AWS_LOCATION=ecothrift/dev`). Production images copied into the local DB don't load locally (they sit at the bucket root). Local mail is off (`MS_GRAPH_ENABLED=False`).

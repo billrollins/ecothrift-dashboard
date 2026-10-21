@@ -71,5 +71,5 @@ An older couple at the register couldn't sign in. They had joined by email last 
 - The Dash Users → Members panel stays for managers. The Staff app no longer has a Members tab (it folded into Find).
 - Production on 10-20: 49 active members, all with phone, photo and signature; **43 pending, all email-only** (no phone, photo or signature).
 - Local dev DB was pulled from production on 10-19 (`scripts/db/pull_prod_to_local.bat`). There is a local-only test login for previews in `workspace/preview-login.txt` (dev DB only).
-- The worktree `C:\Coding\_worktrees\ecothrift-dashboard--txn-page` holds only merged `ship/*` branches and can be removed. The main checkout is behind `origin/main` and holds other sessions' uncommitted `.ai` edits.
+- The worktree `_worktrees/ecothrift-dashboard--txn-page` holds only merged `ship/*` branches and can be removed. The main checkout is behind `origin/main` and holds other sessions' uncommitted `.ai` edits.
 - **Ship lesson:** a yes to "start Phase N" is not "ship" or "deploy". Ask at the end. v2.186.0 was pushed without the word and then deployed on the owner's "deploy".

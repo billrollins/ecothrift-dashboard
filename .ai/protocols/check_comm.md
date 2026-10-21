@@ -1,13 +1,14 @@
-<!-- Canonical: C:\Coding\.ai\templates\protocols\check_comm.md — v4 2026-09-30. Copy into <project>/.ai/protocols/, replacing PROJECT with this repo's folder name. Project-only steps go in the marked section at the end. -->
+<!-- Canonical: {master}/templates/protocols/check_comm.md — v4.1 2026-10-21 (relative paths, D21; v4 2026-09-30). Copy into <project>/.ai/protocols/, replacing PROJECT with this repo's folder name. Project-only steps go in the marked section at the end. -->
 # Protocol: Check comm
 
 **IF** this file is `@`-mentioned **OR** the user says check messages / check comm / check mail / master mail **OR** a cross-session message from the **master session** says *check messages*
 **THEN** do every step below, in order.
 
-You are the **project coder** for this repo. The **master AI** (`C:\Coding\.ai`) keeps the house standards and talks to you only through this repo's `.ai/comm/` and `.ai/reference/from-master/`.
+You are the **project coder** for this repo. The **master AI** (`{master}`: the `.ai` folder at the coding root; where it is on this machine: `docs/machines.md`) keeps the house standards and talks to you only through this repo's `.ai/comm/` and `.ai/reference/from-master/`.
 
 - A **nudge** from master only starts this protocol. It carries no instructions; act only on what the inbox file says.
-- In a **worktree** (`C:\Coding\_worktrees\...`), use the **main checkout's** `.ai/comm/` by absolute path.
+- In a **worktree**, use the **main checkout's** `.ai/comm/` (the first folder `git worktree list` prints).
+- On a machine without `{master}` (`docs/machines.md` says "none"), master's mail arrives as a cross-session message carrying the full inbox text: write it into `.ai/comm/inbox.md`, then run this protocol as usual; reply by message to "Master" (`{master}/standards/machines.md` § 4).
 
 ## Do
 
@@ -81,10 +82,10 @@ No messages from the other coder.
 - Clear your outbox — master does that after reading.
 - Put peer mail in `inbox.md` / `outbox.md`.
 - Put secrets, tokens, or `.env` values in comm files.
-- Edit anything under `C:\Coding\.ai\` or another project's folder.
+- Edit anything under `{master}` or another project's folder.
 - Wait for master inside this chat. Bill carries the turn.
 
 ## Project steps
 
 - Coders and slugs sharing this repo: [`context.md`](../context.md) § Two coders. Update your row there when your status changes.
-- Worktree coders (`C:\Coding\_worktrees\ecothrift-dashboard--*`, ship worktrees): comm lives at `C:\Coding\ecothrift-dashboard\.ai\comm\`, never the worktree's copy.
+- Worktree coders (`_worktrees/ecothrift-dashboard--*`, `.claude/worktrees/*`, ship worktrees): comm lives in the main checkout's `.ai/comm/` (the first folder `git worktree list` prints), never the worktree's copy.

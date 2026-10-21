@@ -1,6 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-:: ship.md steps 9-10: git add -A, commit from commit_message.txt, push to origin main.
+:: ship.md steps 10-11: git add -A, commit from commit_message.txt, push to origin main.
 :: Run by the coder. Asks nothing. Usage: ship.bat [branch]   (branch = local branch to push to main; default main)
 set "BRANCH=%~1"
 if "!BRANCH!"=="" set "BRANCH=main"

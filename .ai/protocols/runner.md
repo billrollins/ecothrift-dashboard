@@ -16,7 +16,7 @@ The coder writes code. The runner does everything else that takes time: tests, r
 
 ---
 
-## The folder: `.ai/comm/runner/` (main tree `C:\Coding\ecothrift-dashboard`)
+## The folder: `.ai/comm/runner/` (the main checkout: the first folder `git worktree list` prints)
 
 | File | Who writes it | What it holds |
 |---|---|---|
@@ -77,7 +77,7 @@ Read code, docs and the dev database to answer the task's questions with facts.
 - **Show numbers** as small tables. For the query behind a number, put a one-line description, or the ORM code when it isn't obvious.
 - **Mark what you could not confirm** as `UNKNOWN`, with what you checked.
 - **Keep opinions out** unless the task asks for them. When the task has an "Observations" section, keep yours short there.
-- **Scratch scripts** go in `workspace/runner/R-NNN/`. Run them with `C:\Coding\ecothrift-dashboard\venv\Scripts\python.exe manage.py shell -c "exec(open(r'<path>').read())"` from the main tree.
+- **Scratch scripts** go in `workspace/runner/R-NNN/`. Run them with `venv\Scripts\python.exe manage.py shell -c "exec(open(r'<path>').read())"` from the main tree.
 
 ## Chore tasks (`type: chore`)
 
@@ -89,27 +89,29 @@ The coder freezes the code as a snapshot ref. You run it in a separate worktree,
 
 ### Worktree per run (set up, then tear down)
 
-Each test task gets its own worktree at `C:\Coding\_worktrees\ecothrift-dashboard--r<NNN>` (house rule: never at the `C:\Coding` root). It exists only for that run. **A run isn't finished until its worktree is gone.**
+Each test task gets its own worktree at `_worktrees/ecothrift-dashboard--r<NNN>` under the coding root (house rule: never at the coding root itself; where it is: `docs/machines.md`). It exists only for that run. **A run isn't finished until its worktree is gone.**
 
 1. Set up the worktree at the snapshot and the log folder:
 
    ```bash
-   cd /c/Coding/ecothrift-dashboard
-   WT=/c/Coding/_worktrees/ecothrift-dashboard--r<NNN>
+   MAIN=$(git worktree list --porcelain | head -1 | cut -d' ' -f2-)   # the main checkout
+   cd "$MAIN"
+   WT="$(dirname "$MAIN")/_worktrees/ecothrift-dashboard--r<NNN>"
    git worktree add --detach "$WT" <Snapshot ref>
    cd "$WT"
    git rev-parse HEAD
-   PY=/c/Coding/ecothrift-dashboard/venv/Scripts/python.exe
-   LOG=/c/Coding/ecothrift-dashboard/workspace/runner/<ID>
+   PY="$MAIN/venv/Scripts/python.exe"
+   LOG="$MAIN/workspace/runner/<ID>"
    mkdir -p "$LOG"
    ```
 
    Link the main checkout's `.env` and `node_modules`. **Never copy `.env`** (house D8: no env file copies). The hard link is the same file, and deleting the link never touches the original:
 
    ```powershell
-   $WT = 'C:\Coding\_worktrees\ecothrift-dashboard--r<NNN>'
-   New-Item -ItemType HardLink -Path "$WT\.env" -Target C:\Coding\ecothrift-dashboard\.env
-   New-Item -ItemType Junction -Path "$WT\frontend\node_modules" -Target C:\Coding\ecothrift-dashboard\frontend\node_modules
+   $Main = (git worktree list --porcelain | Select-Object -First 1) -replace '^worktree ', ''
+   $WT = Join-Path (Split-Path $Main) '_worktrees\ecothrift-dashboard--r<NNN>'
+   New-Item -ItemType HardLink -Path "$WT\.env" -Target "$Main\.env"
+   New-Item -ItemType Junction -Path "$WT\frontend\node_modules" -Target "$Main\frontend\node_modules"
    ```
 
    Write the full `git rev-parse HEAD` SHA in the result file. The snapshot also stays on `refs/runner/R-NNN`, so nothing depends on the worktree.
@@ -148,10 +150,11 @@ Each test task gets its own worktree at `C:\Coding\_worktrees\ecothrift-dashboar
 6. **Tear down**, in this order, even when the run is RED or BLOCKED:
 
    ```powershell
-   $WT = 'C:\Coding\_worktrees\ecothrift-dashboard--r<NNN>'
+   $Main = (git worktree list --porcelain | Select-Object -First 1) -replace '^worktree ', ''
+   $WT = Join-Path (Split-Path $Main) '_worktrees\ecothrift-dashboard--r<NNN>'
    cmd /c rmdir "$WT\frontend\node_modules"   # junction only: never Remove-Item -Recurse / rm -r a folder holding a junction
    Remove-Item "$WT\.env"                      # the hard link only; the main .env is untouched
-   cd C:\Coding\ecothrift-dashboard
+   cd $Main
    git worktree remove "$WT"
    git worktree prune
    ```

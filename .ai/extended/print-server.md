@@ -35,12 +35,12 @@ Upload path pattern: `print-server/ecothrift-printserver-setup-v{VERSION}.exe`. 
 
 | | V2 (old dashboard) | V3 (this repo) |
 |--|-------------------|----------------|
-| Path | `C:\DashPrintServer` (or manual `C:\PrintServer`) | `%LOCALAPPDATA%\EcoThrift\PrintServer\` |
+| Path | `%SystemDrive%\DashPrintServer` (or manual `%SystemDrive%\PrintServer`) | `%LOCALAPPDATA%\EcoThrift\PrintServer\` |
 | Runtime | Python **venv** + `print_server.py` | Single **`ecothrift-printserver.exe`** |
 | Auto-start | Startup folder **`Eco-Thrift Print Server.vbs`** | HKCU **Run** `EcoThriftPrintServer` |
 | `/settings` | **No** (404) | **Yes** |
 
-**Stores:** Running **Install** on `ecothrift-printserver-setup.exe` calls **`cleanup_legacy_prior()`** in [`printserver/installer/setup.py`](../../printserver/installer/setup.py): stops port **8888** + frozen exe, deletes V2 Startup VBS, removes `C:\DashPrintServer` / `C:\PrintServer` only when both `print_server.py` and `venv\` exist, then wipes old V3 dir and installs fresh. **Uninstall** from setup GUI also runs that cleanup after removing V3. If `C:\...` removal fails, **Run setup as Administrator**.
+**Stores:** Running **Install** on `ecothrift-printserver-setup.exe` calls **`cleanup_legacy_prior()`** in [`printserver/installer/setup.py`](../../printserver/installer/setup.py): stops port **8888** + frozen exe, deletes V2 Startup VBS, removes `%SystemDrive%\DashPrintServer` / `%SystemDrive%\PrintServer` only when both `print_server.py` and `venv\` exist, then wipes old V3 dir and installs fresh. **Uninstall** from setup GUI also runs that cleanup after removing V3. If `%SystemDrive%\...` removal fails, **Run setup as Administrator**.
 
 **IT optional:** [`printserver/installer/uninstall_legacy_prior.bat`](../../printserver/installer/uninstall_legacy_prior.bat) — best-effort CMD mirror (not uploaded separately to S3 by default).
 

@@ -1,4 +1,4 @@
-<!-- Canonical: C:\Coding\.ai\templates\protocols\deploy.md — v3 2026-10-02 (was ship-heroku.md). Copy into <project>/.ai/protocols/ (projects with a Heroku app), APP = ecothrift-dashboard. Project-only steps go in the marked section at the end. -->
+<!-- Canonical: {master}/templates/protocols/deploy.md — v4 2026-10-21 (machine log row, D21; v3 2026-10-02 was ship-heroku.md). Copy into <project>/.ai/protocols/ (projects with a Heroku app), APP = ecothrift-dashboard. Project-only steps go in the marked section at the end. -->
 # Protocol: Deploy
 
 **IF** this file is `@`-mentioned **OR** the user says deploy / push to Heroku
@@ -16,11 +16,12 @@
 4. **Push.** `git push heroku origin/main:refs/heads/main`. Never force. (May be one run of `scripts\deploy\deploy.bat`.)
 5. **Release phase.** `heroku releases -a ecothrift-dashboard` — the new release succeeded and migrations ran. Failed → **STOP** and report; don't retry blindly.
 6. **Smoke.** The app shows the new `.version`; the sign-in page loads; one read-only page loads. If the release changed where files are stored, run the automated all-files check (`standards/storage.md`) before asking the user to click.
-7. **STOP.** Report: version, commit, Heroku release number, smoke result, and anything left out because it is not shipped yet.
+7. **Log it** (D21). Add a **deploy** row at the top of `docs/machines.md` § Ship and deploy log: today, `vX.Y.Z`, the commit, the Heroku release, this machine's house name, this session's title. Don't commit it: a deploy never commits, so the row goes out with the next ship.
+8. **STOP.** Report: version, commit, Heroku release number, machine, smoke result, and anything left out because it is not shipped yet.
 
 ## Do not
 
-- Deploy a commit that is not on `origin/main`, or commit or ship as part of a deploy.
+- Deploy a commit that is not on `origin/main`, or commit or ship as part of a deploy (the log row waits for the next ship).
 - Take a database backup, or ask the user for one, as part of a deploy.
 - Force-push, roll back, or restart dynos unless the user orders it.
 - Pull production data or run one-off production commands as part of a deploy.

@@ -1,4 +1,4 @@
-<!-- Canonical: C:\Coding\.ai\templates\protocols\initiative-review.md — v2 2026-09-30 (from ecothrift-dashboard; flat `_archived/`). Copy unchanged into <project>/.ai/protocols/. Project-only steps go in the marked section at the end. -->
+<!-- Canonical: {master}/templates/protocols/initiative-review.md — v2.1 2026-10-21 (relative paths, D21; v2 2026-09-30 from ecothrift-dashboard; flat `_archived/`). Copy unchanged into <project>/.ai/protocols/. Project-only steps go in the marked section at the end. -->
 # Protocol: Review initiatives
 
 Coding often outruns the files. This pass reconciles Active / Pending / Backlog with what actually shipped, then you approve moves.

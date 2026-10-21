@@ -1,4 +1,4 @@
-<!-- Canonical: C:\Coding\.ai\templates\protocols\ship.md — v3 2026-10-02 (was ship-git.md). Copy unchanged into <project>/.ai/protocols/. Project-only steps go in the marked section at the end. -->
+<!-- Canonical: {master}/templates/protocols/ship.md — v4 2026-10-21 (machine log row, D21; v3 2026-10-02 was ship-git.md). Copy unchanged into <project>/.ai/protocols/. Project-only steps go in the marked section at the end. -->
 # Protocol: Ship
 
 **IF** this file is `@`-mentioned **OR** the user says ship / ship it / push to GitHub
@@ -16,14 +16,15 @@
    - Due **M / X / `bill`** rows: list them as "due, needs you" and do nothing else with them here.
    - Nothing due: say so in one line.
 3. **Check the tree.** `git status`. Nothing secret or real data staged (`.env*`, keys, dumps, exports, `workspace/`). Run the test command named in `context.md` — every test file collected, on Postgres (house rule); report failures against the known baseline and ask before continuing if anything is new.
-4. **Pick the bump** (`C:\Coding\.ai\standards\protocols.md`): PATCH = fixes only · MINOR = new feature or migration · MAJOR = breaking for users or a platform jump. Tell the user the bump and why in one line.
+4. **Pick the bump** (`{master}/standards/protocols.md`): PATCH = fixes only · MINOR = new feature or migration · MAJOR = breaking for users or a platform jump. Tell the user the bump and why in one line.
 5. **CHANGELOG.md** — rename `## [Unreleased]` → `## [vX.Y.Z] — YYYY-MM-DD` (America/Chicago). Add a fresh empty `## [Unreleased]` above it.
 6. **`.version`** — write `vX.Y.Z` (one line).
 7. **`.ai/context.md`** — fix **Active work** if this release finished or changed something there. Never write the semver into the compass.
-8. **`scripts/deploy/commit_message.txt`** — first line `vX.Y.Z — <one-line summary>`, blank line, then the changelog section body.
-9. **Commit:** `git add -A` then `git commit --file=scripts/deploy/commit_message.txt`.
-10. **Push:** `git push origin main`. Never force. (Steps 9–10 may be one run of `scripts\deploy\ship.bat`.)
-11. **STOP.** Report: version, commit hash, that `origin/main` has it, standards rows done in this release, due rows still waiting on the user. Say in one line that it is not on Heroku until the user says deploy.
+8. **`docs/machines.md`** (D21) — add a **ship** row at the top of § Ship and deploy log: today, `vX.Y.Z`, this machine's house name, this session's title. If this isn't the current build machine, you said so at startup; on the user's go, update § Current build machine.
+9. **`scripts/deploy/commit_message.txt`** — first line `vX.Y.Z — <one-line summary>`, blank line, then the changelog section body.
+10. **Commit:** `git add -A` then `git commit --file=scripts/deploy/commit_message.txt`.
+11. **Push:** `git push origin main`. Never force. (Steps 10–11 may be one run of `scripts\deploy\ship.bat`.)
+12. **STOP.** Report: version, commit hash, machine, that `origin/main` has it, standards rows done in this release, due rows still waiting on the user. Say in one line that it is not on Heroku until the user says deploy.
 
 ## Do not
 
@@ -35,10 +36,10 @@
 
 ## Project steps
 
-- **Other threads (before step 2).** `git fetch origin`. If `origin/main` moved, merge it and bump past the newest version on `main`. Never ship half-done work: when the main tree holds later, unshipped work (or `comm/RUNNING-NOW.md` says so), ship from a worktree on `origin/main` under `C:\Coding\_worktrees\ecothrift-dashboard--<slug>`: apply only this release's files there, bump and commit there, then `git push origin <branch>:main`. The dated walk-through is in [`calendar.md`](../calendar.md).
+- **Other threads (before step 2).** `git fetch origin`. If `origin/main` moved, merge it and bump past the newest version on `main`. Never ship half-done work: when the main tree holds later, unshipped work (or `comm/RUNNING-NOW.md` says so), ship from a worktree on `origin/main` under `_worktrees/ecothrift-dashboard--<slug>` at the coding root (where that is: `docs/machines.md`): apply only this release's files there, bump and commit there, then `git push origin <branch>:main`. The dated walk-through is in [`calendar.md`](../calendar.md).
 - **Tests (step 3).** `python scripts/dev/lean_test.py tsc` on the exact tree being pushed when the front end changed (Heroku's build runs `tsc` and rejects the deploy on any error), plus `python -c "import compileall,sys; sys.exit(0 if compileall.compile_dir('apps', quiet=1) else 1)"`. Known failures: [`comm/runner/baseline.md`](../comm/runner/baseline.md). A seeded setting's description is at most 255 characters (a longer one fails the release phase).
 - **Docs audit (before step 4).** Fix any of these the release made wrong, and bump each file's `<!-- Last updated -->`: `context.md` (Active work, Extended docs TOC), `initiatives/_index.md` and the initiative file (phase, `## Record`), `extended/<domain>.md` (models, routes, auth, behaviour), `extended/known-issues.md`, root `README.md` (onboarding).
 - **Version (step 6).** Root `package.json` `"version"` = `.version` without the `v` (Heroku builds from it); the file must stay valid JSON. `frontend/package.json` stays `0.0.0`. Name the initiative (or "outside initiatives") on the CHANGELOG theme line.
-- **Steps 9–10** may run as `scripts\deploy\ship.bat` (optional argument: the branch to push to `main`, for a worktree). It never asks anything. Never run it from a tree that holds later, unshipped work.
-- **Thrift+ sign-in, join or finalize changed (owner 2026-10-20).** Before step 9, walk every row of [`extended/thrift-plus-surfaces.md`](../extended/thrift-plus-surfaces.md): each one shows the change (or says why not), and the file's words match. A new place gets a row in the same release.
+- **Steps 10–11** may run as `scripts\deploy\ship.bat` (optional argument: the branch to push to `main`, for a worktree). It never asks anything. Never run it from a tree that holds later, unshipped work.
+- **Thrift+ sign-in, join or finalize changed (owner 2026-10-20).** Before step 10, walk every row of [`extended/thrift-plus-surfaces.md`](../extended/thrift-plus-surfaces.md): each one shows the change (or says why not), and the file's words match. A new place gets a row in the same release.
 - **Print server** releases separately: [`ship-print-server.md`](ship-print-server.md) (`VERSION` in `printserver/config.py`, not `.version`).

@@ -7,7 +7,7 @@ The owner (Bill) ended the Helper session on 2026-10-02 and gave **all** of its 
 
 - Everything the Helper built is **shipped and in `origin/main`** except one piece: the Thrift+ scanner on the real API (saved as a patch, see § 3).
 - The Helper's worktrees, branches and private test database are **removed**. One worktree is left on purpose: the scanner (§ 3).
-- The **main checkout** (`C:\Coding\ecothrift-dashboard`, `main` at `13e10dfe`) is 10 commits behind `origin/main` and holds a large uncommitted pile. Part of that pile is the Helper's `.ai/` and `scripts/` work that is **not in `origin/main` yet** (§ 2). Catching the main checkout up is the first job.
+- The **main checkout** (`main` at `13e10dfe`) is 10 commits behind `origin/main` and holds a large uncommitted pile. Part of that pile is the Helper's `.ai/` and `scripts/` work that is **not in `origin/main` yet** (§ 2). Catching the main checkout up is the first job.
 - Production: Heroku `ecothrift-dashboard` is on release **v384 = `aad4a23c` = v2.118.0**. Your v2.119.0 (`94c709ee`) is on GitHub and was not on Heroku when this was written.
 
 ---
@@ -33,7 +33,7 @@ Each release has a full entry in `CHANGELOG.md` and a dated note in `.ai/calenda
 
 ## 2. The main checkout: what is still only there (not in `origin/main`)
 
-Your commit `94c709ee` carried a snapshot of the main checkout from **before** the Helper's 10-01 work in `.ai/`. These exist only in the working tree of `C:\Coding\ecothrift-dashboard`:
+Your commit `94c709ee` carried a snapshot of the main checkout from **before** the Helper's 10-01 work in `.ai/`. These exist only in the main checkout's working tree:
 
 **New files**
 - `.ai/initiatives/standards.md` (replaces `tech_target.md`: one list, every row has a Due; 23 open rows, deviations DR1 to DR3, Done rows)
@@ -70,7 +70,7 @@ This is row **T55** in `standards.md`.
 
 ## 3. The one unshipped piece: the Thrift+ scanner on the real API
 
-- **Where:** worktree `C:\Coding\_worktrees\ecothrift-dashboard--thrift-scanner`, branch `thrift-scanner-mock`, based on `13e10dfe`, **uncommitted**. It has its own real `frontend/node_modules` (not a junction) and a hard link to `.env`.
+- **Where:** worktree `_worktrees/ecothrift-dashboard--thrift-scanner`, branch `thrift-scanner-mock`, based on `13e10dfe`, **uncommitted**. It has its own real `frontend/node_modules` (not a junction) and a hard link to `.env`.
 - **What it is:** the customer scanner (`/scan`) moved off the mock onto the real `thriftPlusScanner.api`; `AccountScreens.tsx` (+ test), "My account" in `CartPage.tsx`, `?reset=` and `?view=account` in `ThriftPlusScannerPage.tsx`; and a server fix in `apps/thriftplus/public_views.py` (`_me_payload` helper, so card-lost and remove-person no longer answer 405) with a test.
 - **Saved copy:** `workspace/handoff-2026-10-02/`
   - `thrift-scanner.code-only.patch` applies cleanly on `94c709ee` (`git apply --check` passed).
@@ -93,7 +93,7 @@ This is row **T55** in `standards.md`.
 
 **Left, yours to decide**
 - Worktree `_worktrees\ecothrift-dashboard--thrift-scanner` + branch `thrift-scanner-mock` (§ 3).
-- Your own worktree `C:\Coding\ecothrift-intake` (branch `intake-standard`). House rule D7: nothing at the `C:\Coding` root; worktrees live in `C:\Coding\_worktrees\`.
+- Your own worktree `ecothrift-intake` at the coding root (branch `intake-standard`). House rule D7: nothing at the coding root; worktrees live in `_worktrees/`.
 - Local branch `kiosk` (`562eecb3`, old handoff branch) and remote branches `origin/hotfix/prod-fix`, `origin/wip/initiatives-2026-07-17`. The Helper never touched them.
 - `refs/runner/R-001` … `R-049` (runner test snapshots).
 - Local test databases from old runner runs: `test_r038_pytest`, `test_r043_qa`, `test_r044_qa`, `test_r045_qa`, `test_r046_qa`, `test_r047_qa`, `test_r049_py`, `test_r049_qa`. (`test_local_shared` is the normal one; `test_rollins` belongs to another project.)
@@ -163,4 +163,4 @@ This is row **T55** in `standards.md`.
 
 ## 12. Memory
 
-The auto-memory folder `C:\Users\bill_\.claude\projects\C--Coding-ecothrift-dashboard\memory\` is shared by every session on this repo. The Helper wrote or updated: `weekend-count-fixes.md`, `thrift-plus-legal-memo.md`, `ship-tested-snapshot.md`, and `helper-handoff.md` (points here).
+The auto-memory folder `%USERPROFILE%\.claude\projects\C--Coding-ecothrift-dashboard\memory\` is shared by every session on this repo. The Helper wrote or updated: `weekend-count-fixes.md`, `thrift-plus-legal-memo.md`, `ship-tested-snapshot.md`, and `helper-handoff.md` (points here).

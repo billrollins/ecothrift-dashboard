@@ -1,10 +1,10 @@
-<!-- Canonical: C:\Coding\.ai\templates\protocols\env-sync.md — v1.1 2026-10-02. Copy unchanged into <project>/.ai/protocols/ (hosted projects). Project-only steps go in the marked section at the end. -->
+<!-- Canonical: {master}/templates/protocols/env-sync.md — v1.2 2026-10-21 (relative paths, D21; v1.1 2026-10-02). Copy unchanged into <project>/.ai/protocols/ (hosted projects). Project-only steps go in the marked section at the end. -->
 # Protocol: Env sync
 
 **IF** this file is `@`-mentioned **OR** the user says pull env / push env / env diff / sync env / add an env key
 **THEN** do every step below that fits the request, in order.
 
-House standard: `C:\Coding\.ai\standards\scripts-and-env.md` § Env. Tool: `scripts/env/` (vendored from master's `env-sync` package — never edit it here).
+House standard: `{master}/standards/scripts-and-env.md` § Env. Tool: `scripts/env/` (vendored from master's `env-sync` package — never edit it here).
 
 ## The files
 
