@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-20 (T62: CustomerProfile retired; a customer is a login in the Customer group plus a Thrift+ person) -->
+<!-- Last updated: 2026-10-21 (register PIN: one per staff member) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -100,6 +100,21 @@ Code: `apps/accounts/services/idle.py`, `apps/accounts/authentication.py`. Tests
 | Thrift+ Staff (`/staff`, store phones) | Same Dash sign-in, so the 4-hour staff limit. |
 | Not touched | Customers (website session) and the Thrift+ Member app (`tp_session`): only `is_staff_login` accounts are timed out. A session with no `last_active_at` yet (started before this shipped) is let in and stamped. |
 | Browser | A refused refresh stores the message (`rememberIdleSignOut`), sends the person to `/login`, and the sign-in page shows it once (`login-idle-notice`). The kiosk shows its manager overlay instead. |
+
+---
+
+## Register PIN (2026-10-21)
+
+One PIN per staff member for the register (manager approvals, Cover). Code: `apps/accounts/services/register_pin.py`. Tests: `apps/accounts/tests/test_register_pin.py`.
+
+| Piece | How |
+|-------|-----|
+| Who | Any active staff login (Employee, Manager, Admin, owner). A switched-off login or ended employment has no working PIN. |
+| Set | The person sets their own (Me page): 4 to 6 digits. Too-easy PINs (1111, 1234, 9876) are refused. A manager can clear a forgotten one. Each set and clear is an `AccountEvent`. |
+| Unique | A PIN alone says who it is. Stored as `User.register_pin_hash` (HMAC with the server secret, unique), never the PIN. A PIN someone else has: "Pick a different PIN"; five of those in an hour stop that person for the hour. |
+| Check | `check_pin(pin, device=..., min_role=None)` answers the user or raises `PinError` (`PIN_WRONG`, `PIN_LOCKED`, `PIN_NEEDED`). A right PIN below `min_role` counts as wrong. |
+| Lockout | Five wrong tries in a row lock PIN entry **on that register or device** for 15 minutes (`device_key(request, register)`; REG-11: never store-wide). A right PIN clears the count. |
+| Logging | Each caller logs what the PIN approved. |
 
 ---
 

@@ -1,17 +1,9 @@
-v2.189.3 — D21: docs/machines.md, relative paths with a lint, protocols re-copied (startup v1.2, ship v4, deploy v4)
+v2.190.0 — A register PIN for every staff member
 
-## [2.189.3] - 2026-10-21
-
-User-facing theme: **Dash moves between PCs cleanly: one file says where things are on each machine, and nothing else names a drive; nothing changes on screen (master's D21, Bill 2026-10-21).** Standards T77-T79.
+User-facing theme: **Every staff member can have their own register PIN (Bill, 2026-10-21, critic review point 3).** Outside initiatives (critic-review release list).
 
 ### Added
-- **`docs/machines.md`** (D21): the Bench row (computer name, board UUID), current build machine Bench, the tool paths scripts may need (psql 18, headless Edge), and a ship and deploy log that starts with one history row for v1.0.0-v2.189.2. Each ship and deploy adds a row from now on.
-- **Path lint:** `python scripts/dev/lean_test.py paths` fails when a tracked file holds a drive-letter path; it runs in the `quick` and `ship` suites. It skips `docs/machines.md`, every `CHANGELOG.md`, `.ai/comm/` and archive or retired folders.
-
-### Changed
-- **Relative paths everywhere else:** master's files are written `{master}/...`, this repo's paths are repo-relative, and the main checkout is found with `git worktree list` (AGENTS.md, `.ai/` docs and protocols, the runner protocol, reports, notebooks, the env-sync script headers).
-- **Protocols re-copied from master** with this repo's steps kept: startup v1.2 (checks which machine it is on), ship v4 and deploy v4 (a log row each), and the header and path updates check_comm v4.1, standards-review v1.1, env-sync v1.2, initiative-create v1.1, initiative-review v2.1.
-- **Print server installer:** the old V2 folders are found on the system drive (`%SystemDrive%`) instead of a written `C:`; same result on every store PC. No print-server version change.
-- `.claude/launch.json`: dropped eight dev-server entries for finished worktrees.
+- **Register PIN per person:** each staff member can have their own 4-6 digit register PIN (set on the Me page, coming next). It is kept scrambled; a PIN alone says who it is; five wrong tries lock PIN entry on that register for 15 minutes (only that register). The register will use it for manager approvals and Cover.
+- **Docs:** the critic-review digest (Bill's decisions, point by point, and the release list) and the B-Stock dispute material.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

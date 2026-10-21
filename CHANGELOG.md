@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.189.3] -->
-<!-- Last reviewed: 2026-10-21 (2.189.3) -->
+<!-- Line 1 release: ## [2.190.0] -->
+<!-- Last reviewed: 2026-10-21 (2.190.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.190.0] - 2026-10-21
+
+User-facing theme: **Every staff member can have their own register PIN (Bill, 2026-10-21, critic review point 3).** Outside initiatives (critic-review release list).
+
+### Added
+- **Register PIN per person:** each staff member can have their own 4-6 digit register PIN (set on the Me page, coming next). It is kept scrambled; a PIN alone says who it is; five wrong tries lock PIN entry on that register for 15 minutes (only that register). The register will use it for manager approvals and Cover.
+- **Docs:** the critic-review digest (Bill's decisions, point by point, and the release list) and the B-Stock dispute material.
 
 ## [2.189.3] - 2026-10-21
 

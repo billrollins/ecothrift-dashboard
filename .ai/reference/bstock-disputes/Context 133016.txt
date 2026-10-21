@@ -1,0 +1,9 @@
+a dispue that is filed.  this shows what a dispute asks for.  they want the buyer (me) to go through the manifest on screen and mark out all issues and provide 1-4 photos per pallet received and a truck photo and a BOL .
+
+in our system we take all of this but there is no easy way to upload or fill inthe on-screen manifest.  
+
+Bstock Often will give us a new manifest with the lines and fields they want.  So essentially we can be doing this manifest phase many times.  Pre-process; process; our dispute; their dispute, and the final manifest excel request sent again.
+
+SO  what I would like to do is that our dash collects the processed manifest with all of our disputes in it and it formats like the manifest they ask for.  SO at this stage we can drag drop from dash to this and say in there something to the effect of see attached manifest OR better yet we can send a link to the dispute that we just typ into their text window and they can see our dispute PERFECTLY presented to them witgh all the information they could ever need as clean and clear as day.  And if they let me know it can package it all up in a single download excel or pdf or what ever they can submit too their seller
+
+(in this case we could ask for feed back on the dispute page) or track their decisions (do the look at photos do they look at excel do they download as pdf etc.  and once we know we will build it better

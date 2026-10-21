@@ -53,6 +53,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     updated_at = models.DateTimeField(auto_now=True)
     # Last request, login or refresh by this login (services/idle.py, the 4-hour idle sign-out). Stamped, not edited.
     last_active_at = models.DateTimeField(null=True, blank=True, editable=False)
+    # Register PIN (services/register_pin.py): one per person, unique, so a PIN alone says who it is. Kept as a keyed
+    # hash (HMAC with the server secret), never the PIN. Set by the person on the Me page.
+    register_pin_hash = models.CharField(max_length=64, unique=True, null=True, blank=True, editable=False)
+    register_pin_set_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     objects = UserManager()
 
@@ -329,12 +333,15 @@ class AccountEvent(models.Model):
     KIND_LOCKED = 'locked_out'
     KIND_MERGED_IN = 'login_merged_in'      # on the staff login (services/login_merge.py)
     KIND_MERGED_INTO = 'merged_into_staff'  # on the customer login that merged in
+    KIND_PIN_SET = 'register_pin_set'
+    KIND_PIN_CLEARED = 'register_pin_cleared'
     KIND_CHOICES = [
         (KIND_CREATED, 'Created'), (KIND_ROLE, 'Role changed'), (KIND_OFF, 'Switched off'), (KIND_ON, 'Switched on'),
         (KIND_USERNAME, 'Username changed'), (KIND_LINK, 'Set-password link issued'),
         (KIND_PASSWORD_SET, 'Password set from a link'), (KIND_PASSWORD_CHANGED, 'Password changed'),
         (KIND_LOCKED, 'Locked out (too many wrong tries)'),
         (KIND_MERGED_IN, 'A customer login merged in'), (KIND_MERGED_INTO, 'Merged into a staff login'),
+        (KIND_PIN_SET, 'Register PIN set'), (KIND_PIN_CLEARED, 'Register PIN cleared'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='account_events')
