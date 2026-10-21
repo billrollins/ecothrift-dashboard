@@ -321,3 +321,23 @@ def _format_money(value) -> str:
     if quantized == quantized.to_integral():
         return f'${int(quantized)}'
     return f'${quantized:.2f}'
+
+
+class AIUsageActorMiddleware:
+    """Start and end every request with no AI user, so a reused worker thread never charges the last person.
+
+    The JWT check sets the user once it knows them (``ai_usage_log.set_request_user``); AI calls made while
+    serving the request are then recorded against that login on the Owner page's AI spend.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        from apps.core.services.ai_usage_log import clear_request_user
+
+        clear_request_user()
+        try:
+            return self.get_response(request)
+        finally:
+            clear_request_user()

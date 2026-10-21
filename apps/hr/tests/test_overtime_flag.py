@@ -127,15 +127,10 @@ class PeopleAndBriefTests(TestCase):
         self.client.force_authenticate(self.over)
         self.assertIsNone(self.client.get('/api/auth/me/').data.get('hours_flag'))
 
-    def test_the_morning_brief_lists_who_is_over_and_no_longer_says_no_overtime_is_approved(self):
-        from apps.core.services import daily_brief
-        from apps.core.services.context_snapshot import _labor
+    def test_the_owner_page_lists_who_is_over(self):
+        from apps.core.services.owner_page import needs_you
 
-        labor = _labor(timezone.localdate(), noon())
-        self.assertEqual([row['who'] for row in labor['over_their_hours']], ['Olive Over'])
-        row = labor['over_their_hours'][0]
-        self.assertEqual(row['text'], 'Over their hours: 43.2 of 40. Forgot to clock out? Fix the time entry.')
-        self.assertIn(f'employee={self.over.pk}', row['link'])
-        self.assertNotIn('Ashley Cleared', [r['who'] for r in labor['over_their_hours']])
-        self.assertNotIn('no overtime is approved', daily_brief.SYSTEM)
-        self.assertIn('over_their_hours', daily_brief.SYSTEM)
+        row = next(i for i in needs_you(noon())['items'] if i['key'] == 'over_hours')
+        self.assertEqual(row['count'], 1)
+        self.assertEqual(row['detail'], 'Olive Over: 43.2 of 40')
+        self.assertNotIn('Ashley Cleared', row['detail'])

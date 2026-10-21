@@ -72,6 +72,8 @@ Built on 2026-09-25, ahead of the calendar:
 - **API and command:** `GET /api/core/brief/` (it starts yesterday's brief if missing), `POST …/brief/write/`, and `build_daily_brief`.
 - **Page:** `/brief`, the top nav item for the superuser.
 
+**Retired 2026-10-21** (owner: unused). The snapshot, brief, command and page were removed (`core.0013`); the **Owner page** (`/owner`: Scorecard, Needs you, owner links, AI spend) replaced it. An AI briefing section can be added there later if the page falls short.
+
 ### Phase 3 — QA framework (data quality first) · built early (09-25), tests R-079 · ship with the next push after it is GREEN
 - Standing checks over live data, like tests over code, then AI triage against the QA standards doc, then items in Requests (the QA inbox).
 - The keyboard-fast review, bulk accept and undo.

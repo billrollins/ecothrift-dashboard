@@ -114,6 +114,7 @@ const RequestsPage = lazy(() => import('./pages/admin/RequestsPage'));
 const QAPage = lazy(() => import('./pages/admin/QAPage'));
 const ThriftPlusPage = lazy(() => import('./pages/thriftplus/ThriftPlusPage'));
 const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'));
+const OwnerPage = lazy(() => import('./pages/owner/OwnerPage'));
 const PartsCommandCenterPage = lazy(() => import('./pages/restoration/parts/PartsCommandCenterPage'));
 const RestorationQueuePage = lazy(() => import('./pages/restoration/queue/RestorationQueuePage'));
 const RestorationBenchPage = lazy(() => import('./pages/restoration/RestorationBenchPage'));
@@ -487,7 +488,15 @@ function AppRoutes() {
           path="/brief"
           element={
             <SuperAdminRoute>
-              <Navigate to="/reports" replace />
+              <Navigate to="/owner" replace />
+            </SuperAdminRoute>
+          }
+        />
+        <Route
+          path="/owner"
+          element={
+            <SuperAdminRoute>
+              <OwnerPage />
             </SuperAdminRoute>
           }
         />

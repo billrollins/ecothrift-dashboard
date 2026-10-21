@@ -48,10 +48,12 @@ class AppSettingViewSet(viewsets.ModelViewSet):
     SUPERUSER_PREFIXES = ('thrift_plus_',)
     # Staff purchases (payroll deduction, staff Thrift+): the owner (Admin) only, though managers edit the rest.
     # Idle sign-out hours (auth.idle_hours, house standard D16) and the pay-level ranges (hr.pay_levels): the owner's call too.
-    # The register's sale names, percents and the line-sale switch too (critic review REG-21).
+    # The register's sale names, percents and the line-sale switch too (critic review REG-21), and the Owner page
+    # Scorecard targets (owner.scorecard_targets, 2026-10-21).
     ADMIN_ONLY = {
         'pos.staff_purchases', 'auth.idle_hours', 'hr.pay_levels', 'pos.labor_day_sale',
         'pos.store_sale_name', 'pos.store_sale_percent', 'pos.line_sale_on', 'pos.line_sale_name', 'pos.line_sale_percent',
+        'owner.scorecard_targets',
     }
 
     def _owner_only(self, key: str) -> None:
@@ -521,64 +523,31 @@ class ApprovalRequestViewSet(viewsets.ReadOnlyModelViewSet):
         return self._act(request, approval_requests.resume)
 
 
-def _brief_payload(day):
-    from .models import DailyBrief
-    from .services.daily_brief import SYSTEM, is_writing, settle, user_message
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def owner_scorecard(request):
+    """Owner page: Net item sales, buying % of processing, processing % of sales, labor, Thrift+ owed."""
+    from .services.owner_page import scorecard
 
-    brief = settle(DailyBrief.objects.select_related('snapshot').filter(day=day).first())
-    return {
-        'day': day.isoformat(),
-        'brief': None if brief is None else {
-            'status': brief.status,
-            'body': brief.body,
-            'model_used': brief.model_used,
-            'error': brief.error,
-            'finished_at': brief.finished_at,
-        },
-        'writing': is_writing(brief),
-        'snapshot': brief.snapshot.data if brief and brief.snapshot_id else None,
-        'prompt': {'system': SYSTEM, 'user': user_message(brief.snapshot.data)} if brief and brief.snapshot_id else None,
-        'days': [d.isoformat() for d in DailyBrief.objects.values_list('day', flat=True)[:30]],
-    }
+    return Response(scorecard())
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsSuperAdmin])
-def daily_brief(request):
-    """
-    The AI supervisor's brief (Dash → Brief). ``?day=YYYY-MM-DD``, default yesterday. Opening
-    the default day with no brief yet starts writing it in the background.
-    """
-    from datetime import date as date_cls
+def owner_needs_you(request):
+    """Owner page: what is waiting on the owner, with counts and links."""
+    from .services.owner_page import needs_you
 
-    from .models import DailyBrief
-    from .services.daily_brief import default_day, start
-
-    raw = request.query_params.get('day')
-    try:
-        day = date_cls.fromisoformat(raw) if raw else default_day()
-    except ValueError:
-        return Response({'detail': 'day must be YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
-    if not raw and not DailyBrief.objects.filter(day=day).exists():
-        start(day)
-    return Response(_brief_payload(day))
+    return Response(needs_you())
 
 
-@api_view(['POST'])
+@api_view(['GET'])
 @permission_classes([IsAuthenticated, IsSuperAdmin])
-def daily_brief_write(request):
-    """(Re)write the brief for ``day`` (default yesterday) in the background."""
-    from datetime import date as date_cls
+def owner_ai_spend(request):
+    """Owner page: AI spend for ``?range=today|week|month`` (default today), by feature and by who."""
+    from .services.owner_page import ai_spend
 
-    from .services.daily_brief import default_day, start
-
-    raw = request.data.get('day')
-    try:
-        day = date_cls.fromisoformat(raw) if raw else default_day()
-    except ValueError:
-        return Response({'detail': 'day must be YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
-    start(day)
-    return Response(_brief_payload(day), status=status.HTTP_202_ACCEPTED)
+    return Response(ai_spend(request.query_params.get('range') or 'today'))
 
 
 # ── Error alerts (critic review 2026-10-21, point 8) ─────────────────────────

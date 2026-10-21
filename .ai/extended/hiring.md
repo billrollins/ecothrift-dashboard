@@ -153,7 +153,7 @@ The careers page, applications, and the People workspace. Design and phases: [`i
   - managers: `/api/hiring/checkins/?when=due|upcoming|done|all`, `checkins/schedule/`, `checkins/<id>/` (GET and PATCH), `<id>/sign/`, `<id>/skip/` and `<id>/pdf/` (the PDF is also open to the employee it's about);
   - the employee: `/api/hiring/me/checkins/`.
 - **UI:** `CheckInsPage.tsx` (People → Check-ins), `MyCheckInsPage.tsx` (`/check-ins`), `checkinUi.tsx`, and the banner in `MyOnboardingBanner.tsx`.
-- **Brief:** `context_snapshot._hiring` (the `hiring` section).
+- **Owner page:** Needs you counts offers to send, offers waiting for a signature and check-ins due (`apps/core/services/owner_page.py`). The morning brief that carried them was retired 2026-10-21.
 
 ## Test data on dev
 

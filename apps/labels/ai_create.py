@@ -10,6 +10,7 @@ import json
 import logging
 import math
 import re
+from decimal import Decimal
 from typing import Any
 
 import requests
@@ -33,6 +34,9 @@ from .definition import (
 )
 
 logger = logging.getLogger(__name__)
+
+# What one generated background image costs (xAI list price), for the Owner page's AI spend.
+IMAGE_COST_USD = Decimal('0.07')
 
 # Nearest-match targets for xAI aspect_ratio (width:height).
 _ASPECT_TARGETS: list[tuple[str, float]] = [
@@ -246,6 +250,11 @@ def generate_background_image(
     except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
         raise LabelAIError('Image API returned an unexpected response.') from exc
 
+    from apps.core.services.ai_usage_log import log_ai_usage
+
+    # Images are priced per picture, not per token (xAI's list price for one generated image).
+    log_ai_usage('label_ai_image', model_id, purpose='LABEL_IMAGE', cost_usd=IMAGE_COST_USD,
+                 detail=f'{aspect} {width_in}x{height_in} in')
     return {
         'image_b64': b64,
         'content_type': 'image/png',

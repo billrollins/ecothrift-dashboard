@@ -10,7 +10,7 @@ Full-stack business management for Eco-Thrift, a thrift store in Omaha, NE. It c
 - Thrift+ member rewards, consignment, and buying (B-Stock)
 - the public storefront and Online Sales
 - restoration (TARS), routines and Retail QA
-- the data platform (Requests center, AI brief, local warehouse)
+- the data platform (Requests center, Owner page, local warehouse)
 
 Stack: Django 5.2 + DRF, React 18.3 + TypeScript + MUI 7, PostgreSQL (schema `ecothrift` on the shared add-on). Runs on Heroku (stack heroku-26 since 2026-10-21) app `ecothrift-dashboard` (`dash.ecothrift.us`, public site `ecothrift.us`). Tier: core (house standards: `{master}/standards/projects.md`).
 

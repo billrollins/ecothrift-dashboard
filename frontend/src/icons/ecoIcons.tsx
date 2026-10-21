@@ -115,7 +115,7 @@ export const NOTES = {
   blog: { kind: 'page', use: 'Blog studio', metaphor: 'PAGE with a pen laid across it; the pen is kraft.' },
   shifts: { kind: 'page', use: 'Shifts (roster)', metaphor: 'CALENDAR with a small clock in the lower right; the clock is kraft.' },
   payroll: { kind: 'page', use: 'Time and payroll', metaphor: 'CLOCK with a coin overlapping its lower right; the coin is kraft.' },
-  brief: { kind: 'page', use: 'Brief (daily AI supervisor brief)', metaphor: 'PAGE with text lines and a four-point sparkle; the sparkle is kraft.' },
+  owner: { kind: 'page', use: 'Owner (scorecard, needs you, AI spend)', metaphor: 'A key: round bow, shaft and two teeth; the bow is kraft.' },
   thriftPlus: { kind: 'page', use: 'Thrift+', metaphor: 'A membership card with a stripe and a plus sign; the plus is kraft.' },
   reports: { kind: 'page', use: 'Reports (owner: sales tax and the monthly reports)', metaphor: 'PAGE with three bars of a bar chart; the tallest bar is kraft.' },
   requests: { kind: 'page', use: 'Requests (owner approvals)', metaphor: 'A rubber stamp above its stamped line; the stamped line is kraft.' },
@@ -573,12 +573,12 @@ const ART: Record<keyof typeof NOTES, ReactNode> = {
       <AccentFill><circle cx="17" cy="17" r="4"/></AccentFill>
     </>
   ),
-  brief: (
+  owner: (
     <>
-      <Wash><path d="M14 2.5H6.5A1.5 1.5 0 0 0 5 4v16a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 20V7.5L14 2.5z"/></Wash>
-      <path d="M14 2.5H6.5A1.5 1.5 0 0 0 5 4v16a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 20V7.5L14 2.5z"/>
-      <path d="M8 8h5"/>
-      <AccentFill><path d="M12 11.5Q12 15 15.5 15Q12 15 12 18.5Q12 15 8.5 15Q12 15 12 11.5Z"/></AccentFill>
+      <Wash><circle cx="7" cy="12" r="4.5"/></Wash>
+      <path d="M11.5 12H21.5"/>
+      <path d="M18.5 12v3.5M15.5 12v2.5"/>
+      <Accent><circle cx="7" cy="12" r="4.5"/></Accent>
     </>
   ),
   thriftPlus: (

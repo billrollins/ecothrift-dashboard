@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.195.0] -->
-<!-- Last reviewed: 2026-10-21 (2.195.0) -->
+<!-- Line 1 release: ## [2.196.0] -->
+<!-- Last reviewed: 2026-10-21 (2.196.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.196.0] - 2026-10-21
+
+User-facing theme: **An Owner page for Bill, AI spend on it, and the morning brief retired (Bill, 2026-10-21, critic review points 4 and 9).** Outside initiatives (critic-review release list); standards T37 partly done.
+
+### Added
+- **Owner page** (owner only, in the menu next to Dashboard): this week's and month's Net item sales, buying and processing against your targets (buying 40-50% of processing, processing 120% of sales; an owner setting), labor, what Thrift+ members are owed and its 8-week trend, everything waiting on you (Requests, time changes, people over their hours, late returns, offers, check-ins, data checks, site errors), the latest site errors, and links to every owner page. One column on a phone (Needs you first), two on a computer.
+- **AI spend:** every AI call is recorded (feature, who or which job, cost) and shown on the Owner page for Today / This week / This month, by feature and by who.
+
+### Removed
+- **The morning brief** (unused). The Owner page replaces it; Reports keeps Sales tax. Old /brief links open the Owner page.
 
 ## [2.195.0] - 2026-10-21
 

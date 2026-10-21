@@ -146,6 +146,9 @@ def _ask(rows: list[dict]) -> tuple[dict, str]:
         messages=[{'role': 'user', 'content': '\n\n'.join(pages) + f'\n\nCheck these model slugs:\n{lines}'}],
         tools=[SCHEMA],
     )
+    from apps.core.services.ai_usage_log import log_ai_usage
+
+    log_ai_usage('ai_price_check', getattr(response, 'model', CHECKER), usage=getattr(response, 'usage', None))
     for block in response.content:
         if getattr(block, 'type', '') == 'tool_use' and getattr(block, 'name', '') == TOOL:
             return dict(block.input), getattr(response, 'model', CHECKER)

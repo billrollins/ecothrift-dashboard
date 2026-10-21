@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass
 
 from django.conf import settings
@@ -565,6 +566,7 @@ def llm_complete(
     log_detail: str = '',
     log_auction_id: int | None = None,
     log_marketplace: str | None = None,
+    log_purpose: str = '',
     effort: str | None = None,
     max_retries: int | None = None,
 ) -> LLMResult:
@@ -572,6 +574,9 @@ def llm_complete(
 
     Pass either ``user`` (single-turn) or ``messages`` (multi-turn, anthropic-style
     role/content dicts; content blocks are flattened to text for xAI/Google).
+
+    Every successful call is recorded in ``AIUsage`` (the Owner page's AI spend), with ``log_source`` as the
+    feature (else the purpose). Failed calls are logged by the callers that catch them.
     """
     mid = (model_id or '').strip()
     provider = resolve_provider(mid)
@@ -597,6 +602,7 @@ def llm_complete(
         'force_tool': quirks['forced_tool'],
         'max_retries': max_retries,
     }
+    started = time.monotonic()
     for attempt in range(4):
         try:
             result = _PROVIDER_CALLS[provider](**call)
@@ -608,25 +614,26 @@ def llm_complete(
                 'LLM %s rejected an optional parameter; retrying without it: %s', mid, exc,
             )
 
-    if log_source:
-        try:
-            from apps.core.services.ai_usage_log import log_ai_usage
+    try:
+        from apps.core.services.ai_usage_log import log_ai_usage
 
-            log_ai_usage(
-                log_source,
-                result.model_used,
-                input_tokens=result.input_tokens,
-                output_tokens=result.output_tokens,
-                cache_creation_tokens=result.cache_creation_tokens,
-                cache_read_tokens=result.cache_read_tokens,
-                auction_id=log_auction_id,
-                marketplace=log_marketplace,
-                detail=log_detail,
-                success=True,
-                error=None,
-            )
-        except Exception:  # noqa: BLE001 - usage logging must never fail a call
-            logger.exception('AI usage logging failed for %s', log_source)
+        log_ai_usage(
+            log_source or (log_purpose or 'llm').lower(),
+            result.model_used,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            cache_creation_tokens=result.cache_creation_tokens,
+            cache_read_tokens=result.cache_read_tokens,
+            auction_id=log_auction_id,
+            marketplace=log_marketplace,
+            purpose=log_purpose,
+            duration_ms=int((time.monotonic() - started) * 1000),
+            detail=log_detail,
+            success=True,
+            error=None,
+        )
+    except Exception:  # noqa: BLE001 - usage logging must never fail a call
+        logger.exception('AI usage logging failed for %s', log_source or log_purpose)
     return result
 
 
@@ -660,6 +667,7 @@ def llm_chat_text(
         log_detail=log_detail,
         log_auction_id=log_auction_id,
         log_marketplace=log_marketplace,
+        log_purpose=purpose,
     )
     return result.text, result.model_used
 
@@ -695,6 +703,7 @@ def llm_chat_tool_input(
         tools=tools,
         log_source=log_source,
         log_detail=log_detail,
+        log_purpose=purpose,
     )
     if not isinstance(result.tool_input, dict) or not result.tool_input:
         raise ValueError(f'Model response missing tool call input for {tool_name}')

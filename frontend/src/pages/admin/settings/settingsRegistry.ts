@@ -387,6 +387,14 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'store',
     kind: 'hours',
   },
+  // Owner page Scorecard (2026-10-21). Owner only.
+  'owner.scorecard_targets': {
+    label: 'Owner Scorecard targets',
+    help: 'Buying as % of what was processed (a low-high band) and processed as % of Net item sales. Green on the Owner page when on target.',
+    tab: 'store',
+    kind: 'raw',
+    defaultValue: { buying_pct_of_processing: [40, 50], processing_pct_of_sales: 120 },
+  },
   // Edited by its own card on Store (owner only); hidden from the raw lists.
   'pos.staff_purchases': {
     label: 'Staff purchases',
@@ -664,9 +672,9 @@ export function isHiddenKey(key: string): boolean {
   return SETTINGS_REGISTRY[key]?.kind === 'hidden';
 }
 
-/** Only the owner changes these (the server refuses anyone else): Thrift+, staff purchases and the register's sales. */
+/** Only the owner changes these (the server refuses anyone else): Thrift+, staff purchases, the register's sales, the Owner page. */
 export function isOwnerOnlyKey(key: string): boolean {
-  return key.startsWith('thrift_plus_') || key === 'pos.staff_purchases' || OWNER_SALE_KEYS.has(key);
+  return key.startsWith('thrift_plus_') || key.startsWith('owner.') || key === 'pos.staff_purchases' || OWNER_SALE_KEYS.has(key);
 }
 
 const OWNER_SALE_KEYS = new Set([

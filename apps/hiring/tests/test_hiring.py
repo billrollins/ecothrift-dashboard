@@ -1436,12 +1436,12 @@ class CheckInTests(OnboardingTests):
         self.assertEqual(careers.check_doc({'checkin': {'pay_review_days': [45]}})['errors'],
                          ['checkin.pay_review_days: 45 is not one of checkin.days.'])
 
-    def test_due_list_skip_and_the_brief_line(self):
+    def test_due_list_skip_and_the_owner_page_line(self):
         from datetime import timedelta
 
         from django.utils import timezone
 
-        from apps.core.services.context_snapshot import build_snapshot
+        from apps.core.services.owner_page import needs_you
         from apps.hiring.models import CheckIn
         self.hire()
         first = CheckIn.objects.get(user=self.new_hire, day=30)
@@ -1449,9 +1449,10 @@ class CheckInTests(OnboardingTests):
         first.save()
         due = self.staff.get('/api/hiring/checkins/').data
         self.assertEqual([(c['id'], c['overdue']) for c in due], [(first.pk, True)])
-        hiring = build_snapshot()['hiring']
-        self.assertEqual(hiring['checkins_due'][0]['day'], 30)
-        self.assertTrue(hiring['checkins_due'][0]['overdue'])
+        row = next(i for i in needs_you()['items'] if i['key'] == 'checkins_due')
+        self.assertEqual(row['count'], 1)
+        self.assertIn('(30-day)', row['detail'])
+        self.assertEqual(row['tone'], 'error')  # overdue
         self.assertEqual(self.staff.post(f'/api/hiring/checkins/{first.pk}/skip/', {}, format='json').status_code, 400)
         skipped = self.staff.post(f'/api/hiring/checkins/{first.pk}/skip/', {'reason': 'Left the job'}, format='json')
         self.assertEqual(skipped.data['status'], 'skipped')

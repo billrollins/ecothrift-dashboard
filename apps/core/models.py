@@ -348,44 +348,39 @@ class ApprovalRequest(models.Model):
         return f'{self.kind} #{self.pk} ({self.status})'
 
 
-class ContextSnapshot(models.Model):
-    """The Context layer for one day: curated numbers the owner and the AI supervisor read (data_platform Phase 2)."""
+class AIUsage(models.Model):
+    """One AI call: what for, who asked, which model, tokens, estimated cost, time taken (standards T37).
 
-    day = models.DateField(unique=True, help_text='The day the numbers are about (the brief is read the morning after).')
-    data = models.JSONField(default=dict)
-    built_at = models.DateTimeField(auto_now=True)
+    Shape of the house AI router package's table (``models_reference.py`` v1.0.0). Written by
+    ``apps.core.services.ai_usage_log.log_ai_usage``; read by the Owner page's AI spend. ``user`` is the
+    Dash login that asked; a background job has no user and names itself in ``context['job']``.
+    """
 
-    class Meta:
-        ordering = ['-day']
-
-    def __str__(self):
-        return f'Context {self.day}'
-
-
-class DailyBrief(models.Model):
-    """The AI supervisor's morning brief, written only from that day's ContextSnapshot."""
-
-    STATUS_WRITING = 'writing'
-    STATUS_READY = 'ready'
-    STATUS_FAILED = 'failed'
-    STATUS_CHOICES = [(STATUS_WRITING, 'Writing'), (STATUS_READY, 'Ready'), (STATUS_FAILED, 'Failed')]
-
-    day = models.DateField(unique=True)
-    snapshot = models.ForeignKey(ContextSnapshot, on_delete=models.SET_NULL, null=True, blank=True, related_name='briefs')
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_WRITING)
-    # {headline, needs_you: [..], numbers: [..], watch: [..]}
-    body = models.JSONField(default=dict, blank=True)
-    model_used = models.CharField(max_length=100, blank=True, default='')
+    created_at = models.DateTimeField(db_index=True)
+    source = models.CharField(max_length=64, blank=True, default='')  # the code path that called
+    purpose = models.CharField(max_length=64, blank=True, default='')  # AiAction.purpose, when one was used
+    model = models.CharField(max_length=160, blank=True, default='')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='+',
+    )
+    input_tokens = models.PositiveIntegerField(default=0)
+    output_tokens = models.PositiveIntegerField(default=0)
+    cache_creation_tokens = models.PositiveIntegerField(default=0)
+    cache_read_tokens = models.PositiveIntegerField(default=0)
+    estimated_cost_usd = models.DecimalField(max_digits=12, decimal_places=6, default=0)
+    duration_ms = models.PositiveIntegerField(default=0)
+    context = models.JSONField(default=dict, blank=True)  # ids worth keeping, e.g. {'auction_id': 7, 'job': 'run_qa'}
+    detail = models.TextField(blank=True, default='')
+    success = models.BooleanField(default=True)
     error = models.TextField(blank=True, default='')
-    started_at = models.DateTimeField(null=True, blank=True)
-    finished_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-day']
+        ordering = ['-id']
+        indexes = [models.Index(fields=['source', 'created_at'])]
 
-    def __str__(self):
-        return f'Brief {self.day} ({self.status})'
+    def __str__(self) -> str:
+        return f'{self.created_at:%Y-%m-%d %H:%M} {self.source or self.purpose} {self.model}'
 
 
 class AppError(models.Model):

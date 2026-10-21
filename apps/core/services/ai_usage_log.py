@@ -1,19 +1,47 @@
-"""Append-only JSONL log for Anthropic API usage (Phase 4.1B)."""
+"""One ``AIUsage`` row per AI call: what for, who asked, which model, tokens, cost (standards T37).
+
+Before 2026-10-21 this appended to ``workspace/logs/ai_usage.jsonl``, which a Heroku restart wiped. Now every
+call is a row, and the Owner page adds them up (Today / This week / This month, by feature and by who).
+
+**Who.** ``user`` when the caller passes one. Otherwise the Dash login of the request this call runs in: the JWT
+check (``IdleStampJWTAuthentication``) calls :func:`set_request_user`, and ``AIUsageActorMiddleware`` clears it
+at the start and end of every request. With no user, the call is a job: ``context['job']`` names it (the
+``manage.py`` command, or ``'background'`` for a thread a page started).
+"""
 
 from __future__ import annotations
 
-import json
-import threading
-from datetime import datetime
+import contextvars
+import logging
+import sys
 from decimal import Decimal
-from pathlib import Path
 from typing import Any
 
 from django.conf import settings
 
-_lock = threading.Lock()
+log = logging.getLogger(__name__)
 
 _MILLION = Decimal('1000000')
+
+# The Dash login of the request this code runs in (None outside a request, and in threads it starts).
+_request_user: contextvars.ContextVar = contextvars.ContextVar('ai_usage_request_user', default=None)
+
+
+def set_request_user(user) -> None:
+    """Remember the signed-in user of this request, so AI calls made while serving it are charged to them."""
+    _request_user.set(user if getattr(user, 'is_authenticated', False) else None)
+
+
+def clear_request_user() -> None:
+    _request_user.set(None)
+
+
+def current_job() -> str:
+    """The job an AI call with no user belongs to: the ``manage.py`` command, else ``background``."""
+    argv = [a for a in sys.argv if a]
+    if len(argv) >= 2 and argv[0].endswith('manage.py') and argv[1] not in ('runserver', 'test', 'shell'):
+        return argv[1]
+    return 'background'
 
 
 def model_prices(model: str) -> tuple[Decimal, Decimal] | None:
@@ -90,69 +118,63 @@ def log_ai_usage(
     usage: Any = None,
     auction_id: int | None = None,
     marketplace: str | None = None,
+    purpose: str = '',
+    user=None,
+    duration_ms: int = 0,
+    context: dict | None = None,
+    cost_usd: Decimal | None = None,
     detail: str = '',
     success: bool = True,
     error: str | None = None,
 ) -> None:
-    """
-    Append one JSON line. Thread-safe.
+    """Record one AI call. Never raises: a logging problem must not break the AI call.
 
-    Pass either ``usage`` (Anthropic response.usage) or explicit token counts.
-    If ``usage`` is set, it overrides the numeric token arguments.
+    Pass either ``usage`` (Anthropic response.usage) or explicit token counts; ``usage`` wins. ``cost_usd`` is for
+    calls not priced by tokens (an image); otherwise the cost comes from the model's prices.
     """
     if usage is not None:
         input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens = _extract_usage_counts(
             usage
         )
-
     mid = (model or '').strip()
-    estimated = estimate_cost_usd(
-        mid,
-        input_tokens,
-        output_tokens,
-        cache_creation_tokens,
-        cache_read_tokens,
-    )
     try:
-        from django.utils import timezone as dj_tz
+        from django.db import transaction
+        from django.utils import timezone
 
-        ts = dj_tz.localtime(dj_tz.now()).isoformat()
-    except Exception:
-        ts = datetime.now().astimezone().isoformat()
+        from apps.core.models import AIUsage
 
-    record = {
-        'timestamp': ts,
-        'source': source,
-        'model': mid,
-        'input_tokens': int(input_tokens),
-        'output_tokens': int(output_tokens),
-        'cache_creation_tokens': int(cache_creation_tokens),
-        'cache_read_tokens': int(cache_read_tokens),
-        'estimated_cost_usd': float(estimated),
-        'auction_id': auction_id,
-        'marketplace': marketplace,
-        'detail': detail[:2000] if detail else '',
-        'success': success,
-        'error': error,
-    }
-    line = json.dumps(record, ensure_ascii=False) + '\n'
-    with _lock:
-        _ensure_parent(_log_path())
-        with open(_log_path(), 'a', encoding='utf-8') as f:
-            f.write(line)
-
-
-def _log_path() -> Path:
-    base = getattr(settings, 'BASE_DIR', None)
-    if base is None:
-        base = Path.cwd()
-    else:
-        base = Path(base)
-    return base / 'workspace' / 'logs' / 'ai_usage.jsonl'
-
-
-def _ensure_parent(path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+        who = user if user is not None else _request_user.get()
+        ctx = dict(context) if context else {}
+        if auction_id is not None:
+            ctx['auction_id'] = auction_id
+        if marketplace:
+            ctx['marketplace'] = marketplace
+        if who is None and 'job' not in ctx:
+            ctx['job'] = current_job()
+        cost = Decimal(str(cost_usd)) if cost_usd is not None else estimate_cost_usd(
+            mid, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens,
+        )
+        # Its own savepoint, so a failed insert cannot poison the caller's transaction.
+        with transaction.atomic():
+            AIUsage.objects.create(
+                created_at=timezone.now(),
+                source=(source or '')[:64],
+                purpose=(purpose or '')[:64],
+                model=mid[:160],
+                user_id=getattr(who, 'pk', who) or None,
+                input_tokens=max(0, int(input_tokens)),
+                output_tokens=max(0, int(output_tokens)),
+                cache_creation_tokens=max(0, int(cache_creation_tokens)),
+                cache_read_tokens=max(0, int(cache_read_tokens)),
+                estimated_cost_usd=cost.quantize(Decimal('0.000001')),
+                duration_ms=max(0, int(duration_ms)),
+                context=ctx,
+                detail=detail[:2000] if detail else '',
+                success=bool(success),
+                error=str(error)[:2000] if error else '',
+            )
+    except Exception:  # noqa: BLE001
+        log.warning('could not record AI usage for %s / %s', source or purpose, mid, exc_info=True)
 
 
 def log_ai_usage_from_response(

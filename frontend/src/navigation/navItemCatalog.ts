@@ -354,14 +354,22 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'payroll',
     superuserOnly: true,
   },
+  owner: {
+    id: 'owner',
+    path: '/owner',
+    label: 'Owner',
+    // The owner's home (2026-10-21): Scorecard, Needs you, owner links and AI spend. Replaced the morning brief.
+    icon: 'owner',
+    superuserOnly: true,
+    pathAliases: ['/brief'],
+  },
   reports: {
     id: 'reports',
     path: '/reports',
     label: 'Reports',
-    // The owner's page (2026-10-14): the morning brief first, then sales tax and the monthly reports.
+    // The owner's monthly reports (2026-10-14), one tab each: sales tax for now.
     icon: 'reports',
     superuserOnly: true,
-    pathAliases: ['/brief'],
   },
   thriftPlus: {
     id: 'thriftPlus',

@@ -7,9 +7,10 @@ from .views import (
     print_server_version_public,
     dev_log_config, dev_log_line,
     ApprovalRequestViewSet,
-    daily_brief,
-    daily_brief_write,
     app_errors, app_errors_seen, app_error_report,
+    owner_scorecard,
+    owner_needs_you,
+    owner_ai_spend,
 )
 
 router = DefaultRouter()
@@ -29,9 +30,10 @@ urlpatterns = [
     path('system/print-server-version-public/', print_server_version_public, name='print-server-version-public'),
     path('dev-log/config/', dev_log_config, name='dev-log-config'),
     path('dev-log/line/', dev_log_line, name='dev-log-line'),
-    path('brief/', daily_brief, name='daily-brief'),
-    path('brief/write/', daily_brief_write, name='daily-brief-write'),
     path('errors/', app_errors, name='app-errors'),
     path('errors/seen/', app_errors_seen, name='app-errors-seen'),
     path('errors/report/', app_error_report, name='app-error-report'),
+    path('owner/scorecard/', owner_scorecard, name='owner-scorecard'),
+    path('owner/needs-you/', owner_needs_you, name='owner-needs-you'),
+    path('owner/ai-spend/', owner_ai_spend, name='owner-ai-spend'),
 ]

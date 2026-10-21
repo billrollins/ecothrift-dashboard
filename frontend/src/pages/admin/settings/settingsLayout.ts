@@ -62,6 +62,7 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
         keys: ['pos.store_sale_name', 'pos.store_sale_percent', 'pos.line_sale_on', 'pos.line_sale_name', 'pos.line_sale_percent'],
       },
       { id: 'staff-purchases', title: 'Staff purchases', help: 'Payroll deduction at the register.', custom: ['staff-purchases'] },
+      { id: 'owner-page', title: 'Owner page', help: 'Targets on the Owner page Scorecard.', keys: ['owner.scorecard_targets'] },
       {
         id: 'business',
         title: 'Business info',

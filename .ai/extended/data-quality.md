@@ -24,7 +24,7 @@ Initiative: [`data_quality_rails`](../initiatives/data_quality_rails.md).
 
 ## Standing checks (data_platform Phase 3)
 
-Every rail that can be counted is a nightly check in `apps/qa/checks.py`, named by its register ID: `python manage.py run_qa`, shown at Dash `/admin/qa`, and in the morning brief when one gets worse.
+Every rail that can be counted is a nightly check in `apps/qa/checks.py`, named by its register ID: `python manage.py run_qa`, shown at Dash `/admin/qa`, and on the Owner page's Needs you when one gets worse.
 - A check with a safe fix (today SHR-03) stages a Requests item for the owner to approve in production.
 - **Adding a register row with a countable scope?** Add its check with a test in the same change.
 
