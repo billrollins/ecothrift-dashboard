@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 :: Heroku Postgres backup on the shared add-on (app ecothrift-database). Run by the coder; asks nothing.
 :: The backup stays on Heroku. Nothing is downloaded, and no URL or credential is printed.
-:: Not part of a deploy (deploy.md): the coder takes one before a production data job when it is worth it.
+:: deploy.bat takes one itself before the first deploy of the day; use this one before a production data job.
 call heroku pg:backups:capture -a ecothrift-database
 if !errorlevel! neq 0 (
     echo ERROR: backup capture failed.

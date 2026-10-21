@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.193.0] -->
-<!-- Last reviewed: 2026-10-21 (2.193.0) -->
+<!-- Line 1 release: ## [2.193.1] -->
+<!-- Last reviewed: 2026-10-21 (2.193.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.193.1] - 2026-10-21
+
+User-facing theme: **A database backup before the first deploy of each day (Bill, 2026-10-21, critic review point 8).** Outside initiatives (critic-review release list).
+
+### Changed
+- **Deploys:** the first deploy each day (store time) takes a Heroku database backup first; later deploys that day skip it, and the deploy prints one line saying which. A deploy with nothing new stops before the backup. `deploy.bat --dry-run` shows the decision and pushes nothing.
 
 ## [2.193.0] - 2026-10-21
 

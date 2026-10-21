@@ -29,6 +29,7 @@
 
 ## Project steps
 
-- **Step 4** may run as `scripts\deploy\deploy.bat`: it fetches, pushes the `origin/main` commit to Heroku and prints the last releases. It never asks anything, and it works from any checkout or worktree (it pushes `origin/main`, not `HEAD`).
+- **Step 4** may run as `scripts\deploy\deploy.bat`: it fetches, pushes the `origin/main` commit to Heroku and prints the last releases. It never asks anything, and it works from any checkout or worktree (it pushes `origin/main`, not `HEAD`). If Heroku already runs that commit it says so and stops.
+- **Backup before the first deploy of the day** (Bill, 2026-10-21; this project overrides "A database backup is not part of a deploy" above). `deploy.bat` runs `scripts\deploy\_helpers\backup_first_today.ps1` before the push: if no manual backup (`b...`) of `ecothrift-database` completed today (store time, America/Chicago), it captures one; otherwise it skips. One line says which. A failed list or capture stops the deploy. `deploy.bat --dry-run` prints the decision and the commit and pushes nothing.
 - **Step 6 (smoke).** `https://dash.ecothrift.us/login` and `https://ecothrift.us/` answer 200. `https://dash.ecothrift.us/api/core/system/version/` needs a login (it answers 401 without one); the sidebar footer shows the version.
 - **After the release:** production data jobs (backfills, merges) go through `stage_request`, and the owner approves them (Dash → Superuser → Requests, or in this chat). They are never part of a deploy. A backup before a data job is the coder's call: `heroku pg:backups:capture -a ecothrift-database` (the shared add-on's app), run by the coder.

@@ -1,9 +1,8 @@
-v2.193.0 — A Me page for every staff login
+v2.193.1 — Backup before the first deploy of the day
 
-User-facing theme: **A Me page for every staff login (Bill, 2026-10-21, critic review point 3).** Outside initiatives (critic-review release list).
+User-facing theme: **A database backup before the first deploy of each day (Bill, 2026-10-21, critic review point 8).** Outside initiatives (critic-review release list).
 
-### Added
-- **Me page** (click your name in the account menu, or the Me tab in Thrift+ Staff): your details and emergency contact, change password, set your register PIN, Hours & pay, your shifts, onboarding and check-ins, and **Sign out on all devices**.
-- An Admin can clear a forgotten register PIN on the employee's drawer.
+### Changed
+- **Deploys:** the first deploy each day (store time) takes a Heroku database backup first; later deploys that day skip it, and the deploy prints one line saying which. A deploy with nothing new stops before the backup. `deploy.bat --dry-run` shows the decision and pushes nothing.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
