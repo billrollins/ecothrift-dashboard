@@ -3,6 +3,7 @@ import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, 
 import { useSnackbar } from 'notistack';
 import { useEffect, useState } from 'react';
 import {
+  attachThriftCard,
   attachThriftMember,
   detachThriftCard,
   pendingFromError,
@@ -52,7 +53,7 @@ export default function ThriftMemberDialog({ open, onClose, cart, ensureCart, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, personId]);
 
-  async function pick(person: ThriftPendingPerson) {
+  async function pick(person: ThriftPendingPerson, scannedCode?: string) {
     setError('');
     if (person.status !== 'active') {
       setViewing(person.person_id); // still to finish: their card has Finalize
@@ -66,7 +67,10 @@ export default function ThriftMemberDialog({ open, onClose, cart, ensureCart, on
         setError('Open a drawer first, then pick the member.');
         return;
       }
-      const updated = await attachThriftMember(sale.id, person.person_id);
+      // A scanned QR attaches as a scan (they are here: ThriftBucks used at once); a search pick waits for the tap.
+      const updated = scannedCode
+        ? await attachThriftCard(sale.id, scannedCode)
+        : await attachThriftMember(sale.id, person.person_id);
       onCart(updated);
       enqueueSnackbar(`Thrift+ member: ${updated.thrift_plus?.member?.name ?? person.first_name}`, { variant: 'info' });
       onClose();
@@ -114,7 +118,7 @@ export default function ThriftMemberDialog({ open, onClose, cart, ensureCart, on
           />
         ) : (
           <Stack spacing={1.5}>
-            <MemberFind autoFocus disabled={busy} onPick={(p) => void pick(p)} />
+            <MemberFind autoFocus disabled={busy} onPick={(p, code) => void pick(p, code)} />
             <Box>
               <Button size="small" startIcon={<QrCode2Rounded />} onClick={() => setJoinQr(true)} sx={{ minHeight: 44 }}>
                 Not joined yet? Show the Join QR

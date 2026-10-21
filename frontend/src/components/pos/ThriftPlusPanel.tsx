@@ -20,6 +20,7 @@ import {
   thriftErrorMessage,
   uploadThriftSalePhoto,
   useThriftBucks as setThriftBucksUse,
+  confirmThriftMemberHere,
 } from '../../api/thriftplusRegister.api';
 import { TbAmount, tbNumber, tbText } from '../thriftplus/ThriftBucks';
 import type { Cart } from '../../types/pos.types';
@@ -168,6 +169,20 @@ export default function ThriftPlusPanel({ cart, onCart, onOpenCard }: Props) {
         <Typography variant="body2" sx={{ mt: 1 }}>
           Thrift+ credit {formatCurrency(creditUsed)} used first
         </Typography>
+      ) : null}
+
+      {open && member && member.here === false && !member.rering && bucksAvailable > 0 ? (
+        <Alert
+          severity="info"
+          sx={{ mt: 1 }}
+          action={(
+            <Button size="small" variant="contained" disabled={busy} onClick={() => void run(() => confirmThriftMemberHere(cart.id))}>
+              Member is here
+            </Button>
+          )}
+        >
+          {`Found by search: their ${tbText(bucksAvailable)} wait until you see the member. Their QR uses them at once.`}
+        </Alert>
       ) : null}
 
       {block.bucks_auto && bucksUsed > 0 ? (

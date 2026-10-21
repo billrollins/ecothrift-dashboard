@@ -439,7 +439,8 @@ def plan(cart, member: CartMember | None, *, lines: list | None = None, include_
     p.lots = ledger.lots(member.account)
     p.credit_available = ledger.credit_balance(member.account)
     p.bucks_available = ledger.available_bucks(member.account, on, of=p.lots)
-    p.bucks_auto = bool(member.use_bucks)
+    # Kept ThriftBucks wait for a member who is here: their QR, or the "Member is here" tap after a search (THR-05).
+    p.bucks_auto = bool(member.use_bucks) and member.here_at is not None
     credit = p.credit_available
     subtotal = p.subtotal_at_tag
 
@@ -612,9 +613,12 @@ def found(code: str = '', person=None) -> tuple[Person, Card | None]:
     return card.person, card
 
 
-def attach(cart, code: str = '', *, person=None, user=None) -> CartMember:
+def attach(cart, code: str = '', *, person=None, user=None, here: bool = False) -> CartMember:
     """Put a member on an open sale: their member QR scanned, or found by phone (``person``). It replaces any member
-    already on it. Kept is the Default (B1)."""
+    already on it. Kept is the Default (B1).
+
+    A scanned QR (or ``here``: finishing their join at this register) marks the member here, so their kept
+    ThriftBucks are used at once; a member found by search waits for :func:`confirm_here` (THR-05)."""
     if cart.status != 'open':
         raise RegisterError('CART_NOT_OPEN', 'This sale is finished. Use re-ring to put the member on it.')
     if not is_live(cart):
@@ -627,13 +631,16 @@ def attach(cart, code: str = '', *, person=None, user=None) -> CartMember:
         detail = {'cart': cart.pk}
         if training:  # a real member put on the training register is practice: the Event says so (2026-10-14)
             detail['training'] = True
+        scanned = card is not None
         if card is None:  # found by phone: their code (made when they have none), and the Event says how
             card = members.member_code(who, user=user)
             detail['by'] = 'phone'
         before = member_of(cart)
         defaults = {'account': who.account, 'person': who, 'card': card, 'attached_by': user}
         if before is None or before.account_id != who.account_id:
-            defaults.update(reward_choice=CartMember.CHOICE_BANK, use_bucks=True)
+            defaults.update(reward_choice=CartMember.CHOICE_BANK, use_bucks=True, here_at=None, here_by=None)
+        if scanned or here:
+            defaults.update(here_at=timezone.now(), here_by=user)
         member, _ = CartMember.objects.update_or_create(cart=cart, defaults=defaults)
         members.log('register_attach', account=member.account, person=member.person, card=card, actor=user, **detail)
         cart.recalculate()
@@ -689,6 +696,21 @@ def set_bucks(cart, use: bool, *, user=None) -> CartMember:
         member.save(update_fields=['use_bucks'])
         members.log('register_bucks', account=member.account, person=member.person, card=member.card, actor=user,
                     cart=cart.pk, use=bool(use))
+        cart.recalculate()
+    return member
+
+
+def confirm_here(cart, *, user=None) -> CartMember:
+    """The cashier's "Member is here" tap for a member found by name or phone: their kept ThriftBucks may now be used.
+    Logged (``register_member_here``) with who tapped it."""
+    member = _open_member(cart)
+    if member.here_at is not None:
+        return member
+    with transaction.atomic():
+        member.here_at, member.here_by = timezone.now(), user
+        member.save(update_fields=['here_at', 'here_by'])
+        members.log('register_member_here', account=member.account, person=member.person, card=member.card,
+                    actor=user, cart=cart.pk)
         cart.recalculate()
     return member
 
@@ -1275,6 +1297,8 @@ def _cart_block(cart, member: CartMember | None, live: bool) -> dict:
             'role': person.role, 'photo_url': person.photo.url if person.photo else None, 'verified_18': person.verified_18,
             'card_last4': member.card.code[-4:], 'practice': bool(account.is_practice), 'choice': member.reward_choice,
             'rering': member.rering, 'standing': standing(person),
+            # False: found by search and not yet confirmed at the register; kept ThriftBucks wait for the tap.
+            'here': member.here_at is not None,
         },
         'instant_offered': offered, 'instant_reason': '' if offered else reason,
         'collected': _money(collected_total), 'use_by': use_by.isoformat() if use_by else None,

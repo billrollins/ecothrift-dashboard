@@ -103,6 +103,17 @@ describe('The member card (owner 2026-10-20)', () => {
     expect(document.body.textContent ?? '').not.toMatch(/\bcards?\b/i);
   });
 
+  it('counts their returns and warns at the owner number, never blocking (W14, owner 2026-10-21)', async () => {
+    m.card = { 5: card({}, { returns: { trips: 1, items: 2, days: 30, warn_at: 3, warning: false } }) };
+    const { unmount } = wrap(<MemberCard personId={5} />);
+    expect(await screen.findByTestId('member-card-returns')).toHaveTextContent('Returns: 1 trip (2 items) in the last 30 days.');
+    expect(screen.getByTestId('member-card-returns')).not.toHaveTextContent('check with a manager');
+    unmount();
+    m.card = { 5: card({}, { returns: { trips: 3, items: 4, days: 30, warn_at: 3, warning: true } }) };
+    wrap(<MemberCard personId={5} />);
+    expect(await screen.findByTestId('member-card-returns')).toHaveTextContent('3 trips (4 items) in the last 30 days. That is a lot of returns');
+  });
+
   it('says so when there are no trips yet', async () => {
     m.card = { 5: card({}, { trips: [] }) };
     wrap(<MemberCard personId={5} />);

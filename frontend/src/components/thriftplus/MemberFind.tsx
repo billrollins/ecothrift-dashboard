@@ -27,7 +27,8 @@ export function codeMemberMessage(member: ThriftCodeMember | undefined): string 
 export default function MemberFind({
   onPick, disabled = false, autoFocus = false, label = 'Scan a member QR, or type a name, phone, email or member #',
 }: {
-  onPick: (person: ThriftPendingPerson) => void;
+  /** ``scannedCode``: their member QR was scanned (proof they are here), not a search pick. */
+  onPick: (person: ThriftPendingPerson, scannedCode?: string) => void;
   disabled?: boolean;
   autoFocus?: boolean;
   label?: string;
@@ -44,11 +45,12 @@ export default function MemberFind({
     setNote('');
     try {
       const found = await findPendingOrMember(query, { recent: true });
-      const scanned = thriftCardCode(query, true) !== null;
+      const code = thriftCardCode(query, true);
+      const scanned = code !== null;
       if (scanned && found.people.length === 1) {
         setQ('');
         setPeople(null);
-        onPick(found.people[0]);
+        onPick(found.people[0], code);
       } else {
         setPeople(found.people);
         if (found.people.length === 0) {

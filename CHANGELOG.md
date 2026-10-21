@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.200.0] -->
-<!-- Last reviewed: 2026-10-21 (2.200.0) -->
+<!-- Line 1 release: ## [2.201.0] -->
+<!-- Last reviewed: 2026-10-21 (2.201.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.201.0] - 2026-10-21
+
+User-facing theme: **Thrift+ guardrails at the register and alerts for the owner (Bill, 2026-10-21, critic review point 6).** Outside initiatives (critic-review release list).
+
+### Added
+- **"Member is here":** a member found by name or phone keeps their ThriftBucks until the cashier taps Member is here (logged with who tapped). Their QR still spends at once.
+- **Returns on the member card:** return trips in the last 30 days, with a warning to staff at 3 (both numbers are your settings in Settings → Thrift+). A warning only.
+- **Owner page alerts:** Needs you warns when the nightly ThriftBucks run didn't finish, or a member sale's ThriftBucks were never recorded.
+
+### Changed
+- **Deleting a member account stays the owner's alone;** everyone else uses Deactivate, which keeps everything.
 
 ## [2.200.0] - 2026-10-21
 

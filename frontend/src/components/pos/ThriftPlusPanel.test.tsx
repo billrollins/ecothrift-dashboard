@@ -13,6 +13,7 @@ import ThriftPlusSignupDialog from './ThriftPlusSignupDialog';
 const calls = vi.hoisted(() => ({
   choice: [] as string[],
   bucks: [] as Array<[number, boolean]>,
+  here: [] as number[],
   returned: [] as unknown[],
   lookups: [] as unknown[],
   phones: [] as string[],
@@ -63,6 +64,10 @@ vi.mock('../../api/thriftplusRegister.api', () => ({
   },
   useThriftBucks: async (id: number, use: boolean) => {
     calls.bucks.push([id, use]);
+    return {};
+  },
+  confirmThriftMemberHere: async (id: number) => {
+    calls.here.push(id);
     return {};
   },
   thriftErrorMessage: () => 'error',
@@ -184,6 +189,20 @@ describe('Thrift+ at the register', () => {
   it('shows nothing for a non-member when there is no line to say', () => {
     const { container } = wrap(<ThriftPlusPanel cart={cartWith(block({ member: null, instant_offered: false }))} onCart={() => undefined} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('a member found by search keeps their ThriftBucks until the cashier taps Member is here (owner 2026-10-21)', async () => {
+    const user = userEvent.setup();
+    const waiting = block({ member: { ...MEMBER, here: false }, bucks_available: '35.00' });
+    wrap(<ThriftPlusPanel cart={cartWith(waiting)} onCart={() => undefined} />);
+    expect(screen.getByText(/Found by search: their .* wait until you see the member/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Member is here' }));
+    expect(calls.here).toEqual([3]);
+  });
+
+  it('asks for no tap when their QR was scanned', () => {
+    wrap(<ThriftPlusPanel cart={cartWith(block({ member: { ...MEMBER, here: true }, bucks_available: '35.00' }))} onCart={() => undefined} />);
+    expect(screen.queryByRole('button', { name: 'Member is here' })).not.toBeInTheDocument();
   });
 
   it('tapping the member opens their ThriftBucks and credit', async () => {

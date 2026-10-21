@@ -62,6 +62,15 @@ export async function useThriftBucks(cartId: number, use: boolean): Promise<Cart
   return data;
 }
 
+/**
+ * The cashier's "Member is here" tap (owner 2026-10-21): a member found by name or phone may now use their kept
+ * ThriftBucks. Logged on the server with who tapped it. Their QR scanned needs no tap.
+ */
+export async function confirmThriftMemberHere(cartId: number): Promise<Cart> {
+  const { data } = await api.post<Cart>('/thriftplus/register/here/', { cart: cartId });
+  return data;
+}
+
 export async function reringThriftCard(cartId: number, code: string): Promise<Cart> {
   const { data } = await api.post<Cart>('/thriftplus/register/rering/', { cart: cartId, code });
   return data;
@@ -381,6 +390,8 @@ export interface ThriftMemberCardData {
   person: ThriftCardPerson;
   /** ThriftBucks collected, used and left (with the soonest use-by date, ISO) and Thrift+ credit. Dollars as strings. */
   rewards: { collected: string; used: string; balance: string; usable_today: string; use_by: string | null; credit: string };
+  /** W14 (owner 2026-10-21): return trips (days with returns) and items in the owner's window, warning at their number. */
+  returns?: { trips: number; items: number; days: number; warn_at: number; warning: boolean };
   /** Newest finished sales: the receipt's ticket number, the day (ISO), items and total. */
   trips: Array<{ cart_id: number; ticket: string; date: string | null; items: number; total: string }>;
   /** Everyone on the membership. */

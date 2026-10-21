@@ -15,6 +15,7 @@ const m = vi.hoisted(() => ({
   found: [] as unknown[],
   member: undefined as unknown,
   attached: [] as Array<[number, number]>,
+  scanned: [] as Array<[number, string]>,
   detached: [] as number[],
   finished: [] as Array<Record<string, unknown>>,
   added: [] as unknown[],
@@ -46,6 +47,10 @@ vi.mock('../../api/thriftplusRegister.api', () => ({
   findPendingOrMember: async (q: string) => {
     m.searches.push(q);
     return { people: m.found, member: m.member };
+  },
+  attachThriftCard: async (cartId: number, code: string) => {
+    m.scanned.push([cartId, code]);
+    return { id: cartId, status: 'open', thrift_plus: { member: { name: 'Ana Bell', person_id: 5, here: true } } };
   },
   attachThriftMember: async (cartId: number, personId: number) => {
     m.attached.push([cartId, personId]);
@@ -116,6 +121,7 @@ beforeEach(() => {
   m.found = [];
   m.member = undefined;
   m.attached = [];
+  m.scanned = [];
   m.detached = [];
   m.finished = [];
   m.added = [];
@@ -138,12 +144,15 @@ describe('The register\'s Thrift+ member button: Find, pick, on the sale (owner 
     expect(props.onClose).toHaveBeenCalled();
   });
 
-  it('a scanned member QR with one match goes straight onto the sale', async () => {
+  it('a scanned member QR with one match goes straight onto the sale, as a scan (they are here: 2026-10-21)', async () => {
     const user = userEvent.setup();
     m.found = [ANA];
     const { props } = dialog();
     await user.type(screen.getByLabelText(/Scan a member QR, or type/), 'TP100000000008{Enter}');
-    await waitFor(() => expect(m.attached).toEqual([[3, 5]]));
+    await waitFor(() => expect(m.scanned).toHaveLength(1));
+    expect(m.scanned[0][0]).toBe(3);
+    expect(m.scanned[0][1]).toContain('100000000008');
+    expect(m.attached).toEqual([]);
     expect(m.searches).toEqual(['TP100000000008']);
     expect(props.onClose).toHaveBeenCalled();
   });

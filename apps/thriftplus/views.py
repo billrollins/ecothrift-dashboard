@@ -837,6 +837,11 @@ class RegisterViewSet(viewsets.ViewSet):
                                                                person=request.data.get('person'), user=request.user))
 
     @action(detail=False, methods=['post'])
+    def here(self, request):
+        """The cashier's "Member is here" tap: a member found by name or phone may now use their kept ThriftBucks."""
+        return self._run(request, lambda cart: register.confirm_here(cart, user=request.user))
+
+    @action(detail=False, methods=['post'])
     def detach(self, request):
         return self._run(request, lambda cart: register.detach(cart, user=request.user))
 
@@ -932,7 +937,7 @@ class RegisterViewSet(viewsets.ViewSet):
                 'cart': None}
         if cart is not None:
             try:
-                register.attach(cart, person=person.pk, user=request.user)
+                register.attach(cart, person=person.pk, user=request.user, here=True)  # finishing here: they're here
                 body['cart'] = CartSerializer(Cart.objects.get(pk=cart.pk)).data
             except register.RegisterError as exc:
                 body['attach_error'] = exc.payload()

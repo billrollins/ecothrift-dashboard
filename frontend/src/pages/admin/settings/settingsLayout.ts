@@ -95,7 +95,7 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
         title: '3-day returns',
         keys: [
           'thrift_plus_return_credit_share', 'thrift_plus_return_min_price', 'thrift_plus_nonreturnable_categories',
-          'thrift_plus_nonreturnable_words',
+          'thrift_plus_nonreturnable_words', 'thrift_plus_return_warn_count', 'thrift_plus_return_warn_days',
         ],
       },
       {

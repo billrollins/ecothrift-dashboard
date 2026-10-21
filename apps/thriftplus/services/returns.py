@@ -84,6 +84,34 @@ def min_price() -> Decimal:
     return _setting_money(MIN_PRICE_KEY, DEFAULT_MIN_PRICE)
 
 
+# W14 (owner 2026-10-21): the member card counts a member's returns and warns at the owner's number. Never a block,
+# never printed. A return trip is a day with returns; one trip can take back several items.
+WARN_COUNT_KEY = 'thrift_plus_return_warn_count'
+WARN_DAYS_KEY = 'thrift_plus_return_warn_days'
+DEFAULT_WARN_COUNT = 3
+DEFAULT_WARN_DAYS = 30
+
+
+def _setting_int(key: str, default: int) -> int:
+    try:
+        value = int(_setting(key))
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
+
+
+def recent_returns(account: Account, now=None) -> dict:
+    """Return trips and items in the owner's window (default 3 trips in 30 days), and whether that reaches the
+    warning."""
+    now = now or timezone.now()
+    days = _setting_int(WARN_DAYS_KEY, DEFAULT_WARN_DAYS)
+    warn_at = _setting_int(WARN_COUNT_KEY, DEFAULT_WARN_COUNT)
+    stamps = list(ReturnRecord.objects.filter(account=account, created_at__gte=now - timedelta(days=days))
+                  .values_list('created_at', flat=True))
+    trips = len({timezone.localdate(t) for t in stamps})
+    return {'trips': trips, 'items': len(stamps), 'days': days, 'warn_at': warn_at, 'warning': trips >= warn_at}
+
+
 def credit_share() -> Decimal:
     """The share of what was paid (tax included), and of ThriftBucks, a return gives back and takes back (0.80)."""
     try:

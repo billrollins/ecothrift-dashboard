@@ -3,7 +3,8 @@ The member card (owner 2026-10-20): one person's Thrift+ standing on one screen,
 button and the Members page in Dash (``GET thriftplus/register/member/?person=<id>``).
 
 Their photo and status (pending / member / off), the ThriftBucks they collected, used and still have (with the use-by date),
-Thrift+ credit, their recent trips (date, ticket number, total) and the people on the membership. Staff screens only.
+Thrift+ credit, their returns lately (with the owner's W14 warning), their recent trips (date, ticket number, total) and the
+people on the membership. Staff screens only.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from django.utils import timezone
 
 from apps.thriftplus.models import Account, LedgerEntry, Person
 from apps.thriftplus.services import ledger, register
+from apps.thriftplus.services.returns import recent_returns
 
 ZERO = Decimal('0.00')
 TRIPS = 8
@@ -66,6 +68,8 @@ def card(person: Person) -> dict:
         'person': {**register.finalize_row(person), 'name': f'{person.first_name} {person.last_name}'.strip(),
                    'standing': register.standing(person), 'role': person.role, 'practice': bool(account.is_practice)},
         'rewards': rewards(account),
+        # W14: return trips in the owner's window, with a warning at the owner's number (never a block).
+        'returns': recent_returns(account),
         'trips': trips(account),
         'people': on_membership(account),
     }

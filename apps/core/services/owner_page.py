@@ -303,7 +303,19 @@ def needs_you(now: datetime | None = None) -> dict[str, Any]:
         return [_item('site_errors', 'Site errors not yet seen', s['open_count'], '/owner#site-errors',
                       detail=f"{s['last_24h']} in the last 24 hours", tone='error')]
 
-    for build in (requests, time_changes, returns, offers, checkins, data_checks, site_errors):
+    def thrift_plus():
+        from apps.thriftplus.services import watchdog
+
+        run = watchdog.nightly_run(now)
+        missing = watchdog.sales_missing_ledger(now)
+        return [
+            _item('thrift_run', 'Nightly ThriftBucks run did not finish', 1 if run else 0, '/thrift-plus?tab=rewards',
+                  detail=run['text'] if run else '', tone='error'),
+            _item('thrift_ledger', 'Member sales with no ThriftBucks record (7 days)', len(missing), '/pos/transactions',
+                  detail=', '.join(m['ticket'] for m in missing[:5]), tone='error'),
+        ]
+
+    for build in (requests, time_changes, returns, offers, checkins, data_checks, site_errors, thrift_plus):
         add(build)
     return {'items': items, 'errors': errors}
 

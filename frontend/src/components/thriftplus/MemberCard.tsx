@@ -208,6 +208,13 @@ export default function MemberCard({
         </Stack>
       </Box>
 
+      {data.returns ? (
+        <Alert severity={data.returns.warning ? 'warning' : 'info'} icon={false} data-testid="member-card-returns">
+          {`Returns: ${data.returns.trips} ${data.returns.trips === 1 ? 'trip' : 'trips'} (${data.returns.items} ${data.returns.items === 1 ? 'item' : 'items'}) in the last ${data.returns.days} days.`}
+          {data.returns.warning ? ' That is a lot of returns: check with a manager before taking another.' : ''}
+        </Alert>
+      ) : null}
+
       <Box>
         <Typography variant="overline" color="text.secondary" component="div">Recent trips</Typography>
         {trips.length === 0 ? (

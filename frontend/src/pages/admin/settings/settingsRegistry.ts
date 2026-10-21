@@ -138,6 +138,21 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'thrift-plus',
     kind: 'list',
   },
+  // W14 (owner 2026-10-21): the member card warns at this many return trips in this many days. Never a block, never printed.
+  thrift_plus_return_warn_count: {
+    label: 'Returns warning: trips',
+    help: 'The member card warns staff when a member has made this many return trips (days with returns) in the window. A warning only.',
+    tab: 'thrift-plus',
+    kind: 'count',
+    defaultValue: 3,
+  },
+  thrift_plus_return_warn_days: {
+    label: 'Returns warning: window',
+    help: 'How many days back the member card counts return trips.',
+    tab: 'thrift-plus',
+    kind: 'days',
+    defaultValue: 30,
+  },
   category_from_profile: {
     label: 'Count items under their product standard category',
     help: 'Buying numbers (Need, recovery, category stats) use the product standard category when it is a real one.',

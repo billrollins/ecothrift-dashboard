@@ -297,6 +297,11 @@ export interface ThriftPlusCartBlock {
     rering: boolean;
     /** pending (joined online, not finished), member or off (owner 2026-10-20). Older servers leave it out. */
     standing?: 'pending' | 'member' | 'off';
+    /**
+     * False: found by name or phone and not yet confirmed at the register, so kept ThriftBucks wait for the
+     * "Member is here" tap (owner 2026-10-21). A scanned QR is here at once. Older servers leave it out.
+     */
+    here?: boolean;
   } | null;
   /** False when Thrift+ credit and kept ThriftBucks leave nothing, or no member. */
   instant_offered: boolean;

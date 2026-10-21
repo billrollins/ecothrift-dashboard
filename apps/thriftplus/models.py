@@ -390,6 +390,11 @@ class CartMember(models.Model):
     rering = models.BooleanField(default=False, help_text='Attached after the sale was completed (re-ring as a member).')
     attached_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     attached_at = models.DateTimeField(auto_now_add=True)
+    # Guardrail (critic review THR-05, owner 2026-10-21): kept ThriftBucks are spent only for a member who is here.
+    # Their QR scanned proves it at once; a member found by name or phone needs the cashier's "Member is here" tap.
+    here_at = models.DateTimeField(null=True, blank=True,
+                                   help_text='When the member was confirmed at the register: the QR scan or the tap.')
+    here_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
 
     def __str__(self):
         return f'cart {self.cart_id}: account {self.account_id}'

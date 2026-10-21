@@ -1,9 +1,13 @@
-v2.200.0 — Staff Dashboard with one focus number per department
+v2.201.0 — Thrift+ guardrails: Member is here, return warnings, ThriftBucks alerts
 
-User-facing theme: **The Dashboard is for staff: today's sales and one focus number per department (Bill, 2026-10-21, critic review point 4).** Outside initiatives (critic-review release list).
+User-facing theme: **Thrift+ guardrails at the register and alerts for the owner (Bill, 2026-10-21, critic review point 6).** Outside initiatives (critic-review release list).
+
+### Added
+- **"Member is here":** a member found by name or phone keeps their ThriftBucks until the cashier taps Member is here (logged with who tapped). Their QR still spends at once.
+- **Returns on the member card:** return trips in the last 30 days, with a warning to staff at 3 (both numbers are your settings in Settings → Thrift+). A warning only.
+- **Owner page alerts:** Needs you warns when the nightly ThriftBucks run didn't finish, or a member sale's ThriftBucks were never recorded.
 
 ### Changed
-- **Dashboard:** today's and past weeks' sales, plus one focus number per department (items sold today, items processed today, restoration jobs finished today, buying as % of processed this week), each beside the same day last week. You pick each department's number in Settings → Store → Dashboard. Two tiles per row on a phone, four on a computer.
-- The weekly department cards and goals still show, for the owner only.
+- **Deleting a member account stays the owner's alone;** everyone else uses Deactivate, which keeps everything.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
