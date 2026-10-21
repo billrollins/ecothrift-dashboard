@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Department, TimeEntry, SickLeaveBalance, SickLeaveRequest, Shift, ShiftAssignment
+from .models import Department, PayPeriodClose, Shift, ShiftAssignment, TimeEntry, TimeEntryChange
 
 
 @admin.register(Department)
@@ -15,16 +15,25 @@ class TimeEntryAdmin(admin.ModelAdmin):
     search_fields = ('employee__email', 'employee__first_name', 'employee__last_name')
 
 
-@admin.register(SickLeaveBalance)
-class SickLeaveBalanceAdmin(admin.ModelAdmin):
-    list_display = ('employee', 'year', 'hours_earned', 'hours_used')
-    list_filter = ('year',)
+@admin.register(PayPeriodClose)
+class PayPeriodCloseAdmin(admin.ModelAdmin):
+    list_display = ('date_from', 'date_to', 'is_closed', 'closed_by', 'closed_at', 'reopened_by', 'reopened_at')
 
 
-@admin.register(SickLeaveRequest)
-class SickLeaveRequestAdmin(admin.ModelAdmin):
-    list_display = ('employee', 'start_date', 'end_date', 'hours_requested', 'status')
-    list_filter = ('status',)
+@admin.register(TimeEntryChange)
+class TimeEntryChangeAdmin(admin.ModelAdmin):
+    """The time-edit trail is a record: read only, here too."""
+    list_display = ('entry', 'action', 'actor', 'at')
+    list_filter = ('action',)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Shift)

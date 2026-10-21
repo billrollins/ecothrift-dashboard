@@ -225,7 +225,7 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 | **Settings** | `/admin/settings` | Manager+: app settings. Tabs `?tab=` — System, Printing, Store, Assumptions, **Retail QA** (grade weights, letter lines, audit floors, idle prompt minutes), Permissions (Admin only), **AI** (superuser only: model catalog, per-action model + effort). |
 | **Label Studio** | `/admin/label-studio` (+ `/:id`) | Manager+: label template library and visual/PDF designer; print integration. |
 | **Blog Studio** | `/blog-studio` | Superuser TipTap blog CMS for the public site; **new window**. |
-| **Time & payroll** | `/admin/time-payroll` | Superuser: roster, payroll summary, time-change requests. |
+| **Time & payroll** | `/admin/time-payroll` | Superuser: roster (with each shift's change trail), payroll summary, time-change requests, QuickBooks numbers per pay period (overtime 1.5x, copy, CSV) and Close / Reopen period. |
 | **Routines** (Routine Control) | `/admin/routines` (`?id=` selects, `?view=sections`) | Superuser. One header for Routines and Sections; `?id=` survives a view switch. **Routines**: every routine incl. retired, run stats, filters, quick edits; program routines cannot be retired. **Sections**: areas of the floor and who keeps them, drag order, coverage gaps. Week scoring is Command Center (`/admin/retail-qa`). Old `?view=grades` redirects there. |
 
 ### Hidden from nav (still reachable by URL)

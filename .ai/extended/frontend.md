@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (sticky errors, crash and new-version screens, cashier landing; Me page) -->
+<!-- Last updated: 2026-10-21 (Me page; Time & payroll: QuickBooks numbers, period lock, change trail) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -41,7 +41,7 @@
 
 **Settings + department week grids.** `GET /api/core/settings/` is a full array (`asSettingRows` unwraps a leftover `{ results }` payload). Dashboard department week cells keep a 6px gutter so hover/focus rings are not clipped under the day letters.
 
-**HR — Time & payroll (`TimePayrollPage`, Super Admin):** No page title. One-line period toolbar (From/To, past periods, week/period/month chips, current-week hours). Content capped at **1680px**. Pending sits left of the **Payroll** total (`N` employees · `N` shifts). One card: tabs on the top edge — **Roster**, **By employee**, **Change requests**. **By employee**: Employee, # Shifts, Rate, Ind. weeks (stacked Mon–Sun lines), Time (Regular over Overtime), Payroll, plus a totals footer. OT uses a muted dash at zero and amber only at **≥ 1 h**. Hours and pay are computed from 2-decimal shift hours so `$` matches the printed hours. Pagination footer hides on a single page.
+**HR — Time & payroll (`TimePayrollPage`, Super Admin):** No page title. One-line period toolbar (From/To, past periods, week/period/month chips, current-week hours). Content capped at **1680px**. Pending sits left of the **Payroll** total (`N` employees · `N` shifts). One card: tabs on the top edge — **Roster**, **By employee**, **Change requests**, **QuickBooks numbers** (`QuickBooksNumbers.tsx`: pick a pay period, default the last finished one; per person regular hours, overtime hours, rate, overtime rate, gross; **Copy** as tab-separated columns, **CSV**, **Close period** / **Reopen period**). The roster's edit dialog lists the entry's changes (`TimeEntryHistory.tsx`). **By employee**: Employee, # Shifts, Rate, Ind. weeks (stacked Mon–Sun lines), Time (Regular over Overtime), Payroll, plus a totals footer. OT uses a muted dash at zero and amber only at **≥ 1 h**. Hours and pay are computed from 2-decimal shift hours so `$` matches the printed hours; overtime pays 1.5x the rate (`payFor`). Pagination footer hides on a single page.
 
 **Restoration — TARS:** `/restoration/overview` (scoreboard + queue), `/restoration/bench` (grade table + purchase desk), `/restoration/parts-requests` (superuser command center). `/restoration/tars` redirects in-dashboard. Parts Requests nav badge counts approvals, cancel asks, and reviews from the live orders query (`useNavBadgeCounts` / `partsNavWaitingCount`). Domain: [`.ai/extended/restoration.md`](restoration.md). Initiative: [`finalize_tars_app`](../initiatives/_archived/finalize_tars_app.md).
 

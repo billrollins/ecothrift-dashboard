@@ -59,6 +59,8 @@ import {
 import { useUsers } from '../../hooks/useEmployees';
 import type { TimeEntryRosterRow } from '../../types/hr.types';
 import { EmployeePayrollTable } from './EmployeePayrollTable';
+import { QuickBooksNumbers } from './QuickBooksNumbers';
+import { TimeEntryHistory } from './TimeEntryHistory';
 import {
   OT_NOTICE_HOURS,
   WEEKLY_HOUR_LIMIT,
@@ -895,9 +897,10 @@ export default function TimePayrollPage() {
               </Box>
             }
           />
+          <Tab label="QuickBooks numbers" />
         </Tabs>
 
-        <Box sx={{ px: 2, py: 1.5, minHeight: 74, display: 'flex', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
+        {tab !== 3 ? <Box sx={{ px: 2, py: 1.5, minHeight: 74, display: 'flex', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
           {tab === 0 && (
             <Stack
               direction={{ xs: 'column', sm: 'row' }}
@@ -1042,7 +1045,7 @@ export default function TimePayrollPage() {
               </Stack>
             </Stack>
           )}
-        </Box>
+        </Box> : null}
 
         {tab === 0 && (
           <DataGrid
@@ -1087,6 +1090,7 @@ export default function TimePayrollPage() {
             sx={DATA_GRID_SX}
           />
         )}
+        {tab === 3 && <QuickBooksNumbers periods={periods ?? []} />}
       </Card>
 
       {/* Add / edit shift dialog */}
@@ -1137,6 +1141,7 @@ export default function TimePayrollPage() {
               onChange={(e) => setRowForm((f) => ({ ...f, break_minutes: e.target.value }))}
               fullWidth
             />
+            {editingRow ? <TimeEntryHistory entryId={editingRow.id} /> : null}
           </Stack>
         </DialogContent>
         <DialogActions>

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.196.0] -->
-<!-- Last reviewed: 2026-10-21 (2.196.0) -->
+<!-- Line 1 release: ## [2.197.0] -->
+<!-- Last reviewed: 2026-10-21 (2.197.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.197.0] - 2026-10-21
+
+User-facing theme: **Pay numbers ready for QuickBooks, overtime at 1.5, and locked pay periods (Bill, 2026-10-21, critic review point 5).** Outside initiatives (critic-review release list).
+
+### Added
+- **QuickBooks numbers** (Time & payroll → QuickBooks numbers): each person's regular hours, overtime hours, rate and gross for a pay period, with Copy and CSV, ready to type into QuickBooks Online.
+- **Close a pay period** to lock its time entries until you reopen it.
+- **Every change to a time entry is recorded** (who, when, before and after), shown in the edit dialog.
+
+### Changed
+- **Overtime past 40 a week is paid at 1.5** everywhere pay shows.
+- **Nobody can change their own time;** they ask, and a manager changes it.
+
+### Removed
+- **Sick leave** (Eco-Thrift doesn't offer it).
 
 ## [2.196.0] - 2026-10-21
 

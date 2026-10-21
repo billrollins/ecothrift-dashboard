@@ -50,33 +50,6 @@ export interface TimeEntry {
   updated_at: string;
 }
 
-export interface SickLeaveBalance {
-  id: number;
-  employee: number;
-  employee_name: string;
-  year: number;
-  hours_earned: string;
-  hours_used: string;
-  hours_available: string;
-  is_capped: boolean;
-}
-
-export interface SickLeaveRequest {
-  id: number;
-  employee: number;
-  employee_name: string;
-  start_date: string;
-  end_date: string;
-  hours_requested: string;
-  status: 'pending' | 'approved' | 'denied';
-  reason: string;
-  reviewed_by: number | null;
-  reviewed_by_name: string | null;
-  review_note: string;
-  reviewed_at: string | null;
-  created_at: string;
-}
-
 export interface TimeEntrySummary {
   total_hours: string;
   total_entries: number;
@@ -124,6 +97,8 @@ export interface MyPayPeriod extends PayrollPeriod {
   total_hours: string;
   approved_hours: string;
   pending_hours: string;
+  /** Hours past 40 in a Mon-Sun week; total_pay pays them at 1.5. */
+  overtime_hours: string;
   total_pay: string;
 }
 

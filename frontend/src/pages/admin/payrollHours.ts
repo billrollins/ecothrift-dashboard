@@ -4,6 +4,9 @@ import type { TimeEntryRosterRow } from '../../types/hr.types';
 /** Calendar-week overtime threshold used on Time & payroll. */
 export const WEEKLY_HOUR_LIMIT = 40;
 
+/** Overtime pays 1.5 times the rate (owner 2026-10-21); the server's pay numbers use the same. */
+export const OVERTIME_MULTIPLIER = 1.5;
+
 /**
  * Below this, overtime is just a number. Amber only when it is worth a look
  * (about an hour, not five minutes).
@@ -84,6 +87,11 @@ export type EmployeePayrollRow = {
   pay: number;
 };
 
+/** Gross: regular hours at the rate, overtime hours at 1.5 times it. */
+export function payFor(regular: number, overtime: number, rate: number): number {
+  return roundMoney(regular * rate + overtime * rate * OVERTIME_MULTIPLIER);
+}
+
 export function buildEmployeePayrollRows(
   roster: TimeEntryRosterRow[],
   weekStarts: string[],
@@ -92,7 +100,6 @@ export function buildEmployeePayrollRows(
   for (const row of roster) {
     if (row.is_open) continue;
     const hours = parseHours(row.total_hours);
-    const pay = parseHours(row.pay);
     const rate = parseHours(row.pay_rate);
     let emp = byEmp.get(row.employee_id);
     if (!emp) {
@@ -109,7 +116,6 @@ export function buildEmployeePayrollRows(
       byEmp.set(row.employee_id, emp);
     }
     emp.shifts += 1;
-    emp.pay = roundMoney(emp.pay + pay);
     emp.rate = rate;
     const week = row.week_start;
     emp.weekHours[week] = roundHours((emp.weekHours[week] ?? 0) + hours);
@@ -118,6 +124,7 @@ export function buildEmployeePayrollRows(
     const time = sumPeriodTime(Object.values(emp.weekHours));
     emp.regular = time.regular;
     emp.overtime = time.overtime;
+    emp.pay = payFor(time.regular, time.overtime, emp.rate);
   }
   return [...byEmp.values()].sort((a, b) => a.employee_name.localeCompare(b.employee_name));
 }

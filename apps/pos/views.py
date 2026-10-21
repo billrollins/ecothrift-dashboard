@@ -3501,7 +3501,7 @@ def dashboard_metrics(request):
 @perm_classes([IsAuthenticated, IsTeamMember])
 def dashboard_alerts(request):
     """Dashboard alerts for managers."""
-    from apps.hr.models import TimeEntry, SickLeaveRequest
+    from apps.hr.models import TimeEntry
 
     alerts = []
 
@@ -3512,15 +3512,6 @@ def dashboard_alerts(request):
             'type': 'time_entries',
             'message': f'{pending_time} time entries pending approval',
             'count': pending_time,
-        })
-
-    # Pending sick leave requests
-    pending_sick = SickLeaveRequest.objects.filter(status='pending').count()
-    if pending_sick:
-        alerts.append({
-            'type': 'sick_leave',
-            'message': f'{pending_sick} sick leave requests pending',
-            'count': pending_sick,
         })
 
     # Open drawers (real registers only: the training register's practice drawer is not real cash)

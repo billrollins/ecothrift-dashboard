@@ -93,7 +93,8 @@ describe('buildEmployeePayrollRows', () => {
     expect(rows[0].weekHours['2026-08-24']).toBe(45);
     expect(rows[0].regular).toBe(70);
     expect(rows[0].overtime).toBe(5);
-    expect(rows[0].pay).toBe(1125);
+    // 70 regular x 15 + 5 overtime x 22.50 (1.5 x the rate, owner 2026-10-21)
+    expect(rows[0].pay).toBe(1162.5);
     expect(rows[0].regular + rows[0].overtime).toBe(75);
   });
 

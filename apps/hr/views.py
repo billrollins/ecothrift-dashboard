@@ -5,7 +5,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 from decimal import Decimal
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -22,17 +22,16 @@ from apps.hr.services.departments import (
     sync_program_department_slug,
 )
 from .models import (
-    Department, TimeEntry, TimeEntryModificationRequest, SickLeaveBalance,
-    SickLeaveRequest, Shift, ShiftAssignment,
+    Department, TimeEntry, TimeEntryChange, TimeEntryModificationRequest, Shift, ShiftAssignment,
 )
 from .serializers import (
     DepartmentSerializer, TimeEntrySerializer, TimeEntrySummarySerializer,
     TimeEntryModificationRequestSerializer,
     WeeklyHoursStatusSerializer, PayrollEmployeeRowSerializer,
     PayrollPeriodSerializer, MyPayPeriodSerializer, TimeEntryRosterSerializer,
-    SickLeaveBalanceSerializer, SickLeaveRequestSerializer,
     ShiftSerializer, ShiftAssignmentSerializer,
 )
+from .services import pay_periods, time_changes
 from .services.forgotten_punch import close_forgotten_punch, parse_clock_out, stale_info
 from .services.time_clock_utils import weekly_status_for_employee, week_bounds
 from .services.payroll_periods import list_payroll_periods
@@ -165,6 +164,10 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         # Only managers may log time for someone other than themselves.
         if target != user and not is_manager:
             raise ValidationError({'employee': 'You can only clock in for yourself.'})
+        # Your own row is a punch, now: never a finished or back-dated shift (only the owner adds their own).
+        if target == user and not user.is_superuser:
+            for field in ('clock_in', 'clock_out', 'status', 'approved_by', 'break_minutes', 'date'):
+                serializer.validated_data.pop(field, None)
 
         # An open shift (no clock_out) collides with an existing open shift.
         creating_open = serializer.validated_data.get('clock_out') is None
@@ -189,16 +192,28 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
             defaults['date'] = local_day(serializer.validated_data.get('clock_in') or now)
         if 'clock_in' not in serializer.validated_data:
             defaults['clock_in'] = now
-        serializer.save(**defaults)
+        entry = serializer.save(**defaults)
+        if target != user or not creating_open:
+            time_changes.record(entry, TimeEntryChange.ACTION_ADDED, user)
         if creating_open:
             from apps.routines.schedule import materialize_routines
             materialize_routines()
 
+    def perform_update(self, serializer):
+        """A manager's edit, recorded. Nobody edits their own time (they ask), except the owner."""
+        time_changes.refuse_own(self.request.user, [serializer.instance])
+        before = time_changes.snapshot(serializer.instance)
+        entry = serializer.save()
+        time_changes.record(entry, TimeEntryChange.ACTION_EDITED, self.request.user, before=before)
+
     def perform_destroy(self, instance):
         """Soft-delete; hard purge after retention window via management command."""
+        time_changes.refuse_own(self.request.user, [instance])
+        before = time_changes.snapshot(instance)
         instance.deleted_at = timezone.now()
         instance.deleted_by = self.request.user
         instance.save(update_fields=['deleted_at', 'deleted_by', 'updated_at'])
+        time_changes.record(instance, TimeEntryChange.ACTION_DELETED, self.request.user, before=before)
 
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
     def bulk_delete(self, request):
@@ -206,11 +221,21 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         ids = request.data.get('ids', [])
         if not ids:
             return Response({'detail': 'No entry IDs provided.'}, status=status.HTTP_400_BAD_REQUEST)
-        qs = TimeEntry.objects.filter(id__in=ids)
-        count = qs.count()
-        now = timezone.now()
-        qs.update(deleted_at=now, deleted_by=request.user)
-        return Response({'deleted': count})
+        entries = list(TimeEntry.objects.filter(id__in=ids))
+        time_changes.refuse_own(request.user, entries)
+        for entry in entries:
+            pay_periods.assert_open(entry.date)
+        for entry in entries:
+            self.perform_destroy(entry)
+        return Response({'deleted': len(entries)})
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
+    def history(self, request, pk=None):
+        """Every change to this entry after the punch: who, when, before and after."""
+        entry = TimeEntry.all_objects.filter(pk=pk).first()
+        if entry is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(time_changes.history(entry))
 
     @action(detail=True, methods=['post'])
     def set_shift(self, request, pk=None):
@@ -250,9 +275,16 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         if entry.on_break:
             entry.finalize_open_break()
         entry.clock_out = timezone.now()
-        if 'break_minutes' in request.data:
+        user = request.user
+        typed_break = 'break_minutes' in request.data and entry.employee_id != user.pk and (
+            user.role in ('Manager', 'Admin') or user.is_superuser)
+        before = time_changes.snapshot(entry)
+        if typed_break:  # your own breaks come from the break button, never a typed number
             entry.break_minutes = request.data.get('break_minutes', entry.break_minutes)
         entry.save()
+        if typed_break:
+            time_changes.record(entry, TimeEntryChange.ACTION_EDITED, user, before=before,
+                                note='Break typed at clock-out')
         return Response(TimeEntrySerializer(entry).data)
 
     @action(detail=True, methods=['post'])
@@ -263,7 +295,9 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         is_manager = user.role in ('Manager', 'Admin') or user.is_superuser
         if entry.employee_id != user.pk and not is_manager:
             return Response({'detail': 'Not your punch.'}, status=status.HTTP_403_FORBIDDEN)
+        before = time_changes.snapshot(entry)
         closed = close_forgotten_punch(entry, clock_out=parse_clock_out(request.data.get('clock_out')))
+        time_changes.record(closed, TimeEntryChange.ACTION_FORGOTTEN, user, before=before)
         return Response(TimeEntrySerializer(closed).data)
 
     @action(detail=True, methods=['post'])
@@ -311,13 +345,15 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
             mine = [e for e in entries if start <= e.date <= end]
             total = sum((shift_hours(e) for e in mine), Decimal('0'))
             approved = sum((shift_hours(e) for e in mine if e.status == 'approved'), Decimal('0'))
+            regular, overtime = pay_periods.split_hours_by_week(mine, include_open=True)
             rows.append({
                 **period,
                 'shift_count': len(mine),
                 'total_hours': total.quantize(Decimal('0.01')),
                 'approved_hours': approved.quantize(Decimal('0.01')),
                 'pending_hours': (total - approved).quantize(Decimal('0.01')),
-                'total_pay': (total * rate).quantize(Decimal('0.01')),
+                'overtime_hours': overtime,
+                'total_pay': pay_periods.gross(regular, overtime, rate),
             })
         return Response(MyPayPeriodSerializer(rows, many=True).data)
 
@@ -360,27 +396,28 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
                 {'detail': 'No entry IDs provided.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        entries = TimeEntry.objects.filter(id__in=ids, status='pending')
-        count = entries.count()
+        entries = list(TimeEntry.objects.filter(id__in=ids, status='pending'))
+        time_changes.refuse_own(request.user, entries)
         for entry in entries:
+            pay_periods.assert_open(entry.date)
+        for entry in entries:
+            before = time_changes.snapshot(entry)
             entry.status = 'approved'
             entry.approved_by = request.user
             entry.save()
-            # Accrue sick leave
-            if entry.total_hours:
-                self._accrue_sick_leave(entry)
-        return Response({'approved': count})
+            time_changes.record(entry, TimeEntryChange.ACTION_APPROVED, request.user, before=before)
+        return Response({'approved': len(entries)})
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
     def approve(self, request, pk=None):
         """Approve a single time entry."""
         entry = self.get_object()
+        time_changes.refuse_own(request.user, [entry])
+        before = time_changes.snapshot(entry)
         entry.status = 'approved'
         entry.approved_by = request.user
         entry.save()
-        # Accrue sick leave
-        if entry.total_hours:
-            self._accrue_sick_leave(entry)
+        time_changes.record(entry, TimeEntryChange.ACTION_APPROVED, request.user, before=before)
         return Response(TimeEntrySerializer(entry).data)
 
     @action(detail=False, methods=['get'])
@@ -486,15 +523,67 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         rows = build_time_roster(date_from, date_to)
         return Response(TimeEntryRosterSerializer(rows, many=True).data)
 
-    def _accrue_sick_leave(self, entry):
-        """Accrue sick leave when a time entry is approved."""
-        year = entry.date.year
-        balance, _ = SickLeaveBalance.objects.get_or_create(
-            employee=entry.employee,
-            year=year,
-            defaults={'hours_earned': 0, 'hours_used': 0},
-        )
-        balance.accrue(entry.total_hours)
+
+def _period_start(request):
+    raw = request.data.get('date_from') if request.method == 'POST' else request.query_params.get('date_from')
+    if not raw:
+        return timezone.localdate()
+    try:
+        return date.fromisoformat(str(raw))
+    except ValueError as exc:
+        raise ValidationError({'date_from': 'Use YYYY-MM-DD.'}) from exc
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def pay_period_numbers_view(request):
+    """The numbers to type into QuickBooks Online for one pay period: per person regular hours, overtime hours (1.5),
+    rate and gross. ``?date_from=`` any day in the period (default today); ``?download=csv`` downloads them."""
+    data = pay_periods.period_numbers(_period_start(request))
+    if request.query_params.get('download') == 'csv':
+        import csv
+        import io
+
+        from django.http import HttpResponse
+
+        out = io.StringIO()
+        writer = csv.writer(out)
+        writer.writerow(['Employee', 'Employee number', 'Regular hours', 'Overtime hours', 'Rate', 'Overtime rate',
+                         'Regular pay', 'Overtime pay', 'Gross'])
+        for row in data['rows']:
+            writer.writerow([row['name'], row['employee_number'], row['regular_hours'], row['overtime_hours'],
+                             row['rate'], row['overtime_rate'], row['regular_pay'], row['overtime_pay'], row['gross']])
+        response = HttpResponse(out.getvalue(), content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="pay-{data["date_from"]}-to-{data["date_to"]}.csv"'
+        return response
+    return Response(pay_periods.as_text(data))
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def pay_period_close_view(request):
+    """Close a pay period: its time entries are locked until the owner reopens it."""
+    return Response(pay_periods.close(_period_start(request), request.user))
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def pay_period_reopen_view(request):
+    return Response(pay_periods.reopen(_period_start(request), request.user))
+
+
+def _apply_request(obj, actor) -> None:
+    """Apply an approved time change request to its entry, recorded in the trail."""
+    entry = obj.time_entry
+    before = time_changes.snapshot(entry)
+    if obj.requested_clock_in is not None:
+        entry.clock_in = obj.requested_clock_in
+    if obj.requested_clock_out is not None:
+        entry.clock_out = obj.requested_clock_out
+    if obj.requested_break_minutes is not None:
+        entry.break_minutes = obj.requested_break_minutes
+    entry.save()
+    time_changes.record(entry, TimeEntryChange.ACTION_REQUEST, actor, before=before, note=obj.reason or '')
 
 
 class TimeEntryModificationRequestViewSet(viewsets.ModelViewSet):
@@ -566,14 +655,7 @@ class TimeEntryModificationRequestViewSet(viewsets.ModelViewSet):
         approved = 0
         review_note = request.data.get('review_note', '')
         for obj in TimeEntryModificationRequest.objects.filter(id__in=ids, status='pending'):
-            entry = obj.time_entry
-            if obj.requested_clock_in is not None:
-                entry.clock_in = obj.requested_clock_in
-            if obj.requested_clock_out is not None:
-                entry.clock_out = obj.requested_clock_out
-            if obj.requested_break_minutes is not None:
-                entry.break_minutes = obj.requested_break_minutes
-            entry.save()
+            _apply_request(obj, request.user)
             obj.status = 'approved'
             obj.reviewed_by = request.user
             obj.review_note = review_note
@@ -610,15 +692,7 @@ class TimeEntryModificationRequestViewSet(viewsets.ModelViewSet):
                 {'detail': 'Request is not pending.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        # Apply requested changes to the time entry
-        entry = obj.time_entry
-        if obj.requested_clock_in is not None:
-            entry.clock_in = obj.requested_clock_in
-        if obj.requested_clock_out is not None:
-            entry.clock_out = obj.requested_clock_out
-        if obj.requested_break_minutes is not None:
-            entry.break_minutes = obj.requested_break_minutes
-        entry.save()
+        _apply_request(obj, request.user)
 
         obj.status = 'approved'
         obj.reviewed_by = request.user
@@ -642,83 +716,6 @@ class TimeEntryModificationRequestViewSet(viewsets.ModelViewSet):
         obj.reviewed_at = timezone.now()
         obj.save()
         return Response(TimeEntryModificationRequestSerializer(obj).data)
-
-
-class SickLeaveBalanceViewSet(viewsets.ModelViewSet):
-    serializer_class = SickLeaveBalanceSerializer
-    permission_classes = [IsAuthenticated, IsEmployee]
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['employee', 'year']
-
-    def get_queryset(self):
-        qs = SickLeaveBalance.objects.select_related('employee').all()
-        if self.request.user.role == 'Employee':
-            qs = qs.filter(employee=self.request.user)
-        return qs
-
-    def get_permissions(self):
-        if self.action in ('update', 'partial_update', 'destroy'):
-            return [IsAuthenticated(), IsManagerOrAdmin()]
-        return super().get_permissions()
-
-
-class SickLeaveRequestViewSet(viewsets.ModelViewSet):
-    serializer_class = SickLeaveRequestSerializer
-    permission_classes = [IsAuthenticated, IsEmployee]
-    filter_backends = [DjangoFilterBackend, OrderingFilter]
-    filterset_fields = ['employee', 'status']
-    ordering = ['-created_at']
-
-    def get_queryset(self):
-        qs = SickLeaveRequest.objects.select_related('employee', 'reviewed_by').all()
-        if self.request.user.role == 'Employee':
-            qs = qs.filter(employee=self.request.user)
-        return qs
-
-    def perform_create(self, serializer):
-        serializer.save(employee=self.request.user)
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
-    def approve(self, request, pk=None):
-        """Approve a sick leave request."""
-        obj = self.get_object()
-        if obj.status != 'pending':
-            return Response(
-                {'detail': 'Request is not pending.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        obj.status = 'approved'
-        obj.reviewed_by = request.user
-        obj.review_note = request.data.get('review_note', '')
-        obj.reviewed_at = timezone.now()
-        obj.save()
-
-        # Deduct from balance
-        balance, _ = SickLeaveBalance.objects.get_or_create(
-            employee=obj.employee,
-            year=obj.start_date.year,
-            defaults={'hours_earned': 0, 'hours_used': 0},
-        )
-        balance.hours_used += obj.hours_requested
-        balance.save(update_fields=['hours_used'])
-
-        return Response(SickLeaveRequestSerializer(obj).data)
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
-    def deny(self, request, pk=None):
-        """Deny a sick leave request."""
-        obj = self.get_object()
-        if obj.status != 'pending':
-            return Response(
-                {'detail': 'Request is not pending.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        obj.status = 'denied'
-        obj.reviewed_by = request.user
-        obj.review_note = request.data.get('review_note', '')
-        obj.reviewed_at = timezone.now()
-        obj.save()
-        return Response(SickLeaveRequestSerializer(obj).data)
 
 
 class ShiftViewSet(viewsets.ModelViewSet):

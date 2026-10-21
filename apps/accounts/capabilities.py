@@ -69,7 +69,6 @@ CATALOG: tuple[Capability, ...] = (
     Capability('delivery:manage', 'Deliveries', 'Create and edit delivery days and jobs', MANAGER_PLUS, 'Delivery* ViewSet writes → Manager+'),
     Capability('hr.department:write', 'People', 'Edit department description, location, and manager', MANAGER_PLUS, 'DepartmentViewSet PATCH allowlist'),
     Capability('hr.time_entry:edit', 'People', 'Edit or delete another person\'s time entry', MANAGER_PLUS, 'TimeEntryViewSet update/destroy'),
-    Capability('hr.sick_leave:write', 'People', 'Adjust sick-leave balances', MANAGER_PLUS, 'SickLeaveBalanceViewSet writes'),
     Capability('floorplan:write', 'Studios', 'Create and edit floorplans', MANAGER_PLUS, 'FloorPlanViewSet / Asset writes'),
     Capability('floorplan.ai:adjust', 'Studios', 'Ask AI to adjust the open floorplan (preview, then Apply)', MANAGER_PLUS, 'FloorPlanViewSet.ai_adjust'),
     Capability('settings.ai:read', 'Settings', 'Read model and effort choices for an AI dialog', MANAGER_PLUS, 'AiActionViewSet.choices'),

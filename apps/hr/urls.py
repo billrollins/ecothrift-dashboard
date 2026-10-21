@@ -2,8 +2,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     DepartmentViewSet, TimeEntryViewSet, TimeEntryModificationRequestViewSet,
-    SickLeaveBalanceViewSet, SickLeaveRequestViewSet,
     ShiftViewSet, ShiftAssignmentViewSet,
+    pay_period_numbers_view, pay_period_close_view, pay_period_reopen_view,
 )
 from . import kiosk_views as kiosk
 
@@ -11,12 +11,14 @@ router = DefaultRouter()
 router.register(r'departments', DepartmentViewSet, basename='department')
 router.register(r'time-entries', TimeEntryViewSet, basename='timeentry')
 router.register(r'modification-requests', TimeEntryModificationRequestViewSet, basename='modrequest')
-router.register(r'sick-leave/balances', SickLeaveBalanceViewSet, basename='sickleavebalance')
-router.register(r'sick-leave/requests', SickLeaveRequestViewSet, basename='sickleaverequest')
 router.register(r'shifts', ShiftViewSet, basename='shift')
 router.register(r'shift-assignments', ShiftAssignmentViewSet, basename='shiftassignment')
 
 urlpatterns = [
+    # Pay numbers for QuickBooks and the period lock (superuser): ?date_from= any day in the period.
+    path('pay-periods/numbers/', pay_period_numbers_view, name='pay-period-numbers'),
+    path('pay-periods/close/', pay_period_close_view, name='pay-period-close'),
+    path('pay-periods/reopen/', pay_period_reopen_view, name='pay-period-reopen'),
     # Hosted kiosk: staff JWT host, hr.kiosk:use
     path('kiosk/board/', kiosk.KioskBoardView.as_view(), name='kiosk-board'),
     path('kiosk/identify/', kiosk.KioskIdentifyView.as_view(), name='kiosk-identify'),

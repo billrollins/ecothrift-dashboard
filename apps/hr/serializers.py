@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from .models import (
-    Department, TimeEntry, TimeEntryModificationRequest, SickLeaveBalance,
-    SickLeaveRequest, Shift, ShiftAssignment,
+    Department, TimeEntry, TimeEntryModificationRequest, Shift, ShiftAssignment,
 )
 from .shifts import shift_department, shift_label
 
@@ -123,6 +122,8 @@ class MyPayPeriodSerializer(PayrollPeriodSerializer):
     total_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
     approved_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
     pending_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
+    # Hours past 40 in a Mon-Sun week; total_pay pays them at 1.5 (owner 2026-10-21).
+    overtime_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
     total_pay = serializers.DecimalField(max_digits=10, decimal_places=2)
 
 
@@ -168,34 +169,6 @@ class TimeEntryModificationRequestSerializer(serializers.ModelSerializer):
             'reviewed_by_name', 'review_note', 'reviewed_at', 'created_at',
             'employee_name', 'entry_date', 'entry_clock_in', 'entry_clock_out',
         ]
-
-
-class SickLeaveBalanceSerializer(serializers.ModelSerializer):
-    employee_name = serializers.CharField(source='employee.full_name', read_only=True)
-    hours_available = serializers.DecimalField(max_digits=6, decimal_places=2, read_only=True)
-    is_capped = serializers.BooleanField(read_only=True)
-
-    class Meta:
-        model = SickLeaveBalance
-        fields = [
-            'id', 'employee', 'employee_name', 'year',
-            'hours_earned', 'hours_used', 'hours_available', 'is_capped',
-        ]
-        read_only_fields = ['id']
-
-
-class SickLeaveRequestSerializer(serializers.ModelSerializer):
-    employee_name = serializers.CharField(source='employee.full_name', read_only=True)
-    reviewed_by_name = serializers.CharField(source='reviewed_by.full_name', read_only=True, default=None)
-
-    class Meta:
-        model = SickLeaveRequest
-        fields = [
-            'id', 'employee', 'employee_name', 'start_date', 'end_date',
-            'hours_requested', 'status', 'reason', 'reviewed_by',
-            'reviewed_by_name', 'review_note', 'reviewed_at', 'created_at',
-        ]
-        read_only_fields = ['id', 'reviewed_at', 'created_at']
 
 
 class ShiftSerializer(serializers.ModelSerializer):

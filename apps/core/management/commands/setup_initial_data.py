@@ -24,7 +24,6 @@ class Command(BaseCommand):
         self._create_employee_profile(admin_user, department, location)
         self._create_registers(location)
         self._create_supplemental_drawer(location, admin_user)
-        self._create_sick_leave_balance(admin_user)
         self._create_app_settings()
 
         self.stdout.write('')
@@ -156,21 +155,6 @@ class Command(BaseCommand):
         )
         status = 'Created' if created else 'Already exists'
         self.stdout.write(f'  {status}: SupplementalDrawer')
-
-    def _create_sick_leave_balance(self, user):
-        from apps.hr.models import SickLeaveBalance
-
-        self.stdout.write(self.style.MIGRATE_HEADING('Creating sick leave balance...'))
-        balance, created = SickLeaveBalance.objects.get_or_create(
-            employee=user,
-            year=timezone.now().year,
-            defaults={
-                'hours_earned': 0,
-                'hours_used': 0,
-            },
-        )
-        status = 'Created' if created else 'Already exists'
-        self.stdout.write(f'  {status}: SickLeaveBalance for {user.email} ({timezone.now().year})')
 
     def _create_app_settings(self):
         from apps.core.models import AppSetting

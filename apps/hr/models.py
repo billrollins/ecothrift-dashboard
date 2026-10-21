@@ -133,6 +133,9 @@ class TimeEntry(models.Model):
     def save(self, *args, **kwargs):
         if self.clock_in:
             self.date = timezone.localtime(self.clock_in).date()
+        # A closed pay period is locked until the owner reopens it (services/pay_periods.py).
+        from apps.hr.services.pay_periods import assert_open_for_entry
+        assert_open_for_entry(self)
         if self.clock_out:
             from apps.hr.services.time_clock_utils import validate_shift_duration
             closing_open_shift = False
@@ -154,7 +157,8 @@ class TimeEntry(models.Model):
 
 
 class SickLeaveBalance(models.Model):
-    """Tracks sick leave accrual and usage per employee per calendar year."""
+    """DEPRECATED (owner 2026-10-21): no sick leave at Eco-Thrift. Nothing reads or writes this any more (accrual,
+    screens and endpoints are gone); the rows stay until a later release drops the table."""
     ANNUAL_CAP = Decimal('56.00')
 
     employee = models.ForeignKey(
@@ -237,6 +241,7 @@ class TimeEntryModificationRequest(models.Model):
 
 
 class SickLeaveRequest(models.Model):
+    """DEPRECATED (owner 2026-10-21): no sick leave. Kept, unused, until a later release drops the table."""
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('approved', 'Approved'),
@@ -265,6 +270,57 @@ class SickLeaveRequest(models.Model):
 
     def __str__(self):
         return f'{self.employee} - {self.start_date} to {self.end_date}'
+
+
+class PayPeriodClose(models.Model):
+    """A closed pay period (owner 2026-10-21): its time entries can't be added, edited, approved or deleted until the
+    owner reopens it. One row per period, kept when reopened (closed again later = the same row)."""
+
+    date_from = models.DateField(unique=True)
+    date_to = models.DateField()
+    is_closed = models.BooleanField(default=True)
+    closed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    closed_at = models.DateTimeField(null=True, blank=True)
+    reopened_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    reopened_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-date_from']
+
+    def __str__(self):
+        return f'{self.date_from} to {self.date_to} ({"closed" if self.is_closed else "open"})'
+
+
+class TimeEntryChange(models.Model):
+    """Every change to a time entry after the punch (owner 2026-10-21): who, when, what it was and what it became.
+    Punches themselves (clock in, out, breaks) are not changes."""
+
+    ACTION_ADDED = 'added'
+    ACTION_EDITED = 'edited'
+    ACTION_DELETED = 'deleted'
+    ACTION_APPROVED = 'approved'
+    ACTION_REQUEST = 'request_applied'
+    ACTION_FORGOTTEN = 'forgotten_fixed'
+    ACTION_CHOICES = [
+        (ACTION_ADDED, 'Added by a manager'), (ACTION_EDITED, 'Edited'), (ACTION_DELETED, 'Deleted'),
+        (ACTION_APPROVED, 'Approved'), (ACTION_REQUEST, 'Time change request applied'),
+        (ACTION_FORGOTTEN, 'Forgotten clock-out fixed'),
+    ]
+
+    # Kept when the entry is purged for good (purge_soft_deleted_hr): the record outlives the row.
+    entry = models.ForeignKey(TimeEntry, on_delete=models.SET_NULL, null=True, related_name='changes')
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    at = models.DateTimeField(auto_now_add=True, db_index=True)
+    before = models.JSONField(default=dict, blank=True)
+    after = models.JSONField(default=dict, blank=True)
+    note = models.CharField(max_length=300, blank=True, default='')
+
+    class Meta:
+        ordering = ['-at', '-id']
+
+    def __str__(self):
+        return f'{self.entry_id} {self.action} {self.at:%Y-%m-%d %H:%M}'
 
 
 class Shift(models.Model):

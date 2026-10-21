@@ -540,7 +540,7 @@ export interface DashboardMetrics {
 }
 
 export interface DashboardAlert {
-  type: 'time_entries' | 'sick_leave' | 'drawers';
+  type: 'time_entries' | 'drawers';
   message: string;
   count: number;
 }

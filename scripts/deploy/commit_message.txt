@@ -1,12 +1,17 @@
-v2.196.0 — Owner page with AI spend; the morning brief retired
+v2.197.0 — QuickBooks pay numbers, overtime at 1.5, pay period lock, time-edit trail
 
-User-facing theme: **An Owner page for Bill, AI spend on it, and the morning brief retired (Bill, 2026-10-21, critic review points 4 and 9).** Outside initiatives (critic-review release list); standards T37 partly done.
+User-facing theme: **Pay numbers ready for QuickBooks, overtime at 1.5, and locked pay periods (Bill, 2026-10-21, critic review point 5).** Outside initiatives (critic-review release list).
 
 ### Added
-- **Owner page** (owner only, in the menu next to Dashboard): this week's and month's Net item sales, buying and processing against your targets (buying 40-50% of processing, processing 120% of sales; an owner setting), labor, what Thrift+ members are owed and its 8-week trend, everything waiting on you (Requests, time changes, people over their hours, late returns, offers, check-ins, data checks, site errors), the latest site errors, and links to every owner page. One column on a phone (Needs you first), two on a computer.
-- **AI spend:** every AI call is recorded (feature, who or which job, cost) and shown on the Owner page for Today / This week / This month, by feature and by who.
+- **QuickBooks numbers** (Time & payroll → QuickBooks numbers): each person's regular hours, overtime hours, rate and gross for a pay period, with Copy and CSV, ready to type into QuickBooks Online.
+- **Close a pay period** to lock its time entries until you reopen it.
+- **Every change to a time entry is recorded** (who, when, before and after), shown in the edit dialog.
+
+### Changed
+- **Overtime past 40 a week is paid at 1.5** everywhere pay shows.
+- **Nobody can change their own time;** they ask, and a manager changes it.
 
 ### Removed
-- **The morning brief** (unused). The Owner page replaces it; Reports keeps Sales tax. Old /brief links open the Owner page.
+- **Sick leave** (Eco-Thrift doesn't offer it).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

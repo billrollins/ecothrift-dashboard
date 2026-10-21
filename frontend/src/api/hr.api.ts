@@ -3,8 +3,6 @@ import type {
   Department,
   DepartmentDependencies,
   TimeEntry,
-  SickLeaveBalance,
-  SickLeaveRequest,
   TimeEntrySummary,
   WeeklyHoursStatus,
   PayrollEmployeeRow,
@@ -18,8 +16,6 @@ export type {
   Department,
   DepartmentDependencies,
   TimeEntry,
-  SickLeaveBalance,
-  SickLeaveRequest,
   TimeEntrySummary,
   WeeklyHoursStatus,
   PayrollEmployeeRow,
@@ -234,32 +230,69 @@ export function getTimeSummary(params?: Record<string, unknown>): Promise<{ data
   return api.get<TimeEntrySummary>('/hr/time-entries/summary/', { params });
 }
 
-// Sick leave endpoints
-export function getSickLeaveBalances(params?: Record<string, unknown>): Promise<{ data: SickLeaveBalance[] }> {
-  return api.get<SickLeaveBalance[]>('/hr/sick-leave/balances/', { params });
+/** QuickBooks Online numbers for one pay period (owner 2026-10-21): overtime past 40 a week at 1.5. */
+export interface PayNumbersRow {
+  employee_id: number;
+  name: string;
+  employee_number: string;
+  rate: string;
+  overtime_rate: string;
+  regular_hours: string;
+  overtime_hours: string;
+  regular_pay: string;
+  overtime_pay: string;
+  gross: string;
+  shifts: number;
+  open_shifts: number;
+  pending_shifts: number;
 }
 
-export function updateSickLeaveBalance(
-  id: number,
-  data: Record<string, unknown>
-): Promise<{ data: SickLeaveBalance }> {
-  return api.patch<SickLeaveBalance>(`/hr/sick-leave/balances/${id}/`, data);
+export interface PeriodLock {
+  closed: boolean;
+  closed_at: string | null;
+  closed_by: string;
+  reopened_at: string | null;
+  reopened_by: string;
 }
 
-export function getSickLeaveRequests(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<SickLeaveRequest> }> {
-  return api.get<PaginatedResponse<SickLeaveRequest>>('/hr/sick-leave/requests/', { params });
+export interface PayNumbers extends PeriodLock {
+  date_from: string;
+  date_to: string;
+  label: string;
+  overtime_multiplier: string;
+  rows: PayNumbersRow[];
+  totals: { regular_hours: string; overtime_hours: string; regular_pay: string; overtime_pay: string; gross: string };
 }
 
-export function createSickLeaveRequest(data: Record<string, unknown>): Promise<{ data: SickLeaveRequest }> {
-  return api.post<SickLeaveRequest>('/hr/sick-leave/requests/', data);
+export function getPayNumbers(dateFrom: string): Promise<{ data: PayNumbers }> {
+  return api.get<PayNumbers>('/hr/pay-periods/numbers/', { params: { date_from: dateFrom } });
 }
 
-export function approveSickLeave(id: number, reviewNote?: string): Promise<{ data: SickLeaveRequest }> {
-  return api.post<SickLeaveRequest>(`/hr/sick-leave/requests/${id}/approve/`, { review_note: reviewNote });
+export function payNumbersCsvUrl(dateFrom: string): string {
+  return `/hr/pay-periods/numbers/?date_from=${encodeURIComponent(dateFrom)}&download=csv`;
 }
 
-export function denySickLeave(id: number, reviewNote?: string): Promise<{ data: SickLeaveRequest }> {
-  return api.post<SickLeaveRequest>(`/hr/sick-leave/requests/${id}/deny/`, { review_note: reviewNote });
+export function closePayPeriod(dateFrom: string): Promise<{ data: PeriodLock }> {
+  return api.post<PeriodLock>('/hr/pay-periods/close/', { date_from: dateFrom });
+}
+
+export function reopenPayPeriod(dateFrom: string): Promise<{ data: PeriodLock }> {
+  return api.post<PeriodLock>('/hr/pay-periods/reopen/', { date_from: dateFrom });
+}
+
+/** One change to a time entry after the punch: who, when, before and after. */
+export interface TimeEntryChangeRow {
+  action: string;
+  label: string;
+  at: string;
+  by: string;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  note: string;
+}
+
+export function getTimeEntryHistory(id: number): Promise<{ data: TimeEntryChangeRow[] }> {
+  return api.get<TimeEntryChangeRow[]>(`/hr/time-entries/${id}/history/`);
 }
 
 export function deleteTimeEntry(id: number): Promise<{ data: void }> {
