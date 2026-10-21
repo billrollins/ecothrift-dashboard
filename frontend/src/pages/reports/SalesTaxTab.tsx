@@ -126,6 +126,16 @@ export function salesTaxCsv(r: SalesTaxReport): string {
     [],
     ['Day', 'Sales', 'Taxable sales', 'Tax collected', 'Tax refunded (Thrift+ returns)'],
     ...dayRows(r).map((d) => [d.day, d.count, d.taxable, d.tax, d.taxBack]),
+    ...((r.exempt_organizations ?? []).length
+      ? [
+          [],
+          ['Tax-exempt sales to non-profits'],
+          ['Day', 'Receipt', 'Organization', 'Certificate number', 'Amount', 'Marked by'],
+          ...(r.exempt_organizations ?? []).map((x) => [
+            x.day, x.receipt, x.org, x.number || (x.certificate_photo ? '(photo on file)' : ''), x.amount, x.by,
+          ]),
+        ]
+      : []),
   ];
   return rows.map((row) => row.map((c) => (/[",\n]/.test(String(c)) ? `"${String(c).replace(/"/g, '""')}"` : String(c))).join(',')).join('\n');
 }
@@ -219,7 +229,7 @@ export default function SalesTaxTab() {
             <Table size="small">
               <TableBody>
                 <CopyRow label="Gross sales" value={data.gross_sales} />
-                <CopyRow label="Exempt sales" value={data.exempt_sales} note={'Lines marked "No tax" at the register (pop), with any discount on them.'} />
+                <CopyRow label="Exempt sales" value={data.exempt_sales} note={'Lines marked "No tax" at the register (pop), and tax-exempt sales to non-profits (listed below).'} />
                 <CopyRow label="Net taxable sales" value={data.taxable_sales} strong />
                 {data.rates.map((r) => (
                   <Fragment key={r.rate}>
@@ -237,6 +247,29 @@ export default function SalesTaxTab() {
               </TableBody>
             </Table>
           </Paper>
+
+          {(data.exempt_organizations ?? []).length ? (
+            <Paper variant="outlined" sx={{ p: 1.5, overflowX: 'auto' }} data-testid="exempt-organizations">
+              <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Tax-exempt sales to non-profits</Typography>
+              <Table size="small">
+                <TableBody>
+                  {(data.exempt_organizations ?? []).map((x) => (
+                    <TableRow key={`${x.receipt}-${x.day}`}>
+                      <TableCell>{x.day}</TableCell>
+                      <TableCell>{x.receipt}</TableCell>
+                      <TableCell>
+                        {x.org}
+                        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                          {x.number ? `#${x.number}` : x.certificate_photo ? 'Certificate photo on file' : ''} · by {x.by || '-'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(x.amount)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Paper>
+          ) : null}
 
           {data.voided.count ? (
             <Alert severity="warning">

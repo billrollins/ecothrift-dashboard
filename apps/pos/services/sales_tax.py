@@ -10,7 +10,8 @@ so earlier months work too. Days are store days (America/Chicago), by when the s
   period are counted on their own line, so a void after filing is easy to spot.
 - **Gross sales** are the sales' subtotals: merchandise after sale prices, less discount lines, plus delivery and
   assembly fees. **Exempt sales** are the lines marked "No tax" at the register (Bill, 2026-10-21: pop), with any
-  discount aimed at them; **taxable sales** are gross less exempt.
+  discount aimed at them, and whole tax-exempt sales to non-profits (listed with the organization and its certificate
+  number); **taxable sales** are gross less exempt.
 - **Tax collected** is the sales' own tax, rounded on each receipt. **Tax at the rate** is taxable sales × the rate,
   split into Nebraska's state rate (5.5%) and the local rest; the small gap to tax collected is rounding.
 - **Not sales:** the CardX card surcharge (record only, not revenue, not taxed). Thrift+ credit spent is a payment, so
@@ -27,7 +28,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 
@@ -66,7 +67,9 @@ def report(start: date, end: date) -> dict:
     )
     gross = totals['taxable'] or ZERO
     tax = totals['tax'] or ZERO
-    exempt_lines = CartLine.objects.filter(cart__in=sales, tax_exempt=True)
+    # Exempt: "No tax" lines on taxed sales, and every line of a tax-exempt sale to a non-profit.
+    exempt_lines = CartLine.objects.filter(cart__in=sales).filter(
+        Q(tax_exempt=True, cart__tax_exempt_at__isnull=True) | Q(cart__tax_exempt_at__isnull=False))
     exempt = exempt_lines.aggregate(s=Sum('line_total'))['s'] or ZERO
     taxable = gross - exempt
     exempt_by_rate = {row['cart__tax_rate']: row['s'] or ZERO
@@ -114,6 +117,14 @@ def report(start: date, end: date) -> dict:
         'sales': totals['count'],
         'gross_sales': _money(gross),
         'exempt_sales': _money(exempt),
+        'exempt_organizations': [
+            {'receipt': getattr(getattr(c, 'receipt', None), 'receipt_number', None) or f'Sale {c.pk}',
+             'day': timezone.localdate(c.completed_at).isoformat(), 'org': c.tax_exempt_org,
+             'number': c.tax_exempt_number, 'certificate_photo': bool(c.tax_exempt_photo),
+             'amount': _money(c.subtotal), 'by': c.tax_exempt_by.full_name if c.tax_exempt_by else ''}
+            for c in sales.filter(tax_exempt_at__isnull=False).select_related('receipt', 'tax_exempt_by')
+            .order_by('completed_at')
+        ],
         'taxable_sales': _money(taxable),
         'parts': {k: _money(v) for k, v in parts.items()} | ({'other': _money(other)} if other else {}),
         'tax_collected': _money(tax),

@@ -68,5 +68,21 @@ describe('Sales tax report (owner 2026-10-13)', () => {
     expect(csv).toContain('Tax refunded on Thrift+ returns,4.48');
     expect(csv).toContain('Tax collected less tax refunded,3627.50');
     expect(csv).toContain('"2 sales, 40.00 taxable, 2.80 tax"');
+    expect(csv).not.toContain('Tax-exempt sales to non-profits');
+  });
+
+  it('lists tax-exempt sales to non-profits with the organization and number in the CSV (2026-10-21)', () => {
+    const csv = salesTaxCsv({
+      ...REPORT,
+      exempt_organizations: [
+        { receipt: 'R-20261021-004', day: '2026-10-21', org: 'Open Door Mission', number: '05-123456',
+          certificate_photo: false, amount: '120.00', by: 'Pat Clerk' },
+        { receipt: 'R-20261021-009', day: '2026-10-21', org: 'Scout Troop 12', number: '',
+          certificate_photo: true, amount: '15.00', by: 'Pat Clerk' },
+      ],
+    });
+    expect(csv).toContain('Tax-exempt sales to non-profits');
+    expect(csv).toContain('2026-10-21,R-20261021-004,Open Door Mission,05-123456,120.00,Pat Clerk');
+    expect(csv).toContain('2026-10-21,R-20261021-009,Scout Troop 12,(photo on file),15.00,Pat Clerk');
   });
 });

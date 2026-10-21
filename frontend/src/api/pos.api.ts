@@ -734,6 +734,22 @@ export function logOpenDrawer(drawerId: number, body: { cart?: number; reason?: 
   return api.post(`/pos/drawers/${drawerId}/open-drawer/`, body);
 }
 
+/** A tax-exempt sale to a non-profit (2026-10-21): `org` and `number`, or a `photo` of the certificate; `off` undoes it. */
+export function setTaxExempt(
+  cartId: number,
+  input: { org: string; number: string; photo: File | null } | { off: true },
+): Promise<{ data: Cart }> {
+  if ('off' in input) return api.post<Cart>(`/pos/carts/${cartId}/tax-exempt/`, { off: true });
+  if (input.photo) {
+    const form = new FormData();
+    form.append('org', input.org);
+    form.append('number', input.number);
+    form.append('photo', input.photo);
+    return api.post<Cart>(`/pos/carts/${cartId}/tax-exempt/`, form);
+  }
+  return api.post<Cart>(`/pos/carts/${cartId}/tax-exempt/`, { org: input.org, number: input.number });
+}
+
 /** A reprint is logged (who, when) and numbered: the answer says which copy this is. */
 export function logReprint(cartId: number): Promise<{ data: { copy_number: number } }> {
   return api.post(`/pos/carts/${cartId}/reprint/`, {});

@@ -239,6 +239,19 @@ class TrainingTests(unittest.TestCase):
             self.assertIn("COPY - NOT THE ORIGINAL", lines[:2])
             self.assertIn("COPY - NOT THE ORIGINAL", lines[-2:])
 
+    def test_a_tax_exempt_sale_names_the_organization(self):
+        """A tax-exempt sale to a non-profit (2026-10-21) prints "Tax exempt: <org> #<number>" under the totals."""
+        data = {**_fixture("receipt_thriftplus_member"), "tax": 0,
+                "tax_exempt": "Tax exempt: Open Door Mission #05-123456"}
+        for text in _both(data):
+            self.assertIn("Tax exempt: Open Door Mission #05-123456", " ".join(text.split()))
+        for text in _both({**data, "tax_exempt": ""}):
+            self.assertNotIn("Tax exempt", text)
+        from services import receipt_raster as rr
+
+        self.assertGreater(rr.render_thermal_receipt(data).height,
+                           rr.render_thermal_receipt({**data, "tax_exempt": ""}).height)
+
 
 class ToleranceTests(unittest.TestCase):
     BASE = {

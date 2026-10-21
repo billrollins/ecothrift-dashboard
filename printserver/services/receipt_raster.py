@@ -293,6 +293,8 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
     lr("Subtotal", f"${subtotal:.2f}", f_row, gap=2)
     if tax:
         lr("Tax", f"${tax:.2f}", f_row, gap=2)
+    for row in rp._wrap_chars(rp._tax_exempt_line(data)) if rp._tax_exempt_line(data) else []:
+        center(row, _font(22, True), gap=2)
     lr("TOTAL", f"${total:.2f}", _font(30, True), _font(40, True), gap=2)
 
     sav = rp._savings_rows(data)

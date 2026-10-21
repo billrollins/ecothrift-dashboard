@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (no tax on a line: pop; lock the till, manager OK, paid with Thrift+, Open drawer, loud print failures, COPY reprints) -->
+<!-- Last updated: 2026-10-21 (tax-exempt sale to a non-profit; no tax on a line: pop; lock the till, manager OK, paid with Thrift+, Open drawer, loud print failures, COPY reprints) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -109,6 +109,13 @@ Denomination counts (JSON) are used at each step for reconciliation.
 - The receipt prints "Pop (No tax)"; Transactions shows "· No tax" on the line. Sales numbers need nothing: the sale's tax is just lower.
 - **Sales tax report:** gross sales = the subtotals; **exempt sales** = the marked lines (with their discounts); taxable sales, the rate table and the days are gross less exempt. The CSV already has the Exempt sales row.
 - Known edge (small): Thrift+'s plan for how many kept ThriftBucks bring the total down to the member's credit still taxes the whole subtotal, so on a sale with a No-tax line it may use a few cents more ThriftBucks than needed.
+
+## Tax-exempt sale to a non-profit (Bill, 2026-10-21, `pos.0042_tax_exempt_sale`)
+
+- **Tax exempt sale** button on the register (an open sale): the organization's name, and its tax-exempt certificate number (preferred) or a photo of the certificate. `POST /pos/carts/{id}/tax-exempt/` `{org, number}` or multipart with `photo`; `{off: true}` takes it off. No name: 400 `ORG_REQUIRED`; neither number nor photo: 400 `CERTIFICATE_REQUIRED`; a finished sale: 400 `SALE_FINISHED`.
+- Every line is untaxed (`Cart.recalculate`), lines added later too. The sale keeps `tax_exempt_org`, `tax_exempt_number`, `tax_exempt_photo` (`pos/tax_exempt/`), `tax_exempt_by`, `tax_exempt_at`; on and off are `RegisterEvent`s (`tax_exempt`, `tax_exempt_off`) with who. Any cashier, no PIN.
+- **Receipt:** "Tax exempt: <org> #<number>" under the totals (payload `tax_exempt`; print server 1.9.8, the same exe as COPY). **Transactions** shows it with who marked it and a link to the certificate photo.
+- **Sales tax report:** the whole sale counts as exempt sales, and `exempt_organizations` lists each one (day, receipt, organization, number or "photo on file", amount, who); the page and the CSV list them.
 
 ## Paid with Thrift+ (Bill, 2026-10-21, `pos.0039`)
 

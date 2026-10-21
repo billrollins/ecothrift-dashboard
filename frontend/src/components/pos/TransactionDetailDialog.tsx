@@ -17,6 +17,7 @@ import type { Cart, CartLine } from '../../types/pos.types';
 import { CartCardBreakdown } from './CartCardBreakdown';
 import { CardTypeFixControls } from './CardTypeFixControls';
 import { paymentMethodLabel, thriftPaymentParts } from '../../utils/posPayment';
+import { taxExemptText } from './TaxExemptDialog';
 import { IconClose as Close } from '../../icons/ecoIcons';
 
 function formatCurrency(value: string | number): string {
@@ -124,6 +125,17 @@ export function TransactionDetailDialog({ open, cart, onClose, onCartUpdated }: 
                       </>
                     )}
                   {thriftPaymentParts(cart).map((part) => ` · ${part}`).join('')}
+                  {cart.tax_exempt_at ? (
+                    <Typography component="span" display="block" variant="body2" color="info.main" fontWeight={700}>
+                      {taxExemptText(cart)} · by {cart.tax_exempt_by_name ?? '-'}
+                      {cart.tax_exempt_photo_url ? (
+                        <>
+                          {' · '}
+                          <a href={cart.tax_exempt_photo_url} target="_blank" rel="noreferrer">certificate photo</a>
+                        </>
+                      ) : null}
+                    </Typography>
+                  ) : null}
                 </Typography>
                 <CartCardBreakdown cart={cart} />
               </Box>

@@ -260,6 +260,15 @@ class Cart(models.Model):
         related_name='voided_carts',
     )
     void_reason = models.CharField(max_length=300, blank=True, default='')
+    # A tax-exempt sale to a non-profit (Bill, 2026-10-21): every line untaxed. The organization's name, and its
+    # tax-exempt certificate number or a photo of the certificate; who marked it and when.
+    tax_exempt_org = models.CharField(max_length=200, blank=True, default='')
+    tax_exempt_number = models.CharField(max_length=100, blank=True, default='')
+    tax_exempt_photo = models.FileField(upload_to='pos/tax_exempt/', blank=True, default='')
+    tax_exempt_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='tax_exempt_carts',
+    )
+    tax_exempt_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -289,6 +298,8 @@ class Cart(models.Model):
                     CartLine.objects.filter(pk=line.pk).update(tax_exempt=follows)
                     line.tax_exempt = follows
         taxable = max(Decimal('0'), sum((line.line_total for line in lines if not line.tax_exempt), Decimal('0')))
+        if self.tax_exempt_at:  # a tax-exempt sale to a non-profit: nothing is taxed
+            taxable = Decimal('0')
         self.tax_amount = (taxable * self.tax_rate).quantize(Decimal('0.01'))
         self.total = self.subtotal + self.tax_amount
         self.save(update_fields=['subtotal', 'tax_amount', 'total'])
@@ -412,6 +423,8 @@ class RegisterEvent(models.Model):
         (KIND_OPEN_DRAWER, 'Drawer opened (no sale)'),
         (KIND_REPRINT, 'Receipt reprinted'),
         (KIND_PRINT_FAILED, 'Receipt did not print'),
+        ('tax_exempt', 'Sale marked tax exempt'),
+        ('tax_exempt_off', 'Tax exempt taken off'),
     ]
 
     kind = models.CharField(max_length=20, choices=KIND_CHOICES)

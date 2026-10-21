@@ -57,6 +57,7 @@ import DenominationCounter, {
 import { DeviceSetupDialog } from '../../components/pos/DeviceSetupDialog';
 import { DiscountDialog, type DiscountSubmitPayload } from '../../components/pos/DiscountDialog';
 import { useManagerOk } from '../../components/pos/ManagerOkDialog';
+import TaxExemptDialog, { taxExemptText, type TaxExemptInput } from '../../components/pos/TaxExemptDialog';
 import { thriftCoversSale, thriftPaymentParts } from '../../utils/posPayment';
 import { SummerLinesDialog } from '../../components/pos/SummerLinesDialog';
 import {
@@ -108,6 +109,7 @@ import {
   getCartCardPreview,
   getStaffPurchaseSettings,
   logOpenDrawer,
+  setTaxExempt,
   logPrintFailed,
   suggestDeliveryAddresses,
 } from '../../api/pos.api';
@@ -270,6 +272,10 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
     null,
   );
   const [kicking, setKicking] = useState(false);
+  // A tax-exempt sale to a non-profit (2026-10-21).
+  const [taxExemptOpen, setTaxExemptOpen] = useState(false);
+  const [taxExemptBusy, setTaxExemptBusy] = useState(false);
+  const [taxExemptError, setTaxExemptError] = useState('');
   const [soldScanDialog, setSoldScanDialog] = useState<{
     itemId: number;
     sku?: string;
@@ -1162,6 +1168,24 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
     }
   }, [cart, editingLineId, editValues, updateLineMutation, commitCart, enqueueSnackbar, runWithManagerOk]);
 
+  const handleTaxExempt = async (input: TaxExemptInput | { off: true }) => {
+    if (!cart) return;
+    setTaxExemptBusy(true);
+    setTaxExemptError('');
+    try {
+      const { data } = await setTaxExempt(cart.id, input);
+      commitCart(data as unknown as Cart);
+      setTaxExemptOpen(false);
+      enqueueSnackbar('off' in input ? 'Tax is back on this sale' : 'Tax exempt sale: no tax', { variant: 'success' });
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      if ('off' in input) enqueueSnackbar(detail || 'Could not take tax exempt off', { variant: 'error' });
+      else setTaxExemptError(detail || 'Could not make the sale tax exempt');
+    } finally {
+      setTaxExemptBusy(false);
+    }
+  };
+
   const handleToggleNoTax = useCallback(
     async (line: CartLine) => {
       if (!cart) return;
@@ -1810,6 +1834,19 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                         Refresh
                       </Button>
                     )}
+                    {cart && !cart.tax_exempt_at && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => {
+                          setTaxExemptError('');
+                          setTaxExemptOpen(true);
+                        }}
+                        data-testid="tax-exempt-button"
+                      >
+                        Tax exempt sale
+                      </Button>
+                    )}
                     {!todayDrawer?.register_is_training && (
                       <Button
                         size="small"
@@ -2367,6 +2404,21 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                 <Typography variant="subtitle1" fontWeight={600} gutterBottom>
                   Payment
                 </Typography>
+                {cart?.tax_exempt_at && (
+                  <Alert
+                    severity="info"
+                    sx={{ mb: 1 }}
+                    data-testid="tax-exempt-banner"
+                    action={
+                      <Button color="inherit" size="small" disabled={taxExemptBusy} onClick={() => void handleTaxExempt({ off: true })}>
+                        Remove
+                      </Button>
+                    }
+                  >
+                    <Typography fontWeight={700}>{taxExemptText(cart)}</Typography>
+                    <Typography variant="body2">No tax on this sale.</Typography>
+                  </Alert>
+                )}
                 {thriftCovers ? (
                   <Alert severity="success" icon={false} sx={{ mb: 1 }}>
                     <Typography fontWeight={700}>Nothing to pay: Thrift+ covers this sale.</Typography>
@@ -3104,6 +3156,14 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       />
 
       {managerOkDialog}
+
+      <TaxExemptDialog
+        open={taxExemptOpen}
+        pending={taxExemptBusy}
+        error={taxExemptError}
+        onSubmit={(input) => void handleTaxExempt(input)}
+        onCancel={() => setTaxExemptOpen(false)}
+      />
 
       {/* A receipt that did not print (REG-03): loud, and it stays until someone deals with it. */}
       <Dialog open={printProblem !== null} maxWidth="xs" fullWidth data-testid="print-problem">

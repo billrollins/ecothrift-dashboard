@@ -7,6 +7,16 @@ export interface SalesTaxReport {
   sales: number;
   gross_sales: string;
   exempt_sales: string;
+  /** Whole tax-exempt sales to non-profits (2026-10-21), oldest first. */
+  exempt_organizations?: {
+    receipt: string;
+    day: string;
+    org: string;
+    number: string;
+    certificate_photo: boolean;
+    amount: string;
+    by: string;
+  }[];
   taxable_sales: string;
   parts: { merchandise: string; discounts: string; delivery_fees: string; assembly: string; other?: string };
   tax_collected: string;

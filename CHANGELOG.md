@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.204.0] -->
-<!-- Last reviewed: 2026-10-21 (2.204.0) -->
+<!-- Line 1 release: ## [2.205.0] -->
+<!-- Last reviewed: 2026-10-21 (2.205.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.205.0] - 2026-10-21
+
+User-facing theme: **Tax-exempt sales for non-profits (Bill, 2026-10-21).** Outside initiatives.
+
+### Added
+- **Tax exempt sale:** tap "Tax exempt sale" on the register and enter the organization's name and its tax-exempt certificate number (or take a photo of the certificate). The whole sale is untaxed, and Dash keeps who did it.
+- **Receipt** says "Tax exempt: <organization> #<number>" (needs the updated print server 1.9.8).
+- **Transactions** shows the organization and number, with a link to the certificate photo.
+- **Sales tax report and CSV** list every tax-exempt sale with the organization and number.
 
 ## [2.204.0] - 2026-10-21
 

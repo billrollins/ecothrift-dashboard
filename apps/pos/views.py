@@ -848,7 +848,7 @@ class CartViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Cart.objects.select_related(
-            'drawer', 'cashier', 'receipt', 'card_type_fixed_by', 'voided_by',
+            'drawer', 'cashier', 'receipt', 'card_type_fixed_by', 'voided_by', 'tax_exempt_by',
         ).prefetch_related('lines').all()
         # Practice sales on the training register stay out of the Transactions list (they showed as
         # "Completed" under All). The terminal still finds its own open cart by asking for its drawer.
@@ -2153,6 +2153,52 @@ class CartViewSet(viewsets.ModelViewSet):
             )
 
         return Response(CartSerializer(cart).data)
+
+    @action(detail=True, methods=['post'], url_path='tax-exempt')
+    def tax_exempt(self, request, pk=None):
+        """A tax-exempt sale to a non-profit (Bill, 2026-10-21): every line untaxed. ``org`` (the organization's name) and
+        ``number`` (its tax-exempt certificate number), or ``photo`` (a picture of the certificate) when there is no
+        number. ``off: true`` takes it off again. Open sales only; logged with who and when (any cashier)."""
+        cart = self.get_object()
+        refused = _finished_sale_response(cart)
+        if refused is not None:
+            return refused
+        register = getattr(cart.drawer, 'register', None)
+        code = getattr(register, 'code', '') or ''
+        if str(request.data.get('off', '')).strip().lower() in _TRUE_PARAM:
+            if cart.tax_exempt_at:
+                RegisterEvent.objects.create(
+                    kind='tax_exempt_off', drawer=cart.drawer, cart=cart, register_code=code, user=request.user,
+                    note=f'{cart.tax_exempt_org} #{cart.tax_exempt_number}'[:300],
+                )
+            cart.tax_exempt_org, cart.tax_exempt_number, cart.tax_exempt_photo = '', '', ''
+            cart.tax_exempt_by, cart.tax_exempt_at = None, None
+        else:
+            org = request.data.get('org')
+            org = ' '.join(org.split())[:200] if isinstance(org, str) else ''
+            number = request.data.get('number')
+            number = number.strip()[:100] if isinstance(number, str) else ''
+            photo = request.FILES.get('photo')
+            if not org:
+                return Response({'detail': "Type the organization's name.", 'code': 'ORG_REQUIRED'}, status=400)
+            if not number and photo is None and not cart.tax_exempt_photo:
+                return Response(
+                    {'detail': "Type the organization's tax-exempt certificate number, or take a photo of the "
+                               'certificate.', 'code': 'CERTIFICATE_REQUIRED'},
+                    status=400,
+                )
+            cart.tax_exempt_org, cart.tax_exempt_number = org, number
+            if photo is not None:
+                cart.tax_exempt_photo = photo
+            cart.tax_exempt_by, cart.tax_exempt_at = request.user, timezone.now()
+            RegisterEvent.objects.create(
+                kind='tax_exempt', drawer=cart.drawer, cart=cart, register_code=code, user=request.user,
+                note=f'{org} #{number}' if number else f'{org} (certificate photo)',
+            )
+        cart.save(update_fields=['tax_exempt_org', 'tax_exempt_number', 'tax_exempt_photo', 'tax_exempt_by',
+                                 'tax_exempt_at'])
+        cart.recalculate()
+        return Response(CartSerializer(self.get_queryset().get(pk=cart.pk), context={'request': request}).data)
 
     @action(detail=True, methods=['post'])
     def reprint(self, request, pk=None):

@@ -253,6 +253,13 @@ export interface Cart {
   voided_by?: number | null;
   voided_by_name?: string | null;
   void_reason?: string;
+  /** A tax-exempt sale to a non-profit (2026-10-21): the organization, its certificate number or photo, who, when. */
+  tax_exempt_org?: string;
+  tax_exempt_number?: string;
+  tax_exempt_photo_url?: string | null;
+  tax_exempt_by?: number | null;
+  tax_exempt_by_name?: string | null;
+  tax_exempt_at?: string | null;
   created_at: string;
   lines: CartLine[];
   receipt?: Receipt | null;

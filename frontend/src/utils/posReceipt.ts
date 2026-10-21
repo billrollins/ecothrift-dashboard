@@ -88,6 +88,10 @@ export function buildReceiptData(cart: Cart, opts: { copy?: number } = {}): Reco
       ? `${cart.receipt?.receipt_number ?? `Sale ${cart.id}`} COPY${opts.copy > 1 ? ` ${opts.copy}` : ''}`
       : cart.receipt?.receipt_number ?? '',
     ...(opts.copy ? { copy: true } : {}),
+    // A tax-exempt sale (2026-10-21): print server 1.9.8+ prints it under the totals.
+    ...(cart.tax_exempt_at
+      ? { tax_exempt: `Tax exempt: ${cart.tax_exempt_org ?? ''}${cart.tax_exempt_number ? ` #${cart.tax_exempt_number}` : ' (certificate on file)'}` }
+      : {}),
     date: format(completedAt, 'yyyy-MM-dd'),
     time: format(completedAt, 'h:mm a'),
     cashier: training ? `TRAINING - ${cart.cashier_name ?? ''}` : cart.cashier_name ?? '',

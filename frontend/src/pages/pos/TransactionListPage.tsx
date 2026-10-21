@@ -27,6 +27,7 @@ import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { useCartSummary, useCarts, useVoidCart } from '../../hooks/usePOS';
 import { useManagerOk } from '../../components/pos/ManagerOkDialog';
 import { paymentMethodLabel, thriftPaymentParts } from '../../utils/posPayment';
+import { taxExemptText } from '../../components/pos/TaxExemptDialog';
 import { useUsers } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
 import { printErrorMessage } from '../../services/localPrintService';
@@ -481,6 +482,17 @@ export default function TransactionListPage() {
                       <> · Cash {formatCurrency(selectedCart.cash_tendered)} + Card {formatCurrency(selectedCart.card_amount)}</>
                     )}
                     {thriftPaymentParts(selectedCart).map((part) => ` · ${part}`).join('')}
+                  {selectedCart.tax_exempt_at ? (
+                    <Typography component="span" display="block" variant="body2" color="info.main" fontWeight={700}>
+                      {taxExemptText(selectedCart)} · by {selectedCart.tax_exempt_by_name ?? '-'}
+                      {selectedCart.tax_exempt_photo_url ? (
+                        <>
+                          {' · '}
+                          <a href={selectedCart.tax_exempt_photo_url} target="_blank" rel="noreferrer">certificate photo</a>
+                        </>
+                      ) : null}
+                    </Typography>
+                  ) : null}
                   </Typography>
                   <CartCardBreakdown cart={selectedCart} />
                 </Box>

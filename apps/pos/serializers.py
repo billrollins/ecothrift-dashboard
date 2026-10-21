@@ -201,6 +201,8 @@ class CartSerializer(serializers.ModelSerializer):
     cashier_name = serializers.CharField(source='cashier.full_name', read_only=True, default=None)
     payroll_employee_name = serializers.CharField(source='payroll_employee.full_name', read_only=True, default=None)
     voided_by_name = serializers.CharField(source='voided_by.full_name', read_only=True, default=None)
+    tax_exempt_by_name = serializers.CharField(source='tax_exempt_by.full_name', read_only=True, default=None)
+    tax_exempt_photo_url = serializers.SerializerMethodField()
     card_type_fixed_by_name = serializers.SerializerMethodField()
     card_type_fix_deadline = serializers.SerializerMethodField()
     lines = CartLineSerializer(many=True, read_only=True)
@@ -221,6 +223,8 @@ class CartSerializer(serializers.ModelSerializer):
             'card_type_fix_deadline', 'payroll_employee', 'payroll_employee_name',
             'completed_at', 'suspended_at', 'created_at',
             'voided_at', 'voided_by', 'voided_by_name', 'void_reason',
+            'tax_exempt_org', 'tax_exempt_number', 'tax_exempt_photo_url', 'tax_exempt_by', 'tax_exempt_by_name',
+            'tax_exempt_at',
             'lines', 'receipt', 'savings', 'thrift_credit', 'thrift_plus', 'thrift_row',
         ]
         # Lock the till (2026-10-21): status and money change only through the register's actions (complete, void,
@@ -228,6 +232,7 @@ class CartSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'cashier', 'subtotal', 'tax_amount', 'total', 'tax_rate', 'created_at', 'suspended_at',
             'voided_at', 'voided_by', 'void_reason',
+            'tax_exempt_org', 'tax_exempt_number', 'tax_exempt_by', 'tax_exempt_at',
             'status', 'payment_method', 'cash_tendered', 'change_given', 'card_amount', 'completed_at',
             'card_type', 'card_surcharge_rate', 'card_surcharge_amount',
             'card_charged_total',
@@ -236,6 +241,13 @@ class CartSerializer(serializers.ModelSerializer):
             'savings', 'thrift_credit', 'thrift_plus',
             'customer',  # retired (T62): the customer on a sale is the Thrift+ member (CartMember)
         ]
+
+    def get_tax_exempt_photo_url(self, obj):
+        photo = getattr(obj, 'tax_exempt_photo', None)
+        try:
+            return photo.url if photo else None
+        except ValueError:  # pragma: no cover - a name with no storage
+            return None
 
     def validate_drawer(self, value):
         if self.instance is not None and value != self.instance.drawer:

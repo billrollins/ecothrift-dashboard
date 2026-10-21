@@ -226,6 +226,12 @@ def _is_training(data: dict[str, Any]) -> bool:
     return _truthy(data.get("training"))
 
 
+def _tax_exempt_line(data: dict[str, Any]) -> str:
+    """A tax-exempt sale to a non-profit (2026-10-21): "Tax exempt: <org> #<number>", or ""."""
+    text = data.get("tax_exempt")
+    return " ".join(text.split())[:160] if isinstance(text, str) else ""
+
+
 def _banners(data: dict[str, Any]) -> list[str]:
     """The bands printed at the top and the bottom: TRAINING for a practice sale, COPY for a reprint."""
     out = []
@@ -696,6 +702,8 @@ def format_receipt_tape(data: dict[str, Any]) -> bytes:
     buf += _lr("Subtotal", f"${subtotal:.2f}")
     if tax:
         buf += _lr("Tax", f"${tax:.2f}")
+    if _tax_exempt_line(data):
+        buf += BOLD_ON + b"".join(_line(w) for w in _wrap_chars(_tax_exempt_line(data))) + BOLD_OFF
     buf += BOLD_ON + DOUBLE_HEIGHT
     buf += _lr("TOTAL", f"${total:.2f}")
     buf += NORMAL + BOLD_OFF
@@ -870,6 +878,8 @@ def format_receipt_text(data: dict[str, Any]) -> str:
     lines.append(_txt_lr("Subtotal", f"${subtotal:.2f}"))
     if tax:
         lines.append(_txt_lr("Tax", f"${tax:.2f}"))
+    if _tax_exempt_line(data):
+        lines.extend(_wrap_chars(_tax_exempt_line(data)))
     lines.append(_txt_lr("TOTAL", f"${total:.2f}"))
     lines.append("-" * W)
 
