@@ -36,6 +36,7 @@ const MyOnboardingPage = lazy(() => import('./pages/people/MyOnboardingPage'));
 const PayrollDeductionsPage = lazy(() => import('./pages/people/PayrollDeductionsPage'));
 const CheckInsPage = lazy(() => import('./pages/people/CheckInsPage'));
 const MyCheckInsPage = lazy(() => import('./pages/people/MyCheckInsPage'));
+const MePage = lazy(() => import('./pages/me/MePage'));
 const FloorplanListPage = lazy(() => import('./pages/floorplan/FloorplanListPage'));
 
 // Pages
@@ -247,6 +248,14 @@ function AppRoutes() {
       >
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/today" element={<TodayPage />} />
+        <Route
+          path="/me"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <MePage />
+            </Suspense>
+          }
+        />
         <Route
           path="/check-ins"
           element={

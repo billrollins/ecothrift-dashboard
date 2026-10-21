@@ -239,11 +239,18 @@ export default function MainLayout() {
                     transformOrigin={{ horizontal: 'right', vertical: 'top' }}
                     anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
                   >
-                    <MenuItem disabled>
+                    {/* Me: my details, password and register PIN, hours, shifts, sign out everywhere. */}
+                    <MenuItem
+                      data-testid="account-menu-me"
+                      onClick={() => {
+                        handleMenuClose();
+                        navigate('/me');
+                      }}
+                    >
                       <ListItemIcon><Person fontSize="small" /></ListItemIcon>
                       <ListItemText
                         primary={user.full_name}
-                        secondary={user.role}
+                        secondary={user.role ? `${user.role} · Me` : 'Me'}
                       />
                     </MenuItem>
                     <Divider />

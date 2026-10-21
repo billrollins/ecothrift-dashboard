@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (register PIN: one per staff member) -->
+<!-- Last updated: 2026-10-21 (Me page: my PIN, sign out on all devices) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -110,11 +110,22 @@ One PIN per staff member for the register (manager approvals, Cover). Code: `app
 | Piece | How |
 |-------|-----|
 | Who | Any active staff login (Employee, Manager, Admin, owner). A switched-off login or ended employment has no working PIN. |
-| Set | The person sets their own (Me page): 4 to 6 digits. Too-easy PINs (1111, 1234, 9876) are refused. A manager can clear a forgotten one. Each set and clear is an `AccountEvent`. |
+| Set | The person sets their own on the Me page (`POST /api/auth/me/pin/`, their password first): 4 to 6 digits. Too-easy PINs (1111, 1234, 9876) are refused. An Admin clears a forgotten one (Users → employee drawer → Register PIN → Clear PIN; `POST /api/accounts/users/{id}/clear-register-pin/`). Each set and clear is an `AccountEvent`. |
 | Unique | A PIN alone says who it is. Stored as `User.register_pin_hash` (HMAC with the server secret, unique), never the PIN. A PIN someone else has: "Pick a different PIN"; five of those in an hour stop that person for the hour. |
 | Check | `check_pin(pin, device=..., min_role=None)` answers the user or raises `PinError` (`PIN_WRONG`, `PIN_LOCKED`, `PIN_NEEDED`). A right PIN below `min_role` counts as wrong. |
 | Lockout | Five wrong tries in a row lock PIN entry **on that register or device** for 15 minutes (`device_key(request, register)`; REG-11: never store-wide). A right PIN clears the count. |
 | Logging | Each caller logs what the PIN approved. |
+
+## Me page and sign out on all devices (2026-10-21)
+
+`/me` (account menu: the name row; Thrift+ Staff: the **Me** tab, `/staff/me`). Code: `apps/accounts/me_views.py`, `frontend/src/pages/me/MePage.tsx`. Tests: `apps/accounts/tests/test_me_page.py`, `MePage.test.tsx`.
+
+| Endpoint | What |
+|----------|------|
+| `GET /api/auth/me/page/` | My details, employee facts, emergency contact, PIN status (never the PIN), my weekly shifts, and a `drawers` slot (null until the register's drawer life ships). Staff only (`IsTeamMember`). |
+| `PATCH /api/auth/me/details/` | My phone and emergency contact (same rules as onboarding's). Name, email and job are a manager's to change. |
+| `POST /api/auth/me/pin/` | `{ pin, password }`: set or change my register PIN. |
+| `POST /api/auth/sign-out-everywhere/` | Blacklists every live refresh token of mine, stamps `User.sessions_ended_at` (access tokens issued before it are refused at once, `IdleStampJWTAuthentication`), clears this cookie, logs `signed_out_all`. |
 
 ---
 

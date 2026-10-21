@@ -7,12 +7,17 @@ from .views import (
     customer_lookup_view, customer_register_view, customer_set_password_view,
     customer_reset_password_view, customer_resend_verification_view,
 )
+from .me_views import me_details_view, me_page_view, me_pin_view, sign_out_everywhere_view
 
 urlpatterns = [
     path('login/', login_view, name='auth-login'),
     path('refresh/', refresh_view, name='auth-refresh'),
     path('logout/', logout_view, name='auth-logout'),
     path('me/', me_view, name='auth-me'),
+    path('me/page/', me_page_view, name='auth-me-page'),
+    path('me/details/', me_details_view, name='auth-me-details'),
+    path('me/pin/', me_pin_view, name='auth-me-pin'),
+    path('sign-out-everywhere/', sign_out_everywhere_view, name='auth-sign-out-everywhere'),
     path('capabilities/', capabilities_view, name='auth-capabilities'),
     path('change-password/', change_password_view, name='auth-change-password'),
     path('verify-password/', verify_password_view, name='auth-verify-password'),

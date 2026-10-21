@@ -77,6 +77,8 @@ export interface User {
   full_name: string;
   /** False when the account has no usable password and cannot sign in yet. */
   has_password: boolean;
+  /** A register PIN is set (the PIN itself never leaves the server). */
+  has_register_pin?: boolean;
   /** Only meaningful for customers; staff accounts report false. */
   email_verified: boolean;
   employee?: EmployeeProfile | null;

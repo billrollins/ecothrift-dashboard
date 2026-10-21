@@ -57,6 +57,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     # hash (HMAC with the server secret), never the PIN. Set by the person on the Me page.
     register_pin_hash = models.CharField(max_length=64, unique=True, null=True, blank=True, editable=False)
     register_pin_set_at = models.DateTimeField(null=True, blank=True, editable=False)
+    # "Sign out on all devices" (Me page): tokens issued before this are refused (authentication.py).
+    sessions_ended_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     objects = UserManager()
 
@@ -335,6 +337,7 @@ class AccountEvent(models.Model):
     KIND_MERGED_INTO = 'merged_into_staff'  # on the customer login that merged in
     KIND_PIN_SET = 'register_pin_set'
     KIND_PIN_CLEARED = 'register_pin_cleared'
+    KIND_SIGNED_OUT_ALL = 'signed_out_all'
     KIND_CHOICES = [
         (KIND_CREATED, 'Created'), (KIND_ROLE, 'Role changed'), (KIND_OFF, 'Switched off'), (KIND_ON, 'Switched on'),
         (KIND_USERNAME, 'Username changed'), (KIND_LINK, 'Set-password link issued'),
@@ -342,6 +345,7 @@ class AccountEvent(models.Model):
         (KIND_LOCKED, 'Locked out (too many wrong tries)'),
         (KIND_MERGED_IN, 'A customer login merged in'), (KIND_MERGED_INTO, 'Merged into a staff login'),
         (KIND_PIN_SET, 'Register PIN set'), (KIND_PIN_CLEARED, 'Register PIN cleared'),
+        (KIND_SIGNED_OUT_ALL, 'Signed out on all devices'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='account_events')

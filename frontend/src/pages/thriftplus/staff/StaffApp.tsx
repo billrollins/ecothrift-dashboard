@@ -6,7 +6,7 @@
  * Every job is a button on the bar at the bottom of the screen: Find (owner 2026-10-20: anyone with Thrift+, by QR, name,
  * phone, email or member number; their ID check and the quick fixes: sign-in QR, retake photo, name and phone), Scan
  * (the test scanner: a tag's item card as a member sees it) and Join QR (ecothrift.us/join, full screen, for a customer
- * to scan). Find took the place of Finalize and Members. Tabs switch in place (the address is replaced, never stacked), so the phone's Back
+ * to scan) and Me (my details, register PIN, hours, shifts; the Me page). Find took the place of Finalize and Members. Tabs switch in place (the address is replaced, never stacked), so the phone's Back
  * never walks through them. While someone is part way through an ID check the bar hides: a customer holding the phone to
  * sign can't open another tab (J13).
  */
@@ -16,26 +16,31 @@ import { BottomNavigation, BottomNavigationAction, Box, Paper } from '@mui/mater
 import PersonSearchRounded from '@mui/icons-material/PersonSearchRounded';
 import QrCode2Rounded from '@mui/icons-material/QrCode2Rounded';
 import QrCodeScannerRounded from '@mui/icons-material/QrCodeScannerRounded';
+import PersonRounded from '@mui/icons-material/PersonRounded';
 import VersionTag from '../../../components/common/VersionTag';
 import FinalizeThriftPlusPage from '../finalize/FinalizeThriftPlusPage';
 import { JoinQrDialog } from '../finalize/finalizeParts';
 import { STAFF_APP_HEAD, installAppHead } from '../scanner/installApp';
 import StaffScanPage from './StaffScanPage';
+import MePage from '../../me/MePage';
 
 /** The app's colours: near-black with amber, nothing like the member app's green. */
 export const STAFF_INK = '#111111';
 export const STAFF_AMBER = '#F5B700';
 
-type Tab = 'find' | 'scan';
+type Tab = 'find' | 'scan' | 'me';
 
 const TABS: Array<{ value: Tab; label: string; icon: React.ReactNode }> = [
   { value: 'find', label: 'Find', icon: <PersonSearchRounded /> },
   { value: 'scan', label: 'Scan', icon: <QrCodeScannerRounded /> },
 ];
 
+/** After Join QR on the bar: the person's own page. */
+const ME_TAB = { value: 'me' as const, label: 'Me', icon: <PersonRounded /> };
+
 function tabOf(pathname: string): Tab {
   const part = pathname.replace(/^\/staff\/?/, '').split('/')[0];
-  return part === 'scan' ? 'scan' : 'find';
+  return part === 'scan' ? 'scan' : part === 'me' ? 'me' : 'find';
 }
 
 /** The page head while the app is open: the staff manifest, its iPhone icon and title, the dark theme colour. */
@@ -69,6 +74,7 @@ export default function StaffApp() {
           <Route path="finalize" element={<Navigate to="/staff/find" replace />} />
           <Route path="members" element={<Navigate to="/staff/find" replace />} />
           <Route path="scan" element={<StaffScanPage />} />
+          <Route path="me" element={<MePage compact />} />
           <Route path="*" element={<Navigate to="/staff/find" replace />} />
         </Routes>
       </Box>
@@ -100,6 +106,7 @@ export default function StaffApp() {
               <BottomNavigationAction key={t.value} value={t.value} label={t.label} icon={t.icon} data-testid={`staff-tab-${t.value}`} />
             ))}
             <BottomNavigationAction value="join" label="Join QR" icon={<QrCode2Rounded />} data-testid="staff-tab-join" />
+            <BottomNavigationAction value={ME_TAB.value} label={ME_TAB.label} icon={ME_TAB.icon} data-testid="staff-tab-me" />
           </BottomNavigation>
         </Paper>
       ) : null}

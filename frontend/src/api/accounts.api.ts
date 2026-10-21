@@ -61,6 +61,45 @@ export function changePassword(
   return api.post('/auth/change-password/', { old_password: oldPassword, new_password: newPassword });
 }
 
+/** The Me page: what is mine (details, emergency contact, register PIN, weekly shifts). */
+export interface MePage {
+  details: { first_name: string; last_name: string; email: string; username: string; phone: string; role: string };
+  employee: {
+    employee_number: string;
+    position: string;
+    department: string;
+    hire_date: string;
+    emergency_name: string;
+    emergency_phone: string;
+  } | null;
+  pin: { set: boolean; set_at: string | null; can_set: boolean };
+  schedule: Array<{ shift: string; department: string; time_in: string; time_out: string; days: number[]; day_names: string[] }>;
+  /** My drawers and covers, once the register's drawer life ships; null until then. */
+  drawers: unknown;
+}
+
+export function getMePage(): Promise<{ data: MePage }> {
+  return api.get<MePage>('/auth/me/page/');
+}
+
+export function patchMeDetails(
+  data: Partial<{ phone: string; emergency_name: string; emergency_phone: string }>,
+): Promise<{ data: MePage }> {
+  return api.patch<MePage>('/auth/me/details/', data);
+}
+
+export function setMyRegisterPin(pin: string, password: string): Promise<{ data: MePage }> {
+  return api.post<MePage>('/auth/me/pin/', { pin, password });
+}
+
+export function signOutEverywhere(): Promise<{ data: { detail: string; ended: number } }> {
+  return api.post('/auth/sign-out-everywhere/', {});
+}
+
+export function clearRegisterPin(userId: number): Promise<{ data: MePage['pin'] }> {
+  return api.post(`/accounts/users/${userId}/clear-register-pin/`, {});
+}
+
 // User management endpoints
 export function getUsers(params?: UserParams): Promise<{ data: PaginatedResponse<User> }> {
   return api.get<PaginatedResponse<User>>('/accounts/users/', { params });

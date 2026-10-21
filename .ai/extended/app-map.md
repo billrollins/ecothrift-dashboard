@@ -143,7 +143,7 @@ Grouped the way the **current navbar** presents them. Paths are staff SPA routes
 | **Dashboard** | `/dashboard` | Store pulse: sales run-rate / weekly book, department cards (Buying, Processing, Restoration, Retail), who’s working. Manager-facing home. |
 | **Kiosk** | `/kiosk` | Full-bleed time kiosk for a store tablet, outside MainLayout. The signed-in user is the host; staff scan a Code 128 card to clock in / out / break. Board shows who is in, on break, expected, late, called in, by department. Exit needs the host's password. The public twin `/clock` needs no login and shows a redacted board. |
 
-Time clock and Routines are on the **account menu** (avatar), not the sidebar. Documents is unwired until a later UI tune.
+Time clock and Routines are on the **account menu** (avatar), not the sidebar. The name at the top of that menu opens **Me** (`/me`, every staff login: details, password and register PIN, Hours & pay, shifts, onboarding and check-ins, sign out on all devices); Thrift+ Staff has it as its **Me** tab. Documents is unwired until a later UI tune.
 
 | Page | Path | What it does |
 |------|------|----------------|

@@ -60,6 +60,7 @@ class UserSerializer(serializers.ModelSerializer):
     )
     full_name = serializers.CharField(read_only=True)
     has_password = serializers.SerializerMethodField()
+    has_register_pin = serializers.SerializerMethodField()
     email_verified = serializers.SerializerMethodField()
     hours_flag = serializers.SerializerMethodField()
 
@@ -71,7 +72,7 @@ class UserSerializer(serializers.ModelSerializer):
             'date_joined', 'updated_at',
             'last_login',
             'role', 'roles', 'full_name',
-            'has_password', 'email_verified', 'hours_flag',
+            'has_password', 'has_register_pin', 'email_verified', 'hours_flag',
             'employee', 'consignee',
         ]
         read_only_fields = [
@@ -95,6 +96,9 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_has_password(self, obj):
         return obj.has_usable_password()
+
+    def get_has_register_pin(self, obj):
+        return bool(obj.register_pin_hash)
 
     def get_email_verified(self, obj):
         from apps.accounts.services.magic_link import customer_email_verified

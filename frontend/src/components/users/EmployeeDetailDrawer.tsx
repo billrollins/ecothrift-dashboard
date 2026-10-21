@@ -39,6 +39,7 @@ import { useIsMobileLayout } from '../../hooks/useIsMobileLayout';
 import { formatPhone, maskPhoneInput, stripPhone } from '../../utils/formatPhone';
 import { DrawerSection, Fact, PersonAvatar, formatDay, tenureFrom } from './userChrome';
 import { BadgeBlock } from './BadgeBlock';
+import { RegisterPinBlock } from './RegisterPinBlock';
 import { PayLevelField } from '../hr/PayLevelField';
 import { OverHoursAlert } from '../hr/OverHoursFlag';
 import { SetPasswordLinkDialog } from './SetPasswordLinkDialog';
@@ -390,6 +391,8 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
                   revokedAt={employee.badge_revoked_at}
                   canEdit={user.is_active !== false}
                 />
+                <Divider sx={{ my: 2.5 }} />
+                <RegisterPinBlock userId={user.id} fullName={user.full_name} hasPin={Boolean(user.has_register_pin)} />
               </>
             ) : null}
 

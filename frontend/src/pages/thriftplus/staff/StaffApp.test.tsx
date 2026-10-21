@@ -19,6 +19,7 @@ vi.mock('../finalize/FinalizeThriftPlusPage', () => ({
   ),
 }));
 vi.mock('../../admin/users/MembersPanel', () => ({ default: () => <div data-testid="members-panel" /> }));
+vi.mock('../../me/MePage', () => ({ default: () => <div data-testid="me-page" /> }));
 
 // jsdom has no camera: the test types a tag instead.
 vi.mock('../scanner/useQrCamera', () => ({
@@ -74,18 +75,22 @@ describe('Thrift+ Staff', () => {
     expect(document.head.querySelector('link[rel="manifest"]')).toBeNull();
   });
 
-  it('has Find, Scan and Join QR on the bottom bar, and the bar switches tabs (owner 2026-10-20)', async () => {
+  it('has Find, Scan, Join QR and Me on the bottom bar, and the bar switches tabs (owner 2026-10-20; Me 10-21)', async () => {
     const user = userEvent.setup();
     auth.user = { is_superuser: false, role: 'Employee' };
     renderApp('/staff');
     const bar = screen.getByRole('navigation', { name: 'Thrift+ Staff' });
-    expect(within(bar).getAllByRole('button').map((b) => b.textContent)).toEqual(['Find', 'Scan', 'Join QR']);
+    expect(within(bar).getAllByRole('button').map((b) => b.textContent)).toEqual(['Find', 'Scan', 'Join QR', 'Me']);
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/staff/find'));
     expect(screen.getByTestId('finalize-thriftplus')).toBeInTheDocument();
 
     await user.click(within(bar).getByText('Scan'));
     expect(screen.getByTestId('where')).toHaveTextContent('/staff/scan');
     expect(screen.getByTestId('staff-scan')).toBeInTheDocument();
+
+    await user.click(within(bar).getByText('Me'));
+    expect(screen.getByTestId('where')).toHaveTextContent('/staff/me');
+    expect(screen.getByTestId('me-page')).toBeInTheDocument();
 
     await user.click(within(bar).getByText('Find'));
     expect(screen.getByTestId('where')).toHaveTextContent('/staff/find');

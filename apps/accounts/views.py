@@ -193,6 +193,10 @@ def refresh_view(request):
         refresh = RefreshToken(refresh_token)
         user = User.objects.filter(pk=refresh.get('user_id')).first()
         device_kind = request.META.get(idle.DEVICE_HEADER)
+        from .authentication import issued_before_sign_out
+
+        if user is not None and issued_before_sign_out(user, refresh):
+            raise ValueError('signed out on all devices')
         if user is not None and idle.is_idle(user, device_kind):
             # D16: no activity for too long. The cookie is spent so this session cannot be revived.
             try:
@@ -522,6 +526,13 @@ class UserViewSet(viewsets.ModelViewSet):
              'by': e.actor.full_name if e.actor_id else ''}
             for e in user.account_events.select_related('actor')[:100]
         ])
+
+    @action(detail=True, methods=['post'], url_path='clear-register-pin')
+    def clear_register_pin(self, request, pk=None):
+        """A forgotten register PIN: clear it so the person sets a new one on their Me page. Never shows the PIN."""
+        from .services import register_pin
+
+        return Response(register_pin.clear_pin(self.get_object(), actor=request.user))
 
     @action(detail=True, methods=['patch'])
     def employee_profile(self, request, pk=None):

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.192.0] -->
-<!-- Last reviewed: 2026-10-21 (2.192.0) -->
+<!-- Line 1 release: ## [2.193.0] -->
+<!-- Last reviewed: 2026-10-21 (2.193.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.193.0] - 2026-10-21
+
+User-facing theme: **A Me page for every staff login (Bill, 2026-10-21, critic review point 3).** Outside initiatives (critic-review release list).
+
+### Added
+- **Me page** (click your name in the account menu, or the Me tab in Thrift+ Staff): your details and emergency contact, change password, set your register PIN, Hours & pay, your shifts, onboarding and check-ins, and **Sign out on all devices**.
+- An Admin can clear a forgotten register PIN on the employee's drawer.
 
 ## [2.192.0] - 2026-10-21
 

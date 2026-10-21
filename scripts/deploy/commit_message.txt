@@ -1,14 +1,9 @@
-v2.192.0 — Lock the till: managers only for finished sales and drawers, server-checked change, no double sale, recount fix
+v2.193.0 — A Me page for every staff login
 
-User-facing theme: **Lock the till: finished sales and drawers are protected, and the server checks the money (Bill, 2026-10-21, critic review point 3).** Outside initiatives (critic-review release list).
+User-facing theme: **A Me page for every staff login (Bill, 2026-10-21, critic review point 3).** Outside initiatives (critic-review release list).
 
-### Changed
-- **Only managers can change or delete a finished sale or a drawer.** Cashiers ring sales through the register as before.
-- **The server works out the change** from the cash handed over and refuses amounts that don't add up; receipts show the change.
-- **Drawer counts and drops are checked:** bad numbers get a plain message, drops need cash and an open drawer, a handoff must go to a real staff member.
-
-### Fixed
-- **A double tap on Complete can no longer count a sale twice.**
-- **The supplemental drawer Audit / Recount records what was counted** (it was recording $0); short and over are kept apart.
+### Added
+- **Me page** (click your name in the account menu, or the Me tab in Thrift+ Staff): your details and emergency contact, change password, set your register PIN, Hours & pay, your shifts, onboarding and check-ins, and **Sign out on all devices**.
+- An Admin can clear a forgotten register PIN on the employee's drawer.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
