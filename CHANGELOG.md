@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.189.0] -->
-<!-- Last reviewed: 2026-10-20 (2.189.0) -->
+<!-- Line 1 release: ## [2.189.1] -->
+<!-- Last reviewed: 2026-10-21 (2.189.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.189.1] - 2026-10-21
+
+User-facing theme: **Dash runs on Heroku's newest stack; nothing changes on screen (Bill, 2026-10-21).** Standards T29.
+
+### Changed
+- **Heroku stack heroku-24 → heroku-26** (Ubuntu 26.04), after the Python 3.14 and Node 24 move in v2.189.0. This release is the first build on it.
 
 ## [2.189.0] - 2026-10-20
 
