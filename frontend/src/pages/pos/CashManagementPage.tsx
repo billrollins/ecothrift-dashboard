@@ -140,8 +140,11 @@ export default function CashManagementPage() {
         enqueueSnackbar('Audit completed', { variant: 'success' });
       }
       resetSuppDialog();
-    } catch {
-      enqueueSnackbar('Failed to complete action', { variant: 'error' });
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        'Failed to complete action';
+      enqueueSnackbar(msg, { variant: 'error' });
     }
   };
 

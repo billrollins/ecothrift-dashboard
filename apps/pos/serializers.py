@@ -92,7 +92,9 @@ class DrawerSerializer(serializers.ModelSerializer):
             'card_sales_total', 'card_surcharge_total',
             'handoffs', 'drops',
         ]
-        read_only_fields = ['id']
+        # Lock the till (2026-10-21): a drawer is opened, handed off, closed and dropped through its own actions,
+        # which check every count. Nothing is written through the drawer record itself.
+        read_only_fields = fields
 
     def get_card_sales_total(self, obj):
         from apps.pos.services.card_surcharge import drawer_card_totals
@@ -210,8 +212,11 @@ class CartSerializer(serializers.ModelSerializer):
             'completed_at', 'suspended_at', 'created_at',
             'lines', 'receipt', 'savings', 'thrift_credit', 'thrift_plus', 'thrift_row',
         ]
+        # Lock the till (2026-10-21): status and money change only through the register's actions (complete, void,
+        # suspend), never by writing the sale record. The only field a create or edit takes is the drawer.
         read_only_fields = [
             'id', 'cashier', 'subtotal', 'tax_amount', 'total', 'tax_rate', 'created_at', 'suspended_at',
+            'status', 'payment_method', 'cash_tendered', 'change_given', 'card_amount', 'completed_at',
             'card_type', 'card_surcharge_rate', 'card_surcharge_amount',
             'card_charged_total',
             'card_type_fixed_at', 'card_type_fixed_by', 'card_type_fixed_by_name',
@@ -219,6 +224,11 @@ class CartSerializer(serializers.ModelSerializer):
             'savings', 'thrift_credit', 'thrift_plus',
             'customer',  # retired (T62): the customer on a sale is the Thrift+ member (CartMember)
         ]
+
+    def validate_drawer(self, value):
+        if self.instance is not None and value != self.instance.drawer:
+            raise serializers.ValidationError('A sale stays on the drawer it was rung on.')
+        return value
 
     def get_thrift_plus(self, obj):
         """The Thrift+ member, rebates and totals (None while Thrift+ is dark at this register).

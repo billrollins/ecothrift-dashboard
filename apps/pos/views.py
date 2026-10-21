@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from django.db import IntegrityError, transaction
-from django.db.models import Sum, Q, Count
+from django.db.models import F, Sum, Q, Count
 from django.db.models.functions import TruncMonth, TruncYear, TruncWeek, Coalesce
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -37,6 +37,7 @@ from .serializers import (
 )
 from .filters import CartFilter, DrawerFilter
 from .services import suspend as suspend_service
+from .services.cash_counts import CashCountError, clean_amount, clean_count, count_and_total, count_total
 from .services.discounts import (
     REASON_GOOGLE_REVIEW,
     REASON_STORE_CREDIT,
@@ -78,16 +79,83 @@ _ACTIVE_DELIVERY_JOB_STATUSES = (
 
 
 def _sale_cash(cart) -> Decimal:
-    """The cash a paid sale put in its drawer: what cash covered (less a split's card part and any change).
-    Complete adds it to the drawer's cash sales; void takes the same amount back out."""
+    """The cash a paid sale put in its drawer: what cash covered (less a split's card part).
+    Complete adds it to the drawer's cash sales; void takes the same amount back out.
+
+    The change handed back is not taken off again: the amount due is already the cash kept (tendered less change).
+    Until 2026-10-21 the register never sent change, so this was the same; now the server records it."""
     if cart.payment_method not in ('cash', 'split'):
         return Decimal('0')
     cash = cart.total - (cart.thrift_credit or Decimal('0'))
     if cart.payment_method == 'split' and cart.card_amount:
         cash -= cart.card_amount
-    if cart.change_given:
-        cash -= cart.change_given
     return cash
+
+
+class TenderError(ValueError):
+    def __init__(self, message: str, code: str):
+        super().__init__(message)
+        self.code = code
+
+
+def _tender_fields(payment_method, amount_due, cash_tendered, change_given, card_amount):
+    """What the sale stores for cash, change and card (2026-10-21, lock the till). The server works out the change
+    from the cash handed over; a change or card amount sent by the screen must match it, or the sale is refused."""
+    due = amount_due.quantize(Decimal('0.01'))
+    if payment_method == 'cash':
+        if cash_tendered < due:
+            raise TenderError(f'Cash tendered ${cash_tendered} is less than the ${due} due.', 'CASH_SHORT')
+        change = cash_tendered - due
+        if change_given is not None and change_given != change:
+            raise TenderError(f'Change given ${change_given} does not match ${change} (cash less the total).',
+                              'CHANGE_MISMATCH')
+        return cash_tendered, change, None
+    if payment_method == 'split':
+        if cash_tendered <= 0 or cash_tendered >= due:
+            raise TenderError('A split sale takes some cash and the rest on card. Cash that covers it all is a '
+                              'cash sale.', 'SPLIT_MISMATCH')
+        if change_given:
+            raise TenderError('A split sale gives no change.', 'CHANGE_MISMATCH')
+        if card_amount is None or card_amount != due - cash_tendered:
+            raise TenderError(f'The card part must be ${due - cash_tendered} (the ${due} due less the cash).',
+                              'SPLIT_MISMATCH')
+        return cash_tendered, Decimal('0.00'), card_amount
+    if payment_method == 'card':
+        if card_amount is not None and card_amount != due:
+            raise TenderError(f'The card amount ${card_amount} does not match the ${due} due.', 'CARD_MISMATCH')
+        return None, None, card_amount
+    return None, None, None  # payroll: nothing in the drawer, nothing on a card
+
+
+def _cash_count_error(exc):
+    return Response({'detail': str(exc), 'code': 'INVALID_COUNT'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _staff_user(raw):
+    """An active staff login (Employee, Manager or Admin) from a request id, or None."""
+    from apps.accounts.models import User
+
+    if isinstance(raw, bool):
+        return None
+    try:
+        pk = int(raw)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not 0 < pk < 2**31:
+        return None
+    user = User.objects.filter(pk=pk, is_active=True).first()
+    if user is None or not (user.is_superuser or user.role in ('Employee', 'Manager', 'Admin')):
+        return None
+    return user
+
+
+def _finished_sale_response(cart):
+    """A sale that is no longer open takes no changes (2026-10-21): a paid one is changed only by a manager's Void."""
+    if cart.status == 'suspended':
+        return Response({'detail': 'This sale is set aside. Bring it back first.', 'code': 'SALE_SET_ASIDE'}, status=400)
+    if cart.status != 'open':
+        return Response({'detail': 'This sale is finished and cannot be changed.', 'code': 'SALE_FINISHED'}, status=400)
+    return None
 
 
 def _is_training_cart(cart) -> bool:
@@ -206,6 +274,22 @@ class DrawerViewSet(viewsets.ModelViewSet):
     filterset_class = DrawerFilter
     ordering = ['-date', '-opened_at']
 
+    def get_permissions(self):
+        # Lock the till (2026-10-21): drawers change only through open, handoff, takeover, close and drop.
+        # Editing or deleting the drawer record itself is for managers.
+        if self.action in ('update', 'partial_update', 'destroy'):
+            return [IsAuthenticated(), IsManagerOrAdmin()]
+        return super().get_permissions()
+
+    def destroy(self, request, *args, **kwargs):
+        drawer = self.get_object()
+        if drawer.carts.exclude(status='open').exists() or drawer.drops.exists() or drawer.handoffs.exists():
+            return Response(
+                {'detail': 'This drawer has sales or cash records and cannot be deleted.', 'code': 'DRAWER_HAS_RECORDS'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return super().destroy(request, *args, **kwargs)
+
     def get_queryset(self):
         qs = Drawer.objects.select_related(
             'register', 'current_cashier', 'opened_by', 'closed_by',
@@ -233,22 +317,12 @@ class DrawerViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        opening_count = data.get('opening_count')
-        if opening_count is None:
-            opening_count = {}
-        if not isinstance(opening_count, dict):
-            return Response(
-                {'detail': 'opening_count must be an object (denomination breakdown).'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         try:
-            opening_total = Decimal(str(data.get('opening_total', 0)))
-        except (TypeError, ValueError):
-            return Response(
-                {'detail': 'opening_total must be a number.'},
-                status=status.HTTP_400_BAD_REQUEST,
+            opening_count, opening_total = count_and_total(
+                data, 'opening_count', 'opening_total', 'Opening count', required=False,
             )
+        except CashCountError as exc:
+            return _cash_count_error(exc)
 
         today = timezone.now().date()
 
@@ -354,16 +428,22 @@ class DrawerViewSet(viewsets.ModelViewSet):
                 {'detail': 'Drawer is not open.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        incoming_cashier_id = request.data.get('incoming_cashier')
-        if not incoming_cashier_id:
+        incoming = _staff_user(request.data.get('incoming_cashier'))
+        if incoming is None:
             return Response(
-                {'detail': 'incoming_cashier is required.'},
+                {'detail': 'Pick the staff member taking the drawer.', 'code': 'INVALID_CASHIER'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        count = request.data.get('count', {})
-        if not isinstance(count, dict):
-            count = {}
-        counted_total = Decimal(str(request.data.get('counted_total', 0)))
+        if incoming.pk == drawer.current_cashier_id:
+            return Response(
+                {'detail': 'That person already has this drawer.', 'code': 'INVALID_CASHIER'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        incoming_cashier_id = incoming.pk
+        try:
+            count, counted_total = count_and_total(request.data, 'count', 'counted_total', 'Handoff count')
+        except CashCountError as exc:
+            return _cash_count_error(exc)
 
         expected = self._drawer_expected_cash(drawer)
         variance = counted_total - expected
@@ -394,12 +474,18 @@ class DrawerViewSet(viewsets.ModelViewSet):
                 {'detail': 'Drawer is not open.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        count = request.data.get('count', {})
-        if not isinstance(count, dict):
-            count = {}
-        counted_total = request.data.get('counted_total')
-        if counted_total is not None:
-            counted_total = Decimal(str(counted_total))
+        try:
+            count = clean_count(request.data.get('count'), 'Takeover count')
+            sent = clean_amount(request.data.get('counted_total'), 'Takeover count total')
+        except CashCountError as exc:
+            return _cash_count_error(exc)
+        if count:
+            counted_total = count_total(count)
+            if sent is not None and sent != counted_total:
+                return _cash_count_error(CashCountError(
+                    f'Takeover count total ${sent} does not match the bills and coins counted (${counted_total}).'))
+        elif sent is not None:
+            counted_total = sent
         else:
             counted_total = self._drawer_expected_cash(drawer)
 
@@ -449,8 +535,12 @@ class DrawerViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_409_CONFLICT,
             )
-        closing_count = request.data.get('closing_count', {})
-        closing_total = Decimal(str(request.data.get('closing_total', 0)))
+        try:
+            closing_count, closing_total = count_and_total(
+                request.data, 'closing_count', 'closing_total', 'Closing count',
+            )
+        except CashCountError as exc:
+            return _cash_count_error(exc)
 
         with transaction.atomic():
             if set_aside:
@@ -511,8 +601,17 @@ class DrawerViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        amount = request.data.get('amount', {})
-        total = Decimal(str(request.data.get('total', 0)))
+        if drawer.status != 'open':
+            return Response(
+                {'detail': 'This drawer is closed. A drop comes from an open drawer.', 'code': 'DRAWER_CLOSED'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            amount, total = count_and_total(request.data, 'amount', 'total', 'Drop')
+        except CashCountError as exc:
+            return _cash_count_error(exc)
+        if total <= 0:
+            return _cash_count_error(CashCountError('Enter the cash being dropped.'))
 
         cash_drop = CashDrop.objects.create(
             drawer=drawer,
@@ -538,66 +637,82 @@ class SupplementalViewSet(viewsets.GenericViewSet):
             return Response({'detail': 'No supplemental drawer configured.'}, status=404)
         return Response(SupplementalDrawerSerializer(supp).data)
 
+    def _move(self, request, kind: str, sign: int):
+        """A draw (sign -1) or return (+1): a checked count, an existing drawer if one is named."""
+        supp = self.get_supplemental()
+        if not supp:
+            return Response({'detail': 'No supplemental drawer configured.'}, status=404)
+        try:
+            amount, total = count_and_total(request.data, 'amount', 'total', 'Amount')
+        except CashCountError as exc:
+            return _cash_count_error(exc)
+        if total <= 0:
+            return _cash_count_error(CashCountError('Enter the cash being moved.'))
+        related = request.data.get('related_drawer')
+        if related not in (None, ''):
+            try:
+                related = Drawer.objects.get(pk=int(related)).pk
+            except (TypeError, ValueError, OverflowError, Drawer.DoesNotExist):
+                return Response({'detail': 'That drawer was not found.', 'code': 'INVALID_DRAWER'}, status=400)
+        else:
+            related = None
+
+        with transaction.atomic():
+            SupplementalTransaction.objects.create(
+                supplemental=supp,
+                transaction_type=kind,
+                amount=amount,
+                total=total,
+                related_drawer_id=related,
+                performed_by=request.user,
+                notes=request.data.get('notes', '') or '',
+            )
+            SupplementalDrawer.objects.filter(pk=supp.pk).update(current_total=F('current_total') + sign * total)
+        supp.refresh_from_db()
+        return Response(SupplementalDrawerSerializer(supp).data)
+
     @action(detail=False, methods=['post'])
     def draw(self, request):
         """Draw from supplemental."""
-        supp = self.get_supplemental()
-        amount = request.data.get('amount', {})
-        total = Decimal(str(request.data.get('total', 0)))
-
-        SupplementalTransaction.objects.create(
-            supplemental=supp,
-            transaction_type='draw',
-            amount=amount,
-            total=total,
-            related_drawer_id=request.data.get('related_drawer'),
-            performed_by=request.user,
-            notes=request.data.get('notes', ''),
-        )
-
-        supp.current_total -= total
-        supp.save(update_fields=['current_total'])
-        return Response(SupplementalDrawerSerializer(supp).data)
+        return self._move(request, 'draw', -1)
 
     @action(detail=False, methods=['post'], url_path='return')
     def return_cash(self, request):
         """Return cash to supplemental."""
-        supp = self.get_supplemental()
-        amount = request.data.get('amount', {})
-        total = Decimal(str(request.data.get('total', 0)))
-
-        SupplementalTransaction.objects.create(
-            supplemental=supp,
-            transaction_type='return',
-            amount=amount,
-            total=total,
-            related_drawer_id=request.data.get('related_drawer'),
-            performed_by=request.user,
-            notes=request.data.get('notes', ''),
-        )
-
-        supp.current_total += total
-        supp.save(update_fields=['current_total'])
-        return Response(SupplementalDrawerSerializer(supp).data)
+        return self._move(request, 'return', 1)
 
     @action(detail=False, methods=['post'])
     def audit(self, request):
-        """Audit/recount supplemental drawer."""
+        """Audit/recount supplemental drawer.
+
+        The page sends the recount as ``count`` and ``total`` (older callers: ``current_balance`` and
+        ``current_total``). Until 2026-10-21 the server read only the old names, so every recount from the page
+        recorded $0. The adjustment keeps its sign: negative is short, positive is over.
+        """
         supp = self.get_supplemental()
-        new_balance = request.data.get('current_balance', {})
-        new_total = Decimal(str(request.data.get('current_total', 0)))
+        if not supp:
+            return Response({'detail': 'No supplemental drawer configured.'}, status=404)
+        count_key = 'count' if 'count' in request.data else 'current_balance'
+        total_key = 'total' if 'total' in request.data or 'count' in request.data else 'current_total'
+        try:
+            new_balance, new_total = count_and_total(request.data, count_key, total_key, 'Recount')
+        except CashCountError as exc:
+            return _cash_count_error(exc)
 
         old_total = supp.current_total
         adjustment = new_total - old_total
 
         if adjustment != 0:
+            word = 'over' if adjustment > 0 else 'short'
+            auto = f'Recount: ${abs(adjustment)} {word} (was ${old_total}, counted ${new_total}).'
+            note = (request.data.get('notes') or '').strip()
             SupplementalTransaction.objects.create(
                 supplemental=supp,
                 transaction_type='audit_adjustment',
                 amount=new_balance,
-                total=abs(adjustment),
+                total=adjustment,
                 performed_by=request.user,
-                notes=request.data.get('notes', f'Audit adjustment: {adjustment}'),
+                notes=f'{auto} {note}'.strip(),
             )
 
         supp.current_balance = new_balance
@@ -682,6 +797,23 @@ class CartViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_class = CartFilter
     ordering = ['-created_at']
+
+    def get_permissions(self):
+        # Lock the till (2026-10-21): staff view sales and ring them through the register's own actions; editing or
+        # deleting a sale record itself is for managers, and a paid sale changes only by Void.
+        if self.action in ('update', 'partial_update', 'destroy'):
+            return [IsAuthenticated(), IsManagerOrAdmin()]
+        return super().get_permissions()
+
+    def destroy(self, request, *args, **kwargs):
+        cart = self.get_object()
+        if cart.status != 'open':
+            return Response(
+                {'detail': 'Only an open, unpaid sale can be deleted. Void a paid sale instead.',
+                 'code': 'SALE_FINISHED'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return super().destroy(request, *args, **kwargs)
 
     def get_queryset(self):
         qs = Cart.objects.select_related(
@@ -772,8 +904,9 @@ class CartViewSet(viewsets.ModelViewSet):
     def add_item(self, request, pk=None):
         """Add item to cart by SKU."""
         cart = self.get_object()
-        if cart.status == 'suspended':
-            return Response({'detail': 'This sale is set aside. Bring it back first.', 'code': 'SALE_SET_ASIDE'}, status=400)
+        refused = _finished_sale_response(cart)
+        if refused is not None:
+            return refused
         sku = (request.data.get('sku') or '').strip()
         if not sku:
             return Response(
@@ -1766,6 +1899,11 @@ class CartViewSet(viewsets.ModelViewSet):
         cart = self.get_object()
         if cart.status != 'open':
             return Response({'detail': 'Cart is not open.'}, status=400)
+        if cart.drawer_id and cart.drawer.status != 'open':
+            return Response(
+                {'detail': 'This drawer is closed. Open a drawer to take payment.', 'code': 'DRAWER_CLOSED'},
+                status=400,
+            )
         if not hasattr(request.data, 'get'):
             return Response({'detail': 'Send the payment as a set of fields.', 'code': 'INVALID_PAYLOAD'}, status=400)
         if not _is_training_cart(cart):
@@ -1834,6 +1972,13 @@ class CartViewSet(viewsets.ModelViewSet):
             except StaffPurchaseError as exc:
                 return Response({'detail': str(exc), 'code': exc.code}, status=400)
 
+        try:
+            cash_tendered, change_given, card_amount = _tender_fields(
+                payment_method, amount_due, cash_tendered, change_given, card_amount,
+            )
+        except TenderError as exc:
+            return Response({'detail': str(exc), 'code': exc.code}, status=400)
+
         card_type = raw_card_type.strip()
         try:
             surcharge_fields = apply_card_surcharge(
@@ -1848,6 +1993,8 @@ class CartViewSet(viewsets.ModelViewSet):
 
         if training:
             with transaction.atomic():
+                if not self._lock_open_cart(cart):
+                    return self._already_finished()
                 cart.payment_method = payment_method
                 cart.cash_tendered = cash_tendered
                 cart.change_given = change_given
@@ -1866,6 +2013,9 @@ class CartViewSet(viewsets.ModelViewSet):
             return Response(CartSerializer(cart).data)
 
         with transaction.atomic():
+            # A double tap (or two screens) sends Complete twice: the second waits here, then finds it finished.
+            if not self._lock_open_cart(cart):
+                return self._already_finished()
             cart.payment_method = payment_method
             cart.cash_tendered = cash_tendered
             cart.change_given = change_given
@@ -1879,10 +2029,12 @@ class CartViewSet(viewsets.ModelViewSet):
             cart.completed_at = timezone.now()
             cart.save()
 
-            # Update drawer cash_sales_total (void takes the same amount back out)
+            # Update drawer cash_sales_total (void takes the same amount back out). Added in the database, so two
+            # registers' sales on one drawer at the same moment both count.
             if payment_method in ('cash', 'split'):
-                cart.drawer.cash_sales_total += _sale_cash(cart)
-                cart.drawer.save(update_fields=['cash_sales_total'])
+                Drawer.objects.filter(pk=cart.drawer_id).update(
+                    cash_sales_total=F('cash_sales_total') + _sale_cash(cart),
+                )
 
             # Mark items as sold
             for line in cart.lines.filter(item__isnull=False):
@@ -1927,6 +2079,18 @@ class CartViewSet(viewsets.ModelViewSet):
             )
 
         return Response(CartSerializer(cart).data)
+
+    @staticmethod
+    def _lock_open_cart(cart) -> bool:
+        """Lock the sale's row until the transaction ends; False when it is no longer open (finished a moment ago)."""
+        return Cart.objects.select_for_update().filter(pk=cart.pk, status='open').exists()
+
+    @staticmethod
+    def _already_finished():
+        return Response(
+            {'detail': 'This sale was already completed.', 'code': 'SALE_ALREADY_COMPLETED'},
+            status=status.HTTP_409_CONFLICT,
+        )
 
     # ── Suspend (owner 2026-10-20): set a sale aside, ring another, bring it back ─────────────────────────────
 
@@ -2028,8 +2192,9 @@ class CartViewSet(viewsets.ModelViewSet):
     def manage_line(self, request, pk=None, line_id=None):
         """Update (PATCH) or remove (DELETE) a cart line."""
         cart = self.get_object()
-        if cart.status == 'suspended':
-            return Response({'detail': 'This sale is set aside. Bring it back first.', 'code': 'SALE_SET_ASIDE'}, status=400)
+        refused = _finished_sale_response(cart)
+        if refused is not None:
+            return refused
         try:
             line = cart.lines.get(id=line_id)
         except CartLine.DoesNotExist:

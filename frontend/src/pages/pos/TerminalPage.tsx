@@ -186,6 +186,8 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   const skuInputRef = useRef<HTMLInputElement>(null);
   const manualDescriptionInputRef = useRef<HTMLInputElement>(null);
   const cartRef = useRef<Cart | null>(null);
+  // A double tap on Complete fires twice before the button greys out: the second tap stops here (2026-10-21).
+  const completingRef = useRef(false);
   // One cart per sale, and one add per scan, however slow the server is (see startCart).
   const pendingCartRef = useRef<Promise<Cart> | null>(null);
   const scanInFlightRef = useRef('');
@@ -1254,7 +1256,8 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
 
   const sendComplete = useCallback(
     async (payload: Record<string, unknown>) => {
-      if (!cart) return;
+      if (!cart || completingRef.current) return;
+      completingRef.current = true;
       try {
         const completedCart = (await completeCartMutation.mutateAsync({
           cartId: cart.id,
@@ -1267,6 +1270,8 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
             ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
             : undefined;
         enqueueSnackbar(detail || 'Failed to complete sale', { variant: 'error' });
+      } finally {
+        completingRef.current = false;
       }
     },
     [cart, completeCartMutation, enqueueSnackbar, finishCompletedSale],

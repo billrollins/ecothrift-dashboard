@@ -155,12 +155,14 @@ export default function DrawerListPage() {
       setSelectedDrawer(null);
       setCount(EMPTY_BREAKDOWN);
     } catch (err: unknown) {
-      const body = (err as { response?: { data?: { code?: string; suspended?: SuspendedSaleTab[] } } })?.response?.data;
+      const body = (err as {
+        response?: { data?: { code?: string; detail?: string; suspended?: SuspendedSaleTab[] } };
+      })?.response?.data;
       if (body?.code === 'SUSPENDED_SALES') {
         setSetAside(body.suspended ?? []);
         return;
       }
-      enqueueSnackbar('Failed to close drawer', { variant: 'error' });
+      enqueueSnackbar(body?.detail ?? 'Failed to close drawer', { variant: 'error' });
     }
   };
 
@@ -180,8 +182,11 @@ export default function DrawerListPage() {
       setHandoffDrawer(null);
       setHandoffCashier('');
       setCount(EMPTY_BREAKDOWN);
-    } catch {
-      enqueueSnackbar('Failed to complete handoff', { variant: 'error' });
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        'Failed to complete handoff';
+      enqueueSnackbar(msg, { variant: 'error' });
     }
   };
 

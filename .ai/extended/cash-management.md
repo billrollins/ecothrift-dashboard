@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-02-13T10:53:00-06:00 -->
+<!-- Last updated: 2026-10-21 (lock the till: checked counts, recount fix, drawer edits managers only) -->
 
 # Cash Management — Extended Context
 
@@ -11,6 +11,14 @@ Cash management covers supplemental drawer (petty cash/change fund), register dr
 All cash amounts are stored as both:
 - **JSONField** (`amount`, `count`, `current_balance`, etc.): breakdown by denomination (hundreds, fifties, twenties, tens, fives, ones, quarters, dimes, nickels, pennies)
 - **DecimalField** (`total`, `opening_total`, `closing_total`, etc.): computed sum
+
+### Checked counts (2026-10-21)
+
+`apps/pos/services/cash_counts.py` checks every drawer and supplemental input (open, handoff, takeover, close, drop, draw, return, recount):
+- A count has only the ten keys above, each a whole number 0 or more. Anything else is 400 `INVALID_COUNT` with a plain message, never a 500.
+- With a count, the stored total **is** the count's sum; a total sent too must match it to the cent.
+- With no count, a total alone is used (checked like any money field). Close and handoff need one or the other.
+- Drops and supplemental draws/returns must be more than $0; a drop needs an open drawer; a handoff's incoming cashier must be an active staff login other than the current one; a named `related_drawer` must exist.
 
 ### DenominationCounter Component
 
@@ -48,7 +56,8 @@ Fields: `amount` (JSONField), `total`, `related_drawer` (optional), `performed_b
   - `GET /pos/supplemental/` — current supplemental status
   - `POST /pos/supplemental/draw/` — draw from supplemental
   - `POST /pos/supplemental/return/` — return to supplemental
-  - `POST /pos/supplemental/audit/` — audit (recount); creates `audit_adjustment` if variance
+  - `POST /pos/supplemental/audit/` — audit (recount) with `count` + `total` (old names `current_balance` + `current_total` still work); creates `audit_adjustment` if variance. The adjustment's `total` keeps its sign (negative = short, positive = over) and its note says "Recount: $X short/over (was, counted)". Before 2026-10-21 the page's names were not read, so every recount recorded $0 (REG-04).
+  - No supplemental drawer: draw, return and audit answer 404
   - `GET /pos/supplemental/transactions/` — recent transactions (last 50)
 
 Note: `get_supplemental()` returns `.first()` — single supplemental drawer per deployment.
@@ -71,7 +80,7 @@ Note: `get_supplemental()` returns `.first()` — single supplemental drawer per
 
 When closing a drawer (`POST /pos/drawers/{id}/close/`):
 
-1. **Expected cash** = `opening_total + cash_sales_total` (drops are recorded but not subtracted in the current implementation)
+1. **Expected cash** = `opening_total + cash_sales_total - drops`. `cash_sales_total` grows by each cash sale's amount due (the change handed back is never in it) and is added in the database, so two sales at once both count.
 2. **Variance** = `closing_total - expected_cash`
 3. Drawer is marked closed with `closing_count`, `closing_total`, `expected_cash`, `variance`
 
@@ -94,3 +103,4 @@ Draw/return/audit forms: API and hooks exist (`useDrawFromSupplemental`, `useRet
 - **Bank transactions** (create, complete): Manager+ only
 - **Cash drop**: Any authenticated employee (via DrawerViewSet)
 - **Drawer close**: Any authenticated employee
+- **Drawer record edit/delete** (`PATCH`/`PUT`/`DELETE /pos/drawers/{id}/`): Manager+ only (2026-10-21, REG-01). Every drawer field is read-only in `DrawerSerializer`, and a drawer with sales, drops or handoffs cannot be deleted (409 `DRAWER_HAS_RECORDS`). Drawers change only through their actions.

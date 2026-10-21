@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.191.0] -->
-<!-- Last reviewed: 2026-10-21 (2.191.0) -->
+<!-- Line 1 release: ## [2.192.0] -->
+<!-- Last reviewed: 2026-10-21 (2.192.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.192.0] - 2026-10-21
+
+User-facing theme: **Lock the till: finished sales and drawers are protected, and the server checks the money (Bill, 2026-10-21, critic review point 3).** Outside initiatives (critic-review release list).
+
+### Changed
+- **Only managers can change or delete a finished sale or a drawer.** Cashiers ring sales through the register as before.
+- **The server works out the change** from the cash handed over and refuses amounts that don't add up; receipts show the change.
+- **Drawer counts and drops are checked:** bad numbers get a plain message, drops need cash and an open drawer, a handoff must go to a real staff member.
+
+### Fixed
+- **A double tap on Complete can no longer count a sale twice.**
+- **The supplemental drawer Audit / Recount records what was counted** (it was recording $0); short and over are kept apart.
 
 ## [2.191.0] - 2026-10-21
 

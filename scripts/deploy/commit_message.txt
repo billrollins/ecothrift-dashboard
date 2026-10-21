@@ -1,13 +1,14 @@
-v2.191.0 — Errors stay on screen, a Reload screen instead of a blank page, error records, cashiers start at the register
+v2.192.0 — Lock the till: managers only for finished sales and drawers, server-checked change, no double sale, recount fix
 
-User-facing theme: **Errors can't be missed, a crash never leaves a blank page, and cashiers start at the register (Bill, 2026-10-21, critic review point 8).** Outside initiatives (critic-review release list).
+User-facing theme: **Lock the till: finished sales and drawers are protected, and the server checks the money (Bill, 2026-10-21, critic review point 3).** Outside initiatives (critic-review release list).
 
 ### Changed
-- **Error messages stay on screen** until you close them (X), so a "payment failed" can't be missed. Success messages still fade.
-- **Cashiers signing in on a register start at the Terminal**, in the Cashier menu, not Buying. Each person's menu choice is remembered for them, not shared by everyone on that computer.
+- **Only managers can change or delete a finished sale or a drawer.** Cashiers ring sales through the register as before.
+- **The server works out the change** from the cash handed over and refuses amounts that don't add up; receipts show the change.
+- **Drawer counts and drops are checked:** bad numbers get a plain message, drops need cash and an open drawer, a handoff must go to a real staff member.
 
-### Added
-- **Crash screen:** if a screen crashes, Dash shows "Something went wrong" with Reload instead of a blank page. After a deploy, an open tab shows "A new version of Dash is ready" with Reload. The public site does the same.
-- **Errors recorded for the owner:** server errors and screen crashes, with a count and the latest ones (shown on the Owner page when it lands).
+### Fixed
+- **A double tap on Complete can no longer count a sale twice.**
+- **The supplemental drawer Audit / Recount records what was counted** (it was recording $0); short and over are kept apart.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
