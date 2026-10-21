@@ -10,6 +10,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import User
 from apps.core.models import WorkLocation
 from apps.pos.models import DeliveryAvailability, DeliveryJob, DeliveryRunStop, Drawer, Register
+from apps.pos.tests.pin_helpers import manager_ok
 
 
 class DeliverySchedulingAPITests(TestCase):
@@ -201,7 +202,7 @@ class DeliverySchedulingAPITests(TestCase):
             },
             format='json',
         )
-        r = self.client.post(f'/api/pos/carts/{cid}/void/')
+        r = self.client.post(f'/api/pos/carts/{cid}/void/', manager_ok()[1], format='json')
         self.assertEqual(r.status_code, 200, r.content)
         job = DeliveryJob.objects.get(cart_id=cid)
         self.assertEqual(job.status, DeliveryJob.STATUS_CANCELLED)

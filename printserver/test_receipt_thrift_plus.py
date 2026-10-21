@@ -230,6 +230,14 @@ class TrainingTests(unittest.TestCase):
     def test_no_banner_without_the_flag(self):
         for text in _both(_fixture("receipt_thriftplus_member")):
             self.assertNotIn("TRAINING", text)
+            self.assertNotIn("COPY", text)
+
+    def test_a_reprint_says_copy_at_top_and_bottom(self):
+        data = {**_fixture("receipt_thriftplus_member"), "copy": True}
+        for text in _both(data):
+            lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+            self.assertIn("COPY - NOT THE ORIGINAL", lines[:2])
+            self.assertIn("COPY - NOT THE ORIGINAL", lines[-2:])
 
 
 class ToleranceTests(unittest.TestCase):
@@ -390,6 +398,18 @@ class PictureTests(unittest.TestCase):
             self.assertTrue(job.endswith(rp.FEED_LINES(4) + rp.PARTIAL_CUT))
             bands = (image.height + rr.BAND_ROWS - 1) // rr.BAND_ROWS
             self.assertEqual(job.count(b"\x1dv0\x00"), bands)
+
+    def test_a_reprint_is_taller_by_its_copy_bands(self):
+        """A reprint (copy: true, 2026-10-21) draws a COPY band at the top and the bottom of the picture."""
+        from services import receipt_raster as rr
+
+        data = _fixture("receipt_thriftplus_member")
+        plain = rr.render_thermal_receipt(data)
+        copy = rr.render_thermal_receipt({**data, "copy": True})
+        self.assertGreater(copy.height, plain.height + 80)
+        self.assertEqual(rp._banners({**data, "copy": True}), [rp.COPY_BANNER])
+        self.assertEqual(rp._banners({**data, "copy": True, "training": True}), [rp.TRAINING_BANNER, rp.COPY_BANNER])
+        self.assertEqual(rp._banners(data), [])
 
     def test_the_text_tape_prints_if_the_picture_fails(self):
         from unittest import mock

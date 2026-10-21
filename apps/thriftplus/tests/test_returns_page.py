@@ -1,5 +1,6 @@
-"""The Returns page and the owner PIN (owner 2026-10-20): Find by person, ticket or item, the open receipt, the summary,
-several lines back in one go, a late return with the PIN (marked against Retail), and the PIN's lockout."""
+"""The Returns page (owner 2026-10-20): Find by person, ticket or item, the open receipt, the summary, several lines
+back in one go, and a late return (marked against Retail). Since 2026-10-21 (Bill) a late return takes a manager's own
+register PIN, or the owner signed in; the shared owner PIN is retired."""
 from __future__ import annotations
 
 from datetime import timedelta
@@ -7,6 +8,7 @@ from decimal import Decimal
 from unittest import mock
 
 from django.contrib.auth.models import Group
+from django.core.cache import cache
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
@@ -14,8 +16,9 @@ from django.utils import timezone
 from apps.accounts.models import User
 from apps.inventory.models import Item, Product
 from apps.pos.models import Cart, CartLine, Receipt
-from apps.thriftplus.models import Event, LateReturnMark, LedgerEntry, OwnerPin, ReturnRecord
-from apps.thriftplus.services import ledger, owner_pin
+from apps.accounts.services.register_pin import set_pin
+from apps.thriftplus.models import Event, LateReturnMark, LedgerEntry, ReturnRecord
+from apps.thriftplus.services import ledger
 from apps.thriftplus.tests.test_register import RegisterBase
 
 D = Decimal
@@ -55,94 +58,24 @@ class ReturnsPageBase(RegisterBase):
         return [l['id'] for l in sale['lines'] if l['line_kind'] == 'item']
 
     def _set_pin(self, pin=PIN):
+        """The manager sets their own register PIN (the Me page); lockouts from earlier tests are cleared."""
+        cache.clear()
+        set_pin(self.manager, pin)
+
+
+class ManagerPinTests(ReturnsPageBase):
+    def test_the_shared_owner_pin_is_retired(self):
         self.api.force_authenticate(self.owner)
-        r = self.api.post('/api/thriftplus/owner-pin/', {'pin': pin}, format='json')
-        self.assertEqual(r.status_code, 200, r.content)
-        self.api.force_authenticate(self.clerk)
+        self.assertEqual(self.api.get('/api/thriftplus/owner-pin/').status_code, 404)
+        self.assertEqual(self.api.post('/api/thriftplus/owner-pin/', {'pin': PIN}, format='json').status_code, 404)
 
-
-class OwnerPinTests(ReturnsPageBase):
-    def test_only_the_owner_sets_or_resets_it_and_the_pin_is_stored_hashed(self):
-        for who in (self.clerk, self.manager):
-            self.api.force_authenticate(who)
-            r = self.api.post('/api/thriftplus/owner-pin/', {'pin': PIN}, format='json')
-            self.assertEqual((r.status_code, r.json()['code']), (403, 'OWNER_ONLY'))
-        self.assertFalse(OwnerPin.objects.filter(pin_hash__gt='').exists())
-        self.api.force_authenticate(self.owner)
-        self.assertFalse(self.api.get('/api/thriftplus/owner-pin/').json()['set'])
-        made = self.api.post('/api/thriftplus/owner-pin/', {'pin': PIN}, format='json').json()
-        self.assertTrue(made['set'])
-        self.assertEqual(made['set_by'], 'Bill Owner')
-        stored = OwnerPin.objects.get().pin_hash
-        self.assertNotIn(PIN, stored)
-        self.assertTrue(stored.startswith('pbkdf2_') or '$' in stored)
-        self.assertNotIn(PIN, str(self.api.get('/api/thriftplus/owner-pin/').json()))
-        self.api.post('/api/thriftplus/owner-pin/', {'pin': '99887766'}, format='json')
-        self.assertNotEqual(OwnerPin.objects.get().pin_hash, stored)
-        self.assertEqual([e.action for e in Event.objects.filter(action__startswith='owner_pin').order_by('pk')],
-                         ['owner_pin_set', 'owner_pin_reset'])
-
-    def test_the_pin_is_four_to_eight_digits(self):
-        self.api.force_authenticate(self.owner)
-        for bad in ('', '123', '123456789', 'abcd', '12 34', '12.4'):
-            r = self.api.post('/api/thriftplus/owner-pin/', {'pin': bad}, format='json')
-            self.assertEqual((r.status_code, r.json()['code']), (400, 'PIN_FORMAT'), bad)
-        self.assertEqual(self.api.post('/api/thriftplus/owner-pin/', {'pin': '1234'}, format='json').status_code, 200)
-        self.assertEqual(self.api.post('/api/thriftplus/owner-pin/', {'pin': '12345678'}, format='json').status_code, 200)
-
-    def test_staff_see_only_whether_it_is_set(self):
-        self._set_pin()
-        body = self.api.get('/api/thriftplus/owner-pin/').json()
-        self.assertEqual(body, {'set': True, 'locked': False})
-
-    def test_five_wrong_tries_lock_it_for_fifteen_minutes_and_the_right_pin_waits(self):
-        self._set_pin()
-        for n in range(4):
-            with self.assertRaises(owner_pin.PinError) as ctx:
-                owner_pin.verify(self.clerk, '0000', 'test')
-            self.assertEqual((ctx.exception.code, ctx.exception.extra['tries_left']), ('PIN_WRONG', 4 - n))
-        with self.assertRaises(owner_pin.PinError) as ctx:
-            owner_pin.verify(self.clerk, '0000', 'test')
-        self.assertEqual((ctx.exception.code, ctx.exception.http), ('PIN_LOCKED', 429))
-        with self.assertRaises(owner_pin.PinError) as ctx:  # even the right one, while locked
-            owner_pin.verify(self.clerk, PIN, 'test')
-        self.assertEqual(ctx.exception.code, 'PIN_LOCKED')
-        self.assertTrue(owner_pin.status()['locked'])
-        self.assertEqual(Event.objects.filter(action='owner_pin_wrong').count(), 5)
-        later = timezone.now() + timedelta(minutes=16)
-        with mock.patch('django.utils.timezone.now', return_value=later):
-            owner_pin.verify(self.clerk, PIN, 'test')
-            self.assertFalse(owner_pin.status()['locked'])
-        used = Event.objects.get(action='owner_pin_used')
-        self.assertEqual((used.actor, used.detail['purpose']), (self.clerk, 'test'))
-
-    def test_a_right_pin_clears_the_count_and_the_owner_signed_in_is_never_locked_out(self):
-        self._set_pin()
-        for _ in range(3):
-            with self.assertRaises(owner_pin.PinError):
-                owner_pin.verify(self.clerk, '0000', 'test')
-        owner_pin.verify(self.clerk, PIN, 'test')
-        self.assertEqual(OwnerPin.objects.get().failures, 0)
-        OwnerPin.objects.update(locked_until=timezone.now() + timedelta(minutes=10))
-        self.assertFalse(owner_pin.authorize(self.owner, '', 'late return'))  # signed in: no PIN, no lockout
-        with self.assertRaises(owner_pin.PinError):
-            owner_pin.authorize(self.clerk, PIN, 'late return')
-
-    def test_no_pin_set_and_nothing_typed(self):
-        with self.assertRaises(owner_pin.PinError) as ctx:
-            owner_pin.authorize(self.clerk, PIN, 'late return')
-        self.assertEqual(ctx.exception.code, 'PIN_NOT_SET')
-        self._set_pin()
-        with self.assertRaises(owner_pin.PinError) as ctx:
-            owner_pin.authorize(self.clerk, '', 'late return')
-        self.assertEqual(ctx.exception.code, 'PIN_NEEDED')
-
-    def test_a_reset_clears_a_lockout(self):
-        self._set_pin()
-        OwnerPin.objects.update(failures=2, locked_until=timezone.now() + timedelta(minutes=10))
-        self._set_pin('5555')
-        self.assertEqual((OwnerPin.objects.get().failures, OwnerPin.objects.get().locked_until), (0, None))
-        owner_pin.verify(self.clerk, '5555', 'test')
+    def test_a_cashiers_own_pin_is_not_a_managers(self):
+        sale = self._sell(days_ago=4)
+        cache.clear()
+        set_pin(self.clerk, '5937')
+        r = self._batch(sale, self._item_lines(sale), late={'reason': 'closed'}, pin='5937')
+        self.assertEqual((r.status_code, r.json()['code']), (403, 'PIN_WRONG'))
+        self.assertFalse(ReturnRecord.objects.exists())
 
 
 class FindTests(ReturnsPageBase):
@@ -277,7 +210,8 @@ class BatchReturnTests(ReturnsPageBase):
         r = self.api.post('/api/thriftplus/returns/preview/', {'cart': sale['id'], 'cart_lines': ids}, format='json').json()
         self.assertEqual([x['sku'] for x in r['lines']], ['ITMTPLAMP', 'ITMTPVASE'])
         self.assertEqual((r['lines'][0]['credit'], r['lines'][0]['bucks_taken']), ('68.48', '28.00'))
-        self.assertEqual((r['late'], r['ok'], r['pin_set'], r['owner_signed_in']), (False, True, False, False))
+        self.assertEqual((r['late'], r['ok'], r['owner_signed_in']), (False, True, False))
+        self.assertNotIn('pin_set', r)  # no shared PIN to set any more
         total = sum(D(x['credit']) for x in r['lines'])
         self.assertEqual(D(r['totals']['credit']), total)
         self.assertEqual({x['value'] for x in r['reasons']}, {'told_wrong', 'closed', 'owner'})
@@ -340,14 +274,14 @@ class LateReturnTests(ReturnsPageBase):
     def _late_sale(self, *skus):
         return self._sell(*(skus or ('ITMTPLAMP',)), days_ago=4)
 
-    def test_past_the_three_days_it_needs_a_reason_and_the_pin(self):
+    def test_past_the_three_days_it_needs_a_reason_and_a_managers_pin(self):
         sale = self._late_sale()
         ids = self._item_lines(sale)
         self._set_pin()
         plain = self._batch(sale, ids)
         self.assertEqual((plain.status_code, plain.json()['code']), (400, 'SAY_WHY'))
         no_pin = self._batch(sale, ids, late={'reason': 'closed'})
-        self.assertEqual((no_pin.status_code, no_pin.json()['code']), (403, 'PIN_NEEDED'))
+        self.assertEqual((no_pin.status_code, no_pin.json()['code']), (400, 'PIN_NEEDED'))
         wrong = self._batch(sale, ids, late={'reason': 'closed'}, pin='0000')
         self.assertEqual((wrong.status_code, wrong.json()['code'], wrong.json()['tries_left']), (403, 'PIN_WRONG', 4))
         self.assertFalse(ReturnRecord.objects.exists())
@@ -356,7 +290,7 @@ class LateReturnTests(ReturnsPageBase):
         ok = self._batch(sale, ids, late={'reason': 'closed', 'note': 'Closed Sun and Mon'}, pin=PIN)
         self.assertEqual(ok.status_code, 201, ok.content)
         record = ReturnRecord.objects.get()
-        self.assertEqual(record.late_ok_by, self.clerk)
+        self.assertEqual(record.late_ok_by, self.manager)  # the manager whose PIN it was, not the clerk signed in
         self.assertIn('Late return: Store was closed.', record.note)
         self.assertIn('Closed Sun and Mon', record.note)
 
@@ -370,9 +304,11 @@ class LateReturnTests(ReturnsPageBase):
         mark = LateReturnMark.objects.get()
         self.assertEqual((mark.department, mark.cashier, mark.cashier_name, mark.reason, mark.entered_by, mark.by_pin),
                          ('retail', self.manager, 'Pat Clerk', 'told_wrong', self.clerk, True))
+        self.assertEqual(mark.approved_by, self.manager)
         self.assertEqual(mark.return_record, ReturnRecord.objects.get())
-        used = Event.objects.get(action='owner_pin_used')
-        self.assertEqual((used.actor, used.detail['purpose'], used.detail['reason']), (self.clerk, 'late return', 'told_wrong'))
+        used = Event.objects.get(action='late_return_ok')
+        self.assertEqual((used.actor, used.detail['approved_by'], used.detail['reason']),
+                         (self.clerk, self.manager.pk, 'told_wrong'))
 
     def test_the_owner_signed_in_needs_no_pin_and_it_is_still_marked(self):
         sale = self._late_sale()
@@ -380,7 +316,7 @@ class LateReturnTests(ReturnsPageBase):
         r = self._batch(sale, self._item_lines(sale), late={'reason': 'owner'})
         self.assertEqual(r.status_code, 201, r.content)
         mark = LateReturnMark.objects.get()
-        self.assertEqual((mark.by_pin, mark.entered_by, mark.reason), (False, self.owner, 'owner'))
+        self.assertEqual((mark.by_pin, mark.entered_by, mark.approved_by, mark.reason), (False, self.owner, self.owner, 'owner'))
 
     def test_only_the_late_lines_are_marked_when_a_receipt_mixes(self):
         sale = self._sell('ITMTPLAMP', 'ITMTPVASE')
@@ -416,10 +352,11 @@ class LateReturnTests(ReturnsPageBase):
         self.assertEqual(again.status_code, 429)
         self.assertFalse(ReturnRecord.objects.exists())
 
-    def test_no_pin_set_says_so(self):
+    def test_a_pin_no_manager_has_is_wrong(self):
         sale = self._late_sale()
+        cache.clear()
         r = self._batch(sale, self._item_lines(sale), late={'reason': 'closed'}, pin=PIN)
-        self.assertEqual((r.status_code, r.json()['code']), (403, 'PIN_NOT_SET'))
+        self.assertEqual((r.status_code, r.json()['code']), (403, 'PIN_WRONG'))
 
     def test_the_late_returns_list_is_for_managers_and_newest_first(self):
         old, new = self._late_sale(), self._late_sale('ITMTPVASE')
@@ -433,6 +370,7 @@ class LateReturnTests(ReturnsPageBase):
         first = rows[1]
         self.assertEqual((first['reason_label'], first['cashier'], first['entered_by'], first['by_pin'], first['member']),
                          ('Store was closed', 'Pat Clerk', 'Pat Clerk', True, 'Ana Member'))
+        self.assertEqual(first['approved_by'], self.manager.full_name)
         self.assertIn('storm', first['note'])
         self.assertEqual(first['days_late'], 1)
         self.assertTrue(first['receipt_number'].startswith('R-'))

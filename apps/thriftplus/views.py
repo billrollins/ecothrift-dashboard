@@ -20,6 +20,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin, IsStaff, IsSuperAdmin, IsTeamMember
+from apps.accounts.services.register_pin import PinError
 from apps.thriftplus.models import (
     Account,
     Card,
@@ -42,7 +43,6 @@ from apps.thriftplus.services import (
     floor_plan,
     ledger,
     members,
-    owner_pin,
     register,
     returns,
     returns_find,
@@ -1004,18 +1004,19 @@ class ReturnsViewSet(viewsets.ViewSet):
         late_ok = _truthy(request.data.get('late_ok'))
         note = str(request.data.get('note') or '')
         training = self._training(request.data.get('register'))
-        by_pin = False
+        by_pin, approver = False, None
         if late_ok and not note.strip():
             return Response({'detail': 'Say why the late return is allowed (the store was closed).', 'code': 'SAY_WHY'},
                             status=status.HTTP_400_BAD_REQUEST)
-        if late_ok and not training:  # the owner signed in, or the owner PIN (owner 2026-10-20)
+        if late_ok and not training:  # the owner signed in, or a manager's own PIN (Bill 2026-10-21)
             try:
-                by_pin = owner_pin.authorize(request.user, str(request.data.get('pin') or ''), 'late return', cart_line=line.pk)
-            except owner_pin.PinError as exc:
+                approver, by_pin = _late_return_ok(request, request.data.get('register'), cart_line=line.pk)
+            except PinError as exc:
                 return Response(exc.payload(), status=exc.http)
         try:
             result = returns.do_return(line, str(request.data.get('code') or ''), person=request.data.get('person'),
-                                       note=note, user=request.user, training=training, late_ok=late_ok, by_pin=by_pin)
+                                       note=note, user=request.user, training=training, late_ok=late_ok, by_pin=by_pin,
+                                       approved_by=approver)
         except register.RegisterError as exc:
             return Response(exc.payload(), status=status.HTTP_400_BAD_REQUEST)
         return Response(result, status=status.HTTP_200_OK if training else status.HTTP_201_CREATED)
@@ -1063,7 +1064,7 @@ class ReturnsViewSet(viewsets.ViewSet):
         if error is not None:
             return error
         body = returns.preview(lines, member.account, training=self._training(request.data.get('register')))
-        body.update(pin_set=owner_pin.status()['set'], owner_signed_in=bool(request.user.is_superuser),
+        body.update(owner_signed_in=bool(request.user.is_superuser),
                     reasons=[{'value': k, 'label': v} for k, v in returns.LATE_REASONS.items()])
         return Response(body)
 
@@ -1079,21 +1080,21 @@ class ReturnsViewSet(viewsets.ViewSet):
         late = any(returns.is_late(line) for line in lines)
         info = d.get('late') if isinstance(d.get('late'), dict) else {}
         reason, note = str(info.get('reason') or ''), str(info.get('note') or d.get('note') or '').strip()
-        by_pin = False
+        by_pin, approver = False, None
         if late:
             if reason not in returns.LATE_REASONS:
                 return Response({'detail': 'Pick why the late return is allowed.', 'code': 'SAY_WHY'}, status=status.HTTP_400_BAD_REQUEST)
             note = f'Late return: {returns.LATE_REASONS[reason]}.{" " + note if note else ""}'
             if not training:
                 try:
-                    by_pin = owner_pin.authorize(request.user, str(d.get('pin') or ''), 'late return',
-                                                 cart=member.cart_id, cart_lines=[l.pk for l in lines], reason=reason)
-                except owner_pin.PinError as exc:
+                    approver, by_pin = _late_return_ok(request, d.get('register'), cart=member.cart_id,
+                                                       cart_lines=[l.pk for l in lines], reason=reason)
+                except PinError as exc:
                     return Response(exc.payload(), status=exc.http)
         person = returns_find.acting_person(member, d.get('person'))
         try:
             result = returns.batch(lines, person=person, note=note, user=request.user, training=training, late_ok=late,
-                                   late_reason=reason, by_pin=by_pin)
+                                   late_reason=reason, by_pin=by_pin, approved_by=approver)
         except register.RegisterError as exc:
             return Response(exc.payload(), status=status.HTTP_400_BAD_REQUEST)
         return Response(result, status=status.HTTP_200_OK if training else status.HTTP_201_CREATED)
@@ -1120,27 +1121,21 @@ class ReturnsViewSet(viewsets.ViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class OwnerPinViewSet(viewsets.ViewSet):
-    """
-    The owner PIN (owner 2026-10-20), in Dash Settings. ``GET`` says whether one is set (and, for the owner, when and by
-    whom); ``POST {pin}`` sets or resets it: the owner (a superuser) only, 4 to 8 digits. The PIN is never sent back.
-    """
+def _late_return_ok(request, register_code, **detail):
+    """Past the 3 days (Bill, 2026-10-21): the owner signed in, or a manager's own register PIN (``pin``). Answers
+    (who allowed it, whether a PIN was typed), or raises ``PinError`` (wrong, locked: five wrong tries lock that register
+    for 15 minutes). The shared owner PIN is retired."""
+    from apps.accounts.services.register_pin import check_pin, device_key
 
-    permission_classes = [IsAuthenticated, IsTeamMember]
-
-    def list(self, request):
-        body = owner_pin.status()
-        if not request.user.is_superuser:
-            body = {'set': body['set'], 'locked': body['locked']}
-        return Response(body)
-
-    def create(self, request):
-        if not request.user.is_superuser:
-            return Response({'detail': 'Only the owner can set the PIN.', 'code': 'OWNER_ONLY'}, status=status.HTTP_403_FORBIDDEN)
-        try:
-            return Response(owner_pin.set_pin(request.user, str(request.data.get('pin') or '')))
-        except owner_pin.PinError as exc:
-            return Response(exc.payload(), status=exc.http)
+    if request.user.is_superuser:
+        members.log('late_return_ok', actor=request.user, approved_by=request.user.pk, by_pin=False, **detail)
+        return request.user, False
+    raw = request.data.get('pin')
+    pin = raw if isinstance(raw, str) else str(raw or '')
+    code = str(register_code or '').strip() or None
+    approver = check_pin(pin, device=device_key(request, code), min_role='Manager')
+    members.log('late_return_ok', actor=request.user, approved_by=approver.pk, by_pin=True, **detail)
+    return approver, True
 
 
 class MemberDirectoryViewSet(viewsets.ViewSet):

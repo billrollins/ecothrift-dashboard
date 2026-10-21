@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (lock the till: sale records managers only, server change, double-tap lock; owner-only sale settings, line sale off by default; store-local dates) -->
+<!-- Last updated: 2026-10-21 (lock the till, manager OK, paid with Thrift+, Open drawer, loud print failures, COPY reprints) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -103,6 +103,15 @@ Denomination counts (JSON) are used at each step for reconciliation.
 
 ---
 
+## Paid with Thrift+ (Bill, 2026-10-21, `pos.0039`)
+
+When Thrift+ credit and/or kept ThriftBucks leave **nothing due** on a sale with items, the sale is paid with Thrift+: `payment_method = 'thrift'`, no cash tendered, change or card, nothing in the drawer.
+- **Server:** complete sets `thrift` itself when the amount due (total less Thrift+ credit) is $0 and there is Thrift+ credit or a ThriftBucks line, whatever the screen sent (cash, card, an old screen). `thrift` with money still due is 400 `THRIFT_DOES_NOT_COVER`. A $0 sale without Thrift+ (say a 100% discount) keeps the method sent.
+- **Register:** the Payment panel shows "Nothing to pay: Thrift+ covers this sale" with the ThriftBucks and credit, and one button, **Complete: paid with Thrift+**; no cash or card step, the drawer stays shut.
+- **Shown as:** the receipt prints "Payment  Thrift+" (its Thrift+ credit and ThriftBucks used rows print as before); Transactions' Method column says Thrift+ and the filter has "Thrift+ (paid in full)"; the sale detail adds "Paid with ThriftBucks 12.00 · Thrift+ credit $40.00" beside any cash or card part (`utils/posPayment.ts`). ThriftBucks carry no "$".
+- **Numbers:** sales numbers count it under Thrift+ credit / ThriftBucks, never cash (cash is the amount due, $0); drawer cash adds $0.
+- **Past sales** recorded as cash or card: Requests kind `pos.thrift_paid` (`apps/pos/approval_kinds.py`). Stage it in production; the owner approves; undo puts them back. 1 sale on 2026-10-21 (R-20261020-009).
+
 ## Payroll deduction (staff, owner 2026-10-07)
 
 - **Payment method `payroll`** ("Payroll deduction (staff)" on the register). It shows only while the owner's switch is on: AppSetting `pos.staff_purchases` = `{payroll_deduction, payroll_max_percent (25), thrift_plus_free}`, all off at first. It's edited on Settings → Store → Staff purchases, by Admin only. The generic settings API refuses this key to managers (`AppSettingViewSet.OWNER_ONLY`).
@@ -127,12 +136,28 @@ Denomination counts (JSON) are used at each step for reconciliation.
 
 ## Void Flow
 
-- **Manager only** — `POST /pos/carts/{id}/void/` (IsManagerOrAdmin). A second void is a 400.
-- Sets cart status to `voided` (under a row lock).
-- **A paid sale** (`completed`): takes `_sale_cash(cart)` back out of the drawer's `cash_sales_total` (the same amount complete added: cash covered, less a split's card part and change), while the drawer is open. Reverts its items to `on_shelf` and clears `sold_at` / `sold_for`, unless another paid sale holds the item.
+- **A manager's PIN + reason (2026-10-21, REG-08/12)** — `POST /pos/carts/{id}/void/` with `manager_pin` and `override_reason`; any staff login may send it (the PIN is the approval, so a signed-in manager types theirs too). Without them: 403 `MANAGER_OK_NEEDED` and the register asks. A second void is a 400; a set-aside sale is deleted from its tab, not voided.
+- Sets cart status to `voided` (under a row lock) with `voided_at`, `voided_by` (the PIN's manager) and `void_reason`, plus a `RegisterApproval` row (see Manager OK below). Transactions shows "Voided by …".
+- **A paid sale** (`completed`): takes `_sale_cash(cart)` back out of the drawer's `cash_sales_total` (the same amount complete added: cash covered, less a split's card part), while the drawer is open. Reverts its items to `on_shelf` and clears `sold_at` / `sold_for`, unless another paid sale holds the item.
 - **A sale voided before payment** (`open`): no drawer change and no item change. It never sold anything, and its item may be on the sale that was paid.
 - Then Thrift+ `after_void` reverses any ledger rows.
 - No receipt: a sale voided before payment never got one. Transactions shows "Not paid" for it.
+
+## Manager OK (2026-10-21, `services/manager_ok.py`, `pos.0038`)
+
+Price edits, discounts over the cap and voids need a manager's **register PIN** (each person's own, `apps/accounts/services/register_pin.py`, set on the Me page) and a reason.
+- **Flow:** the register sends the change as usual; the server answers 403 `MANAGER_OK_NEEDED` (`approval`: `price_edit` | `discount` | `void`); `useManagerOk` (`components/pos/ManagerOkDialog.tsx`) asks for the PIN and a reason and sends the same change again with `manager_pin` + `override_reason`. A wrong PIN is 403 `PIN_WRONG` with `tries_left`; five in a row lock PIN entry on that register only for 15 minutes (429 `PIN_LOCKED`). A cashier's own PIN, or a manager whose login is off or job ended, counts as wrong. No reason: 400 `REASON_REQUIRED`.
+- **Price edit** (`PATCH .../lines/{id}/`): a changed `unit_price` on any line but a hand-priced one (`manual`: pink tag, unscannable). The same price sent back asks nothing. The line's `meta.price_edit` keeps who approved it and the old price. Prices go through `parse_money`; quantity is 1-999.
+- **Discount over the cap** (`add-discount`): AppSetting `pos.discount_cap_percent` (default **20**, owner-editable). Over it when this discount is more than the cap of its line, or when all the sale's discounts together (the ThriftBucks line not counted) pass the cap of the sale. The discount's own reason is the why; `meta.manager_ok` keeps the approval. Every discount needs a reason (400 `REASON_REQUIRED`); "In-store credit (return)" is no longer the default (REG-27).
+- **Record:** `RegisterApproval` (kind, cart, register code, training flag, requested_by = the signed-in login, approved_by = the PIN's manager, reason, `detail` with before/after). Read-only in Django admin.
+- Late returns past the 3 days use the same managers' PINs since 2026-10-21 (Bill); the shared owner PIN is retired (rulebook O2).
+
+## Open drawer, print failures, reprints (2026-10-21, REG-03/17, `pos.0040`)
+
+- **Open drawer** button on the register (not on the training register): `POST /pos/drawers/{id}/open-drawer/` `{reason, cart?}` logs a `RegisterEvent` (`open_drawer`: who, when, register, why) first, then the print server kicks the drawer. A closed drawer refuses (`DRAWER_CLOSED`); a `cart` must be on that drawer.
+- **A receipt that does not print is loud:** `localPrintService.printReceipt` / `openCashDrawer` throw `PrintFailedError` when the print server answers `success: false` (it answers 200 either way). The register then shows a box that stays (**Receipt did not print**, the reason; for cash, "the cash drawer did not open") with **Print again**, **Open drawer** and Close, and logs `POST /pos/carts/{id}/print-failed/` (`print_failed`). A printed receipt whose drawer did not open shows the same box.
+- **Reprints say COPY and are logged:** Transactions (list and detail) and the card-type fix use `services/receiptReprint.ts`: `POST /pos/carts/{id}/reprint/` logs `reprint` and answers `copy_number`; the receipt goes out with `copy: true` and the number "R-… COPY" ("COPY 2" after). Print server 1.9.8 prints a **COPY - NOT THE ORIGINAL** band at the top and the bottom; older ones show COPY in the receipt number only.
+- `RegisterEvent` rows are read-only in Django admin.
 
 **One cart per sale (register, 2026-10-06).** `TerminalPage` `startCart` makes the cart once; every scan, manual line or button that needs a cart while it is being made waits for that same cart. The same scan pressed again while it is on its way is ignored. Before this, a slow server (a dyno restart after a deploy) turned repeated scans into 3–4 carts holding the same item, and voiding the extras put the sold item back on the shelf.
 

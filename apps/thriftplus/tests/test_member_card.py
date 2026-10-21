@@ -10,6 +10,7 @@ from apps.pos.models import Cart
 from apps.thriftplus.models import Account, LedgerEntry, Person
 from apps.thriftplus.services import members, returns
 from apps.thriftplus.tests.test_register import RegisterBase
+from apps.pos.tests.pin_helpers import manager_ok
 
 D = Decimal
 
@@ -125,7 +126,7 @@ class MemberCardTests(RegisterBase):
         body = self._card(person=person.pk).json()
         self.assertEqual((body['rewards']['used'], body['rewards']['collected']), ('40.00', '75.00'))
         self.api.force_authenticate(self.manager)
-        self.assertEqual(self.api.post(f"/api/pos/carts/{sale['id']}/void/", {}, format='json').status_code, 200)
+        self.assertEqual(self.api.post(f"/api/pos/carts/{sale['id']}/void/", manager_ok()[1], format='json').status_code, 200)
         voided = self._card(person=person.pk).json()
         self.assertEqual((voided['rewards']['used'], voided['rewards']['collected'], voided['trips']), ('0.00', '40.00', []))
 

@@ -202,7 +202,7 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 |------|------|----------------|
 | **Terminal** | `/pos/terminal` | Live POS register: cart, tender, discounts, delivery lines, checkout. Idle registers are asked for a work cycle after a few minutes with no cart. |
 | **Transactions** | `/pos/transactions` | Historical completed sales / lookups. |
-| **Returns** | `/pos/returns` | Thrift+ 3-day returns (owner 2026-10-20): Find the receipt, tick lines, summary, owner PIN past the 3 days; **Late returns** tab for managers. `?practice=1` = training. |
+| **Returns** | `/pos/returns` | Thrift+ 3-day returns (owner 2026-10-20): Find the receipt, tick lines, summary, a manager's own PIN past the 3 days (since 10-21); **Late returns** tab for managers. `?practice=1` = training. |
 | **Deliveries** | `/pos/deliveries` | Entry redirect into **Delivery Desk** (desktop) or **Delivery Field** (mobile) Days. |
 | **Delivery Desk** | `/pos/deliveries/desk/schedule`, `/desk/table`, `/desk/schedule/:dayId` | Office planning/review + live run/route/ETA monitor on day detail; never renders the Field driver wizard. |
 | **Delivery Field** | `/pos/deliveries/field/schedule`, `/field/table`, `/field/schedule/:dayId` | Mobile full-day run: Contact → Load → Routes → Deliveries → Finish; Routes API ETAs; sticky timer + step rail. |

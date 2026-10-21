@@ -150,9 +150,9 @@ def apply_card_surcharge(
         'card_surcharge_amount': Decimal('0.00'),
         'card_charged_total': None,
     }
-    if payment_method in ('cash', 'payroll'):  # payroll deduction: no card, nothing in the drawer
+    if payment_method in ('cash', 'payroll', 'thrift'):  # payroll deduction, Thrift+: no card, nothing in the drawer
         if card_type:
-            raise CardSurchargeError('card_type is not allowed on cash or payroll tenders.')
+            raise CardSurchargeError('card_type is not allowed on cash, payroll or Thrift+ tenders.')
         return blank
 
     if card_type not in ('credit', 'debit'):

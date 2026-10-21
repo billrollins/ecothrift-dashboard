@@ -7,6 +7,7 @@ from django.test import TestCase
 from apps.pos.models import Cart
 
 from .test_cart_card_surcharge import _CartCardSurchargeFixtures
+from apps.pos.tests.pin_helpers import manager_ok
 
 
 class CartVoidTests(_CartCardSurchargeFixtures, TestCase):
@@ -15,7 +16,7 @@ class CartVoidTests(_CartCardSurchargeFixtures, TestCase):
         self.user.groups.add(Group.objects.get_or_create(name='Manager')[0])
 
     def _void(self, cid):
-        return self.client.post(f'/api/pos/carts/{cid}/void/')
+        return self.client.post(f'/api/pos/carts/{cid}/void/', manager_ok()[1], format='json')
 
     def _cash(self):
         self.drawer.refresh_from_db()

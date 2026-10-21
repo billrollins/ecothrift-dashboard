@@ -5,9 +5,9 @@ import { useSnackbar } from 'notistack';
 import { useCardPreview, useSetCartCardType } from '../../hooks/usePOS';
 import { useCardTypeFixWindow } from '../../hooks/useCardTypeFixWindow';
 import { useAuth } from '../../contexts/AuthContext';
-import { localPrintService } from '../../services/localPrintService';
+import { printErrorMessage } from '../../services/localPrintService';
+import { reprintReceipt } from '../../services/receiptReprint';
 import type { Cart } from '../../types/pos.types';
-import { buildReceiptData } from '../../utils/posReceipt';
 
 const FONT = '"Atkinson Hyperlegible", system-ui, sans-serif';
 const NO_FILL = '#1F5FBF';
@@ -77,10 +77,10 @@ export function CardTypeFixDialog({ open, cart, onClose, onUpdated }: Props) {
         onUpdated?.(updated);
         onClose();
         try {
-          await localPrintService.printReceipt(buildReceiptData(updated), false);
-          enqueueSnackbar('Card type changed · receipt printed', { variant: 'success' });
-        } catch {
-          enqueueSnackbar('Card type changed · receipt did not print', { variant: 'warning' });
+          await reprintReceipt(updated);
+          enqueueSnackbar('Card type changed · receipt printed (marked COPY)', { variant: 'success' });
+        } catch (err) {
+          enqueueSnackbar(`Card type changed · ${printErrorMessage(err)}`, { variant: 'error' });
         }
       } catch (err) {
         enqueueSnackbar(apiErrorDetail(err) || 'Could not change card type', { variant: 'error' });

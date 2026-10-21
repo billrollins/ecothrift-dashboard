@@ -66,7 +66,8 @@ function parsePositive(raw: string): number | null {
 export function DiscountDialog({ open, cart, pending, onClose, onSubmit }: DiscountDialogProps) {
   const { enqueueSnackbar } = useSnackbar();
   const { data: pastUsernames = [] } = useGoogleReviewUsernames(open);
-  const [reasonPreset, setReasonPreset] = useState(DISCOUNT_REASON_STORE_CREDIT);
+  // No default reason (2026-10-21, REG-27): "In-store credit (return)" was preset, so a discount stood in for a return.
+  const [reasonPreset, setReasonPreset] = useState('');
   const [reasonNote, setReasonNote] = useState('');
   const [reviewUsername, setReviewUsername] = useState('');
   const [reviewStars, setReviewStars] = useState(5);
@@ -77,7 +78,7 @@ export function DiscountDialog({ open, cart, pending, onClose, onSubmit }: Disco
 
   useEffect(() => {
     if (!open) return;
-    setReasonPreset(DISCOUNT_REASON_STORE_CREDIT);
+    setReasonPreset('');
     setReasonNote('');
     setReviewUsername('');
     setReviewStars(5);
@@ -148,7 +149,7 @@ export function DiscountDialog({ open, cart, pending, onClose, onSubmit }: Disco
         ? reasonNote.trim()
         : reasonPreset;
     if (!reason) {
-      enqueueSnackbar('Enter a reason.', { variant: 'warning' });
+      enqueueSnackbar('Pick a reason for the discount.', { variant: 'warning' });
       return;
     }
     if (reasonPreset === DISCOUNT_REASON_GOOGLE_REVIEW && !reviewUsername.trim()) {

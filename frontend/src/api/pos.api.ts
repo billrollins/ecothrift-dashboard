@@ -231,6 +231,8 @@ export function addDiscountToCart(
     target_line_id?: number | null;
     google_review_username?: string;
     google_review_stars?: number;
+    /** Over the discount cap: a manager's register PIN (the discount's reason is the why). */
+    manager_pin?: string;
   },
 ): Promise<{ data: Cart }> {
   return api.post<Cart>(`/pos/carts/${cartId}/add-discount/`, body);
@@ -726,8 +728,28 @@ export function getCartCardPreview(
   return api.get<CardPreview>(`/pos/carts/${cartId}/card-preview/`, { params });
 }
 
-export function voidCart(cartId: number): Promise<{ data: Cart }> {
-  return api.post<Cart>(`/pos/carts/${cartId}/void/`);
+/** The register's Open drawer button (2026-10-21): logged on the server first (who, when, why), then the register
+ * kicks the drawer. `cart` when it is for a sale whose receipt did not print. */
+export function logOpenDrawer(drawerId: number, body: { cart?: number; reason?: string } = {}): Promise<{ data: { id: number } }> {
+  return api.post(`/pos/drawers/${drawerId}/open-drawer/`, body);
+}
+
+/** A reprint is logged (who, when) and numbered: the answer says which copy this is. */
+export function logReprint(cartId: number): Promise<{ data: { copy_number: number } }> {
+  return api.post(`/pos/carts/${cartId}/reprint/`, {});
+}
+
+/** The register tells Dash a receipt did not print, with the print server's reason. */
+export function logPrintFailed(cartId: number, error: string): Promise<unknown> {
+  return api.post(`/pos/carts/${cartId}/print-failed/`, { error: error.slice(0, 300) });
+}
+
+/** A void needs a manager's register PIN and a reason (2026-10-21); without them the server asks for them. */
+export function voidCart(
+  cartId: number,
+  body: { manager_pin?: string; override_reason?: string } = {},
+): Promise<{ data: Cart }> {
+  return api.post<Cart>(`/pos/carts/${cartId}/void/`, body);
 }
 
 /** The sales set aside on a drawer (the bookmark tabs). `cashier` narrows it for the shared test terminal. */

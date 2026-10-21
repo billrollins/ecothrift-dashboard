@@ -198,6 +198,8 @@ class Cart(models.Model):
         ('card', 'Card'),
         ('split', 'Split'),
         ('payroll', 'Payroll deduction'),  # staff only; services/staff_purchases.py
+        # Thrift+ credit and/or ThriftBucks covered the whole sale (Bill, 2026-10-21): nothing in the drawer.
+        ('thrift', 'Thrift+'),
     ]
     CARD_TYPES = [
         ('', ''),
@@ -251,6 +253,13 @@ class Cart(models.Model):
         null=True, blank=True,
         help_text='When the sale was set aside (status suspended); the register shows it as a bookmark tab.',
     )
+    # Who voided it, when and why (2026-10-21, REG-08): the manager whose PIN approved it.
+    voided_at = models.DateTimeField(null=True, blank=True)
+    voided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='voided_carts',
+    )
+    void_reason = models.CharField(max_length=300, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -347,6 +356,66 @@ class CartLine(models.Model):
         if self.thrift_savings:  # Thrift+ member rebate; 0 unless a live register priced a member
             self.line_total = max(Decimal('0.00'), self.line_total - self.thrift_savings)
         super().save(*args, **kwargs)
+
+
+class RegisterApproval(models.Model):
+    """A manager's OK at the register (2026-10-21, REG-05/06/08): a price edit, a discount over the cap, or a void.
+    Who asked (the signed-in login), whose PIN approved it, when, why, and what changed. Never edited."""
+    KIND_PRICE_EDIT = 'price_edit'
+    KIND_DISCOUNT = 'discount'
+    KIND_VOID = 'void'
+    KIND_CHOICES = [
+        (KIND_PRICE_EDIT, 'Price edit'),
+        (KIND_DISCOUNT, 'Discount over the cap'),
+        (KIND_VOID, 'Void'),
+    ]
+
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    cart = models.ForeignKey(Cart, on_delete=models.SET_NULL, null=True, blank=True, related_name='approvals')
+    register_code = models.CharField(max_length=20, blank=True, default='')
+    is_training = models.BooleanField(default=False)
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='register_approvals_asked',
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='register_approvals_given',
+    )
+    reason = models.CharField(max_length=300)
+    detail = models.JSONField(default=dict, blank=True, help_text='What changed: line, before and after, amounts.')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.get_kind_display()} by {self.approved_by_id} on cart {self.cart_id}'
+
+
+class RegisterEvent(models.Model):
+    """What happened at the register outside a sale (2026-10-21, REG-03/17): the drawer opened by the Open drawer
+    button, a receipt reprinted (it says COPY), a receipt that failed to print. Who and when. Never edited."""
+    KIND_OPEN_DRAWER = 'open_drawer'
+    KIND_REPRINT = 'reprint'
+    KIND_PRINT_FAILED = 'print_failed'
+    KIND_CHOICES = [
+        (KIND_OPEN_DRAWER, 'Drawer opened (no sale)'),
+        (KIND_REPRINT, 'Receipt reprinted'),
+        (KIND_PRINT_FAILED, 'Receipt did not print'),
+    ]
+
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    drawer = models.ForeignKey(Drawer, on_delete=models.SET_NULL, null=True, blank=True, related_name='events')
+    cart = models.ForeignKey(Cart, on_delete=models.SET_NULL, null=True, blank=True, related_name='register_events')
+    register_code = models.CharField(max_length=20, blank=True, default='')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='register_events')
+    note = models.CharField(max_length=300, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.get_kind_display()} by {self.user_id} at {self.register_code or "?"}'
 
 
 class Receipt(models.Model):

@@ -7,6 +7,7 @@ from django.test import TestCase
 from apps.thriftplus.tests.test_register import RegisterBase
 
 from .test_cart_card_surcharge import _CartCardSurchargeFixtures
+from apps.pos.tests.pin_helpers import manager_ok
 
 
 class CartSummaryTests(_CartCardSurchargeFixtures, TestCase):
@@ -22,7 +23,7 @@ class CartSummaryTests(_CartCardSurchargeFixtures, TestCase):
     def test_voided_sales_are_counted_but_not_added_to_the_money(self):
         cid, cart = self._open_cart_with_item()
         self._complete(cid, {'payment_method': 'cash', 'cash_tendered': cart['total']})
-        self.assertEqual(self.client.post(f'/api/pos/carts/{cid}/void/').status_code, 200)
+        self.assertEqual(self.client.post(f'/api/pos/carts/{cid}/void/', manager_ok()[1], format='json').status_code, 200)
         cid, cart = self._open_cart_with_item()
         done = self._complete(cid, {'payment_method': 'card', 'card_amount': cart['total'], 'card_type': 'debit',
                                     'card_charged_total': cart['total']})

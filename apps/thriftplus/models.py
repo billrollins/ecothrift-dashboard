@@ -498,9 +498,9 @@ class ReturnRecord(models.Model):
 
 class OwnerPin(models.Model):
     """
-    The owner's PIN (owner 2026-10-20): the owner sets it in Dash Settings and gives it out; anyone may type it where
-    it is asked (a late return past the 3 days). One row. Stored hashed and never shown. Five wrong tries in a row lock
-    it for 15 minutes (``services/owner_pin.py``); every use is logged as an ``owner_pin_*`` Event.
+    **Retired 2026-10-21** (Bill: "managers use their own PINs"): late returns take a manager's own register PIN
+    (``accounts/services/register_pin.py``). Nothing reads or writes this table any more; it stays until a later
+    clean-up drops it. It was the owner's shared PIN (owner 2026-10-20), set in Dash Settings and given out.
     """
 
     pin_hash = models.CharField(max_length=128, blank=True, default='')
@@ -534,7 +534,11 @@ class LateReturnMark(models.Model):
     reason = models.CharField(max_length=20, choices=REASON_CHOICES)
     note = models.TextField(blank=True, default='')
     entered_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
-                                   help_text='Who was signed in when the owner PIN was typed (or the owner who allowed it).')
+                                   help_text='Who was signed in when the PIN was typed (or the owner who allowed it).')
+    # Since 2026-10-21 (Bill): the manager whose own register PIN allowed it, or the owner signed in. Before that the
+    # shared owner PIN was used and nobody was named (empty on those marks).
+    approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='+', help_text='The manager (or the owner) who allowed the late return.')
     by_pin = models.BooleanField(default=True, help_text='False when the owner was signed in (no PIN typed).')
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 

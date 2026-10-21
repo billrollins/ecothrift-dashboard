@@ -39,8 +39,9 @@ const big = { minHeight: 56, fontSize: '1.1rem', fontWeight: 700, borderRadius: 
 
 /**
  * Step 3 (owner 2026-10-20): the summary. Per line and in all, the Thrift+ credit (80% of what was paid, tax included),
- * ThriftBucks taken back and given back, and what to check. Past the 3 days it also asks for the owner PIN (not when the
- * owner is signed in) and a reason; the return is then a mark against Retail on the original sale's cashier.
+ * ThriftBucks taken back and given back, and what to check. Past the 3 days it also asks for a manager's own register PIN
+ * (Bill 2026-10-21; not when the owner is signed in) and a reason; the return is then a mark against Retail on the
+ * original sale's cashier.
  */
 export default function ReturnsSummaryStep({ receipt, lines, registerCode, practice, onBack, onDone }: Props) {
   const [summary, setSummary] = useState<ReturnsSummary | null>(null);
@@ -64,8 +65,7 @@ export default function ReturnsSummaryStep({ receipt, lines, registerCode, pract
 
   const late = Boolean(summary?.late);
   const needsPin = late && !practice && !summary?.owner_signed_in;
-  const noPinSet = needsPin && summary != null && !summary.pin_set;
-  const ready = Boolean(summary?.ok) && (!late || (reason !== '' && (!needsPin || (pin.length >= 4 && !noPinSet))));
+  const ready = Boolean(summary?.ok) && (!late || (reason !== '' && (!needsPin || pin.length >= 4)));
 
   async function confirm() {
     if (!summary || !ready || busy) return;
@@ -78,7 +78,7 @@ export default function ReturnsSummaryStep({ receipt, lines, registerCode, pract
       onDone(await confirmReturn(body));
     } catch (err) {
       const code = returnsErrorCode(err);
-      if (code === 'PIN_WRONG' || code === 'PIN_LOCKED' || code === 'PIN_NOT_SET' || code === 'PIN_NEEDED') {
+      if (code === 'PIN_WRONG' || code === 'PIN_LOCKED' || code === 'PIN_NEEDED') {
         const left = (err as { response?: { data?: { tries_left?: number } } })?.response?.data?.tries_left;
         setError(`${thriftErrorMessage(err)}${typeof left === 'number' ? ` ${left} ${left === 1 ? 'try' : 'tries'} left.` : ''}`);
         setPin('');
@@ -135,7 +135,7 @@ export default function ReturnsSummaryStep({ receipt, lines, registerCode, pract
       {late ? (
         <Paper variant="outlined" sx={{ p: 2, borderColor: 'warning.main' }} data-testid="returns-late-box">
           <Stack spacing={1.5}>
-            <Typography fontWeight={800}>Past the 3 days: the owner has to OK it.</Typography>
+            <Typography fontWeight={800}>Past the 3 days: a manager has to OK it.</Typography>
             <Typography variant="body2" color="text.secondary">
               It is marked against Retail, on the cashier who rang the sale ({receipt.cashier || 'unknown'}).
             </Typography>
@@ -156,18 +156,17 @@ export default function ReturnsSummaryStep({ receipt, lines, registerCode, pract
             <TextField size="small" label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
             {summary.owner_signed_in ? (
               <Alert severity="success">The owner is signed in: no PIN needed.</Alert>
-            ) : practice ? null : noPinSet ? (
-              <Alert severity="warning">There is no owner PIN yet. The owner can sign in here, or set the PIN in Settings → Thrift+.</Alert>
-            ) : (
+            ) : practice ? null : (
               <TextField
                 inputRef={pinRef}
                 autoFocus
-                label="Owner PIN"
+                label="Manager PIN"
                 type="password"
                 value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 onKeyDown={(e) => e.key === 'Enter' && void confirm()}
-                slotProps={{ htmlInput: { inputMode: 'numeric', autoComplete: 'off', 'data-testid': 'owner-pin-input' } }}
+                helperText="The manager's own register PIN (set on their Me page)."
+                slotProps={{ htmlInput: { inputMode: 'numeric', autoComplete: 'off', 'data-testid': 'manager-pin-input' } }}
                 sx={{ maxWidth: 240 }}
               />
             )}

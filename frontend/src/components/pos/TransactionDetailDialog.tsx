@@ -11,11 +11,12 @@ import {
 } from '@mui/material';
 import { format } from 'date-fns';
 import { useSnackbar } from 'notistack';
-import { localPrintService } from '../../services/localPrintService';
+import { printErrorMessage } from '../../services/localPrintService';
+import { reprintReceipt } from '../../services/receiptReprint';
 import type { Cart, CartLine } from '../../types/pos.types';
 import { CartCardBreakdown } from './CartCardBreakdown';
 import { CardTypeFixControls } from './CardTypeFixControls';
-import { buildReceiptData } from '../../utils/posReceipt';
+import { paymentMethodLabel, thriftPaymentParts } from '../../utils/posPayment';
 import { IconClose as Close } from '../../icons/ecoIcons';
 
 function formatCurrency(value: string | number): string {
@@ -108,7 +109,7 @@ export function TransactionDetailDialog({ open, cart, onClose, onCartUpdated }: 
               </Box>
               <Box sx={{ mt: 1 }}>
                 <Typography variant="body2" color="text.secondary">
-                  Payment: {String(cart.payment_method).replace(/_/g, ' ')}
+                  Payment: {paymentMethodLabel(cart.payment_method)}
                   {cart.payment_method === 'payroll' && cart.payroll_employee_name
                     ? ` deduction, from ${cart.payroll_employee_name}'s next paycheck`
                     : ''}
@@ -121,6 +122,7 @@ export function TransactionDetailDialog({ open, cart, onClose, onCartUpdated }: 
                         {formatCurrency(cart.card_amount)}
                       </>
                     )}
+                  {thriftPaymentParts(cart).map((part) => ` · ${part}`).join('')}
                 </Typography>
                 <CartCardBreakdown cart={cart} />
               </Box>
@@ -131,13 +133,10 @@ export function TransactionDetailDialog({ open, cart, onClose, onCartUpdated }: 
               sx={{ mt: 2, minHeight: 48 }}
               onClick={async () => {
                 try {
-                  const receiptData = buildReceiptData(cart);
-                  await localPrintService.printReceipt(receiptData, false);
-                  enqueueSnackbar('Receipt sent to printer', { variant: 'success' });
-                } catch {
-                  enqueueSnackbar('Print failed. Is the print server running?', {
-                    variant: 'error',
-                  });
+                  const copy = await reprintReceipt(cart);
+                  enqueueSnackbar(`Copy ${copy} printed (marked COPY)`, { variant: 'success' });
+                } catch (err) {
+                  enqueueSnackbar(printErrorMessage(err), { variant: 'error' });
                 }
               }}
             >

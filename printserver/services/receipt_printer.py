@@ -87,6 +87,8 @@ MARK_AS_IS = "AS IS"
 
 # A training register's practice sale (payload ``training: true``), at the top and the bottom.
 TRAINING_BANNER = "TRAINING - NOT A SALE"
+# A reprint from Dash (payload ``copy: true``, 2026-10-21): it must not pass for the original.
+COPY_BANNER = "COPY - NOT THE ORIGINAL"
 
 
 # cp437 has no en/em dash, bullet, or curly quotes — they printed as "?".
@@ -222,6 +224,16 @@ def _truthy(value: Any) -> bool:
 def _is_training(data: dict[str, Any]) -> bool:
     """A training register's practice sale (payload ``training: true``)."""
     return _truthy(data.get("training"))
+
+
+def _banners(data: dict[str, Any]) -> list[str]:
+    """The bands printed at the top and the bottom: TRAINING for a practice sale, COPY for a reprint."""
+    out = []
+    if _is_training(data):
+        out.append(TRAINING_BANNER)
+    if _truthy(data.get("copy")):
+        out.append(COPY_BANNER)
+    return out
 
 
 def _tp(data: dict[str, Any]) -> dict[str, Any] | None:
@@ -603,11 +615,11 @@ def format_receipt_tape(data: dict[str, Any]) -> bytes:
     Sale payload may only supply lines, totals, and payment — never branding.
     """
     buf = bytearray(INIT)
-    training = _is_training(data)
+    banners = _banners(data)
 
     def training_banner() -> bytes:
-        return (
-            CENTER + BOLD_ON + DOUBLE_HW + _line(TRAINING_BANNER) + NORMAL + BOLD_OFF + LEFT + _separator("*")
+        return b"".join(
+            CENTER + BOLD_ON + DOUBLE_HW + _line(text) + NORMAL + BOLD_OFF + LEFT + _separator("*") for text in banners
         )
 
     def emit_rows(rows: list[tuple[str, str | None, bool]]) -> None:
@@ -622,7 +634,7 @@ def format_receipt_tape(data: dict[str, Any]) -> bytes:
             else:
                 buf += _lr(label, amount)
 
-    if training:
+    if banners:
         buf += training_banner()
 
     # --- Store header (always the Canfield storefront; ignore payload branding) ---
@@ -725,7 +737,7 @@ def format_receipt_tape(data: dict[str, Any]) -> bytes:
         buf += FONT_SMALL + b"".join(_line(ln) for ln in _wrap_chars(text)) + NORMAL
     buf += LEFT + _separator("=")
 
-    if training:
+    if banners:
         buf += _line()
         buf += _separator("*")
         buf += training_banner()
@@ -796,9 +808,9 @@ def format_receipt_text(data: dict[str, Any]) -> str:
     ``footer``, then policy lines.
     """
     lines: list[str] = []
-    training = _is_training(data)
-    if training:
-        lines.extend(["*" * W, TRAINING_BANNER.center(W), "*" * W])
+    banners = _banners(data)
+    for text in banners:
+        lines.extend(["*" * W, text.center(W), "*" * W])
 
     def emit_rows(rows: list[tuple[str, str | None, bool]]) -> None:
         for label, amount, _bold in rows:
@@ -901,8 +913,8 @@ def format_receipt_text(data: dict[str, Any]) -> str:
     for text in fine:
         lines.extend(ln.center(W).rstrip() for ln in _wrap_chars(text))
     lines.append("#" * W)
-    if training:
-        lines.extend(["*" * W, TRAINING_BANNER.center(W), "*" * W])
+    for text in banners:
+        lines.extend(["*" * W, text.center(W), "*" * W])
     lines.append("")
 
     return "\n".join(lines)
@@ -1132,21 +1144,23 @@ def render_receipt_to_image(
     f_total_row_label = _sans_bold(18 * S)
     lw1 = max(1, S)
     lw2 = max(2, 2 * S)
-    training = _is_training(data)
+    banners = _banners(data)
+    training = bool(banners)
 
     def _training_band() -> None:
-        """Black band, white type: a practice sale must not pass for a real receipt."""
+        """Black band, white type: a practice sale or a reprint must not pass for an original receipt."""
         nonlocal y
-        band_h = 52 * S
-        draw.rectangle([x0, y, x1, y + band_h], fill=(0, 0, 0))
-        tw = _text_w(draw, TRAINING_BANNER, f_saved)
-        draw.text(
-            (x0 + (inner - tw) / 2, y + (band_h - _text_h(f_saved)) // 2),
-            TRAINING_BANNER,
-            font=f_saved,
-            fill=(255, 255, 255),
-        )
-        y += band_h + 14 * S
+        for text in banners:
+            band_h = 52 * S
+            draw.rectangle([x0, y, x1, y + band_h], fill=(0, 0, 0))
+            tw = _text_w(draw, text, f_saved)
+            draw.text(
+                (x0 + (inner - tw) / 2, y + (band_h - _text_h(f_saved)) // 2),
+                text,
+                font=f_saved,
+                fill=(255, 255, 255),
+            )
+            y += band_h + 14 * S
 
     if training:
         _training_band()

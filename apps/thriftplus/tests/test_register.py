@@ -20,6 +20,7 @@ from apps.pos.models import Cart, CartLine, Drawer, Register
 from apps.thriftplus.models import Card, CartMember, Event, ItemReward, LedgerEntry, Person, RestrictedProduct, ReturnRecord
 from apps.thriftplus.services import cards, ledger, members, register, returns, trip
 from apps.thriftplus.services.trip import TripLine
+from apps.pos.tests.pin_helpers import manager_ok
 
 D = Decimal
 HALF = D('0.50')
@@ -264,7 +265,7 @@ class RegisterTests(RegisterBase):
         self.assertFalse(LedgerEntry.objects.filter(kind=LedgerEntry.KIND_COVER).exists())  # no cover (C1)
         self.assertEqual(ledger.bucks_total(self.account), D('35.00'))
         self.api.force_authenticate(self.manager)
-        self.assertEqual(self.api.post(f"/api/pos/carts/{cart['id']}/void/").status_code, 200)
+        self.assertEqual(self.api.post(f"/api/pos/carts/{cart['id']}/void/", manager_ok()[1], format='json').status_code, 200)
         self.assertEqual(ledger.bucks_total(self.account), D('0.00'))
 
     def test_spent_balances_are_checked_again_at_payment(self):
@@ -559,17 +560,18 @@ class ReturnTests(RegisterBase):
         self.assertFalse(ReturnRecord.objects.exists())
         self.assertEqual(LedgerEntry.objects.count(), rows)
 
-    def test_three_calendar_days_then_only_the_owner_can_allow_it(self):
+    def test_three_calendar_days_then_a_manager_or_the_owner_can_allow_it(self):
         sale = self._buy()
         line_id = sale['lines'][0]['id']
         Cart.objects.filter(pk=sale['id']).update(completed_at=timezone.now() - timedelta(days=4))
         late = self._return(line_id)
         self.assertIn('3-day return window closed', late.json()['detail'])
         row = self.api.get('/api/thriftplus/returns/lookup/', {'code': self.codes[0]}).json()['lines'][0]
-        self.assertEqual((row['ok'], row['late_only']), (False, True))  # the owner may allow it at the register
+        self.assertEqual((row['ok'], row['late_only']), (False, True))  # a manager may allow it at the register
         self.api.force_authenticate(self.manager)
-        refused = self._return(line_id, late_ok=True, note='closed')  # not the owner, and no PIN set yet (owner 2026-10-20)
-        self.assertEqual((refused.status_code, refused.json()['code']), (403, 'PIN_NOT_SET'))
+        # Signed in as a manager is not enough: their own register PIN is (Bill 2026-10-21; the owner PIN is retired).
+        refused = self._return(line_id, late_ok=True, note='closed')
+        self.assertEqual((refused.status_code, refused.json()['code']), (400, 'PIN_NEEDED'))
         owner = User.objects.create_superuser(email='owner@example.com', first_name='O', last_name='W', password='x-pass-123')
         owner.groups.add(Group.objects.get_or_create(name='Admin')[0])
         self.api.force_authenticate(owner)

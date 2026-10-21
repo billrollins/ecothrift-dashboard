@@ -73,7 +73,9 @@ export function receiptItemsFromCart(cart: Cart) {
     });
 }
 
-export function buildReceiptData(cart: Cart): Record<string, unknown> {
+/** `copy`: a reprint (2026-10-21, REG-17): the print server bands it COPY at the top and the bottom (1.9.8+), and the
+ * receipt number says COPY on any print server. */
+export function buildReceiptData(cart: Cart, opts: { copy?: number } = {}): Record<string, unknown> {
   const completedAt = cart.completed_at
     ? new Date(cart.completed_at)
     : cart.created_at
@@ -82,7 +84,10 @@ export function buildReceiptData(cart: Cart): Record<string, unknown> {
   // A training register's practice sale says so on the paper (2026-10-10).
   const training = cart.status === 'training';
   const data: Record<string, unknown> = {
-    receipt_number: cart.receipt?.receipt_number ?? '',
+    receipt_number: opts.copy
+      ? `${cart.receipt?.receipt_number ?? `Sale ${cart.id}`} COPY${opts.copy > 1 ? ` ${opts.copy}` : ''}`
+      : cart.receipt?.receipt_number ?? '',
+    ...(opts.copy ? { copy: true } : {}),
     date: format(completedAt, 'yyyy-MM-dd'),
     time: format(completedAt, 'h:mm a'),
     cashier: training ? `TRAINING - ${cart.cashier_name ?? ''}` : cart.cashier_name ?? '',
@@ -90,7 +95,12 @@ export function buildReceiptData(cart: Cart): Record<string, unknown> {
     subtotal: parseFloat(String(cart.subtotal)),
     tax: parseFloat(String(cart.tax_amount)),
     total: parseFloat(String(cart.total)),
-    payment_method: training ? `TRAINING - NOT A SALE (${cart.payment_method})` : cart.payment_method,
+    // Paid in full with Thrift+ (2026-10-21): "Payment  Thrift+"; the credit and ThriftBucks rows print below it.
+    payment_method: training
+      ? `TRAINING - NOT A SALE (${cart.payment_method})`
+      : cart.payment_method === 'thrift'
+        ? 'Thrift+'
+        : cart.payment_method,
     amount_tendered:
       cart.cash_tendered != null ? parseFloat(String(cart.cash_tendered)) : undefined,
     change: cart.change_given != null ? parseFloat(String(cart.change_given)) : undefined,

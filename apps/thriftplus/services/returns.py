@@ -18,8 +18,8 @@ Thrift+ 3-day returns (the 10-12 policy, W1-W14; owner answers 2026-10-14): a re
 - **Settled on the return day** (W11): new ledger rows that day; the sale and its receipt are never changed.
 - **Training register:** the result is worked out and shown, and nothing is written.
 
-- **Past the 3 days** (owner 2026-10-20): the owner signed in, or anyone with the owner PIN (``owner_pin.py``), lets
-  it through with a reason; it is recorded as a mark against Retail on the original sale's cashier (``LateReturnMark``)
+- **Past the 3 days** (owner 2026-10-20; Bill 2026-10-21: managers' own PINs): the owner signed in, or a manager's own
+  register PIN (``accounts/services/register_pin.py``; the shared owner PIN is retired), lets it through with a reason; it is recorded as a mark against Retail on the original sale's cashier (``LateReturnMark``)
   and listed under Late returns. The Returns page (``returns_find.py``) finds the receipt and returns several lines at
   once (``batch``).
 
@@ -343,7 +343,7 @@ LATE_REASONS = dict(LateReturnMark.REASON_CHOICES)
 
 
 def do_return(line, code: str = '', *, person=None, note: str = '', user=None, training: bool = False,
-              late_ok: bool = False, late_reason: str = '', by_pin: bool = False) -> dict:
+              late_ok: bool = False, late_reason: str = '', by_pin: bool = False, approved_by=None) -> dict:
     """Take the line back (W3, W4, W11): Thrift+ credit for 80% of what was paid, tax included; 80% of the ThriftBucks
     used on it back as fresh ThriftBucks; 80% of the ThriftBucks it collected taken back, soonest first, any shortfall
     off the credit. On a training register the result is worked out and nothing is written.
@@ -383,7 +383,7 @@ def do_return(line, code: str = '', *, person=None, note: str = '', user=None, t
             account=account, person=who, cart_line=line, item=line.item, paid=parts['refund'], credit=credit,
             taxable_back=parts['taxable_back'], tax_back=parts['tax_back'], bucks_back=parts['bucks_back'],
             bucks_taken=taken, shortfall=shortfall, note=note, returned_by=user,
-            late_ok_by=user if late and late_ok else None,
+            late_ok_by=(approved_by or user) if late and late_ok else None,
         )
         members.log('return', account=account, person=who, card=card, actor=user, cart=line.cart_id,
                     cart_line=line.pk, credit=str(credit), refund=str(parts['refund']),
@@ -395,7 +395,7 @@ def do_return(line, code: str = '', *, person=None, note: str = '', user=None, t
             LateReturnMark.objects.create(
                 return_record=record, cashier=cashier, cashier_name=(cashier.full_name or cashier.email) if cashier else '',
                 reason=late_reason if late_reason in LATE_REASONS else LateReturnMark.REASON_OWNER, note=note[:500],
-                entered_by=user, by_pin=by_pin,
+                entered_by=user, approved_by=approved_by, by_pin=by_pin,
             )
     return {'id': record.pk, 'credit': str(credit), 'bucks_back': str(parts['bucks_back']), 'bucks_taken': str(taken),
             'shortfall': str(shortfall), 'training': False}
@@ -438,7 +438,7 @@ def preview(lines: list, account, *, training: bool = False) -> dict:
 
 
 def batch(lines: list, code: str = '', *, person=None, note: str = '', user=None, training: bool = False,
-          late_ok: bool = False, late_reason: str = '', by_pin: bool = False) -> dict:
+          late_ok: bool = False, late_reason: str = '', by_pin: bool = False, approved_by=None) -> dict:
     """Take several lines of one receipt back in one go: all of them, or none (one transaction). The owner's OK for a
     late line is checked by the caller before this (a wrong PIN must be counted even though the return stops)."""
     results = []
@@ -452,7 +452,7 @@ def batch(lines: list, code: str = '', *, person=None, note: str = '', user=None
     with transaction.atomic():
         for line in lines:
             results.append(do_return(line, code, person=person, note=note, user=user, late_ok=late_ok,
-                                     late_reason=late_reason, by_pin=by_pin))
+                                     late_reason=late_reason, by_pin=by_pin, approved_by=approved_by))
         who, _ = found(code, person)
     totals = {
         'credit': sum((Decimal(r['credit']) for r in results), ZERO),
@@ -467,7 +467,7 @@ def batch(lines: list, code: str = '', *, person=None, note: str = '', user=None
 def late_list(limit: int = 200) -> list[dict]:
     """The Late returns list (mark against Retail): newest first."""
     marks = (LateReturnMark.objects.select_related('return_record__person', 'return_record__cart_line__cart__receipt',
-                                                   'return_record__item', 'entered_by')
+                                                   'return_record__item', 'entered_by', 'approved_by')
              .order_by('-created_at')[:limit])
     rows = []
     for m in marks:
@@ -483,6 +483,7 @@ def late_list(limit: int = 200) -> list[dict]:
             'member': f'{record.person.first_name} {record.person.last_name}'.strip(), 'credit': str(record.credit),
             'cashier': m.cashier_name, 'reason': m.reason, 'reason_label': LATE_REASONS.get(m.reason, m.reason),
             'note': m.note, 'entered_by': (m.entered_by.full_name or m.entered_by.email) if m.entered_by else '',
+            'approved_by': (m.approved_by.full_name or m.approved_by.email) if m.approved_by else '',
             'by_pin': m.by_pin,
         })
     return rows

@@ -17,7 +17,6 @@ export type CustomPiece =
   | 'card-surcharge'
   | 'staff-purchases'
   | 'calculator-link'
-  | 'owner-pin'
   | 'shipping-formula'
   | 'seller-factors'
   | 'retail-qa-tables'
@@ -97,12 +96,6 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
           'thrift_plus_return_credit_share', 'thrift_plus_return_min_price', 'thrift_plus_nonreturnable_categories',
           'thrift_plus_nonreturnable_words', 'thrift_plus_return_warn_count', 'thrift_plus_return_warn_days',
         ],
-      },
-      {
-        id: 'owner-pin',
-        title: 'Owner PIN',
-        help: 'The PIN the register asks for when a return comes in after the 3 days. You set it; anyone you give it to can type it.',
-        custom: ['owner-pin'],
       },
     ],
   },

@@ -129,7 +129,6 @@ export interface ReturnsSummary {
   /** Some line is past the 3 days: the owner PIN and a reason are asked. */
   late: boolean;
   ok: boolean;
-  pin_set: boolean;
   owner_signed_in: boolean;
   reasons: { value: LateReason; label: string }[];
 }
@@ -183,31 +182,13 @@ export interface LateReturnRow {
   reason_label: string;
   note: string;
   entered_by: string;
+  /** The manager whose own PIN allowed it, or the owner signed in (2026-10-21; empty on older marks). */
+  approved_by?: string;
   by_pin: boolean;
 }
 
 export async function fetchLateReturns(): Promise<LateReturnRow[]> {
   const { data } = await api.get<LateReturnRow[]>('/thriftplus/returns/late/');
-  return data;
-}
-
-/** Whether a PIN is set. The owner also sees when and by whom. */
-export interface OwnerPinStatus {
-  set: boolean;
-  locked: boolean;
-  set_at?: string | null;
-  set_by?: string;
-  locked_until?: string | null;
-}
-
-export async function getOwnerPin(): Promise<OwnerPinStatus> {
-  const { data } = await api.get<OwnerPinStatus>('/thriftplus/owner-pin/');
-  return data;
-}
-
-/** The owner sets or resets the PIN (4 to 8 digits). Never read back. */
-export async function setOwnerPin(pin: string): Promise<OwnerPinStatus> {
-  const { data } = await api.post<OwnerPinStatus>('/thriftplus/owner-pin/', { pin });
   return data;
 }
 

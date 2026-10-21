@@ -2,7 +2,8 @@
  * Payment method choices
  */
 /** payroll: payroll deduction, staff only (pos.staff_purchases). */
-export type PaymentMethod = 'cash' | 'card' | 'split' | 'payroll';
+/** 'thrift': Thrift+ credit and/or ThriftBucks paid the whole sale (2026-10-21). */
+export type PaymentMethod = 'cash' | 'card' | 'split' | 'payroll' | 'thrift';
 
 export type CardType = '' | 'credit' | 'debit';
 
@@ -245,6 +246,11 @@ export interface Cart {
   completed_at: string | null;
   /** When the sale was set aside (status 'suspended'); null otherwise. */
   suspended_at?: string | null;
+  /** A void (2026-10-21): when, the manager whose PIN approved it, and why. */
+  voided_at?: string | null;
+  voided_by?: number | null;
+  voided_by_name?: string | null;
+  void_reason?: string;
   created_at: string;
   lines: CartLine[];
   receipt?: Receipt | null;

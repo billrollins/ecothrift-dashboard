@@ -279,7 +279,7 @@ export default function ReturnsPage() {
             </Typography>
             {receipt.late ? (
               <Alert severity="warning" sx={{ mt: 1 }} data-testid="receipt-late">
-                The 3 days ended {dayOnly(receipt.deadline)}. A return now needs the owner (PIN) and is marked against Retail.
+                The 3 days ended {dayOnly(receipt.deadline)}. A return now needs a manager's PIN and is marked against Retail.
               </Alert>
             ) : (
               <Typography sx={{ mt: 0.5 }} fontWeight={700}>Returns through {dayOnly(receipt.deadline)}.</Typography>

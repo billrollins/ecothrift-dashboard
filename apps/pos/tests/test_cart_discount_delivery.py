@@ -58,14 +58,14 @@ class CartDiscountDeliveryAPITests(TestCase):
         self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': self.item.sku}, format='json')
         r = self.client.post(
             f'/api/pos/carts/{cid}/add-discount/',
-            {'amount': '5.00', 'reason': 'In-store credit (return)'},
+            {'amount': '4.00', 'reason': 'Damaged'},
             format='json',
         )
         self.assertEqual(r.status_code, 200, r.content)
         kinds = [ln['line_kind'] for ln in r.data['lines']]
         self.assertIn('discount', kinds)
         disc = next(ln for ln in r.data['lines'] if ln['line_kind'] == 'discount')
-        self.assertEqual(Decimal(str(disc['unit_price'])), Decimal('-5.00'))
+        self.assertEqual(Decimal(str(disc['unit_price'])), Decimal('-4.00'))
         self.assertEqual(disc['meta']['scope'], 'cart')
 
     def test_add_discount_rejects_over_cart(self):
@@ -73,7 +73,7 @@ class CartDiscountDeliveryAPITests(TestCase):
         self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': self.item.sku}, format='json')
         r = self.client.post(
             f'/api/pos/carts/{cid}/add-discount/',
-            {'amount': '99.00'},
+            {'amount': '99.00', 'reason': 'Damaged'},
             format='json',
         )
         self.assertEqual(r.status_code, 400)
@@ -236,7 +236,7 @@ class CartDiscountDeliveryAPITests(TestCase):
         self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': self.item.sku}, format='json')
         r = self.client.post(
             f'/api/pos/carts/{cid}/add-discount/',
-            {'mode': 'percent', 'percent': '0'},
+            {'mode': 'percent', 'percent': '0', 'reason': 'Damaged'},
             format='json',
         )
         self.assertEqual(r.status_code, 400)

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.202.0] -->
-<!-- Last reviewed: 2026-10-21 (2.202.0) -->
+<!-- Line 1 release: ## [2.203.0] -->
+<!-- Last reviewed: 2026-10-21 (2.203.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.203.0] - 2026-10-21
+
+User-facing theme: **Managers approve with their own PIN, Thrift+-paid sales say so, and the register never fails silently (Bill, 2026-10-21, critic review point 3).** Outside initiatives (critic-review release list).
+
+### Added
+- **Manager OK:** price changes at the register, discounts over 20% (an owner setting) and every void need a manager's register PIN and a reason; Dash keeps who asked, who approved, when and why. Five wrong PINs lock PIN entry on that register only, for 15 minutes. A voided sale shows who voided it, when and why.
+- **Paid with Thrift+:** when Thrift+ credit or ThriftBucks cover the whole sale, the register shows "Nothing to pay" and one button, "Complete: paid with Thrift+"; no cash step, the drawer stays shut, and the receipt, Transactions and sale detail say "Paid with ThriftBucks …" / "Thrift+ credit $…". A Requests item fixes the one past sale recorded as cash.
+- **Print failures are loud:** when a receipt doesn't print, the register shows a box that stays (and says the drawer didn't open), with Print again and Open drawer; every failure is logged.
+- **Open drawer** button at the register; Dash logs who and when.
+- **Reprints** are marked COPY and logged.
+
+### Changed
+- **Late returns need a manager's own PIN** (or the owner signed in) and show who allowed them; the shared owner PIN is gone.
+- **Every discount names its reason;** "In-store credit (return)" is no longer picked for you.
 
 ## [2.202.0] - 2026-10-21
 

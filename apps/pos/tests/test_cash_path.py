@@ -18,6 +18,7 @@ from apps.pos.models import (
 from apps.pos.views import CartViewSet
 
 from .test_cart_card_surcharge import _CartCardSurchargeFixtures
+from apps.pos.tests.pin_helpers import manager_ok
 
 COUNT_120 = {'twenties': 5, 'tens': 1, 'fives': 1, 'ones': 4, 'quarters': 4}  # $120.00
 
@@ -162,7 +163,7 @@ class ServerWorksOutChangeTests(_CashPathFixtures, TestCase):
         cid, _ = self._cart('37.40')
         self._complete(cid, {'payment_method': 'cash', 'cash_tendered': '100.00'})
         self.assertEqual(self._cash(), Decimal('37.40'))
-        self.assertEqual(self.client.post(f'/api/pos/carts/{cid}/void/').status_code, 200)
+        self.assertEqual(self.client.post(f'/api/pos/carts/{cid}/void/', manager_ok()[1], format='json').status_code, 200)
         self.assertEqual(self._cash(), Decimal('0.00'))
 
 

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-20 (1.9.7 returns line and AS IS line inside their heading boxes) -->
+<!-- Last updated: 2026-10-21 (success:false throws; copy: true prints a COPY band, 1.9.8 to ship) -->
 
 # Print Server — Extended Context
 
@@ -19,7 +19,8 @@ The print server is a **separate FastAPI application** at `http://127.0.0.1:8888
 | `isAvailable()` | Health check (2s timeout) |
 | `getHealth()`, `listPrinters()` | Status and Windows printers |
 | `getSettings` / `updateSettings` | **Requires V3** — persisted in `settings.json` next to installed exe |
-| `printLabel`, `printTest`, `printReceipt`, `openCashDrawer`, etc. | Printing. `printReceipt` may return `drawer_opened` (`true`/`false`/`null`). |
+| `printLabel`, `printTest`, `printReceipt`, `openCashDrawer`, etc. | Printing. `printReceipt` may return `drawer_opened` (`true`/`false`/`null`). Since 2026-10-21 `printReceipt` and `openCashDrawer` **throw `PrintFailedError`** when the server answers `success: false` (it answers 200 either way); `printErrorMessage(err)` gives the plain reason. |
+| Receipt payload `copy: true` | A reprint (Dash logs it first). Print server **1.9.8** bands it **COPY - NOT THE ORIGINAL** at the top and the bottom (picture, tape and text, like TRAINING); Dash also puts COPY in `receipt_number` for older servers. |
 
 Printer assignment is **on the print server**, shared by all browsers on the PC.
 

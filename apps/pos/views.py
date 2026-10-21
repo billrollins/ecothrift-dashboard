@@ -22,7 +22,7 @@ from .models import (
     Cart, CartLine, Receipt, RevenueGoal, DashboardSalesGoal,
     DashboardDepartmentGoal,
     DeliveryAvailability, DeliveryDay, DeliveryJob, DeliveryJobItem,
-    DeliveryRun, DeliveryRunStop, DeliveryAttachment,
+    DeliveryRun, DeliveryRunStop, DeliveryAttachment, RegisterApproval, RegisterEvent,
 )
 from .serializers import thrift_earned_on
 from .serializers import (
@@ -36,11 +36,11 @@ from .serializers import (
     DeliveryAvailabilitySerializer, DeliveryJobSerializer, DeliveryDayWriteSerializer,
 )
 from .filters import CartFilter, DrawerFilter
+from .services import manager_ok
 from .services import suspend as suspend_service
 from .services.cash_counts import CashCountError, clean_amount, clean_count, count_and_total, count_total
 from .services.discounts import (
     REASON_GOOGLE_REVIEW,
-    REASON_STORE_CREDIT,
     DiscountError,
     assert_google_review_available,
     list_google_review_usernames,
@@ -124,7 +124,7 @@ def _tender_fields(payment_method, amount_due, cash_tendered, change_given, card
         if card_amount is not None and card_amount != due:
             raise TenderError(f'The card amount ${card_amount} does not match the ${due} due.', 'CARD_MISMATCH')
         return None, None, card_amount
-    return None, None, None  # payroll: nothing in the drawer, nothing on a card
+    return None, None, None  # payroll or Thrift+: nothing in the drawer, nothing on a card
 
 
 def _cash_count_error(exc):
@@ -590,6 +590,36 @@ class DrawerViewSet(viewsets.ModelViewSet):
 
         return Response(DrawerSerializer(drawer).data)
 
+    @action(detail=True, methods=['post'], url_path='open-drawer')
+    def open_drawer(self, request, pk=None):
+        """The register's Open drawer button (2026-10-21, REG-03): logged first (who, when, why), then the register
+        kicks the drawer open. ``cart`` when it is for a sale whose receipt did not print."""
+        drawer = self.get_object()
+        if drawer.register.is_training:
+            return Response(
+                {'detail': 'This is the training register: practice only. There is no cash drawer to open.',
+                 'code': TRAINING_REFUSED},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if drawer.status != 'open':
+            return Response(
+                {'detail': 'This drawer is closed. Open it with a count first.', 'code': 'DRAWER_CLOSED'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        cart = None
+        raw = request.data.get('cart')
+        if raw not in (None, ''):
+            try:
+                cart = Cart.objects.get(pk=int(raw), drawer=drawer)
+            except (TypeError, ValueError, OverflowError, Cart.DoesNotExist):
+                return Response({'detail': 'That sale is not on this drawer.', 'code': 'INVALID_CART'}, status=400)
+        reason = request.data.get('reason')
+        event = RegisterEvent.objects.create(
+            kind=RegisterEvent.KIND_OPEN_DRAWER, drawer=drawer, cart=cart, register_code=drawer.register.code,
+            user=request.user, note=(reason if isinstance(reason, str) else '')[:300],
+        )
+        return Response({'id': event.pk, 'created_at': event.created_at}, status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=['post'])
     def drop(self, request, pk=None):
         """Create a cash drop from a drawer."""
@@ -818,7 +848,7 @@ class CartViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Cart.objects.select_related(
-            'drawer', 'cashier', 'receipt', 'card_type_fixed_by',
+            'drawer', 'cashier', 'receipt', 'card_type_fixed_by', 'voided_by',
         ).prefetch_related('lines').all()
         # Practice sales on the training register stay out of the Transactions list (they showed as
         # "Completed" under All). The terminal still finds its own open cart by asking for its drawer.
@@ -1395,9 +1425,13 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
-        reason = (request.data.get('reason') or REASON_STORE_CREDIT).strip()
+        # Every discount names its reason (2026-10-21, REG-27): no "In-store credit (return)" default, which let a
+        # discount stand in for a return.
+        reason = request.data.get('reason')
+        reason = reason.strip() if isinstance(reason, str) else ''
         if not reason:
-            reason = REASON_STORE_CREDIT
+            return Response({'detail': 'Pick or type a reason for the discount.', 'code': 'REASON_REQUIRED'},
+                            status=400)
         if len(reason) > 200:
             return Response(
                 {'detail': 'Reason is too long.', 'code': 'REASON_TOO_LONG'},
@@ -1479,6 +1513,28 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
+        # Over the owner's cap (2026-10-21, REG-06): a manager's PIN, the discount's reason as the why. Counts every
+        # discount already on the sale (no stacking past the cap); the Thrift+ ThriftBucks line is not a discount here.
+        cap = manager_ok.discount_cap_percent()
+        given = sum(
+            (-ln.line_total for ln in cart.lines.filter(line_kind=CartLine.LINE_KIND_DISCOUNT)
+             if (ln.meta or {}).get('thrift') != 'bucks'),
+            Decimal('0'),
+        )
+        over_line = scope == 'line' and base > 0 and amount * 100 > base * cap
+        over_sale = positive > 0 and (given + amount) * 100 > positive * cap
+        approval = None
+        if over_line or over_sale:
+            try:
+                approval = manager_ok.approve(
+                    request, cart=cart, kind=RegisterApproval.KIND_DISCOUNT, reason=reason, cap=cap,
+                    detail={'amount': str(amount), 'percent': str(percent) if percent is not None else None,
+                            'scope': scope, 'cap_percent': str(cap), 'sale_discounts_before': str(given),
+                            'target_line_id': target_line.pk if target_line else None},
+                )
+            except manager_ok.ManagerOkError as exc:
+                return Response(exc.payload(), status=exc.http)
+
         if reason == REASON_GOOGLE_REVIEW and review_name:
             description = f'Discount - {reason} ({review_name}, {review_stars} stars)'
         elif scope == 'line' and target_line is not None:
@@ -1501,6 +1557,8 @@ class CartViewSet(viewsets.ModelViewSet):
             meta['google_review_username'] = review_name
             meta['google_review_username_key'] = review_key
             meta['google_review_stars'] = review_stars
+        if approval is not None:
+            meta['manager_ok'] = manager_ok.stamp(approval)
 
         CartLine.objects.create(
             cart=cart,
@@ -1940,6 +1998,21 @@ class CartViewSet(viewsets.ModelViewSet):
         if not isinstance(payment_method, str) or payment_method not in allowed:
             return Response({'detail': 'Invalid payment method.'}, status=400)
 
+        # Paid with Thrift+ (Bill, 2026-10-21, R-20261020-009): when Thrift+ credit and/or ThriftBucks leave nothing
+        # due, the sale is paid with Thrift+, never cash or card, whatever the screen sent. "Thrift+" with money
+        # still due is refused.
+        thrift_paid = amount_due <= 0 and (
+            (cart.thrift_credit or Decimal('0')) > 0 or any(thrift_register.is_bucks_line(ln) for ln in cart.lines.all())
+        )
+        if thrift_paid:
+            payment_method = 'thrift'
+        elif payment_method == 'thrift':
+            return Response(
+                {'detail': f'Thrift+ does not cover this sale: ${amount_due.quantize(Decimal("0.01"))} is still due.',
+                 'code': 'THRIFT_DOES_NOT_COVER'},
+                status=400,
+            )
+
         # Every money field is checked before anything is written: a bad one is a plain 400, never a server error.
         try:
             cash_tendered = parse_money(
@@ -1950,7 +2023,7 @@ class CartViewSet(viewsets.ModelViewSet):
             card_charged_total = parse_money(request.data.get('card_charged_total'), 'Card charged total')
         except CardSurchargeError as exc:
             return Response({'detail': str(exc), 'code': 'INVALID_AMOUNT'}, status=400)
-        raw_card_type = request.data.get('card_type') or ''
+        raw_card_type = '' if thrift_paid else (request.data.get('card_type') or '')
         if not isinstance(raw_card_type, str):
             return Response({'detail': 'card_type must be credit or debit.', 'code': 'INVALID_AMOUNT'}, status=400)
 
@@ -2081,6 +2154,35 @@ class CartViewSet(viewsets.ModelViewSet):
 
         return Response(CartSerializer(cart).data)
 
+    @action(detail=True, methods=['post'])
+    def reprint(self, request, pk=None):
+        """A reprint of a finished sale's receipt (2026-10-21, REG-17): logged (who, when), and the answer is which copy
+        this is; the receipt prints COPY."""
+        cart = self.get_object()
+        if cart.status not in ('completed', 'voided', 'training'):
+            return Response({'detail': 'Only a finished sale has a receipt to reprint.', 'code': 'NOT_FINISHED'},
+                            status=400)
+        number = RegisterEvent.objects.filter(cart=cart, kind=RegisterEvent.KIND_REPRINT).count() + 1
+        register = getattr(cart.drawer, 'register', None)
+        RegisterEvent.objects.create(
+            kind=RegisterEvent.KIND_REPRINT, drawer=cart.drawer, cart=cart,
+            register_code=getattr(register, 'code', '') or '', user=request.user, note=f'Copy {number}',
+        )
+        return Response({'copy_number': number}, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='print-failed')
+    def print_failed(self, request, pk=None):
+        """The register says a receipt did not print (2026-10-21, REG-03): kept with the print server's reason."""
+        cart = self.get_object()
+        error = request.data.get('error')
+        register = getattr(cart.drawer, 'register', None)
+        RegisterEvent.objects.create(
+            kind=RegisterEvent.KIND_PRINT_FAILED, drawer=cart.drawer, cart=cart,
+            register_code=getattr(register, 'code', '') or '', user=request.user,
+            note=(error if isinstance(error, str) else '')[:300],
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @staticmethod
     def _lock_open_cart(cart) -> bool:
         """Lock the sale's row until the transaction ends; False when it is no longer open (finished a moment ago)."""
@@ -2144,22 +2246,38 @@ class CartViewSet(viewsets.ModelViewSet):
             return self._suspend_error(exc)
         return Response(CartSerializer(self.get_queryset().get(pk=cart.pk)).data)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
+    @action(detail=True, methods=['post'])
     def void(self, request, pk=None):
-        """Void a cart (manager only).
+        """Void a cart: a manager's register PIN and a reason (2026-10-21, REG-08/12), whoever is signed in.
 
         A paid sale takes its cash back out of the drawer and puts its items back on the shelf.
         A sale voided before payment touches neither: it never sold anything, and its items may be on
         the sale that was paid (a slow register can open the same scan in two carts, 2026-10-06).
+        Who approved it, when and why are kept on the sale and as a ``RegisterApproval``.
         """
         from apps.thriftplus.services.register import after_void
 
         cart = self.get_object()
+        if cart.status == 'voided':
+            return Response({'detail': 'This sale is already voided.'}, status=400)
+        if cart.status == 'suspended':
+            return Response({'detail': 'This sale is set aside. Delete it from its tab instead.',
+                             'code': 'SALE_SET_ASIDE'}, status=400)
         with transaction.atomic():
             cart = Cart.objects.select_for_update().get(pk=cart.pk)
             if cart.status == 'voided':
                 return Response({'detail': 'This sale is already voided.'}, status=400)
             was_paid = cart.status == 'completed'
+            try:
+                approval = manager_ok.approve(request, cart=cart, kind=RegisterApproval.KIND_VOID, detail={
+                    'status_before': cart.status, 'total': str(cart.total), 'payment_method': cart.payment_method,
+                    'receipt': getattr(getattr(cart, 'receipt', None), 'receipt_number', None),
+                })
+            except manager_ok.ManagerOkError as exc:
+                return Response(exc.payload(), status=exc.http)
+            cart.voided_at = timezone.now()
+            cart.voided_by = approval.approved_by
+            cart.void_reason = approval.reason
 
             if was_paid and cart.payment_method in ('cash', 'split'):
                 drawer = Drawer.objects.select_for_update().get(pk=cart.drawer_id)
@@ -2206,6 +2324,19 @@ class CartViewSet(viewsets.ModelViewSet):
                 _cancel_delivery_job_for_line(line)
             line.delete()
         else:
+            if not hasattr(request.data, 'get'):
+                return Response({'detail': 'Send the change as a set of fields.', 'code': 'INVALID_PAYLOAD'}, status=400)
+            new_price = None
+            if 'unit_price' in request.data:
+                from apps.pos.services.card_surcharge import CardSurchargeError, parse_money
+
+                try:
+                    new_price = parse_money(request.data.get('unit_price'), 'Price', required=True)
+                except CardSurchargeError as exc:
+                    return Response({'detail': str(exc), 'code': 'INVALID_AMOUNT'}, status=400)
+                if line.line_kind == CartLine.LINE_KIND_DISCOUNT and new_price != line.unit_price:
+                    return Response({'detail': 'Remove the discount and add it again to change it.',
+                                     'code': 'INVALID_TARGET'}, status=400)
             extra_units = []
             keep_qty = 1
             if 'quantity' in request.data:
@@ -2213,6 +2344,8 @@ class CartViewSet(viewsets.ModelViewSet):
                     target_qty = int(request.data['quantity'])
                 except (TypeError, ValueError, OverflowError):
                     return Response({'detail': 'Quantity must be a whole number.', 'code': 'INVALID_QUANTITY'}, status=400)
+                if not 1 <= target_qty <= 999:
+                    return Response({'detail': 'Quantity must be 1 or more.', 'code': 'INVALID_QUANTITY'}, status=400)
                 # One item is one unit: asking for more of an item line rings the next unsold units of it
                 # as their own lines (the same item is never sold twice). The training register sells nothing.
                 if (line.item_id and line.line_kind == CartLine.LINE_KIND_ITEM and not _is_training_cart(cart)
@@ -2234,9 +2367,24 @@ class CartViewSet(viewsets.ModelViewSet):
                             status=400,
                         )
                     keep_qty = max(line.quantity or 1, 1)
-            for field in ('quantity', 'description', 'unit_price'):
+            # A price change (2026-10-21, REG-05): a manager's PIN and a reason, except on a line the cashier priced
+            # by hand (pink tag, unscannable). Asked last, so a change refused for another reason uses no PIN.
+            if new_price is not None and new_price != line.unit_price and line.line_kind != CartLine.LINE_KIND_MANUAL:
+                try:
+                    approval = manager_ok.approve(request, cart=cart, kind=RegisterApproval.KIND_PRICE_EDIT, detail={
+                        'line_id': line.pk, 'description': line.description[:120],
+                        'sku': line.item.sku if line.item_id else None,
+                        'before': str(line.unit_price), 'after': str(new_price),
+                    })
+                except manager_ok.ManagerOkError as exc:
+                    return Response(exc.payload(), status=exc.http)
+                line.meta = {**(line.meta or {}), 'price_edit': {**manager_ok.stamp(approval),
+                                                                 'before': str(line.unit_price)}}
+            for field in ('quantity', 'description'):
                 if field in request.data:
                     setattr(line, field, keep_qty if (field == 'quantity' and extra_units) else request.data[field])
+            if new_price is not None:
+                line.unit_price = new_price
             line.save()
             for unit in extra_units:
                 extra = CartLine.objects.create(

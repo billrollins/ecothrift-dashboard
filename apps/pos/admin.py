@@ -3,8 +3,40 @@ from .models import (
     Register, Drawer, DrawerHandoff, CashDrop,
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
     Cart, CartLine, Receipt, RevenueGoal,
-    DeliveryDay, DeliveryJob, DeliveryTestDataset,
+    DeliveryDay, DeliveryJob, DeliveryTestDataset, RegisterApproval, RegisterEvent,
 )
+
+
+@admin.register(RegisterEvent)
+class RegisterEventAdmin(admin.ModelAdmin):
+    """Drawer opens (no sale), reprints and failed prints at the register: read only, never edited."""
+    list_display = ('created_at', 'kind', 'register_code', 'user', 'cart', 'note')
+    list_filter = ('kind', 'register_code')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(RegisterApproval)
+class RegisterApprovalAdmin(admin.ModelAdmin):
+    """Manager OKs at the register (price edits, big discounts, voids): read only, never edited."""
+    list_display = ('created_at', 'kind', 'register_code', 'requested_by', 'approved_by', 'reason', 'cart')
+    list_filter = ('kind', 'is_training')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Register)

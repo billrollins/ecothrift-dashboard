@@ -6,7 +6,8 @@ import { dayOnly, dayTime } from './returnsText';
 
 /**
  * Late returns (owner 2026-10-20): every return taken after the 3 days. Each is a mark against Retail, on the cashier
- * who rang the original sale, with the reason and who typed the owner PIN. Newest first. Managers and the owner.
+ * who rang the original sale, with the reason and the manager who allowed it (their own PIN, or the owner signed in).
+ * Newest first. Managers and the owner.
  */
 export default function LateReturnsTable() {
   const { data, isLoading, isError } = useQuery({ queryKey: ['thriftplus', 'late-returns'], queryFn: fetchLateReturns });
@@ -29,7 +30,7 @@ export default function LateReturnsTable() {
             <TableCell align="right">Credit</TableCell>
             <TableCell>Mark against</TableCell>
             <TableCell>Reason</TableCell>
-            <TableCell>PIN typed by</TableCell>
+            <TableCell>Allowed by</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -52,7 +53,13 @@ export default function LateReturnsTable() {
                 {r.reason_label}
                 {r.note ? <Typography variant="caption" component="div" color="text.secondary">{r.note}</Typography> : null}
               </TableCell>
-              <TableCell>{r.entered_by}{r.by_pin ? '' : ' (owner signed in)'}</TableCell>
+              <TableCell>
+                {r.approved_by || r.entered_by}
+                {r.by_pin ? '' : ' (owner signed in)'}
+                {r.approved_by && r.entered_by && r.approved_by !== r.entered_by ? (
+                  <Typography variant="caption" component="div" color="text.secondary">at {r.entered_by}'s login</Typography>
+                ) : null}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

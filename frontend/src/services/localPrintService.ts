@@ -76,6 +76,29 @@ export interface PrinterSettings {
   drawer_pin?: DrawerPin;
 }
 
+/** The print server said it failed (`success: false`): its own reason in `message`. */
+export class PrintFailedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PrintFailedError';
+  }
+}
+
+function failLoudly(res: LocalPrintResponse, lead: string): LocalPrintResponse {
+  if (res && res.success === false) {
+    const why = [res.message, res.error].filter(Boolean).join(': ');
+    throw new PrintFailedError(why ? `${lead} ${why}` : lead);
+  }
+  return res;
+}
+
+/** A plain message for any print error (the print server down, a timeout, or `success: false`). */
+export function printErrorMessage(err: unknown, fallback = 'The print server did not answer. Is it running?'): string {
+  if (err instanceof PrintFailedError) return err.message;
+  if (err instanceof Error && err.message && !(err instanceof TypeError)) return err.message;
+  return fallback;
+}
+
 class LocalPrintService {
   private baseUrl = 'http://127.0.0.1:8888';
   private timeout = 5000;
@@ -236,12 +259,16 @@ class LocalPrintService {
     }, this.printTimeout);
   }
 
+  /**
+   * Print a receipt (and kick the drawer with it). The print server answers 200 with `success: false` when the printer
+   * fails (2026-10-21, REG-03): that throws `PrintFailedError` with the server's reason, never a quiet "sent".
+   */
   async printReceipt(
     receiptData: Record<string, unknown>,
     openDrawer = false,
     printerName?: string,
   ): Promise<LocalPrintResponse> {
-    return this.request<LocalPrintResponse>('/print/receipt', {
+    const res = await this.request<LocalPrintResponse>('/print/receipt', {
       method: 'POST',
       body: JSON.stringify({
         receipt_data: receiptData,
@@ -249,6 +276,7 @@ class LocalPrintService {
         ...(printerName && { printer_name: printerName }),
       }),
     }, this.printTimeout);
+    return failLoudly(res, 'The receipt did not print.');
   }
 
   async printTestReceipt(printerName?: string): Promise<LocalPrintResponse> {
@@ -263,13 +291,14 @@ class LocalPrintService {
   // ---------------------------------------------------------------------------
 
   async openCashDrawer(pin?: DrawerPin): Promise<LocalPrintResponse> {
-    return this.request<LocalPrintResponse>('/drawer/control', {
+    const res = await this.request<LocalPrintResponse>('/drawer/control', {
       method: 'POST',
       body: JSON.stringify({
         action: 'open',
         ...(pin !== undefined ? { pin } : {}),
       }),
     }, this.printTimeout);
+    return failLoudly(res, 'The cash drawer did not open.');
   }
 
   // ---------------------------------------------------------------------------

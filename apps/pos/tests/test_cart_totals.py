@@ -11,6 +11,7 @@ from apps.accounts.models import User
 from apps.core.models import WorkLocation
 from apps.inventory.models import Category, Item, Product
 from apps.pos.models import Cart, CartLine, Drawer, Register
+from apps.pos.tests.pin_helpers import manager_ok
 
 
 def assert_cart_totals_match_lines(testcase, data):
@@ -158,7 +159,7 @@ class CartTotalsAPITests(TestCase):
         CartLine.objects.filter(pk=line_id).update(quantity=3)  # a line made before one-unit-per-line (2026-10-20)
         r = self.client.patch(
             f'/api/pos/carts/{cid}/lines/{line_id}/',
-            {'quantity': 3, 'description': 'Item A', 'unit_price': 12.99},
+            {'quantity': 3, 'description': 'Item A', 'unit_price': 12.99, **manager_ok()[1]},
             format='json',
         )
         self.assertEqual(r.status_code, 200, r.content)

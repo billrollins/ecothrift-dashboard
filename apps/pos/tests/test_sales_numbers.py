@@ -12,6 +12,7 @@ from apps.pos.services import sales_numbers
 from apps.thriftplus.models import LedgerEntry, ReturnRecord
 from apps.thriftplus.services import ledger
 from apps.thriftplus.tests.test_register import RegisterBase, _at
+from apps.pos.tests.pin_helpers import manager_ok
 
 D = Decimal
 
@@ -204,7 +205,7 @@ class FeesAndPaymentTests(SalesNumbersBase):
     def test_voided_sales_are_left_out(self):
         sale = self._sale()
         self.api.force_authenticate(self.manager)
-        self.assertEqual(self.api.post(f"/api/pos/carts/{sale['id']}/void/").status_code, 200)
+        self.assertEqual(self.api.post(f"/api/pos/carts/{sale['id']}/void/", manager_ok()[1], format='json').status_code, 200)
         self.assertEqual(self.today(), {})
 
 

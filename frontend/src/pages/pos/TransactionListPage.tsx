@@ -25,14 +25,16 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { useCartSummary, useCarts, useVoidCart } from '../../hooks/usePOS';
+import { useManagerOk } from '../../components/pos/ManagerOkDialog';
+import { paymentMethodLabel, thriftPaymentParts } from '../../utils/posPayment';
 import { useUsers } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
-import { localPrintService } from '../../services/localPrintService';
+import { printErrorMessage } from '../../services/localPrintService';
+import { reprintReceipt } from '../../services/receiptReprint';
 import type { Cart, CartLine } from '../../types/pos.types';
 import { CartCardBreakdown } from '../../components/pos/CartCardBreakdown';
 import { SalesNumbersBlock } from '../../components/pos/SalesNumbersBlock';
 import { CardTypeFixControls } from '../../components/pos/CardTypeFixControls';
-import { buildReceiptData } from '../../utils/posReceipt';
 import { format, startOfMonth, startOfWeek, subDays } from 'date-fns';
 import { IconSearch as Search } from '../../icons/ecoIcons';
 function formatCurrency(value: string | number): string {
@@ -136,6 +138,7 @@ export default function TransactionListPage() {
     staleTime: 5 * 60 * 1000,
   });
   const voidCartMutation = useVoidCart();
+  const { run: runWithManagerOk, dialog: managerOkDialog } = useManagerOk();
   const canVoid = hasRole('Manager') || hasRole('Admin');
 
   const carts = data?.results ?? [];
@@ -177,10 +180,7 @@ export default function TransactionListPage() {
       field: 'payment_method',
       headerName: 'Method',
       width: 110,
-      valueFormatter: (value) =>
-        String(value ?? '')
-          .replace(/_/g, ' ')
-          .replace(/\b\w/g, (c) => c.toUpperCase()),
+      valueFormatter: (value) => paymentMethodLabel(value as string),
     },
     {
       field: 'total',
@@ -234,13 +234,17 @@ export default function TransactionListPage() {
 
   const handleVoid = async () => {
     if (!voidDialog) return;
+    const cartId = voidDialog.id;
+    setVoidDialog(null);
     try {
-      await voidCartMutation.mutateAsync(voidDialog.id);
+      // A manager's register PIN and a reason (2026-10-21), even when a manager is signed in.
+      const voided = await runWithManagerOk((extra) => voidCartMutation.mutateAsync({ cartId, ...extra }));
+      if (!voided) return;
       enqueueSnackbar('Transaction voided', { variant: 'success' });
-      setVoidDialog(null);
       setSelectedCart(null);
-    } catch {
-      enqueueSnackbar('Failed to void transaction', { variant: 'error' });
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      enqueueSnackbar(detail || 'Failed to void transaction', { variant: 'error' });
     }
   };
 
@@ -349,6 +353,7 @@ export default function TransactionListPage() {
               <MenuItem value="card">Card</MenuItem>
               <MenuItem value="split">Split</MenuItem>
               <MenuItem value="payroll">Payroll deduction</MenuItem>
+              <MenuItem value="thrift">Thrift+ (paid in full)</MenuItem>
               <MenuItem value="credit">Credit</MenuItem>
               <MenuItem value="debit">Debit</MenuItem>
             </Select>
@@ -417,6 +422,13 @@ export default function TransactionListPage() {
                 {format(new Date(selectedCart.completed_at ?? selectedCart.created_at), 'PPp')} ·{' '}
                 {selectedCart.cashier_name ?? '-'}
               </Typography>
+              {selectedCart.status === 'voided' && selectedCart.voided_by_name && (
+                <Typography variant="body2" color="error">
+                  Voided by {selectedCart.voided_by_name}
+                  {selectedCart.voided_at ? ` · ${format(new Date(selectedCart.voided_at), 'PPp')}` : ''}
+                  {selectedCart.void_reason ? ` · ${selectedCart.void_reason}` : ''}
+                </Typography>
+              )}
               <Box sx={{ mt: 2 }}>
                 {(selectedCart.lines ?? []).map((line: CartLine) => (
                   <Box
@@ -460,13 +472,14 @@ export default function TransactionListPage() {
                 </Box>
                 <Box sx={{ mt: 1 }}>
                   <Typography variant="body2" color="text.secondary">
-                    Payment: {String(selectedCart.payment_method).replace(/_/g, ' ')}
+                    Payment: {paymentMethodLabel(selectedCart.payment_method)}
                     {selectedCart.payment_method === 'payroll' && selectedCart.payroll_employee_name
                       ? ` deduction, from ${selectedCart.payroll_employee_name}'s next paycheck`
                       : ''}
                     {selectedCart.payment_method === 'split' && selectedCart.cash_tendered != null && selectedCart.card_amount != null && (
                       <> · Cash {formatCurrency(selectedCart.cash_tendered)} + Card {formatCurrency(selectedCart.card_amount)}</>
                     )}
+                    {thriftPaymentParts(selectedCart).map((part) => ` · ${part}`).join('')}
                   </Typography>
                   <CartCardBreakdown cart={selectedCart} />
                 </Box>
@@ -477,11 +490,10 @@ export default function TransactionListPage() {
                   size="small"
                   onClick={async () => {
                     try {
-                      const receiptData = buildReceiptData(selectedCart);
-                      await localPrintService.printReceipt(receiptData, false);
-                      enqueueSnackbar('Receipt sent to printer', { variant: 'success' });
-                    } catch {
-                      enqueueSnackbar('Print failed. Is the print server running?', { variant: 'error' });
+                      const copy = await reprintReceipt(selectedCart);
+                      enqueueSnackbar(`Copy ${copy} printed (marked COPY)`, { variant: 'success' });
+                    } catch (err) {
+                      enqueueSnackbar(printErrorMessage(err), { variant: 'error' });
                     }
                   }}
                 >
@@ -513,13 +525,14 @@ export default function TransactionListPage() {
       <ConfirmDialog
         open={!!voidDialog}
         title="Void Transaction"
-        message="Are you sure you want to void this transaction? This cannot be undone."
+        message="Void this transaction? A paid sale's items go back on the shelf and its cash comes out of the drawer. A manager's PIN and a reason come next. This cannot be undone."
         confirmLabel="Void"
         severity="error"
         onConfirm={handleVoid}
         onCancel={() => setVoidDialog(null)}
         loading={voidCartMutation.isPending}
       />
+      {managerOkDialog}
     </Box>
   );
 }

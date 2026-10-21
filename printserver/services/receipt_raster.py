@@ -175,9 +175,9 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
             ty += h(f_sub) + 3
         y += bar_h + 8
 
-    training = rp._is_training(data)
-    if training:
-        band(rp.TRAINING_BANNER)
+    banners = rp._banners(data)
+    for text in banners:
+        band(text)
 
     # --- The logo says the name; under it, where and when (no phone) ---
     logo = rp._load_receipt_logo_content_width(inner, 150)
@@ -359,9 +359,10 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
             d.rectangle([box[0] + 40, y - 7, box[1] - 40, y - 5], fill=0)
     y += pad + 10
 
-    if training:
+    if banners:
         y += 6
-        band(rp.TRAINING_BANNER)
+        for text in banners:
+            band(text)
 
     out = im.crop((0, 0, DOTS, y + 4))
     return out.point(lambda v: 0 if v < INK else 255).convert("1", dither=Image.Dither.NONE)

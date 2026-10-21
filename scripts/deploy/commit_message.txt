@@ -1,12 +1,16 @@
-v2.202.0 — Backlog page and dead-page cleanup
+v2.203.0 — Manager PIN approvals, Paid with Thrift+, loud print failures and Open drawer
 
-User-facing theme: **A backlog page for parked work, and a big cleanup of dead pages (Bill, 2026-10-21, critic review point 7).** Outside initiatives (critic-review release list).
+User-facing theme: **Managers approve with their own PIN, Thrift+-paid sales say so, and the register never fails silently (Bill, 2026-10-21, critic review point 3).** Outside initiatives (critic-review release list).
 
 ### Added
-- **Backlog page** (`.ai/initiatives/backlog.md`): the parked areas (Documents, Deliveries, the model factory, Online Sales, Consignment), with what's built and what's left.
+- **Manager OK:** price changes at the register, discounts over 20% (an owner setting) and every void need a manager's register PIN and a reason; Dash keeps who asked, who approved, when and why. Five wrong PINs lock PIN entry on that register only, for 15 minutes. A voided sale shows who voided it, when and why.
+- **Paid with Thrift+:** when Thrift+ credit or ThriftBucks cover the whole sale, the register shows "Nothing to pay" and one button, "Complete: paid with Thrift+"; no cash step, the drawer stays shut, and the receipt, Transactions and sale detail say "Paid with ThriftBucks …" / "Thrift+ credit $…". A Requests item fixes the one past sale recorded as cash.
+- **Print failures are loud:** when a receipt doesn't print, the register shows a box that stays (and says the drawer didn't open), with Print again and Open drawer; every failure is logged.
+- **Open drawer** button at the register; Dash logs who and when.
+- **Reprints** are marked COPY and logged.
 
-### Removed
-- Old unused pages and code (about 14,000 lines): the old inventory workbench, the old item list, web orders, product review, the old TARS studio, card batch printing, and about 25 old links that only forwarded elsewhere. Nothing you use changes.
-- The "All-Time Revenue History (DB1 + DB2 + DB3)" panel on Transactions.
+### Changed
+- **Late returns need a manager's own PIN** (or the owner signed in) and show who allowed them; the shared owner PIN is gone.
+- **Every discount names its reason;** "In-store credit (return)" is no longer picked for you.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

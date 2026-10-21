@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (sale names and percents are owner settings; line sale off by default) -->
+<!-- Last updated: 2026-10-21 (sale names and percents are owner settings; manager PIN for price edits and discounts over the cap) -->
 # Discount logic
 
 How every price change at the register works (Thrift+ member rewards, store sales, Google review, manual discounts, BOGO, banking), and the checks that keep any new discount from opening an arbitrage. **Read this before adding or changing any discount.**
@@ -77,7 +77,7 @@ Code:
    - **A BOGO pair:** returning the paid item gives credit on its price minus the true price of the free item if it is kept. The free item alone gives $0.
    - A line that was re-rung reverses its re-ring credit too.
 
-10. **Price edits at the register set a new tag.** The reward is re-clipped to the new tag (R ≤ 90% of T), so an edited price can't raise a reward. Price overrides also need a reason and a manager (open POS item).
+10. **Price edits at the register set a new tag.** The reward is re-clipped to the new tag (R ≤ 90% of T), so an edited price can't raise a reward. Price overrides also need a reason and a manager's PIN (built 2026-10-21, `pos-system.md` § Manager OK).
 
 11. **Consignment earns no reward.** Store sales and discounts apply as they do today, and the consignor is paid from `sold_for`.
 
@@ -108,5 +108,6 @@ Record the answer for each in the initiative that ships the discount.
 | 5 (BOGO) | Not built. The POS has no BOGO. |
 | 6, 7, 8 (bank 1.05×, cap, no bonus on Thrift+ money) | Built in `trip.totals` and `register.after_complete`. |
 | 9 (returns) | Built for single lines (`returns.py`). BOGO pairs wait for BOGO. |
-| 10 (price edits) | The reward re-clip is built (`trip_lines` clips to the line's tag). A reason and manager for overrides: open. |
+| 10 (price edits) | The reward re-clip is built (`trip_lines` clips to the line's tag). A manager's PIN and a reason for a price edit: built 2026-10-21. |
+| Discount cap (2026-10-21) | Discounts past `pos.discount_cap_percent` (default 20%) of the line or of the sale, all discounts together, need a manager's PIN; every discount names a reason. Stacking itself is still rule 3's owner decision. |
 | 11–14 | Built. |

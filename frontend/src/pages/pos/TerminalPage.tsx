@@ -56,6 +56,8 @@ import DenominationCounter, {
 } from '../../components/forms/DenominationCounter';
 import { DeviceSetupDialog } from '../../components/pos/DeviceSetupDialog';
 import { DiscountDialog, type DiscountSubmitPayload } from '../../components/pos/DiscountDialog';
+import { useManagerOk } from '../../components/pos/ManagerOkDialog';
+import { thriftCoversSale, thriftPaymentParts } from '../../utils/posPayment';
 import { SummerLinesDialog } from '../../components/pos/SummerLinesDialog';
 import {
   useRegisters,
@@ -101,10 +103,17 @@ import { writeLastActivity } from './idlePrompt';
 import { useDeviceConfig } from '../../hooks/useDeviceConfig';
 import { useLocalPrintStatus } from '../../hooks/useLocalPrintStatus';
 import { useAuth } from '../../contexts/AuthContext';
-import { getCarts, getCartCardPreview, getStaffPurchaseSettings, suggestDeliveryAddresses } from '../../api/pos.api';
+import {
+  getCarts,
+  getCartCardPreview,
+  getStaffPurchaseSettings,
+  logOpenDrawer,
+  logPrintFailed,
+  suggestDeliveryAddresses,
+} from '../../api/pos.api';
 import { PayrollPicker } from '../../components/pos/PayrollPicker';
 import type { DeliveryAddressSuggestion } from '../../api/pos.api';
-import { localPrintService } from '../../services/localPrintService';
+import { localPrintService, printErrorMessage } from '../../services/localPrintService';
 import type { CardPreview, Cart, CartLine, Drawer, PaymentMethod, POSDeviceConfig, Register } from '../../types/pos.types';
 import { deriveTerminalState } from './terminalState';
 import { TEST_TERMINAL_TITLE, testTerminalDeviceConfig } from '../../utils/testTerminal';
@@ -255,6 +264,12 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   const [editingLineId, setEditingLineId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState({ quantity: '', description: '', unit_price: '' });
   const [voidConfirmOpen, setVoidConfirmOpen] = useState(false);
+  // A receipt that did not print (2026-10-21, REG-03): a box that stays until someone deals with it. For a cash sale
+  // the drawer rode in the same print job, so it did not open either.
+  const [printProblem, setPrintProblem] = useState<{ cart: Cart | null; message: string; drawerShut: boolean } | null>(
+    null,
+  );
+  const [kicking, setKicking] = useState(false);
   const [soldScanDialog, setSoldScanDialog] = useState<{
     itemId: number;
     sku?: string;
@@ -401,6 +416,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   const removeLineMutation = useRemoveCartLine();
   const completeCartMutation = useCompleteCart();
   const voidCartMutation = useVoidCart();
+  const { run: runWithManagerOk, dialog: managerOkDialog } = useManagerOk();
   const openDrawerMutation = useOpenDrawer();
   const openTrainingDrawerMutation = useOpenTrainingDrawer();
   const takeoverMutation = useDrawerTakeover();
@@ -791,10 +807,13 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       const activeCart = await ensureOpenCart();
       if (!activeCart) return;
       try {
-        const updated = await addDiscountMutation.mutateAsync({
-          cartId: activeCart.id,
-          ...payload,
-        });
+        // Over the owner's cap (pos.discount_cap_percent) the server asks for a manager's PIN; the discount's own
+        // reason is the why.
+        const updated = await runWithManagerOk(
+          (extra) => addDiscountMutation.mutateAsync({ cartId: activeCart.id, ...payload, ...extra }),
+          { reason: payload.reason },
+        );
+        if (!updated) return;
         commitCart(updated as unknown as Cart);
         setDiscountDialogOpen(false);
         skuInputRef.current?.focus();
@@ -805,7 +824,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         enqueueSnackbar(detail, { variant: 'error' });
       }
     },
-    [ensureOpenCart, addDiscountMutation, commitCart, enqueueSnackbar],
+    [ensureOpenCart, addDiscountMutation, commitCart, enqueueSnackbar, runWithManagerOk],
   );
 
   const handleOpenDeliveryDialog = useCallback(() => {
@@ -1123,11 +1142,15 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
     const newQty = parseInt(editValues.quantity) || 1;
     const newPrice = parseFloat(editValues.unit_price) || 0;
     try {
-      const updated = await updateLineMutation.mutateAsync({
-        cartId: cart.id,
-        lineId: editingLineId,
-        data: { quantity: newQty, description: editValues.description, unit_price: newPrice },
-      });
+      // A changed price asks for a manager's PIN and a reason (2026-10-21); the same price sent back does not.
+      const updated = await runWithManagerOk((extra) =>
+        updateLineMutation.mutateAsync({
+          cartId: cart.id,
+          lineId: editingLineId,
+          data: { quantity: newQty, description: editValues.description, unit_price: newPrice, ...extra },
+        }),
+      );
+      if (!updated) return;
       commitCart(updated as unknown as Cart);
       setEditingLineId(null);
     } catch (err: unknown) {
@@ -1137,24 +1160,87 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
           : undefined;
       enqueueSnackbar(detail || 'Failed to update line', { variant: 'error' });
     }
-  }, [cart, editingLineId, editValues, updateLineMutation, commitCart, enqueueSnackbar]);
+  }, [cart, editingLineId, editValues, updateLineMutation, commitCart, enqueueSnackbar, runWithManagerOk]);
 
   const handleVoidSale = useCallback(async () => {
     if (!cart) return;
+    setVoidConfirmOpen(false);
     try {
-      await voidCartMutation.mutateAsync(cart.id);
+      // Every void needs a manager's PIN and a reason (2026-10-21), whoever is signed in.
+      const voided = await runWithManagerOk((extra) => voidCartMutation.mutateAsync({ cartId: cart.id, ...extra }));
+      if (!voided) return;
       enqueueSnackbar('Sale voided', { variant: 'info' });
       markRegisterActivity();
       setCart(null);
       cartRef.current = null;
       setCashTendered('');
       setPayrollEmployee('');
-      setVoidConfirmOpen(false);
       setEditingLineId(null);
-    } catch {
-      enqueueSnackbar('Failed to void sale', { variant: 'error' });
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      enqueueSnackbar(detail || 'Failed to void sale', { variant: 'error' });
     }
-  }, [cart, voidCartMutation, enqueueSnackbar, markRegisterActivity]);
+  }, [cart, voidCartMutation, enqueueSnackbar, markRegisterActivity, runWithManagerOk]);
+
+  /** The drawer this terminal rings on: today's drawer at a register, the picked drawer at a manager terminal. */
+  const ringingDrawerId = (): number | undefined => {
+    if (isRegister) {
+      const live = todayDrawerRef.current;
+      return typeof live?.id === 'number' ? live.id : undefined;
+    }
+    return typeof managerDrawerId === 'number' ? managerDrawerId : undefined;
+  };
+
+  /**
+   * The Open drawer button (2026-10-21, REG-03): Dash logs who and when first, then the print server kicks the drawer.
+   * `cartId` when it is for a sale whose receipt did not print.
+   */
+  const handleKickDrawer = async (cartId?: number, reason?: string) => {
+    const drawerId = ringingDrawerId();
+    if (drawerId === undefined) {
+      enqueueSnackbar('Open a drawer first.', { variant: 'warning' });
+      return;
+    }
+    setKicking(true);
+    try {
+      await logOpenDrawer(drawerId, { ...(cartId ? { cart: cartId } : {}), ...(reason ? { reason } : {}) });
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      enqueueSnackbar(detail || 'Could not log the drawer opening, so it was not opened.', { variant: 'error' });
+      setKicking(false);
+      return;
+    }
+    try {
+      await localPrintService.openCashDrawer();
+      enqueueSnackbar('Drawer opened', { variant: 'info' });
+      if (cartId) setPrintProblem(null);
+    } catch (err) {
+      setPrintProblem((prev) => ({
+        cart: prev?.cart ?? null,
+        message: printErrorMessage(err),
+        drawerShut: true,
+      }));
+    } finally {
+      setKicking(false);
+    }
+  };
+
+  const handlePrintAgain = async () => {
+    const problem = printProblem;
+    if (!problem?.cart) return;
+    setKicking(true);
+    try {
+      await localPrintService.printReceipt(buildReceiptData(problem.cart), problem.drawerShut);
+      enqueueSnackbar(problem.drawerShut ? 'Receipt printed and the drawer opened' : 'Receipt printed', {
+        variant: 'success',
+      });
+      setPrintProblem(null);
+    } catch (err) {
+      setPrintProblem({ ...problem, message: printErrorMessage(err) });
+    } finally {
+      setKicking(false);
+    }
+  };
 
   /** The sale in progress, made first when there is none (picking a Thrift+ member needs one). */
   const ensureSale = useCallback(async (): Promise<Cart | null> => {
@@ -1220,20 +1306,25 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       });
       markRegisterActivity();
 
+      // A practice sale never opens the cash drawer: no money changes hands.
+      const shouldOpenDrawer = !practice && (method === 'cash' || method === 'split');
       try {
-        // A practice sale never opens the cash drawer: no money changes hands.
-        const shouldOpenDrawer = !practice && (method === 'cash' || method === 'split');
         const printed = await localPrintService.printReceipt(
           buildReceiptData(completedCart),
           shouldOpenDrawer,
         );
         if (shouldOpenDrawer && printed.drawer_opened === false) {
-          enqueueSnackbar('Receipt printed but the drawer did not open', { variant: 'warning' });
+          setPrintProblem({
+            cart: completedCart,
+            message: 'The receipt printed, but the cash drawer did not open.',
+            drawerShut: true,
+          });
         }
-      } catch {
-        enqueueSnackbar('Receipt print failed. Print server may be offline.', {
-          variant: 'warning',
-        });
+      } catch (err) {
+        // Loud, and it stays (2026-10-21, REG-03): never a quiet "sent".
+        const message = printErrorMessage(err);
+        setPrintProblem({ cart: completedCart, message, drawerShut: shouldOpenDrawer });
+        if (!practice) void logPrintFailed(completedCart.id, message).catch(() => undefined);
       }
 
       // Owner 2026-10-20: a member's sale with a 3-day-return item ends with the date to say, tapped through.
@@ -1294,6 +1385,11 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   const handleComplete = useCallback(async () => {
     if (!cart || (cart.lines ?? []).length === 0) {
       enqueueSnackbar('Add at least one item before completing the sale.', { variant: 'warning' });
+      return;
+    }
+    // Thrift+ pays it all (Bill, 2026-10-21): nothing to take, no cash or card step, the drawer stays shut.
+    if (thriftCoversSale(cart)) {
+      await postComplete({ payment_method: 'thrift' });
       return;
     }
     const total = amountDue(cart);
@@ -1362,6 +1458,9 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       enqueueSnackbar('Could not load card totals from the server.', { variant: 'error' });
     }
   }, [cart, paymentMethod, cashTendered, payrollEmployee, postComplete, enqueueSnackbar]);
+
+  // Thrift+ credit and/or ThriftBucks leave nothing due (Bill, 2026-10-21): one button, no cash or card step.
+  const thriftCovers = thriftCoversSale(cart);
 
   const changeDue = (() => {
     if (paymentMethod !== 'cash' && paymentMethod !== 'split') return 0;
@@ -1691,6 +1790,17 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                         data-testid="cart-refresh"
                       >
                         Refresh
+                      </Button>
+                    )}
+                    {!todayDrawer?.register_is_training && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => void handleKickDrawer(undefined, 'Open drawer button')}
+                        disabled={kicking}
+                        data-testid="open-cash-drawer"
+                      >
+                        Open drawer
                       </Button>
                     )}
                     {cart && (
@@ -2226,6 +2336,13 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                 <Typography variant="subtitle1" fontWeight={600} gutterBottom>
                   Payment
                 </Typography>
+                {thriftCovers ? (
+                  <Alert severity="success" icon={false} sx={{ mb: 1 }}>
+                    <Typography fontWeight={700}>Nothing to pay: Thrift+ covers this sale.</Typography>
+                    <Typography variant="body2">{thriftPaymentParts(cart).join(' · ')}</Typography>
+                  </Alert>
+                ) : (
+                <>
                 <FormControl fullWidth size="small" sx={{ mb: 2 }}>
                   <InputLabel>Method</InputLabel>
                   <Select
@@ -2272,6 +2389,8 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                     Card: {formatCurrency(moneyCents(Math.max(0, amountDue(cart) - (parseFloat(cashTendered) || 0))))}
                   </Typography>
                 )}
+                </>
+                )}
 
                 <Button
                   variant="contained"
@@ -2282,7 +2401,11 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                   disabled={!hasItems || completeCartMutation.isPending}
                   sx={{ mt: 1 }}
                 >
-                  {completeCartMutation.isPending ? 'Processing…' : 'Complete sale'}
+                  {completeCartMutation.isPending
+                    ? 'Processing…'
+                    : thriftCovers
+                      ? 'Complete: paid with Thrift+'
+                      : 'Complete sale'}
                 </Button>
               </Paper>
             </Grid>
@@ -2949,11 +3072,50 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         loading={setLaborDayOverrideMutation.isPending || syncCartSaleMutation.isPending}
       />
 
+      {managerOkDialog}
+
+      {/* A receipt that did not print (REG-03): loud, and it stays until someone deals with it. */}
+      <Dialog open={printProblem !== null} maxWidth="xs" fullWidth data-testid="print-problem">
+        <DialogTitle sx={{ color: 'error.main', fontWeight: 800 }}>
+          {printProblem?.message.startsWith('The receipt printed') ? 'The drawer did not open' : 'Receipt did not print'}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.5}>
+            <Alert severity="error">{printProblem?.message}</Alert>
+            {printProblem?.drawerShut && (
+              <Typography fontWeight={700}>
+                The cash drawer did not open. Use Open drawer to take the cash and give change.
+              </Typography>
+            )}
+            <Typography variant="body2" color="text.secondary">
+              The sale is finished and saved. Reprints later from Transactions say COPY.
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ flexWrap: 'wrap', gap: 1 }}>
+          <Button onClick={() => setPrintProblem(null)} disabled={kicking}>Close</Button>
+          {printProblem?.drawerShut && (
+            <Button
+              variant="outlined"
+              onClick={() => void handleKickDrawer(printProblem?.cart?.id, 'Receipt did not print')}
+              disabled={kicking}
+            >
+              Open drawer
+            </Button>
+          )}
+          {printProblem?.cart && (
+            <Button variant="contained" onClick={() => void handlePrintAgain()} disabled={kicking}>
+              Print again
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+
       {/* Void sale confirmation */}
       <ConfirmDialog
         open={voidConfirmOpen}
         title="Void this sale?"
-        message="All items will be returned to inventory and this transaction will be recorded as voided. This cannot be undone."
+        message="The sale is kept as voided and its items stay free for the next sale. A manager's PIN and a reason come next. This cannot be undone."
         confirmLabel="Void sale"
         severity="error"
         onConfirm={handleVoidSale}

@@ -8,7 +8,6 @@ from apps.thriftplus.views import (
     CardViewSet,
     MemberDirectoryViewSet,
     OverstockViewSet,
-    OwnerPinViewSet,
     PersonViewSet,
     RegisterViewSet,
     RestrictedProductViewSet,
@@ -28,7 +27,6 @@ router.register(r'register', RegisterViewSet, basename='thriftplus-register')
 router.register(r'restricted', RestrictedProductViewSet, basename='thriftplus-restricted')
 router.register(r'returns', ReturnsViewSet, basename='thriftplus-returns')
 # Owner 2026-10-20: the owner PIN (set in Dash Settings; anyone may type it where it is asked).
-router.register(r'owner-pin', OwnerPinViewSet, basename='thriftplus-owner-pin')
 # Owner 2026-10-15: every staff member's own membership, made, linked or merged from Dash.
 router.register(r'staff-memberships', StaffMembershipsViewSet, basename='thriftplus-staff-memberships')
 # Owner 2026-10-16: Dash -> Users -> Members (every member, the drawer's actions).

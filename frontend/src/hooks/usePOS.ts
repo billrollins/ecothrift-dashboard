@@ -367,6 +367,7 @@ export function useAddDiscountToCart() {
       target_line_id,
       google_review_username,
       google_review_stars,
+      manager_pin,
     }: {
       cartId: number;
       mode?: 'amount' | 'percent';
@@ -376,8 +377,10 @@ export function useAddDiscountToCart() {
       target_line_id?: number | null;
       google_review_username?: string;
       google_review_stars?: number;
+      manager_pin?: string;
     }) => {
       const { data } = await addDiscountToCart(cartId, {
+        ...(manager_pin ? { manager_pin } : {}),
         ...(mode !== undefined ? { mode } : {}),
         ...(amount !== undefined ? { amount } : {}),
         ...(percent !== undefined ? { percent } : {}),
@@ -601,8 +604,9 @@ export function useVoidCart() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (cartId: number) => {
-      const { data } = await voidCart(cartId);
+    mutationFn: async (args: number | { cartId: number; manager_pin?: string; override_reason?: string }) => {
+      const { cartId, ...body } = typeof args === 'number' ? { cartId: args } : args;
+      const { data } = await voidCart(cartId, body);
       return data;
     },
     onSuccess: () => {

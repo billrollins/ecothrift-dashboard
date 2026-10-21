@@ -44,7 +44,7 @@ function summary(over: Partial<ReturnsSummary> = {}): ReturnsSummary {
       { cart_line: 12, sku: 'ITM200', title: 'Glass vase', refund: '53.50', credit: '53.50', bucks_back: '0.00', bucks_taken: '10.00', shortfall: '0.00', late: false, problems: [] },
     ],
     totals: { credit: '121.98', bucks_back: '0.00', bucks_taken: '38.00', shortfall: '0.00' },
-    late: false, ok: true, pin_set: true, owner_signed_in: false,
+    late: false, ok: true, owner_signed_in: false,
     reasons: [{ value: 'told_wrong', label: 'Cashier told them wrong' }, { value: 'closed', label: 'Store was closed' }, { value: 'owner', label: "Owner's choice" }],
     ...over,
   };
@@ -154,7 +154,7 @@ describe('Returns page (owner 2026-10-20)', () => {
     expect(await screen.findByTestId('where')).toHaveTextContent('/pos/members?person=7');
   });
 
-  it('past the 3 days the summary asks for a reason and the owner PIN, and a wrong PIN says how many tries are left', async () => {
+  it("past the 3 days the summary asks for a reason and a manager's PIN, and a wrong PIN says how many tries are left", async () => {
     const user = userEvent.setup();
     api.findReturns.mockResolvedValue({ kind: 'ticket', people: [], person: null, tickets: [TICKETS.tickets[0]], message: '',
       receipt: receipt({ late: true, lines: [{ ...LAMP, late: true }, MUG] }) });
@@ -162,7 +162,7 @@ describe('Returns page (owner 2026-10-20)', () => {
     api.confirmReturn.mockRejectedValueOnce({ response: { data: { code: 'PIN_WRONG', detail: 'That PIN is wrong.', tries_left: 4 } } });
     renderPage();
     await user.type(search(), 'R-20261020-014{Enter}');
-    expect(await screen.findByTestId('receipt-late')).toHaveTextContent('needs the owner (PIN)');
+    expect(await screen.findByTestId('receipt-late')).toHaveTextContent("needs a manager's PIN");
     expect(screen.getByText('LATE', { exact: false })).toBeInTheDocument();
     await user.click(screen.getByTestId('line-11'));
     await user.click(screen.getByTestId('returns-next'));
@@ -171,23 +171,23 @@ describe('Returns page (owner 2026-10-20)', () => {
     expect(confirm).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Store was closed' }));
     expect(confirm).toBeDisabled(); // a reason is not enough: the PIN too
-    await user.type(screen.getByTestId('owner-pin-input'), '0000');
-    expect(screen.getByTestId('owner-pin-input')).toHaveAttribute('type', 'password');
+    await user.type(screen.getByTestId('manager-pin-input'), '0000');
+    expect(screen.getByTestId('manager-pin-input')).toHaveAttribute('type', 'password');
     await user.type(screen.getByLabelText('Note (optional)'), 'Closed Sun and Mon');
     expect(confirm).toBeEnabled();
     await user.click(confirm);
     expect(await screen.findByTestId('returns-error')).toHaveTextContent('That PIN is wrong. 4 tries left.');
-    expect(screen.getByTestId('owner-pin-input')).toHaveValue(''); // cleared for another try
+    expect(screen.getByTestId('manager-pin-input')).toHaveValue(''); // cleared for another try
 
     api.confirmReturn.mockResolvedValueOnce({ totals: { credit: '68.48', bucks_back: '0.00', bucks_taken: '28.00', shortfall: '0.00' }, training: false, person_id: 7, account_id: 3 });
-    await user.type(screen.getByTestId('owner-pin-input'), '4821{Enter}');
+    await user.type(screen.getByTestId('manager-pin-input'), '4821{Enter}');
     await waitFor(() => expect(api.confirmReturn).toHaveBeenLastCalledWith({
       cart: 5, cart_lines: [11], register: 'R1', late: { reason: 'closed', note: 'Closed Sun and Mon' }, pin: '4821',
     }));
     expect(await screen.findByTestId('where')).toHaveTextContent('/pos/members?person=7');
   });
 
-  it('the owner signed in needs no PIN; with no PIN set anyone else is told so', async () => {
+  it('the owner signed in needs no PIN', async () => {
     const user = userEvent.setup();
     api.findReturns.mockResolvedValue({ kind: 'ticket', people: [], person: null, tickets: [TICKETS.tickets[0]], message: '',
       receipt: receipt({ late: true, lines: [{ ...LAMP, late: true }] }) });
@@ -197,23 +197,24 @@ describe('Returns page (owner 2026-10-20)', () => {
     await user.click(await screen.findByTestId('line-11'));
     await user.click(screen.getByTestId('returns-next'));
     await screen.findByTestId('returns-late-box');
-    expect(screen.queryByTestId('owner-pin-input')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('manager-pin-input')).not.toBeInTheDocument();
     expect(screen.getByText(/no PIN needed/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: "Owner's choice" }));
     await user.click(screen.getByTestId('returns-confirm'));
     expect(api.confirmReturn).toHaveBeenCalledWith({ cart: 5, cart_lines: [11], register: 'R1', late: { reason: 'owner', note: '' } });
   });
 
-  it('with no owner PIN set a late return says so and cannot be confirmed', async () => {
+  it("a late return asks for a manager's own PIN (the shared owner PIN is retired) and waits for it", async () => {
     const user = userEvent.setup();
     api.findReturns.mockResolvedValue({ kind: 'ticket', people: [], person: null, tickets: [TICKETS.tickets[0]], message: '',
       receipt: receipt({ late: true, lines: [{ ...LAMP, late: true }] }) });
-    api.previewReturn.mockResolvedValue(summary({ late: true, pin_set: false }));
+    api.previewReturn.mockResolvedValue(summary({ late: true }));
     renderPage();
     await user.type(search(), '14{Enter}');
     await user.click(await screen.findByTestId('line-11'));
     await user.click(screen.getByTestId('returns-next'));
-    expect(await screen.findByText(/There is no owner PIN yet/)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/Manager PIN/)).toBeInTheDocument();
+    expect(screen.queryByText(/owner PIN/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Store was closed' }));
     expect(screen.getByTestId('returns-confirm')).toBeDisabled();
   });
@@ -231,7 +232,7 @@ describe('Returns page (owner 2026-10-20)', () => {
     await user.click(await screen.findByTestId('line-11'));
     await user.click(screen.getByTestId('returns-next'));
     await screen.findByTestId('returns-late-box');
-    expect(screen.queryByTestId('owner-pin-input')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('manager-pin-input')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Store was closed' }));
     await user.click(screen.getByTestId('returns-confirm'));
     await waitFor(() => expect(search()).toBeInTheDocument());
