@@ -1,4 +1,5 @@
 from datetime import date, datetime, time
+from unittest import mock
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth.models import Group
@@ -117,9 +118,10 @@ class OverlappingShiftTests(APITestCase):
         self.assertEqual(close['owner']['id'], self.carrie.pk)
 
     def test_mine_includes_both_locked_routines(self):
-        day = timezone.localdate()
-        if day.weekday() == 0:
-            self.skipTest('Monday is closed; pick an open weekday.')
+        # Thursday 1 pm, inside both shifts. After the open shift ends (2:30 pm) the opening
+        # checklist leaves "mine", so the clock is pinned rather than read.
+        day = THURSDAY
+        now = timezone.make_aware(datetime.combine(day, time(13, 0)), TZ)
         ShiftAssignment.objects.filter(employee=self.carrie).update(weekdays=[day.weekday()])
         for routine in (self.open, self.close):
             RoutineRun.objects.get_or_create(
@@ -127,13 +129,14 @@ class OverlappingShiftTests(APITestCase):
                 period_key=day.isoformat(),
                 assigned_to=None,
                 defaults={
-                    'due_at': timezone.now(),
+                    'due_at': now,
                     'status': RoutineRun.STATUS_OPEN,
                     'unassign_key': '',
                 },
             )
         self.client.force_authenticate(self.carrie)
-        mine = self.client.get('/api/routines/runs/mine/')
+        with mock.patch('django.utils.timezone.now', return_value=now):
+            mine = self.client.get('/api/routines/runs/mine/')
         self.assertEqual(mine.status_code, 200, mine.data)
         keys = {row['system_key'] for row in mine.data['open']}
         self.assertIn(SYSTEM_OPEN, keys)

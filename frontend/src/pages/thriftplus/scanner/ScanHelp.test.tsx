@@ -28,13 +28,14 @@ vi.mock('../../../api/thriftPlusScanner.api', async () => {
 });
 
 /** What the fake decoder reads in every frame. */
-const cam = vi.hoisted(() => ({ codes: [] as Array<{ rawValue: string; format: string }> }));
+const cam = vi.hoisted(() => ({ codes: [] as Array<{ rawValue: string; format: string }>, reads: 0 }));
 
 class FakeDetector {
   static async getSupportedFormats() {
     return ['qr_code', 'code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e'];
   }
   async detect() {
+    cam.reads += 1;
     return cam.codes;
   }
 }
@@ -121,6 +122,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   window.sessionStorage.clear();
 });
 
@@ -222,6 +224,9 @@ describe('Zoom in the camera window (owner 2026-10-15, APP D13)', () => {
 
 describe('Every code the camera reads gets an answer (owner 2026-10-15, APP D14 and D15)', () => {
   it('a product barcode buzzes, flashes and says "That\'s not our price tag"; Scan again ignores it for 3 s', async () => {
+    // Only Date is faked: the camera's frames and the page's timers stay real, and the 3 s window is read off a
+    // clock the test moves, so it is checked exactly instead of waited out.
+    vi.useFakeTimers({ toFake: ['Date'] });
     installCamera();
     cam.codes = [{ rawValue: '0123456789012', format: 'ean_13' }];
     const user = userEvent.setup();
@@ -230,19 +235,25 @@ describe('Every code the camera reads gets an answer (owner 2026-10-15, APP D14 
     expect(await screen.findByTestId('answer-not-ours')).toBeInTheDocument();
     expect(vibrate).toHaveBeenCalledWith(15);
 
-    await user.click(screen.getByTestId('scan-again'));
     const at = Date.now();
+    await user.click(screen.getByTestId('scan-again'));
     await waitFor(() => expect(screen.queryByTestId('scan-card')).toBeNull());
-    // Still in view: it comes back only once the 3 s are up.
-    expect(await screen.findByTestId('answer-not-ours', {}, { timeout: 6000 })).toBeInTheDocument();
-    expect(Date.now() - at).toBeGreaterThanOrEqual(2900);
+    // Still in view at 2.9 s: frame after frame reads the code, and it stays ignored.
+    vi.setSystemTime(at + 2900);
+    const seen = cam.reads;
+    await waitFor(() => {
+      expect(screen.queryByTestId('answer-not-ours')).toBeNull();
+      expect(cam.reads).toBeGreaterThan(seen + 5);
+    });
+    expect(screen.queryByTestId('answer-not-ours')).toBeNull();
+    // It comes back once the 3 s are up.
+    vi.setSystemTime(at + 3100);
+    expect(await screen.findByTestId('answer-not-ours')).toBeInTheDocument();
 
-    // Another code is answered at once: one of our links.
+    // Another code is answered at once: one of our links, with the clock standing still.
     await user.click(screen.getByTestId('scan-again'));
     cam.codes = [{ rawValue: 'https://ecothrift.us/terms', format: 'qr_code' }];
-    const t = Date.now();
     expect(await screen.findByTestId('answer-link')).toHaveTextContent('It opens ecothrift.us/terms.');
-    expect(Date.now() - t).toBeLessThan(2500);
   });
 
   it("a tag's QR beats a product barcode in the same picture", async () => {

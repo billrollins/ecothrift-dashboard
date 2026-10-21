@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { configure, fireEvent, getConfig, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarProvider } from 'notistack';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BstockPullResponses } from '../../../api/routines.api';
 import type { ManifestPullJob, ManifestPullState } from '../../../types/buying.types';
 import { BstockPullRunner } from './BstockPullRunner';
@@ -70,6 +70,12 @@ function renderRunner(
 }
 
 describe('BstockPullRunner', () => {
+  // Each wait here is a mocked request and a render landing. The first render of the file can take past the 1 s
+  // default when the whole suite runs beside the Django tests, so the waits get 5 s; nothing here waits on purpose.
+  const { asyncUtilTimeout } = getConfig();
+  beforeAll(() => configure({ asyncUtilTimeout: 5000 }));
+  afterAll(() => configure({ asyncUtilTimeout }));
+
   beforeEach(() => {
     vi.clearAllMocks();
     window.sessionStorage.clear();

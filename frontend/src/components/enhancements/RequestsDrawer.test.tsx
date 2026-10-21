@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarProvider } from 'notistack';
@@ -151,14 +151,15 @@ describe('RequestsBoard', () => {
       />,
     );
 
-    await user.type(screen.getByLabelText('Request'), ' Two of them.');
+    // One change, not a keystroke each: the typing is not what is tested, and each key re-renders the board.
+    fireEvent.change(screen.getByLabelText('Request'), { target: { value: 'Need a parts bin. Two of them.' } });
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(onSave).toHaveBeenCalledWith(1, {
       area: 'restoration',
       body: 'Need a parts bin. Two of them.',
     });
 
-    await user.type(screen.getByLabelText('Add a note'), 'By the hinge shelf.');
+    fireEvent.change(screen.getByLabelText('Add a note'), { target: { value: 'By the hinge shelf.' } });
     await user.click(screen.getByRole('button', { name: 'Add' }));
     expect(onNote).toHaveBeenCalledWith(1, 'By the hinge shelf.');
   });
@@ -191,7 +192,7 @@ describe('RequestsDrawer', () => {
 
     const compose = screen.getByLabelText('What do you want changed?');
     expect(screen.getByRole('button', { name: 'File' })).toBeDisabled();
-    await user.type(compose, 'Bigger scan field.');
+    fireEvent.change(compose, { target: { value: 'Bigger scan field.' } });
     await user.click(screen.getByRole('button', { name: 'File' }));
     expect(createMutate).toHaveBeenCalledWith(
       { area: 'restoration', body: 'Bigger scan field.' },

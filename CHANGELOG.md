@@ -12,6 +12,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.189.2] - 2026-10-21
+
+User-facing theme: **Clear history on a TARS item now clears an action's own "started" line when it was stamped in the same clock tick as the action, and the tests that failed now and then pass every time (Bill, 2026-10-21).** Outside initiatives (TARS, tests).
+
+### Fixed
+- **TARS history, Clear history:** history lines were split by action using the clock, so an action's own "started" line, stamped in the same clock tick as the action, counted toward the action before it and was never cleared as replaced. Lines are now split by the order they were written (the action's "started" line id); time is only the fallback for an action with no such line. Found by a test that failed now and then.
+
+### Tests
+- Made the known flaky tests reliable without loosening what they check: the TARS Clear history test gets a coarse-clock twin that fails on the old code; the routines "mine" overlap test pins Thursday 1 pm instead of reading the clock (it failed after 3 pm); the Thrift+ scanner's 3-second Scan again window runs on a test clock instead of a real wait; the Requests, Hold detail and scanner tests fill text boxes in one change where typing is not the point, and the scanner count-up lands at once; the no-dashes check reads files in parallel without jsdom; B-Stock pull runner waits up to 5 s for its mocked requests; the webstore pickup-code test no longer fails on an all-digit code (about 1 run in 22).
+
 ## [2.189.1] - 2026-10-21
 
 User-facing theme: **Dash runs on Heroku's newest stack; nothing changes on screen (Bill, 2026-10-21).** Standards T29.

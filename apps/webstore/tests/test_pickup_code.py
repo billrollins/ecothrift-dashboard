@@ -42,7 +42,8 @@ class PickupCodeTests(TestCase):
         for _ in range(40):
             code = generate_pickup_code()
             self.assertEqual(len(code), 5)
-            self.assertTrue(code.isupper())
+            # Not isupper(): an all-digit code (about 1 in 900) has no letters and reads as not upper.
+            self.assertEqual(code, code.upper())
             for bad in 'IOL01':
                 self.assertNotIn(bad, code)
 

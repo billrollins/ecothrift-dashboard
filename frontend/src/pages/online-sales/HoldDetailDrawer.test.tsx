@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -195,25 +195,26 @@ describe('HoldDetailDrawer', () => {
     wrap(<HoldDetailDrawer reservationId={5} open onClose={() => {}} />);
     await user.click(screen.getByRole('button', { name: 'Decline' }));
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText('Reason'), 'Sold on floor');
+    // One change, not a keystroke each: the typing is not what is tested, and each key re-renders the drawer.
+    fireEvent.change(within(dialog).getByLabelText('Reason'), { target: { value: 'Sold on floor' } });
     await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
     expect(drawerState.actionMutate).toHaveBeenCalledWith({
       id: 5,
       action: 'decline',
       reason: 'Sold on floor',
     });
-  }, 15_000);
+  });
 
   it('posts staff note', async () => {
     const user = userEvent.setup();
     wrap(<HoldDetailDrawer reservationId={5} open onClose={() => {}} />);
-    await user.type(screen.getByPlaceholderText('Internal note…'), 'Called twice');
+    fireEvent.change(screen.getByPlaceholderText('Internal note…'), { target: { value: 'Called twice' } });
     await user.click(screen.getByRole('button', { name: 'Add note' }));
     expect(drawerState.noteMutate).toHaveBeenCalledWith({
       id: 5,
       note: 'Called twice',
     });
-  }, 15_000);
+  });
 
   it('offers Undo Complete on a staff-completed hold, not Reopen', async () => {
     const user = userEvent.setup();
@@ -237,7 +238,7 @@ describe('HoldDetailDrawer', () => {
       id: 5,
       action: 'undo-complete',
     });
-  }, 15_000);
+  });
 
   it('does not offer Undo Complete when the sale closed at POS', () => {
     drawerState.detail = {
@@ -288,14 +289,14 @@ describe('HoldDetailDrawer', () => {
     expect(within(dialog).getByText(/never shown to the customer/i)).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Confirm' })).toBeDisabled();
 
-    await user.type(within(dialog).getByLabelText('Internal note'), 'Customer called back');
+    fireEvent.change(within(dialog).getByLabelText('Internal note'), { target: { value: 'Customer called back' } });
     await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
     expect(drawerState.actionMutate).toHaveBeenCalledWith({
       id: 5,
       action: 'reopen',
       reason: 'Customer called back',
     });
-  }, 15_000);
+  });
 
   it('surfaces the server reason when reopen is refused', async () => {
     const user = userEvent.setup();
@@ -309,7 +310,7 @@ describe('HoldDetailDrawer', () => {
     });
     wrap(<HoldDetailDrawer reservationId={5} open onClose={() => {}} />);
     await user.click(screen.getByRole('button', { name: 'Reopen hold' }));
-    await user.type(screen.getByLabelText('Internal note'), 'Try it');
+    fireEvent.change(screen.getByLabelText('Internal note'), { target: { value: 'Try it' } });
     await user.click(screen.getByRole('button', { name: 'Confirm' }));
 
     expect(await screen.findByText(/Only 0 available/)).toBeInTheDocument();

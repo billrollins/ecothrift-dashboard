@@ -1,6 +1,6 @@
 """History lines that are allowed to go can be voided. Live facts stay."""
 
-import time
+from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -591,33 +591,70 @@ class RestorationHistoryForgetTests(RestorationQueueTestBase):
         self.assertEqual(earlier.status, RestorationTimelineEvent.STATUS_ACTIVE)
 
     def test_clear_history_clears_notes_and_superseded_not_actions(self):
+        self._assert_clear_history_clears_notes_and_superseded_not_actions()
+
+    def test_clear_history_splits_by_action_on_a_coarse_clock(self):
+        # A frozen clock that moves only between steps, like the Windows 16 ms tick: each action
+        # shares a tick with its own action.started line, and the second action with the first
+        # estimate. Lines must still count toward the action they were written under.
+        from unittest import mock
+
+        clock = [timezone.now()]
+
+        def tick():
+            clock[0] += timedelta(seconds=1)
+
+        with mock.patch('django.utils.timezone.now', side_effect=lambda: clock[0]):
+            self._assert_clear_history_clears_notes_and_superseded_not_actions(tick=tick)
+
+    def _assert_clear_history_clears_notes_and_superseded_not_actions(self, tick=None):
         from apps.inventory.services.restoration_actions import describe_action, start_action
 
+        step = tick or (lambda: None)
         job = self._bench_job()
+        step()
         first = job.current_action
         describe_action(job, first.pk, description='looked inside')
         job.refresh_from_db()
+        step()
         job, second = start_action(job, self.user, force_new=True)
-        # The Windows clock ticks about every 16 ms: an estimate stamped in the same tick as the
-        # new action would count toward the first action (splitters need started_at < occurred_at).
-        while timezone.now() <= second.started_at:
-            time.sleep(0.001)
         self.assertEqual(self._patch_estimate(job, minutes=10).status_code, 200)
+        step()
         self.assertEqual(self._patch_estimate(job, minutes=20).status_code, 200)
+        step()
         self.assertEqual(self._patch_estimate(job, minutes=45).status_code, 200)
+        step()
         self._patch_values(job, {**FUNCTIONAL_GRADES, 'Working': 20.0})
+        step()
         self._patch_values(job, {**FUNCTIONAL_GRADES, 'Working': 30.0})
+        step()
         self.client.patch(
             f'/api/inventory/restoration-jobs/{job.id}/queue-details/',
             {'queue_note': 'first'},
             format='json',
         )
+        step()
         self.client.patch(
             f'/api/inventory/restoration-jobs/{job.id}/queue-details/',
             {'queue_note': 'check the cable'},
             format='json',
         )
+        step()
         hold_restoration_job(job, user=self.user, wait_for={'other': 'waiting on a hinge'})
+        if tick is not None:
+            # started_at takes its default from the real clock: put each action in the tick of
+            # its own action.started line, as a coarse clock would.
+            for action in job.actions.all():
+                started = job.timeline_events.get(
+                    event_type='action.started', entity_id=f'action:{action.pk}',
+                )
+                action.started_at = started.occurred_at
+                action.save(update_fields=['started_at'])
+            self.assertEqual(
+                job.actions.get(pk=second.pk).started_at,
+                job.timeline_events.filter(event_type='plan.estimate_changed')
+                .order_by('id').first().occurred_at,
+            )
         action_count = job.actions.count()
         resp = self.client.post(f'/api/inventory/restoration-jobs/{job.id}/clear-history/')
         self.assertEqual(resp.status_code, 200, resp.data)

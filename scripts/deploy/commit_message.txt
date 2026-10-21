@@ -1,8 +1,11 @@
-v2.189.1 — Heroku moves to the heroku-26 stack
+v2.189.2 — Clear history keeps up with same-tick actions; the flaky tests pass every time
 
-User-facing theme: **Dash runs on Heroku's newest stack; nothing changes on screen (Bill, 2026-10-21).** Standards T29.
+User-facing theme: **Clear history on a TARS item now clears an action's own "started" line when it was stamped in the same clock tick as the action, and the tests that failed now and then pass every time (Bill, 2026-10-21).** Outside initiatives (TARS, tests).
 
-### Changed
-- **Heroku stack heroku-24 → heroku-26** (Ubuntu 26.04), after the Python 3.14 and Node 24 move in v2.189.0. This release is the first build on it.
+### Fixed
+- **TARS history, Clear history:** history lines were split by action using the clock, so an action's own "started" line, stamped in the same clock tick as the action, counted toward the action before it and was never cleared as replaced. Lines are now split by the order they were written (the action's "started" line id); time is only the fallback for an action with no such line. Found by a test that failed now and then.
+
+### Tests
+- Made the known flaky tests reliable without loosening what they check: the TARS Clear history test gets a coarse-clock twin that fails on the old code; the routines "mine" overlap test pins Thursday 1 pm instead of reading the clock (it failed after 3 pm); the Thrift+ scanner's 3-second Scan again window runs on a test clock instead of a real wait; the Requests, Hold detail and scanner tests fill text boxes in one change where typing is not the point, and the scanner count-up lands at once; the no-dashes check reads files in parallel without jsdom; B-Stock pull runner waits up to 5 s for its mocked requests; the webstore pickup-code test no longer fails on an all-digit code (about 1 run in 22).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

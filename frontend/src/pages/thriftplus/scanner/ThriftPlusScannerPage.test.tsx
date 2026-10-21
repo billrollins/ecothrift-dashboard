@@ -77,8 +77,9 @@ const IPHONE_SAFARI = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Ap
 /** The password form is "Staff sign in" now (owner 2026-10-15, APP D9); the mock takes any login. */
 async function signInAsMember(user: User) {
   await user.click(await screen.findByRole('button', { name: 'Staff sign in' }));
-  await user.type(await screen.findByLabelText('Email or username'), 'dana');
-  await user.type(screen.getByLabelText('Password'), 'secret');
+  // Filled in one change each: signing in is the way in here, not what is tested.
+  fireEvent.change(await screen.findByLabelText('Email or username'), { target: { value: 'dana' } });
+  fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret' } });
   await user.click(screen.getByRole('button', { name: 'Sign in' }));
 }
 
@@ -108,7 +109,23 @@ function sign() {
 const lastCode = () => thriftPlusMockControls.outbox().at(-1)?.code ?? '';
 
 async function scan(user: User, code: string) {
-  await user.type(await screen.findByLabelText('Tag number'), `${code}{Enter}`);
+  const box = await screen.findByLabelText('Tag number');
+  fireEvent.change(box, { target: { value: code } });
+  await user.type(box, '{Enter}');
+}
+
+/** The phone asks for less motion: the ThriftBucks count-ups land at once instead of rolling for frames. */
+function reduceMotion() {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query.includes('prefers-reduced-motion'),
+    media: query,
+    onchange: null,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    dispatchEvent: () => false,
+  }));
 }
 
 beforeEach(() => {
@@ -122,6 +139,10 @@ beforeEach(() => {
   HTMLCanvasElement.prototype.toBlob = function toBlob(cb: BlobCallback) {
     cb(new Blob(['png'], { type: 'image/png' }));
   };
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('Thrift+ trip scanner (owner 2026-10-13)', () => {
@@ -177,6 +198,7 @@ describe('Thrift+ trip scanner (owner 2026-10-13)', () => {
   });
 
   it('scans a tag, adds it from the bottom buttons, and flips to the trip from This trip', async () => {
+    reduceMotion();
     const user = userEvent.setup();
     renderPage();
     await signInAsMember(user);

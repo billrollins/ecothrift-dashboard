@@ -253,7 +253,23 @@ def _actor_pk(user) -> int | None:
 
 
 def _history_actions(job: RestorationJob):
-    return list(job.actions.order_by('started_at', 'id'))
+    """The job's actions, each tagged with the id of its own action.started line.
+
+    History is split by those ids, not by time: an action and the lines written
+    with it can share a clock tick, but timeline ids always run in the order written.
+    """
+
+    actions = list(job.actions.order_by('started_at', 'id'))
+    start_ids: dict[str, int] = {}
+    for entity_id, pk in (
+        RestorationTimelineEvent.objects.filter(job=job, event_type='action.started')
+        .order_by('id')
+        .values_list('entity_id', 'id')
+    ):
+        start_ids.setdefault(entity_id, pk)
+    for action in actions:
+        action.history_start_id = start_ids.get(f'action:{action.pk}')
+    return actions
 
 
 def _active_history_events(job: RestorationJob):
@@ -297,14 +313,18 @@ def _is_splitter_action(action) -> bool:
     return (action.description or '').strip() not in CANNED_ACTION_DESCRIPTIONS
 
 
-def _last_splitter_id(occurred_at, actions) -> int:
+def _written_after_start(event, action) -> bool:
+    start_id = getattr(action, 'history_start_id', None)
+    if start_id is not None:
+        return event.pk >= start_id
+    # An action with no action.started line (none today): fall back to the clock.
+    return action.started_at < event.occurred_at
+
+
+def _last_splitter_id(event, actions) -> int:
     splitter_id = 0
-    started = None
     for action in actions:
-        if not _is_splitter_action(action):
-            continue
-        if action.started_at < occurred_at and (started is None or action.started_at >= started):
-            started = action.started_at
+        if _is_splitter_action(action) and _written_after_start(event, action):
             splitter_id = action.pk
     return splitter_id
 
@@ -350,7 +370,7 @@ def _superseded_event_ids(events, actions) -> set[int]:
             continue
         if not event.entity_id:
             continue
-        key = (event.entity_id, _last_splitter_id(event.occurred_at, actions))
+        key = (event.entity_id, _last_splitter_id(event, actions))
         groups.setdefault(key, []).append(event)
     ids: set[int] = set()
     for group in groups.values():
