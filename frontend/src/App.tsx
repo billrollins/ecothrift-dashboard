@@ -69,6 +69,7 @@ const LegacyWorkbenchRedirect = lazy(() =>
 );
 const ProductPage = lazy(() => import('./pages/inventory/ProductPage'));
 import { inventoryWorkbenchUrl, legacyItemParamsToRichSearch } from './utils/richInventorySearch';
+import { landingPath } from './utils/landing';
 const ItemListPage = lazy(() => import('./pages/inventory/ItemListPage'));
 const ItemDetailPage = lazy(() => import('./pages/inventory/ItemDetailPage'));
 const TerminalPage = lazy(() => import('./pages/pos/TerminalPage'));
@@ -148,6 +149,12 @@ function StaffAppGate() {
       </StaffRoute>
     </ProtectedRoute>
   );
+}
+
+/** `/` and unknown URLs: a cashier on a register goes to the Terminal, everyone else to the Dashboard. */
+function HomeRedirect() {
+  const { user } = useAuth();
+  return <Navigate to={landingPath(user)} replace />;
 }
 
 function ManagerRoute({ children }: { children: React.ReactNode }) {
@@ -770,8 +777,8 @@ function AppRoutes() {
       />
 
       {/* Redirects */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<HomeRedirect />} />
+      <Route path="*" element={<HomeRedirect />} />
     </Routes>
   );
 }

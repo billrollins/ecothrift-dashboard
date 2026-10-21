@@ -26,6 +26,7 @@ import TranslateOutlined from '@mui/icons-material/TranslateOutlined';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoadingScreen } from '../feedback/LoadingScreen';
+import { AppErrorBoundary } from '../feedback/AppErrorBoundary';
 import ChangePasswordDialog from '../users/ChangePasswordDialog';
 import { Sidebar, SIDEBAR_WIDTH } from './Sidebar';
 import { PhoneTabBar } from './PhoneTabBar';
@@ -355,9 +356,11 @@ export default function MainLayout() {
           }}
         >
           <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: isRetailQa ? 'hidden' : undefined }}>
-            <Suspense fallback={<LoadingScreen message="Loading…" />}>
-              <Outlet />
-            </Suspense>
+            <AppErrorBoundary variant="page" resetKey={location.pathname}>
+              <Suspense fallback={<LoadingScreen message="Loading…" />}>
+                <Outlet />
+              </Suspense>
+            </AppErrorBoundary>
           </Box>
         </Box>
         {isPhoneShell ? <PhoneTabBar /> : null}

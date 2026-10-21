@@ -1,9 +1,13 @@
-v2.190.0 — A register PIN for every staff member
+v2.191.0 — Errors stay on screen, a Reload screen instead of a blank page, error records, cashiers start at the register
 
-User-facing theme: **Every staff member can have their own register PIN (Bill, 2026-10-21, critic review point 3).** Outside initiatives (critic-review release list).
+User-facing theme: **Errors can't be missed, a crash never leaves a blank page, and cashiers start at the register (Bill, 2026-10-21, critic review point 8).** Outside initiatives (critic-review release list).
+
+### Changed
+- **Error messages stay on screen** until you close them (X), so a "payment failed" can't be missed. Success messages still fade.
+- **Cashiers signing in on a register start at the Terminal**, in the Cashier menu, not Buying. Each person's menu choice is remembered for them, not shared by everyone on that computer.
 
 ### Added
-- **Register PIN per person:** each staff member can have their own 4-6 digit register PIN (set on the Me page, coming next). It is kept scrambled; a PIN alone says who it is; five wrong tries lock PIN entry on that register for 15 minutes (only that register). The register will use it for manager approvals and Cover.
-- **Docs:** the critic-review digest (Bill's decisions, point by point, and the release list) and the B-Stock dispute material.
+- **Crash screen:** if a screen crashes, Dash shows "Something went wrong" with Reload instead of a blank page. After a deploy, an open tab shows "A new version of Dash is ready" with Reload. The public site does the same.
+- **Errors recorded for the owner:** server errors and screen crashes, with a count and the latest ones (shown on the Owner page when it lands).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -5,8 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { SnackbarProvider } from 'notistack';
 import { AuthProvider } from './contexts/AuthContext';
+import { AppSnackbarProvider } from './components/feedback/AppSnackbarProvider';
+import { AppErrorBoundary } from './components/feedback/AppErrorBoundary';
 import theme from './theme';
 import App from './App';
 import { captureBstockTokenFromHash } from './pages/routines/runners/bstockHandoff';
@@ -31,11 +32,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <ThemeProvider theme={theme}>
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <CssBaseline />
-            <SnackbarProvider maxSnack={3} autoHideDuration={4000}>
-              <AuthProvider>
-                <App />
-              </AuthProvider>
-            </SnackbarProvider>
+            {/* Errors stay until dismissed; success toasts fade after 4 s. */}
+            <AppSnackbarProvider maxSnack={3} autoHideDuration={4000}>
+              <AppErrorBoundary>
+                <AuthProvider>
+                  <App />
+                </AuthProvider>
+              </AppErrorBoundary>
+            </AppSnackbarProvider>
           </LocalizationProvider>
         </ThemeProvider>
       </QueryClientProvider>

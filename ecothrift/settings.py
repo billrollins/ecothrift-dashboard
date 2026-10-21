@@ -259,6 +259,8 @@ REST_FRAMEWORK = {
         'thriftplus_login': '20/minute',
         'thriftplus_reset': '10/hour',
         'thriftplus_scan': '240/minute',
+        # Screen crash reports (apps/core/views.py app_error_report)
+        'app_error_report': '30/hour',
     },
 }
 

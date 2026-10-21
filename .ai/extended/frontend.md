@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-08 (Eco-Thrift's own icon set, T75) -->
+<!-- Last updated: 2026-10-21 (sticky errors, crash and new-version screens, cashier landing) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -17,9 +17,12 @@
 3. `ThemeProvider` (MUI)
 4. `LocalizationProvider` (MUI X Date Pickers, AdapterDateFns)
 5. `CssBaseline`
-6. `SnackbarProvider` (maxSnack 3, autoHide 4s)
-7. `AuthProvider`
-8. `App`
+6. `AppSnackbarProvider` (notistack, maxSnack 3, autoHide 4s; **error toasts stay until dismissed**, with an X, and an identical error is not stacked; a call that sets `persist` or `autoHideDuration` keeps it)
+7. `AppErrorBoundary` (the whole app): a crash shows **Something went wrong** + Reload and is sent to the owner's error alerts (`POST /api/core/errors/report/`); a deploy that replaced the app's files (an old tab's lazy page fails to load, or Vite's `vite:preloadError`) shows **A new version of Dash is ready** + Reload, not reported. `MainLayout` has a second one around the page area (`variant="page"`, clears when the path changes) so the sidebar stays.
+8. `AuthProvider`
+9. `App`
+
+**Landing:** `/`, unknown URLs and sign-in without `?next=` go through `HomeRedirect` → `utils/landing.ts`: a cashier (Employee role, not superuser) on a computer set up as a register (`pos_device_config`) starts at `/pos/terminal`; everyone else at `/dashboard`.
 
 ## Routing
 
@@ -108,6 +111,7 @@ Separate Vite + React 18.3 + TypeScript build for shoppers (`ecothrift.us` / `ww
 - **Prod:** `npm run build` → `frontend-public/dist`, collected under `STATIC_ROOT/site` (`base: '/static/site/'`). `PublicSiteMiddleware` serves `index.html` on public hosts.
 - **Routes:** `/` Home, `/shop` + `/shop/:slug` catalog, `/checkout`, `/order/:number`, `/blog` + `/blog/:slug`, `/visit`, `/sell`, `/404`.
 - **Stack:** React Router v7, shared design tokens in `styles.css`, `useSeo` + JSON-LD, client cart (`localStorage`), code-split lazy routes.
+- **Safety net:** `components/ErrorBoundary.tsx` wraps the site: a crash shows "Something went wrong" + Reload and goes to the owner's error alerts (path starts `ecothrift.us`); an old tab after a deploy shows "This page was updated" + Reload.
 - **API:** `AllowAny` `/api/webstore/catalog/*`, `checkout/`, `order-status/<number>/`, **`GET /api/webstore/config/`** — `hours` comes from AppSetting `online_sales.hours` (Python weekdays 0=Mon … 6=Sun) plus `overrides` / `today` / `resume_label` from `StoreHoursOverride`. Home, Visit, footer, checkout, holds, and account build the schedule from that payload; `StoreHoursBlock` prints a two-column weekly grid plus dated **Holiday hours** lines (`Mon, Sep 7 (Labor Day): 9 AM to 6 PM, note.`) when overrides are in the 7-day window. Visit/Home `.vinfo` rows are label | value (brand-green small-cap labels). **`GET /api/webstore/public/announcements/`** feeds `AnnouncementBanner` (Layout, above `.hdr`), `AnnouncementCard` (Home / Visit / Shop), and `AnnouncementGallery`. Dash CRUD: `/announcements` (Studios, Manager+) and Settings → Store → Holiday & special hours.
 - Staff catalog + order management: **`WebStorePage`** (`/admin/web-store`), **`WebOrdersPage`** (`/admin/web-orders`) — Admin workspace, Manager/Admin.
 - **Listing photos:** public grid, PDP, cart, and holds use the full gallery file with `object-fit: contain`. Click the PDP photo for `ListingLightbox` (full). Staff can still frame main / grid / thumb in Listing Studio.
@@ -142,7 +146,7 @@ Shared module: **`frontend/src/navigation/`**
 | `useStaffNav.ts` | Active route detection + navigation |
 | `NavItemRow.tsx` | Shared row component |
 
-Shell: **`frontend/src/components/layout/Sidebar.tsx`** — one workspace panel visible; sidebar clicks keep the current workspace (shared links like Search items); external URL entry picks lowest lifecycle # workspace via **`resolveWorkspaceForRoute`**; manual choice in `ecothrift.navC.workspace.v1`. Open the switcher and press the assigned digit (`1`–`8`, `0` Admin) or the short-name letter. Keys listen only while the menu is open. There is no Alt+digit shortcut.
+Shell: **`frontend/src/components/layout/Sidebar.tsx`** — one workspace panel visible; sidebar clicks keep the current workspace (shared links like Search items); external URL entry picks lowest lifecycle # workspace via **`resolveWorkspaceForRoute`**; manual choice in `ecothrift.navC.workspace.v1.<user id>` (per person, so a shared register computer doesn't hand one person's workspace to the next). With no saved choice, a register computer starts in Cashier, others in Buying. Open the switcher and press the assigned digit (`1`–`8`, `0` Admin) or the short-name letter. Keys listen only while the menu is open. There is no Alt+digit shortcut.
 
 Adding a staff nav link: one object in `navItemCatalog.ts` + assign its id to a workspace in `slotCNavLayout.ts`. See **`frontend/src/navigation/README.md`**. Item flags: **`superuserOnly`** (dropped for non-`is_superuser` in `navResolve`) and **`openInNewWindow`** (`navUtils.navigateForNavItem` → `window.open(path, '_blank', 'noopener')`) — both used by **`blogStudio`** (Studios workspace).
 

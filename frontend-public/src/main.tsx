@@ -2,6 +2,7 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { AuthProvider } from './auth'
 import { CartProvider } from './cart'
 import { AnnouncementsProvider } from './announcements'
@@ -22,18 +23,20 @@ if (plausibleDomain) {
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <OnlineSalesConfigProvider>
-        <ThriftPlusOpenProvider>
-          <AnnouncementsProvider>
-            <AuthProvider>
-              <CartProvider>
-                <App />
-              </CartProvider>
-            </AuthProvider>
-          </AnnouncementsProvider>
-        </ThriftPlusOpenProvider>
-      </OnlineSalesConfigProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <OnlineSalesConfigProvider>
+          <ThriftPlusOpenProvider>
+            <AnnouncementsProvider>
+              <AuthProvider>
+                <CartProvider>
+                  <App />
+                </CartProvider>
+              </AuthProvider>
+            </AnnouncementsProvider>
+          </ThriftPlusOpenProvider>
+        </OnlineSalesConfigProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   </React.StrictMode>,
 )

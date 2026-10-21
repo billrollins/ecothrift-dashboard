@@ -18,6 +18,8 @@ export interface SlotCWorkspaceMeta {
 
 /** Lifecycle order: source → prep → ingest → restore → records → floor → sell → deliver → online → manage. */
 export const SLOT_C_DEFAULT_WORKSPACE_ID = 'buying';
+/** A computer set up as a register starts here (critic review 2026-10-21: cashiers start in Cashier, not Buying). */
+export const SLOT_C_REGISTER_WORKSPACE_ID = 'storeSales';
 
 /** Workspace-first groups for staff sidebar (presentation only). */
 export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [

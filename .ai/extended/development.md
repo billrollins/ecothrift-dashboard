@@ -273,7 +273,7 @@ Defined in `.env` (local values) and `.envprod` (mirror of Heroku Config Vars, w
 - **State:** TanStack React Query for server state. React Context for auth only. No Redux.
 - **Forms:** React Hook Form for complex forms. Controlled inputs for simple ones.
 - **Tables:** MUI X DataGrid for all data tables. `pageSizeOptions={[10, 25, 50, 100]}`.
-- **Notifications:** `useSnackbar()` from notistack for success/error toasts.
+- **Notifications:** `useSnackbar()` from notistack for success/error toasts. Error toasts stay until dismissed (`AppSnackbarProvider`).
 
 ## Deployment (Heroku)
 

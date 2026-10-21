@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.190.0] -->
-<!-- Last reviewed: 2026-10-21 (2.190.0) -->
+<!-- Line 1 release: ## [2.191.0] -->
+<!-- Last reviewed: 2026-10-21 (2.191.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.191.0] - 2026-10-21
+
+User-facing theme: **Errors can't be missed, a crash never leaves a blank page, and cashiers start at the register (Bill, 2026-10-21, critic review point 8).** Outside initiatives (critic-review release list).
+
+### Changed
+- **Error messages stay on screen** until you close them (X), so a "payment failed" can't be missed. Success messages still fade.
+- **Cashiers signing in on a register start at the Terminal**, in the Cashier menu, not Buying. Each person's menu choice is remembered for them, not shared by everyone on that computer.
+
+### Added
+- **Crash screen:** if a screen crashes, Dash shows "Something went wrong" with Reload instead of a blank page. After a deploy, an open tab shows "A new version of Dash is ready" with Reload. The public site does the same.
+- **Errors recorded for the owner:** server errors and screen crashes, with a count and the latest ones (shown on the Owner page when it lands).
 
 ## [2.190.0] - 2026-10-21
 

@@ -8,7 +8,8 @@ from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
+from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin, IsTeamMember
@@ -574,4 +575,52 @@ def daily_brief_write(request):
         return Response({'detail': 'day must be YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
     start(day)
     return Response(_brief_payload(day), status=status.HTTP_202_ACCEPTED)
+
+
+# ── Error alerts (critic review 2026-10-21, point 8) ─────────────────────────
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def app_errors(request):
+    """The owner's error alerts: counts and the latest server 500s and screen crashes. ``?limit=`` (default 10)."""
+    from .services.app_errors import summary
+
+    try:
+        limit = max(1, min(int(request.query_params.get('limit') or 10), 100))
+    except ValueError:
+        limit = 10
+    return Response(summary(limit=limit))
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def app_errors_seen(request):
+    """Mark every error seen (the open count goes to 0)."""
+    from .services.app_errors import mark_seen, summary
+
+    mark_seen()
+    return Response(summary())
+
+
+class _AppErrorReportThrottle(SimpleRateThrottle):
+    """Per signed-in user, or per address before sign-in."""
+
+    scope = 'app_error_report'
+
+    def get_cache_key(self, request, view):
+        user = getattr(request, 'user', None)
+        ident = user.pk if user and user.is_authenticated else self.get_ident(request)
+        return self.cache_format % {'scope': self.scope, 'ident': ident}
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@throttle_classes([_AppErrorReportThrottle])
+def app_error_report(request):
+    """A screen crash from Dash's error screen. Anyone may send one (the crash can come before sign-in); throttled."""
+    from .services.app_errors import record_screen_error
+
+    record_screen_error(request, request.data if isinstance(request.data, dict) else {})
+    return Response(status=status.HTTP_204_NO_CONTENT)
 

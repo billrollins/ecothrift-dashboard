@@ -18,9 +18,12 @@ import { useKioskLang } from './kiosk/kioskLang';
 /** Card scanning is the door tablet's code. Keep it out of the sign-in bundle. */
 const LoginScan = lazy(() => import('./LoginScan'));
 
-/** Where to go after signing in: `?next=` when it is a page of this site (the Finalize app, J13), else the dashboard. */
+/**
+ * Where to go after signing in: `?next=` when it is a page of this site (the Finalize app, J13), else `/`, which sends
+ * a cashier on a register to the Terminal and everyone else to the Dashboard (App.tsx HomeRedirect).
+ */
 export function loginNext(next: string | null): string {
-  return next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/login') ? next : '/dashboard';
+  return next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/login') ? next : '/';
 }
 
 export default function LoginPage() {

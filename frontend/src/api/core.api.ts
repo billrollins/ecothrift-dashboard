@@ -1,5 +1,5 @@
 import type { PaginatedResponse } from '../types/index';
-import api from './client';
+import api, { apiPublic, getAccessToken } from './client';
 
 /** Work location (store) - matches `WorkLocation` on the backend */
 export interface WorkLocation {
@@ -104,4 +104,54 @@ export function getDevLogConfig(): Promise<{ data: DevLogConfigResponse }> {
 
 export function postDevLogLine(payload: { area: string; message: string }): Promise<{ data: { ok: boolean } }> {
   return api.post<{ ok: boolean }>('/core/dev-log/line/', payload);
+}
+
+
+/** Owner's error alerts (critic review 2026-10-21, point 8): server 500s and screen crashes. */
+export interface AppErrorRow {
+  id: number;
+  source: 'server' | 'screen';
+  message: string;
+  path: string;
+  method: string;
+  user: string | null;
+  version: string;
+  seen: boolean;
+  created_at: string;
+}
+
+export interface AppErrorSummary {
+  /** Not yet marked seen. */
+  open_count: number;
+  last_24h: number;
+  last_7d: number;
+  /** Newest first. */
+  latest: AppErrorRow[];
+}
+
+/** Superuser only. */
+export function getAppErrors(limit = 10): Promise<{ data: AppErrorSummary }> {
+  return api.get<AppErrorSummary>('/core/errors/', { params: { limit } });
+}
+
+/** Superuser only. Clears the open count. */
+export function markAppErrorsSeen(): Promise<{ data: AppErrorSummary }> {
+  return api.post<AppErrorSummary>('/core/errors/seen/');
+}
+
+export interface ScreenErrorReport {
+  message: string;
+  stack?: string;
+  component_stack?: string;
+  path?: string;
+  version?: string;
+}
+
+/**
+ * A screen crash for the owner's error alerts. Sent without the auth client's interceptors (a crash must not start a
+ * token refresh or a sign-in bounce); the current token rides along so the report names who saw it.
+ */
+export function reportScreenError(report: ScreenErrorReport): Promise<unknown> {
+  const token = getAccessToken();
+  return apiPublic.post('/core/errors/report/', report, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
 }

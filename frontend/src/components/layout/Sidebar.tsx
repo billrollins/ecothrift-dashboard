@@ -7,6 +7,7 @@ import {
   resolveWorkspaceForRoute,
   rollupWorkspaceBadgeCounts,
   SLOT_C_DEFAULT_WORKSPACE_ID,
+  SLOT_C_REGISTER_WORKSPACE_ID,
   SLOT_C_ESSENTIALS_GROUP_ID,
   SLOT_C_NAV_GROUPS,
   SLOT_C_WORKSPACES,
@@ -16,9 +17,11 @@ import {
 import type { ResolvedNavGroup, ResolvedNavItem } from '../../navigation/navTypes';
 import { useStaffNav } from '../../navigation/useStaffNav';
 import { useNavBadgeCounts } from '../../hooks/useNavBadgeCounts';
+import { isRegisterDevice } from '../../hooks/useDeviceConfig';
 
 export const SIDEBAR_WIDTH = 252;
 
+// Per person (`.<user id>`): a shared register computer must not hand one person's workspace to the next.
 const LS_NAV_C_WORKSPACE = 'ecothrift.navC.workspace.v1';
 const INACTIVE_ICON = '#64748B';
 
@@ -27,13 +30,17 @@ function normalizeWorkspaceId(raw: string | null): string | null {
   return SLOT_C_WORKSPACE_ID_MIGRATION[raw] ?? raw;
 }
 
-function loadWorkspace(): string | null {
+function workspaceKey(userId: number | undefined): string {
+  return `${LS_NAV_C_WORKSPACE}.${userId ?? 'anon'}`;
+}
+
+function loadWorkspace(userId: number | undefined): string | null {
   try {
-    const raw = localStorage.getItem(LS_NAV_C_WORKSPACE);
+    const raw = localStorage.getItem(workspaceKey(userId));
     if (!raw) return null;
     const migrated = normalizeWorkspaceId(raw);
     if (migrated && migrated !== raw) {
-      localStorage.setItem(LS_NAV_C_WORKSPACE, migrated);
+      localStorage.setItem(workspaceKey(userId), migrated);
     }
     return migrated;
   } catch {
@@ -41,9 +48,9 @@ function loadWorkspace(): string | null {
   }
 }
 
-function saveWorkspace(id: string) {
+function saveWorkspace(userId: number | undefined, id: string) {
   try {
-    localStorage.setItem(LS_NAV_C_WORKSPACE, id);
+    localStorage.setItem(workspaceKey(userId), id);
   } catch {
     /* ignore quota */
   }
@@ -77,20 +84,23 @@ export function Sidebar() {
   );
 
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
-    () => loadWorkspace() ?? null,
+    () => loadWorkspace(user?.id) ?? null,
   );
 
   useEffect(() => {
     if (!visibleWorkspaces.length) return;
     const selectedStillVisible = visibleWorkspaces.some((w) => w.id === selectedWorkspaceId);
     if (!selectedStillVisible) {
+      // A register computer starts in Cashier; anywhere else in the default (Buying).
+      const preferred = isRegisterDevice() ? SLOT_C_REGISTER_WORKSPACE_ID : SLOT_C_DEFAULT_WORKSPACE_ID;
       const fallback =
+        visibleWorkspaces.find((w) => w.id === preferred)?.id ??
         visibleWorkspaces.find((w) => w.id === SLOT_C_DEFAULT_WORKSPACE_ID)?.id ??
         visibleWorkspaces[0]!.id;
       setSelectedWorkspaceId(fallback);
-      saveWorkspace(fallback);
+      saveWorkspace(user?.id, fallback);
     }
-  }, [selectedWorkspaceId, visibleWorkspaces]);
+  }, [selectedWorkspaceId, visibleWorkspaces, user?.id]);
 
   // External URL entry: resolve lowest lifecycle workspace. Sidebar clicks skip via navFromSidebar state.
   useEffect(() => {
@@ -100,18 +110,18 @@ export function Sidebar() {
     const resolved = resolveWorkspaceForRoute(workspaceGroups, visibleWorkspaces, isActive);
     if (resolved) {
       setSelectedWorkspaceId(resolved);
-      saveWorkspace(resolved);
+      saveWorkspace(user?.id, resolved);
     }
-  }, [pathname, search, hash, locationState, workspaceGroups, visibleWorkspaces, isActive]);
+  }, [pathname, search, hash, locationState, workspaceGroups, visibleWorkspaces, isActive, user?.id]);
 
   const selectedWorkspace =
     workspaceGroups.find((g) => g.id === selectedWorkspaceId) ?? workspaceGroups[0] ?? null;
 
   const selectWorkspace = useCallback((id: string, focusFirst = false) => {
     setSelectedWorkspaceId(id);
-    saveWorkspace(id);
+    saveWorkspace(user?.id, id);
     if (focusFirst) focusFirstPanelItem(panelRef.current);
-  }, []);
+  }, [user?.id]);
 
   // Only ask for Online Sales counts when the user can actually open it.
   const badgeCounts = useNavBadgeCounts({

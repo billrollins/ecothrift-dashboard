@@ -386,3 +386,35 @@ class DailyBrief(models.Model):
 
     def __str__(self):
         return f'Brief {self.day} ({self.status})'
+
+
+class AppError(models.Model):
+    """A server error (500) or a screen crash, kept for the owner's error alerts (critic review 2026-10-21, point 8).
+
+    Written by ``services/app_errors.py``: server 500s from Django's got_request_exception signal, screen crashes
+    from the error screen in Dash. ``seen`` clears when the owner marks the list seen.
+    """
+
+    SOURCE_SERVER = 'server'
+    SOURCE_SCREEN = 'screen'
+    SOURCE_CHOICES = [(SOURCE_SERVER, 'Server'), (SOURCE_SCREEN, 'Screen')]
+
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, db_index=True)
+    message = models.CharField(max_length=500, blank=True, default='')
+    # Server: the traceback's tail. Screen: the error's stack and the component stack.
+    detail = models.TextField(blank=True, default='')
+    path = models.CharField(max_length=500, blank=True, default='')
+    method = models.CharField(max_length=10, blank=True, default='')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    user_agent = models.CharField(max_length=300, blank=True, default='')
+    version = models.CharField(max_length=40, blank=True, default='')
+    seen = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.source} error @ {self.created_at}: {self.message[:60]}'

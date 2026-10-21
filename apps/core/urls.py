@@ -9,6 +9,7 @@ from .views import (
     ApprovalRequestViewSet,
     daily_brief,
     daily_brief_write,
+    app_errors, app_errors_seen, app_error_report,
 )
 
 router = DefaultRouter()
@@ -30,4 +31,7 @@ urlpatterns = [
     path('dev-log/line/', dev_log_line, name='dev-log-line'),
     path('brief/', daily_brief, name='daily-brief'),
     path('brief/write/', daily_brief_write, name='daily-brief-write'),
+    path('errors/', app_errors, name='app-errors'),
+    path('errors/seen/', app_errors_seen, name='app-errors-seen'),
+    path('errors/report/', app_error_report, name='app-error-report'),
 ]

@@ -86,6 +86,11 @@ export function useDeviceConfig(options?: { ignoreSaved?: boolean }): {
   return { config, setConfig, isRegister, registerId };
 }
 
+/** True when this computer is set up as a register (its saved device config). */
+export function isRegisterDevice(): boolean {
+  return getSnapshot()?.deviceType === 'register';
+}
+
 export function saveDeviceConfig(
   deviceType: POSDeviceType,
   register?: { id: number; name: string; code: string },
