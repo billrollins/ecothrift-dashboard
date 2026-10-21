@@ -1,11 +1,8 @@
-v2.205.0 — Tax-exempt sales for non-profits
+v2.205.1 — Print server 1.9.8: COPY band on reprints, tax-exempt line
 
-User-facing theme: **Tax-exempt sales for non-profits (Bill, 2026-10-21).** Outside initiatives.
+User-facing theme: **Print server 1.9.8: COPY band on reprints and the tax-exempt line (Bill, 2026-10-21).** Install it on every register (REG-01, REG-02, TRAIN): Settings → Printing → Download.
 
-### Added
-- **Tax exempt sale:** tap "Tax exempt sale" on the register and enter the organization's name and its tax-exempt certificate number (or take a photo of the certificate). The whole sale is untaxed, and Dash keeps who did it.
-- **Receipt** says "Tax exempt: <organization> #<number>" (needs the updated print server 1.9.8).
-- **Transactions** shows the organization and number, with a link to the certificate photo.
-- **Sales tax report and CSV** list every tax-exempt sale with the organization and number.
+### Changed
+- **Print server 1.9.8** (published to Settings → Printing): reprinted receipts print a big "COPY - NOT THE ORIGINAL" band at the top and bottom; tax-exempt sales print "Tax exempt: <organization> #<number>" under the totals.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

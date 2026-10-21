@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.205.0] -->
-<!-- Last reviewed: 2026-10-21 (2.205.0) -->
+<!-- Line 1 release: ## [2.205.1] -->
+<!-- Last reviewed: 2026-10-21 (2.205.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.205.1] - 2026-10-21
+
+User-facing theme: **Print server 1.9.8: COPY band on reprints and the tax-exempt line (Bill, 2026-10-21).** Install it on every register (REG-01, REG-02, TRAIN): Settings → Printing → Download.
+
+### Changed
+- **Print server 1.9.8** (published to Settings → Printing): reprinted receipts print a big "COPY - NOT THE ORIGINAL" band at the top and bottom; tax-exempt sales print "Tax exempt: <organization> #<number>" under the totals.
 
 ## [2.205.0] - 2026-10-21
 

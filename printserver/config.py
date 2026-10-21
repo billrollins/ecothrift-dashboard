@@ -1,7 +1,6 @@
-VERSION = "1.9.7"
+VERSION = "1.9.8"
 RELEASE_NOTES = (
-    "Member receipts: the 3-DAY RETURN box says \"Returns through Fri Oct 23 · 80% of value as store credit\", and "
-    "the SOLD AS IS box says \"Items below are final sale and can't be returned.\""
+    'Reprinted receipts print a big "COPY - NOT THE ORIGINAL" band at the top and bottom. Tax-exempt sales print "Tax exempt: <organization> #<number>" under the totals.'
 )
 
 # Default URL for the public version-check endpoint on the dashboard backend.
@@ -9,6 +8,15 @@ RELEASE_NOTES = (
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.9.8] — 2026-10-21 (install on every register: REG-01, REG-02, TRAIN)
+
+Owner 2026-10-21 (critic review point 3; non-profit sales).
+
+- **Reprints:** a receipt reprinted from Dash prints a big "COPY - NOT THE ORIGINAL" band at the top and bottom
+  (picture, tape and text), like TRAINING. Dash already marks the receipt number COPY and logs who reprinted.
+- **Tax-exempt sales:** "Tax exempt: <organization> #<number>" prints under the totals when Dash sends `tax_exempt`.
+- Older Dash payloads print exactly as before.
+
 ## [1.9.7] — 2026-10-20 (install on every register: REG-01, REG-02, TRAIN)
 
 Owner 2026-10-20: the receipt says the last return day and what comes back, and that AS IS items can't come back.
