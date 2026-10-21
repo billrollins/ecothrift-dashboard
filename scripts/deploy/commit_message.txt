@@ -1,17 +1,10 @@
-v2.197.0 — QuickBooks pay numbers, overtime at 1.5, pay period lock, time-edit trail
+v2.198.0 — Staff messages in Dash, one-time secrets, and the Issue register PINs request
 
-User-facing theme: **Pay numbers ready for QuickBooks, overtime at 1.5, and locked pay periods (Bill, 2026-10-21, critic review point 5).** Outside initiatives (critic-review release list).
+User-facing theme: **Staff messages in Dash, with one-time secrets for register PINs (Bill, 2026-10-21).** Outside initiatives (critic-review release list).
 
 ### Added
-- **QuickBooks numbers** (Time & payroll → QuickBooks numbers): each person's regular hours, overtime hours, rate and gross for a pay period, with Copy and CSV, ready to type into QuickBooks Online.
-- **Close a pay period** to lock its time entries until you reopen it.
-- **Every change to a time entry is recorded** (who, when, before and after), shown in the edit dialog.
-
-### Changed
-- **Overtime past 40 a week is paid at 1.5** everywhere pay shows.
-- **Nobody can change their own time;** they ask, and a manager changes it.
-
-### Removed
-- **Sick leave** (Eco-Thrift doesn't offer it).
+- **Staff messages:** an envelope at the top of Dash and Thrift+ Staff shows unread messages. The owner and managers can message one person or a whole department, anyone can reply, and you can see who read each message. Also on the Me page. All inside Dash: no email or texts.
+- **One-time secrets:** a message can carry a secret (like a PIN) that the person sees once with Show; Dash records when and on which device, then deletes it.
+- **Owner request "Issue register PINs":** gives each named manager a PIN and sends it to them once in Dash. Nobody else ever sees the PIN.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

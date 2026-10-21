@@ -362,3 +362,65 @@ class AccountEvent(models.Model):
         return cls.objects.create(
             user=user, kind=kind, detail=detail[:300], actor=actor if getattr(actor, 'pk', None) else None,
         )
+
+
+class StaffThread(models.Model):
+    """A staff message thread in Dash (owner 2026-10-21): never email or text. The owner or a manager starts it, to one
+    person or a whole department; everyone on it can reply (``services/staff_messages.py``)."""
+    subject = models.CharField(max_length=140)
+    audience = models.CharField(max_length=140, blank=True, default='', help_text='Who it went to, e.g. "Retail".')
+    department = models.ForeignKey('hr.Department', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_message_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ['-last_message_at']
+
+    def __str__(self):
+        return self.subject
+
+
+class StaffThreadMember(models.Model):
+    thread = models.ForeignKey(StaffThread, on_delete=models.CASCADE, related_name='members')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='staff_threads')
+    last_read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['thread', 'user'], name='accounts_thread_member_unique')]
+
+
+class StaffMessage(models.Model):
+    """One message in a thread. A one-time secret (a PIN) rides in ``StaffMessageSecret`` until its one reader taps
+    Show; then the secret row is deleted and only when and where it was shown stays here."""
+    thread = models.ForeignKey(StaffThread, on_delete=models.CASCADE, related_name='messages')
+    sender = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    has_secret = models.BooleanField(default=False)
+    secret_for = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    secret_shown_at = models.DateTimeField(null=True, blank=True)
+    secret_shown_device = models.CharField(max_length=200, blank=True, default='')
+
+    class Meta:
+        ordering = ['created_at', 'id']
+
+
+class StaffMessageRead(models.Model):
+    """A read receipt: who read this message, and when (first time)."""
+    message = models.ForeignKey(StaffMessage, on_delete=models.CASCADE, related_name='reads')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['message', 'user'], name='accounts_message_read_unique')]
+
+
+class StaffMessageSecret(models.Model):
+    """The one-time secret, sealed with the server key (``services/one_time_secret.py``). Deleted the moment it is
+    shown. Never listed by an API, never in admin, never logged."""
+    message = models.OneToOneField(StaffMessage, on_delete=models.CASCADE, related_name='secret')
+    sealed = models.TextField()
+
+    def __str__(self):
+        return f'Secret for message {self.message_id}'

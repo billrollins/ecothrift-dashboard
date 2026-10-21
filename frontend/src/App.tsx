@@ -37,6 +37,7 @@ const PayrollDeductionsPage = lazy(() => import('./pages/people/PayrollDeduction
 const CheckInsPage = lazy(() => import('./pages/people/CheckInsPage'));
 const MyCheckInsPage = lazy(() => import('./pages/people/MyCheckInsPage'));
 const MePage = lazy(() => import('./pages/me/MePage'));
+const MessagesPage = lazy(() => import('./pages/messages/MessagesPage'));
 const FloorplanListPage = lazy(() => import('./pages/floorplan/FloorplanListPage'));
 
 // Pages
@@ -250,6 +251,18 @@ function AppRoutes() {
       >
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/today" element={<TodayPage />} />
+        {/* Staff messages (owner 2026-10-21): the envelope in the top bar opens these. */}
+        {['/messages', '/messages/:id'].map((path) => (
+          <Route
+            key={path}
+            path={path}
+            element={
+              <Suspense fallback={<LoadingScreen message="Loading…" />}>
+                <MessagesPage />
+              </Suspense>
+            }
+          />
+        ))}
         <Route
           path="/me"
           element={

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.197.0] -->
-<!-- Last reviewed: 2026-10-21 (2.197.0) -->
+<!-- Line 1 release: ## [2.198.0] -->
+<!-- Last reviewed: 2026-10-21 (2.198.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.198.0] - 2026-10-21
+
+User-facing theme: **Staff messages in Dash, with one-time secrets for register PINs (Bill, 2026-10-21).** Outside initiatives (critic-review release list).
+
+### Added
+- **Staff messages:** an envelope at the top of Dash and Thrift+ Staff shows unread messages. The owner and managers can message one person or a whole department, anyone can reply, and you can see who read each message. Also on the Me page. All inside Dash: no email or texts.
+- **One-time secrets:** a message can carry a secret (like a PIN) that the person sees once with Show; Dash records when and on which device, then deletes it.
+- **Owner request "Issue register PINs":** gives each named manager a PIN and sends it to them once in Dash. Nobody else ever sees the PIN.
 
 ## [2.197.0] - 2026-10-21
 

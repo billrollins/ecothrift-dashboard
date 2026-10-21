@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (Me page: my PIN, sign out on all devices) -->
+<!-- Last updated: 2026-10-21 (staff messages, one-time secrets, issue_register_pins) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -129,7 +129,22 @@ One PIN per staff member for the register (manager approvals, Cover). Code: `app
 
 ---
 
-## Silent Refresh on Page Load
+## Staff messages and one-time secrets (2026-10-21)
+
+Messages in Dash between staff; never email or text. Code: `apps/accounts/services/staff_messages.py`, `messages_views.py`, `services/one_time_secret.py`; UI `frontend/src/pages/messages/MessagesPage.tsx`, `components/messages/MessagesEnvelope.tsx`. Tests: `apps/accounts/tests/test_staff_messages.py`, `MessagesPage.test.tsx`.
+
+| Piece | How |
+|-------|-----|
+| Who | Every staff login reads and replies (`IsTeamMember`). The owner and managers start a thread, to one person or a whole department (its active staff at that time). |
+| Models | `StaffThread`, `StaffThreadMember`, `StaffMessage`, `StaffMessageRead` (read receipts: who, when), `StaffMessageSecret`. |
+| API | `GET/POST /api/accounts/messages/`, `messages/unread/` (the envelope), `messages/audiences/`, `messages/{id}/` (opening marks read), `messages/{id}/reply/`, `POST messages/secret/{message_id}/show/`. |
+| One-time secret | Only on a message to one person. Sealed with the server key (HMAC keystream + tag, standard library). `show` answers it once to that person (`Cache-Control: no-store`), records `secret_shown_at` and the device (kind, address, browser), then deletes the secret row; the message then reads "Shown once on <date>; deleted". Never in a list, a thread payload, admin (not registered), notifications or logs. |
+| Envelope | Dash top bar (`MainLayout`) and Thrift+ Staff's new top bar; unread count polled every minute. Me shows a Messages section. |
+| Request kind | `accounts.issue_register_pins` (`apps/accounts/approval_kinds.py`): params `{"users": [id or email], "replace": false}`. Each person gets a random 4-digit PIN (not too easy, nobody else's), set with `set_pin`, and a one-time secret message from the approver. Preview shows names only; someone with a PIN is skipped unless `replace`; the approver is skipped. The PIN lives only in a local variable, the hash and the sealed secret. |
+
+---
+
+
 
 **AuthContext** (`frontend/src/contexts/AuthContext.tsx`):
 

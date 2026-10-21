@@ -39,6 +39,7 @@ import { dutyColors } from '../duty/tokens';
 import { RESTORATION_BENCH_PATH } from '../../pages/restoration/restorationRoutes';
 import { t } from '../../i18n/routines';
 import { RoutinesNag } from '../routines/RoutinesNag';
+import { MessagesEnvelope } from '../messages/MessagesEnvelope';
 import { useNavBadgeCounts, useNavBadgeTones } from '../../hooks/useNavBadgeCounts';
 import { resolveNavItem } from '../../navigation/navResolve';
 import { navigateForNavItem } from '../../navigation/navUtils';
@@ -214,6 +215,7 @@ export default function MainLayout() {
                   <RoutinesNag />
                 </Box>
               ) : null}
+              {user ? <MessagesEnvelope /> : null}
               {user && (
                 <>
                   <Typography

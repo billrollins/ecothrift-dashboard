@@ -12,7 +12,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { BottomNavigation, BottomNavigationAction, Box, Paper } from '@mui/material';
+import { BottomNavigation, BottomNavigationAction, Box, Paper, Typography } from '@mui/material';
 import PersonSearchRounded from '@mui/icons-material/PersonSearchRounded';
 import QrCode2Rounded from '@mui/icons-material/QrCode2Rounded';
 import QrCodeScannerRounded from '@mui/icons-material/QrCodeScannerRounded';
@@ -23,6 +23,8 @@ import { JoinQrDialog } from '../finalize/finalizeParts';
 import { STAFF_APP_HEAD, installAppHead } from '../scanner/installApp';
 import StaffScanPage from './StaffScanPage';
 import MePage from '../../me/MePage';
+import MessagesPage from '../../messages/MessagesPage';
+import { MessagesEnvelope } from '../../../components/messages/MessagesEnvelope';
 
 /** The app's colours: near-black with amber, nothing like the member app's green. */
 export const STAFF_INK = '#111111';
@@ -40,7 +42,8 @@ const ME_TAB = { value: 'me' as const, label: 'Me', icon: <PersonRounded /> };
 
 function tabOf(pathname: string): Tab {
   const part = pathname.replace(/^\/staff\/?/, '').split('/')[0];
-  return part === 'scan' ? 'scan' : part === 'me' ? 'me' : 'find';
+  // Messages (the envelope at the top) belong with Me.
+  return part === 'scan' ? 'scan' : part === 'me' || part === 'messages' ? 'me' : 'find';
 }
 
 /** The page head while the app is open: the staff manifest, its iPhone icon and title, the dark theme colour. */
@@ -66,6 +69,15 @@ export default function StaffApp() {
 
   return (
     <Box data-testid="staff-app" sx={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
+      {!midway ? (
+        <Box
+          component="header"
+          sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', px: 1.5, height: 48, bgcolor: STAFF_INK, color: '#fff', pt: 'env(safe-area-inset-top, 0px)' }}
+        >
+          <Typography fontWeight={800} sx={{ flex: 1, color: STAFF_AMBER }}>Thrift+ Staff</Typography>
+          <MessagesEnvelope to="/staff/messages" color="#fff" />
+        </Box>
+      ) : null}
       <Box data-testid="staff-app-content" sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }}>
         <Routes>
           <Route index element={<Navigate to="/staff/find" replace />} />
@@ -75,6 +87,8 @@ export default function StaffApp() {
           <Route path="members" element={<Navigate to="/staff/find" replace />} />
           <Route path="scan" element={<StaffScanPage />} />
           <Route path="me" element={<MePage compact />} />
+          <Route path="messages" element={<MessagesPage basePath="/staff/messages" compact />} />
+          <Route path="messages/:id" element={<MessagesPage basePath="/staff/messages" compact />} />
           <Route path="*" element={<Navigate to="/staff/find" replace />} />
         </Routes>
       </Box>

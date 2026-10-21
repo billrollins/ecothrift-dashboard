@@ -31,6 +31,7 @@ import {
   type MePage as MePageData,
 } from '../../api/accounts.api';
 import { getMyCheckins, getMyOnboarding } from '../../api/hiring.api';
+import { getThreads } from '../../api/messages.api';
 import { HoursPayPanel } from '../../components/hr/HoursPayPanel';
 import ChangePasswordDialog from '../../components/users/ChangePasswordDialog';
 import { useAuth } from '../../contexts/AuthContext';
@@ -291,6 +292,29 @@ function MyOnboardingAndCheckIns() {
   );
 }
 
+/** My messages: the newest three threads and what is unread; the envelope at the top opens them all. */
+function MyMessages({ basePath }: { basePath: string }) {
+  const threads = useQuery({ queryKey: ['messages', 'threads'], queryFn: async () => (await getThreads()).data, staleTime: 30_000 });
+  const rows = threads.data ?? [];
+  const unread = rows.reduce((n, t) => n + t.unread, 0);
+  return (
+    <Section
+      title={unread ? `Messages (${unread} unread)` : 'Messages'}
+      testId="me-messages"
+      action={<Button size="small" component={RouterLink} to={basePath}>Open</Button>}
+    >
+      {rows.length ? rows.slice(0, 3).map((t) => (
+        <Box key={t.id} component={RouterLink} to={`${basePath}/${t.id}`} sx={{ display: 'flex', gap: 1, py: 0.5, color: 'inherit', textDecoration: 'none' }}>
+          <Typography variant="body2" fontWeight={t.unread ? 800 : 400} noWrap sx={{ flex: 1 }}>{t.subject}</Typography>
+          <Typography variant="caption" color="text.secondary" noWrap>{t.preview_from}</Typography>
+        </Box>
+      )) : (
+        <Typography variant="body2" color="text.secondary">{threads.isLoading ? 'Loading…' : 'No messages yet.'}</Typography>
+      )}
+    </Section>
+  );
+}
+
 /** `compact`: inside Thrift+ Staff (the phone app has its own bar; no page title). */
 export default function MePage({ compact = false }: { compact?: boolean }) {
   const query = useQuery({ queryKey: ME_KEY, queryFn: async () => (await getMePage()).data });
@@ -367,6 +391,8 @@ export default function MePage({ compact = false }: { compact?: boolean }) {
           <Typography variant="body2" color="text.secondary">No shifts set for you yet. Ask your manager.</Typography>
         )}
       </Section>
+
+      <MyMessages basePath={compact ? '/staff/messages' : '/messages'} />
 
       <MyOnboardingAndCheckIns />
 

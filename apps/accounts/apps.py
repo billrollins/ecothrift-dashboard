@@ -9,3 +9,4 @@ class AccountsConfig(AppConfig):
     def ready(self):
         # Owner 2026-10-15: every active staff user is also a website customer (signals.py).
         from apps.accounts import signals  # noqa: F401
+        from apps.accounts import approval_kinds  # noqa: F401  (Superuser → Requests kinds)

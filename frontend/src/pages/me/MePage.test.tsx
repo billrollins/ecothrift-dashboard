@@ -18,6 +18,9 @@ vi.mock('../../api/hiring.api', () => ({
   getMyOnboarding: vi.fn().mockResolvedValue({ data: { onboarding: null } }),
   getMyCheckins: vi.fn().mockResolvedValue({ data: [] }),
 }));
+vi.mock('../../api/messages.api', () => ({
+  getThreads: vi.fn().mockResolvedValue({ data: [{ id: 7, subject: 'Your register PIN', unread: 1, preview_from: 'Bill R' }] }),
+}));
 vi.mock('../../components/hr/HoursPayPanel', () => ({ HoursPayPanel: () => <div data-testid="hours-pay" /> }));
 vi.mock('../../components/users/ChangePasswordDialog', () => ({ default: () => null }));
 const logout = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
@@ -64,6 +67,7 @@ describe('MePage', () => {
     expect(details).toHaveTextContent('Add someone to call in an emergency.');
     expect(screen.getByTestId('me-schedule')).toHaveTextContent('Tue, Thu · 8:30am to 2:30pm');
     expect(screen.getByTestId('hours-pay')).toBeInTheDocument();
+    expect(await screen.findByText('Messages (1 unread)')).toBeInTheDocument();
     expect(screen.getByTestId('me-pin-status')).toHaveTextContent('Register PIN: not set yet');
   });
 
