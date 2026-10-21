@@ -1,8 +1,9 @@
-v2.193.1 — Backup before the first deploy of the day
+v2.194.0 — Pallet numbers through processing, and Finish truck on one screen
 
-User-facing theme: **A database backup before the first deploy of each day (Bill, 2026-10-21, critic review point 8).** Outside initiatives (critic-review release list).
+User-facing theme: **Pallet numbers through processing, and finishing a truck on one screen (Bill, 2026-10-21, critic review point 2).** Outside initiatives (critic-review release list).
 
-### Changed
-- **Deploys:** the first deploy each day (store time) takes a Heroku database backup first; later deploys that day skip it, and the deploy prints one line saying which. A deploy with nothing new stops before the backup. `deploy.bat --dry-run` shows the decision and pushes nothing.
+### Added
+- **Pallet numbers:** Receiving records each pallet's label number as it comes off the truck (the manifest's pallet ids are offered). Processing shows the pallet being worked and, pallet by pallet, what arrived against the manifest, with a running missing % as each pallet is finished. Every item knows the pallet it came off.
+- **Finish a truck** (Orders → a truck → Finish truck): what the manifest listed, what B-Stock took off (unfulfilled), what arrived, what's missing or broken, and extras, in units and dollars. "What we can expect back" uses B-Stock's rule: 95% of the sale price, no fees or shipping, after the first 5% of the load (both are settings in Settings → Inventory → Truck finalize). Mark a truck finalized to freeze its numbers; a manager can reopen it.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1200,6 +1200,35 @@ export default function OrderDetailPage({ orderId: orderIdProp, embedded = false
             <ChevronRight sx={{ color: TOKENS.textPlaceholder, fontSize: 16 }} />
           </Button>
           <Button
+            fullWidth={compact}
+            variant="outlined"
+            disabled={!canGoToProcessing}
+            onClick={() => navigate(`/inventory/orders/${order.id}/truck`)}
+            sx={{
+              flex: compact ? '1 1 100%' : 1,
+              py: `${TOKENS.btnPadY}px`,
+              px: `${TOKENS.btnPadXPrimary}px`,
+              borderRadius: `${TOKENS.radiusBtn}px`,
+              borderColor: TOKENS.borderCard,
+              color: TOKENS.textBody,
+              textTransform: 'none',
+              justifyContent: 'space-between',
+              '&:hover': { borderColor: '#475569' },
+              '&.Mui-disabled': {
+                borderColor: '#e2e8f0',
+                color: TOKENS.textSoft,
+              },
+            }}
+          >
+            <Box sx={{ textAlign: 'left' }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                {order.closeout_status === 'finalized' ? 'Truck finalized' : 'Finish truck'}
+              </Typography>
+              <Typography sx={{ fontSize: 11, color: TOKENS.textSoft, mt: '1px' }}>Missing, unfulfilled, refund</Typography>
+            </Box>
+            <ChevronRight sx={{ color: TOKENS.textPlaceholder, fontSize: 16 }} />
+          </Button>
+          <Button
             variant="outlined"
             onClick={() => openIntakeDrawer({ dangerPurge: true })}
             sx={{

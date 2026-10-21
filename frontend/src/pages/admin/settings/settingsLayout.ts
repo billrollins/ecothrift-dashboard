@@ -156,6 +156,12 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
     sections: [
       { id: 'intake', title: 'Intake and product standard', keys: ['product_standard_at_intake'] },
       { id: 'deliveries', title: 'Deliveries', keys: ['delivery_service_minutes_per_stop'] },
+      {
+        id: 'trucks',
+        title: 'Truck finalize',
+        help: "How 'what we can expect back' is worked out for missing and broken goods (B-Stock's rule).",
+        keys: ['truck_refund_rate', 'truck_refund_deductible'],
+      },
     ],
   },
   {

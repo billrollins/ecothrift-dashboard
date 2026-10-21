@@ -22,6 +22,7 @@ import type { ChangeEvent } from 'react';
 import type { PalletSideId, ReceivingDetailDTO } from '../../../types/inventory.types';
 import type { PendingPhotoKind } from '../../../services/receiving/receivingClient';
 import { PALLET_SIDES } from '../../../services/receiving/receivingClient';
+import { ReceivingPalletLabelField } from './ReceivingPalletLabelField';
 import { rcvSurface } from './receivingTheme';
 
 interface Props {
@@ -258,6 +259,9 @@ export default function ReceivingMobileWizard(props: Props) {
                         disabled={disabled || !!m.completed_at}
                         onChange={(_, chk) => onDamaged(palletNumber, chk)}
                       />
+                    </Box>
+                    <Box sx={{ mx: '-10px', mb: 1 }}>
+                      <ReceivingPalletLabelField orderId={m.purchase_order_id} palletNumber={palletNumber} />
                     </Box>
                     <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 1 }}>
                       {PALLET_SIDES.map((side) => {

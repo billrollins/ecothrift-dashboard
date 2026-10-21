@@ -63,6 +63,7 @@ const ReceivingOrderPage = lazy(() => import('./pages/inventory/ReceivingOrderPa
 const PreprocessingPage = lazy(() => import('./pages/inventory/PreprocessingPage'));
 const ProcessingEntryRedirect = lazy(() => import('./pages/inventory/ProcessingEntryRedirect'));
 const ProcessingWorkspacePage = lazy(() => import('./pages/inventory/processing/ProcessingWorkspacePage'));
+const TruckFinalizePage = lazy(() => import('./pages/inventory/truck/TruckFinalizePage'));
 const RestorationsPage = lazy(() => import('./pages/inventory/restorations/RestorationsPage'));
 const InventorySearchPage = lazy(() => import('./pages/inventory/InventorySearchPage'));
 const LegacyWorkbenchRedirect = lazy(() =>
@@ -300,6 +301,7 @@ function AppRoutes() {
         <Route path="/inventory/orders" element={<OrderListPage />} />
         {/* An order opens as a modal over the list (intake_updates Phase 2). */}
         <Route path="/inventory/orders/:id" element={<OrderListPage />} />
+        <Route path="/inventory/orders/:id/truck" element={<TruckFinalizePage />} />
         <Route path="/inventory/receiving" element={<ReceivingEntryRedirect />} />
         <Route path="/inventory/receiving/:id" element={<ReceivingOrderPage />} />
         <Route path="/inventory/preprocessing" element={<PreprocessingPage />} />

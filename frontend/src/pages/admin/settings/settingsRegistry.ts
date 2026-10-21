@@ -307,6 +307,18 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'buying',
     kind: 'hidden',
   },
+  truck_refund_rate: {
+    label: 'Refund: share of the sale price',
+    help: 'Truck finalize: the share of the sale price (no fees, no shipping) a seller refunds for missing and broken goods. B-Stock: 95%.',
+    tab: 'inventory',
+    kind: 'weight',
+  },
+  truck_refund_deductible: {
+    label: 'Refund: first share never refunded',
+    help: 'Truck finalize: the share of the manifest retail missing that is never refunded. B-Stock: the first 5%.',
+    tab: 'inventory',
+    kind: 'weight',
+  },
   delivery_service_minutes_per_stop: {
     label: 'Delivery unload time (minutes / stop)',
     help: 'Delivery Field: assumed on-site unload/service minutes per stop for ETA totals (5-120). Default 20.',

@@ -57,6 +57,8 @@ import { CheckInTogetherDialog } from './CheckInTogetherDialog';
 import { CollapseRowsDialog } from './CollapseRowsDialog';
 // import { ProcessingQueuePagination } from './ProcessingQueuePagination';
 import { ProcessingActiveCard } from './ProcessingActiveCard';
+import { ProcessingPalletsDialog } from './ProcessingPalletsDialog';
+import { truckPalletsKey, useTruckPallets } from '../../../hooks/useTruckPallets';
 import { TarsQuickGradeDialog } from '../../restoration/tars/TarsQuickGradeDialog';
 import { printProcessingLabelsAndMarkPrinted } from './printProcessingLabel';
 import { queueTitleText } from './processingQueueCellText';
@@ -120,6 +122,7 @@ export default function ProcessingWorkspacePage() {
   const [detailScrollToHistory, setDetailScrollToHistory] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [addUnmanifestedOpen, setAddUnmanifestedOpen] = useState(false);
+  const [palletsOpen, setPalletsOpen] = useState(false);
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedSearch(search), 450);
@@ -161,6 +164,13 @@ export default function ProcessingWorkspacePage() {
   }, [orderId, queueFilters, productFilterProductId, debouncedSearch]);
 
   const { data: workspace, isLoading, isFetching, isError, error, refetch } = useProcessingWorkspace(orderId, listParams);
+  const { data: palletLedger } = useTruckPallets(orderId);
+  // Check-ins move the pallet numbers: refresh the ledger whenever the workspace counts change.
+  const palletCountsKey = `${workspace?.rollups?.dispositioned_qty ?? ''}:${workspace?.rollups?.total_items ?? ''}`;
+  useEffect(() => {
+    if (orderId == null) return;
+    void queryClient.invalidateQueries({ queryKey: truckPalletsKey(orderId) });
+  }, [orderId, palletCountsKey, queryClient]);
   /** Stable handle for callbacks that need current rows without re-creating per fetch. */
   const workspaceRef = useRef(workspace);
   useEffect(() => {
@@ -799,6 +809,8 @@ export default function ProcessingWorkspacePage() {
             orderComplete={workspace.order.status === 'complete'}
             closeLoading={markComplete.isPending}
             onCloseClick={() => setCompleteOpen(true)}
+            pallets={palletLedger}
+            onOpenPallets={() => setPalletsOpen(true)}
           />
         : <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 106 }}>
             <CircularProgress size={22} />
@@ -1160,6 +1172,19 @@ export default function ProcessingWorkspacePage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {orderId != null ? (
+        <ProcessingPalletsDialog
+          open={palletsOpen}
+          onClose={() => setPalletsOpen(false)}
+          orderId={orderId}
+          ledger={palletLedger}
+          onShowRows={(code) => {
+            handleSearchChange(code);
+            bumpSearchFocus();
+          }}
+        />
+      ) : null}
 
       <AddProcessingItemDialog
         open={addUnmanifestedOpen}

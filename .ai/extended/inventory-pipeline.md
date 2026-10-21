@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-02 (vendor guess, vendor merge, vendor metrics: intake_updates) -->
+<!-- Last updated: 2026-10-21 (truck pallets E1; truck finalize E2) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -35,6 +35,52 @@ Vendor → PurchaseOrder → CSV upload (S3) → Standardize (expression formula
 7. **Eco-Thrift Receiving** — `GET /api/inventory/orders/for-receiving/` uses the **same status set + milestone sort** as the Processing floor picker (`paid,shipped,delivered,processing,complete`; delivered→shipped→paid→ordered, nulls first). Staff open **`/inventory/receiving/:id`** from sidebar **Receiving** or the orders **Receive** control. **v2.24.1:** Receiving is operationally independent for now; staff do **not** need to complete Receiving before Processing. **Photo contract:** each upload stores a **2048px** high-res JPEG (`ReceivingAttachment.s3_file`) plus a **480px** thumbnail (`thumbnail_file`, target ≤100 KB). UI loads thumbnails by default; click opens full-res in shared **`ImageViewerDialog`** (fit zoom/pan, download, crop/rotate). Edits save via **`POST …/receiving/photos/{id}/replace/`** (same attachment; new high-res + thumb). Authenticated **`GET …/receiving/photos/{id}/download/`** for CORS-safe canvas/download. **Complete** requires BOL + truck + `front/right/back/left` for every declared pallet, or one non-blank per-slot reason in `photo_overrides[]` (`ReceivingPhotoOverride`, audited). Hard gates (pallet count, condition) cannot be overridden. Production thumbnail backfill: `python manage.py backfill_receiving_photo_thumbnails` (`--dry-run`, `--limit`, `--after-id`, `--order-id`, `--database`, `--no-input`).
 8. **Processing handoff** — `ProcessingRow` is the fast processor/search surface immediately after finalize. `GET .../processing-workspace/` searches `ProcessingRow.search_string` (raw row bookmark tokens **plus** matched-product augment — both names stay searchable per design §3); list and detail payloads **coalesce identity display** (product wins title/brand/category/UPC when `ProcessingRow.matched_product` is set); row detail exposes read-only **`manifestEvidence`** when matched. **v2.32.0:** staff can add **unmanifested lines** (`row_kind='added'`, `POST …/processing-add-item/`) that stay out of manifest audit rollups; delete empty added rows via `POST …/processing-delete-added-row/`; queue supports multi-chip OR **`segments`** filters including **`unmanifested`**; UI persists search + open row in sessionStorage and shows client-only **Recent** row chips + scan search history. The old **Create Processing Data** / chunked build path remains only as a legacy compatibility path for bookmark-only orders.
 9. **Arrival check-in** — `POST .../processing-row-check-in/` creates/matches a **`Product`** and creates real **`Item`** rows linked to `purchase_order_id` and `manifest_row_id`, then labels are printed. Added rows use `manifest_row_id=null` and `ItemCheckIn.ORIGIN_PRODUCT_AD_HOC`. Check-in **does not write `ManifestRow.matched_product`** (P3 Rule 3); match resolution is prior batch → **`ProcessingRow.matched_product`**. Prefill ladder: batch defaults → decided product (`keep`) → row bookmark (`new`); **set/part product links** scale default item price/retail by `manifestUnits / checkIns`. **P4 split:** when a row has ≥2 distinct checked-in products, implicit quick check-in is rejected (HTTP 400); staff pick product in Detailed check-in; **`POST …/processing-check-in-batch/{id}/remap-product/`** can re-point a batch's Items to another Product; denorm **`distinct_product_count`** + primary **`matched_product`** (most units) refresh on check-in/remap. **P5 collapse:** list exposes **`sameProductRowNumbers`** peer hints; queue **Group by product** + multi-select **Check in together** via **`POST …/processing-check-in-together/`** (shared defaults, per-row qty, separate Items/`manifest_row_id` per line; rejects mixed P4 rows). **P6 hint alignment:** when selected rows have different hints, bulk **Assign shared product** → **`POST …/processing-assign-shared-product/`** sets **`ProcessingRow.matched_product_id` only** (no manifest/Item writes); then **Check in together** applies. **`refresh_processing_rows_denorm`** and row detail read ProcessingRow-owned match only (no manifest match FK fallback). Over/under quantity is allowed; expected quantity comes from Manifest/Processing rows and actual count comes from Items.
+
+### Truck pallets (E1, 2026-10-21)
+
+Each truck's pallets are `TruckPallet` rows (number 1..N, `code`, arrived / started / done stamps), seeded by
+`services/truck_pallets.ensure_truck_pallets`: one per manifest pallet id (`ManifestRow.tracking.pallet_id`, in
+manifest order), then blanks up to the larger of `PurchaseOrder.pallet_count` and the receiving pallet count.
+
+- **Arrival:** each Receiving pallet card has **Label no.** (scan or type; manifest ids are offered). Enter marks the
+  pallet arrived. A label that is another slot's manifest id swaps the two codes (refused once either has items).
+  `POST /inventory/orders/{id}/pallets/record/` `{number, code}`.
+- **Processing:** the workspace header has **Pallet** (the pallet being processed) and **Missing** blocks; both open
+  the Pallets dialog (scan a label → Start, Finish, Reopen, Rows = filter the queue to that pallet's lines).
+  `POST …/pallets/start|finish|reopen/` `{pallet_id | code}`.
+- **Every check-in carries a pallet** (`ItemCheckIn.pallet`, `Item.pallet`): the one sent, else the user's open
+  pallet, else the truck's open pallet, else the manifest line's pallet. Units added to a check-in and salvaged part
+  SKUs copy it.
+- **Ledger** `GET …/pallets/` (`pallet_ledger`): per pallet and per truck, manifest units and $ (quantity x unit
+  retail) vs received. Received per manifest line = share of its processing-row units checked in (not intake,
+  processing or lost), capped at 100%, so break-apart and set rows compare like with like; extras are `over_units`,
+  never netted against another line. A pallet's missing counts its manifest lines wherever the units turned up
+  (`from_other_pallets_units` shows the strays). Broken = scrapped, disputed broken or salvage condition.
+- **Running missing %** is over finished pallets only (by $, else units). With no pallet ids on the manifest it is
+  unknown until the truck is done; never estimated.
+- Data quality: helps PO-05 (pallet start/done stamps) and SHR-02 / DSP-01 (missing measured per truck). Fill-ins:
+  a line with no unit retail counts in units only (`lines_without_retail`); units checked in before E1 have no
+  pallet (`units_without_pallet`). Set/part product links count items, not manifest units.
+
+### Truck finalize (E2, 2026-10-21)
+
+`/inventory/orders/:id/truck` (order modal **Finish truck**, the Pallets dialog, the intake timeline's **Truck
+finalized** step). `services/truck_finalize.py`; `GET /inventory/orders/{id}/truck-finalize/[?lines=all]`.
+
+- Per manifest line and in total, units and $ at the manifest price: **manifest**, **unfulfilled** (hand-entered
+  `ManifestAdjustment`: line, units, before/after arrival, refund if known, note), **expected** (manifest less
+  unfulfilled), **received**, **missing** (expected not received), **broken**, **over**; **added** = items with no
+  manifest line (their own retail). Lines with a problem show by default; **All lines** shows every line.
+- **What we can expect back** (B-Stock's rule): refund = rate x sale price x max(0, claimed $ - deductible x
+  manifest $) / manifest $, where claimed = missing + broken $ and the sale price is `purchase_cost` (no fees, no
+  shipping). Rate and deductible are owner settings `truck_refund_rate` (0.95) and `truck_refund_deductible`
+  (0.05), Settings → Inventory → Truck finalize.
+- **Mark finalized** (`POST …/truck-finalize/finalize/`) stamps `truck_finalized_at/by`, sets
+  `closeout_status='finalized'` and freezes the totals and refund in `truck_finalize_snapshot`; adjustments are locked
+  until a manager reopens it (`…/reopen/`). Warnings (units still pending, pallets not done, no sale price) never
+  block. Adjustments: `POST …/truck-finalize/adjustments/` `{row_number | manifest_row_id, units, timing,
+  refund_amount?, note?}`, `DELETE …/adjustments/{id}/`.
+- The dispute itself is not filed here (E2b).
 
 ### Review surfaces (pre- vs post-finalize)
 

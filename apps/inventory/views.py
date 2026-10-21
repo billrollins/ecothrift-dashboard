@@ -2251,6 +2251,13 @@ _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
         'ai_cleanup_complete',
         'ai_cleanup_models',
         'ai_cleanup_job',
+        'truck_pallets',
+        'truck_pallet_record',
+        'truck_pallet_step',
+        'truck_finalize',
+        'truck_finalize_add_adjustment',
+        'truck_finalize_delete_adjustment',
+        'truck_finalize_step',
     },
 )
 
@@ -2623,6 +2630,101 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
         order = self.get_object()
         return Response(compute_processing_stats(order.pk))
+
+    @action(detail=True, methods=['get'], url_path='pallets')
+    def truck_pallets(self, request, pk=None):
+        """Per-pallet and per-truck received vs manifest, with the running missing % (services/truck_pallets.py)."""
+        from apps.inventory.services.truck_pallets import pallet_ledger
+
+        order = self.get_object()
+        return Response(pallet_ledger(order, user=request.user))
+
+    @action(detail=True, methods=['post'], url_path='pallets/record')
+    def truck_pallet_record(self, request, pk=None):
+        """Receiving: pallet slot ``number`` arrived; optional ``code`` = the number on its label."""
+        from apps.inventory.services.truck_pallets import pallet_ledger, record_arrival
+
+        order = self.get_object()
+        raw = request.data.get('number')
+        if raw is None or not str(raw).strip().isdigit():
+            return Response({'detail': 'number is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        code = request.data.get('code')
+        try:
+            record_arrival(request.user, order, int(str(raw).strip()), None if code is None else str(code))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(pallet_ledger(order, user=request.user))
+
+    @action(detail=True, methods=['post'], url_path=r'pallets/(?P<step>start|finish|reopen)')
+    def truck_pallet_step(self, request, pk=None, step=None):
+        """Processing: start (or pick up), finish or reopen a pallet. Body ``pallet_id`` or ``code`` (scan/typed)."""
+        from apps.inventory.models import TruckPallet
+        from apps.inventory.services import truck_pallets as tp
+
+        order = self.get_object()
+        tp.ensure_truck_pallets(order)
+        pallet = None
+        raw_id = request.data.get('pallet_id')
+        if raw_id not in (None, '') and str(raw_id).strip().isdigit():
+            pallet = TruckPallet.objects.filter(purchase_order=order, pk=int(str(raw_id).strip())).first()
+        elif request.data.get('code') not in (None, ''):
+            pallet = tp.find_pallet(order, request.data.get('code'))
+        if pallet is None:
+            return Response({'detail': 'No pallet on this order matches.'}, status=status.HTTP_404_NOT_FOUND)
+        {'start': tp.start_pallet, 'finish': tp.finish_pallet, 'reopen': tp.reopen_pallet}[step](
+            request.user, order, pallet,
+        )
+        return Response(tp.pallet_ledger(order, user=request.user))
+
+    @action(detail=True, methods=['get'], url_path='truck-finalize')
+    def truck_finalize(self, request, pk=None):
+        """Truck finalize page: manifest vs received, unfulfilled, added, missing, broken, expected refund."""
+        from apps.inventory.services.truck_finalize import truck_report
+
+        order = self.get_object()
+        return Response(truck_report(order, all_lines=request.query_params.get('lines') == 'all'))
+
+    @action(detail=True, methods=['post'], url_path='truck-finalize/adjustments')
+    def truck_finalize_add_adjustment(self, request, pk=None):
+        """Add an unfulfilled line (B-Stock adjustment, entered by hand)."""
+        from apps.inventory.services.truck_finalize import add_adjustment, truck_report
+
+        order = self.get_object()
+        try:
+            add_adjustment(request.user, order, request.data)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(truck_report(order), status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['delete'], url_path=r'truck-finalize/adjustments/(?P<adjustment_id>\d+)')
+    def truck_finalize_delete_adjustment(self, request, pk=None, adjustment_id=None):
+        from apps.inventory.services.truck_finalize import delete_adjustment, truck_report
+
+        order = self.get_object()
+        try:
+            delete_adjustment(order, int(adjustment_id))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except LookupError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_404_NOT_FOUND)
+        return Response(truck_report(order))
+
+    @action(detail=True, methods=['post'], url_path=r'truck-finalize/(?P<step>finalize|reopen)')
+    def truck_finalize_step(self, request, pk=None, step=None):
+        """Mark the truck finalized (freezes the totals and refund), or reopen it (managers)."""
+        from apps.inventory.services.truck_finalize import finalize_truck, reopen_truck, truck_report
+
+        order = self.get_object()
+        if step == 'reopen':
+            if not IsManagerOrAdmin().has_permission(request, self):
+                return Response({'detail': 'Only a manager can reopen a finalized truck.'}, status=status.HTTP_403_FORBIDDEN)
+            order = reopen_truck(order)
+        else:
+            try:
+                order = finalize_truck(request.user, order)
+            except ValueError as e:
+                return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(truck_report(order))
 
     @action(detail=True, methods=['post'], url_path='upload-manifest')
     def upload_manifest(self, request, pk=None):

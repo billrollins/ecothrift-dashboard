@@ -941,6 +941,7 @@ def create_item_from_restoration_output(
         purchase_order=parent.purchase_order,
         manifest_row=parent.manifest_row,
         check_in=parent.check_in,
+        pallet_id=parent.pallet_id,
         parent_item=parent,
         price=part_price,
         retail=part_retail,

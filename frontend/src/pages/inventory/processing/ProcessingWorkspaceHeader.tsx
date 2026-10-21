@@ -19,6 +19,8 @@ import type { ProcessingWorkspaceOrderDTO, ProcessingWorkspaceRollupsDTO } from 
 import { formatCurrency } from '../../../utils/format';
 import { orderPickerProcessingBadgeColors } from '../../../utils/orderPickerDisplay';
 import { processingTokens } from './processingTokens';
+import type { TruckPalletLedgerDTO } from '../../../api/truckPallets.api';
+import { missingHeadline, palletHeadline } from './palletLedgerDisplay';
 import { IconClose as Close } from '../../../icons/ecoIcons';
 
 export interface ProcessingWorkspaceOrderPickRow {
@@ -46,6 +48,8 @@ interface HeaderMetric {
   helper: string;
   detail: string[];
   tone?: MetricTone;
+  /** Opens the truck pallets dialog instead of the stat detail. */
+  opensPallets?: boolean;
 }
 
 function fmtElapsed(ms: number): string {
@@ -170,6 +174,9 @@ export interface ProcessingWorkspaceHeaderProps {
   orderComplete: boolean;
   closeLoading: boolean;
   onCloseClick: () => void;
+  /** Truck pallet ledger (E1): current pallet and the running missing %. */
+  pallets?: TruckPalletLedgerDTO;
+  onOpenPallets?: () => void;
 }
 
 export function ProcessingWorkspaceHeader({
@@ -190,6 +197,8 @@ export function ProcessingWorkspaceHeader({
   orderComplete,
   closeLoading,
   onCloseClick,
+  pallets,
+  onOpenPallets,
 }: ProcessingWorkspaceHeaderProps) {
   const [, tick] = useState(0);
   const [selectedMetricId, setSelectedMetricId] = useState<string | null>(null);
@@ -220,7 +229,15 @@ export function ProcessingWorkspaceHeader({
     const onShelfValue = rollups?.on_shelf_value;
     const soldValue = rollups?.sold_value;
 
+    const palletMetrics: HeaderMetric[] = onOpenPallets
+      ? [
+          { id: 'pallet', label: 'Pallet', ...palletHeadline(pallets), detail: [], opensPallets: true },
+          { id: 'missing', label: 'Missing', ...missingHeadline(pallets), detail: [], opensPallets: true },
+        ]
+      : [];
+
     return [
+      ...palletMetrics,
       {
         id: 'progress',
         label: 'Done',
@@ -278,7 +295,7 @@ export function ProcessingWorkspaceHeader({
         detail: ['Timer starts at the first check-in this session.', `Session check-ins: ${fmtQty(sessionCheckInCount)}`],
       },
     ];
-  }, [disp, elapsedMs, hasManifestRows, itemsPerHour, pct, rollups, sessionCheckInCount, sessionStartedAt, tot]);
+  }, [disp, elapsedMs, hasManifestRows, itemsPerHour, onOpenPallets, pallets, pct, rollups, sessionCheckInCount, sessionStartedAt, tot]);
 
   const selectedMetric = metrics.find((m) => m.id === selectedMetricId);
 
@@ -411,7 +428,12 @@ export function ProcessingWorkspaceHeader({
         }}
       >
         {metrics.map((metric, index) => (
-          <StatBlock key={metric.id} metric={metric} first={index === 0} onClick={() => setSelectedMetricId(metric.id)} />
+          <StatBlock
+            key={metric.id}
+            metric={metric}
+            first={index === 0}
+            onClick={() => (metric.opensPallets && onOpenPallets ? onOpenPallets() : setSelectedMetricId(metric.id))}
+          />
         ))}
       </Box>
 

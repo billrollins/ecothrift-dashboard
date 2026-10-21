@@ -158,6 +158,7 @@ class PurchaseOrder(models.Model):
     ]
     CLOSEOUT_STATUS_CHOICES = [
         ('open', 'Open'),
+        ('finalized', 'Truck finalized'),
     ]
     DISPUTE_STATUS_CHOICES = [
         ('none', 'None'),
@@ -194,6 +195,19 @@ class PurchaseOrder(models.Model):
         max_length=20,
         choices=CLOSEOUT_STATUS_CHOICES,
         default='open',
+    )
+    truck_finalized_at = models.DateTimeField(null=True, blank=True)
+    truck_finalized_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    truck_finalize_snapshot = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Truck finalize totals and expected refund frozen at finalize (services/truck_finalize.py).',
     )
     intake_dispute_status = models.CharField(
         max_length=20,
@@ -831,6 +845,14 @@ class ItemCheckIn(models.Model):
         db_index=True,
     )
     quantity = models.PositiveIntegerField(default=1)
+    pallet = models.ForeignKey(
+        'TruckPallet',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='item_checkins',
+        help_text='The pallet being processed when these units were checked in.',
+    )
     defaults_snapshot = models.JSONField(default=dict, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -1818,6 +1840,14 @@ class Item(models.Model):
         related_name='child_items',
         help_text='The item this SKU was salvaged from. Truck lineage stays on purchase_order / manifest_row.',
     )
+    pallet = models.ForeignKey(
+        'TruckPallet',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='items',
+        help_text='The truck pallet this item was processed from (set at check-in).',
+    )
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     retail = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -2338,6 +2368,115 @@ class ReceivingPallet(models.Model):
 
     def __str__(self):
         return f'Pallet {self.pallet_number} (Receiving {self.receiving_id})'
+
+
+class TruckPallet(models.Model):
+    """One physical pallet of a truck (PO): its number on the label, arrival and processing stamps.
+
+    ``number`` is the 1-based slot (same as ``ReceivingPallet.pallet_number``); ``code`` is the pallet id the
+    manifest uses (``ManifestRow.tracking['pallet_id']``) or the number typed from the label at arrival.
+    Seeded from the manifest by ``services/truck_pallets.ensure_truck_pallets``.
+    """
+
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='truck_pallets',
+    )
+    number = models.PositiveSmallIntegerField()
+    code = models.CharField(max_length=120, blank=True, default='')
+    from_manifest = models.BooleanField(
+        default=False,
+        help_text='True when the code came from the manifest pallet ids (not typed at arrival).',
+    )
+    arrived_at = models.DateTimeField(null=True, blank=True)
+    arrived_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    started_at = models.DateTimeField(null=True, blank=True)
+    started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    done_at = models.DateTimeField(null=True, blank=True)
+    done_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['purchase_order', 'number']
+        constraints = [
+            models.UniqueConstraint(
+                fields=('purchase_order', 'number'),
+                name='uniq_truck_pallet_number',
+            ),
+        ]
+
+    def __str__(self):
+        return f'Pallet {self.number} {self.code} (PO {self.purchase_order_id})'
+
+
+class ManifestAdjustment(models.Model):
+    """A manifest line B-Stock or the seller says will not ship (unfulfilled), entered by hand at truck finalize.
+
+    Unfulfilled units are taken off what the truck should have held, so they are not counted missing.
+    """
+
+    TIMING_BEFORE_ARRIVAL = 'before_arrival'
+    TIMING_AFTER_ARRIVAL = 'after_arrival'
+    TIMING_CHOICES = [
+        (TIMING_BEFORE_ARRIVAL, 'Before arrival'),
+        (TIMING_AFTER_ARRIVAL, 'After arrival'),
+    ]
+
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='manifest_adjustments',
+    )
+    manifest_row = models.ForeignKey(
+        ManifestRow,
+        on_delete=models.CASCADE,
+        related_name='adjustments',
+    )
+    units = models.PositiveIntegerField()
+    timing = models.CharField(max_length=20, choices=TIMING_CHOICES, default=TIMING_BEFORE_ARRIVAL)
+    refund_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='What B-Stock adjusted or refunded for these units, when known.',
+    )
+    note = models.TextField(blank=True, default='')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['purchase_order', 'manifest_row__row_number', 'id']
+
+    def __str__(self):
+        return f'Unfulfilled {self.units} on row {self.manifest_row_id} (PO {self.purchase_order_id})'
 
 
 class ReceivingAttachment(models.Model):

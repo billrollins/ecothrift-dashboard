@@ -15,6 +15,7 @@ import type { ChangeEvent } from 'react';
 import { useSnackbar } from 'notistack';
 
 import { OrderPickerOptionRow } from '../OrderPickerOptionRow';
+import { ReceivingPalletLabelField } from './ReceivingPalletLabelField';
 import { ImageViewerDialog } from '../../common/ImageViewerDialog';
 import { downloadReceivingPhoto, replaceReceivingPhoto } from '../../../api/inventory.api';
 import type {
@@ -594,6 +595,7 @@ function PalletCard({
         </Button>
         </Box>
       </Box>
+      <ReceivingPalletLabelField orderId={rec.purchase_order_id} palletNumber={palletNumber} />
       <Box
         sx={{
           display: 'grid',

@@ -549,6 +549,9 @@ def _check_in_processing_row(
             restoration_grade_values,
             processing_handoff,
         )
+    from apps.inventory.services.truck_pallets import resolve_check_in_pallet
+
+    pallet = resolve_check_in_pallet(user, order, data, manifest_row)
     batch = ItemCheckIn.objects.create(
         purchase_order=order,
         processing_row=row,
@@ -556,6 +559,7 @@ def _check_in_processing_row(
         product=product,
         origin=check_in_origin,
         quantity=0,
+        pallet=pallet,
         defaults_snapshot=defaults_snapshot,
         created_by=user,
     )
@@ -565,6 +569,7 @@ def _check_in_processing_row(
             purchase_order=order,
             manifest_row=manifest_row,
             check_in=batch,
+            pallet=pallet,
             price=item_price,
             retail=item_retail,
             cost=unit_cost,
@@ -1626,6 +1631,7 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
                         purchase_order=order,
                         manifest_row=row_manifest,
                         check_in=check_in,
+                        pallet_id=check_in.pallet_id,
                         price=price_val,
                         retail=retail_val,
                         cost=unit_cost,

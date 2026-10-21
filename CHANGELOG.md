@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.193.1] -->
-<!-- Last reviewed: 2026-10-21 (2.193.1) -->
+<!-- Line 1 release: ## [2.194.0] -->
+<!-- Last reviewed: 2026-10-21 (2.194.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.194.0] - 2026-10-21
+
+User-facing theme: **Pallet numbers through processing, and finishing a truck on one screen (Bill, 2026-10-21, critic review point 2).** Outside initiatives (critic-review release list).
+
+### Added
+- **Pallet numbers:** Receiving records each pallet's label number as it comes off the truck (the manifest's pallet ids are offered). Processing shows the pallet being worked and, pallet by pallet, what arrived against the manifest, with a running missing % as each pallet is finished. Every item knows the pallet it came off.
+- **Finish a truck** (Orders → a truck → Finish truck): what the manifest listed, what B-Stock took off (unfulfilled), what arrived, what's missing or broken, and extras, in units and dollars. "What we can expect back" uses B-Stock's rule: 95% of the sale price, no fees or shipping, after the first 5% of the load (both are settings in Settings → Inventory → Truck finalize). Mark a truck finalized to freeze its numbers; a manager can reopen it.
 
 ## [2.193.1] - 2026-10-21
 
