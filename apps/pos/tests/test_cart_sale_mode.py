@@ -8,7 +8,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
-from apps.core.models import WorkLocation
+from apps.core.models import AppSetting, WorkLocation
 from apps.inventory.models import Category, Item, Product
 from apps.pos.models import CartLine, DeliveryAvailability, Drawer, Register
 from apps.pos.services.sale_mode import (
@@ -69,6 +69,15 @@ class CartSaleModeAPITests(TestCase):
         )
         self.user.groups.add(group)
         self.client.force_authenticate(user=self.user)
+        # Only the owner turns the store sale on or off (REG-21).
+        self.owner = User.objects.create_user(
+            email='pos-owner@example.com', first_name='Pos', last_name='Owner', password='test-pass-123',
+        )
+        self.owner.groups.add(Group.objects.get_or_create(name='Admin')[0])
+        self.owner_client = APIClient()
+        self.owner_client.force_authenticate(user=self.owner)
+        # The line sale (was Summer 50%) starts off; these tests use it, so the owner has it on.
+        AppSetting.objects.create(key='pos.line_sale_on', value=True)
 
         self.location = WorkLocation.objects.create(name='POS Sale Loc')
         self.register = Register.objects.create(
@@ -99,7 +108,7 @@ class CartSaleModeAPITests(TestCase):
         return r.data['id']
 
     def _set_override(self, value):
-        r = self.client.post('/api/pos/sale-mode/', {'override': value}, format='json')
+        r = self.owner_client.post('/api/pos/sale-mode/', {'override': value}, format='json')
         self.assertEqual(r.status_code, 200, r.content)
         return r.data
 
@@ -371,3 +380,59 @@ class CartSaleModeAPITests(TestCase):
             {'label': 'ThriftBucks used', 'amount': '4.00'},
             {'label': 'Discount', 'amount': '1.00'},
         ])
+
+
+class SaleSettingsTests(TestCase):
+    """REG-21: the always-on Summer 50% tile is retired; sale names, percents and switches are the owner's."""
+
+    setUp = CartSaleModeAPITests.setUp
+    _open_cart = CartSaleModeAPITests._open_cart
+    _set_override = CartSaleModeAPITests._set_override
+
+    def _mark(self, cid, line_id, sale='summer'):
+        return self.client.post(f'/api/pos/carts/{cid}/lines/{line_id}/sale/', {'sale': sale}, format='json')
+
+    def test_line_sale_is_off_unless_the_owner_turns_it_on(self):
+        AppSetting.objects.filter(key='pos.line_sale_on').delete()
+        r = self.client.get('/api/pos/sale-mode/')
+        self.assertEqual(r.data['line_sale'], {'on': False, 'name': 'Summer', 'percent': '50'})
+        self._set_override(False)
+        cid = self._open_cart()
+        added = self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': self.item.sku}, format='json')
+        r = self._mark(cid, added.data['lines'][0]['id'])
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.data['code'], 'SALE_OFF')
+
+    def test_owner_names_and_prices_both_sales(self):
+        AppSetting.objects.create(key='pos.line_sale_name', value='Patio')
+        AppSetting.objects.create(key='pos.line_sale_percent', value=0.3)
+        AppSetting.objects.create(key='pos.store_sale_name', value='Black Friday')
+        AppSetting.objects.create(key='pos.store_sale_percent', value=0.25)
+        mode = self.client.get('/api/pos/sale-mode/').data
+        self.assertEqual((mode['name'], mode['percent']), ('Black Friday', '25'))
+        self.assertEqual(mode['line_sale'], {'on': True, 'name': 'Patio', 'percent': '30'})
+        self._set_override(True)
+        cid = self._open_cart()
+        added = self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': self.item.sku}, format='json')
+        line = added.data['lines'][0]
+        self.assertEqual((line['sale_label'], line['sale_display']), ('labor_day', 'Black Friday 25%'))
+        r = self._mark(cid, line['id'])
+        self.assertEqual(r.status_code, 200, r.content)
+        line = r.data['lines'][0]
+        self.assertEqual((line['sale_display'], Decimal(str(line['line_total']))), ('Patio 30%', Decimal('14.00')))
+
+    def test_cashiers_cannot_turn_the_store_sale_on_or_change_sale_settings(self):
+        r = self.client.post('/api/pos/sale-mode/', {'override': True}, format='json')
+        self.assertEqual(r.status_code, 403)
+        manager = User.objects.create_user(email='pos-mgr@example.com', first_name='M', last_name='G', password='x')
+        manager.groups.add(Group.objects.get_or_create(name='Manager')[0])
+        client = APIClient()
+        client.force_authenticate(user=manager)
+        self.assertEqual(client.post('/api/pos/sale-mode/', {'override': True}, format='json').status_code, 403)
+        self.assertEqual(client.patch('/api/core/settings/pos.line_sale_on/', {'value': False}, format='json').status_code, 403)
+        for key in ('pos.line_sale_percent', 'pos.store_sale_name'):
+            with self.subTest(key=key):
+                r = client.post('/api/core/settings/', {'key': key, 'value': True}, format='json')
+                self.assertEqual(r.status_code, 403)
+        r = self.owner_client.patch('/api/core/settings/pos.line_sale_on/', {'value': False}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)

@@ -16,6 +16,13 @@ const REPORT: SalesTaxReport = {
   payments: [{ method: 'card', count: 900, total: '40000.00' }, { method: 'cash', count: 445, total: '15515.53' }],
   card_surcharge: '337.13', thrift_credit: '0.00', collected_total: '55515.53',
   voided: { count: 2, taxable: '40.00', tax: '2.80' },
+  thrift_plus_returns: {
+    count: 1, taxable_back: '64.00', tax_back: '4.48', refund: '68.48', credit: '68.48',
+    days: [{ day: '2026-09-04', count: 1, taxable_back: '64.00', tax_back: '4.48' }],
+    note: 'For the CPA: Thrift+ 3-day returns refund 80% of the price and its tax as Thrift+ credit, on the return day.',
+  },
+  taxable_sales_less_returns: '51819.55',
+  tax_collected_less_returns: '3627.50',
 };
 
 vi.mock('../../api/reports.api', () => ({ fetchSalesTax: vi.fn(async () => REPORT) }));
@@ -38,6 +45,10 @@ describe('Sales tax report (owner 2026-10-13)', () => {
     expect(within(box).getByText('Total tax at 7%')).toBeInTheDocument();
     expect(screen.getByText(/2 sales from this period were voided/)).toBeInTheDocument();
     expect(screen.getByText('$337.13')).toBeInTheDocument();
+    expect(within(box).getByText('Tax refunded on Thrift+ returns')).toBeInTheDocument();
+    expect(within(box).getByText('$4.48')).toBeInTheDocument();
+    expect(within(box).getByText('Tax collected less tax refunded')).toBeInTheDocument();
+    expect(within(box).getByText('$3,627.50')).toBeInTheDocument();
   });
 
   it('lists the periods newest first, the running one last', () => {
@@ -52,7 +63,10 @@ describe('Sales tax report (owner 2026-10-13)', () => {
     const csv = salesTaxCsv(REPORT);
     expect(csv).toContain('Net taxable sales,51883.55');
     expect(csv).toContain('State tax (5.5%),2853.60');
-    expect(csv).toContain('2026-09-02,60,2400.00,168.00');
+    expect(csv).toContain('2026-09-02,60,2400.00,168.00,0.00');
+    expect(csv).toContain('2026-09-04,0,0.00,0.00,4.48');
+    expect(csv).toContain('Tax refunded on Thrift+ returns,4.48');
+    expect(csv).toContain('Tax collected less tax refunded,3627.50');
     expect(csv).toContain('"2 sales, 40.00 taxable, 2.80 tax"');
   });
 });

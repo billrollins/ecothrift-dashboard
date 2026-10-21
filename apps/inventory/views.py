@@ -2555,7 +2555,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         if not serializer.validated_data.get('order_number'):
             extra['order_number'] = PurchaseOrder.generate_order_number()
         if 'ordered_date' not in serializer.validated_data:
-            extra['ordered_date'] = timezone.now().date()
+            extra['ordered_date'] = timezone.localdate()
         # A paid date on the new-order form means the order is already paid (same as Mark paid).
         if serializer.validated_data.get('paid_date') and serializer.validated_data.get('status', 'ordered') == 'ordered':
             extra['status'] = 'paid'
@@ -2566,7 +2566,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         """Mark a PO as paid."""
         order = self.get_object()
         order.status = 'paid'
-        order.paid_date = request.data.get('paid_date', timezone.now().date())
+        order.paid_date = request.data.get('paid_date', timezone.localdate())
         order.save()
         return Response(PurchaseOrderSerializer(order).data)
 
@@ -2584,7 +2584,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         """Mark a PO as shipped."""
         order = self.get_object()
         order.status = 'shipped'
-        order.shipped_date = request.data.get('shipped_date', timezone.now().date())
+        order.shipped_date = request.data.get('shipped_date', timezone.localdate())
         if request.data.get('expected_delivery'):
             order.expected_delivery = request.data['expected_delivery']
         order.save()
@@ -2604,7 +2604,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     def deliver(self, request, pk=None):
         """Mark a PO as delivered. Auto-builds check-in queue if manifest rows exist."""
         order = self.get_object()
-        delivered_date = request.data.get('delivered_date', timezone.now().date())
+        delivered_date = request.data.get('delivered_date', timezone.localdate())
         extras = _finalize_purchase_order_deliver(order, request.user, delivered_date)
         data = PurchaseOrderSerializer(order).data
         data.update(extras)
@@ -3319,7 +3319,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             )
 
         now = timezone.now()
-        delivered_date = rec.received_date or now.date()
+        delivered_date = rec.received_date or timezone.localtime(now).date()
         with transaction.atomic():
             order = PurchaseOrder.objects.select_for_update().get(pk=order.pk)
             rec = (

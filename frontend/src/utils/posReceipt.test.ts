@@ -26,6 +26,11 @@ describe('saleSuffix', () => {
     );
     expect(saleSuffix(line({ sale_label: '' }))).toBe('');
   });
+
+  it("uses the server's sale name when it sends one (owner-named sales, REG-21)", () => {
+    expect(saleSuffix(line({ sale_label: 'summer', sale_percent: '30', sale_display: 'Patio 30%' }))).toBe(' (Patio 30%)');
+    expect(saleSuffix(line({ sale_label: 'summer', sale_percent: '30' }))).toBe(' (30% Summer)');
+  });
 });
 
 describe('receiptLineFromCartLine', () => {

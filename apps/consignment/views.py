@@ -153,7 +153,7 @@ class ConsignmentAgreementViewSet(viewsets.ModelViewSet):
         }
         # Default start_date to today if not provided
         if not serializer.validated_data.get('start_date'):
-            defaults['start_date'] = timezone.now().date()
+            defaults['start_date'] = timezone.localdate()
         # Default commission_rate from consignee's profile if not provided
         if not serializer.validated_data.get('commission_rate'):
             consignee = serializer.validated_data.get('consignee')

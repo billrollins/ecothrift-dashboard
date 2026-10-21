@@ -162,6 +162,8 @@ class BankTransactionSerializer(serializers.ModelSerializer):
 class CartLineSerializer(serializers.ModelSerializer):
     list_total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     sale_savings = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    # The sale's name as the customer sees it ("Labor Day 10%"); blank when the line has no sale.
+    sale_display = serializers.SerializerMethodField()
 
     class Meta:
         model = CartLine
@@ -170,7 +172,7 @@ class CartLineSerializer(serializers.ModelSerializer):
             'quantity', 'unit_price', 'line_total',
             'resale_source_sku', 'resale_source_item_id',
             'line_kind', 'meta',
-            'sale_label', 'sale_percent', 'list_total', 'sale_savings', 'thrift_savings',
+            'sale_label', 'sale_percent', 'sale_display', 'list_total', 'sale_savings', 'thrift_savings',
             'created_at',
         ]
         read_only_fields = [
@@ -179,6 +181,13 @@ class CartLineSerializer(serializers.ModelSerializer):
             'line_kind', 'meta',
             'sale_label', 'sale_percent', 'list_total', 'sale_savings', 'thrift_savings',
         ]
+
+    def get_sale_display(self, obj) -> str:
+        if not obj.sale_label:
+            return ''
+        from apps.pos.services.sale_mode import sale_display_label
+
+        return sale_display_label(obj)
 
 
 class ReceiptSerializer(serializers.ModelSerializer):

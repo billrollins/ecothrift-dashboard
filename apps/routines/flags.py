@@ -80,7 +80,7 @@ def test_owner_followup(user_id: int, cfg: dict, as_of: datetime) -> dict | None
     from .grading import residual_from_observation
 
     weeks = int(cfg['flag_window'])
-    start = as_of.date() - timedelta(days=weeks * 7)
+    start = _local_date(as_of) - timedelta(days=weeks * 7)
     spots = SectionObservation.objects.filter(
         kind=SectionObservation.KIND_SPOT,
         observed_at__date__gte=start,
@@ -95,7 +95,7 @@ def test_owner_followup(user_id: int, cfg: dict, as_of: datetime) -> dict | None
         if parts and parts['R'] > threshold:
             hits.append({
                 'section_id': spot.section_id,
-                'date': spot.observed_at.date().isoformat(),
+                'date': _local_date(spot.observed_at).isoformat(),
                 'R': parts['R'],
                 'spot_run_id': spot.run_id,
             })
@@ -104,7 +104,7 @@ def test_owner_followup(user_id: int, cfg: dict, as_of: datetime) -> dict | None
             'kind': CheckerFlag.KIND_OWNER_FOLLOWUP,
             'evidence': {'hits': hits[-8:], 'count': len(hits), 'threshold': threshold},
             'window_start': start,
-            'window_end': as_of.date(),
+            'window_end': _local_date(as_of),
         }
     return None
 
@@ -134,8 +134,8 @@ def test_speed(user_id: int, cfg: dict, as_of: datetime) -> dict | None:
         return {
             'kind': CheckerFlag.KIND_SPEED,
             'evidence': {'min_seconds': min_seconds, 'runs': fast[-8:]},
-            'window_start': start.date(),
-            'window_end': as_of.date(),
+            'window_start': _local_date(start),
+            'window_end': _local_date(as_of),
         }
     return None
 
@@ -178,8 +178,8 @@ def test_batch(user_id: int, cfg: dict, as_of: datetime) -> dict | None:
         return {
             'kind': CheckerFlag.KIND_BATCH,
             'evidence': {'minutes': minutes, 'hits': hits[-8:]},
-            'window_start': start.date(),
-            'window_end': as_of.date(),
+            'window_start': _local_date(start),
+            'window_end': _local_date(as_of),
         }
     return None
 

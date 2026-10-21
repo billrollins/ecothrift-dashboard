@@ -3,7 +3,8 @@ import type { Cart, CartLine, ThriftPlusCartBlock, ThriftPlusLineMark } from '..
 import { isBucksLine } from './thriftPlusRegister';
 
 export function saleSuffix(line: CartLine): string {
-  if (line.sale_label === 'summer') return ' (50% Summer)';
+  if (line.sale_display) return ` (${line.sale_display})`;
+  if (line.sale_label === 'summer') return ` (${Number(line.sale_percent || 50)}% Summer)`;
   if (line.sale_label === 'labor_day') {
     const pct = Number(line.sale_percent || 10);
     return ` (${pct}% Labor Day)`;

@@ -1,9 +1,12 @@
-v2.194.0 — Pallet numbers through processing, and Finish truck on one screen
+v2.195.0 — Store dates after 7 PM, tax refunded on returns, Summer tile off
 
-User-facing theme: **Pallet numbers through processing, and finishing a truck on one screen (Bill, 2026-10-21, critic review point 2).** Outside initiatives (critic-review release list).
+User-facing theme: **The store's own date after 7 PM, tax refunds on the tax screen, and no Summer 50% tile (Bill, 2026-10-21, critic review point 8).** Outside initiatives (critic-review release list).
 
-### Added
-- **Pallet numbers:** Receiving records each pallet's label number as it comes off the truck (the manifest's pallet ids are offered). Processing shows the pallet being worked and, pallet by pallet, what arrived against the manifest, with a running missing % as each pallet is finished. Every item knows the pallet it came off.
-- **Finish a truck** (Orders → a truck → Finish truck): what the manifest listed, what B-Stock took off (unfulfilled), what arrived, what's missing or broken, and extras, in units and dollars. "What we can expect back" uses B-Stock's rule: 95% of the sale price, no fees or shipping, after the first 5% of the load (both are settings in Settings → Inventory → Truck finalize). Mark a truck finalized to freeze its numbers; a manager can reopen it.
+### Fixed
+- **Evening dates:** after about 7 PM, new drawers, the dashboard's "Today", the open-drawer alert and week hours use the store's date, not tomorrow's.
+
+### Changed
+- **Sales tax screen:** shows the tax refunded on Thrift+ returns and the tax collected after refunds (also in the CSV and by day), beside the gross numbers.
+- **Sales on the register:** the "Summer 50% off" tile is gone unless you turn it on. Sale names and percents are your settings (Settings → Store → Sales), and only you can turn the store sale on or off.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

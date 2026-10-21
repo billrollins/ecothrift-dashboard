@@ -197,7 +197,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
                 pay_rate=pay_rate,
                 # Not told: the level the pay rate falls in (Entry when no pay is set yet).
                 level=level or pay_levels.level_for_pay(pay_rate),
-                hire_date=hire_date or timezone.now().date(),
+                hire_date=hire_date or timezone.localdate(),
                 work_location_id=work_location,
             )
 
@@ -257,7 +257,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
                 EmployeeProfile.objects.create(
                     user=instance,
                     employee_number=EmployeeProfile.generate_employee_number(),
-                    hire_date=timezone.now().date(),
+                    hire_date=timezone.localdate(),
                 )
 
             # Create consignee profile if switching to Consignee and doesn't have one

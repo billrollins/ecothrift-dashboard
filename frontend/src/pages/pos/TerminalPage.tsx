@@ -183,6 +183,8 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   const testMode = testRegister != null;
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
+  // The owner (Admin or superuser) turns the store sale on and off (REG-21).
+  const isOwner = Boolean(user?.is_superuser || user?.role === 'Admin');
   const skuInputRef = useRef<HTMLInputElement>(null);
   const manualDescriptionInputRef = useRef<HTMLInputElement>(null);
   const cartRef = useRef<Cart | null>(null);
@@ -646,7 +648,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       }
       setLaborDayConfirmOpen(false);
     } catch {
-      enqueueSnackbar('Failed to update Labor Day sale', { variant: 'error' });
+      enqueueSnackbar(`Failed to update the ${saleMode?.name || 'Labor Day'} sale`, { variant: 'error' });
     }
   }, [
     saleMode,
@@ -675,10 +677,10 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         if (changes.length) commitCart(latest, { scroll: false });
         setSummerDialogOpen(false);
       } catch {
-        enqueueSnackbar('Failed to update summer sale', { variant: 'error' });
+        enqueueSnackbar(`Failed to update the ${saleMode?.line_sale?.name || 'line'} sale`, { variant: 'error' });
       }
     },
-    [cart, setLineSaleMutation, commitCart, enqueueSnackbar],
+    [cart, setLineSaleMutation, commitCart, enqueueSnackbar, saleMode?.line_sale?.name],
   );
 
   const handleSubmitManualLine = useCallback(
@@ -1866,7 +1868,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                                     <Chip
                                       size="small"
                                       color="warning"
-                                      label={`${Number(line.sale_percent)}% Labor Day`}
+                                      label={line.sale_display || `${Number(line.sale_percent)}% Labor Day`}
                                       sx={{ height: 22 }}
                                     />
                                   )}
@@ -1874,7 +1876,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                                     <Chip
                                       size="small"
                                       color="success"
-                                      label={`${Number(line.sale_percent || 50)}% Summer`}
+                                      label={line.sale_display || `${Number(line.sale_percent || 50)}% Summer`}
                                       sx={{ height: 22 }}
                                     />
                                   )}
@@ -2087,6 +2089,8 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                     </Typography>
                   </Button>
 
+                  {/* The line sale (was the always-on Summer 50% tile): only while the owner has it on (REG-21). */}
+                  {saleMode?.line_sale?.on ? (
                   <Button
                     onClick={() => setSummerDialogOpen(true)}
                     disabled={!cart || setLineSaleMutation.isPending}
@@ -2112,12 +2116,13 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                   >
                     <WbSunny sx={{ fontSize: 28 }} />
                     <Typography variant="subtitle2" fontWeight={700} lineHeight={1.15}>
-                      Summer
+                      {saleMode.line_sale.name}
                     </Typography>
                     <Typography variant="caption" sx={{ opacity: 0.85, lineHeight: 1.1 }}>
-                      50% off
+                      {Number(saleMode.line_sale.percent)}% off
                     </Typography>
                   </Button>
+                  ) : null}
 
                   <Button
                     onClick={handleOpenUnscannableDialog}
@@ -2365,23 +2370,16 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {/* The Labor Day sale is retired (owner 2026-10-16): the chip shows only while a sale is actually on, so it
                 can be turned off, never on by accident. */}
+            {/* Only the owner turns it off (REG-21); everyone else sees it. */}
             {saleMode?.active && (
             <Chip
               size="small"
-              clickable
-              onClick={() => setLaborDayConfirmOpen(true)}
-              label={
-                saleMode?.active
-                  ? `Labor Day Sale · ${Number(saleMode.percent || 10)}% off`
-                  : 'Labor Day off'
-              }
-              color={saleMode?.active ? 'warning' : 'default'}
-              variant={saleMode?.active ? 'filled' : 'outlined'}
-              title={
-                saleMode?.source === 'override'
-                  ? 'Manual override - click to toggle'
-                  : 'Calendar - click to toggle'
-              }
+              clickable={isOwner}
+              onClick={isOwner ? () => setLaborDayConfirmOpen(true) : undefined}
+              label={`${saleMode.name || 'Labor Day'} Sale · ${Number(saleMode.percent || 10)}% off`}
+              color="warning"
+              variant="filled"
+              title={isOwner ? 'Click to turn off' : 'The owner turns this sale on and off'}
             />
             )}
             <Chip
@@ -2927,6 +2925,8 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
 
       <SummerLinesDialog
         open={summerDialogOpen}
+        name={saleMode?.line_sale?.name ?? 'Summer'}
+        percent={Number(saleMode?.line_sale?.percent ?? 50)}
         cart={cart}
         pending={setLineSaleMutation.isPending}
         onClose={() => setSummerDialogOpen(false)}
@@ -2935,11 +2935,11 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
 
       <ConfirmDialog
         open={laborDayConfirmOpen}
-        title={saleMode?.active ? 'Turn Labor Day sale off?' : 'Turn Labor Day sale on?'}
+        title={`Turn ${saleMode?.name || 'Labor Day'} sale ${saleMode?.active ? 'off' : 'on'}?`}
         message={
           saleMode?.active
-            ? 'Merchandise lines will return to list price. Summer-marked lines stay 50% off. Assembly and Delivery stay full price.'
-            : 'Eligible merchandise will be 10% off. Assembly and Delivery stay full price. Summer stays 50% if marked.'
+            ? `Merchandise lines will return to list price. Lines marked ${saleMode?.line_sale?.name || 'Summer'} keep their sale. Assembly and Delivery stay full price.`
+            : `Eligible merchandise will be ${Number(saleMode?.percent || 10)}% off. Assembly and Delivery stay full price.`
         }
         confirmLabel={saleMode?.active ? 'Turn off' : 'Turn on'}
         severity="info"

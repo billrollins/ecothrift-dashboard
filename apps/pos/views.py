@@ -324,7 +324,8 @@ class DrawerViewSet(viewsets.ModelViewSet):
         except CashCountError as exc:
             return _cash_count_error(exc)
 
-        today = timezone.now().date()
+        # The store's day (America/Chicago), not the UTC day: after ~7 PM UTC is tomorrow (REG-09).
+        today = timezone.localdate()
 
         if not Register.objects.filter(id=register_id).exists():
             return Response(
@@ -1345,12 +1346,12 @@ class CartViewSet(viewsets.ModelViewSet):
         try:
             apply_line_sale(line, sale)
         except ValueError as exc:
-            code = str(exc) if str(exc) in ('INVALID_TARGET', 'INVALID_SALE') else 'INVALID_SALE'
-            return Response(
-                {'detail': 'Cannot apply that sale to this line.' if code == 'INVALID_TARGET' else 'Invalid sale.',
-                 'code': code},
-                status=400,
-            )
+            code = str(exc) if str(exc) in ('INVALID_TARGET', 'INVALID_SALE', 'SALE_OFF') else 'INVALID_SALE'
+            detail = {
+                'INVALID_TARGET': 'Cannot apply that sale to this line.',
+                'SALE_OFF': 'That sale is off. The owner turns it on in Settings.',
+            }.get(code, 'Invalid sale.')
+            return Response({'detail': detail, 'code': code}, status=400)
         cart.recalculate()
         cart = self.get_queryset().get(pk=cart.pk)
         return Response(CartSerializer(cart).data)
@@ -2543,9 +2544,11 @@ class DeliveryJobViewSet(viewsets.ModelViewSet):
 @api_view(['GET', 'POST'])
 @perm_classes([IsAuthenticated, IsTeamMember])
 def sale_mode(request):
-    """Labor Day sale identity and override toggle."""
+    """The register's sales (GET, any staff). POST turns the store sale on or off: the owner only (REG-21)."""
     if request.method == 'GET':
         return Response(sale_mode_payload())
+    if not (request.user.is_superuser or getattr(request.user, 'role', None) == 'Admin'):
+        return Response({'detail': 'Only the owner turns the store sale on or off.', 'code': 'OWNER_ONLY'}, status=403)
     if 'override' not in request.data:
         return Response(
             {'detail': 'override is required (true, false, or null).', 'code': 'OVERRIDE_REQUIRED'},
@@ -3521,7 +3524,7 @@ def dashboard_alerts(request):
         })
 
     # Open drawers (real registers only: the training register's practice drawer is not real cash)
-    today = timezone.now().date()
+    today = timezone.localdate()
     open_drawers = Drawer.objects.filter(status='open', date=today).exclude(register__is_training=True).count()
     if open_drawers:
         alerts.append({

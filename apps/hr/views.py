@@ -13,6 +13,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsEmployee, IsSuperAdmin
+from apps.core.local_dates import local_day
 from apps.hr.services.departments import (
     HARD_FIELDS,
     build_department_summary,
@@ -185,9 +186,7 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         if 'employee' not in serializer.validated_data:
             defaults['employee'] = user
         if 'date' not in serializer.validated_data:
-            defaults['date'] = (
-                serializer.validated_data.get('clock_in') or now
-            ).date() if serializer.validated_data.get('clock_in') else now.date()
+            defaults['date'] = local_day(serializer.validated_data.get('clock_in') or now)
         if 'clock_in' not in serializer.validated_data:
             defaults['clock_in'] = now
         serializer.save(**defaults)

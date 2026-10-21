@@ -2,7 +2,8 @@
  * Sales tax (owner 2026-10-13: "I file"): what the Nebraska sales tax return needs for a month, a quarter or a year,
  * from completed register sales (online holds are paid at the register). Store days, Central time.
  *
- * Top: the numbers for the return (gross, exempt, taxable sales, state and local tax), each with a copy button. Then
+ * Top: the numbers for the return (gross, exempt, taxable sales, state and local tax), each with a copy button, and
+ * the tax refunded on Thrift+ returns with the net after it (critic review NUM-01; the CPA picks which to file). Then
  * what makes up taxable sales, what isn't a sale, voided sales from the period, payments, and each day. Download
  * gives the same as a CSV. It opens on last month, the one usually being filed.
  */
@@ -74,6 +75,26 @@ export function periods(span: Span, today: Date = new Date()): Period[] {
 const pct = (rate: string) => `${(Number.parseFloat(rate) * 100).toFixed(2).replace(/\.?0+$/, '')}%`;
 const METHOD: Record<string, string> = { cash: 'Cash', card: 'Card', split: 'Split', payroll: 'Payroll deduction' };
 
+interface DayRow {
+  day: string;
+  count: number;
+  taxable: string;
+  tax: string;
+  /** Tax given back on Thrift+ returns that day. */
+  taxBack: string;
+}
+
+/** Each day with sales or Thrift+ returns, oldest first: a return can fall on a day with no sales. */
+export function dayRows(r: SalesTaxReport): DayRow[] {
+  const byDay = new Map<string, DayRow>();
+  for (const d of r.days) byDay.set(d.day, { day: d.day, count: d.count, taxable: d.taxable, tax: d.tax, taxBack: '0.00' });
+  for (const d of r.thrift_plus_returns.days) {
+    const row = byDay.get(d.day) ?? { day: d.day, count: 0, taxable: '0.00', tax: '0.00', taxBack: '0.00' };
+    byDay.set(d.day, { ...row, taxBack: d.tax_back });
+  }
+  return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
+}
+
 /** A copy of the report as a CSV: the return's numbers, the parts, then each day. */
 export function salesTaxCsv(r: SalesTaxReport): string {
   const rows: (string | number)[][] = [
@@ -90,6 +111,12 @@ export function salesTaxCsv(r: SalesTaxReport): string {
     ['Tax collected on receipts', r.tax_collected],
     ['Rounding (collected less at the rate)', r.rounding],
     [],
+    ['Thrift+ returns', r.thrift_plus_returns.count],
+    ['Price refunded on Thrift+ returns (before tax)', r.thrift_plus_returns.taxable_back],
+    ['Tax refunded on Thrift+ returns', r.thrift_plus_returns.tax_back],
+    ['Net taxable sales less returns', r.taxable_sales_less_returns],
+    ['Tax collected less tax refunded', r.tax_collected_less_returns],
+    [],
     ['Merchandise (after sale prices)', r.parts.merchandise],
     ['Discounts', r.parts.discounts],
     ['Delivery fees', r.parts.delivery_fees],
@@ -97,8 +124,8 @@ export function salesTaxCsv(r: SalesTaxReport): string {
     ['Card surcharges (not sales, not taxed)', r.card_surcharge],
     ['Voided sales (left out)', `${r.voided.count} sales, ${r.voided.taxable} taxable, ${r.voided.tax} tax`],
     [],
-    ['Day', 'Sales', 'Taxable sales', 'Tax collected'],
-    ...r.days.map((d) => [d.day, d.count, d.taxable, d.tax]),
+    ['Day', 'Sales', 'Taxable sales', 'Tax collected', 'Tax refunded (Thrift+ returns)'],
+    ...dayRows(r).map((d) => [d.day, d.count, d.taxable, d.tax, d.taxBack]),
   ];
   return rows.map((row) => row.map((c) => (/[",\n]/.test(String(c)) ? `"${String(c).replace(/"/g, '""')}"` : String(c))).join(',')).join('\n');
 }
@@ -203,6 +230,10 @@ export default function SalesTaxTab() {
                 ))}
                 <CopyRow label="Tax collected on receipts" value={data.tax_collected}
                   note={Number.parseFloat(data.rounding) ? `${formatCurrency(data.rounding)} from rounding each receipt to the cent.` : 'Matches the tax at the rate.'} />
+                <CopyRow label="Tax refunded on Thrift+ returns" value={data.thrift_plus_returns.tax_back}
+                  note={`${formatNumber(data.thrift_plus_returns.count)} ${data.thrift_plus_returns.count === 1 ? 'return' : 'returns'}, ${formatCurrency(data.thrift_plus_returns.taxable_back)} of price refunded before tax, counted on the return day.`} />
+                <CopyRow label="Tax collected less tax refunded" value={data.tax_collected_less_returns} strong
+                  note={`Net taxable sales less returns: ${formatCurrency(data.taxable_sales_less_returns)}. ${data.thrift_plus_returns.note}`} />
               </TableBody>
             </Table>
           </Paper>
@@ -285,19 +316,21 @@ export default function SalesTaxTab() {
                     <TableCell align="right">Sales</TableCell>
                     <TableCell align="right">Taxable sales</TableCell>
                     <TableCell align="right">Tax collected</TableCell>
+                    <TableCell align="right">Tax refunded</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {data.days.map((d) => (
+                  {dayRows(data).map((d) => (
                     <TableRow key={d.day}>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{format(parseISO(d.day), 'EEE MMM d')}</TableCell>
                       <TableCell align="right">{formatNumber(d.count)}</TableCell>
                       <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(d.taxable)}</TableCell>
                       <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(d.tax)}</TableCell>
+                      <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(d.taxBack)}</TableCell>
                     </TableRow>
                   ))}
-                  {data.days.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} sx={{ color: 'text.secondary' }}>No sales in this period.</TableCell></TableRow>
+                  {dayRows(data).length === 0 ? (
+                    <TableRow><TableCell colSpan={5} sx={{ color: 'text.secondary' }}>No sales in this period.</TableCell></TableRow>
                   ) : null}
                 </TableBody>
               </Table>

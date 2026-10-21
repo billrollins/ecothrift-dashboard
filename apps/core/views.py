@@ -48,7 +48,11 @@ class AppSettingViewSet(viewsets.ModelViewSet):
     SUPERUSER_PREFIXES = ('thrift_plus_',)
     # Staff purchases (payroll deduction, staff Thrift+): the owner (Admin) only, though managers edit the rest.
     # Idle sign-out hours (auth.idle_hours, house standard D16) and the pay-level ranges (hr.pay_levels): the owner's call too.
-    ADMIN_ONLY = {'pos.staff_purchases', 'auth.idle_hours', 'hr.pay_levels'}
+    # The register's sale names, percents and the line-sale switch too (critic review REG-21).
+    ADMIN_ONLY = {
+        'pos.staff_purchases', 'auth.idle_hours', 'hr.pay_levels', 'pos.labor_day_sale',
+        'pos.store_sale_name', 'pos.store_sale_percent', 'pos.line_sale_on', 'pos.line_sale_name', 'pos.line_sale_percent',
+    }
 
     def _owner_only(self, key: str) -> None:
         user = self.request.user

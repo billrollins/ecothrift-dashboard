@@ -28,12 +28,17 @@ function eligibleLines(cart: Cart | null): CartLine[] {
 
 export function SummerLinesDialog({
   open,
+  name = 'Summer',
+  percent = 50,
   cart,
   pending,
   onClose,
   onSave,
 }: {
   open: boolean;
+  /** The line sale's name and percent (owner settings). */
+  name?: string;
+  percent?: number;
   cart: Cart | null;
   pending: boolean;
   onClose: () => void;
@@ -70,10 +75,10 @@ export function SummerLinesDialog({
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Summer sale · 50% off</DialogTitle>
+      <DialogTitle>{name} sale · {percent}% off</DialogTitle>
       <DialogContent>
         {lines.length === 0 ? (
-          <Typography color="text.secondary">Scan merchandise first, then mark summer items.</Typography>
+          <Typography color="text.secondary">Scan merchandise first, then mark the sale items.</Typography>
         ) : (
           <List dense>
             {lines.map((ln) => (

@@ -84,6 +84,8 @@ class SalesTaxReportTests(TestCase):
                          (1, '64.00', '4.48', '68.48'))  # practice memberships are left out
         self.assertEqual(returns['days'], [{'day': '2026-09-04', 'count': 1, 'taxable_back': '64.00', 'tax_back': '4.48'}])
         self.assertEqual(d['taxable_sales'], '90.00')  # the sale itself is never changed (W11)
+        self.assertEqual((d['tax_collected'], d['tax_collected_less_returns']), ('6.30', '1.82'))
+        self.assertEqual(d['taxable_sales_less_returns'], '26.00')
 
     def test_only_the_owner_and_a_sane_period(self):
         manager = User.objects.create_user(email='mgr@example.com', first_name='M', last_name='G', password='x-pass-123')

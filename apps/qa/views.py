@@ -41,7 +41,7 @@ def latest(request):
 def history(request, check_id: str):
     rows = QAFinding.objects.filter(check_id=check_id, run__finished_at__isnull=False).select_related('run') \
         .order_by('-run__started_at')[:30]
-    return Response([{'day': r.run.started_at.date().isoformat(), 'count': r.count} for r in rows][::-1])
+    return Response([{'day': timezone.localtime(r.run.started_at).date().isoformat(), 'count': r.count} for r in rows][::-1])
 
 
 @api_view(['POST'])

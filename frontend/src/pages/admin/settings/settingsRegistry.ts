@@ -331,6 +331,49 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'store',
     kind: 'percent',
   },
+  // The register's sales (critic review REG-21): the owner's alone.
+  'pos.store_sale_name': {
+    label: 'Store sale name',
+    help: 'The sale on every eligible line while it is on (its calendar week, or the owner turns it on at the register). Shown on the register and receipts.',
+    tab: 'store',
+    kind: 'text',
+    defaultValue: 'Labor Day',
+  },
+  'pos.store_sale_percent': {
+    label: 'Store sale percent off',
+    help: 'How much the store sale takes off each eligible line.',
+    tab: 'store',
+    kind: 'percent',
+    defaultValue: 0.1,
+  },
+  'pos.line_sale_on': {
+    label: 'Line sale tile on the register',
+    help: 'On: cashiers see a tile to mark lines for the line sale. Off (default): no tile.',
+    tab: 'store',
+    kind: 'switch',
+    defaultValue: false,
+  },
+  'pos.line_sale_name': {
+    label: 'Line sale name',
+    help: 'The line sale as cashiers and receipts see it.',
+    tab: 'store',
+    kind: 'text',
+    defaultValue: 'Summer',
+  },
+  'pos.line_sale_percent': {
+    label: 'Line sale percent off',
+    help: 'How much the line sale takes off a marked line.',
+    tab: 'store',
+    kind: 'percent',
+    defaultValue: 0.5,
+  },
+  // Store sale calendar and the register's on/off: changed at the register, not here.
+  'pos.labor_day_sale': {
+    label: 'Store sale calendar',
+    help: 'Start, end and on/off of the store sale. The owner turns it on or off at the register.',
+    tab: 'store',
+    kind: 'hidden',
+  },
   debit_card_fee_rate: {
     label: 'Debit card fee we pay',
     help: 'What the card processor takes on a debit card charge (default 1%). Shown under Fees we pay on Transactions. Not charged to the customer.',
@@ -621,10 +664,14 @@ export function isHiddenKey(key: string): boolean {
   return SETTINGS_REGISTRY[key]?.kind === 'hidden';
 }
 
-/** Only the owner changes these (the server refuses anyone else): the Thrift+ settings and staff purchases. */
+/** Only the owner changes these (the server refuses anyone else): Thrift+, staff purchases and the register's sales. */
 export function isOwnerOnlyKey(key: string): boolean {
-  return key.startsWith('thrift_plus_') || key === 'pos.staff_purchases';
+  return key.startsWith('thrift_plus_') || key === 'pos.staff_purchases' || OWNER_SALE_KEYS.has(key);
 }
+
+const OWNER_SALE_KEYS = new Set([
+  'pos.store_sale_name', 'pos.store_sale_percent', 'pos.line_sale_on', 'pos.line_sale_name', 'pos.line_sale_percent',
+]);
 
 /** Known to the registry, or job state: anything else is Unsorted. */
 export function isKnownKey(key: string): boolean {

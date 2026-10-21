@@ -1,4 +1,13 @@
-"""Labor Day / Summer sale mode driven by AppSetting ``pos.labor_day_sale``."""
+"""The register's two sales.
+
+- **Store sale** (Labor Day): every eligible line, on in its calendar window or by the owner's override
+  (AppSetting ``pos.labor_day_sale``: start, end, override). Its name and percent are owner settings
+  ``pos.store_sale_name`` and ``pos.store_sale_percent`` (a fraction, 0.10 = 10%).
+- **Line sale** (was the always-on "Summer 50%" tile, critic review REG-21): lines the cashier marks. Off unless the
+  owner turns on ``pos.line_sale_on``; its name and percent are ``pos.line_sale_name`` and ``pos.line_sale_percent``.
+
+Only the owner (Admin or superuser) changes these settings or turns the store sale on or off.
+"""
 
 from __future__ import annotations
 
@@ -13,6 +22,14 @@ from apps.pos.models import CartLine
 SETTING_KEY = 'pos.labor_day_sale'
 DEFAULT_PERCENT = Decimal('10')
 SUMMER_PERCENT = Decimal('50')
+STORE_SALE_NAME_KEY = 'pos.store_sale_name'
+STORE_SALE_PERCENT_KEY = 'pos.store_sale_percent'
+LINE_SALE_ON_KEY = 'pos.line_sale_on'
+LINE_SALE_NAME_KEY = 'pos.line_sale_name'
+LINE_SALE_PERCENT_KEY = 'pos.line_sale_percent'
+SALE_SETTING_KEYS = (STORE_SALE_NAME_KEY, STORE_SALE_PERCENT_KEY, LINE_SALE_ON_KEY, LINE_SALE_NAME_KEY, LINE_SALE_PERCENT_KEY)
+DEFAULT_STORE_SALE_NAME = 'Labor Day'
+DEFAULT_LINE_SALE_NAME = 'Summer'
 ASSEMBLY_PRICE = Decimal('35.00')
 SALE_LABEL_LABOR_DAY = CartLine.SALE_LABEL_LABOR_DAY
 SALE_LABEL_SUMMER = CartLine.SALE_LABEL_SUMMER
@@ -62,6 +79,44 @@ def _read_setting() -> dict:
     return {}
 
 
+def _value(key: str, default):
+    row = AppSetting.objects.filter(key=key).only('value').first()
+    return default if row is None or row.value in (None, '') else row.value
+
+
+def _name(key: str, default: str) -> str:
+    text = str(_value(key, default) or '').strip()[:40]
+    return text or default
+
+
+def _fraction_percent(key: str, default: Decimal) -> Decimal:
+    """A fraction setting (0.5) as a percent (50); ``default`` when missing or out of 0-1."""
+    raw = _value(key, None)
+    if raw is None:
+        return default
+    try:
+        frac = Decimal(str(raw))
+    except (InvalidOperation, TypeError, ValueError):
+        return default
+    if frac < 0 or frac > 1:
+        return default
+    pct = (frac * 100).quantize(Decimal('0.01'))
+    return pct.to_integral_value() if pct == pct.to_integral_value() else pct
+
+
+def line_sale() -> dict:
+    """The line sale the cashier can mark: on (owner switch, default off), name and percent."""
+    return {
+        'on': _value(LINE_SALE_ON_KEY, False) is True,
+        'name': _name(LINE_SALE_NAME_KEY, DEFAULT_LINE_SALE_NAME),
+        'percent': _fraction_percent(LINE_SALE_PERCENT_KEY, SUMMER_PERCENT),
+    }
+
+
+def store_sale_name() -> str:
+    return _name(STORE_SALE_NAME_KEY, DEFAULT_STORE_SALE_NAME)
+
+
 def _calendar_window(today: date, raw: dict) -> tuple[date, date]:
     start = _parse_date(raw.get('start'))
     end = _parse_date(raw.get('end'))
@@ -75,7 +130,7 @@ def get_sale_mode(today: date | None = None) -> dict:
     today = today or timezone.localdate()
     raw = _read_setting()
     start, end = _calendar_window(today, raw)
-    percent = _parse_percent(raw.get('percent'))
+    percent = _fraction_percent(STORE_SALE_PERCENT_KEY, _parse_percent(raw.get('percent')))
     override = raw.get('override', None)
     if override is True:
         source = 'override'
@@ -94,17 +149,20 @@ def get_sale_mode(today: date | None = None) -> dict:
         'end': end,
         'percent': percent,
         'override': override,
+        'name': store_sale_name(),
     }
 
 
 def sale_mode_payload(today: date | None = None) -> dict:
     mode = get_sale_mode(today=today)
+    line = line_sale()
     return {
         **mode,
         'start': mode['start'].isoformat(),
         'end': mode['end'].isoformat(),
         'percent': str(mode['percent']),
-        'summer_percent': str(SUMMER_PERCENT),
+        'summer_percent': str(line['percent']),
+        'line_sale': {**line, 'percent': str(line['percent'])},
         'assembly_price': str(ASSEMBLY_PRICE),
     }
 
@@ -126,7 +184,7 @@ def set_labor_day_override(value: bool | None, user=None) -> dict:
 
 
 def apply_sale_to_line(line: CartLine, mode: dict | None = None) -> CartLine:
-    """Set or clear Labor Day on an eligible line. Summer lines are left alone."""
+    """Set or clear the store sale on an eligible line. Line-sale lines keep the percent they were marked at."""
     if mode is None:
         mode = get_sale_mode()
     if not line.is_sale_eligible():
@@ -136,8 +194,6 @@ def apply_sale_to_line(line: CartLine, mode: dict | None = None) -> CartLine:
             line.save()
         return line
     if line.sale_label == SALE_LABEL_SUMMER:
-        line.sale_percent = SUMMER_PERCENT
-        line.save()
         return line
     if mode.get('active'):
         line.sale_label = SALE_LABEL_LABOR_DAY
@@ -150,14 +206,20 @@ def apply_sale_to_line(line: CartLine, mode: dict | None = None) -> CartLine:
 
 
 def set_line_sale(line: CartLine, sale: str, mode: dict | None = None) -> CartLine:
-    """Apply summer / labor_day / none. ``none`` follows the current Labor Day mode."""
+    """Apply summer (the line sale) / labor_day / none. ``none`` follows the current store sale.
+
+    The line sale only while the owner has it on (``SALE_OFF`` otherwise).
+    """
     if mode is None:
         mode = get_sale_mode()
     if not line.is_sale_eligible():
         raise ValueError('INVALID_TARGET')
     if sale == SALE_LABEL_SUMMER:
+        current = line_sale()
+        if not current['on']:
+            raise ValueError('SALE_OFF')
         line.sale_label = SALE_LABEL_SUMMER
-        line.sale_percent = SUMMER_PERCENT
+        line.sale_percent = current['percent']
         line.save()
         return line
     if sale == SALE_LABEL_LABOR_DAY:
@@ -184,9 +246,9 @@ def sale_display_label(line) -> str:
     pct = line.sale_percent or Decimal('0')
     pct_text = f'{int(pct)}' if pct == pct.to_integral_value() else f'{pct.normalize()}'
     if line.sale_label == SALE_LABEL_LABOR_DAY:
-        return f'Labor Day {pct_text}%'
+        return f'{store_sale_name()} {pct_text}%'
     if line.sale_label == SALE_LABEL_SUMMER:
-        return f'Summer {pct_text}%'
+        return f'{line_sale()["name"]} {pct_text}%'
     return f'Sale {pct_text}%'
 
 

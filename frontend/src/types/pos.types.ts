@@ -171,6 +171,8 @@ export interface CartLine {
   line_kind?: CartLineKind;
   meta?: Record<string, unknown>;
   sale_label?: SaleLabel | string;
+  /** The sale's name as the customer sees it ("Labor Day 10%"); blank without a sale. */
+  sale_display?: string;
   sale_percent?: string;
   list_total?: string;
   sale_savings?: string;
@@ -186,7 +188,11 @@ export interface SaleMode {
   end: string;
   percent: string;
   override: boolean | null;
+  /** The store sale's name (owner setting, default "Labor Day"). */
+  name: string;
   summer_percent: string;
+  /** The sale cashiers mark line by line (was the always-on Summer 50% tile): off unless the owner turns it on. */
+  line_sale: { on: boolean; name: string; percent: string };
   assembly_price: string;
 }
 

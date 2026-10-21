@@ -55,6 +55,12 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
     sections: [
       { id: 'hours', title: 'Hours', help: 'Open days and times, and holidays. Online Sales holds use the same clock.', custom: ['store-hours', 'holiday-hours'] },
       { id: 'register', title: 'Register and payments', keys: ['tax_rate', 'debit_card_fee_rate'], custom: ['card-surcharge'] },
+      {
+        id: 'sales',
+        title: 'Sales',
+        help: 'The owner only. The store sale takes a percent off every eligible line; the line sale only lines a cashier marks.',
+        keys: ['pos.store_sale_name', 'pos.store_sale_percent', 'pos.line_sale_on', 'pos.line_sale_name', 'pos.line_sale_percent'],
+      },
       { id: 'staff-purchases', title: 'Staff purchases', help: 'Payroll deduction at the register.', custom: ['staff-purchases'] },
       {
         id: 'business',

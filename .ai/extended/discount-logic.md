@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-25 -->
+<!-- Last updated: 2026-10-21 (sale names and percents are owner settings; line sale off by default) -->
 # Discount logic
 
 How every price change at the register works (Thrift+ member rewards, store sales, Google review, manual discounts, BOGO, banking), and the checks that keep any new discount from opening an arbitrage. **Read this before adding or changing any discount.**
@@ -7,7 +7,7 @@ Owner (2026-09-25): *"Treat the Price minus Member reward as the true PRICE, and
 
 Code:
 - Thrift+ math: `apps/thriftplus/services/trip.py` (the split) and `apps/thriftplus/services/register.py` (per line).
-- POS discounts: `apps/pos/services/sale_mode.py` (Labor Day and Summer), `apps/pos/services/discounts.py` (discount lines), and `CartLine.save()`.
+- POS discounts: `apps/pos/services/sale_mode.py` (the store sale, Labor Day by default, and the line sale, Summer by default; names, percents and the line-sale switch are owner settings, the line sale off by default since 2026-10-21), `apps/pos/services/discounts.py` (discount lines), and `CartLine.save()`.
 
 ---
 

@@ -77,7 +77,8 @@ def _labor(day: date, now: datetime) -> dict:
         hours = (now - entry.clock_in).total_seconds() / 3600
         open_punches.append({'who': entry.employee.full_name, 'since': entry.clock_in.isoformat(), 'hours_open': round(hours, 1)})
     near_limit, over_hours = [], []
-    week_start = now.date() - timedelta(days=now.weekday())
+    local_now = timezone.localtime(now)
+    week_start = local_now.date() - timedelta(days=local_now.weekday())
     ids = TimeEntry.objects.filter(date__gte=week_start).values_list('employee', flat=True).distinct()
     for employee in User.objects.filter(pk__in=list(ids)).select_related('employee'):
         status = weekly_status_for_employee(employee, now)

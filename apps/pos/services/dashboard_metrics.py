@@ -155,7 +155,7 @@ def _monday_sunday_days(week_start_sunday: date) -> list[date]:
 
 
 def build_sales_metrics(today: date | None = None) -> dict[str, Any]:
-    today = today or timezone.now().date()
+    today = today or timezone.localdate()
     yesterday = today - timedelta(days=1)
     same_weekday_last_week = today - timedelta(days=7)
 
@@ -439,7 +439,7 @@ def _restoration_metrics(today: date) -> dict[str, Any]:
             updated_at__lt=week_end_dt,
         ).only('work_session', 'updated_at'),
     )
-    today_jobs = [job for job in week_jobs if job.updated_at.date() == today]
+    today_jobs = [job for job in week_jobs if timezone.localtime(job.updated_at).date() == today]
 
     active_stages = (
         RestorationJob.STAGE_QUEUED,
@@ -722,7 +722,7 @@ def build_department_metrics(
     *,
     weeks_back: int = DEFAULT_DEPARTMENT_WEEKS,
 ) -> dict[str, Any]:
-    today = today or timezone.now().date()
+    today = today or timezone.localdate()
     weeks_back = clamp_department_weeks(weeks_back)
     week_start = _week_start_sunday(today)
     this_week_start = _week_start_monday(today)
@@ -805,7 +805,7 @@ def build_dashboard_metrics(
     *,
     weeks_back: int = DEFAULT_DEPARTMENT_WEEKS,
 ) -> dict[str, Any]:
-    today = today or timezone.now().date()
+    today = today or timezone.localdate()
     return {
         'sales': build_sales_metrics(today),
         'department_metrics': build_department_metrics(today, weeks_back=weeks_back),
@@ -818,7 +818,7 @@ def _metrics_cache_key(today: date, weeks_back: int) -> str:
 
 def invalidate_dashboard_metrics_cache(today: date | None = None) -> None:
     """Clear cached dashboard metrics for all week windows (e.g. after QA submit)."""
-    today = today or timezone.now().date()
+    today = today or timezone.localdate()
     # Legacy key (pre-weeks param) plus every clamped window.
     cache.delete(f'dashboard:metrics:{today.isoformat()}')
     for weeks in range(MIN_DEPARTMENT_WEEKS, MAX_DEPARTMENT_WEEKS + 1):
@@ -831,7 +831,7 @@ def get_dashboard_metrics(
     weeks_back: int = DEFAULT_DEPARTMENT_WEEKS,
 ) -> dict[str, Any]:
     """Cached dashboard payload for the API."""
-    today = today or timezone.now().date()
+    today = today or timezone.localdate()
     weeks_back = clamp_department_weeks(weeks_back)
     cache_key = _metrics_cache_key(today, weeks_back)
     cached = cache.get(cache_key)

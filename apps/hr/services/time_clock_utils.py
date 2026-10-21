@@ -5,6 +5,7 @@ from decimal import Decimal
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
+from apps.core.local_dates import local_day
 from apps.hr.models import TimeEntry
 
 WEEKLY_HOUR_LIMIT = Decimal('40.00')
@@ -66,7 +67,7 @@ def _entry_hours(entry: TimeEntry, as_of: datetime | None = None) -> Decimal:
 def weekly_hours_for_employee(employee, as_of: datetime | None = None) -> Decimal:
     """Sum hours for employee in the current calendar week (Mon-Sun)."""
     as_of = as_of or timezone.now()
-    week_start, week_end = week_bounds(as_of.date())
+    week_start, week_end = week_bounds(local_day(as_of))
     entries = TimeEntry.objects.filter(
         employee=employee,
         date__gte=week_start,
@@ -100,7 +101,7 @@ def completed_hours_for_employee(
 def completed_hours_this_week_for_employee(employee, as_of: datetime | None = None) -> Decimal:
     """Completed shift hours for the calendar week containing as_of."""
     as_of = as_of or timezone.now()
-    week_start, week_end = week_bounds(as_of.date())
+    week_start, week_end = week_bounds(local_day(as_of))
     return completed_hours_for_employee(employee, week_start, week_end)
 
 
@@ -146,7 +147,7 @@ def weekly_status_for_employee(employee, as_of: datetime | None = None) -> dict:
     """Payload for weekly overtime UI. ``hours_limit`` is what this person is cleared for: 40 plus their overtime
     allowance (0 for almost everyone). ``overtime_hours`` is the part past the base 40 (what payroll pays at 1.5)."""
     as_of = as_of or timezone.now()
-    week_start, week_end = week_bounds(as_of.date())
+    week_start, week_end = week_bounds(local_day(as_of))
     hours = weekly_hours_for_employee(employee, as_of)
     allowance = overtime_allowance_for(employee)
     limit = WEEKLY_HOUR_LIMIT + allowance

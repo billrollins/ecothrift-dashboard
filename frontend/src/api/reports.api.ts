@@ -29,6 +29,18 @@ export interface SalesTaxReport {
   thrift_credit: string;
   collected_total: string;
   voided: { count: number; taxable: string; tax: string };
+  /** Thrift+ 3-day returns in the period, by return day (T4): price (before tax) and tax given back as credit. */
+  thrift_plus_returns: {
+    count: number;
+    taxable_back: string;
+    tax_back: string;
+    refund: string;
+    credit: string;
+    days: { day: string; count: number; taxable_back: string; tax_back: string }[];
+    note: string;
+  };
+  taxable_sales_less_returns: string;
+  tax_collected_less_returns: string;
 }
 
 /** Both days included (YYYY-MM-DD). The owner only. */

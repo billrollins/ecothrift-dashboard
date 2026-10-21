@@ -17,7 +17,9 @@ so earlier months work too. Days are store days (America/Chicago), by when the s
   so they are already in the discounts part.
 - **Thrift+ 3-day returns** (T4, W11; for the CPA to see): a return refunds 80% of what was paid, tax included, as
   Thrift+ credit, settled on the return day. The pre-tax part and the tax part are listed by return day, apart from
-  the sales; the original sale and its tax are never changed. Practice memberships are left out.
+  the sales; the original sale and its tax are never changed. Practice memberships are left out. The report also
+  gives taxable sales and tax collected less what returns gave back (critic review NUM-01), beside the gross figures,
+  for the CPA to choose from.
 """
 from __future__ import annotations
 
@@ -115,6 +117,8 @@ def report(start: date, end: date) -> dict:
         'collected_total': _money(totals['total']),
         'voided': {'count': voided['count'], 'taxable': _money(voided['taxable']), 'tax': _money(voided['tax'])},
         'thrift_plus_returns': returns,
+        'taxable_sales_less_returns': _money(taxable - Decimal(returns['taxable_back'])),
+        'tax_collected_less_returns': _money(tax - Decimal(returns['tax_back'])),
     }
 
 

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.194.0] -->
-<!-- Last reviewed: 2026-10-21 (2.194.0) -->
+<!-- Line 1 release: ## [2.195.0] -->
+<!-- Last reviewed: 2026-10-21 (2.195.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.195.0] - 2026-10-21
+
+User-facing theme: **The store's own date after 7 PM, tax refunds on the tax screen, and no Summer 50% tile (Bill, 2026-10-21, critic review point 8).** Outside initiatives (critic-review release list).
+
+### Fixed
+- **Evening dates:** after about 7 PM, new drawers, the dashboard's "Today", the open-drawer alert and week hours use the store's date, not tomorrow's.
+
+### Changed
+- **Sales tax screen:** shows the tax refunded on Thrift+ returns and the tax collected after refunds (also in the CSV and by day), beside the gross numbers.
+- **Sales on the register:** the "Summer 50% off" tile is gone unless you turn it on. Sale names and percents are your settings (Settings → Store → Sales), and only you can turn the store sale on or off.
 
 ## [2.194.0] - 2026-10-21
 
