@@ -1,5 +1,7 @@
 from django.contrib import admin
-from .models import Department, PayPeriodClose, Shift, ShiftAssignment, TimeEntry, TimeEntryChange
+from .models import (
+    CallIn, Department, PayPeriodClose, ScheduledShift, Shift, ShiftAssignment, TimeEntry, TimeEntryChange,
+)
 
 
 @admin.register(Department)
@@ -46,3 +48,15 @@ class ShiftAdmin(admin.ModelAdmin):
 class ShiftAssignmentAdmin(admin.ModelAdmin):
     list_display = ('employee', 'shift', 'weekdays')
     search_fields = ('employee__email', 'shift__name')
+
+
+@admin.register(ScheduledShift)
+class ScheduledShiftAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'date', 'start_time', 'end_time', 'department')
+    list_filter = ('department', 'date')
+
+
+@admin.register(CallIn)
+class CallInAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'shift_date', 'kind', 'called_at', 'reason', 'recorded_by')
+    list_filter = ('kind',)

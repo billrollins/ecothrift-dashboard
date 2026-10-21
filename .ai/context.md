@@ -1,10 +1,10 @@
-<!-- Last updated: 2026-10-21 (relative paths, D21) -->
+<!-- Last updated: 2026-10-21 (HR line: schedule, call-ins, pay numbers; no sick leave) -->
 # ecothrift-dashboard — AI Context
 
 ## Project summary
 
 Full-stack business management for Eco-Thrift, a thrift store in Omaha, NE. It covers:
-- HR: time clock, kiosk, sick leave
+- HR: time clock, kiosk, the week schedule and call-ins, pay numbers for QuickBooks
 - inventory: vendors, POs, item processing, product intelligence
 - POS: registers, drawers, carts, receipts
 - Thrift+ member rewards, consignment, and buying (B-Stock)

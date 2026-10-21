@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-19 (Text the offer: the open offer's link by hand-sent text) -->
+<!-- Last updated: 2026-10-21 (handbook matches Dash: no sick leave, schedule, call-ins, overtime 1.5) -->
 # Hiring
 
 The careers page, applications, and the People workspace. Design and phases: [`initiatives/hiring_onboarding.md`](../initiatives/hiring_onboarding.md).
@@ -130,6 +130,7 @@ The careers page, applications, and the People workspace. Design and phases: [`i
   - `onboardingUi.tsx` (Checklist, CountDialog, I9Dialog, StartOnboardingDialog, HandbookText) and `SignaturePad.tsx`;
   - `SetPasswordLinkDialog` takes `fetchLink`.
 - **Careers file:** `onboarding.items` (owner, due and kind are checked against `ONBOARDING_*`), `handbook` (title, text, acknowledgment; `## ` headings, `- ` bullets), and the `first_day` email.
+- **Handbook matches Dash (owner 2026-10-21):** no paid sick leave; the schedule is in Dash (Retail fixed, other areas flex); every call-in is recorded; overtime past 40 a week at 1.5; nobody changes their own hours. `hiring.0020` moved a stored draft's old sentences word for word (a rewritten passage is left alone). Signed versions never change: the owner publishes a new version from People → Onboarding → Handbook.
 
 ## Signing starts everything (owner 2026-10-20)
 

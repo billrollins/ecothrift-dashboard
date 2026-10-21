@@ -446,6 +446,14 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     navSearch: 'onboarding new hire checklist i9 i-9 handbook first day quickbooks',
   },
   /** 30, 60 and 90-day check-ins: due this week, coming up, done (filled in a meeting, signed by both). */
+  schedule: {
+    id: 'schedule',
+    path: '/people/schedule',
+    label: 'Schedule',
+    icon: 'calendar',
+    roles: ['Manager', 'Admin'],
+    navSearch: 'schedule week shifts call-ins call in no show who works',
+  },
   checkins: {
     id: 'checkins',
     path: '/people/checkins',

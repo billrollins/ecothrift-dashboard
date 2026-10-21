@@ -412,6 +412,63 @@ class ShiftAssignment(models.Model):
         return day.weekday() in own
 
 
+class ScheduledShift(models.Model):
+    """One person's shift on one day: the week a manager builds (owner 2026-10-21). Retail keeps fixed shifts; the
+    other departments flex (leave early on a slow day, come in or stay late on a busy one), so their times are the
+    plan, not a rule (``services/schedule.py``, setting ``hr.fixed_schedule_departments``)."""
+
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='scheduled_shifts',
+    )
+    date = models.DateField(db_index=True)
+    department = models.ForeignKey(
+        Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='scheduled_shifts',
+    )
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    note = models.CharField(max_length=200, blank=True, default='')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['date', 'start_time', 'employee__last_name']
+
+    def __str__(self):
+        return f'{self.employee_id} {self.date} {self.start_time:%H:%M}-{self.end_time:%H:%M}'
+
+
+class CallIn(models.Model):
+    """Someone who called in for a shift, or didn't come and didn't call (owner 2026-10-21): who, when they called,
+    which shift and why, so a pattern is visible and documented. Counted per person over 30 and 90 days."""
+
+    KIND_CALLED = 'called_in'
+    KIND_NO_SHOW = 'no_show'
+    KIND_CHOICES = [(KIND_CALLED, 'Called in'), (KIND_NO_SHOW, 'No call, no show')]
+
+    employee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='call_ins')
+    shift_date = models.DateField(db_index=True)
+    scheduled_shift = models.ForeignKey(
+        ScheduledShift, on_delete=models.SET_NULL, null=True, blank=True, related_name='call_ins',
+    )
+    shift_text = models.CharField(max_length=80, blank=True, default='', help_text='The shift as it was, e.g. 9am-3pm Retail.')
+    kind = models.CharField(max_length=12, choices=KIND_CHOICES, default=KIND_CALLED)
+    called_at = models.DateTimeField(null=True, blank=True, help_text='When they called (empty for a no-show).')
+    reason = models.CharField(max_length=300, blank=True, default='')
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-shift_date', '-created_at']
+
+    def __str__(self):
+        return f'{self.employee_id} {self.shift_date} {self.kind}'
+
+
 class KioskEvent(models.Model):
     """Audit row for the time kiosk. Never stores the card token."""
 

@@ -22,6 +22,7 @@ vi.mock('../../api/messages.api', () => ({
   getThreads: vi.fn().mockResolvedValue({ data: [{ id: 7, subject: 'Your register PIN', unread: 1, preview_from: 'Bill R' }] }),
 }));
 vi.mock('../../components/hr/HoursPayPanel', () => ({ HoursPayPanel: () => <div data-testid="hours-pay" /> }));
+vi.mock('../../components/hr/MyWeek', () => ({ MyWeek: () => <div data-testid="my-week" /> }));
 vi.mock('../../components/users/ChangePasswordDialog', () => ({ default: () => null }));
 const logout = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ logout }) }));
@@ -36,6 +37,15 @@ const PAGE: MePageData = {
   schedule: [{ shift: 'Retail Open', department: 'Retail', time_in: '08:30', time_out: '14:30', days: [1, 3], day_names: ['Tue', 'Thu'] }],
   drawers: null,
 };
+
+/** MUI useMediaQuery reads matchMedia: true makes every min-width query match (a 1440 px desk), false a phone. */
+function setWide(wide: boolean) {
+  window.matchMedia = ((query: string) => ({
+    matches: wide && query.includes('min-width'), media: query, onchange: null,
+    addListener: () => {}, removeListener: () => {}, addEventListener: () => {}, removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+}
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -57,9 +67,10 @@ describe('MePage', () => {
   beforeEach(() => {
     Object.values(api).forEach((fn) => fn.mockReset());
     api.getMePage.mockResolvedValue({ data: PAGE });
+    setWide(false);
   });
 
-  it('shows my details, a nudge for the emergency contact, my shifts and Hours & pay', async () => {
+  it('shows my details, a nudge for the emergency contact, my week, my usual shifts and Hours & pay', async () => {
     renderPage();
     const details = await screen.findByTestId('me-details');
     expect(details).toHaveTextContent('Carrie T');
@@ -68,7 +79,22 @@ describe('MePage', () => {
     expect(screen.getByTestId('me-schedule')).toHaveTextContent('Tue, Thu · 8:30am to 2:30pm');
     expect(screen.getByTestId('hours-pay')).toBeInTheDocument();
     expect(await screen.findByText('Messages (1 unread)')).toBeInTheDocument();
+    expect(screen.getByTestId('my-week')).toBeInTheDocument();
     expect(screen.getByTestId('me-pin-status')).toHaveTextContent('Register PIN: not set yet');
+  });
+
+  it('uses two columns on a desk and one on a phone', async () => {
+    setWide(true);
+    const { unmount } = renderPage();
+    const columns = await screen.findByTestId('me-columns');
+    const [left, right] = Array.from(columns.children);
+    expect(within(left as HTMLElement).getByTestId('me-details')).toBeInTheDocument();
+    expect(within(right as HTMLElement).getByTestId('hours-pay')).toBeInTheDocument();
+    unmount();
+    setWide(false);
+    renderPage();
+    await screen.findByTestId('me-details');
+    expect(screen.queryByTestId('me-columns')).toBeNull();
   });
 
   it('sets my register PIN with my password', async () => {

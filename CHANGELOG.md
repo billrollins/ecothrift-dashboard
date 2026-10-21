@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.198.0] -->
-<!-- Last reviewed: 2026-10-21 (2.198.0) -->
+<!-- Line 1 release: ## [2.199.0] -->
+<!-- Last reviewed: 2026-10-21 (2.199.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.199.0] - 2026-10-21
+
+User-facing theme: **A real schedule with flexible hours, recorded call-ins, and a handbook that matches (Bill, 2026-10-21, critic review point 5).** Outside initiatives (critic-review release list).
+
+### Added
+- **People → Schedule:** managers build each week (Copy last week, Fill from usual shifts). Retail shifts are fixed; other departments flex (a setting). Week grid on a computer, one day at a time on a phone.
+- **Call-ins and no-shows** are recorded with the reason; each person's call-ins over 30 and 90 days show beside them.
+- **My week** on the Me page for every staff member.
+
+### Changed
+- **Me page** uses two columns on a computer (one on a phone).
+- **Handbook draft** now says: no sick leave, the schedule and call-in rules, overtime at 1.5. Publish a new handbook version (People → Onboarding → Handbook) so staff sign it.
 
 ## [2.198.0] - 2026-10-21
 

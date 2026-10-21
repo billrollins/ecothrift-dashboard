@@ -1,10 +1,14 @@
-v2.198.0 — Staff messages in Dash, one-time secrets, and the Issue register PINs request
+v2.199.0 — Schedule with flexible hours, call-ins, My week; Me page two columns; handbook updated
 
-User-facing theme: **Staff messages in Dash, with one-time secrets for register PINs (Bill, 2026-10-21).** Outside initiatives (critic-review release list).
+User-facing theme: **A real schedule with flexible hours, recorded call-ins, and a handbook that matches (Bill, 2026-10-21, critic review point 5).** Outside initiatives (critic-review release list).
 
 ### Added
-- **Staff messages:** an envelope at the top of Dash and Thrift+ Staff shows unread messages. The owner and managers can message one person or a whole department, anyone can reply, and you can see who read each message. Also on the Me page. All inside Dash: no email or texts.
-- **One-time secrets:** a message can carry a secret (like a PIN) that the person sees once with Show; Dash records when and on which device, then deletes it.
-- **Owner request "Issue register PINs":** gives each named manager a PIN and sends it to them once in Dash. Nobody else ever sees the PIN.
+- **People → Schedule:** managers build each week (Copy last week, Fill from usual shifts). Retail shifts are fixed; other departments flex (a setting). Week grid on a computer, one day at a time on a phone.
+- **Call-ins and no-shows** are recorded with the reason; each person's call-ins over 30 and 90 days show beside them.
+- **My week** on the Me page for every staff member.
+
+### Changed
+- **Me page** uses two columns on a computer (one on a phone).
+- **Handbook draft** now says: no sick leave, the schedule and call-in rules, overtime at 1.5. Publish a new handbook version (People → Onboarding → Handbook) so staff sign it.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

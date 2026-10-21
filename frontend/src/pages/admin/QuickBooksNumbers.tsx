@@ -160,7 +160,9 @@ export function QuickBooksNumbers({ periods }: { periods: PayrollPeriod[] }) {
       ) : null}
 
       {query.isError ? <Alert severity="error">Could not load the numbers.</Alert> : null}
-      <Table size="small">
+      {/* A desk screen (the owner, Time & payroll); on a phone the table scrolls sideways. */}
+      <Box sx={{ overflowX: 'auto' }}>
+      <Table size="small" sx={{ minWidth: 620 }}>
         <TableHead>
           <TableRow>
             <TableCell>Employee</TableCell>
@@ -205,6 +207,7 @@ export function QuickBooksNumbers({ periods }: { periods: PayrollPeriod[] }) {
           </TableFooter>
         ) : null}
       </Table>
+      </Box>
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
         Overtime is hours past 40 in a Mon-Sun week, paid at 1.5 times the rate. Payroll is run in QuickBooks Online.
       </Typography>

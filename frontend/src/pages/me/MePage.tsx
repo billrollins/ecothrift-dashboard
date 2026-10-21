@@ -20,6 +20,8 @@ import {
   Stack,
   TextField,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -33,6 +35,7 @@ import {
 import { getMyCheckins, getMyOnboarding } from '../../api/hiring.api';
 import { getThreads } from '../../api/messages.api';
 import { HoursPayPanel } from '../../components/hr/HoursPayPanel';
+import { MyWeek } from '../../components/hr/MyWeek';
 import ChangePasswordDialog from '../../components/users/ChangePasswordDialog';
 import { useAuth } from '../../contexts/AuthContext';
 import { ccTokens } from '../../theme';
@@ -62,7 +65,7 @@ function Section({ title, action, children, testId }: { title: string; action?: 
 function Line({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <Box sx={{ display: 'flex', gap: 1, py: 0.25 }}>
-      <Typography variant="body2" color="text.secondary" sx={{ width: 130, flexShrink: 0 }}>{label}</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ width: { xs: 112, sm: 130 }, flexShrink: 0 }}>{label}</Typography>
       <Typography variant="body2" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>{value || '-'}</Typography>
     </Box>
   );
@@ -318,6 +321,7 @@ function MyMessages({ basePath }: { basePath: string }) {
 /** `compact`: inside Thrift+ Staff (the phone app has its own bar; no page title). */
 export default function MePage({ compact = false }: { compact?: boolean }) {
   const query = useQuery({ queryKey: ME_KEY, queryFn: async () => (await getMePage()).data });
+  const wide = useMediaQuery(useTheme().breakpoints.up('md'));
   const [details, setDetails] = useState(false);
   const [pin, setPin] = useState(false);
   const [password, setPassword] = useState(false);
@@ -328,14 +332,8 @@ export default function MePage({ compact = false }: { compact?: boolean }) {
   const d = data.details;
   const e = data.employee;
 
-  return (
-    <Box data-testid="me-page" sx={{ maxWidth: 760, mx: 'auto', p: { xs: 1.5, sm: 2 } }}>
-      {!compact ? (
-        <Typography variant="h4" fontWeight={700} sx={{ mb: 1.5 }}>
-          Me
-        </Typography>
-      ) : null}
-
+  const blocks = {
+    details: (
       <Section
         title={`${d.first_name} ${d.last_name}`}
         testId="me-details"
@@ -355,7 +353,8 @@ export default function MePage({ compact = false }: { compact?: boolean }) {
           <Alert severity="warning" sx={{ mt: 1 }}>Add someone to call in an emergency.</Alert>
         ) : null}
       </Section>
-
+    ),
+    security: (
       <Section title="Password and register PIN" testId="me-security">
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
           <Typography variant="body2" sx={{ flex: 1 }}>Dash password</Typography>
@@ -372,33 +371,76 @@ export default function MePage({ compact = false }: { compact?: boolean }) {
           </Box>
         ) : null}
       </Section>
-
+    ),
+    hours: (
       <Box sx={{ mb: 1.5 }}>
         <HoursPayPanel openByDefault />
       </Box>
-
-      <Section title="My shifts" testId="me-schedule">
-        {data.schedule.length ? (
-          data.schedule.map((row) => (
-            <Box key={`${row.shift}-${row.time_in}`} sx={{ display: 'flex', gap: 1, py: 0.5, flexWrap: 'wrap' }}>
-              <Typography variant="body2" fontWeight={700} sx={{ minWidth: 140 }}>{row.shift}</Typography>
-              <Typography variant="body2" sx={{ flex: 1 }}>
-                {row.day_names.join(', ')} · {clock(row.time_in)} to {clock(row.time_out)}
-              </Typography>
-            </Box>
-          ))
-        ) : (
-          <Typography variant="body2" color="text.secondary">No shifts set for you yet. Ask your manager.</Typography>
-        )}
+    ),
+    week: (
+      <Section title="My week" testId="me-week">
+        <MyWeek />
       </Section>
-
-      <MyMessages basePath={compact ? '/staff/messages' : '/messages'} />
-
-      <MyOnboardingAndCheckIns />
-
-      <Box sx={{ mt: 2, mb: 2 }}>
+    ),
+    usual: data.schedule.length ? (
+      <Section title="My usual shifts" testId="me-schedule">
+        {data.schedule.map((row) => (
+          <Box key={`${row.shift}-${row.time_in}`} sx={{ display: 'flex', gap: 1, py: 0.5, flexWrap: 'wrap' }}>
+            <Typography variant="body2" fontWeight={700} sx={{ minWidth: 140 }}>{row.shift}</Typography>
+            <Typography variant="body2" sx={{ flex: 1 }}>
+              {row.day_names.join(', ')} · {clock(row.time_in)} to {clock(row.time_out)}
+            </Typography>
+          </Box>
+        ))}
+      </Section>
+    ) : null,
+    messages: <MyMessages basePath={compact ? '/staff/messages' : '/messages'} />,
+    onboarding: <MyOnboardingAndCheckIns />,
+    signOut: (
+      <Box sx={{ mt: 1, mb: 2 }}>
         <SignOutEverywhere />
       </Box>
+    ),
+  };
+  // Desk (owner 2026-10-21: the desktop Me page is used): me and my access on the left, my time on the right.
+  // Phone and Thrift+ Staff: one column, the same order a person reads top to bottom.
+  const twoColumns = wide && !compact;
+
+  return (
+    <Box data-testid="me-page" sx={{ width: '100%', maxWidth: twoColumns ? 1240 : 760, mx: 'auto', p: compact ? 1.5 : 0 }}>
+      {!compact ? (
+        <Typography variant="h4" fontWeight={700} sx={{ mb: 1.5 }}>
+          Me
+        </Typography>
+      ) : null}
+
+      {twoColumns ? (
+        <Box data-testid="me-columns" sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 5fr) minmax(0, 7fr)', gap: 2.5, alignItems: 'start' }}>
+          <Box>
+            {blocks.details}
+            {blocks.security}
+            {blocks.messages}
+            {blocks.onboarding}
+            {blocks.signOut}
+          </Box>
+          <Box>
+            {blocks.hours}
+            {blocks.week}
+            {blocks.usual}
+          </Box>
+        </Box>
+      ) : (
+        <>
+          {blocks.details}
+          {blocks.security}
+          {blocks.hours}
+          {blocks.week}
+          {blocks.usual}
+          {blocks.messages}
+          {blocks.onboarding}
+          {blocks.signOut}
+        </>
+      )}
 
       <DetailsDialog key={details ? 'open' : 'closed'} data={data} open={details} onClose={() => setDetails(false)} />
       <PinDialog open={pin} again={data.pin.set} onClose={() => setPin(false)} />

@@ -35,6 +35,7 @@ const OnboardingPage = lazy(() => import('./pages/people/OnboardingPage'));
 const MyOnboardingPage = lazy(() => import('./pages/people/MyOnboardingPage'));
 const PayrollDeductionsPage = lazy(() => import('./pages/people/PayrollDeductionsPage'));
 const CheckInsPage = lazy(() => import('./pages/people/CheckInsPage'));
+const SchedulePage = lazy(() => import('./pages/people/SchedulePage'));
 const MyCheckInsPage = lazy(() => import('./pages/people/MyCheckInsPage'));
 const MePage = lazy(() => import('./pages/me/MePage'));
 const MessagesPage = lazy(() => import('./pages/messages/MessagesPage'));
@@ -613,6 +614,16 @@ function AppRoutes() {
             <ManagerRoute>
               <Suspense fallback={<LoadingScreen message="Loading…" />}>
                 <OnboardingPage />
+              </Suspense>
+            </ManagerRoute>
+          }
+        />
+        <Route
+          path="/people/schedule"
+          element={
+            <ManagerRoute>
+              <Suspense fallback={<LoadingScreen message="Loading…" />}>
+                <SchedulePage />
               </Suspense>
             </ManagerRoute>
           }
