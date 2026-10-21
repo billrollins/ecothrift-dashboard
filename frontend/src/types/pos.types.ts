@@ -534,8 +534,23 @@ export interface DepartmentMetrics {
   daily_weeks: DepartmentDailyWeek[];
 }
 
+export type FocusDepartment = 'retail' | 'processing' | 'restoration' | 'buying';
+
+/** One department's focus number on the staff Dashboard (2026-10-21; owner setting dashboard.focus_numbers). */
+export interface FocusNumber {
+  department: FocusDepartment;
+  metric: string;
+  label: string;
+  kind: 'count' | 'money' | 'percent';
+  value: string | null;
+  /** E.g. "same day last week" or "target 40-50%". */
+  compare_label: string;
+  compare_value: string | null;
+}
+
 export interface DashboardMetrics {
   sales: SalesMetrics;
+  focus: FocusNumber[];
   department_metrics: DepartmentMetrics;
 }
 

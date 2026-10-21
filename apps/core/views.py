@@ -49,11 +49,12 @@ class AppSettingViewSet(viewsets.ModelViewSet):
     # Staff purchases (payroll deduction, staff Thrift+): the owner (Admin) only, though managers edit the rest.
     # Idle sign-out hours (auth.idle_hours, house standard D16) and the pay-level ranges (hr.pay_levels): the owner's call too.
     # The register's sale names, percents and the line-sale switch too (critic review REG-21), and the Owner page
-    # Scorecard targets (owner.scorecard_targets, 2026-10-21).
+    # Scorecard targets (owner.scorecard_targets, 2026-10-21), and which focus number each department sees on the staff
+    # Dashboard (dashboard.focus_numbers, 2026-10-21).
     ADMIN_ONLY = {
         'pos.staff_purchases', 'auth.idle_hours', 'hr.pay_levels', 'pos.labor_day_sale',
         'pos.store_sale_name', 'pos.store_sale_percent', 'pos.line_sale_on', 'pos.line_sale_name', 'pos.line_sale_percent',
-        'owner.scorecard_targets',
+        'owner.scorecard_targets', 'dashboard.focus_numbers',
     }
 
     def _owner_only(self, key: str) -> None:

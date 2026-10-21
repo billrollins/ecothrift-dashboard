@@ -37,7 +37,7 @@ class DashboardMetricsTests(TestCase):
             name='Reg 1',
             code='DASH-R1',
         )
-        self.today = timezone.now().date()
+        self.today = timezone.localdate()  # the store's day, as the Dashboard counts it
 
     def _complete_cart(self, amount: str, *, day=None, with_line=True):
         day = day or self.today
@@ -142,6 +142,36 @@ class DashboardMetricsTests(TestCase):
 
         self.assertEqual(goal['amount'], '12500.00')
         self.assertEqual(goal['description'], 'Stretch target for 7-day sales velocity.')
+
+    def test_focus_numbers_one_per_department(self):
+        cart = self._complete_cart('30.00', day=self.today)
+        CartLine.objects.create(cart=cart, description='Two more', quantity=2, unit_price=Decimal('5'), line_total=Decimal('10'))
+        self._complete_cart('9.00', day=self.today - timedelta(days=7))
+        item = Item.objects.create(sku='TSTFOCUS01', product=self.product, price=Decimal('25.00'), status='on_shelf')
+        ItemHistory.objects.create(item=item, event_type='status_change', old_value='processing', new_value='on_shelf')
+        PurchaseOrder.objects.create(vendor=self.vendor, order_number='PO-FOCUS', status='ordered',
+                                     ordered_date=self.today, total_cost=Decimal('10.00'))
+
+        focus = {f['department']: f for f in build_dashboard_metrics(self.today)['focus']}
+        self.assertEqual(list(focus), ['retail', 'processing', 'restoration', 'buying'])
+        self.assertEqual((focus['retail']['value'], focus['retail']['compare_value']), ('3', '1'))
+        self.assertEqual(focus['retail']['compare_label'], 'same day last week')
+        self.assertEqual((focus['processing']['metric'], focus['processing']['value']), ('items_processed_today', '1'))
+        self.assertEqual(focus['restoration']['value'], '0')
+        # $10 bought against $25 processed this week (Monday to today).
+        self.assertEqual((focus['buying']['kind'], focus['buying']['value']), ('percent', '40.0'))
+
+    def test_focus_numbers_follow_the_owner_setting(self):
+        from apps.core.models import AppSetting
+
+        AppSetting.objects.create(key='dashboard.focus_numbers',
+                                  value={'retail': 'sales_today', 'buying': 'not-a-choice'})
+        self._complete_cart('42.00', day=self.today)
+        focus = {f['department']: f for f in build_dashboard_metrics(self.today)['focus']}
+        self.assertEqual((focus['retail']['label'], focus['retail']['kind'], focus['retail']['value']),
+                         ('Sales today', 'money', '42.00'))
+        self.assertEqual(focus['buying']['metric'], 'buying_pct_of_processing_week')
+        self.assertIsNone(focus['buying']['value'])  # nothing processed this week: no percent
 
     def test_buying_uses_purchase_order_total_cost(self):
         PurchaseOrder.objects.create(

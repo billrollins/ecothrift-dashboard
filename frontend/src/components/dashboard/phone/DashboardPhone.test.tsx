@@ -6,10 +6,10 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DashboardMetrics, DepartmentDailyMetric, SalesWeeklyRow } from '../../../types/pos.types';
 import { DashboardPhone } from './DashboardPhone';
 
+const auth = vi.hoisted(() => ({ user: { id: 1, role: 'Employee', is_superuser: false } }));
+
 vi.mock('../../../hooks/useAuth', () => ({
-  useAuth: () => ({
-    user: { id: 1, role: 'Employee', is_superuser: false },
-  }),
+  useAuth: () => auth,
 }));
 
 vi.mock('../useDashboardLayout', () => ({
@@ -74,6 +74,12 @@ const metrics: DashboardMetrics = {
       salesWeek('2 Weeks Ago', '2026-08-17'),
     ],
   },
+  focus: [
+    { department: 'retail', metric: 'items_sold_today', label: 'Items sold today', kind: 'count', value: '1240', compare_label: 'same day last week', compare_value: '1100' },
+    { department: 'processing', metric: 'items_processed_today', label: 'Items processed today', kind: 'count', value: '310', compare_label: 'same day last week', compare_value: '280' },
+    { department: 'restoration', metric: 'jobs_done_today', label: 'Restoration jobs finished today', kind: 'count', value: '4', compare_label: 'same day last week', compare_value: '2' },
+    { department: 'buying', metric: 'buying_pct_of_processing_week', label: 'Buying as % of processed, this week', kind: 'percent', value: '46.5', compare_label: 'target 40-50%', compare_value: null },
+  ],
   department_metrics: {
     buying: { week: '800', today: '120' },
     processing: { week: '600', today: '80' },
@@ -145,7 +151,8 @@ function renderPhone() {
 }
 
 describe('DashboardPhone', () => {
-  it('renders the today hero, week book, and department cards', () => {
+  it('renders the today hero, week book, and one focus number per department', () => {
+    auth.user = { id: 1, role: 'Employee', is_superuser: false };
     renderPhone();
     expect(screen.getByText("Today's sales")).toBeInTheDocument();
     expect(screen.getByText('$420')).toBeInTheDocument();
@@ -159,10 +166,18 @@ describe('DashboardPhone', () => {
     expect(screen.getByText('Processing')).toBeInTheDocument();
     expect(screen.getByText('Restoration')).toBeInTheDocument();
     expect(screen.getByText('Retail')).toBeInTheDocument();
+    expect(screen.getByText('1,240')).toBeInTheDocument();
+    expect(screen.getByText('1,100 same day last week')).toBeInTheDocument();
+    expect(screen.getByText('46.5%')).toBeInTheDocument();
+    expect(screen.getByText('target 40-50%')).toBeInTheDocument();
+    // Staff do not see the owner's weekly department cards.
+    expect(screen.queryByRole('button', { name: 'Actual B' })).not.toBeInTheDocument();
   });
 
-  it('makes the Retail Actual letter a button', () => {
+  it('shows the owner the weekly department cards too, with the Retail Actual letter a button', () => {
+    auth.user = { id: 1, role: 'Admin', is_superuser: true };
     renderPhone();
+    expect(screen.getByText('Items sold today')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Actual B' })).toBeInTheDocument();
   });
 });

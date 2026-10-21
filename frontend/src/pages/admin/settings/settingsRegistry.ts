@@ -395,6 +395,20 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     kind: 'raw',
     defaultValue: { buying_pct_of_processing: [40, 50], processing_pct_of_sales: 120 },
   },
+  // Staff Dashboard (2026-10-21): one focus number per department. Owner only.
+  'dashboard.focus_numbers': {
+    label: 'Dashboard focus numbers',
+    help:
+      'Which number each department sees on the Dashboard. Retail: items_sold_today or sales_today. Processing: items_processed_today or processed_value_today. Restoration: jobs_done_today. Buying: buying_pct_of_processing_week or buying_week.',
+    tab: 'store',
+    kind: 'raw',
+    defaultValue: {
+      retail: 'items_sold_today',
+      processing: 'items_processed_today',
+      restoration: 'jobs_done_today',
+      buying: 'buying_pct_of_processing_week',
+    },
+  },
   // Edited by its own card on Store (owner only); hidden from the raw lists.
   'pos.staff_purchases': {
     label: 'Staff purchases',
@@ -674,7 +688,8 @@ export function isHiddenKey(key: string): boolean {
 
 /** Only the owner changes these (the server refuses anyone else): Thrift+, staff purchases, the register's sales, the Owner page. */
 export function isOwnerOnlyKey(key: string): boolean {
-  return key.startsWith('thrift_plus_') || key.startsWith('owner.') || key === 'pos.staff_purchases' || OWNER_SALE_KEYS.has(key);
+  return key.startsWith('thrift_plus_') || key.startsWith('owner.') || key === 'pos.staff_purchases' || OWNER_SALE_KEYS.has(key)
+    || key === 'dashboard.focus_numbers';
 }
 
 const OWNER_SALE_KEYS = new Set([

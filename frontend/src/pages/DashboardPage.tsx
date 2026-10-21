@@ -1,6 +1,7 @@
 import { Box, Alert, Grid } from '@mui/material';
 import { LoadingScreen } from '../components/feedback/LoadingScreen';
 import { DepartmentMetricCards } from '../components/dashboard/DepartmentMetricCards';
+import { FocusNumbers } from '../components/dashboard/FocusNumbers';
 import { SalesOverviewSection } from '../components/dashboard/SalesOverviewSection';
 import { dashboardPalette } from '../components/dashboard/dashboardCardStyles';
 import { DashboardPhone } from '../components/dashboard/phone/DashboardPhone';
@@ -51,7 +52,8 @@ export default function DashboardPage() {
       sx={{
         flex: 1,
         display: 'grid',
-        gridTemplateRows: 'minmax(0, 1fr) auto',
+        // The sales row never shrinks below a readable chart: with the owner's department cards the page scrolls.
+        gridTemplateRows: 'minmax(400px, 1fr) auto',
         height: '100%',
         minHeight: 0,
         gap: 2,
@@ -121,11 +123,21 @@ export default function DashboardPage() {
         }}
       >
         <SectionHeader
-          title="Departments"
-          hintDesktop="Per-department weekly metrics."
-          hintMobile="Per-department weekly metrics."
+          title="Today's focus"
+          hintDesktop="One number per department, the one each team can move today."
+          hintMobile="One number per department."
         />
-        <DepartmentMetricCards metrics={metrics.department_metrics} />
+        <FocusNumbers focus={metrics.focus} />
+        {user?.is_superuser ? (
+          <>
+            <SectionHeader
+              title="Departments"
+              hintDesktop="Per-department weekly metrics and goals (owner only)."
+              hintMobile="Weekly metrics and goals (owner only)."
+            />
+            <DepartmentMetricCards metrics={metrics.department_metrics} />
+          </>
+        ) : null}
       </Box>
     </Box>
     </FloorPage>

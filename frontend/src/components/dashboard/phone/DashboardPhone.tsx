@@ -1,6 +1,8 @@
 import { Box } from '@mui/material';
+import { useAuth } from '../../../hooks/useAuth';
 import type { DashboardMetrics } from '../../../types/pos.types';
 import { DepartmentMetricCards } from '../DepartmentMetricCards';
+import { FocusNumbers } from '../FocusNumbers';
 import { SectionHeader } from '../SectionHeader';
 import { PastWeeksCard } from './PastWeeksCard';
 import { ThisWeekCard } from './ThisWeekCard';
@@ -8,6 +10,7 @@ import { TodayHero } from './TodayHero';
 import { TrendCardPhone } from './TrendCardPhone';
 
 export function DashboardPhone({ metrics }: { metrics: DashboardMetrics }) {
+  const { user } = useAuth();
   const todayIso = metrics.sales.daily_last_90_days.at(-1)?.date;
   const todayDay = metrics.sales.daily_last_90_days.at(-1)?.day;
 
@@ -42,10 +45,19 @@ export function DashboardPhone({ metrics }: { metrics: DashboardMetrics }) {
         todayDay={todayDay}
       />
       <SectionHeader
-        title="Departments"
-        hintMobile="Per-department weekly metrics."
+        title="Today's focus"
+        hintMobile="One number per department."
       />
-      <DepartmentMetricCards metrics={metrics.department_metrics} />
+      <FocusNumbers focus={metrics.focus} />
+      {user?.is_superuser ? (
+        <>
+          <SectionHeader
+            title="Departments"
+            hintMobile="Weekly metrics and goals (owner only)."
+          />
+          <DepartmentMetricCards metrics={metrics.department_metrics} />
+        </>
+      ) : null}
     </Box>
   );
 }

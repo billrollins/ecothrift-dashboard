@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.199.0] -->
-<!-- Last reviewed: 2026-10-21 (2.199.0) -->
+<!-- Line 1 release: ## [2.200.0] -->
+<!-- Last reviewed: 2026-10-21 (2.200.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.200.0] - 2026-10-21
+
+User-facing theme: **The Dashboard is for staff: today's sales and one focus number per department (Bill, 2026-10-21, critic review point 4).** Outside initiatives (critic-review release list).
+
+### Changed
+- **Dashboard:** today's and past weeks' sales, plus one focus number per department (items sold today, items processed today, restoration jobs finished today, buying as % of processed this week), each beside the same day last week. You pick each department's number in Settings → Store → Dashboard. Two tiles per row on a phone, four on a computer.
+- The weekly department cards and goals still show, for the owner only.
 
 ## [2.199.0] - 2026-10-21
 
