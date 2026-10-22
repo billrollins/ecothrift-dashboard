@@ -47,6 +47,13 @@ vi.mock('../../api/owner.api', () => ({
     by_feature: [{ feature: 'Processing: item suggestions', sources: ['suggest_item'], cost: '0.0040', calls: 3 }],
     by_who: [{ who: 'Job: run_qa', kind: 'job', cost: '0.0040', calls: 3 }],
   })),
+  fetchSocialCard: vi.fn(async () => ({
+    week_start: '2026-10-19', planned: 6, posted: 3, reach: 2400, engagement: 180, with_numbers: 2,
+    best: { id: 4, slot_date: '2026-10-20', hook: 'New toys just hit the floor', post_type_label: 'New this week', reach: 1500, engagement: 120 },
+    numbers_due: 2, spend_week: '5.00', spend_month: '12.50',
+    read: { post_days: 9, ticket_lift: '8.4', sales_lift: '-2.0', top_type: { label: 'New this week', days: 3, ticket_lift: '15.0' }, weeks: 8 },
+    link: '/studios/social/numbers',
+  })),
 }));
 
 function renderPage() {
@@ -101,6 +108,17 @@ describe('Owner page (2026-10-21)', () => {
     await user.click(screen.getByRole('button', { name: 'This month' }));
     expect(await screen.findByText('$12.34')).toBeInTheDocument();
     expect(fetchAiSpend).toHaveBeenLastCalledWith('month');
+  });
+
+  it('shows the Social card: the week, the best post, spend and the rough read', async () => {
+    renderPage();
+    expect(await screen.findByText('3 of 6')).toBeInTheDocument();
+    expect(screen.getByText('2,400')).toBeInTheDocument();
+    expect(screen.getByText(/New toys just hit the floor/)).toBeInTheDocument();
+    expect(screen.getByText('+8.4%')).toBeInTheDocument();
+    expect(screen.getByText('-2.0%')).toBeInTheDocument();
+    expect(screen.getByText('2 numbers due')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Numbers' })).toBeInTheDocument();
   });
 
   it('links every owner-only page but itself', () => {

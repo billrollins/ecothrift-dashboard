@@ -8,6 +8,7 @@ export interface StudioPaths {
   inApp: boolean;
   week: string;
   photos: string;
+  numbers: string;
   post: (id: number) => string;
 }
 
@@ -15,6 +16,7 @@ export const DESK_PATHS: StudioPaths = {
   inApp: false,
   week: '/studios/social',
   photos: '/studios/social/photos',
+  numbers: '/studios/social/numbers',
   post: (id) => `/studios/social/post/${id}`,
 };
 
@@ -22,6 +24,7 @@ export const APP_PATHS: StudioPaths = {
   inApp: true,
   week: '/social/week',
   photos: '/social/photos',
+  numbers: '/social/numbers',
   post: (id) => `/social/post/${id}`,
 };
 

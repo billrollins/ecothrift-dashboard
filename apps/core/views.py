@@ -546,6 +546,15 @@ def owner_needs_you(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsSuperAdmin])
+def owner_social(request):
+    """Owner page: the Social card (this week's posts and numbers, spend, what moves the needle)."""
+    from apps.marketing.services.numbers import weekly_card
+
+    return Response(weekly_card())
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
 def owner_ai_spend(request):
     """Owner page: AI spend for ``?range=today|week|month`` (default today), by feature and by who."""
     from .services.owner_page import ai_spend

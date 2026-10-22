@@ -125,6 +125,7 @@ const OnlineSalesMessagesPage = lazy(() => import('./pages/online-sales/OnlineSa
 const AnnouncementsPage = lazy(() => import('./pages/announcements/AnnouncementsPage'));
 const SocialStudioPage = lazy(() => import('./pages/studios/social/SocialStudioPage'));
 const SocialPhotosPage = lazy(() => import('./pages/studios/social/SocialPhotosPage'));
+const SocialNumbersPage = lazy(() => import('./pages/studios/social/SocialNumbersPage'));
 const SocialPostEditorPage = lazy(() => import('./pages/studios/social/SocialPostEditorPage'));
 
 function ProtectedRoute({ children, next, version }: { children: React.ReactNode; next?: string; version?: boolean }) {
@@ -662,6 +663,14 @@ function AppRoutes() {
           element={
             <Suspense fallback={<LoadingScreen message="Loading…" />}>
               <SocialPhotosPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/studios/social/numbers"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <SocialNumbersPage />
             </Suspense>
           }
         />

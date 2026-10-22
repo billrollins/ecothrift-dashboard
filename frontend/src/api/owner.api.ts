@@ -48,6 +48,30 @@ export interface NeedsYou {
   errors: string[];
 }
 
+/** The Social card (Lane F Phase 5; apps/marketing/services/numbers.py weekly_card). */
+export interface SocialCard {
+  week_start: string;
+  planned: number;
+  posted: number;
+  reach: number;
+  engagement: number;
+  with_numbers: number;
+  best: { id: number; slot_date: string; hook: string; post_type_label: string; reach: number | null; engagement: number | null } | null;
+  numbers_due: number;
+  spend_week: string;
+  spend_month: string;
+  read: {
+    post_days: number;
+    ticket_lift: string | null;
+    sales_lift: string | null;
+    top_type: { label: string; days: number; ticket_lift: string | null } | null;
+    weeks: number;
+  };
+  link: string;
+}
+
+export const fetchSocialCard = () => api.get<SocialCard>('/core/owner/social/').then((r) => r.data);
+
 export type SpendRange = 'today' | 'week' | 'month';
 
 export interface AiSpend {

@@ -142,3 +142,71 @@ class SocialPostPhoto(models.Model):
 
     def __str__(self):
         return f'post {self.post_id} #{self.position}: photo {self.photo_id}'
+
+
+CHANNEL_FACEBOOK = 'facebook'
+CHANNEL_CHOICES = [(CHANNEL_FACEBOOK, 'Facebook')]  # Phase 6 adds Instagram, Google Business Profile, Nextdoor, TikTok.
+
+
+class SocialPostNumbers(models.Model):
+    """How a posted post did, typed from the channel's insights at 1 day and 7 days (Phase 5; pulled from Meta once
+    the owner makes the Meta app, owner call F5)."""
+
+    MARK_DAY = 1
+    MARK_WEEK = 7
+    MARK_CHOICES = [(MARK_DAY, 'After 1 day'), (MARK_WEEK, 'After 7 days')]
+
+    post = models.ForeignKey(SocialPost, on_delete=models.CASCADE, related_name='numbers')
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, default=CHANNEL_FACEBOOK)
+    mark = models.PositiveSmallIntegerField(choices=MARK_CHOICES)
+    reach = models.PositiveIntegerField(default=0)
+    reactions = models.PositiveIntegerField(default=0)
+    comments = models.PositiveIntegerField(default=0)
+    shares = models.PositiveIntegerField(default=0)
+    messages = models.PositiveIntegerField(default=0)
+    link_clicks = models.PositiveIntegerField(default=0)
+    entered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    entered_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['post', 'channel', 'mark']
+        constraints = [
+            models.UniqueConstraint(fields=['post', 'channel', 'mark'], name='marketing_post_numbers_once'),
+        ]
+
+    @property
+    def engagement(self) -> int:
+        return self.reactions + self.comments + self.shares + self.messages + self.link_clicks
+
+    def __str__(self):
+        return f'post {self.post_id} {self.channel} day {self.mark}'
+
+
+class MarketingSpend(models.Model):
+    """The marketing spend ledger (owner call F3: $0 to start; the ledger is here so a small boost test can be
+    judged later). Boosts, print, events; optionally tied to the post it paid for."""
+
+    KIND_BOOST = 'boost'
+    KIND_PRINT = 'print'
+    KIND_EVENT = 'event'
+    KIND_OTHER = 'other'
+    KIND_CHOICES = [(KIND_BOOST, 'Boost (paid post)'), (KIND_PRINT, 'Print'), (KIND_EVENT, 'Event'), (KIND_OTHER, 'Other')]
+
+    day = models.DateField(db_index=True)
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    note = models.CharField(max_length=255, blank=True, default='')
+    post = models.ForeignKey(SocialPost, on_delete=models.SET_NULL, null=True, blank=True, related_name='spend')
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, blank=True, default='')
+    entered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-day', '-id']
+
+    def __str__(self):
+        return f'{self.day} {self.kind} {self.amount}'

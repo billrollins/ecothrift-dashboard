@@ -8,6 +8,8 @@ One page that pulls the owner's numbers together, in place of the retired mornin
 * **Needs you**: what is waiting on the owner, each with a count and a link (site errors from ``app_errors``).
 * **AI spend**: every AI call's cost (``AIUsage``), one total plus by feature and by who, for today, this week
   or this month.
+* **Social** (Lane F Phase 5): this week's posts, reach and engagement, the best post, numbers due, marketing spend,
+  and the rough read of post days against tickets and sales (``marketing.services.numbers.weekly_card``).
 
 Weeks run Monday to Sunday (the store's pay week). Money is returned as strings with two decimals.
 """

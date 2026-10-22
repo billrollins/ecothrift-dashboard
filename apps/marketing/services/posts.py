@@ -253,11 +253,15 @@ def post_payload(post: SocialPost, *, settings: dict | None = None, brand: dict 
     from apps.marketing.services.ideas import ideas_payload
 
     out['ideas'] = ideas_payload(post)
+    from apps.marketing.services.numbers import due_marks, numbers_payload
+
+    out['numbers_due'] = due_marks(post, timezone.localdate())
     if with_photos:
         rows = post.post_photos.select_related(
             'photo', 'photo__item', 'photo__item__product', 'photo__uploaded_by',
         ).order_by('position')
         out['photos'] = [photo_payload(row.photo, used_in=[], with_tag=True) for row in rows]
+        out['numbers'] = numbers_payload(post)
         # Thumbnails for the photos the AI's ideas pick.
         ids = {pk for idea in (out['ideas'] or {}).get('ideas', []) for pk in idea.get('photo_ids', [])}
         out['idea_photos'] = {

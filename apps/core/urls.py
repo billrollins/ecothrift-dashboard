@@ -11,6 +11,7 @@ from .views import (
     owner_scorecard,
     owner_needs_you,
     owner_ai_spend,
+    owner_social,
 )
 
 router = DefaultRouter()
@@ -36,4 +37,5 @@ urlpatterns = [
     path('owner/scorecard/', owner_scorecard, name='owner-scorecard'),
     path('owner/needs-you/', owner_needs_you, name='owner-needs-you'),
     path('owner/ai-spend/', owner_ai_spend, name='owner-ai-spend'),
+    path('owner/social/', owner_social, name='owner-social'),
 ]

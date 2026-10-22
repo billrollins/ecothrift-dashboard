@@ -1,6 +1,7 @@
 /**
  * Owner (2026-10-21, critic review digest points 4 and 9): the owner's home. It replaced the morning brief.
- * Scorecard (week and month), Needs you, links to every owner-only page, and AI spend.
+ * Scorecard (week and month), Needs you, links to every owner-only page, and AI spend. Social (Lane F Phase 5): this
+ * week's posts and their numbers, marketing spend, and the rough read of post days against tickets and sales.
  */
 import {
   Alert,
@@ -34,9 +35,11 @@ import {
   fetchAiSpend,
   fetchNeedsYou,
   fetchScorecard,
+  fetchSocialCard,
   type AiSpend,
   type NeedsYou,
   type Scorecard,
+  type SocialCard,
   type ScorecardPeriod,
   type SpendRange,
 } from '../../api/owner.api';
@@ -265,6 +268,48 @@ function AiSpendBody({ spend }: { spend: AiSpend }) {
   );
 }
 
+/** "+12.5%" or "-". */
+function lift(value: string | null): string {
+  if (value == null) return '-';
+  const n = Number(value);
+  return `${n > 0 ? '+' : ''}${n.toFixed(1)}%`;
+}
+
+function SocialBody({ card, onOpen }: { card: SocialCard; onOpen: (path: string) => void }) {
+  const stat = (label: string, value: string | number, hint?: string) => (
+    <Box sx={{ minWidth: 0 }}>
+      <Typography variant="caption" color="text.secondary">{label}</Typography>
+      <Typography sx={{ fontWeight: 800, fontSize: 20, fontVariantNumeric: 'tabular-nums' }}>{value}</Typography>
+      {hint ? <Typography variant="caption" color="text.secondary">{hint}</Typography> : null}
+    </Box>
+  );
+  const read = card.read;
+  return (
+    <Stack spacing={1}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))' }, gap: 1 }}>
+        {stat('Posts this week', `${card.posted} of ${card.planned}`)}
+        {stat('Reach', card.reach.toLocaleString(), card.with_numbers ? `${card.with_numbers} with numbers` : 'no numbers yet')}
+        {stat('Engagement', card.engagement.toLocaleString())}
+        {stat('Spend', formatCurrency(card.spend_week), `${formatCurrency(card.spend_month)} this month`)}
+      </Box>
+      {card.best ? (
+        <Typography variant="body2">
+          Best this week: <b>{card.best.post_type_label}</b>, {card.best.hook || 'no hook'} ({card.best.engagement} engagement)
+        </Typography>
+      ) : null}
+      <Typography variant="body2">
+        {read.post_days
+          ? <>Post days, last {read.weeks} weeks: tickets <b>{lift(read.ticket_lift)}</b>, sales <b>{lift(read.sales_lift)}</b> against the same weekday ({read.post_days} days).{read.top_type ? <> Best type: {read.top_type.label} ({lift(read.top_type.ticket_lift)} tickets, {read.top_type.days} days).</> : null}</>
+          : 'Not enough post days yet for a read on tickets and sales.'}
+      </Typography>
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+        {card.numbers_due ? <Chip size="small" color="warning" label={`${card.numbers_due} numbers due`} /> : null}
+        <Button size="small" onClick={() => onOpen(card.link)}>Open Numbers</Button>
+      </Box>
+    </Stack>
+  );
+}
+
 function SiteErrors() {
   const queryClient = useQueryClient();
   const errors = useQuery({ queryKey: ['owner', 'site-errors'], queryFn: () => getAppErrors(5).then((r) => r.data) });
@@ -318,6 +363,7 @@ export default function OwnerPage() {
   const scorecard = useQuery({ queryKey: ['owner', 'scorecard'], queryFn: fetchScorecard });
   const needs = useQuery({ queryKey: ['owner', 'needs-you'], queryFn: fetchNeedsYou });
   const spend = useQuery({ queryKey: ['owner', 'ai-spend', range], queryFn: () => fetchAiSpend(range) });
+  const social = useQuery({ queryKey: ['owner', 'social'], queryFn: fetchSocialCard });
   const owed = scorecard.data?.thrift_plus_owed;
   const theme = useTheme();
   const desktop = useMediaQuery(theme.breakpoints.up('md'));
@@ -365,6 +411,13 @@ export default function OwnerPage() {
       {spend.data ? <AiSpendBody spend={spend.data} /> : null}
     </Section>
   );
+  const socialCard = (
+    <Section title="Social" hint="This week's posts and their numbers, marketing spend, and a rough read on sales. Not proof.">
+      {social.isLoading ? <LinearProgress /> : null}
+      {social.isError ? <Alert severity="error">Social did not load.</Alert> : null}
+      {social.data ? <SocialBody card={social.data} onOpen={navigate} /> : null}
+    </Section>
+  );
   const linksCard = (
     <Section title="Owner pages">
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -383,12 +436,12 @@ export default function OwnerPage() {
       {desktop ? (
         // Desktop: the numbers on the left, the to-dos on the right, each column stacking on its own.
         <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 1.5, alignItems: 'start' }}>
-          <Stack spacing={1.5} sx={{ minWidth: 0 }}>{scoreCard}{aiCard}</Stack>
+          <Stack spacing={1.5} sx={{ minWidth: 0 }}>{scoreCard}{socialCard}{aiCard}</Stack>
           <Stack spacing={1.5} sx={{ minWidth: 0 }}>{owedCard}{needsCard}<SiteErrors />{linksCard}</Stack>
         </Box>
       ) : (
         // Phone: one column, what needs you first.
-        <Stack spacing={1.5}>{needsCard}{owedCard}{scoreCard}{aiCard}<SiteErrors />{linksCard}</Stack>
+        <Stack spacing={1.5}>{needsCard}{owedCard}{scoreCard}{socialCard}{aiCard}<SiteErrors />{linksCard}</Stack>
       )}
     </Box>
   );

@@ -90,6 +90,8 @@ export interface SocialPost {
   text: string;
   /** The AI's post ideas (Phase 4); null before the first ask. */
   ideas: SocialIdeas | null;
+  /** Numbers due on a posted post: 1 (after a day) and / or 7 (after a week). */
+  numbers_due: Array<1 | 7>;
   photos?: SocialPhoto[];
 }
 
@@ -150,6 +152,7 @@ export interface SocialWeek {
 
 export interface SocialPostDetail extends SocialPost {
   photos: SocialPhoto[];
+  numbers: PostNumbers;
   /** Thumbnails of the photos the ideas pick, by photo id. */
   idea_photos: Record<string, string | null>;
   brand: SocialBrand;
@@ -219,6 +222,121 @@ export const applySocialIdea = (id: number, index: number) =>
 /** A fast rewrite: 3 options for the hook or the words (nothing is saved). */
 export const rewriteSocialPost = (id: number, part: RewritePart, mode: RewriteMode, current: string) =>
   api.post<{ options: string[] }>(`/marketing/posts/${id}/rewrite/`, { part, mode, current }).then((r) => r.data.options);
+
+/** A post's numbers from the channel's insights (Phase 5). */
+export const NUMBER_FIELDS = ['reach', 'reactions', 'comments', 'shares', 'messages', 'link_clicks'] as const;
+export type NumberField = typeof NUMBER_FIELDS[number];
+export const NUMBER_LABELS: Record<NumberField, string> = {
+  reach: 'Reach',
+  reactions: 'Reactions',
+  comments: 'Comments',
+  shares: 'Shares',
+  messages: 'Messages',
+  link_clicks: 'Link clicks',
+};
+
+export type PostNumbersRow = Record<NumberField, number> & {
+  /** Reactions, comments, shares, messages and link clicks added up. */
+  engagement: number;
+  entered_by_name: string;
+  entered_at: string | null;
+};
+
+export interface PostNumbers {
+  day1: PostNumbersRow | null;
+  day7: PostNumbersRow | null;
+  due: Array<1 | 7>;
+}
+
+export const getPostNumbers = (id: number) =>
+  api.get<PostNumbers>(`/marketing/posts/${id}/numbers/`).then((r) => r.data);
+
+export const savePostNumbers = (id: number, mark: 1 | 7, values: Partial<Record<NumberField, number | string>>) =>
+  api.put<PostNumbers>(`/marketing/posts/${id}/numbers/`, { mark, ...values }).then((r) => r.data);
+
+export interface PostHit {
+  id: number;
+  slot_date: string;
+  post_type: SocialPostType;
+  post_type_label: string;
+  category: string;
+  hook: string;
+  posted_url: string;
+  rating: number | null;
+  /** Which numbers these are (7 when typed, else 1); null when none yet. */
+  mark: 1 | 7 | null;
+  reach: number | null;
+  engagement: number | null;
+}
+
+export interface HitGroup {
+  key: string;
+  label: string;
+  posts: number;
+  with_numbers: number;
+  avg_reach: number | null;
+  avg_engagement: number | null;
+}
+
+export interface SalesRead {
+  /** Post days that had a baseline. Percents like "12.5" or null. */
+  post_days: number;
+  ticket_lift: string | null;
+  sales_lift: string | null;
+  baseline_weeks: number;
+  by_type: Array<{ key: SocialPostType; label: string; days: number; ticket_lift: string | null; sales_lift: string | null }>;
+  spotlights: Array<{
+    post_id: number;
+    slot_date: string;
+    category: string;
+    sold_after: number;
+    dollars_after: string;
+    sold_before_avg: number | null;
+    change: string | null;
+    weeks_before: number;
+  }>;
+}
+
+export type SpendKind = 'boost' | 'print' | 'event' | 'other';
+export const SPEND_KIND_LABELS: Record<SpendKind, string> = {
+  boost: 'Boost (paid post)',
+  print: 'Print',
+  event: 'Event',
+  other: 'Other',
+};
+
+export interface SpendRow {
+  id: number;
+  day: string;
+  kind: SpendKind;
+  kind_label: string;
+  amount: string;
+  note: string;
+  post_id: number | null;
+  post_day: string | null;
+  entered_by_name: string;
+}
+
+export interface NumbersPage {
+  today: string;
+  weeks: number;
+  due: Array<{ id: number; slot_date: string; hook: string; post_type_label: string; due: Array<1 | 7> }>;
+  hits: PostHit[];
+  by_type: HitGroup[];
+  by_category: HitGroup[];
+  read: SalesRead;
+  spend: { week: string; month: string; rows: SpendRow[] };
+  /** The owner adds and removes spend. */
+  can_spend: boolean;
+}
+
+export const getNumbersPage = (weeks = 8) =>
+  api.get<NumbersPage>('/marketing/numbers/', { params: { weeks } }).then((r) => r.data);
+
+export const addSpend = (data: { day: string; kind: SpendKind; amount: string; note?: string; post?: number | null }) =>
+  api.post<SpendRow>('/marketing/spend/', data).then((r) => r.data);
+
+export const deleteSpend = (id: number) => api.delete(`/marketing/spend/${id}/`);
 
 export const rateSocialPost = (id: number, rating: number | null) =>
   api.post<SocialPost>(`/marketing/posts/${id}/rating/`, { rating: rating ?? '' }).then((r) => r.data);

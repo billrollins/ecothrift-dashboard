@@ -14,6 +14,7 @@ export function StudioHeader({ title, actions }: { title: string; actions?: Reac
   const { pathname } = useLocation();
   const paths = useStudioPaths();
   const onPhotos = pathname.startsWith(paths.photos);
+  const onNumbers = pathname.startsWith(paths.numbers);
   return (
     <Box
       sx={{
@@ -33,11 +34,14 @@ export function StudioHeader({ title, actions }: { title: string; actions?: Reac
       <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
         {!paths.inApp ? (
           <>
-            <Button size="small" component={RouterLink} to={paths.week} variant={onPhotos ? 'outlined' : 'contained'}>
+            <Button size="small" component={RouterLink} to={paths.week} variant={onPhotos || onNumbers ? 'outlined' : 'contained'}>
               Week
             </Button>
             <Button size="small" component={RouterLink} to={paths.photos} variant={onPhotos ? 'contained' : 'outlined'}>
               Photos
+            </Button>
+            <Button size="small" component={RouterLink} to={paths.numbers} variant={onNumbers ? 'contained' : 'outlined'}>
+              Numbers
             </Button>
             <Button size="small" component={RouterLink} to="/social" title="Open on a phone and add it to the home screen">
               Phone app

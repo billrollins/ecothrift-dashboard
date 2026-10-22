@@ -12,6 +12,7 @@ import {
   Button,
   Card,
   CardActionArea,
+  Chip,
   CircularProgress,
   IconButton,
   Rating,
@@ -102,6 +103,7 @@ function PostCard({
             <Box sx={{ flex: 1 }} />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 1, flexWrap: 'wrap' }}>
               <StatusChip status={post.status} />
+              {post.numbers_due?.length ? <Chip size="small" color="warning" label="Numbers due" /> : null}
               <Typography sx={{ fontSize: 12, color: ccTokens.ink2, fontVariantNumeric: 'tabular-nums' }}>
                 {post.photo_ids.length} photo{post.photo_ids.length === 1 ? '' : 's'} · {passed}/{post.checks.length}
               </Typography>
@@ -204,6 +206,7 @@ export default function SocialStudioPage() {
       <IconButton size="small" aria-label="Last week" onClick={() => data && setStart(data.prev)}><ChevronLeftRounded /></IconButton>
       <Button size="small" onClick={() => setStart(undefined)} disabled={isThisWeek}>This week</Button>
       <IconButton size="small" aria-label="Next week" onClick={() => data && setStart(data.next)}><ChevronRightRounded /></IconButton>
+      {paths.inApp ? <Button size="small" variant="outlined" onClick={() => navigate(paths.numbers)} sx={{ ml: 0.5 }}>Numbers</Button> : null}
     </Box>
   );
 

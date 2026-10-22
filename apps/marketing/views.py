@@ -10,12 +10,13 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsEmployee
+from apps.accounts.permissions import IsEmployee, IsSuperAdmin
 from apps.webstore.services.hours import get_hours_config, is_open_day
 
-from .models import SocialPhoto, SocialPost, SocialPostPhoto
+from .models import MarketingSpend, SocialPhoto, SocialPost, SocialPostPhoto
 from .services import cadence
 from .services.ideas import IdeasError, apply_idea, request_ideas, rewrite
+from .services.numbers import NumbersError, add_spend, insights, numbers_payload, save_numbers, spend_payload
 from .services.photos import PhotoError, replace_image, save_photo
 from .services.tags import lookup
 from .services.posts import (
@@ -239,6 +240,54 @@ def post_rewrite(request, pk):
     except IdeasError as exc:
         return _err(exc.detail, exc.code)
     return Response({'options': options})
+
+
+@api_view(['GET', 'PUT'])
+@permission_classes(STAFF)
+def post_numbers(request, pk):
+    """A posted post's numbers. PUT `mark` (1 or 7) with reach, reactions, comments, shares, messages, link_clicks."""
+    post = _post(pk)
+    if post is None:
+        return _err('Post not found.', 'NOT_FOUND', 404)
+    if request.method == 'PUT':
+        try:
+            save_numbers(post, request.data.get('mark'), request.data, user=request.user)
+        except NumbersError as exc:
+            return _err(exc.detail, exc.code)
+    return Response(numbers_payload(post))
+
+
+@api_view(['GET'])
+@permission_classes(STAFF)
+def numbers_page(request):
+    """The Numbers page: numbers due, hits by post, type and category, the rough read, the spend ledger."""
+    try:
+        weeks = max(1, min(52, int(request.query_params.get('weeks') or 8)))
+    except ValueError:
+        weeks = 8
+    data = insights(weeks=weeks)
+    data['can_spend'] = bool(request.user.is_superuser)
+    return Response(data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def spend_add(request):
+    """The owner adds to the spend ledger: day, kind (boost, print, event, other), amount, note, optional post."""
+    try:
+        row = add_spend(request.data, user=request.user)
+    except NumbersError as exc:
+        return _err(exc.detail, exc.code)
+    return Response(spend_payload(row), status=201)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def spend_delete(request, pk):
+    deleted, _ = MarketingSpend.objects.filter(pk=pk).delete()
+    if not deleted:
+        return _err('That spend is gone.', 'NOT_FOUND', 404)
+    return Response(status=204)
 
 
 @api_view(['POST'])

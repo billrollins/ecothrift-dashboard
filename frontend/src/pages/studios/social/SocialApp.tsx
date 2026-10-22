@@ -6,7 +6,7 @@
  * Every job is a button on the bar at the bottom, so staff flick through: **Post** (today's post), **Photos** (the
  * library: take and file photos all week), **Scan** (scan a tag with the camera, then photograph the item), **Schedule**
  * (the week) and **Me**. Tabs switch in place (the address is replaced, never stacked), so the phone's Back never
- * walks through them. A post opened from the Schedule keeps Schedule lit.
+ * walks through them. A post opened from the Schedule keeps Schedule lit, and so does Numbers (from the Schedule).
  */
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
@@ -21,6 +21,7 @@ import VersionTag from '../../../components/common/VersionTag';
 import { getTodaysPost } from '../../../api/marketing.api';
 import MePage from '../../me/MePage';
 import { canInstall, installAppHead, installPrompt, isStandalone } from '../../thriftplus/scanner/installApp';
+import SocialNumbersPage from './SocialNumbersPage';
 import SocialPhotosPage from './SocialPhotosPage';
 import SocialPostEditorPage from './SocialPostEditorPage';
 import SocialScanPage from './SocialScanPage';
@@ -51,6 +52,7 @@ export const SOCIAL_TABS: Array<{ value: SocialTab; label: string; icon: React.R
 export function socialTabOf(pathname: string): SocialTab {
   const [part, id] = pathname.replace(/^\/social\/?/, '').split('/');
   if (part === 'post') return id ? 'week' : 'post'; // a post opened from the Schedule keeps Schedule lit
+  if (part === 'numbers') return 'week';
   if (part === 'photos' || part === 'scan' || part === 'week' || part === 'me') return part;
   return 'post';
 }
@@ -126,6 +128,7 @@ export default function SocialApp() {
             <Route path="post" element={<TodayPost />} />
             <Route path="post/:id" element={<SocialPostEditorPage />} />
             <Route path="photos" element={<SocialPhotosPage />} />
+            <Route path="numbers" element={<SocialNumbersPage />} />
             <Route path="scan" element={<SocialScanPage />} />
             <Route path="week" element={<SocialStudioPage />} />
             <Route path="me" element={<MePage compact />} />

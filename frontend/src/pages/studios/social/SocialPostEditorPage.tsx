@@ -61,6 +61,7 @@ import SocialPhotoEditor from './SocialPhotoEditor';
 import { formatDay, pageSx, StatusChip, StudioHeader } from './socialParts';
 import { useStudioPaths } from './studioPaths';
 import PostIt from './PostIt';
+import PostNumbersForm from './PostNumbersForm';
 import { PostIdeas, RewriteButtons } from './PostIdeas';
 import { TagPhoto, usePhotoImages } from './TagPhoto';
 
@@ -414,6 +415,13 @@ export default function SocialPostEditorPage({ postId: fixedId }: { postId?: num
                 <Rating value={post.rating} onChange={(_e, value) => rate.mutate(value)} />
               </Box>
             ) : null}
+            <Box sx={{ mt: 1.5 }}>
+              <PostNumbersForm
+                postId={post.id}
+                numbers={post.numbers}
+                onSaved={(numbers) => apply({ numbers, numbers_due: numbers.due })}
+              />
+            </Box>
           </>
         ) : post.status === 'ready' ? (
           <Button fullWidth size="large" variant="contained" onClick={() => { saveText(); setPostIt(true); }}>Post it</Button>

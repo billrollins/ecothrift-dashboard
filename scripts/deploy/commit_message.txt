@@ -1,11 +1,11 @@
-v2.211.0 — Social Studio post ideas and fast AI rewrites
+v2.212.0 — Social Studio post numbers, spend ledger, Owner page Social card
 
-User-facing theme: **Social Studio suggests post ideas from what's in the store (Bill, 2026-10-22).** Initiative: retail_tags_and_social (phase 4).
+User-facing theme: **Social Studio post numbers, a spend ledger, and a Social card on the Owner page (Bill, 2026-10-22).** Initiative: retail_tags_and_social (phase 5).
 
 ### Added
-- **Post ideas:** Social Studio suggests 3 to 5 post ideas a day from what's in the store: new stock with prices, the week's photos, loads coming, sales and the season. Each comes with its photos and a list of what to photograph. Tap Use this idea to fill in the post. The ideas are written each posting morning, so they're waiting in Today's post.
-- **Fast AI buttons** under the hook and the words (New hooks, Shorter, Another take) give 3 options in a few seconds.
-- **Post it on a desk** opens a side drawer: copy the text, then copy, drag or download the photos into Facebook.
-- The AI runs on Gemini 3.8 Flash (about 1.4 cents per day's ideas); it shows under AI spend on the Owner page and can be changed in Settings → AI.
+- **Post numbers:** each posted post takes its Facebook numbers after 1 day and after 7 days (reach, reactions, comments, shares, messages, link clicks); the week shows "Numbers due" until they're typed.
+- **Numbers page** in Social Studio: the best posts, which post types and categories do best, and a rough read on whether post days sell more than the same weekday without a post (with how many days it rests on).
+- **Marketing spend ledger** (boosts, print, events), $0 to start; only the owner adds to it.
+- **Owner page Social card:** this week's posts, reach, engagement, the best post, spend, and the sales read.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
