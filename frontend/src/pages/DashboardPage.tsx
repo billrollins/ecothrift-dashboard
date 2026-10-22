@@ -128,16 +128,13 @@ export default function DashboardPage() {
           hintMobile="One number per department."
         />
         <FocusNumbers focus={metrics.focus} />
-        {user?.is_superuser ? (
-          <>
-            <SectionHeader
-              title="Departments"
-              hintDesktop="Per-department weekly metrics and goals (owner only)."
-              hintMobile="Weekly metrics and goals (owner only)."
-            />
-            <DepartmentMetricCards metrics={metrics.department_metrics} />
-          </>
-        ) : null}
+        {/* Everyone sees the department goals (owner 2026-10-22: "staff can't see department goals any more"). */}
+        <SectionHeader
+          title="Departments"
+          hintDesktop="Per-department weekly metrics and goals."
+          hintMobile="Weekly metrics and goals."
+        />
+        <DepartmentMetricCards metrics={metrics.department_metrics} />
       </Box>
     </Box>
     </FloorPage>

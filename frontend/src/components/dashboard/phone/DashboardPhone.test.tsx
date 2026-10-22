@@ -162,16 +162,16 @@ describe('DashboardPhone', () => {
     expect(screen.getByText('Thrift+ revenue $17.50')).toBeInTheDocument();
     expect(screen.getByText('This week')).toBeInTheDocument();
     expect(screen.getByText('Past weeks')).toBeInTheDocument();
-    expect(screen.getByText('Buying')).toBeInTheDocument();
-    expect(screen.getByText('Processing')).toBeInTheDocument();
-    expect(screen.getByText('Restoration')).toBeInTheDocument();
-    expect(screen.getByText('Retail')).toBeInTheDocument();
+    expect(screen.getAllByText('Buying').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Processing').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Restoration').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Retail').length).toBeGreaterThan(0);
     expect(screen.getByText('1,240')).toBeInTheDocument();
     expect(screen.getByText('1,100 same day last week')).toBeInTheDocument();
     expect(screen.getByText('46.5%')).toBeInTheDocument();
     expect(screen.getByText('target 40-50%')).toBeInTheDocument();
-    // Staff do not see the owner's weekly department cards.
-    expect(screen.queryByRole('button', { name: 'Actual B' })).not.toBeInTheDocument();
+    // Staff see the weekly department cards and goals too (owner 2026-10-22).
+    expect(screen.getByRole('button', { name: 'Actual B' })).toBeInTheDocument();
   });
 
   it('shows the owner the weekly department cards too, with the Retail Actual letter a button', () => {

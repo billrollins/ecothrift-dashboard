@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.210.0] -->
-<!-- Last reviewed: 2026-10-22 (2.210.0) -->
+<!-- Line 1 release: ## [2.210.1] -->
+<!-- Last reviewed: 2026-10-22 (2.210.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.210.1] - 2026-10-22
+
+User-facing theme: **Staff see the department goals on the Dashboard again (Bill, 2026-10-22).** Outside initiatives.
+
+### Fixed
+- **Dashboard:** the weekly department cards and goals show for everyone again (v2.200.0 had made them owner-only), under Today's focus.
 
 ## [2.210.0] - 2026-10-22
 

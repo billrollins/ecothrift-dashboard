@@ -1,14 +1,8 @@
-v2.210.0 — Social Studio phone app: tag scans and photo tags
+v2.210.1 — Staff see the department goals on the Dashboard again
 
-User-facing theme: **Social Studio becomes a phone app with tag scans and photo tags (Bill, 2026-10-22).** Initiative: retail_tags_and_social (phase 3).
+User-facing theme: **Staff see the department goals on the Dashboard again (Bill, 2026-10-22).** Outside initiatives.
 
-### Added
-- **Social Studio phone app:** open dash.ecothrift.us/social and add it to the home screen. The buttons at the bottom are Post, Photos, Scan, Schedule and Me.
-- **Scan a tag** with the camera, take photos of the item, and each photo carries its tag: price, retail (only when it passed the retail check), Thrift+ 3-day returns or AS IS, and today's ThriftBucks for Thrift+ members.
-- **Edit any photo:** crop, turn, brighten, and move or hide its tag.
-
-### Changed
-- **The fixed post frames are gone;** each photo goes out on its own (this also removes the old frame line that said members "earn" ThriftBucks).
-- **Thrift+ Member app:** an item shows its retail only when the tag may print it (it passed the retail check), so the app and the tag always agree.
+### Fixed
+- **Dashboard:** the weekly department cards and goals show for everyone again (v2.200.0 had made them owner-only), under Today's focus.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

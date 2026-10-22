@@ -49,15 +49,12 @@ export function DashboardPhone({ metrics }: { metrics: DashboardMetrics }) {
         hintMobile="One number per department."
       />
       <FocusNumbers focus={metrics.focus} />
-      {user?.is_superuser ? (
-        <>
-          <SectionHeader
-            title="Departments"
-            hintMobile="Weekly metrics and goals (owner only)."
-          />
-          <DepartmentMetricCards metrics={metrics.department_metrics} />
-        </>
-      ) : null}
+      {/* Everyone sees the department goals (owner 2026-10-22). */}
+      <SectionHeader
+        title="Departments"
+        hintMobile="Weekly metrics and goals."
+      />
+      <DepartmentMetricCards metrics={metrics.department_metrics} />
     </Box>
   );
 }
