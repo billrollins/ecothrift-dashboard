@@ -550,9 +550,11 @@ def label_for(item: Item | None) -> dict | None:
     """What the print server needs to print this item's price tag."""
     if item is None:
         return None
+    from apps.inventory.services.tag_retail import tag_retail_text
+
     p = item.product
     brand = (p.brand or '').strip()
-    return {
+    label = {
         'qr_data': item.sku,
         'text': f'${item.price:.2f}',
         'product_title': p.title,
@@ -560,17 +562,32 @@ def label_for(item: Item | None) -> dict | None:
         'product_model': (p.product_number or '').strip(),
         'include_text': True,
     }
+    retail_text = tag_retail_text(item)
+    if retail_text:
+        label['retail_text'] = retail_text
+    return label
 
 
 def issue_payload(issue: Issue) -> dict:
     kinds = dict(Issue.KIND_CHOICES)
+    # A bad tag found outside a count has no count and no run (BadTag.issue).
+    bad = getattr(issue, 'bad_tag', None) if issue.count_id is None else None
+    if bad is not None:
+        from .bad_tags import bad_tag_payload
+
+        bad_payload = bad_tag_payload(bad)
+        section = f'Bad tag · {bad.get_found_where_display()}'
+    else:
+        bad_payload = None
+        section = issue.run.section.name if issue.run_id else ''
     return {
         'id': issue.pk,
         'count_id': issue.count_id,
-        'day': issue.count.day,
+        'day': issue.count.day if issue.count_id else None,
         'run_id': issue.run_id,
-        'run_bad': issue.run.status == Run.STATUS_BAD,
-        'section': issue.run.section.name,
+        'run_bad': bool(issue.run_id and issue.run.status == Run.STATUS_BAD),
+        'section': section,
+        'bad_tag': bad_payload,
         'scan_id': issue.scan_id,
         'code': issue.code,
         'kind': issue.kind,
@@ -594,6 +611,8 @@ def issue_payload(issue: Issue) -> dict:
 def issues_qs():
     return Issue.objects.select_related(
         'count', 'run__section', 'cart', 'target_section', 'created_by', 'fixed_by', 'item__product', 'new_item__product',
+        'bad_tag__found_by', 'bad_tag__checked_in_by', 'bad_tag__purchase_order', 'bad_tag__manifest_row',
+        'bad_tag__pallet', 'bad_tag__item__product',
     ).defer(*[f'count__{f}' for f in InventoryCount.HEAVY_FIELDS])
 
 

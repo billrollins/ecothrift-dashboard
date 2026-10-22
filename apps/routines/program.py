@@ -139,6 +139,10 @@ PROGRAM_TITLES = {
         'Register activity',
         'Log a shelf check or a non-shelf check, then carry on.',
     ),
+    'retail.fresh_tags': (
+        'Fresh-tag check',
+        'Ten items tagged on the last processing day: find each one and check its tag.',
+    ),
 }
 
 PROGRAM_TIMES = {
@@ -166,6 +170,7 @@ PROGRAM_EXPIRE = {
     'retail.owner_spot': dict(_END_OF_DAY),
     'retail.section_audit': dict(_END_OF_DAY),
     'retail.section_tally': dict(_END_OF_DAY),
+    'retail.fresh_tags': dict(_END_OF_DAY),
     'retail.work_cycle': {
         'expire_rule': 'never',
         'expire_count': 1,
@@ -191,6 +196,10 @@ PROGRAM_AUDIENCE = {
     'retail.day': {**_SHIFT_SHARED, 'assigned_shifts': ['retail_day']},
     'retail.close': {**_SHIFT_SHARED, 'assigned_shifts': ['retail_close']},
     'retail.work_cycle': {
+        **_SHIFT_SHARED,
+        'assigned_shifts': ['retail_open', 'retail_day', 'retail_close', 'retail_cs'],
+    },
+    'retail.fresh_tags': {
         **_SHIFT_SHARED,
         'assigned_shifts': ['retail_open', 'retail_day', 'retail_close', 'retail_cs'],
     },

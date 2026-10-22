@@ -99,6 +99,7 @@ import {
 } from '../../utils/thriftPlusRegister';
 import { TrainingBanner, TrainingPaymentDialog } from '../../components/pos/TrainingRegister';
 import { WorkCyclePill } from '../../components/routines/WorkCyclePill';
+import BadTagButton from '../../components/badTags/BadTagButton';
 import { WorkCyclePromptDialog } from './WorkCyclePromptDialog';
 import { writeLastActivity } from './idlePrompt';
 import { useDeviceConfig } from '../../hooks/useDeviceConfig';
@@ -1809,6 +1810,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
                     <Typography variant="h6">Cart</Typography>
                     <WorkCyclePill />
+                    <BadTagButton where="register" compact lang={user?.language} />
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     {thriftLive && (
@@ -2231,7 +2233,8 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                 <Box
                   sx={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                    // Five tiles in rows of three; four (no line sale) in two rows of two, so none sits alone.
+                    gridTemplateColumns: saleMode?.line_sale?.on ? 'repeat(3, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))',
                     gap: 1,
                   }}
                 >

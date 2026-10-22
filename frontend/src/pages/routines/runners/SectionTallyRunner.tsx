@@ -67,6 +67,7 @@ export function SectionTallyRunner({
               taxonomy={taxonomy}
               readOnly={readOnly}
               action={reroll}
+              badTagWhere="section_check"
               onCount={(key, value) => patch(index, {
                 counts: { ...row.counts, [key]: Math.max(value, 0) },
               })}

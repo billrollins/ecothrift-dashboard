@@ -61,6 +61,7 @@ import { ProcessingPalletsDialog } from './ProcessingPalletsDialog';
 import { truckPalletsKey, useTruckPallets } from '../../../hooks/useTruckPallets';
 import { TarsQuickGradeDialog } from '../../restoration/tars/TarsQuickGradeDialog';
 import { printProcessingLabelsAndMarkPrinted } from './printProcessingLabel';
+import { useRetailCheckPrompt, withRetailCheck } from './RetailCheckDialog';
 import { queueTitleText } from './processingQueueCellText';
 import {
   readProcessingWorkspaceSession,
@@ -289,6 +290,7 @@ export default function ProcessingWorkspacePage() {
 
   const safeOrderId = orderId ?? 0;
   const rowCheckIn = useProcessingRowCheckIn(safeOrderId);
+  const retailCheck = useRetailCheckPrompt();
   const checkInTogether = useProcessingCheckInTogether(safeOrderId);
   const collapseRows = useProcessingCollapseRows(safeOrderId);
   const uncollapseRows = useProcessingUncollapseRows(safeOrderId);
@@ -538,10 +540,13 @@ export default function ProcessingWorkspacePage() {
       if (!selectedRow || orderId == null) return false;
       const shouldPrint = options?.printLabels !== false;
       try {
-        const data = await rowCheckIn.mutateAsync({
-          ...payload,
-          processing_row_id: selectedRow.processing_row_id,
-        });
+        // A retail that looks wrong is answered before the tag prints (retail_tags_and_social Phase 1).
+        const data = await withRetailCheck(
+          { ...payload, processing_row_id: selectedRow.processing_row_id },
+          (body) => rowCheckIn.mutateAsync(body),
+          retailCheck.ask,
+        );
+        if (!data) return false;
         const labelItems = printedPreviewToLabelInputs(data.printed_items_preview ?? []);
         recordSessionCheckIns(data.created_count);
         rememberRecentRow(selectedRow);
@@ -576,7 +581,7 @@ export default function ProcessingWorkspacePage() {
         return false;
       }
     },
-    [selectedRow, orderId, rowCheckIn, enqueueSnackbar, bumpSearchFocus, recordSessionCheckIns, rememberRecentRow, queryClient, navigate],
+    [selectedRow, orderId, rowCheckIn, retailCheck.ask, enqueueSnackbar, bumpSearchFocus, recordSessionCheckIns, rememberRecentRow, queryClient, navigate],
   );
 
   const selectedQueueRows = useMemo(
@@ -671,7 +676,8 @@ export default function ProcessingWorkspacePage() {
       if (orderId == null) return false;
       const shouldPrint = options?.printLabels !== false;
       try {
-        const data = await checkInTogether.mutateAsync(payload);
+        const data = await withRetailCheck(payload, (body) => checkInTogether.mutateAsync(body), retailCheck.ask);
+        if (!data) return false;
         const labelItems = printedPreviewToLabelInputs(data.printed_items_preview ?? []);
         recordSessionCheckIns(data.created_count);
         clearRowSelection();
@@ -705,7 +711,7 @@ export default function ProcessingWorkspacePage() {
         return false;
       }
     },
-    [orderId, checkInTogether, enqueueSnackbar, bumpSearchFocus, clearRowSelection, recordSessionCheckIns, queryClient, detailProcessingRowId],
+    [orderId, checkInTogether, retailCheck.ask, enqueueSnackbar, bumpSearchFocus, clearRowSelection, recordSessionCheckIns, queryClient, detailProcessingRowId],
   );
 
   const handleReprintProcessingItems = useCallback(
@@ -718,6 +724,7 @@ export default function ProcessingWorkspacePage() {
         product_title: item.product_title || selectedRow?.title || item.sku,
         product_brand: item.product_brand || selectedRow?.brand || undefined,
         product_number: item.product_number ?? undefined,
+        tag_retail: item.tag_retail ?? undefined,
       }));
       const result = await printProcessingLabelsAndMarkPrinted(labelItems);
       if (result.failed > 0) {
@@ -1213,6 +1220,7 @@ export default function ProcessingWorkspacePage() {
         onClose={() => setQuickGradeJobId(null)}
       />
       {ConfirmDialogHost}
+      {retailCheck.dialog}
       <RequestsDrawerHost defaultArea="processing" />
     </Box>
   );

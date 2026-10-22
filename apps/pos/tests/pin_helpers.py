@@ -9,7 +9,7 @@ PIN = '4826'
 
 
 def manager_ok(email='pin-manager@example.com', pin=PIN, reason='Customer changed their mind'):
-    """(manager, body fields) — the fields a register sends with a manager's OK. Clears PIN lockouts first."""
+    """(manager, body fields): the fields a register sends with a manager's OK. Clears PIN lockouts first."""
     cache.clear()
     manager = User.objects.filter(email=email).first()
     if manager is None:

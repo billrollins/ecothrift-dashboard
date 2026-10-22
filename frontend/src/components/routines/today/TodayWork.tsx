@@ -3,6 +3,7 @@ import { t } from '../../../i18n/routines';
 import type { MyWork } from '../../../pages/routines/myWork';
 import { dutyColors } from '../../duty/tokens';
 import { MyWorkList } from '../MyWorkList';
+import BadTagButton from '../../badTags/BadTagButton';
 import { glanceHref } from './useTodayModel';
 
 /**
@@ -47,6 +48,9 @@ export function TodayWork({
         onOpenDraft={(draft) => onOpen(draft.href)}
         onStartAnytime={(routine) => onOpen(`/routines/run/new?routine=${routine.id}`)}
       />
+      {clockedIn ? (
+        <BadTagButton where="today" lang={lang} sx={{ mx: 1.5, mt: 1, borderRadius: '10px', fontWeight: 700 }} />
+      ) : null}
     </Box>
   );
 }

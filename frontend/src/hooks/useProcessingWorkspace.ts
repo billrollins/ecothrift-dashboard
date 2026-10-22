@@ -174,6 +174,7 @@ export function printedPreviewToLabelInputs(rows: PrintedItemPreview[]) {
     product_title: p.title,
     product_brand: p.brand || undefined,
     product_number: p.product_number ?? undefined,
+    tag_retail: p.tag_retail ?? undefined,
   }));
 }
 

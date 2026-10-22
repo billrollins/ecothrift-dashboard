@@ -52,7 +52,7 @@ class DisputeBase(TestCase):
             f'/api/inventory/orders/{self.order.id}/processing-row-check-in/',
             {
                 'processing_row_id': pr.id, 'quantity': qty, 'condition': condition, 'dispatch': 'on_shelf',
-                'price': '5.00', 'product_mode': 'new', 'title': pr.title,
+                'price': '5.00', 'product_mode': 'new', 'title': pr.title, 'retail_check': 'confirm',
             },
             format='json',
         )

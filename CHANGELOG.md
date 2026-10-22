@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.206.0] -->
-<!-- Last reviewed: 2026-10-21 (2.206.0) -->
+<!-- Line 1 release: ## [2.207.0] -->
+<!-- Last reviewed: 2026-10-21 (2.207.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.207.0] - 2026-10-21
+
+User-facing theme: **Honest retail on tags, a Social Studio for a post a day, and a wider tax screen (Bill, 2026-10-21).** Initiative: retail_tags_and_social (phases 1 and 2).
+
+### Added
+- **Retail check at check-in:** check-in stops on a retail that looks wrong (over 6× the tag, over 2× what that product usually carries, or a guessed retail) and asks: it's right, fix it, or no retail on the tag.
+- **Retail on tags** prints only when the retail passed that check (Settings → Inventory). Registers need the next print server to show it.
+- **Bad tags:** report one from Today, from section checks and cross-checks, or at the register: scan it, pick why, add a photo if you like. It lands on PR Fix-it with who checked it in, the truck, the manifest row and the pallet. New Inventory → Tag errors page; Retail QA shows the week's tag errors by processor and by truck.
+- **Fresh-tag check** (new daily Retail routine): 10 items from the last processing day; misses go to PR Fix-it and count in Retail QA's Do score.
+- **Studios → Social Studio:** a post a day Tue-Sat, each with a type and a category from what's on the floor; a photo library (shoot on the floor, build the post later); branded frames with photo spots and a checklist of what's missing; one tap copies the text and saves the pictures, and pasting the Facebook link marks it posted. New "Today's post" Retail routine, due 11:30.
+
+### Changed
+- **Sales tax screen** uses the full width on a computer (two columns) and shows each day as a card on a phone.
+- **Register:** with the line sale off, the four tiles sit in two even rows.
 
 ## [2.206.0] - 2026-10-21
 

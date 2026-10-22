@@ -3,6 +3,7 @@ import type {
   AnyRoutineResponses,
   AuditTaxonomy,
   BstockPullResponses,
+  FreshTagsResponses,
   NonShelfCheck,
   OwnerSpotResponses,
   RoutineKind,
@@ -10,15 +11,18 @@ import type {
   RoutineResponses,
   SectionAuditResponses,
   SectionTallyResponses,
+  SocialPostResponses,
   VerifyContext,
   WorkCycleResponses,
 } from '../../../api/routines.api';
 import { RoutineRunner } from '../RoutineRunner';
 import { BstockPullRunner } from './BstockPullRunner';
+import { FreshTagsRunner } from './FreshTagsRunner';
 import { resolveRunnerKind } from './runnerStatus';
 import { OwnerSpotRunner } from './OwnerSpotRunner';
 import { SectionAuditRunner } from './SectionAuditRunner';
 import { SectionTallyRunner } from './SectionTallyRunner';
+import { SocialPostRunner } from './SocialPostRunner';
 import type { WalkAction } from './SectionWalkFields';
 import { WorkCycleRunner } from './WorkCycleRunner';
 
@@ -82,6 +86,29 @@ export function KindRunner({
         title={title}
         subject={subject}
         responses={responses as BstockPullResponses}
+        readOnly={readOnly}
+        preview={preview}
+        onChange={onChange}
+      />
+    );
+  }
+  if (resolved === 'fresh_tags') {
+    return (
+      <FreshTagsRunner
+        title={title}
+        subject={subject}
+        responses={responses as FreshTagsResponses}
+        readOnly={readOnly}
+        onChange={onChange}
+      />
+    );
+  }
+  if (resolved === 'social_post') {
+    return (
+      <SocialPostRunner
+        title={title}
+        subject={subject}
+        responses={responses as SocialPostResponses}
         readOnly={readOnly}
         preview={preview}
         onChange={onChange}

@@ -83,6 +83,13 @@ export const PROBLEM_RULES: Record<IssueKind, ProblemRule> = {
     answers: [{ action: 'relocate', label: 'Put in relocate cart' }, LEAVE],
     pickSection: true,
   },
+  // Reported from a bad-tag scan (Today, section walks, register), never from a count.
+  retail_high: {
+    title: 'Retail overstated',
+    help: 'The retail on the tag is higher than the item is worth new.',
+    answers: [PR, LEAVE],
+    ask: 'What retail is right? (optional)',
+  },
 };
 
 /** Problems a person can report on an item that scanned fine. */

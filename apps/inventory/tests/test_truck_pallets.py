@@ -60,6 +60,8 @@ class TruckPalletBase(TestCase):
             {
                 'processing_row_id': row.id, 'quantity': qty, 'condition': 'good',
                 'dispatch': 'on_shelf', 'price': '3.00', 'product_mode': 'new', 'title': row.title,
+                # $50 retail on a $3 tag trips the retail check; these tests are about pallets.
+                'retail_check': 'confirm',
             },
             format='json',
         )

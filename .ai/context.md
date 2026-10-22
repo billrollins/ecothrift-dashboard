@@ -117,6 +117,7 @@ Load on demand. Do not read them all at session start. When you add, rename or r
 | [`thrift-plus-limited-warranty.md`](extended/thrift-plus-limited-warranty.md) | Member returns, Poster C, AS IS signs, receipt warranty lines, the terms (the Limited Warranty text to use) |
 | [`thrift-plus-legal-memo.md`](extended/thrift-plus-legal-memo.md) | Thrift+ and IDs, photos, privacy, 18+ items, returns, store credit, sales tax, advertising (AI research for the attorney, with a design-impact digest) |
 | [`known-issues.md`](extended/known-issues.md) | Known issues and live gaps (check before a ship) |
+| [`marketing.md`](extended/marketing.md) | Social Studio: the photo library, the week's posts and category rotation, the Always-include check, Post it, the Today's post routine |
 | [`pos-system.md`](extended/pos-system.md) | Registers, drawers, carts, terminal, receipts |
 | [`print-server.md`](extended/print-server.md) | Local FastAPI: labels, receipts, drawer kick |
 | [`inventory-search.md`](extended/inventory-search.md) | Inventory search, the product / check-in / item modals, when to use a modal, page, tabs or drawer |

@@ -538,6 +538,14 @@ def generate_label(
     title_sub = _font_regular(max(8, int(TEXT_TITLE_SUB * fs)))
     meta_font = _font_regular(max(8, int(TEXT_META * fs)))
 
+    # Retail line (Dash 2026-10-21): one line right above the logo band; the title and brand stop above it.
+    retail_text = (req.retail_text or "").strip()[:24]
+    if retail_text and text_max_w > 10:
+        retail_h = draw.textbbox((0, 0), retail_text, font=meta_font)[3]
+        retail_y = text_bottom - retail_h - max(1, _sy(2, h_px))
+        draw.text((x_text, retail_y), retail_text, font=meta_font, fill=ink)
+        text_bottom = retail_y - max(1, _sy(1, h_px))
+
     y_t = max(1, _sy(1, h_px))
     title_text = _first_words((req.product_title or "").strip(), TITLE_MAX_WORDS)
     brand_text = _first_words((req.product_brand or "").strip(), BRAND_MAX_WORDS)

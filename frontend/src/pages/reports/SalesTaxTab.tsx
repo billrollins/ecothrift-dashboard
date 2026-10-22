@@ -151,7 +151,7 @@ function CopyRow({ label, value, strong, note }: { label: string; value: string;
       <TableCell align="right" sx={{ fontWeight: strong ? 800 : 600, fontSize: strong ? 18 : 15, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
         {formatCurrency(value)}
       </TableCell>
-      <TableCell sx={{ width: 44, p: 0.5 }}>
+      <TableCell className="copy-cell" sx={{ width: 44, p: 0.5 }}>
         <Tooltip title={copied ? 'Copied' : 'Copy the number'}>
           <IconButton
             size="small"
@@ -193,7 +193,7 @@ export default function SalesTaxTab() {
   };
 
   return (
-    <Box sx={{ maxWidth: 900 }}>
+    <Box sx={{ maxWidth: 1280, '& .MuiTableCell-root:not(.copy-cell)': { px: { xs: 1, sm: 2 } } }}>
       <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
         <ToggleButtonGroup size="small" exclusive value={span} onChange={(_e, v: Span | null) => {
           if (!v) return;
@@ -204,7 +204,7 @@ export default function SalesTaxTab() {
           <ToggleButton value="quarter" sx={{ textTransform: 'none' }}>Quarter</ToggleButton>
           <ToggleButton value="year" sx={{ textTransform: 'none' }}>Year</ToggleButton>
         </ToggleButtonGroup>
-        <TextField select size="small" label="Period" value={period.key} onChange={(e) => setKey(e.target.value)} sx={{ minWidth: 240 }}
+        <TextField select size="small" label="Period" value={period.key} onChange={(e) => setKey(e.target.value)} sx={{ minWidth: { xs: 0, sm: 240 }, flex: { xs: '1 1 100%', sm: '0 0 auto' } }}
           inputProps={{ 'data-testid': 'sales-tax-period' }}>
           {list.map((p) => <MenuItem key={p.key} value={p.key}>{p.label}</MenuItem>)}
         </TextField>
@@ -224,7 +224,10 @@ export default function SalesTaxTab() {
             register (online holds are paid there). Store days, Central time.
           </Typography>
 
-          <Paper variant="outlined" sx={{ p: 1.5 }} data-testid="for-the-return">
+          {/* Desktop (lg+): the return's numbers on the left, what makes them up on the right; each day below. */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'minmax(0, 7fr) minmax(0, 5fr)' }, gap: 2, alignItems: 'start' }}>
+          <Stack spacing={2} sx={{ minWidth: 0 }}>
+          <Paper variant="outlined" sx={{ p: { xs: 1, sm: 1.5 } }} data-testid="for-the-return">
             <Typography sx={{ fontWeight: 800, mb: 0.5 }}>For the return</Typography>
             <Table size="small">
               <TableBody>
@@ -278,9 +281,10 @@ export default function SalesTaxTab() {
               If one was voided after you filed, that period&apos;s return changes.
             </Alert>
           ) : null}
+          </Stack>
 
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-            <Paper variant="outlined" sx={{ p: 1.5, flex: 1 }}>
+          <Stack direction={{ xs: 'column', md: 'row', lg: 'column' }} spacing={2} sx={{ minWidth: 0 }}>
+            <Paper variant="outlined" sx={{ p: { xs: 1, sm: 1.5 }, flex: 1 }}>
               <Typography sx={{ fontWeight: 800, mb: 0.5 }}>What makes up taxable sales</Typography>
               <Table size="small">
                 <TableBody>
@@ -303,7 +307,7 @@ export default function SalesTaxTab() {
                 </TableBody>
               </Table>
             </Paper>
-            <Paper variant="outlined" sx={{ p: 1.5, flex: 1 }}>
+            <Paper variant="outlined" sx={{ p: { xs: 1, sm: 1.5 }, flex: 1 }}>
               <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Not sales</Typography>
               <Table size="small">
                 <TableBody>
@@ -338,10 +342,32 @@ export default function SalesTaxTab() {
               </Table>
             </Paper>
           </Stack>
+          </Box>
 
-          <Paper variant="outlined" sx={{ p: 1.5 }}>
+          <Paper variant="outlined" sx={{ p: { xs: 1, sm: 1.5 } }}>
             <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Each day</Typography>
-            <Box sx={{ overflowX: 'auto', maxHeight: 420 }}>
+            {/* Phone: one card per day instead of a five-column table that scrolls sideways. */}
+            <Stack divider={<Box sx={{ borderTop: 1, borderColor: 'divider' }} />} sx={{ display: { xs: 'flex', sm: 'none' } }} data-testid="tax-days-cards">
+              {dayRows(data).map((d) => (
+                <Stack key={d.day} direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1} sx={{ py: 1 }}>
+                  <Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{format(parseISO(d.day), 'EEE MMM d')}</Typography>
+                    <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                      {formatNumber(d.count)} {d.count === 1 ? 'sale' : 'sales'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    <Typography sx={{ fontSize: 15 }}>{formatCurrency(d.taxable)} taxable</Typography>
+                    <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{formatCurrency(d.tax)} tax</Typography>
+                    {Number.parseFloat(d.taxBack) ? (
+                      <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{formatCurrency(d.taxBack)} tax refunded</Typography>
+                    ) : null}
+                  </Box>
+                </Stack>
+              ))}
+              {dayRows(data).length === 0 ? <Typography sx={{ color: 'text.secondary', py: 1 }}>No sales in this period.</Typography> : null}
+            </Stack>
+            <Box sx={{ overflowX: 'auto', maxHeight: 420, display: { xs: 'none', sm: 'block' } }}>
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>

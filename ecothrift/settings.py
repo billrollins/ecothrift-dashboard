@@ -123,6 +123,7 @@ INSTALLED_APPS = [
     'apps.stocktake',
     'apps.hiring',
     'apps.texting',
+    'apps.marketing',
 ]
 
 MIDDLEWARE = [

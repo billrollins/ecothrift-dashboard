@@ -525,6 +525,20 @@ def _check_in_processing_row(
         item_retail = retail
     else:
         item_retail = scale_row_amount_for_product_link(effective_row_unit_retail(row), product.id, row)
+    # Retail check before the tag prints (retail_tags_and_social Phase 1): a flagged retail needs an answer.
+    from apps.inventory.services import tag_retail
+
+    manifest_unit = row.manifest_row.unit_retail if row.manifest_row_id and row.manifest_row else None
+    manifest_retail = scale_row_amount_for_product_link(manifest_unit, product.id, row)
+    default_retail = scale_row_amount_for_product_link(effective_row_unit_retail(row), product.id, row)
+    retail_found = tag_retail.assess(
+        product.id, item_retail, item_price, manifest_retail=manifest_retail,
+        # An added (unmanifested) row's retail was typed by the person who added it.
+        typed=is_added_row or (retail is not None and retail != default_retail),
+    )
+    retail_check = tag_retail.resolve(
+        retail_found, str(data.get('retail_check') or ''), retail=item_retail, price=item_price,
+    )
     now = timezone.now()
     unit_cost = order.compute_item_cost(item_retail)
     manifest_row = row.manifest_row if not is_added_row else None
@@ -537,6 +551,7 @@ def _check_in_processing_row(
         'location': location,
         'price': str(item_price) if item_price is not None else None,
         'retail': str(item_retail) if item_retail is not None else None,
+        'retail_check': {'result': retail_check, 'source': retail_found['source'], 'reasons': retail_found['reasons']},
         'notes': notes,
         'specifications': specs or row.specifications or {},
     }
@@ -572,6 +587,8 @@ def _check_in_processing_row(
             pallet=pallet,
             price=item_price,
             retail=item_retail,
+            retail_check=retail_check,
+            retail_source=retail_found['source'],
             cost=unit_cost,
             source='purchased',
             status='on_shelf',

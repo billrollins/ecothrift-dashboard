@@ -290,9 +290,115 @@ def _bstock_pull_job(responses: dict):
     return ManifestPullJob.objects.filter(pk=job_id).first() if job_id else None
 
 
+FRESH_FOUND = ('yes', 'no')
+FRESH_PASS_FAIL = ('pass', 'fail')
+FRESH_RETAIL = ('pass', 'fail', 'na')
+FRESH_PRICE = ('pass', 'high', 'low')
+
+
+def _clean_fresh_tags(raw: Any, run: RoutineRun | None) -> dict:
+    """The drawn items are the run's; only the answers come from the phone.
+
+    Per item: ``found`` yes/no, then ``match`` (the tag is this item) pass/fail, ``retail`` (believable) pass/fail/na,
+    ``price`` (right) pass/high/low, and a ``note``.
+    """
+    raw = raw if isinstance(raw, dict) else {}
+    answered = {
+        int(row['item_id']): row
+        for row in (raw.get('items') or [])
+        if isinstance(row, dict) and str(row.get('item_id') or '').isdigit()
+    }
+    items = []
+    for drawn in ((run.generated or {}).get('items') or []) if run else []:
+        row = answered.get(int(drawn.get('item_id') or 0)) or {}
+
+        def pick(key, allowed):
+            value = str(row.get(key) or '').lower()
+            return value if value in allowed else ''
+
+        items.append({
+            **drawn,
+            'found': pick('found', FRESH_FOUND),
+            'match': pick('match', FRESH_PASS_FAIL),
+            'retail_ok': pick('retail_ok', FRESH_RETAIL),
+            'price_ok': pick('price_ok', FRESH_PRICE),
+            'note': str(row.get('note') or '')[:300],
+        })
+    return {'items': items, 'checked_in_day': (run.generated or {}).get('checked_in_day') if run else None}
+
+
+def fresh_tag_misses(responses: dict) -> list[tuple[dict, str]]:
+    """(item row, bad-tag reason) for every check that failed on a found item."""
+    out = []
+    for row in responses.get('items') or []:
+        if row.get('found') != 'yes':
+            continue
+        if row.get('match') == 'fail':
+            out.append((row, 'wrong_item'))
+        if row.get('retail_ok') == 'fail':
+            out.append((row, 'retail_high'))
+        if row.get('price_ok') == 'high':
+            out.append((row, 'price_high'))
+        if row.get('price_ok') == 'low':
+            out.append((row, 'price_low'))
+    return out
+
+
+def record_fresh_tag_misses(run: RoutineRun | None, responses: dict, user) -> int:
+    """Each miss becomes a bad-tag record (and a PR Fix-it row). Returns how many were recorded."""
+    from apps.stocktake.models import BadTag
+    from apps.stocktake.services import bad_tags
+    from apps.stocktake.services.counting import BadRequest
+
+    made = 0
+    for row, reason in fresh_tag_misses(responses):
+        try:
+            bad_tags.record(
+                user=user, code=str(row.get('sku') or ''), reason=reason, where=BadTag.WHERE_FRESH_TAGS,
+                detail=str(row.get('note') or ''), routine_run=run,
+            )
+            made += 1
+        except BadRequest:
+            continue
+    return made
+
+
+def _clean_social_post(raw: Any) -> dict:
+    """``post_id`` / ``post_status``: the phone's last reading of the day's post. Submit checks the post itself."""
+    raw = raw if isinstance(raw, dict) else {}
+    post_id = raw.get('post_id')
+    status = raw.get('post_status')
+    return {
+        'post_id': post_id if _is_job_id(post_id) else None,
+        'post_status': status if status in ('draft', 'ready', 'posted') else None,
+    }
+
+
+def _social_post_blockers(run) -> list[str]:
+    from datetime import date as date_cls
+
+    from apps.marketing.models import SocialPost
+
+    try:
+        day = date_cls.fromisoformat(run.period_key) if run else None
+    except (TypeError, ValueError):
+        day = None
+    if day is None:
+        return []
+    post = SocialPost.objects.filter(slot_date=day).first()
+    if post is None or post.status == SocialPost.STATUS_POSTED:
+        # No post planned for the day (the cadence changed after the run was made): nothing owed.
+        return []
+    return ["Post today's post in Social Studio, then paste its Facebook link."]
+
+
 def initial_responses(routine: Routine, run: RoutineRun | None, *, mode: str = '') -> dict:
     if routine.kind == Routine.KIND_BSTOCK_PULL:
         return _clean_bstock_pull({})
+    if routine.kind == Routine.KIND_FRESH_TAGS:
+        return _clean_fresh_tags({}, run)
+    if routine.kind == Routine.KIND_SOCIAL_POST:
+        return _clean_social_post({})
     if routine.kind == Routine.KIND_CHECKLIST:
         fresh = build_responses(routine.definition or {})
         if routine.verifies_id:
@@ -344,6 +450,10 @@ def _clean_verify(raw: Any, expected: list[dict]) -> dict:
 def merge_incoming(routine: Routine, run: RoutineRun | None, incoming: Any) -> dict:
     if routine.kind == Routine.KIND_BSTOCK_PULL:
         return _clean_bstock_pull(incoming)
+    if routine.kind == Routine.KIND_FRESH_TAGS:
+        return _clean_fresh_tags(incoming, run)
+    if routine.kind == Routine.KIND_SOCIAL_POST:
+        return _clean_social_post(incoming)
     if routine.kind == Routine.KIND_CHECKLIST:
         merged = normalize_responses(merge_responses(routine.definition, incoming))
         # `merge_responses` rebuilds from the definition, which knows nothing
@@ -402,6 +512,18 @@ def submit_blockers(routine: Routine, responses: dict, *, min_items: int = 0, ru
         if job is None:
             return ["Pull today's manifests first."]
         return [job.error or 'The pull failed. Send your B-Stock login and pull again.']
+    if routine.kind == Routine.KIND_FRESH_TAGS:
+        if run is None:
+            return ['Open this check from Today.']
+        left = 0
+        for row in responses.get('items') or []:
+            if row.get('found') == 'no':
+                continue
+            if row.get('found') != 'yes' or not (row.get('match') and row.get('retail_ok') and row.get('price_ok')):
+                left += 1
+        return [f'Check every item. {left} left.'] if left else []
+    if routine.kind == Routine.KIND_SOCIAL_POST:
+        return _social_post_blockers(run)
     if routine.kind == Routine.KIND_CHECKLIST:
         _failed, _critical, unanswered = score_responses(responses)
         problems = [f'Answer everything to submit. {len(unanswered)} left.'] if unanswered else []
@@ -473,6 +595,10 @@ def outcome(routine: Routine, responses: dict) -> tuple[int, bool]:
     if routine.kind == Routine.KIND_BSTOCK_PULL:
         # Per-auction results live on the job and show in the runner; a manifest B-Stock
         # could not send is not a failed check, so nothing is scored here.
+        return 0, False
+    if routine.kind == Routine.KIND_FRESH_TAGS:
+        return len(fresh_tag_misses(responses)), False
+    if routine.kind == Routine.KIND_SOCIAL_POST:
         return 0, False
     if routine.kind == Routine.KIND_CHECKLIST:
         failed, critical, _unanswered = score_responses(responses)

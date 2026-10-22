@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-08 (Mark done / Forgive on every routine; both score as done) -->
+<!-- Last updated: 2026-10-21 (fresh-tag check; bad-tag scan on section walks; Today's post: kind social_post) -->
 # Routines
 
 Periodic and on-demand fill-in forms. Initiative: [`routines`](../initiatives/_archived/routines.md) (completed).
@@ -29,6 +29,8 @@ Definition controls: `pass_fail`, `pass_fail_strict`, `number` (+ `unit`), `text
 | `owner_spot` | `{ checks: [ drawn pass/fail ], audit: <section_audit> }` | No |
 | `work_cycle` | `{ mode: 'shelf' \| 'non_shelf' \| '', shelf: { section, counts, flags, photo, notes }, non_shelf: { done, notes } }` | No |
 | `bstock_pull` | `{ job_id, job_status, earlier_job_ids, nothing_to_pull }` (superuser only; Submit needs the `ManifestPullJob` done or stopped, or nothing left to pull; outcome is always 0 / no critical) | No |
+| `fresh_tags` | `{ items: [drawn item + found, match, retail_ok, price_ok, note], checked_in_day }` (every item found=no, or found=yes with all three answered; outcome = misses) | No |
+| `social_post` | `{ post_id, post_status }` (Retail Today's post; Submit waits until the day's Social Studio post is Posted, and marking it Posted closes the run by itself; outcome 0 / no critical). Seeded by `0030_social_post_routine`, made only on posting days the store is open. See [`marketing.md`](marketing.md) | No |
 
 The three section kinds keep an empty `definition`; the editor hides the Checklist band and the inspector disables the editor button. `taxonomy.py` is ordered **groups** (facing, flags, just-do, PR cart, RePrep, reshelf, security, TARS), each with a solution and Spanish labels. Graded groups are Facing, Reshelf, RePrep, Security (score is the group sum). Recorded are PR and TARS. Flags stay flags (safety caps at 50). Just-do rows (dirty, trash, hangers) are a reminder and are never stored. `taxonomy()` still sends derived `graded` / `recorded` / `flags` for Command Center.
 
@@ -88,7 +90,13 @@ Lists use `TaskRow`: a 36px status tile on the left (tone + icon, from `presentR
 
 `RoutineSettingsFields.tsx` owns everything about a routine except its checklist: the `RoutineSettings` form shape, `settingsFromRoutine` / `settingsToPayload` / `sameSettings`, `TRIGGER_LABELS`, and the bands. The Schedule band is Repeats, Next due, **Remind at**, **Hard nag at** (a time, or At clock-out), **Counts as late** (After hard nag / End of day / After N grace days) with the grace field in a reserved slot. Both the editor and the inspector render it; add a routine field there once.
 
-Routine Control has two rooms behind one header toggle (`AdminViewToggle`): **Routines** and **Sections**. Sections is a department picker over draggable rows with inline rename and owner select, retire / restore, and a fixed-height Coverage panel naming sections with no owner and people with no section. Week scoring lives on Command Center (`/admin/retail-qa`). Seeded program routines wear a blue `System` tag, cannot be retired or hard-deleted, and only title / intro / icon / schedule / owner are writable.
+Routine Control has two rooms behind one header toggle (`AdminViewToggle`): **Routines** and **Sections**. Sections is a department picker over draggable rows with inline rename and owner select, retire / restore, and a fixed-height Coverage panel naming sections with no owner and people with no section. Week scoring lives on Command Center (`/admin/retail-qa`); its header has a fourth badge, **Tag errors** for the week (opens by processor and by truck). Seeded program routines wear a blue `System` tag, cannot be retired or hard-deleted, and only title / intro / icon / schedule / owner are writable.
+
+## Fresh-tag check and bad tags (retail_tags_and_social Phase 1, 2026-10-21)
+
+**Fresh-tag check** (`retail.fresh_tags`, kind `fresh_tags`, seeded by `routines/0029_fresh_tags_routine`): one shared run on open days for the four retail shifts, remind 11:00, due 15:00, hard 16:00, missed at end of day. At materialize `schedule.draw_fresh_tags` picks `retail_qa.fresh_tag_count` (10) on-shelf items checked in on the last day before today that had check-ins (looks back 14 days), seeded by the day. For each: found it or not, then the tag is this item, the retail is believable, the price is right (too high / too low). On submit every miss becomes a bad tag (`kinds.record_fresh_tag_misses`). It counts in Do like Open/Day/Close on open days from the day it was seeded (`grading.DO_KEYS`, `fresh_tags_expected`); frozen days before that split as before.
+
+**Bad-tag scan.** On a section check or cross-check, the PR-cart rows "Tag incorrect" and "Tag missing" have **Scan the tag (counts +1)**: the tally stays the count, the scan is the record (`stocktake.BadTag`, see `inventory-pipeline.md` → Tag truth). Today has **Report a bad tag**, and the register's cart header a scan icon.
 
 ## Retail QA program
 

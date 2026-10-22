@@ -49,7 +49,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'retailFloor',
     label: 'Inventory',
     itemIds: ['inventoryWorkbench', 'inventoryCount', 'inventories'],
-    guestItemIds: ['prFixit'],
+    guestItemIds: ['prFixit', 'tagErrors'],
   },
   {
     id: 'storeSales',
@@ -77,8 +77,8 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'studios',
     label: 'Studios',
-    roles: ['Manager', 'Admin'],
-    itemIds: ['labelStudio', 'floorplans', 'announcements', 'blogStudio'],
+    // No group gate: Social Studio is for every staff login; each other studio carries its own roles.
+    itemIds: ['socialStudio', 'labelStudio', 'floorplans', 'announcements', 'blogStudio'],
   },
   {
     id: 'people',
@@ -179,7 +179,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'studios',
     label: 'Studios',
     shortLabel: 'Studios',
-    helper: 'Labels, floorplans, announcements, and the blog',
+    helper: 'Social posts, labels, floorplans, announcements, and the blog',
     icon: 'studio',
     shortcutColor: '#C026D3',
     shortcutDigit: 8,

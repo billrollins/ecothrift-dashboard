@@ -99,6 +99,7 @@ DEFAULTS: dict[str, Any] = {
     'section_check_weekdays': SECTION_CHECK_WEEKDAYS,
     'grade_scale': GRADE_SCALE,
     'program_department': 'retail-operations',
+    'fresh_tag_count': 10,
 }
 
 RETIRED_KEYS = (
@@ -146,6 +147,7 @@ SETTING_HELP = {
     'section_check_weekdays': 'Every section gets an owner check on these days, open or closed.',
     'grade_scale': 'Ordered letter floors. F is anything below the last min.',
     'program_department': 'Slug of the department the Retail QA program belongs to.',
+    'fresh_tag_count': 'Items the daily fresh-tag check draws from the last day anything was checked in.',
 }
 
 

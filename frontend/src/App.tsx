@@ -25,6 +25,7 @@ const CountPage = lazy(() => import('./pages/inventory/count/CountPage'));
 const InventoriesPage = lazy(() => import('./pages/inventory/count/InventoriesPage'));
 const InventoryPage = lazy(() => import('./pages/inventory/count/InventoryPage'));
 const PrFixitPage = lazy(() => import('./pages/inventory/count/PrFixitPage'));
+const TagErrorsPage = lazy(() => import('./pages/inventory/tagErrors/TagErrorsPage'));
 const ApplicantsPage = lazy(() => import('./pages/people/ApplicantsPage'));
 const JobsPage = lazy(() => import('./pages/people/JobsPage'));
 const InterviewsPage = lazy(() => import('./pages/people/InterviewsPage'));
@@ -120,6 +121,9 @@ const ListingStudioPage = lazy(() => import('./pages/online-sales/ListingStudioP
 const OnlineSalesHoldsPage = lazy(() => import('./pages/online-sales/OnlineSalesHoldsPage'));
 const OnlineSalesMessagesPage = lazy(() => import('./pages/online-sales/OnlineSalesMessagesPage'));
 const AnnouncementsPage = lazy(() => import('./pages/announcements/AnnouncementsPage'));
+const SocialStudioPage = lazy(() => import('./pages/studios/social/SocialStudioPage'));
+const SocialPhotosPage = lazy(() => import('./pages/studios/social/SocialPhotosPage'));
+const SocialPostEditorPage = lazy(() => import('./pages/studios/social/SocialPostEditorPage'));
 
 function ProtectedRoute({ children, next, version }: { children: React.ReactNode; next?: string; version?: boolean }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -330,6 +334,14 @@ function AppRoutes() {
           element={
             <Suspense fallback={<LoadingScreen message="Loading…" />}>
               <PrFixitPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/inventory/tag-errors"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <TagErrorsPage />
             </Suspense>
           }
         />
@@ -618,6 +630,31 @@ function AppRoutes() {
             <ManagerRoute>
               <SettingsPage />
             </ManagerRoute>
+          }
+        />
+        {/* Social Studio (Lane F Phase 2): every staff login; the rating inside is the owner's. */}
+        <Route
+          path="/studios/social"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <SocialStudioPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/studios/social/photos"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <SocialPhotosPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/studios/social/post/:id"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <SocialPostEditorPage />
+            </Suspense>
           }
         />
         <Route

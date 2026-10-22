@@ -1,0 +1,65 @@
+import type { ReactNode } from 'react';
+import { Box, Button, Chip, Typography } from '@mui/material';
+import { Link as RouterLink, useLocation } from 'react-router-dom';
+import type { SocialPostStatus } from '../../../api/marketing.api';
+import { ccTokens } from '../../../theme';
+
+/** The Studio's one header: eyebrow, page name, the two rooms (Week, Photos), and the page's own actions. */
+export function StudioHeader({ title, actions }: { title: string; actions?: ReactNode }) {
+  const { pathname } = useLocation();
+  const onPhotos = pathname.startsWith('/studios/social/photos');
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 1,
+        mb: 1.5,
+      }}
+    >
+      <Box sx={{ flex: '1 1 auto', minWidth: 0 }}>
+        <Typography sx={{ fontSize: 11.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: ccTokens.ink3 }}>
+          Social Studio
+        </Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2, fontSize: { xs: 20, md: 24 } }}>{title}</Typography>
+      </Box>
+      <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Button size="small" component={RouterLink} to="/studios/social" variant={onPhotos ? 'outlined' : 'contained'}>
+          Week
+        </Button>
+        <Button size="small" component={RouterLink} to="/studios/social/photos" variant={onPhotos ? 'contained' : 'outlined'}>
+          Photos
+        </Button>
+        {actions}
+      </Box>
+    </Box>
+  );
+}
+
+const STATUS_CHIP: Record<SocialPostStatus, { label: string; color: 'default' | 'success' | 'primary' }> = {
+  draft: { label: 'Draft', color: 'default' },
+  ready: { label: 'Ready', color: 'primary' },
+  posted: { label: 'Posted', color: 'success' },
+};
+
+export function StatusChip({ status }: { status: SocialPostStatus }) {
+  const chip = STATUS_CHIP[status];
+  return <Chip size="small" variant={status === 'draft' ? 'outlined' : 'filled'} color={chip.color} label={chip.label} />;
+}
+
+/** Page backdrop: sage desk, no wasted width on a wide screen, 12 px gutters on a phone. */
+export const pageSx = {
+  bgcolor: '#f4f7f5',
+  minHeight: '100%',
+  px: { xs: 1.5, md: 3 },
+  py: { xs: 1.5, md: 2.5 },
+} as const;
+
+export function formatDay(iso: string, style: 'short' | 'long' = 'short'): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const day = new Date(y, m - 1, d);
+  return day.toLocaleDateString('en-US', style === 'long'
+    ? { weekday: 'long', month: 'short', day: 'numeric' }
+    : { weekday: 'short', month: 'numeric', day: 'numeric' });
+}

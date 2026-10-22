@@ -1,5 +1,6 @@
 import type {
   AuditTaxonomy,
+  FreshTagsResponses,
   OwnerSpotResponses,
   SectionAuditResponses,
   SectionTallyResponses,
@@ -114,6 +115,40 @@ export function previewSpot(): OwnerSpotResponses {
       },
     ],
     audit: previewAudit(),
+  };
+}
+
+/** Two made-up items so the catalog demo of the fresh-tag check has something to tap. */
+export function previewFreshTags(): FreshTagsResponses {
+  const blank = { found: '', match: '', retail_ok: '', price_ok: '', note: '' } as const;
+  return {
+    checked_in_day: null,
+    items: [
+      {
+        item_id: 1,
+        sku: 'ITM0000001',
+        title: 'Sample lamp',
+        brand: 'Sample brand',
+        price: '14.00',
+        retail: '49.99',
+        tag_retail: '49.99',
+        location: 'Sample section',
+        checked_in_by: '',
+        ...blank,
+      },
+      {
+        item_id: 2,
+        sku: 'ITM0000002',
+        title: 'Sample blender',
+        brand: '',
+        price: '9.00',
+        retail: null,
+        tag_retail: null,
+        location: '',
+        checked_in_by: '',
+        ...blank,
+      },
+    ],
   };
 }
 

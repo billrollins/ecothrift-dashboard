@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (truck pallets E1; truck finalize E2; B-Stock disputes E2b) -->
+<!-- Last updated: 2026-10-21 (truck pallets E1; truck finalize E2; B-Stock disputes E2b; truck pallets E1; truck finalize E2; tag truth: retail check, bad tags) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -335,6 +335,14 @@ Shipped 2026-06-10 per the Fable verdict in [`preprocessing_ai_cleanup_review`](
 **`POST …/ai-cleanup-rows/`** returns **410 Gone** on staging-active orders (it created Products/Items pre-check-in via `ensure_manifest_products_and_items` and wrote `ManifestRow` listing fields — both forbidden by the product-identity design). Still functional only for legacy non-staging orders; full removal after soak. Frontend `aiCleanupRows`/`useAICleanupRows` deleted 2026-06-10.
 
 ---
+
+## Tag truth (retail_tags_and_social Phase 1, 2026-10-21)
+
+**Retail check at check-in** (`services/tag_retail.py`, in `_check_in_processing_row`, so row and check-in-together both). A retail is flagged when it is over `tags.retail_check_price_multiple` (6) times the tag price, over `tags.retail_check_median_multiple` (2) times the product's usual retail (median of its items, once it has `tags.retail_check_min_items` (3)), or when the manifest has no retail and nobody typed one (an estimate). A flag returns **409** `code: retail_check` with the reasons; the Item Processor asks (It is right / Fix it / No retail on tag) and resends with `retail_check: confirm | fix | none` (fix sends the new `retail`). `Item.retail_check` keeps the result ('' never checked, passed, confirmed, fixed, no_retail, missing) and `Item.retail_source` the source (manifest, typed, estimate); the check-in's `defaults_snapshot.retail_check` keeps the reasons. The retail is never dropped: cost allocation still uses it.
+
+**Retail on the tag** (owner call F1): `tags.retail_on_tag` = `checked` (default: only passed, confirmed or fixed), `always`, or `never`. The server computes `tag_retail` on `ItemSerializer`, workspace items, `printed_items_preview` and PR Fix-it labels (`retail_text`); the label prints "Retail $x" above the logo (print server `retail_text`, older print servers ignore it). A reprint with a new price prints no retail until the server says so. Tags already printed are untouched.
+
+**Bad tags** (`stocktake.BadTag`, `services/bad_tags.py`, `/api/stocktake/bad-tags/`). Reasons: retail overstated, wrong item, price too high, price too low, tag missing or unreadable. Each copies the trace (checked in by, when, PO, manifest row, pallet, what the tag said) and opens an `Issue` with **no count**, so it is on PR Fix-it with every inventory (`Issue.count` / `run` are nullable; kind `retail_high` is new). PR Fix-it shows the trace and photo; a retail-overstated row takes a retail or "No retail on the tag" (`fix: edit` with `retail` / `no_retail`; a typed retail is `fixed`). One open bad tag per item and reason. **Tag errors** page `/inventory/tag-errors` (staff see tags they checked in or found; managers all, with processor and truck filters); Retail QA's Tag errors badge reads `bad-tags/summary/?week=`.
 
 ## Item Model
 

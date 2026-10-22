@@ -824,6 +824,7 @@ class ItemSerializer(serializers.ModelSerializer):
     item_check_in_id = serializers.IntegerField(source='check_in_id', read_only=True, allow_null=True)
     label_printed_at = serializers.DateTimeField(read_only=True, allow_null=True)
     label_printed = serializers.SerializerMethodField()
+    tag_retail = serializers.SerializerMethodField()
 
     class Meta:
         model = Item
@@ -834,7 +835,7 @@ class ItemSerializer(serializers.ModelSerializer):
             'price', 'retail', 'retail_value', 'cost', 'item_check_in_id',
             'source', 'status', 'condition', 'specifications',
             'location', 'listed_at', 'checked_in_at', 'checked_in_by',
-            'label_printed_at', 'label_printed',
+            'label_printed_at', 'label_printed', 'retail_check', 'retail_source', 'tag_retail',
             'sold_at', 'sold_for', 'notes',
             'dispute_type', 'dispute_pct_loss', 'dispute_description',
             'created_at', 'updated_at',
@@ -843,6 +844,8 @@ class ItemSerializer(serializers.ModelSerializer):
             'id',
             'sku',
             'cost',
+            'retail_check',
+            'retail_source',
             'item_check_in_id',
             'listed_at',
             'checked_in_at',
@@ -858,6 +861,12 @@ class ItemSerializer(serializers.ModelSerializer):
 
     def get_label_printed(self, obj):
         return obj.label_printed_at is not None
+
+    def get_tag_retail(self, obj):
+        from apps.inventory.services.tag_retail import tag_retail
+
+        value = tag_retail(obj)
+        return str(value) if value is not None else None
 
     def get_category(self, obj):
         return item_listing_category(obj)

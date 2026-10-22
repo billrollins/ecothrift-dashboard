@@ -18,6 +18,7 @@ import {
   type ShrinkReason,
   type TagLabel,
 } from '../../../api/stocktake.api';
+import { fetchBadTagPhoto, type BadTag } from '../../../api/badTags.api';
 import { localPrintService } from '../../../services/localPrintService';
 import QuickRepricePage from '../QuickRepricePage';
 import { priceFromNote } from './countProblems';
@@ -48,6 +49,7 @@ async function printTag(label: TagLabel | null | undefined): Promise<boolean> {
       product_brand: label.product_brand || undefined,
       product_model: label.product_model || undefined,
       include_text: true,
+      retail_text: label.retail_text || undefined,
     });
     return true;
   } catch {
@@ -192,6 +194,10 @@ function FixCard({ issue, onChanged, focus }: RowProps) {
   const [price, setPrice] = useState(
     ((issue.kind === 'price_high' || issue.kind === 'price_low') && priceFromNote(issue.detail)) || (item ? Number(item.price).toFixed(2) : ''),
   );
+  const retailKind = issue.kind === 'retail_high';
+  const [retail, setRetail] = useState(
+    (retailKind && issue.bad_tag?.right_retail) || (item?.retail ? Number(item.retail).toFixed(2) : ''),
+  );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: 'success' | 'warning' | 'error'; text: string } | null>(null);
   const [label, setLabel] = useState<TagLabel | null>(issue.label ?? null);
@@ -241,10 +247,14 @@ function FixCard({ issue, onChanged, focus }: RowProps) {
     }
   };
 
-  const changed = !!item && (title.trim() !== item.title || (price !== '' && Number(price) !== Number(item.price)));
+  const retailChanged = retailKind && !!item && retail !== '' && Number(retail) !== Number(item.retail ?? 0);
+  const changed =
+    !!item && (title.trim() !== item.title || (price !== '' && Number(price) !== Number(item.price)) || retailChanged);
   const edits = () => ({
     title: item && title.trim() !== item.title ? title.trim() : undefined,
     price: item && price !== '' && Number(price) !== Number(item.price) ? price : undefined,
+    // A retail typed here is checked: the new tag may show it (tags.retail_on_tag).
+    retail: retailChanged ? retail : undefined,
   });
   const shrinkSave = (reason: ShrinkReason, salvage: string) =>
     void run('shrink', { reason, salvage_price: salvage.trim() || undefined }, !!salvage.trim());
@@ -316,6 +326,16 @@ function FixCard({ issue, onChanged, focus }: RowProps) {
                 inputProps={{ inputMode: 'decimal', 'aria-label': 'Price' }}
               />
             )}
+            {retailKind && !asNew && !shelve && (
+              <TextField
+                value={retail}
+                onChange={(e) => setRetail(e.target.value.replace(/[^0-9.]/g, ''))}
+                size="small"
+                label="Retail"
+                sx={{ width: 110, flexShrink: 0, ...field }}
+                inputProps={{ inputMode: 'decimal', 'aria-label': 'Retail' }}
+              />
+            )}
             {asNew && item.status === 'sold' && (
               <Button variant="contained" disabled={busy} onClick={() => void run('move_sale', {}, false)} sx={{ ...btn, flex: { xs: 1, sm: 'none' } }} title="Two items shared this tag. This one stays with its tag; the old sale moves to a new number. Nothing to print.">
                 Keep this tag
@@ -338,6 +358,11 @@ function FixCard({ issue, onChanged, focus }: RowProps) {
             )}
           </Stack>
         </Stack>
+        {retailKind && !asNew && !shelve && (
+          <Button size="small" disabled={busy} onClick={() => void run('edit', { no_retail: true })} sx={{ textTransform: 'none', mt: 0.5 }}>
+            No retail on the tag, print
+          </Button>
+        )}
         {issue.kind === 'wrong_title' && !pickProduct && (
           <Button size="small" onClick={() => setPickProduct(true)} sx={{ textTransform: 'none', mt: 0.5 }}>
             Or pick the right product
@@ -381,6 +406,7 @@ function FixCard({ issue, onChanged, focus }: RowProps) {
         <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.25 }}>
           {issue.by} · {issue.section} · {clockTime(issue.created_at)}
         </Typography>
+        {issue.bad_tag && <BadTagTraceLine bad={issue.bad_tag} />}
       </Box>
 
       <Box sx={{ minWidth: 0 }}>
@@ -404,6 +430,36 @@ function FixCard({ issue, onChanged, focus }: RowProps) {
         )}
       </Box>
     </Box>
+  );
+}
+
+/** Where a bad tag came from: who checked the item in, the truck, the manifest row, the pallet. */
+function BadTagTraceLine({ bad }: { bad: BadTag }) {
+  const t = bad.trace;
+  const parts = [
+    t.checked_in_by ? `Checked in by ${t.checked_in_by}` : 'Checked in by unknown',
+    t.order_number || null,
+    t.manifest_row_number != null ? `row ${t.manifest_row_number}` : null,
+    t.pallet ? `pallet ${t.pallet.number}` : null,
+  ].filter(Boolean);
+  const openPhoto = async () => {
+    if (!bad.photo_url) return;
+    try {
+      const blob = await fetchBadTagPhoto(bad.photo_url);
+      window.open(URL.createObjectURL(blob), '_blank', 'noopener');
+    } catch {
+      /* the card stays usable without the photo */
+    }
+  };
+  return (
+    <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.25 }}>
+      {parts.join(' · ')}
+      {bad.photo_url && (
+        <Button size="small" onClick={() => void openPhoto()} sx={{ textTransform: 'none', minWidth: 0, ml: 0.5, p: 0 }}>
+          Photo
+        </Button>
+      )}
+    </Typography>
   );
 }
 

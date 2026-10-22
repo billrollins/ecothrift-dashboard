@@ -180,9 +180,17 @@ describe('Studios and Admin placement', () => {
   });
 
   it('puts every studio under Studios', () => {
-    expect(studios?.itemIds).toEqual(['labelStudio', 'floorplans', 'announcements', 'blogStudio']);
+    expect(studios?.itemIds).toEqual(['socialStudio', 'labelStudio', 'floorplans', 'announcements', 'blogStudio']);
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'library')).toBeUndefined();
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'mail')).toBeUndefined();
+  });
+
+  it('opens Studios to staff for Social Studio only (Lane F, 2026-10-21)', () => {
+    const groups = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS);
+    expect(groups.find((g) => g.id === 'studios')?.items.map((i) => i.id)).toEqual(['socialStudio']);
+    const managers = resolveNavGroups({ role: 'Manager', is_superuser: false }, SLOT_C_NAV_GROUPS);
+    expect(managers.find((g) => g.id === 'studios')?.items.map((i) => i.id))
+      .toEqual(['socialStudio', 'labelStudio', 'floorplans', 'announcements']);
   });
 
   it('puts hiring in its own People workspace, for managers', () => {
@@ -195,7 +203,9 @@ describe('Studios and Admin placement', () => {
 
   it('keeps Floorplans out of Retail Floor (Studios only) and Messages on Online Sales', () => {
     expect(retailFloor?.itemIds).toEqual(['inventoryWorkbench', 'inventoryCount', 'inventories']);
-    expect(retailFloor?.guestItemIds).toEqual(['prFixit']);   // under a line
+    expect(retailFloor?.guestItemIds).toEqual(['prFixit', 'tagErrors']);   // under a line
+    expect(NAV_ITEM_CATALOG.tagErrors).toMatchObject({ path: '/inventory/tag-errors', label: 'Tag errors' });
+    expect(NAV_ITEM_CATALOG.tagErrors?.roles).toBeUndefined();
     expect(retailFloor?.label).toBe('Inventory');
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'studios')?.itemIds).toContain('floorplans');
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'essentials')?.itemIds).toEqual(['dashboard', 'owner', 'reports']);

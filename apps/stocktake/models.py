@@ -13,6 +13,9 @@
 - **Issue:** something wrong with an item, what the scanner answered, and the cart it went into.
   The PR Fix-it screen works through these.
 - **Cart:** a label ("Bill PR Cart 2") for the physical cart problem items ride in.
+- **BadTag:** a wrong tag found on the floor outside a count (section check, cross-check, register, Today, the
+  fresh-tag spot check), traced to who checked the item in, the truck and the manifest row. Each one opens an
+  Issue with no count, so it lands on PR Fix-it (retail_tags_and_social Phase 1).
 """
 from django.conf import settings
 from django.db import models
@@ -159,6 +162,7 @@ class Issue(models.Model):
     KIND_PRICE_LOW = 'price_low'
     KIND_NO_TAG = 'no_tag'
     KIND_WRONG_SECTION = 'wrong_section'
+    KIND_RETAIL_HIGH = 'retail_high'
     KIND_CHOICES = [
         (KIND_NOT_SKU, 'Not one of our tags'),
         (KIND_NOT_RECOGNIZED, 'Tag not recognized'),
@@ -171,6 +175,7 @@ class Issue(models.Model):
         (KIND_PRICE_LOW, 'Price too low'),
         (KIND_NO_TAG, 'No tag'),
         (KIND_WRONG_SECTION, 'Wrong section'),
+        (KIND_RETAIL_HIGH, 'Retail overstated'),
     ]
     # What the scanner did about it on the floor.
     ACTION_PENDING = 'pending'      # no answer yet: the run can't be marked complete
@@ -188,8 +193,9 @@ class Issue(models.Model):
         (ACTION_KEPT, 'Kept here; old sale moved'),
     ]
 
-    count = models.ForeignKey(InventoryCount, on_delete=models.CASCADE, related_name='issues')
-    run = models.ForeignKey(Run, on_delete=models.CASCADE, related_name='issues')
+    # Null for a bad tag found outside a count (BadTag.issue).
+    count = models.ForeignKey(InventoryCount, on_delete=models.CASCADE, null=True, blank=True, related_name='issues')
+    run = models.ForeignKey(Run, on_delete=models.CASCADE, null=True, blank=True, related_name='issues')
     scan = models.ForeignKey(CountScan, on_delete=models.SET_NULL, null=True, blank=True, related_name='issues')
     item = models.ForeignKey('inventory.Item', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     code = models.CharField(max_length=64, blank=True, default='')
@@ -214,6 +220,81 @@ class Issue(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+class BadTag(models.Model):
+    """A wrong tag found on the floor, traced back (retail_tags_and_social Phase 1, 2026-10-21).
+
+    The trace (who checked it in, the PO, the manifest row, the pallet) and what the tag said are copied when it
+    is found, so a later fix to the item does not erase who made the mistake. ``issue`` is its PR Fix-it row.
+    """
+    REASON_RETAIL_HIGH = 'retail_high'
+    REASON_WRONG_ITEM = 'wrong_item'
+    REASON_PRICE_HIGH = 'price_high'
+    REASON_PRICE_LOW = 'price_low'
+    REASON_MISSING = 'missing'
+    REASON_CHOICES = [
+        (REASON_RETAIL_HIGH, 'Retail overstated'),
+        (REASON_WRONG_ITEM, 'Wrong item'),
+        (REASON_PRICE_HIGH, 'Price too high'),
+        (REASON_PRICE_LOW, 'Price too low'),
+        (REASON_MISSING, 'Tag missing or unreadable'),
+    ]
+    WHERE_SECTION_CHECK = 'section_check'
+    WHERE_CROSS_CHECK = 'cross_check'
+    WHERE_REGISTER = 'register'
+    WHERE_TODAY = 'today'
+    WHERE_FRESH_TAGS = 'fresh_tags'
+    WHERE_CHOICES = [
+        (WHERE_SECTION_CHECK, 'Section check'),
+        (WHERE_CROSS_CHECK, 'Cross-check'),
+        (WHERE_REGISTER, 'Register'),
+        (WHERE_TODAY, 'Today'),
+        (WHERE_FRESH_TAGS, 'Fresh-tag check'),
+    ]
+
+    item = models.ForeignKey('inventory.Item', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    code = models.CharField(max_length=64, blank=True, default='')
+    reason = models.CharField(max_length=16, choices=REASON_CHOICES, db_index=True)
+    found_where = models.CharField(max_length=16, choices=WHERE_CHOICES, default=WHERE_TODAY)
+    detail = models.CharField(max_length=300, blank=True, default='', help_text='What it is, or what is wrong.')
+    right_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    right_retail = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    photo = models.ForeignKey('core.S3File', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    routine_run = models.ForeignKey(
+        'routines.RoutineRun', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        help_text='The fresh-tag spot check that found it.',
+    )
+    found_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    found_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    # The trace, copied when found.
+    checked_in_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    checked_in_at = models.DateTimeField(null=True, blank=True)
+    purchase_order = models.ForeignKey(
+        'inventory.PurchaseOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    manifest_row = models.ForeignKey(
+        'inventory.ManifestRow', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    pallet = models.ForeignKey('inventory.TruckPallet', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    tag_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    tag_retail = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    retail_check = models.CharField(max_length=12, blank=True, default='', help_text="The item's retail check then.")
+    issue = models.OneToOneField(Issue, on_delete=models.SET_NULL, null=True, blank=True, related_name='bad_tag')
+
+    class Meta:
+        ordering = ['-found_at']
+        indexes = [
+            models.Index(fields=['checked_in_by', 'found_at'], name='stocktake_badtag_by_found'),
+            models.Index(fields=['purchase_order', 'found_at'], name='stocktake_badtag_po_found'),
+        ]
+
+    def __str__(self):
+        return f'Bad tag {self.code or self.pk} ({self.reason})'
 
 
 class ShrinkMark(models.Model):

@@ -45,6 +45,8 @@ class TruckFinalizeBase(TestCase):
             {
                 'processing_row_id': pr.id, 'quantity': qty, 'condition': condition, 'dispatch': 'on_shelf',
                 'price': '5.00', 'product_mode': 'new', 'title': pr.title,
+                # $50 retail on a $5 tag trips the retail check; these tests are about the truck, not the tag.
+                'retail_check': 'confirm',
             },
             format='json',
         )

@@ -6224,6 +6224,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='processing-row-check-in')
     def processing_row_check_in_action(self, request, pk=None):
         from apps.inventory.processing_ops import ProcessingDataRequired, processing_row_check_in
+        from apps.inventory.services.tag_retail import RetailCheckNeeded
 
         order = self.get_object()
         raw = request.data.get('processing_row_id') or request.data.get('processingRowId')
@@ -6233,6 +6234,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             return Response(processing_row_check_in(request.user, order, int(str(raw).strip()), request.data))
         except ProcessingRow.DoesNotExist:
             return Response({'detail': 'Processing row not found for this order.'}, status=status.HTTP_404_NOT_FOUND)
+        except RetailCheckNeeded as e:
+            return Response({'detail': str(e), **e.payload}, status=status.HTTP_409_CONFLICT)
         except ProcessingDataRequired as e:
             return Response(
                 {'detail': str(e), 'code': 'processing_data_required'},
@@ -6244,10 +6247,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='processing-check-in-together')
     def processing_check_in_together_action(self, request, pk=None):
         from apps.inventory.processing_ops import ProcessingDataRequired, processing_check_in_together
+        from apps.inventory.services.tag_retail import RetailCheckNeeded
 
         order = self.get_object()
         try:
             return Response(processing_check_in_together(request.user, order, request.data))
+        except RetailCheckNeeded as e:
+            return Response({'detail': str(e), **e.payload}, status=status.HTTP_409_CONFLICT)
         except ProcessingDataRequired as e:
             return Response(
                 {'detail': str(e), 'code': 'processing_data_required'},

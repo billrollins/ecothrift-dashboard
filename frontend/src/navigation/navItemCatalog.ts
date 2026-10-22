@@ -70,6 +70,8 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     path: '/floor-ops/floorplans',
     label: 'Floorplans',
     icon: 'floorplan',
+    // Studios opens to every staff login for Social Studio (2026-10-21); the rest stay managers'.
+    roles: ['Manager', 'Admin'],
   },
   inventoryCount: {
     id: 'inventoryCount',
@@ -91,6 +93,14 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     path: '/inventory/pr-fixit',
     label: 'PR Fix-it',
     icon: 'fixit',
+  },
+  // Wrong tags found on the floor, traced to who checked them in (retail_tags_and_social Phase 1).
+  // Everyone: managers see every one, others the tags they checked in or found.
+  tagErrors: {
+    id: 'tagErrors',
+    path: '/inventory/tag-errors',
+    label: 'Tag errors',
+    icon: 'productReview',
   },
   quickReprice: {
     id: 'quickReprice',
@@ -316,6 +326,14 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     pathAliases: ['/restoration/queue', '/inventory/restorations'],
     label: 'Restoration',
     icon: 'restoration',
+  },
+  /** Retail makes the day's post here (Lane F Phase 2); every staff login. */
+  socialStudio: {
+    id: 'socialStudio',
+    path: '/studios/social',
+    label: 'Social Studio',
+    icon: 'listing',
+    navSearch: 'facebook post photos marketing',
   },
   announcements: {
     id: 'announcements',

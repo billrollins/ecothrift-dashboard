@@ -1,8 +1,18 @@
-import { Box, Typography } from '@mui/material';
+import { useState } from 'react';
+import { Box, Button, Typography } from '@mui/material';
+import QrCodeScannerOutlined from '@mui/icons-material/QrCodeScannerOutlined';
 import type { AuditCounts, AuditTaxonomy, TaxonomyGroup } from '../../../api/routines.api';
+import type { BadTagReason, BadTagWhere } from '../../../api/badTags.api';
+import BadTagDialog from '../../../components/badTags/BadTagDialog';
 import { pick } from '../../../i18n/routines';
 import { dutyColors } from '../../../components/duty/tokens';
 import { CounterRow, FlagChips, RunnerBand } from './runnerParts';
+
+/** PR-cart tag rows that can scan the tag: the tally stays the count, the scan is the record. */
+const TAG_ROWS: Record<string, BadTagReason[]> = {
+  reprice_tag_incorrect: ['retail_high', 'wrong_item', 'price_high', 'price_low'],
+  reprice_tag_missing: ['missing'],
+};
 
 function groupsFrom(taxonomy: AuditTaxonomy): TaxonomyGroup[] {
   if (taxonomy.groups?.length) return taxonomy.groups;
@@ -21,6 +31,7 @@ export function TaxonomyCounters({
   language,
   onCount,
   onFlag,
+  badTagWhere,
 }: {
   taxonomy: AuditTaxonomy;
   counts: AuditCounts;
@@ -29,8 +40,11 @@ export function TaxonomyCounters({
   language?: string | null;
   onCount: (key: string, value: number) => void;
   onFlag: (key: string) => void;
+  /** Set on section checks and cross-checks: the tag rows offer "Scan the tag" (bad-tag record, PR Fix-it). */
+  badTagWhere?: BadTagWhere;
 }) {
   const groups = groupsFrom(taxonomy);
+  const [scanning, setScanning] = useState<string | null>(null);
 
   return (
     <>
@@ -95,18 +109,41 @@ export function TaxonomyCounters({
                 : 'Logged, never scored.'}
             />
             {group.items.map((item) => (
-              <CounterRow
-                key={item.key}
-                graded={group.solution === 'fix_in_place' || group.solution === 'security' || group.solution === 'reshelf_cart' || group.solution === 'reprep_cart'}
-                label={pick(item, 'label', language) || item.label}
-                value={counts[item.key] || 0}
-                disabled={disabled}
-                onChange={(next) => onCount(item.key, next)}
-              />
+              <Box key={item.key}>
+                <CounterRow
+                  graded={group.solution === 'fix_in_place' || group.solution === 'security' || group.solution === 'reshelf_cart' || group.solution === 'reprep_cart'}
+                  label={pick(item, 'label', language) || item.label}
+                  value={counts[item.key] || 0}
+                  disabled={disabled}
+                  onChange={(next) => onCount(item.key, next)}
+                />
+                {badTagWhere && TAG_ROWS[item.key] && !disabled && (
+                  <Button
+                    size="small"
+                    startIcon={<QrCodeScannerOutlined />}
+                    onClick={() => setScanning(item.key)}
+                    sx={{ mx: 1.25, mt: -0.25, mb: 0.75, fontWeight: 700, color: dutyColors.brandDark }}
+                  >
+                    {language === 'es' ? 'Escanear la etiqueta (cuenta +1)' : 'Scan the tag (counts +1)'}
+                  </Button>
+                )}
+              </Box>
             ))}
           </Box>
         );
       })}
+      {badTagWhere && scanning && (
+        <BadTagDialog
+          open
+          where={badTagWhere}
+          reasons={scanning ? TAG_ROWS[scanning] : undefined}
+          initialReason={scanning === 'reprice_tag_missing' ? 'missing' : undefined}
+          onClose={() => setScanning(null)}
+          onSaved={() => {
+            if (scanning) onCount(scanning, (counts[scanning] || 0) + 1);
+          }}
+        />
+      )}
     </>
   );
 }

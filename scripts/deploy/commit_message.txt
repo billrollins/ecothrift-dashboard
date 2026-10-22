@@ -1,14 +1,16 @@
-v2.206.0 — B-Stock disputes, restoration list, shrink by age, sold online
+v2.207.0 — Retail check and bad tags, Social Studio, wider tax screen
 
-User-facing theme: **B-Stock disputes from Dash, a restoration list, estimated stock without a full count, and online sales leaving inventory (Bill, 2026-10-21, critic review point 2).** Outside initiatives (critic-review release list).
+User-facing theme: **Honest retail on tags, a Social Studio for a post a day, and a wider tax screen (Bill, 2026-10-21).** Initiative: retail_tags_and_social (phases 1 and 2).
 
 ### Added
-- **B-Stock disputes** (Finish truck → B-Stock dispute): one link shows B-Stock every missing or damaged line in their layout, with pallet photos, the truck photo and BOL, and Excel or zip downloads. Dash records the dispute's status, B-Stock's dispute ID and the refund, and shows when B-Stock opened the link and what they downloaded.
-- **Restoration list** (Restoration → Restoration list): every item in restoration, oldest first, with what was done (tested, assembled, repaired, salvaged), where it goes next and how many days it has been there; finished items show where they landed.
-- **Shrink by age:** estimated stock on hand without a full count. A shelf item not seen for 90 to 180 days counts as partly gone, and lost past 180 days; items the last count couldn't find count as lost unless marked back stock. The days and percentages are your settings (Settings → Inventory → Shrink by age).
-- **Sold online** (Online Sales → Listings → Sold online): record an item sold on Facebook or elsewhere online and paid there; it leaves inventory, with Undo. Every sale now records where it happened (in store, or an online hold paid at the register), and marking a listing sold takes its item out of inventory too.
+- **Retail check at check-in:** check-in stops on a retail that looks wrong (over 6× the tag, over 2× what that product usually carries, or a guessed retail) and asks: it's right, fix it, or no retail on the tag.
+- **Retail on tags** prints only when the retail passed that check (Settings → Inventory). Registers need the next print server to show it.
+- **Bad tags:** report one from Today, from section checks and cross-checks, or at the register: scan it, pick why, add a photo if you like. It lands on PR Fix-it with who checked it in, the truck, the manifest row and the pallet. New Inventory → Tag errors page; Retail QA shows the week's tag errors by processor and by truck.
+- **Fresh-tag check** (new daily Retail routine): 10 items from the last processing day; misses go to PR Fix-it and count in Retail QA's Do score.
+- **Studios → Social Studio:** a post a day Tue-Sat, each with a type and a category from what's on the floor; a photo library (shoot on the floor, build the post later); branded frames with photo spots and a checklist of what's missing; one tap copies the text and saves the pictures, and pasting the Facebook link marks it posted. New "Today's post" Retail routine, due 11:30.
 
 ### Changed
-- **Finish truck, the Pallets window and the dispute page** work on a phone as well as a computer.
+- **Sales tax screen** uses the full width on a computer (two columns) and shows each day as a card on a phone.
+- **Register:** with the line sale off, the four tiles sit in two even rows.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

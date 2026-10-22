@@ -17,6 +17,7 @@ from django.db.models.functions import Coalesce
 
 from apps.inventory.models import Item, ItemCheckIn, ManifestRow, ProcessingDataBuild, ProcessingRow, PurchaseOrder, Product
 from apps.inventory.product_identity import merge_identifiers, product_upc
+from apps.inventory.services.tag_retail import tag_retail
 from apps.inventory.services.processing_search_string import (
     assign_search_strings_for_instances,
     augment_processing_row_search_string,
@@ -164,6 +165,8 @@ def _serialize_item(it: Item) -> dict[str, Any]:
         'condition_label': condition_db_to_ui(it.condition),
         'price': _money(it.price) or '0.00',
         'retail': _money(it.retail),
+        'retail_check': it.retail_check or '',
+        'tag_retail': _money(tag_retail(it)),
         'dispatch': location_to_dispatch(it.location),
         'disposition': item_disposition_ui(it.status),
         'notes': it.notes or '',
@@ -1687,6 +1690,7 @@ def printed_items_preview(item_ids: list[int]) -> list[dict[str, Any]]:
                 'sku': it.sku,
                 'title': (prod.title if prod else '') or it.sku,
                 'price': _money(it.price) or '0.00',
+                'tag_retail': _money(tag_retail(it)),
                 'brand': (prod.brand if prod else '') or '',
                 'product_number': prod.product_number if prod else None,
             },

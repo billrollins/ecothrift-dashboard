@@ -11,7 +11,9 @@ export type RoutineKind =
   | 'section_audit'
   | 'owner_spot'
   | 'work_cycle'
-  | 'bstock_pull';
+  | 'bstock_pull'
+  | 'fresh_tags'
+  | 'social_post';
 export type RoutineSubjectSource = 'pool' | 'my_section' | 'other_section';
 /** When an open run stops being merely open and starts counting against the day. */
 export type RoutineLateAfter = 'due_time' | 'end_of_day' | 'grace_days';
@@ -170,13 +172,49 @@ export interface BstockPullResponses {
   nothing_to_pull?: boolean;
 }
 
+/** One item the fresh-tag check drew (what the tag shows), plus the answers. */
+export interface FreshTagItem {
+  item_id: number;
+  sku: string;
+  title: string;
+  brand: string;
+  price: string;
+  retail: string | null;
+  /** The retail printed on the tag (null when the tag shows none). */
+  tag_retail: string | null;
+  location: string;
+  checked_in_by: string;
+  found: '' | 'yes' | 'no';
+  /** The tag is this item. */
+  match: '' | 'pass' | 'fail';
+  /** The retail is believable; n.a. when the tag shows no retail. */
+  retail_ok: '' | 'pass' | 'fail' | 'na';
+  price_ok: '' | 'pass' | 'high' | 'low';
+  note: string;
+}
+
+/** Daily fresh-tag check (kind `fresh_tags`): the server draws the items; the phone answers. */
+export interface FreshTagsResponses {
+  items: FreshTagItem[];
+  /** The processing day the items were tagged on (YYYY-MM-DD), or null when nothing was. */
+  checked_in_day: string | null;
+}
+
+/** Retail Today's post: the phone's last reading of the day's Social Studio post. */
+export interface SocialPostResponses {
+  post_id: number | null;
+  post_status: 'draft' | 'ready' | 'posted' | null;
+}
+
 export type AnyRoutineResponses =
   | RoutineResponses
   | SectionTallyResponses
   | SectionAuditResponses
   | OwnerSpotResponses
   | WorkCycleResponses
-  | BstockPullResponses;
+  | BstockPullResponses
+  | FreshTagsResponses
+  | SocialPostResponses;
 
 export interface TaxonomyItem {
   key: string;

@@ -31,6 +31,7 @@ from .schedule import (
     SYSTEM_CLOSE,
     SYSTEM_CROSS_CHECK,
     SYSTEM_DAY,
+    SYSTEM_FRESH_TAGS,
     SYSTEM_OPEN,
     SYSTEM_OWNER_SPOT,
     SYSTEM_TALLY,
@@ -62,7 +63,20 @@ PERFORMED_TITLES = {
     SYSTEM_OPEN: 'Opening checklist',
     SYSTEM_DAY: 'Midday checklist',
     SYSTEM_CLOSE: 'Closing checklist',
+    SYSTEM_FRESH_TAGS: 'Fresh-tag check',
 }
+# Do counts the three checklists and, on open days from the day it was seeded, the fresh-tag check
+# (retail_tags_and_social Phase 1). Days frozen before that never include it.
+DO_KEYS = PERFORMED_KEYS + (SYSTEM_FRESH_TAGS,)
+
+
+def fresh_tags_expected(day: date) -> bool:
+    """The fresh-tag check is owed on this day: the store is open and the routine existed (program routines
+    cannot be retired, so ``is_active`` only matters for tests)."""
+    if not is_open_day(day):
+        return False
+    row = Routine.objects.filter(system_key=SYSTEM_FRESH_TAGS, is_active=True).values_list('created_at', flat=True).first()
+    return row is not None and timezone.localtime(row).date() <= day
 
 
 def _weights(cfg: dict | None = None) -> tuple[float, float, float]:
@@ -160,6 +174,8 @@ def expected_parts_live(day: date, cfg: dict | None = None) -> tuple[set[str], s
     A checked weekday still owes every active section when the store is closed.
     """
     keys = set(PERFORMED_KEYS) if is_open_day(day) else set()
+    if fresh_tags_expected(day):
+        keys.add(SYSTEM_FRESH_TAGS)
     sections = (
         {section.pk for section in _active_sections()}
         if section_checks_required(day, cfg) else set()
@@ -169,7 +185,7 @@ def expected_parts_live(day: date, cfg: dict | None = None) -> tuple[set[str], s
 
 def split_frozen_expected(day: date, total: int) -> tuple[int, int]:
     """Checklist count and section-check count implied by a frozen Do total."""
-    odc = len(PERFORMED_KEYS) if is_open_day(day) else 0
+    odc = (len(PERFORMED_KEYS) + (1 if fresh_tags_expected(day) else 0)) if is_open_day(day) else 0
     odc_used = min(odc, total)
     return odc_used, total - odc_used
 
@@ -177,6 +193,8 @@ def split_frozen_expected(day: date, total: int) -> tuple[int, int]:
 def _parts_from_frozen(day: date, total: int) -> tuple[set[str], set[int]]:
     odc_used, section_expected = split_frozen_expected(day, total)
     keys = set(PERFORMED_KEYS) if odc_used else set()
+    if odc_used > len(PERFORMED_KEYS):
+        keys.add(SYSTEM_FRESH_TAGS)
     sections = {section.pk for section in _active_sections()} if section_expected else set()
     return keys, sections
 
@@ -241,7 +259,7 @@ def expected_for_day(day: date) -> int:
     return n
 
 
-ALL_GRADED_KEYS = PERFORMED_KEYS + (SYSTEM_TALLY, SYSTEM_CROSS_CHECK, SYSTEM_OWNER_SPOT)
+ALL_GRADED_KEYS = DO_KEYS + (SYSTEM_TALLY, SYSTEM_CROSS_CHECK, SYSTEM_OWNER_SPOT)
 
 
 def parse_week(raw: str | None) -> date:
@@ -548,11 +566,11 @@ def score_cross_check(run: RoutineRun, cfg: dict, base: dict | None = None) -> d
 def _doing_for_day(day: date, runs: list[RoutineRun], *, project: bool = False) -> dict:
     sections = _active_sections()
     closed = closed_section_ids(day)
-    checklists = {key: None for key in PERFORMED_KEYS}
+    checklists = {key: None for key in DO_KEYS}
     tallied: set[int] = set()
     for run in runs:
         key = run.routine.system_key
-        if key in PERFORMED_KEYS:
+        if key in DO_KEYS:
             if checklists[key] is None or run.status == RoutineRun.STATUS_DONE:
                 checklists[key] = run
         if run.status != RoutineRun.STATUS_DONE:
@@ -577,7 +595,7 @@ def _doing_for_day(day: date, runs: list[RoutineRun], *, project: bool = False) 
     routines = []
     done = 0
     checklist_done = 0
-    for key in PERFORMED_KEYS:
+    for key in DO_KEYS:
         if key not in expected_keys:
             continue
         run = checklists[key]

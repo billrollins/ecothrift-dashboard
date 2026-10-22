@@ -63,6 +63,31 @@ def _set_price(item: Item, price: Decimal, user) -> None:
     )
 
 
+def _set_retail(item: Item, retail: Decimal | None, user) -> None:
+    """A person typed the right retail (or chose none on the tag): it is checked, so the tag may show it."""
+    from apps.inventory.services import tag_retail
+
+    check = tag_retail.CHECK_FIXED if retail is not None else tag_retail.CHECK_NO_RETAIL
+    if retail is None:
+        if item.retail_check == check:
+            return
+        item.retail_check = check
+        item.save(update_fields=['retail_check', 'updated_at'])
+        note = f'{NOTE}: no retail on the tag'
+        old, new = str(item.retail or ''), ''
+    else:
+        if retail == item.retail and item.retail_check == check:
+            return
+        old = str(item.retail or '')
+        item.retail = retail
+        item.retail_check = check
+        item.retail_source = tag_retail.SOURCE_TYPED
+        item.save(update_fields=['retail', 'retail_check', 'retail_source', 'updated_at'])
+        note = f'{NOTE}: retail'
+        new = str(retail)
+    ItemHistory.objects.create(item=item, event_type='note', old_value=old, new_value=new, note=note, created_by=user)
+
+
 def _set_title(item: Item, title: str, user) -> None:
     """Rename this one item. A product shared with other items is left alone: the item gets its own."""
     title = title.strip()[:300]
@@ -128,6 +153,10 @@ def fix_issue(issue: Issue, *, user, fix: str, data: dict) -> dict | None:
                 _set_title(printed, str(data['title']), user)
             if data.get('price') not in (None, ''):
                 _set_price(printed, _money(data['price'], 'Price'), user)
+            if data.get('no_retail'):
+                _set_retail(printed, None, user)
+            elif data.get('retail') not in (None, ''):
+                _set_retail(printed, _money(data['retail'], 'Retail'), user)
         elif fix == 'print_as_new':
             src = _need_item(issue)
             # Two items sharing one tag: the second one gets its own item too.
@@ -273,6 +302,11 @@ def auto_fix(issue: Issue) -> tuple[str, dict, bool] | None:
         return ('put_on_shelf', {}, False)
     if issue.kind == Issue.KIND_WRONG_TAG:
         return ('reprint', {}, True)
+    if issue.kind == Issue.KIND_RETAIL_HIGH:
+        bad = getattr(issue, 'bad_tag', None)
+        if bad is not None and bad.right_retail is not None:
+            return ('edit', {'retail': str(bad.right_retail)}, True)
+        return None
     if issue.kind in (Issue.KIND_PRICE_HIGH, Issue.KIND_PRICE_LOW):
         price = _price_in(issue.detail)
         return ('edit', {'price': price}, True) if price else None
@@ -319,7 +353,10 @@ def scan_fix(code: str, *, user, count_id: int | None = None) -> dict:
         'move_sale': f'Kept here with its tag; the old sale moved to {issue.new_item.sku if issue.new_item else "a new item"}.',
         'put_on_shelf': 'Back on the shelf and counted. The tag is fine.',
         'reprint': 'Tag reprinted.',
-        'edit': f'Price set to ${data.get("price")}. New tag printed.',
+        'edit': (
+            f'Retail set to ${data.get("retail")}. New tag printed.' if data.get('retail')
+            else f'Price set to ${data.get("price")}. New tag printed.'
+        ),
     }
     return {
         'status': 'fixed', 'fix': fix, 'print': wants_print and label is not None, 'label': label,

@@ -67,6 +67,7 @@ export function WeekRoutinesModal({
             <option value="section_tally">Tally</option>
             <option value="section_audit">Cross-check</option>
             <option value="owner_spot">Spot walk</option>
+            <option value="fresh_tags">Fresh-tag check</option>
           </select>
         </label>
         <label>

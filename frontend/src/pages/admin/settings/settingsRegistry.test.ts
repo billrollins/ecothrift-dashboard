@@ -96,7 +96,8 @@ describe('settings layout (owner, 2026-10-07)', () => {
     expect(isHiddenKey('retail_qa.grade_scale')).toBe(true);
     const qa = SETTINGS_LAYOUT.find((t) => t.id === 'retail-qa')!;
     const keys = qa.sections.flatMap((s) => s.keys ?? []);
-    expect(keys).toHaveLength(25);
+    // 26 since retail_qa.fresh_tag_count (retail_tags_and_social Phase 1).
+    expect(keys).toHaveLength(26);
     expect(keys.every((k) => k.startsWith('retail_qa.'))).toBe(true);
   });
 });

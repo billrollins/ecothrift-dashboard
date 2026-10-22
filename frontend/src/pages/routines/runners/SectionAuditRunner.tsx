@@ -34,6 +34,7 @@ export function SectionAuditRunner({
           audit={responses}
           taxonomy={taxonomy}
           readOnly={readOnly}
+          badTagWhere="cross_check"
           onChange={(next) => onChange?.(next)}
         />
       </RunnerBody>

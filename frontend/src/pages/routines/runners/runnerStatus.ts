@@ -1,14 +1,17 @@
 import type {
   AnyRoutineResponses,
   BstockPullResponses,
+  FreshTagsResponses,
   OwnerSpotResponses,
   RoutineKind,
   RoutineResponses,
   SectionAuditResponses,
   SectionTallyResponses,
+  SocialPostResponses,
   WorkCycleResponses,
 } from '../../../api/routines.api';
 import { failCount, unansweredCount } from '../scoring';
+import { freshTagMisses, freshTagsLeft } from './freshTags';
 
 function hasChecklistSections(responses: AnyRoutineResponses | null): boolean {
   const sections = (responses as RoutineResponses | null)?.sections;
@@ -62,6 +65,16 @@ export function runnerBlockers(
     if (!pull.job_id) return ["Pull today's manifests first"];
     return ['Send your login and pull again'];
   }
+  if (kind === 'fresh_tags') {
+    // Every item is either "Can't find" or found with all three answers (kinds.submit_blockers).
+    const left = freshTagsLeft(responses as FreshTagsResponses);
+    return left ? [`${left} item${left === 1 ? '' : 's'} left to check`] : [];
+  }
+  if (kind === 'social_post') {
+    // The server checks the post itself; a day with no post planned owes nothing.
+    const social = responses as SocialPostResponses;
+    return !social.post_id || social.post_status === 'posted' ? [] : ["Post today's post first"];
+  }
   if (kind === 'checklist') {
     const checklist = responses as RoutineResponses;
     const left = unansweredCount(checklist);
@@ -109,7 +122,11 @@ export function submitLabel(
 ): string {
   const blockers = runnerBlockers(kind, responses, minItems);
   if (blockers.length) return blockers[0];
-  if (kind === 'bstock_pull') return 'Done';
+  if (kind === 'bstock_pull' || kind === 'social_post') return 'Done';
+  if (kind === 'fresh_tags') {
+    const misses = freshTagMisses(responses as FreshTagsResponses);
+    return misses ? `Submit · ${misses} to PR Fix-it` : 'Submit · tags look right';
+  }
   if (kind === 'checklist') {
     const fails = failCount(responses as RoutineResponses);
     return fails > 0 ? `Submit with ${fails} fail${fails === 1 ? '' : 's'}` : 'Submit';
@@ -122,7 +139,8 @@ export function submitLabel(
 export function issuesFound(kind: RoutineKind, responses: AnyRoutineResponses | null): number {
   if (!responses) return 0;
   kind = resolveRunnerKind(kind, responses);
-  if (kind === 'bstock_pull') return 0;
+  if (kind === 'bstock_pull' || kind === 'social_post') return 0;
+  if (kind === 'fresh_tags') return freshTagMisses(responses as FreshTagsResponses);
   const sum = (counts: Record<string, number> | undefined) =>
     Object.values(counts || {}).reduce((total, n) => total + (Number(n) || 0), 0);
   if (kind === 'section_tally') {

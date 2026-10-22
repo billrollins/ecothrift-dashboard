@@ -28,6 +28,7 @@ SYSTEM_TALLY = 'retail.section_tally'
 SYSTEM_CROSS_CHECK = 'retail.section_audit'
 SYSTEM_OWNER_SPOT = 'retail.owner_spot'
 SYSTEM_WORK_CYCLE = 'retail.work_cycle'
+SYSTEM_FRESH_TAGS = 'retail.fresh_tags'
 OWN_AISLE_MESSAGE = 'A section owner cannot cross-check their own aisle.'
 RUNLESS_WALK_MESSAGE = 'Open this walk from your list.'
 
@@ -332,6 +333,47 @@ def draw_spot_checks(period_key: str, count: int) -> list[dict]:
         return []
     rng = random.Random(f'spot:{period_key}')
     return rng.sample(pool, min(count, len(pool)))
+
+
+def draw_fresh_tags(day: date, count: int) -> dict:
+    """`count` items checked in on the last day before `day` that had any check-ins (looking back 14 days),
+    still on the shelf, picked at random. Seeded by the day so a refresh cannot reroll the sample."""
+    from apps.inventory.models import Item
+    from apps.inventory.services.tag_retail import tag_retail
+
+    tz = timezone.get_current_timezone()
+    for back in range(1, 15):
+        when = day - timedelta(days=back)
+        start = timezone.make_aware(datetime.combine(when, time.min), tz)
+        ids = list(
+            Item.objects.filter(
+                checked_in_at__gte=start, checked_in_at__lt=start + timedelta(days=1), status='on_shelf',
+            ).order_by('pk').values_list('pk', flat=True)
+        )
+        if ids:
+            break
+    else:
+        return {'items': [], 'checked_in_day': None}
+    picked = random.Random(f'fresh:{day.isoformat()}').sample(ids, min(count, len(ids)))
+    items = Item.objects.select_related('product', 'checked_in_by').in_bulk(picked)
+    rows = []
+    for pk in picked:
+        item = items.get(pk)
+        if item is None:
+            continue
+        shown = tag_retail(item)
+        rows.append({
+            'item_id': item.pk,
+            'sku': item.sku,
+            'title': item.product.title if item.product_id else item.sku,
+            'brand': (item.product.brand or '') if item.product_id else '',
+            'price': str(item.price),
+            'retail': str(item.retail) if item.retail is not None else None,
+            'tag_retail': str(shown) if shown is not None else None,
+            'location': item.location or '',
+            'checked_in_by': (item.checked_in_by.first_name or '') if item.checked_in_by_id else '',
+        })
+    return {'items': rows, 'checked_in_day': when.isoformat()}
 
 
 def week_days(day: date) -> list[date]:
@@ -700,6 +742,12 @@ def _run_extras(routine: Routine, day: date, key: str, user_id: int | None) -> d
                 'switches': [],
             },
         }
+    if routine.kind == Routine.KIND_FRESH_TAGS:
+        return {
+            'section': None,
+            'subject': '',
+            'generated': draw_fresh_tags(day, int(retail_qa_settings()['fresh_tag_count'])),
+        }
     if routine.subject_source == Routine.SUBJECT_MY_SECTION:
         # One run covers everything this person keeps, so no single section.
         owned = [s.name for s in department_sections(routine) if s.owner_id == user_id]
@@ -786,6 +834,12 @@ def _upsert_run(routine: Routine, key: str, user, due, extras: dict) -> bool:
     return False
 
 
+def _is_social_post_day(day: date, cfg: dict | None) -> bool:
+    from apps.marketing.services.cadence import is_post_day
+
+    return is_post_day(day, cfg=cfg)
+
+
 def materialize_routines(day: date | None = None) -> int:
     local, cfg, tz = _local_now()
     expire_open_runs(now=local)
@@ -801,9 +855,14 @@ def materialize_routines(day: date | None = None) -> int:
             SYSTEM_OPEN, SYSTEM_DAY, SYSTEM_CLOSE,
         ) and not is_open_day(day, cfg=cfg):
             continue
+        if routine.kind == Routine.KIND_FRESH_TAGS and not is_open_day(day, cfg=cfg):
+            continue
         assignees = list(resolve_assignees(routine))
         pooled = routine.assignment == Routine.ASSIGN_POOLED and routine.subject_source == Routine.SUBJECT_POOL
         locked_pool = bool(getattr(routine, 'shift_locked', False))
+        if routine.kind == Routine.KIND_SOCIAL_POST and not _is_social_post_day(day, cfg):
+            # Today's post runs only on the days Social Studio plans a regular post (open posting days).
+            continue
         if routine.kind == Routine.KIND_BSTOCK_PULL and (pooled or locked_pool):
             # A shared run would reach staff who cannot open the superuser-only pull.
             continue

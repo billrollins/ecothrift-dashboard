@@ -87,7 +87,8 @@ class ProcessingTransformTestBase(TestCase):
     def _check_in(self, order, row_id, quantity, **extra):
         return self.client.post(
             f'/api/inventory/orders/{order.id}/processing-row-check-in/',
-            {'processing_row_id': row_id, 'quantity': quantity, 'condition': 'good', **extra},
+            # The retail check is answered up front; these tests are about splitting rows, not tags.
+            {'processing_row_id': row_id, 'quantity': quantity, 'condition': 'good', 'retail_check': 'confirm', **extra},
             format='json',
         )
 

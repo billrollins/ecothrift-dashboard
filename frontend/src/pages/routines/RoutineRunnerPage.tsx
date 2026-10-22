@@ -210,6 +210,8 @@ export function RoutineRunnerPage({ runId, onClose }: { runId?: number; onClose?
     const submitted = run.submission?.responses;
     const outcome = kind === 'bstock_pull'
       ? 'Done'
+      : kind === 'social_post'
+        ? 'Posted'
       : run.has_critical_fail
         ? 'Critical fail'
         : run.failed_count > 0

@@ -31,6 +31,7 @@ import { ScheduleCard } from './ScheduleCard';
 import { NudgePopover } from './NudgePopover';
 import { ScoreDialog } from './ScoreDialog';
 import { SummaryDialogs } from './SummaryDialogs';
+import { TagErrorsDialog, useTagErrorSummary } from './TagErrorsPanel';
 import { WeekRoutinesModal } from './WeekRoutinesModal';
 import './commandCenter.css';
 
@@ -47,6 +48,7 @@ export default function RetailQaPage() {
   const todayQuery = useQaToday(date);
   const peopleQuery = useQaPeople(week);
   const spotsQuery = useQaSpots({ week });
+  const tagErrorsQuery = useTagErrorSummary(week);
   const assignees = useRoutineAssignees();
   const assign = useAssignQaBoard();
   const callIn = useQaCallIn();
@@ -63,7 +65,7 @@ export default function RetailQaPage() {
 
   const [weekOpen, setWeekOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
-  const [summary, setSummary] = useState<'spot' | 'cross' | 'people' | null>(null);
+  const [summary, setSummary] = useState<'spot' | 'cross' | 'people' | 'tags' | null>(null);
 
   const tiles = useMemo(
     () => (data?.tiles?.length ? data.tiles : fallbackTiles(week, today, data?.cross_check_due)),
@@ -300,6 +302,7 @@ export default function RetailQaPage() {
         projectedLetter={data?.projected?.letter}
         weekData={data}
         board={board}
+        tagErrors={tagErrorsQuery.data}
         summary={summary}
         onSummary={setSummary}
         onScore={() => setScoreOpen(true)}
@@ -369,7 +372,7 @@ export default function RetailQaPage() {
         </main>
       </div>
       <SummaryDialogs
-        open={summary}
+        open={summary === 'tags' ? null : summary}
         onClose={() => setSummary(null)}
         week={week}
         today={today}
@@ -423,6 +426,13 @@ export default function RetailQaPage() {
         })()}
         onCopy={() => nudgeTarget && void copyNudge(nudgeTarget.runId)}
         onClose={() => setNudgeTarget(null)}
+      />
+      <TagErrorsDialog
+        open={summary === 'tags'}
+        onClose={() => setSummary(null)}
+        week={week}
+        summary={tagErrorsQuery.data}
+        failed={tagErrorsQuery.isError}
       />
       <WeekRoutinesModal open={weekOpen} onClose={() => setWeekOpen(false)} week={week} onResolve={resolveWeekRun} />
     </div>

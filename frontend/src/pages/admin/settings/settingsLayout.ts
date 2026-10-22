@@ -64,6 +64,15 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
       { id: 'owner-page', title: 'Owner page', help: 'Targets on the Owner page Scorecard.', keys: ['owner.scorecard_targets'] },
       { id: 'dashboard', title: 'Dashboard', help: 'What staff see on the Dashboard.', keys: ['dashboard.focus_numbers'] },
       {
+        id: 'social',
+        title: 'Social Studio',
+        help: 'Which days get a post, the category rotation, and what a post must include before it is Ready.',
+        keys: [
+          'marketing.post_weekdays', 'marketing.min_photos', 'marketing.hook_max_chars', 'marketing.repeat_days',
+          'marketing.in_season', 'marketing.season_weight', 'marketing.thrift_plus_line',
+        ],
+      },
+      {
         id: 'business',
         title: 'Business info',
         help: 'Printed on receipts. Set on the print server, so read-only here.',
@@ -158,6 +167,17 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
       { id: 'intake', title: 'Intake and product standard', keys: ['product_standard_at_intake'] },
       { id: 'deliveries', title: 'Deliveries', keys: ['delivery_service_minutes_per_stop'] },
       {
+        id: 'tags',
+        title: 'Price tags and the retail check',
+        help: 'When a tag shows retail, and when check-in stops to ask about a retail that looks wrong.',
+        keys: [
+          'tags.retail_on_tag',
+          'tags.retail_check_price_multiple',
+          'tags.retail_check_median_multiple',
+          'tags.retail_check_min_items',
+        ],
+      },
+      {
         id: 'trucks',
         title: 'Truck finalize',
         help: "How 'what we can expect back' is worked out for missing and broken goods (B-Stock's rule).",
@@ -191,8 +211,14 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
       {
         id: 'owner',
         title: 'Owner checks',
-        help: 'Leftover R, grace, and how many drawn checks land in a spot.',
-        keys: ['retail_qa.owner_grace', 'retail_qa.owner_divisor_floor', 'retail_qa.spot_check_count', 'retail_qa.safety_cap'],
+        help: 'Leftover R, grace, how many drawn checks land in a spot, and how many items the fresh-tag check draws.',
+        keys: [
+          'retail_qa.owner_grace',
+          'retail_qa.owner_divisor_floor',
+          'retail_qa.spot_check_count',
+          'retail_qa.safety_cap',
+          'retail_qa.fresh_tag_count',
+        ],
       },
       {
         id: 'flags',

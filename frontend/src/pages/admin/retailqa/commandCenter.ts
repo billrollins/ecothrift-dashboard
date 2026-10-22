@@ -27,6 +27,7 @@ const ROUTINE_NAMES: Record<string, string> = {
   'retail.section_audit': 'Cross-check',
   'retail.cross_check': 'Cross-check',
   'retail.work_cycle': 'Register activity',
+  'retail.fresh_tags': 'Fresh-tag check',
 };
 
 const SHIFT_NAMES: Record<string, string> = {

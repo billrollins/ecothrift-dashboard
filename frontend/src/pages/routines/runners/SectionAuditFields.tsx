@@ -1,4 +1,5 @@
 import type { AuditTaxonomy, SectionAuditResponses } from '../../../api/routines.api';
+import type { BadTagWhere } from '../../../api/badTags.api';
 import { SectionWalkFields, type WalkAction } from './SectionWalkFields';
 
 export function emptyAudit(sectionId: number | null, sectionName: string): SectionAuditResponses {
@@ -23,12 +24,14 @@ export function SectionAuditFields({
   onChange,
   readOnly,
   action,
+  badTagWhere,
 }: {
   audit: SectionAuditResponses;
   taxonomy: AuditTaxonomy;
   onChange: (next: SectionAuditResponses) => void;
   readOnly?: boolean;
   action?: WalkAction;
+  badTagWhere?: BadTagWhere;
 }) {
   return (
     <SectionWalkFields
@@ -41,6 +44,7 @@ export function SectionAuditFields({
       taxonomy={taxonomy}
       readOnly={readOnly}
       action={action}
+      badTagWhere={badTagWhere}
       onCount={(key, value) => onChange({
         ...audit, counts: { ...audit.counts, [key]: Math.max(value, 0) },
       })}

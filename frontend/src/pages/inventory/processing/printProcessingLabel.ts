@@ -8,7 +8,15 @@ type LabelInput = Pick<Item, 'sku' | 'price'> &
     title?: string;
     brand?: string;
     id?: number;
+    /** The retail the tag may show (server decides per `tags.retail_on_tag`); null prints none. */
+    tag_retail?: string | null;
   };
+
+/** "Retail $49.99", or undefined when the tag shows no retail. */
+export function tagRetailText(tagRetail: string | null | undefined): string | undefined {
+  const value = tagRetail == null || tagRetail === '' ? Number.NaN : Number.parseFloat(String(tagRetail));
+  return Number.isFinite(value) && value > 0 ? `Retail $${value.toFixed(2)}` : undefined;
+}
 
 export type PrintLabelsResult = {
   succeeded: number;
@@ -17,8 +25,10 @@ export type PrintLabelsResult = {
   markFailed: boolean;
 };
 
-function toLabelRequest(item: LabelInput, priceOverride?: string): LocalPrintRequest {
+export function toLabelRequest(item: LabelInput, priceOverride?: string): LocalPrintRequest {
   const price = priceOverride ?? item.price;
+  // A new price makes the server's retail decision stale (it checks retail against the price): print none.
+  const retailText = priceOverride == null ? tagRetailText(item.tag_retail) : undefined;
   return {
     text: price ? `$${Number.parseFloat(String(price)).toFixed(2)}` : '$0.00',
     qr_data: item.sku,
@@ -26,6 +36,7 @@ function toLabelRequest(item: LabelInput, priceOverride?: string): LocalPrintReq
     product_brand: (item.product_brand || item.brand)?.trim() || undefined,
     product_model: item.product_number?.trim() || undefined,
     include_text: true,
+    ...(retailText ? { retail_text: retailText } : {}),
   };
 }
 

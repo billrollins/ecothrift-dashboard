@@ -1,3 +1,4 @@
+<!-- Last updated: 2026-10-21 (Social Studio under Studios) -->
 # Eco-Thrift Dashboard — App Map for Navigation Consultation
 
 **Purpose:** Hand this document to a consulting AI (or UX reviewer) to evaluate whether the staff navbar, workspaces, and page grouping can be organized more clearly.
@@ -192,6 +193,7 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 | Page | Path | What it does |
 |------|------|----------------|
 | **Quick reprice** | `/inventory/quick-reprice` | Scan/SKU session to apply shelf discounts quickly. |
+| **Tag errors** | `/inventory/tag-errors` | Bad tags by week, traced to who checked them in and the truck (Inventory menu, under PR Fix-it). |
 | **Floorplans** | `/floor-ops/floorplans` | List of store floorplans. |
 | **Floorplan editor** | `/floor-ops/floorplans/:id/edit` | Full-screen SVG editor (walls, fixtures, print). Outside main chrome. |
 | **Routines** | `/routines` | Account menu. Phone-first My Routines / Catalog; fill-in and live preview in a 9:20 frame. |
@@ -226,6 +228,7 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 | **Blog Studio** | `/blog-studio` | Superuser TipTap blog CMS for the public site; **new window**. |
 | **Schedule** | `/people/schedule` | Manager+: build the week (Retail fixed, other departments flexible), record call-ins and no-shows, call-in counts over 30 / 90 days. Staff see their own week on Me. |
 | **Messages** | `/messages` | Every staff login (envelope in the top bar; also Thrift+ Staff and a section on Me). Owner and managers start a thread to one person or a department; anyone on it replies; read receipts; one-time secrets (a PIN) shown once. |
+| **Social Studio** | `/studios/social`, `/studios/social/photos`, `/studios/social/post/:id` | Studios workspace, every staff login (the Studios group has no role gate since 2026-10-21; its other pages keep Manager+). The week's posts, the photo library, the post editor and Post it. Desk and phone layouts. Details: `marketing.md`. |
 | **Time & payroll** | `/admin/time-payroll` | Superuser: roster (with each shift's change trail), payroll summary, time-change requests, QuickBooks numbers per pay period (overtime 1.5x, copy, CSV) and Close / Reopen period. |
 | **Routines** (Routine Control) | `/admin/routines` (`?id=` selects, `?view=sections`) | Superuser. One header for Routines and Sections; `?id=` survives a view switch. **Routines**: every routine incl. retired, run stats, filters, quick edits; program routines cannot be retired. **Sections**: areas of the floor and who keeps them, drag order, coverage gaps. Week scoring is Command Center (`/admin/retail-qa`). Old `?view=grades` redirects there. |
 

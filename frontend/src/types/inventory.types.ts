@@ -484,6 +484,10 @@ export interface Item {
   checked_in_by: number | null;
   label_printed_at: string | null;
   label_printed: boolean;
+  /** Retail check at check-in: '' never checked, passed, confirmed, fixed, no_retail, missing. */
+  retail_check?: string;
+  /** Retail the tag may show (tags.retail_on_tag); null prints none. */
+  tag_retail?: string | null;
   sold_at: string | null;
   sold_for: string | null;
   notes: string;
@@ -532,6 +536,8 @@ export interface ProcessingWorkspaceItemDTO {
   condition_label: string;
   price: string;
   retail: string | null;
+  retail_check?: string;
+  tag_retail?: string | null;
   dispatch: string;
   disposition: string;
   notes: string;

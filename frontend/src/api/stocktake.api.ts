@@ -1,4 +1,5 @@
 import api from './client';
+import type { BadTag } from './badTags.api';
 
 export type ScanResultKind = 'ok' | 'already' | 'odd' | 'unknown' | 'bad_format';
 
@@ -13,7 +14,8 @@ export type IssueKind =
   | 'price_high'
   | 'price_low'
   | 'no_tag'
-  | 'wrong_section';
+  | 'wrong_section'
+  | 'retail_high';
 
 /** What the person did with the item on the floor. `pending` = no answer yet. */
 /** ``kept``: a sold tag in hand, kept here; its old sale moved to a new item number. */
@@ -144,15 +146,20 @@ export interface TagLabel {
   product_brand: string;
   product_model: string;
   include_text: boolean;
+  /** "Retail $49.99" when the tag may show retail (tags.retail_on_tag). */
+  retail_text?: string;
 }
 
 export interface Issue {
   id: number;
-  count_id: number;
+  /** Null for a bad tag found outside a count (`bad_tag` is set). */
+  count_id: number | null;
   day: string | null;
-  run_id: number;
+  run_id: number | null;
   run_bad: boolean;
   section: string;
+  /** A bad tag scanned on the floor (retail_tags_and_social Phase 1), with its trace. */
+  bad_tag?: BadTag | null;
   scan_id: number | null;
   code: string;
   kind: IssueKind;
@@ -350,6 +357,8 @@ export async function fixIssue(
     title?: string;
     price?: string;
     retail?: string;
+    /** With `edit`: the tag shows no retail. */
+    no_retail?: boolean;
     item_id?: number;
     product_id?: number;
     reason?: ShrinkReason;

@@ -723,6 +723,10 @@ class RoutineSubmissionViewSet(viewsets.ModelViewSet):
                 resolve_nudges_for_run(run)
         record_submission(submission)
         evaluate_checker_flags(request.user, as_of=now)
+        if routine.kind == Routine.KIND_FRESH_TAGS:
+            from .kinds import record_fresh_tag_misses
+
+            record_fresh_tag_misses(submission.run, responses, request.user)
         payload = RoutineSubmissionSerializer(submission).data
         if submission.routine.kind == submission.routine.KIND_OWNER_SPOT and submission.run_id:
             from .settings import retail_qa_settings

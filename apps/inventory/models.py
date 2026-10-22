@@ -1850,6 +1850,11 @@ class Item(models.Model):
     )
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     retail = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # The retail check at check-in (services/tag_retail.py): '' never checked, passed, confirmed, fixed,
+    # no_retail, missing. The tag prints retail only when it passed, was confirmed or fixed (owner call F1).
+    retail_check = models.CharField(max_length=12, blank=True, default='')
+    # Where the retail came from: '' unknown, manifest, typed (by a person), estimate (neither).
+    retail_source = models.CharField(max_length=10, blank=True, default='')
     cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='purchased')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='intake')

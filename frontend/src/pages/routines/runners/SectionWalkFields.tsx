@@ -1,4 +1,5 @@
 import type { AuditTaxonomy } from '../../../api/routines.api';
+import type { BadTagWhere } from '../../../api/badTags.api';
 import { useAuth } from '../../../hooks/useAuth';
 import { NotesField, PhotoButton, RunnerBand } from './runnerParts';
 import { TaxonomyCounters } from './TaxonomyCounters';
@@ -26,6 +27,7 @@ export function SectionWalkFields({
   onPhoto,
   onNotes,
   action,
+  badTagWhere,
 }: {
   title: string;
   hint?: string;
@@ -40,6 +42,7 @@ export function SectionWalkFields({
   onPhoto: (dataUrl: string) => void;
   onNotes: (notes: string) => void;
   action?: WalkAction;
+  badTagWhere?: BadTagWhere;
 }) {
   const { user } = useAuth();
   return (
@@ -57,6 +60,7 @@ export function SectionWalkFields({
         language={user?.language}
         onCount={onCount}
         onFlag={onFlag}
+        badTagWhere={badTagWhere}
       />
       <PhotoButton
         photo={photo}

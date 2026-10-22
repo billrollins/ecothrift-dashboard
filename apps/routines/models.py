@@ -115,6 +115,9 @@ class Routine(models.Model):
     KIND_WORK_CYCLE = 'work_cycle'
     # Superuser: hand over the B-Stock login and pull the manifest shortlist.
     KIND_BSTOCK_PULL = 'bstock_pull'
+    KIND_FRESH_TAGS = 'fresh_tags'
+    # Retail: done when the day's Social Studio post is marked Posted (apps/marketing).
+    KIND_SOCIAL_POST = 'social_post'
     KIND_CHOICES = [
         (KIND_CHECKLIST, 'Checklist'),
         (KIND_SECTION_TALLY, 'Section tally'),
@@ -122,6 +125,8 @@ class Routine(models.Model):
         (KIND_OWNER_SPOT, 'Spot walk'),
         (KIND_WORK_CYCLE, 'Register activity'),
         (KIND_BSTOCK_PULL, 'B-Stock manifest pull'),
+        (KIND_FRESH_TAGS, 'Fresh-tag check'),
+        (KIND_SOCIAL_POST, "Today's post"),
     ]
 
     SUBJECT_POOL = 'pool'

@@ -1290,6 +1290,8 @@ export interface PrintedItemPreview {
   price: string;
   brand: string;
   product_number: string | null;
+  /** Retail the tag may show; null prints none (tags.retail_on_tag). */
+  tag_retail?: string | null;
 }
 
 export interface ProcessingPrintAndCheckInResponse {

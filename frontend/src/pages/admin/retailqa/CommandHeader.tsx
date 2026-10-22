@@ -2,10 +2,11 @@ import { format, parseISO } from 'date-fns';
 import type { GradeLetter, GradeThirds, QaDayTile, QaToday, QaWeek } from '../../../api/routines.api';
 import { weekRangeLabel } from '../routines/gradeWeek';
 import { bandWeightLabel, letterClass, scoreText, sectionWeekCounts, tileClass, tileCounts, tileNote, walkDots } from './commandCenter';
+import { tagErrorsBadgeText } from './TagErrorsPanel';
 
 const WALK_FLOOR = 3;
 
-type SummaryId = 'spot' | 'cross' | 'people' | null;
+type SummaryId = 'spot' | 'cross' | 'people' | 'tags' | null;
 
 export function CommandHeader({
   store,
@@ -22,6 +23,7 @@ export function CommandHeader({
   board,
   sectionDone,
   sectionTotal,
+  tagErrors,
   summary,
   onSummary,
   onScore,
@@ -42,6 +44,8 @@ export function CommandHeader({
   board?: QaToday;
   sectionDone?: number;
   sectionTotal?: number;
+  /** The week's bad tags (Tag errors badge); undefined while loading. */
+  tagErrors?: { total: number; open: number } | null;
   summary: SummaryId;
   onSummary: (id: SummaryId) => void;
   onScore: () => void;
@@ -140,6 +144,11 @@ export function CommandHeader({
           <button type="button" className={`badge${summary === 'people' ? ' open' : ''}`} onClick={() => onSummary(summary === 'people' ? null : 'people')}>
             <span className="k">Section checks this week</span>
             <span className="v">{counts.done} of {counts.total} done</span>
+            <span className="ch">›</span>
+          </button>
+          <button type="button" className={`badge${summary === 'tags' ? ' open' : ''}`} onClick={() => onSummary(summary === 'tags' ? null : 'tags')}>
+            <span className="k">Tag errors</span>
+            <span className={`v ${tagErrors?.open ? 'bad' : ''}`}>{tagErrorsBadgeText(tagErrors)}</span>
             <span className="ch">›</span>
           </button>
         </div>

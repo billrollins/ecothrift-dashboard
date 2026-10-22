@@ -49,6 +49,10 @@ describe('Sales tax report (owner 2026-10-13)', () => {
     expect(within(box).getByText('$4.48')).toBeInTheDocument();
     expect(within(box).getByText('Tax collected less tax refunded')).toBeInTheDocument();
     expect(within(box).getByText('$3,627.50')).toBeInTheDocument();
+    // Phone: each day is a card (the table is for wider screens), return days included.
+    const cards = screen.getByTestId('tax-days-cards');
+    expect(within(cards).getByText('Wed Sep 2')).toBeInTheDocument();
+    expect(within(cards).getByText('$4.48 tax refunded')).toBeInTheDocument();
   });
 
   it('lists the periods newest first, the running one last', () => {

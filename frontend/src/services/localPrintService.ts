@@ -26,6 +26,8 @@ export interface LocalPrintRequest {
   product_title?: string;
   product_brand?: string;
   product_model?: string;
+  /** "Retail $49.99" above the logo. Sent only when the retail passed its check (owner call F1); older print servers ignore it. */
+  retail_text?: string;
   /** Lime/colored stock: black price band, green price text; title/QR black on paper. */
   green_label_stock?: boolean;
 }

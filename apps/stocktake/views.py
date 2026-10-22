@@ -1,14 +1,17 @@
 import csv
 
+from django.db.models import Q
 from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin
+from apps.core.files import stream_s3
 
-from .models import Cart, CountScan, InventoryCount, Issue, Run, Section
-from .services import counting, fixit, inventories, quality, report, shrink
+from .models import BadTag, Cart, CountScan, InventoryCount, Issue, Run, Section
+from .services import bad_tags, counting, fixit, inventories, quality, report, shrink
 
 STAFF = [IsAuthenticated, IsEmployee]
 MANAGERS = [IsAuthenticated, IsManagerOrAdmin]
@@ -245,7 +248,8 @@ def issues(request):
     which = request.query_params.get('count') or ''
     if which != 'all':
         count = _get(InventoryCount, which) if which.isdigit() else counting.latest_count()
-        qs = qs.filter(count=count) if count else qs.none()
+        # Bad tags found outside a count (no count) show with every inventory.
+        qs = qs.filter(Q(count=count) | Q(count__isnull=True)) if count else qs.filter(count__isnull=True)
     show = request.query_params.get('show') or 'open'
     if show == 'open':
         qs = qs.filter(fixed_at__isnull=True)
@@ -339,6 +343,75 @@ def fixit_products(request):
     """``?q=`` words, ``&issue=`` the problem: products, each with the items of it the inventory has not found."""
     issue = Issue.objects.select_related('count').filter(pk=request.query_params.get('issue') or 0).first()
     return Response(fixit.product_options(request.query_params.get('q') or '', issue=issue))
+
+
+# --- bad tags (retail_tags_and_social Phase 1) -----------------------------------------------------
+
+def _week_param(request):
+    from apps.routines.grading import parse_week
+
+    raw = request.query_params.get('week')
+    return parse_week(raw) if raw else None
+
+
+@api_view(['GET', 'POST'])
+@permission_classes(STAFF)
+def bad_tag_list(request):
+    """GET: bad tags, newest first (``?week=2026-W43``, ``processor``, ``po``, ``reason``, ``show=open|fixed``).
+    Managers see every one; others see the tags they checked in or found.
+
+    POST: ``{"code", "reason", "where", "detail"?, "right_price"?, "right_retail"?, "photo"? (data URL)}``.
+    """
+    if request.method == 'POST':
+        d = request.data
+        try:
+            bad = bad_tags.record(
+                user=request.user, code=str(d.get('code') or ''), reason=str(d.get('reason') or ''),
+                where=str(d.get('where') or BadTag.WHERE_TODAY), detail=str(d.get('detail') or ''),
+                right_price=d.get('right_price'), right_retail=d.get('right_retail'), photo=d.get('photo'),
+            )
+        except counting.BadRequest as e:
+            return _err(str(e), 'BAD_REQUEST')
+        return Response(bad_tags.bad_tag_payload(bad_tags.bad_tags_qs().get(pk=bad.pk)), status=201)
+    p = request.query_params
+    rows, truncated = bad_tags.bad_tag_list(
+        user=None if _is_manager(request.user) else request.user,
+        monday=_week_param(request),
+        processor_id=p.get('processor') if str(p.get('processor') or '').isdigit() else None,
+        po_id=p.get('po') if str(p.get('po') or '').isdigit() else None,
+        reason=str(p.get('reason') or ''),
+        show=str(p.get('show') or 'all'),
+    )
+    return Response({
+        'reasons': bad_tags.reasons(), 'manager': _is_manager(request.user), 'rows': rows, 'truncated': truncated,
+    })
+
+
+@api_view(['GET'])
+@permission_classes(STAFF)
+def bad_tag_lookup(request):
+    """``?code=``: what the scanned tag is, for the bad-tag dialog."""
+    return Response(bad_tags.lookup(request.query_params.get('code') or ''))
+
+
+@api_view(['GET'])
+@permission_classes(MANAGERS)
+def bad_tag_summary(request):
+    """Retail QA's Tag errors panel: ``?week=``, by processor and by truck."""
+    from apps.routines.grading import this_monday
+
+    return Response(bad_tags.week_summary(_week_param(request) or this_monday()))
+
+
+@api_view(['GET'])
+@permission_classes(STAFF)
+def bad_tag_photo(request, pk):
+    bad = get_object_or_404(BadTag.objects.select_related('photo'), pk=pk)
+    if bad.photo is None:
+        return _not_found('Photo')
+    if not _is_manager(request.user) and request.user.pk not in (bad.found_by_id, bad.checked_in_by_id):
+        return _not_found('Photo')
+    return stream_s3(bad.photo)
 
 
 @api_view(['GET'])

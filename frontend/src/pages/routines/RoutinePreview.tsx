@@ -6,6 +6,7 @@ import { t } from '../../i18n/routines';
 import type {
   AnyRoutineResponses,
   AuditTaxonomy,
+  FreshTagsResponses,
   OwnerSpotResponses,
   RoutineDefinition,
   RoutineKind,
@@ -17,6 +18,7 @@ import { KindRunner } from './runners/KindRunner';
 import {
   PREVIEW_TAXONOMY,
   previewAudit,
+  previewFreshTags,
   previewSpot,
   previewTally,
   previewWorkCycle,
@@ -82,6 +84,7 @@ export function RoutinePreview({
   const [sectionId, setSectionId] = useState<number | null>(null);
   const [tally, setTally] = useState<SectionTallyResponses>(previewTally());
   const [spot, setSpot] = useState<OwnerSpotResponses>(previewSpot());
+  const [fresh, setFresh] = useState<FreshTagsResponses>(previewFreshTags());
   const seededFor = useRef<number | null | undefined>(undefined);
 
   useEffect(() => {
@@ -132,7 +135,11 @@ export function RoutinePreview({
         ? previewWorkCycle()
         : kind === 'bstock_pull'
           ? { job_id: null, job_status: null }
-          : spot;
+          : kind === 'fresh_tags'
+            ? fresh
+            : kind === 'social_post'
+              ? { post_id: null, post_status: null }
+              : spot;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, bgcolor: dutyColors.paper }}>
@@ -155,6 +162,7 @@ export function RoutinePreview({
             onChange={(next) => {
               if (kind === 'section_tally') setTally(next as SectionTallyResponses);
               if (kind === 'owner_spot') setSpot(next as OwnerSpotResponses);
+              if (kind === 'fresh_tags') setFresh(next as FreshTagsResponses);
             }}
           />
         ) : empty ? (
