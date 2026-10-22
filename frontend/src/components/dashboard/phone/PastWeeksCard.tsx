@@ -1,5 +1,5 @@
-import { Box, Button, Card, Typography } from '@mui/material';
-import { useMemo, useState } from 'react';
+import { Box, Card, Typography } from '@mui/material';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { SalesWeeklyRow } from '../../../types/pos.types';
 import { dashboardPalette, dashboardPhoneCardSx } from '../dashboardCardStyles';
 import {
@@ -7,34 +7,34 @@ import {
   formatItemsSold,
   longDayTitle,
   parseDashboardAmount,
+  shortDate,
   weekDateRange,
 } from '../dashboardFormatters';
+import { SalesSubLines } from '../SalesSubLines';
 import { DashboardPhoneSheet } from './DashboardPhoneSheet';
 import { DayDetailSheet } from './DayDetailSheet';
 import { VARIANT_SX, variantFor } from './salesDayVariant';
 
-const PREVIEW_COUNT = 4;
-
+/**
+ * The back of the phone Sales card (owner 2026-10-22): every week of the 14, this week first. Tap a week for its days
+ * (with the week's returns and Thrift+ revenue), then a day for its numbers.
+ */
 export function PastWeeksCard({
   weeks,
   todayIso,
   todayDay,
+  action,
 }: {
   weeks: SalesWeeklyRow[];
   todayIso?: string;
   todayDay?: string;
+  action?: ReactNode;
 }) {
-  const pastWeeks = useMemo(
-    () =>
-      weeks
-        .filter((week) => week.label !== 'This Week')
-        .slice()
-        .sort((a, b) => (a.week_start < b.week_start ? 1 : -1)),
+  const ordered = useMemo(
+    () => weeks.slice().sort((a, b) => (a.week_start < b.week_start ? 1 : -1)),
     [weeks],
   );
-  const preview = pastWeeks.slice(0, PREVIEW_COUNT);
-  const maxTotal = Math.max(...pastWeeks.map((week) => parseDashboardAmount(week.week_total)), 1);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const maxTotal = Math.max(...ordered.map((week) => parseDashboardAmount(week.week_total)), 1);
   const [selected, setSelected] = useState<SalesWeeklyRow | null>(null);
   const [detail, setDetail] = useState<{
     headline: string;
@@ -44,49 +44,56 @@ export function PastWeeksCard({
     thriftplusRevenue?: string;
   } | null>(null);
 
-  const closeSheet = () => {
-    setSheetOpen(false);
-    setSelected(null);
-  };
-
   return (
     <>
-      <Card elevation={0} sx={{ ...dashboardPhoneCardSx, overflow: 'hidden' }}>
-        <Box sx={{ px: 2, pt: 1.75, pb: 1.25 }}>
-          <Typography sx={{ fontSize: '1.05rem', fontWeight: 800, lineHeight: 1.2 }}>
-            Past weeks
-          </Typography>
-          <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {preview.map((week) => (
-              <WeekRow
-                key={week.week_start}
-                week={week}
-                maxTotal={maxTotal}
-                onClick={() => {
-                  setSelected(week);
-                  setSheetOpen(true);
+      <Card elevation={0} sx={{ ...dashboardPhoneCardSx, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ px: 2, pt: 1.75, pb: 1.25, display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography
+                sx={{
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  letterSpacing: 0.8,
+                  textTransform: 'uppercase',
+                  color: 'text.secondary',
+                  lineHeight: 1,
                 }}
-              />
+              >
+                Weekly sales
+              </Typography>
+              <Typography sx={{ mt: 0.4, fontSize: '1.05rem', fontWeight: 800, lineHeight: 1.2 }}>
+                Past {ordered.length} weeks
+              </Typography>
+            </Box>
+            {action}
+          </Box>
+          <Box
+            sx={{
+              mt: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 0.5,
+              flex: 1,
+              minHeight: 0,
+              // As tall as the trend side; the older weeks scroll.
+              maxHeight: 224,
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              pr: 0.25,
+            }}
+          >
+            {ordered.map((week) => (
+              <WeekRow key={week.week_start} week={week} maxTotal={maxTotal} onClick={() => setSelected(week)} />
             ))}
           </Box>
-          <Button
-            fullWidth
-            onClick={() => {
-              setSelected(null);
-              setSheetOpen(true);
-            }}
-            sx={{ mt: 1, minHeight: 44, fontWeight: 800, textTransform: 'none' }}
-          >
-            All {pastWeeks.length} weeks
-          </Button>
         </Box>
       </Card>
 
       <DashboardPhoneSheet
-        open={sheetOpen}
-        title={selected ? selected.label : 'Past weeks'}
-        onClose={closeSheet}
-        onBack={selected ? () => setSelected(null) : undefined}
+        open={selected !== null}
+        title={selected ? selected.label : 'Week'}
+        onClose={() => setSelected(null)}
         fullHeight
       >
         {selected ? (
@@ -104,18 +111,7 @@ export function PastWeeksCard({
               })
             }
           />
-        ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {pastWeeks.map((week) => (
-              <WeekRow
-                key={week.week_start}
-                week={week}
-                maxTotal={maxTotal}
-                onClick={() => setSelected(week)}
-              />
-            ))}
-          </Box>
-        )}
+        ) : null}
       </DashboardPhoneSheet>
 
       <DayDetailSheet
@@ -143,12 +139,14 @@ function WeekRow({
 }) {
   const total = parseDashboardAmount(week.week_total);
   const fill = Math.min(100, (total / maxTotal) * 100);
+  const isThisWeek = week.label === 'This Week';
 
   return (
     <Box
       component="button"
       type="button"
       onClick={onClick}
+      aria-label={`${week.label}, ${weekDateRange(week.week_start, week.week_end)}: ${formatDashboardCurrency(week.week_total)}. Show its days`}
       sx={{
         display: 'grid',
         gridTemplateColumns: '1fr auto',
@@ -156,11 +154,12 @@ function WeekRow({
         alignItems: 'center',
         width: '100%',
         minHeight: 44,
+        flexShrink: 0,
         px: 1,
         border: '1px solid',
-        borderColor: 'rgba(91, 111, 95, 0.32)',
+        borderColor: isThisWeek ? 'rgba(189, 134, 24, 0.5)' : 'rgba(91, 111, 95, 0.32)',
         borderRadius: 1.5,
-        bgcolor: 'transparent',
+        bgcolor: isThisWeek ? dashboardPalette.goldSoft : 'transparent',
         cursor: 'pointer',
         textAlign: 'left',
         font: 'inherit',
@@ -170,6 +169,9 @@ function WeekRow({
       <Box sx={{ minWidth: 0 }}>
         <Typography sx={{ fontSize: '0.8125rem', fontWeight: 800, lineHeight: 1.2 }}>
           {week.label}
+          <Box component="span" sx={{ ml: 0.75, fontSize: '0.75rem', fontWeight: 600, color: 'text.secondary' }}>
+            {shortDate(week.week_start)}
+          </Box>
         </Typography>
         <Box
           sx={{
@@ -208,13 +210,14 @@ function WeekDayList({
   todayDay?: string;
   onPickDay: (day: SalesWeeklyRow['days'][number]) => void;
 }) {
+  const isThisWeek = week.label === 'This Week';
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
       <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 0.5 }}>
         {weekDateRange(week.week_start, week.week_end)}
       </Typography>
       {week.days.map((day) => {
-        const variant = variantFor(day, { isThisWeek: false, todayIso, todayDay });
+        const variant = variantFor(day, { isThisWeek, todayIso, todayDay });
         const variantSx = VARIANT_SX[variant];
         return (
           <Box
@@ -240,18 +243,41 @@ function WeekDayList({
               color: 'inherit',
             }}
           >
-            <Typography sx={{ fontSize: '0.875rem', fontWeight: 700 }}>
+            <Typography sx={{ fontSize: '0.875rem', fontWeight: variant === 'today' ? 800 : 700 }}>
               {day.day.slice(0, 3)} {day.date.slice(5).replace('-', '/')}
             </Typography>
             <Typography sx={{ fontSize: '0.875rem', fontWeight: 800 }}>
               {formatDashboardCurrency(day.revenue)}
             </Typography>
-            <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+            <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', minWidth: 36, textAlign: 'right' }}>
               {formatItemsSold(day.items_sold ?? 0)}
             </Typography>
           </Box>
         );
       })}
+      <Box
+        sx={{
+          mt: 0.5,
+          px: 1.25,
+          py: 0.85,
+          minHeight: 48,
+          borderRadius: 1.5,
+          bgcolor: dashboardPalette.green,
+          color: dashboardPalette.textOnBackdrop,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+        }}
+      >
+        <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, lineHeight: 1 }}>Week total</Typography>
+        <Typography sx={{ fontSize: '1.1rem', fontWeight: 900 }}>{formatDashboardCurrency(week.week_total)}</Typography>
+        <SalesSubLines
+          period={isThisWeek ? 'This week' : 'That week'}
+          returns={week.week_returns}
+          thriftplusRevenue={week.week_thriftplus_revenue}
+          color="inherit"
+        />
+      </Box>
     </Box>
   );
 }

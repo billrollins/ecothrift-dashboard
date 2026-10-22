@@ -1,11 +1,17 @@
-v2.212.0 — Social Studio post numbers, spend ledger, Owner page Social card
+v2.213.0 — Dashboard: one screen, flip cards, details behind every number
 
-User-facing theme: **Social Studio post numbers, a spend ledger, and a Social card on the Owner page (Bill, 2026-10-22).** Initiative: retail_tags_and_social (phase 5).
+User-facing theme: **Dashboard is one screen: Sales on the left, the four department cards on the right (Bill, 2026-10-22).** Fix-it lane x-dash-cards.
+
+### Changed
+- **One screen:** Sales on the left, the four department cards on the right (stacked on phone). Today's focus is gone; everyone sees the department cards and goals.
+- **One number per card** for this week (Monday to today) against its goal: Buying purchased inventory, Processing processed inventory at our price, Restoration items finished, Retail quality score. Card weeks now run Monday to today, the same week as the day row.
+- **Flip:** the corner button on each card and on Sales turns it over to past weeks, so the front stays small.
 
 ### Added
-- **Post numbers:** each posted post takes its Facebook numbers after 1 day and after 7 days (reach, reactions, comments, shares, messages, link clicks); the week shows "Numbers due" until they're typed.
-- **Numbers page** in Social Studio: the best posts, which post types and categories do best, and a rough read on whether post days sell more than the same weekday without a post (with how many days it rests on).
-- **Marketing spend ledger** (boosts, print, events), $0 to start; only the owner adds to it.
-- **Owner page Social card:** this week's posts, reach, engagement, the best post, spend, and the sales read.
+- **Details:** tap a card's number, a day or a week to see what's behind it: Buying's orders with cost (each opens its order), who processed what with price and retail (opens their items in Inventory search), and who restored what with the value added.
+
+### Fixed
+- Retail's Spot / Do / Cross summary and the Dashboard load much faster.
+- On Sundays the sales "This Week" showed an empty week.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

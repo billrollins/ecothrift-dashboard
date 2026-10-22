@@ -68,7 +68,6 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
       },
       { id: 'staff-purchases', title: 'Staff purchases', help: 'Payroll deduction at the register.', custom: ['staff-purchases'] },
       { id: 'owner-page', title: 'Owner page', help: 'Targets on the Owner page Scorecard.', keys: ['owner.scorecard_targets'] },
-      { id: 'dashboard', title: 'Dashboard', help: 'What staff see on the Dashboard.', keys: ['dashboard.focus_numbers'] },
       {
         id: 'social',
         title: 'Social Studio',

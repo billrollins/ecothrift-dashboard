@@ -30,6 +30,10 @@ interface DepartmentCardGridProps {
   /** Optional handler when the sticky day-head row is tapped (e.g. open week detail). */
   onDayHeadsClick?: () => void;
   cellAriaLabel?: (day: DepartmentDailyMetric, value: string) => string;
+  /** When set, each week's label and total becomes a button (details for that week). */
+  onWeekClick?: (week: DepartmentDailyWeek) => void;
+  /** Fill the parent's height and scroll every week (a card's back), instead of showing two week rows. */
+  fill?: boolean;
 }
 
 /** Past and today (including Closed / no activity). Future cells stay inert. */
@@ -62,8 +66,8 @@ function GridCell({
     py: { xs: 0.45, md: 0.15 },
     px: 0.1,
     // Fixed row geometry across all department cards (touch target on phone).
-    minHeight: { xs: 44, md: 28 },
-    height: { xs: 44, md: 28 },
+    minHeight: { xs: 40, md: 30 },
+    height: { xs: 40, md: 30 },
     border: '1px solid',
     borderColor: fail
       ? failLetterColors.border
@@ -129,10 +133,10 @@ function GridCell({
           // Longer retail strings (e.g. B·1/2) shrink; cell box stays fixed.
           fontSize:
             value.length >= 6
-              ? { xs: '0.58rem', md: '0.48rem' }
+              ? { xs: '0.58rem', md: '0.58rem' }
               : value.length >= 4
-                ? { xs: '0.64rem', md: '0.52rem' }
-                : { xs: '0.7rem', md: '0.56rem' },
+                ? { xs: '0.64rem', md: '0.64rem' }
+                : { xs: '0.7rem', md: '0.7rem' },
           lineHeight: 1.15,
           color: fail
             ? failLetterColors.text
@@ -175,14 +179,30 @@ function WeekLabelCell({
   week,
   total,
   achieved,
+  onClick,
 }: {
   week: DepartmentDailyWeek;
   total: string;
   achieved?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <Box
+      component={onClick ? 'button' : 'div'}
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      aria-label={onClick ? `Week of ${weekRowLabel(week)}: ${total}. Open details` : undefined}
       sx={{
+        ...(onClick
+          ? {
+              border: '1px solid rgba(91, 111, 95, 0.32)',
+              cursor: 'pointer',
+              font: 'inherit',
+              color: 'inherit',
+              '@media (hover: hover)': { '&:hover': { boxShadow: '0 0 0 2px rgba(47, 103, 173, 0.45)' } },
+              '&:focus-visible': { outline: '2px solid', outlineColor: dashboardPalette.blue, outlineOffset: 1 },
+            }
+          : { border: 'none' }),
         alignSelf: 'stretch',
         textAlign: 'center',
         minWidth: 0,
@@ -204,7 +224,7 @@ function WeekLabelCell({
         color="text.secondary"
         fontWeight={700}
         noWrap
-        sx={{ fontSize: { xs: '0.65rem', md: '0.53rem' }, lineHeight: 1.1, display: 'block' }}
+        sx={{ fontSize: { xs: '0.65rem', md: '0.6rem' }, lineHeight: 1.1, display: 'block' }}
       >
         {weekRowLabel(week)}
       </Typography>
@@ -216,8 +236,8 @@ function WeekLabelCell({
         sx={{
           fontSize:
             total.length >= 7
-              ? { xs: '0.5rem', md: '0.42rem' }
-              : { xs: '0.6rem', md: '0.5rem' },
+              ? { xs: '0.5rem', md: '0.52rem' }
+              : { xs: '0.6rem', md: '0.62rem' },
           lineHeight: 1.1,
           display: 'block',
           color: isFailLetter(total)
@@ -251,6 +271,8 @@ export function DepartmentCardGrid({
   isCellClickable,
   onDayHeadsClick,
   cellAriaLabel,
+  onWeekClick,
+  fill = false,
 }: DepartmentCardGridProps) {
   // Newest week first so the scroller opens on the current week.
   const orderedWeeks = [...weeks].reverse();
@@ -260,7 +282,7 @@ export function DepartmentCardGrid({
   // Size the scroller to exactly VISIBLE_WEEK_ROWS so the card matches the old 2-week look.
   useLayoutEffect(() => {
     const root = scrollRef.current;
-    if (!root) return;
+    if (!root || fill) return;
 
     const measure = () => {
       const rows = root.querySelectorAll<HTMLElement>('[data-week-row]');
@@ -285,7 +307,7 @@ export function DepartmentCardGrid({
     observer.observe(root);
     root.querySelectorAll('[data-week-row]').forEach((row) => observer.observe(row));
     return () => observer.disconnect();
-  }, [orderedWeeks.length]);
+  }, [orderedWeeks.length, fill]);
 
   const snapToTop = () => {
     const root = scrollRef.current;
@@ -295,8 +317,8 @@ export function DepartmentCardGrid({
 
   return (
     <Box
-      onMouseLeave={snapToTop}
-      onPointerLeave={snapToTop}
+      onMouseLeave={fill ? undefined : snapToTop}
+      onPointerLeave={fill ? undefined : snapToTop}
       sx={{
         display: 'flex',
         flexDirection: 'column',
@@ -305,6 +327,7 @@ export function DepartmentCardGrid({
         borderTop: '1px solid',
         borderColor: 'divider',
         minHeight: 0,
+        ...(fill ? { flex: 1 } : {}),
       }}
     >
       <Box
@@ -314,7 +337,7 @@ export function DepartmentCardGrid({
         aria-label={onDayHeadsClick ? 'Open full week detail' : undefined}
         sx={{
           display: 'grid',
-          gridTemplateColumns: '34px repeat(7, minmax(0, 1fr))',
+          gridTemplateColumns: { xs: '40px repeat(7, minmax(0, 1fr))', md: '44px repeat(7, minmax(0, 1fr))' },
           gap: 0.25,
           alignItems: 'center',
           px: CELL_RING_GUTTER,
@@ -348,7 +371,7 @@ export function DepartmentCardGrid({
             color="text.secondary"
             textAlign="center"
             sx={{
-              fontSize: { xs: '0.65rem', md: '0.52rem' },
+              fontSize: { xs: '0.65rem', md: '0.62rem' },
               fontWeight: 900,
               lineHeight: 1.2,
               letterSpacing: 0.2,
@@ -364,9 +387,13 @@ export function DepartmentCardGrid({
           overflowY: 'auto',
           overflowX: 'hidden',
           overscrollBehavior: 'contain',
-          // Fallback until measured: 2 week rows plus ring gutter.
-          maxHeight: viewportHeight ?? { xs: 106, md: 76 },
-          height: viewportHeight ?? { xs: 106, md: 76 },
+          // Fallback until measured: 2 week rows plus ring gutter. A card's back fills and scrolls instead.
+          ...(fill
+            ? { flex: 1, minHeight: 0 }
+            : {
+                maxHeight: viewportHeight ?? { xs: 106, md: 76 },
+                height: viewportHeight ?? { xs: 106, md: 76 },
+              }),
           display: 'flex',
           flexDirection: 'column',
           gap: 0.25,
@@ -386,10 +413,10 @@ export function DepartmentCardGrid({
             data-week-row=""
             sx={{
               display: 'grid',
-              gridTemplateColumns: '34px repeat(7, minmax(0, 1fr))',
+              gridTemplateColumns: { xs: '40px repeat(7, minmax(0, 1fr))', md: '44px repeat(7, minmax(0, 1fr))' },
               gap: 0.25,
               alignItems: 'stretch',
-              height: { xs: 44, md: 28 },
+              height: { xs: 40, md: 30 },
               flexShrink: 0,
             }}
           >
@@ -397,6 +424,7 @@ export function DepartmentCardGrid({
               week={week}
               total={getWeekTotal(week)}
               achieved={getWeekAchieved?.(week)}
+              onClick={onWeekClick ? () => onWeekClick(week) : undefined}
             />
             {week.days.map((day) => {
               const value = getValue(day);
@@ -487,4 +515,13 @@ export function retailCellAriaLabel(day: DepartmentDailyMetric, value: string): 
   if (!day.retail) return `${dateLabel} - ${value === '\u2014' ? 'No activity' : value}`;
   const score = day.retail_score != null ? `, scored ${day.retail_score}` : '';
   return `${dateLabel} - grade ${day.retail}${score}`;
+}
+
+/** Buying, Processing and Restoration: every day up to today opens its details; future days stay inert. */
+export function departmentDayIsClickable(day: DepartmentDailyMetric): boolean {
+  return !day.is_future;
+}
+
+export function departmentCellAriaLabel(label: string) {
+  return (day: DepartmentDailyMetric, value: string) => `${shortDate(day.date)}: ${label} ${value}. Open details`;
 }

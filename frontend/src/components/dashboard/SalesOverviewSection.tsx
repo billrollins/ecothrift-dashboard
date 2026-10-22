@@ -1,5 +1,5 @@
 import { Box, Card, CardContent, Stack, Tooltip, Typography } from '@mui/material';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import type { SalesMetrics } from '../../types/pos.types';
 import {
@@ -27,6 +27,8 @@ import {
 
 interface SalesOverviewSectionProps {
   sales: SalesMetrics;
+  /** The flip button, in the header's corner (owner 2026-10-22). */
+  action?: ReactNode;
 }
 
 function CompactStat({ label, value }: { label: string; value: string }) {
@@ -115,7 +117,7 @@ function GoalStat({
   );
 }
 
-export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
+export function SalesOverviewSection({ sales, action }: SalesOverviewSectionProps) {
   const { user } = useAuth();
   const { isCompact, isMobile } = useDashboardLayout();
   const isSuperuser = Boolean(user?.is_superuser);
@@ -182,21 +184,14 @@ export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
             '&:last-child': { pb: 1.5 },
           }}
         >
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: { xs: 'column', sm: 'row' },
-              justifyContent: 'space-between',
-              alignItems: { xs: 'stretch', sm: 'flex-start' },
-              mb: 1.25,
-              gap: { xs: 1, sm: 2 },
-            }}
-          >
+          {/* Title and the flip button on one line; the goal, last week and today below (the card sits in a
+              narrow column beside the department cards, owner 2026-10-22). */}
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mb: 1 }}>
             <Tooltip
               title="90 days: solid = trailing 7-day sales total. Dotted = sum of past 4 weeks ÷ 4 (avg weekly)."
               arrow
             >
-              <Box sx={{ cursor: 'default' }}>
+              <Box sx={{ cursor: 'default', flex: 1, minWidth: 0 }}>
                 <Typography
                   variant="caption"
                   color="text.secondary"
@@ -210,10 +205,21 @@ export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
                 </Typography>
               </Box>
             </Tooltip>
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'stretch', sm: 'flex-end' }, gap: 0.5, minWidth: 0 }}>
+            {action}
+          </Box>
+          <Box
+            sx={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between',
+              alignItems: 'flex-end',
+              gap: 1,
+              mb: 1.25,
+            }}
+          >
             <Stack
               direction="row"
-              spacing={2}
+              spacing={1.25}
               sx={{
                 flexShrink: 0,
                 ...(isCompact
@@ -253,7 +259,6 @@ export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
                 thriftplusRevenue={sales.today_thriftplus_revenue}
               />
             )}
-            </Box>
           </Box>
           <Box
             sx={{

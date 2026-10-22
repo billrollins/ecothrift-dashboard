@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 from rest_framework import status
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin
+from apps.core.services.read_memo import read_memo
 from apps.hr.models import Shift, ShiftAssignment, TimeEntry
 from apps.webstore.services.hours import is_open_day
 
@@ -187,9 +188,13 @@ class QaDaySummaryView(APIView):
                         {'detail': 'invalid date'},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
-                return Response(day_summary_for_date(day, today=today))
+                # The Dashboard's Retail day and week tap (owner 2026-10-22: load faster): grading the open week read
+                # the store hours and QA settings ~200 times; read_memo reads them once.
+                with read_memo():
+                    return Response(day_summary_for_date(day, today=today))
             monday = parse_week_strict(raw_week)
-            return Response(week_summary_for_staff(monday, today=today))
+            with read_memo():
+                return Response(week_summary_for_staff(monday, today=today))
         except DaySummaryError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 

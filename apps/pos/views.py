@@ -3913,6 +3913,67 @@ def dashboard_metrics(request):
     return Response(get_dashboard_metrics(weeks_back=weeks_back))
 
 
+def _dashboard_period(request):
+    """(start, end, error response) from ``start`` / ``end`` (YYYY-MM-DD, at most 92 days apart)."""
+    from apps.pos.services.dashboard_metrics import DETAILS_MAX_DAYS
+
+    try:
+        start = date.fromisoformat(str(request.query_params.get('start') or ''))
+        end = date.fromisoformat(str(request.query_params.get('end') or ''))
+    except ValueError:
+        return None, None, Response({'detail': 'Give start and end as YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+    if end < start:
+        return None, None, Response({'detail': 'end is before start.'}, status=status.HTTP_400_BAD_REQUEST)
+    if (end - start).days >= DETAILS_MAX_DAYS:
+        return None, None, Response(
+            {'detail': f'At most {DETAILS_MAX_DAYS} days at a time.'}, status=status.HTTP_400_BAD_REQUEST,
+        )
+    return start, end, None
+
+
+@api_view(['GET'])
+@perm_classes([IsAuthenticated, IsTeamMember])
+def dashboard_department_details(request):
+    """What is behind a department card's number for a period (owner 2026-10-22). Everyone on the team reads it.
+
+    Query params: department (buying | processing | restoration), start, end (YYYY-MM-DD).
+    """
+    from apps.pos.services.dashboard_metrics import DETAILS_DEPARTMENTS, department_details
+
+    department = str(request.query_params.get('department') or '')
+    if department not in DETAILS_DEPARTMENTS:
+        return Response(
+            {'detail': f'department is one of {", ".join(DETAILS_DEPARTMENTS)}.'}, status=status.HTTP_400_BAD_REQUEST,
+        )
+    start, end, error = _dashboard_period(request)
+    if error is not None:
+        return error
+    return Response(department_details(department, start, end))
+
+
+@api_view(['GET'])
+@perm_classes([IsAuthenticated, IsTeamMember])
+def dashboard_processed_items(request):
+    """The items one person put on the floor in a period: a Processing details row opened in Inventory search.
+
+    Query params: user (an id, or ``none`` for moves nobody was recorded on), start, end (YYYY-MM-DD), page.
+    """
+    from apps.pos.services.dashboard_metrics import processed_items
+
+    raw_user = str(request.query_params.get('user') or '')
+    if raw_user != 'none' and not raw_user.isdigit():
+        return Response({'detail': 'Give user=<id> or user=none.'}, status=status.HTTP_400_BAD_REQUEST)
+    start, end, error = _dashboard_period(request)
+    if error is not None:
+        return error
+    try:
+        page = max(1, int(request.query_params.get('page') or 1))
+    except ValueError:
+        page = 1
+    user_id = None if raw_user == 'none' else int(raw_user)
+    return Response(processed_items(start, end, user_id, page=page))
+
+
 @api_view(['GET'])
 @perm_classes([IsAuthenticated, IsTeamMember])
 def dashboard_alerts(request):

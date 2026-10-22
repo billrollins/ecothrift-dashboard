@@ -1,4 +1,5 @@
 import { Box, Card, CardContent, Typography } from '@mui/material';
+import type { ReactNode } from 'react';
 import type { SalesWeeklyRow as SalesWeeklyRowType } from '../../types/pos.types';
 import { dashboardCardHoverLiftSx, dashboardPalette, dashboardRaisedCardSx } from './dashboardCardStyles';
 import { useDashboardLayout } from './useDashboardLayout';
@@ -9,9 +10,11 @@ interface WeeklySalesListProps {
   weeks: SalesWeeklyRowType[];
   todayIso?: string;
   todayDay?: string;
+  /** The flip button, in the header's corner (owner 2026-10-22). */
+  action?: ReactNode;
 }
 
-export function WeeklySalesList({ weeks, todayIso, todayDay }: WeeklySalesListProps) {
+export function WeeklySalesList({ weeks, todayIso, todayDay, action }: WeeklySalesListProps) {
   // Use the readable accordion list through md (<900px); 8-col row only on desktop.
   const { isMobile } = useDashboardLayout();
 
@@ -30,7 +33,8 @@ export function WeeklySalesList({ weeks, todayIso, todayDay }: WeeklySalesListPr
       }}
     >
       <CardContent sx={{ p: 1.5, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', '&:last-child': { pb: 1.5 } }}>
-        <Box sx={{ mb: 1.25 }}>
+        <Box sx={{ mb: 1.25, display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography
             variant="caption"
             color="text.secondary"
@@ -42,6 +46,8 @@ export function WeeklySalesList({ weeks, todayIso, todayDay }: WeeklySalesListPr
           <Typography variant="h6" fontWeight={800} lineHeight={1.15}>
             14-Week Calendar
           </Typography>
+          </Box>
+          {action}
         </Box>
         <Box
           sx={{

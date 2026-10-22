@@ -27,11 +27,9 @@ export function shortDayLabel(day: string): string {
 export function formatDashboardCurrencyCompact(value: string): string {
   const num = parseFloat(value);
   const safe = Number.isFinite(num) ? num : 0;
-  if (safe >= 100000) {
-    return `$${Math.round(safe / 1000)}k`;
-  }
+  // Whole thousands from $10k: the card-back day cells are narrow ("$31.5k" did not fit); the details show exact.
   if (safe >= 10000) {
-    return `$${(safe / 1000).toFixed(1).replace('.0', '')}k`;
+    return `$${Math.round(safe / 1000)}k`;
   }
   if (safe >= 1000) {
     return `$${(safe / 1000).toFixed(1).replace('.0', '')}k`;

@@ -8,6 +8,8 @@ from zoneinfo import ZoneInfo
 from django.conf import settings
 from django.utils import timezone
 
+from apps.core.services.read_memo import memo_read
+
 OVERRIDE_LOOKAHEAD_DAYS = 7
 
 DEFAULT_HOURS = {
@@ -29,6 +31,7 @@ _DAY_NAMES = (
 )
 
 
+@memo_read
 def get_hours_config() -> dict:
     try:
         from apps.core.models import AppSetting
@@ -49,6 +52,7 @@ class DayHours:
     override: object | None = None
 
 
+@memo_read
 def _active_overrides():
     from apps.webstore.models import StoreHoursOverride
 

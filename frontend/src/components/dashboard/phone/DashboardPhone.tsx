@@ -1,16 +1,17 @@
 import { Box } from '@mui/material';
-import { useAuth } from '../../../hooks/useAuth';
 import type { DashboardMetrics } from '../../../types/pos.types';
 import { DepartmentMetricCards } from '../DepartmentMetricCards';
-import { FocusNumbers } from '../FocusNumbers';
+import { FlipCard } from '../FlipCard';
 import { SectionHeader } from '../SectionHeader';
 import { PastWeeksCard } from './PastWeeksCard';
-import { ThisWeekCard } from './ThisWeekCard';
 import { TodayHero } from './TodayHero';
 import { TrendCardPhone } from './TrendCardPhone';
 
+/**
+ * The phone Dashboard (owner 2026-10-22): today's sales, the Sales card (trend; its back lists every week), then the
+ * four department cards stacked. Everyone sees the same page.
+ */
 export function DashboardPhone({ metrics }: { metrics: DashboardMetrics }) {
-  const { user } = useAuth();
   const todayIso = metrics.sales.daily_last_90_days.at(-1)?.date;
   const todayDay = metrics.sales.daily_last_90_days.at(-1)?.day;
 
@@ -31,28 +32,25 @@ export function DashboardPhone({ metrics }: { metrics: DashboardMetrics }) {
       <TodayHero sales={metrics.sales} />
       <SectionHeader
         title="Sales"
-        hint="Net item sales (after Thrift+ returns), with this week and the last 14 weeks."
+        hint="Net item sales (after Thrift+ returns). The corner button lists every week."
       />
-      <TrendCardPhone sales={metrics.sales} />
-      <ThisWeekCard
-        weeks={metrics.sales.weekly_last_14_weeks}
-        todayIso={todayIso}
-        todayDay={todayDay}
+      <FlipCard
+        name="Sales"
+        backLabel="past weeks"
+        frontLabel="the trend"
+        front={(button) => <TrendCardPhone sales={metrics.sales} action={button} />}
+        back={(button) => (
+          <PastWeeksCard
+            weeks={metrics.sales.weekly_last_14_weeks}
+            todayIso={todayIso}
+            todayDay={todayDay}
+            action={button}
+          />
+        )}
       />
-      <PastWeeksCard
-        weeks={metrics.sales.weekly_last_14_weeks}
-        todayIso={todayIso}
-        todayDay={todayDay}
-      />
-      <SectionHeader
-        title="Today's focus"
-        hintMobile="One number per department."
-      />
-      <FocusNumbers focus={metrics.focus} />
-      {/* Everyone sees the department goals (owner 2026-10-22). */}
       <SectionHeader
         title="Departments"
-        hintMobile="Weekly metrics and goals."
+        hintMobile="This week against each goal. Tap a number for details; the corner button shows past weeks."
       />
       <DepartmentMetricCards metrics={metrics.department_metrics} />
     </Box>

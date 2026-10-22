@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Any
 
 from django.core.cache import cache
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, F, Q, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 
@@ -95,11 +95,6 @@ def _day_range(start: date, end: date) -> tuple[datetime, datetime]:
     return start_dt, end_dt
 
 
-def _daily_sales_series(start: date, end: date) -> dict[date, Decimal]:
-    """Net item sales by day (owner 10-20, ``sales_numbers``): item sales plus returns. Dash's Sales number."""
-    return sales_numbers.net_item_sales_by_day(start, end)
-
-
 def _daily_surcharge_series(start: date, end: date) -> dict[date, Decimal]:
     start_dt, end_dt = _day_range(start, end)
     rows = (
@@ -148,20 +143,14 @@ def _day_payload(
     }
 
 
-def _monday_sunday_days(week_start_sunday: date) -> list[date]:
-    """Return Mon-Sun dates for a Sun-Sat week bucket."""
-    monday = week_start_sunday + timedelta(days=1)
-    return [monday + timedelta(days=i) for i in range(7)]
-
-
 def build_sales_metrics(today: date | None = None) -> dict[str, Any]:
     today = today or timezone.localdate()
     yesterday = today - timedelta(days=1)
     same_weekday_last_week = today - timedelta(days=7)
 
     ninety_start = today - timedelta(days=89)
-    current_week_start = _week_start_sunday(today)
-    earliest_week_start = current_week_start - timedelta(weeks=13)
+    this_monday = _week_start_monday(today)
+    earliest_week_start = this_monday - timedelta(weeks=13)
     revenue_start = min(earliest_week_start, ninety_start - timedelta(days=27))
     numbers_by_day = sales_numbers.by_day(revenue_start, today)
     revenue_by_day = {day: Decimal(n['net_item_sales']) for day, n in numbers_by_day.items()}
@@ -191,16 +180,18 @@ def build_sales_metrics(today: date | None = None) -> dict[str, Any]:
             'is_week_start': day == week_start,
         })
 
+    # Mon-Sun weeks, the week holding today first. Keyed by Monday so a Sunday stays in its own week (the Sunday
+    # bucket put Sunday's sales in "1 Week Ago" under an empty "This Week") and the dates match the days shown.
     weekly_last_14_weeks = []
     for week_index in range(14):
-        week_start = current_week_start - timedelta(weeks=week_index)
+        week_start = this_monday - timedelta(weeks=week_index)
         week_end = week_start + timedelta(days=6)
         days = []
         week_total = Decimal('0')
         week_returns = Decimal('0')
         week_thriftplus = Decimal('0')
         week_items_sold = 0
-        for day in _monday_sunday_days(week_start):
+        for day in (week_start + timedelta(days=i) for i in range(7)):
             rev = revenue_by_day.get(day, Decimal('0'))
             items = items_by_day.get(day, 0)
             returned = returns_by_day.get(day, Decimal('0'))
@@ -271,10 +262,16 @@ def _buying_total(start: date, end: date, *, buying_by_day: dict[date, Decimal] 
 
 
 def _processing_rows(start: date, end: date) -> list[tuple[date, int, Decimal]]:
-    """(day, item id, shelf value) for every item Processing put on the floor from ``start`` to ``end``.
+    """(day, item id, shelf value) for every item Processing put on the floor from ``start`` to ``end``."""
+    return [(row['day'], row['item_id'], row['value']) for row in _processing_events(start, end)]
 
-    One row per item per day: its first move to the floor that day, or its check-in from Restoration Overview.
-    Items sent to Restoration are not counted (their credit lands on the Overview check-in).
+
+def _processing_events(start: date, end: date) -> list[dict[str, Any]]:
+    """Every item Processing put on the floor from ``start`` to ``end``, with who did it.
+
+    One row per item per day: its last move to the floor that day (by whoever made it), or its check-in from
+    Restoration Overview (by whoever handled it). Items sent to Restoration are not counted (their credit lands on the
+    Overview check-in). ``value`` is the shelf value: our price, or retail when the price is blank.
     """
     start_dt, end_dt = _day_range(start, end)
     base_qs = (
@@ -293,7 +290,7 @@ def _processing_rows(start: date, end: date) -> list[tuple[date, int, Decimal]]:
         base_qs.annotate(day=TruncDate('created_at'))
         .order_by('day', 'item_id', '-created_at')
         .distinct('day', 'item_id')
-        .values('item_id', 'day', 'item__price', 'item__retail', 'item__check_in_id')
+        .values('item_id', 'day', 'item__price', 'item__retail', 'item__check_in_id', 'created_by_id')
     )
 
     check_in_ids = {
@@ -319,12 +316,24 @@ def _processing_rows(start: date, end: date) -> list[tuple[date, int, Decimal]]:
         return bool(check_in_id and check_in_id in restoration_check_ins)
 
     rows = [
-        (row['day'], row['item_id'], _shelf_value(row))
+        {
+            'day': row['day'],
+            'item_id': row['item_id'],
+            'value': _shelf_value(row),
+            'retail': row['item__retail'],
+            'user_id': row['created_by_id'],
+        }
         for row in daily_rows
         if not _skip_send_to_restoration(row)
     ]
     rows.extend(
-        (row['day'], row['id'], _dec(row['price'] or row['retail']))
+        {
+            'day': row['day'],
+            'item_id': row['id'],
+            'value': _dec(row['price'] or row['retail']),
+            'retail': row['retail'],
+            'user_id': row['handled_by'],
+        }
         for row in _processing_restoration_checkin_rows(start, end)
     )
     return rows
@@ -358,11 +367,6 @@ def _processing_on_shelf_aggregate(
     return range_total, dict(by_day)
 
 
-def _processing_items_count(start: date, end: date) -> int:
-    """How many different items Processing put on the floor from ``start`` to ``end``."""
-    return len({item_id for _day, item_id, _value in _processing_rows(start, end)})
-
-
 def _processing_restoration_checkin_rows(start: date, end: date) -> list[dict[str, Any]]:
     """Items Processing took in from Restoration Overview (`processing_handled_at`)."""
     start_dt, end_dt = _day_range(start, end)
@@ -372,8 +376,11 @@ def _processing_restoration_checkin_rows(start: date, end: date) -> list[dict[st
             check_in__restoration_job__processing_handled_at__gte=start_dt,
             check_in__restoration_job__processing_handled_at__lt=end_dt,
         )
-        .annotate(day=TruncDate('check_in__restoration_job__processing_handled_at'))
-        .values('id', 'day', 'price', 'retail')
+        .annotate(
+            day=TruncDate('check_in__restoration_job__processing_handled_at'),
+            handled_by=F('check_in__restoration_job__processing_handled_by_id'),
+        )
+        .values('id', 'day', 'price', 'retail', 'handled_by')
     )
 
 
@@ -431,7 +438,8 @@ def _count_tars_actions(jobs, action_type: str) -> int:
 
 
 def _restoration_metrics(today: date) -> dict[str, Any]:
-    week_start = _week_start_sunday(today)
+    # Monday to today, the week the card's day row shows (owner 2026-10-22: one week on every department card).
+    week_start = _week_start_monday(today)
 
     week_start_dt, week_end_dt = _day_range(week_start, today)
     today_start_dt, today_end_dt = _day_range(today, today)
@@ -738,17 +746,18 @@ def build_department_metrics(
 ) -> dict[str, Any]:
     today = today or timezone.localdate()
     weeks_back = clamp_department_weeks(weeks_back)
-    week_start = _week_start_sunday(today)
+    # Each card's Actual is Monday to today: the same week as its day row, so the number, the row total and the
+    # details behind a tap all cover one period (owner 2026-10-22). It was Sunday to today before.
     this_week_start = _week_start_monday(today)
     history_start = this_week_start - timedelta(days=7 * (weeks_back - 1))
 
     buying_by_day = _buying_by_day(history_start, today)
     # One pass over the wide window: by-day spans (history_start, today) for the
-    # daily grid while the unique-item week total is narrowed to (week_start, today).
+    # daily grid while the unique-item week total is narrowed to (this_week_start, today).
     processing_week_total, processing_by_day = _processing_on_shelf_aggregate(
-        min(history_start, week_start),
+        history_start,
         today,
-        total_start=week_start,
+        total_start=this_week_start,
     )
     restoration_by_day = _restoration_done_by_day(history_start, today)
     goals = _department_goals()
@@ -799,8 +808,9 @@ def build_department_metrics(
     }
 
     return {
+        'week_start': this_week_start.isoformat(),
         'buying': {
-            'week': _str_dec(_buying_total(week_start, today, buying_by_day=buying_by_day)),
+            'week': _str_dec(_buying_total(this_week_start, today, buying_by_day=buying_by_day)),
             'today': _str_dec(buying_by_day.get(today, Decimal('0'))),
         },
         'processing': {
@@ -814,104 +824,206 @@ def build_department_metrics(
     }
 
 
-# ── Focus numbers (critic review digest point 4, 2026-10-21) ─────────────────────
-# The staff Dashboard shows one number per department, the one that department can move today. Which number is the
-# owner's setting ``dashboard.focus_numbers`` ({department: choice}); a missing or unknown choice uses the default.
+# ── Department details (owner 2026-10-22) ─────────────────────────────────────────────────────────────────────────
+# What is behind a card's Actual or a day cell: Buying's orders, and per person what Processing put on the floor and
+# what Restoration finished. Everyone on the team reads them, like the cards.
 
-FOCUS_SETTING_KEY = 'dashboard.focus_numbers'
-FOCUS_DEPARTMENTS = ('retail', 'processing', 'restoration', 'buying')
-FOCUS_DEFAULTS = {
-    'retail': 'items_sold_today',
-    'processing': 'items_processed_today',
-    'restoration': 'jobs_done_today',
-    'buying': 'buying_pct_of_processing_week',
-}
-# choice: (label, kind, compare) - kind is count | money | percent; compare is what the hint compares it with.
-FOCUS_CHOICES: dict[str, dict[str, tuple[str, str, str]]] = {
-    'retail': {
-        'items_sold_today': ('Items sold today', 'count', 'same day last week'),
-        'sales_today': ('Sales today', 'money', 'same day last week'),
-    },
-    'processing': {
-        'items_processed_today': ('Items processed today', 'count', 'same day last week'),
-        'processed_value_today': ('Processed today, at tag', 'money', 'same day last week'),
-    },
-    'restoration': {
-        'jobs_done_today': ('Restoration jobs finished today', 'count', 'same day last week'),
-    },
-    'buying': {
-        'buying_pct_of_processing_week': ('Buying as % of processed, this week', 'percent', 'target 40-50%'),
-        'buying_week': ('Buying spend this week', 'money', 'last week to the same day'),
-    },
-}
+DETAILS_DEPARTMENTS = ('buying', 'processing', 'restoration')
+DETAILS_MAX_DAYS = 92
+PROCESSED_ITEMS_PAGE_SIZE = 100
 
 
-def focus_settings() -> dict[str, str]:
-    """{department: choice}: the owner's setting over the defaults."""
-    from apps.core.models import AppSetting
+def _names(user_ids) -> dict[int, str]:
+    from django.contrib.auth import get_user_model
 
-    raw = AppSetting.objects.filter(key=FOCUS_SETTING_KEY).values_list('value', flat=True).first()
-    out = dict(FOCUS_DEFAULTS)
-    if isinstance(raw, dict):
-        for department, choice in raw.items():
-            if choice in FOCUS_CHOICES.get(department, {}):
-                out[department] = choice
-    return out
+    ids = {uid for uid in user_ids if uid}
+    if not ids:
+        return {}
+    rows = get_user_model().objects.filter(id__in=ids).values_list('id', 'first_name', 'last_name', 'email')
+    return {uid: (f'{first} {last}'.strip() or email) for uid, first, last, email in rows}
 
 
-def _restoration_done_count(day: date) -> int:
-    start_dt, end_dt = _day_range(day, day)
-    return RestorationJob.objects.filter(
-        stage=RestorationJob.STAGE_DONE, dispositioned_at__gte=start_dt, dispositioned_at__lt=end_dt,
-    ).count()
-
-
-def _pct_str(part: Decimal, whole: Decimal) -> str | None:
-    return str((part * 100 / whole).quantize(Decimal('0.1'))) if whole else None
-
-
-def _focus_value(choice: str, today: date) -> tuple[str | None, str | None]:
-    """(today's value, the value to compare with) as strings."""
-    last = today - timedelta(days=7)
-    if choice == 'items_sold_today':
-        sold = _daily_items_sold_series(last, today)
-        return str(sold.get(today, 0)), str(sold.get(last, 0))
-    if choice == 'sales_today':
-        sales = _daily_sales_series(last, today)
-        return _str_dec(sales.get(today, Decimal('0'))), _str_dec(sales.get(last, Decimal('0')))
-    if choice == 'items_processed_today':
-        return str(_processing_items_count(today, today)), str(_processing_items_count(last, last))
-    if choice == 'processed_value_today':
-        return _str_dec(_processing_on_shelf_value(today, today)), _str_dec(_processing_on_shelf_value(last, last))
-    if choice == 'jobs_done_today':
-        return str(_restoration_done_count(today)), str(_restoration_done_count(last))
-    monday = _week_start_monday(today)
-    if choice == 'buying_week':
-        return _str_dec(_buying_total(monday, today)), _str_dec(_buying_total(monday - timedelta(days=7), last))
-    if choice == 'buying_pct_of_processing_week':
-        return _pct_str(_buying_total(monday, today), _processing_on_shelf_value(monday, today)), None
-    return None, None
-
-
-def build_focus_numbers(today: date | None = None) -> list[dict[str, Any]]:
-    """One number per department, the owner's choice of each (``dashboard.focus_numbers``)."""
-    today = today or timezone.localdate()
-    chosen = focus_settings()
+def _unique_processing_events(start: date, end: date) -> list[dict[str, Any]]:
+    """Each item once over the period, on the first day it counts: the same items as the card's week total."""
+    seen: set[int] = set()
     out = []
-    for department in FOCUS_DEPARTMENTS:
-        choice = chosen[department]
-        label, kind, compare = FOCUS_CHOICES[department][choice]
-        value, compare_value = _focus_value(choice, today)
-        out.append({
-            'department': department,
-            'metric': choice,
-            'label': label,
-            'kind': kind,
-            'value': value,
-            'compare_label': compare,
-            'compare_value': compare_value,
-        })
+    for row in sorted(_processing_events(start, end), key=lambda r: r['day']):
+        if row['item_id'] in seen:
+            continue
+        seen.add(row['item_id'])
+        out.append(row)
     return out
+
+
+def buying_details(start: date, end: date) -> dict[str, Any]:
+    """The orders bought from ``start`` to ``end`` (by order date, cancelled left out), with their cost."""
+    rows = list(
+        PurchaseOrder.objects.filter(ordered_date__gte=start, ordered_date__lte=end)
+        .exclude(status='cancelled')
+        .order_by('-ordered_date', '-id')
+        .values('id', 'order_number', 'ordered_date', 'status', 'total_cost', 'description', 'vendor__name')
+    )
+    status_labels = dict(PurchaseOrder.STATUS_CHOICES)
+    total = Decimal('0')
+    orders = []
+    for row in rows:
+        total += _dec(row['total_cost'])
+        orders.append({
+            'id': row['id'],
+            'order_number': row['order_number'],
+            'vendor': row['vendor__name'] or '',
+            'description': row['description'] or '',
+            'ordered_date': row['ordered_date'].isoformat() if row['ordered_date'] else None,
+            'status': row['status'],
+            'status_label': status_labels.get(row['status'], row['status']),
+            # Blank cost stays blank (unknown), not $0.
+            'total_cost': _str_dec(row['total_cost']) if row['total_cost'] is not None else None,
+        })
+    return {'rows': orders, 'totals': {'orders': len(orders), 'total_cost': _str_dec(total)}}
+
+
+def processing_details(start: date, end: date) -> dict[str, Any]:
+    """Per person: the items they put on the floor, at our price and at retail."""
+    people: dict[int | None, dict[str, Any]] = {}
+    for row in _unique_processing_events(start, end):
+        person = people.setdefault(row['user_id'], {
+            'items': 0, 'price': Decimal('0'), 'retail': Decimal('0'), 'missing_retail': 0,
+        })
+        person['items'] += 1
+        person['price'] += row['value']
+        if row['retail'] is None:
+            person['missing_retail'] += 1
+        else:
+            person['retail'] += row['retail']
+    names = _names(people)
+    rows = [
+        {
+            'user_id': user_id,
+            'name': names.get(user_id) or 'Not recorded',
+            'items': p['items'],
+            'total_price': _str_dec(p['price']),
+            'total_retail': _str_dec(p['retail']),
+            'missing_retail': p['missing_retail'],
+        }
+        for user_id, p in people.items()
+    ]
+    rows.sort(key=lambda r: (-r['items'], r['name']))
+    return {
+        'rows': rows,
+        'totals': {
+            'items': sum(p['items'] for p in people.values()),
+            'total_price': _str_dec(sum((p['price'] for p in people.values()), Decimal('0'))),
+            'total_retail': _str_dec(sum((p['retail'] for p in people.values()), Decimal('0'))),
+            'missing_retail': sum(p['missing_retail'] for p in people.values()),
+        },
+    }
+
+
+def restoration_details(start: date, end: date) -> dict[str, Any]:
+    """Per person: the restoration jobs they finished, and the value those jobs added (TARS ``value_added``)."""
+    start_dt, end_dt = _day_range(start, end)
+    rows = RestorationJob.objects.filter(
+        stage=RestorationJob.STAGE_DONE,
+        dispositioned_at__gte=start_dt,
+        dispositioned_at__lt=end_dt,
+    ).values_list('dispositioned_by_id', 'value_added')
+    people: dict[int | None, dict[str, Any]] = {}
+    for user_id, value_added in rows:
+        person = people.setdefault(user_id, {'items': 0, 'value': Decimal('0'), 'unmeasured': 0})
+        person['items'] += 1
+        if value_added is None:
+            # No starting grade or price: counted, but its value is unknown (tars_value).
+            person['unmeasured'] += 1
+        else:
+            person['value'] += value_added
+    names = _names(people)
+    out = [
+        {
+            'user_id': user_id,
+            'name': names.get(user_id) or 'Not recorded',
+            'items': p['items'],
+            'value_added': _str_dec(p['value']),
+            'unmeasured': p['unmeasured'],
+        }
+        for user_id, p in people.items()
+    ]
+    out.sort(key=lambda r: (-r['items'], r['name']))
+    return {
+        'rows': out,
+        'totals': {
+            'items': sum(p['items'] for p in people.values()),
+            'value_added': _str_dec(sum((p['value'] for p in people.values()), Decimal('0'))),
+            'unmeasured': sum(p['unmeasured'] for p in people.values()),
+        },
+    }
+
+
+def department_details(department: str, start: date, end: date) -> dict[str, Any]:
+    builders = {
+        'buying': buying_details,
+        'processing': processing_details,
+        'restoration': restoration_details,
+    }
+    return {
+        'department': department,
+        'start': start.isoformat(),
+        'end': end.isoformat(),
+        **builders[department](start, end),
+    }
+
+
+def processed_items(
+    start: date,
+    end: date,
+    user_id: int | None,
+    *,
+    page: int = 1,
+    page_size: int = PROCESSED_ITEMS_PAGE_SIZE,
+) -> dict[str, Any]:
+    """The items one person put on the floor from ``start`` to ``end`` (``user_id`` None: nobody recorded).
+
+    The same items as their Processing details row, newest first, one page at a time.
+    """
+    mine = [row for row in _unique_processing_events(start, end) if row['user_id'] == user_id]
+    mine.sort(key=lambda r: (r['day'], r['item_id']), reverse=True)
+    page = max(1, page)
+    page_rows = mine[(page - 1) * page_size: page * page_size]
+    items = {
+        row['id']: row
+        for row in Item.objects.filter(id__in=[r['item_id'] for r in page_rows]).values(
+            'id', 'sku', 'status', 'product_id', 'product__title',
+        )
+    }
+    status_labels = dict(Item.STATUS_CHOICES)
+    results = []
+    for row in page_rows:
+        item = items.get(row['item_id'])
+        if item is None:
+            continue
+        results.append({
+            'id': item['id'],
+            'sku': item['sku'],
+            'title': item['product__title'] or '',
+            'product_id': item['product_id'],
+            'status': item['status'],
+            'status_label': status_labels.get(item['status'], item['status']),
+            'price': _str_dec(row['value']),
+            'retail': _str_dec(row['retail']) if row['retail'] is not None else None,
+            'processed_on': row['day'].isoformat(),
+        })
+    names = _names([user_id])
+    return {
+        'user_id': user_id,
+        'name': names.get(user_id) or 'Not recorded',
+        'start': start.isoformat(),
+        'end': end.isoformat(),
+        'count': len(mine),
+        'total_price': _str_dec(sum((r['value'] for r in mine), Decimal('0'))),
+        'total_retail': _str_dec(sum((r['retail'] for r in mine if r['retail'] is not None), Decimal('0'))),
+        'page': page,
+        'page_size': page_size,
+        'results': results,
+    }
 
 
 def build_dashboard_metrics(
@@ -919,12 +1031,15 @@ def build_dashboard_metrics(
     *,
     weeks_back: int = DEFAULT_DEPARTMENT_WEEKS,
 ) -> dict[str, Any]:
+    from apps.core.services.read_memo import read_memo
+
     today = today or timezone.localdate()
-    return {
-        'sales': build_sales_metrics(today),
-        'focus': build_focus_numbers(today),
-        'department_metrics': build_department_metrics(today, weeks_back=weeks_back),
-    }
+    # One read of the store hours and Retail QA settings for the whole payload (it asked ~500 times before).
+    with read_memo():
+        return {
+            'sales': build_sales_metrics(today),
+            'department_metrics': build_department_metrics(today, weeks_back=weeks_back),
+        }
 
 
 def _metrics_cache_key(today: date, weeks_back: int) -> str:

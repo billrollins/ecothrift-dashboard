@@ -30,6 +30,7 @@ import { ProductItemsTable } from '../../components/objects/ProductItemsTable';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../utils/format';
 import { parseRichSearch, parseWorkbenchSelection } from '../../utils/richInventorySearch';
+import { ProcessedItemsView } from './ProcessedItemsView';
 import { IconSearch as Search } from '../../icons/ecoIcons';
 
 const DEBOUNCE_MS = 200;
@@ -414,6 +415,8 @@ export default function InventorySearchPage() {
   const sold = params.get('sold') === '1';
   const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
   const sort = params.get('sort') ?? '';
+  // From a Processing row in the Dashboard's details: the items one person put on the floor (owner 2026-10-22).
+  const processedBy = params.get('processed_by');
 
   const setParam = useCallback(
     (changes: Record<string, string | null>) => {
@@ -437,7 +440,17 @@ export default function InventorySearchPage() {
   return (
     <ObjectModalProvider initial={initial} onChange={onModalChange}>
       <SelectionProvider>
-        <SearchBody q={q} sold={sold} page={page} sort={sort} setParam={setParam} />
+        {processedBy ? (
+          <ProcessedItemsView
+            user={processedBy}
+            from={params.get('from') ?? ''}
+            to={params.get('to') ?? ''}
+            page={page}
+            setParam={setParam}
+          />
+        ) : (
+          <SearchBody q={q} sold={sold} page={page} sort={sort} setParam={setParam} />
+        )}
       </SelectionProvider>
     </ObjectModalProvider>
   );

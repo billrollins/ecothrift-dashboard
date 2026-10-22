@@ -1,12 +1,10 @@
-import { Box, Alert, Grid } from '@mui/material';
+import { Box, Alert } from '@mui/material';
 import { LoadingScreen } from '../components/feedback/LoadingScreen';
 import { DepartmentMetricCards } from '../components/dashboard/DepartmentMetricCards';
-import { FocusNumbers } from '../components/dashboard/FocusNumbers';
-import { SalesOverviewSection } from '../components/dashboard/SalesOverviewSection';
+import { SalesFlipCard } from '../components/dashboard/SalesFlipCard';
 import { dashboardPalette } from '../components/dashboard/dashboardCardStyles';
 import { DashboardPhone } from '../components/dashboard/phone/DashboardPhone';
 import { SectionHeader } from '../components/dashboard/SectionHeader';
-import { WeeklySalesList } from '../components/dashboard/WeeklySalesList';
 import {
   dashboardGutterPbSx,
   dashboardGutterPtSx,
@@ -40,6 +38,14 @@ export default function DashboardPage() {
     return <DashboardPhone metrics={metrics} />;
   }
 
+  const columnSx = {
+    minWidth: 0,
+    minHeight: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 1.25,
+  } as const;
+
   return (
     <FloorPage
       title={t('dashboard', lang)}
@@ -48,95 +54,38 @@ export default function DashboardPage() {
       contained={false}
       bodyBg={dashboardPalette.backdrop}
     >
-    <Box
-      sx={{
-        flex: 1,
-        display: 'grid',
-        // The sales row never shrinks below a readable chart: with the owner's department cards the page scrolls.
-        gridTemplateRows: 'minmax(400px, 1fr) auto',
-        height: '100%',
-        minHeight: 0,
-        gap: 2,
-        overflow: 'visible',
-      }}
-    >
+      {/* One screen (owner 2026-10-22): Sales on the left, the four department cards 2x2 on the right. Below a wide
+          desk (lg) the two stack. Everyone sees everything here, goals included. */}
       <Box
         sx={{
+          flex: 1,
           minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 1.25,
-          overflow: 'visible',
+          height: '100%',
+          display: 'grid',
+          gridTemplateColumns: { md: 'minmax(0, 1fr)', lg: 'minmax(0, 5fr) minmax(0, 7fr)' },
+          gridTemplateRows: { md: 'minmax(440px, auto) auto', lg: 'minmax(560px, 1fr)' },
+          columnGap: 2.5,
+          rowGap: 2,
           ...dashboardGutterSx,
           ...dashboardGutterPtSx,
-        }}
-      >
-        <SectionHeader
-          title="Sales"
-          hint="Net item sales (after Thrift+ returns) over 90 days, with weekly totals."
-        />
-        <Grid
-          container
-          spacing={1.5}
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            height: 0,
-            overflow: 'visible',
-          }}
-        >
-          <Grid
-            size={{ xs: 12, md: 6 }}
-            sx={{
-              display: 'flex',
-              minHeight: 0,
-              height: '100%',
-            }}
-          >
-            <SalesOverviewSection sales={metrics.sales} />
-          </Grid>
-          <Grid
-            size={{ xs: 12, md: 6 }}
-            sx={{
-              display: 'flex',
-              minHeight: 0,
-              height: '100%',
-            }}
-          >
-            <WeeklySalesList
-              weeks={metrics.sales.weekly_last_14_weeks}
-              todayIso={metrics.sales.daily_last_90_days.at(-1)?.date}
-              todayDay={metrics.sales.daily_last_90_days.at(-1)?.day}
-            />
-          </Grid>
-        </Grid>
-      </Box>
-
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 1.25,
-          overflow: 'visible',
-          ...dashboardGutterSx,
           ...dashboardGutterPbSx,
         }}
       >
-        <SectionHeader
-          title="Today's focus"
-          hintDesktop="One number per department, the one each team can move today."
-          hintMobile="One number per department."
-        />
-        <FocusNumbers focus={metrics.focus} />
-        {/* Everyone sees the department goals (owner 2026-10-22: "staff can't see department goals any more"). */}
-        <SectionHeader
-          title="Departments"
-          hintDesktop="Per-department weekly metrics and goals."
-          hintMobile="Weekly metrics and goals."
-        />
-        <DepartmentMetricCards metrics={metrics.department_metrics} />
+        <Box component="section" aria-label="Sales" sx={columnSx}>
+          <SectionHeader
+            title="Sales"
+            hint="Net item sales (after Thrift+ returns) over 90 days. The corner button shows the 14-week calendar."
+          />
+          <SalesFlipCard sales={metrics.sales} sx={{ flex: 1, minHeight: 0 }} />
+        </Box>
+        <Box component="section" aria-label="Departments" sx={columnSx}>
+          <SectionHeader
+            title="Departments"
+            hint="This week against each goal. Tap a number for what is behind it; the corner button shows past weeks."
+          />
+          <DepartmentMetricCards metrics={metrics.department_metrics} />
+        </Box>
       </Box>
-    </Box>
     </FloorPage>
   );
 }

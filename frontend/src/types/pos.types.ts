@@ -606,6 +606,8 @@ export interface DashboardDepartmentGoal {
 }
 
 export interface DepartmentMetrics {
+  /** Monday of this week: each card's Actual runs from here to today, like its day row. */
+  week_start?: string;
   buying: DepartmentPeriodMetric;
   processing: DepartmentPeriodMetric;
   restoration: RestorationMetrics;
@@ -614,24 +616,90 @@ export interface DepartmentMetrics {
   daily_weeks: DepartmentDailyWeek[];
 }
 
-export type FocusDepartment = 'retail' | 'processing' | 'restoration' | 'buying';
-
-/** One department's focus number on the staff Dashboard (2026-10-21; owner setting dashboard.focus_numbers). */
-export interface FocusNumber {
-  department: FocusDepartment;
-  metric: string;
-  label: string;
-  kind: 'count' | 'money' | 'percent';
-  value: string | null;
-  /** E.g. "same day last week" or "target 40-50%". */
-  compare_label: string;
-  compare_value: string | null;
-}
-
 export interface DashboardMetrics {
   sales: SalesMetrics;
-  focus: FocusNumber[];
   department_metrics: DepartmentMetrics;
+}
+
+/** The departments whose numbers open a details drawer (Retail opens its QA summary). Owner 2026-10-22. */
+export type DepartmentDetailsKey = 'buying' | 'processing' | 'restoration';
+
+export interface BuyingDetailRow {
+  id: number;
+  order_number: string;
+  vendor: string;
+  description: string;
+  ordered_date: string | null;
+  status: string;
+  status_label: string;
+  /** Null when the order has no cost yet (unknown, not $0). */
+  total_cost: string | null;
+}
+
+export interface ProcessingDetailRow {
+  /** Null: moves nobody was recorded on. */
+  user_id: number | null;
+  name: string;
+  items: number;
+  /** At our price (retail when an item has no price). */
+  total_price: string;
+  total_retail: string;
+  missing_retail: number;
+}
+
+export interface RestorationDetailRow {
+  user_id: number | null;
+  name: string;
+  items: number;
+  value_added: string;
+  /** Finished jobs whose value could not be measured (no starting grade or price). */
+  unmeasured: number;
+}
+
+interface DetailsPeriod {
+  start: string;
+  end: string;
+}
+
+export type DepartmentDetails =
+  | (DetailsPeriod & {
+      department: 'buying';
+      rows: BuyingDetailRow[];
+      totals: { orders: number; total_cost: string };
+    })
+  | (DetailsPeriod & {
+      department: 'processing';
+      rows: ProcessingDetailRow[];
+      totals: { items: number; total_price: string; total_retail: string; missing_retail: number };
+    })
+  | (DetailsPeriod & {
+      department: 'restoration';
+      rows: RestorationDetailRow[];
+      totals: { items: number; value_added: string; unmeasured: number };
+    });
+
+export interface ProcessedItemRow {
+  id: number;
+  sku: string;
+  title: string;
+  product_id: number | null;
+  status: string;
+  status_label: string;
+  price: string;
+  retail: string | null;
+  processed_on: string;
+}
+
+/** The items one person put on the floor in a period (Inventory search, from a Processing details row). */
+export interface ProcessedItemsPage extends DetailsPeriod {
+  user_id: number | null;
+  name: string;
+  count: number;
+  total_price: string;
+  total_retail: string;
+  page: number;
+  page_size: number;
+  results: ProcessedItemRow[];
 }
 
 export interface DashboardAlert {

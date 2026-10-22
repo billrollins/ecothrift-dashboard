@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-02 -->
+<!-- Last updated: 2026-10-22 (processed_by view from the Dashboard) -->
 # Inventory search and the standard object views
 
 Owner, 2026-10-02: one fast search for everything in inventory, and one standard way to open a product, a check-in
@@ -17,6 +17,10 @@ or an item anywhere on the site. It replaced the old Catalog page (`/inventory/w
 - **Sort:** every column header sorts all the matches on the server (high to low first; A to Z for Product), blanks
   last. The header box ticks every product on the page with something on the shelf.
 - Page state is in the URL: `q`, `sold`, `page`, `sort`, `open=<product|checkin|item>:<id>`.
+- **Items one person put on the floor** (2026-10-22, from a Processing row in the Dashboard's details):
+  `processed_by=<user id|none>&from=YYYY-MM-DD&to=YYYY-MM-DD` shows those items (SKU, product, status, day, price,
+  retail; a list on a phone) instead of the search. "Search all inventory" goes back. Code:
+  `pages/inventory/ProcessedItemsView.tsx`, `GET /api/pos/dashboard/processed-items/`.
 - In the menu it is **Inventory > Search** (2026-10-02; with Run count, and PR Fix-it under a line).
 
 ## Speed (target: under a second; measured 15 to 360 ms on a copy of production, 2026-10-02)

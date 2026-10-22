@@ -1,6 +1,7 @@
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { DashboardMetrics, DepartmentDailyMetric, SalesWeeklyRow } from '../../../types/pos.types';
@@ -74,12 +75,6 @@ const metrics: DashboardMetrics = {
       salesWeek('2 Weeks Ago', '2026-08-17'),
     ],
   },
-  focus: [
-    { department: 'retail', metric: 'items_sold_today', label: 'Items sold today', kind: 'count', value: '1240', compare_label: 'same day last week', compare_value: '1100' },
-    { department: 'processing', metric: 'items_processed_today', label: 'Items processed today', kind: 'count', value: '310', compare_label: 'same day last week', compare_value: '280' },
-    { department: 'restoration', metric: 'jobs_done_today', label: 'Restoration jobs finished today', kind: 'count', value: '4', compare_label: 'same day last week', compare_value: '2' },
-    { department: 'buying', metric: 'buying_pct_of_processing_week', label: 'Buying as % of processed, this week', kind: 'percent', value: '46.5', compare_label: 'target 40-50%', compare_value: null },
-  ],
   department_metrics: {
     buying: { week: '800', today: '120' },
     processing: { week: '600', today: '80' },
@@ -116,7 +111,7 @@ const metrics: DashboardMetrics = {
       due_goal_met: true,
       week_goal_met: false,
     },
-    goals: {},
+    goals: { buying: { id: 1, department: 'buying', value: '5000', description: '' } },
     daily_weeks: [
       {
         label: 'This Week',
@@ -151,7 +146,7 @@ function renderPhone() {
 }
 
 describe('DashboardPhone', () => {
-  it('renders the today hero, week book, and one focus number per department', () => {
+  it("shows today, the Sales card, then the department cards; Today's focus is gone", () => {
     auth.user = { id: 1, role: 'Employee', is_superuser: false };
     renderPhone();
     expect(screen.getByText("Today's sales")).toBeInTheDocument();
@@ -160,24 +155,35 @@ describe('DashboardPhone', () => {
     expect(screen.getByText('+$20')).toBeInTheDocument();
     expect(screen.getByText('Returns -$36.00')).toBeInTheDocument();
     expect(screen.getByText('Thrift+ revenue $17.50')).toBeInTheDocument();
-    expect(screen.getByText('This week')).toBeInTheDocument();
-    expect(screen.getByText('Past weeks')).toBeInTheDocument();
-    expect(screen.getAllByText('Buying').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Processing').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Restoration').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Retail').length).toBeGreaterThan(0);
-    expect(screen.getByText('1,240')).toBeInTheDocument();
-    expect(screen.getByText('1,100 same day last week')).toBeInTheDocument();
-    expect(screen.getByText('46.5%')).toBeInTheDocument();
-    expect(screen.getByText('target 40-50%')).toBeInTheDocument();
-    // Staff see the weekly department cards and goals too (owner 2026-10-22).
-    expect(screen.getByRole('button', { name: 'Actual B' })).toBeInTheDocument();
+    expect(screen.queryByText("Today's focus")).not.toBeInTheDocument();
+    // Sales first, then the departments (owner 2026-10-22).
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+    expect(headings).toEqual(['Sales', 'Departments']);
+    expect(screen.getByRole('button', { name: 'Show past weeks: Sales' })).toBeInTheDocument();
+    // Each card names its one number.
+    expect(screen.getByText('Purchased inventory · this week')).toBeInTheDocument();
+    expect(screen.getByText('Processed inventory, at our price · this week')).toBeInTheDocument();
+    expect(screen.getByText('Count of items finished · this week')).toBeInTheDocument();
+    expect(screen.getByText('Quality score · this week')).toBeInTheDocument();
   });
 
-  it('shows the owner the weekly department cards too, with the Retail Actual letter a button', () => {
-    auth.user = { id: 1, role: 'Admin', is_superuser: true };
+  it('staff see the goals and every Actual, like the owner', () => {
+    auth.user = { id: 1, role: 'Employee', is_superuser: false };
     renderPhone();
-    expect(screen.getByText('Items sold today')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Actual B' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Buying goal $5,000' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Actual $800: Buying details this week' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Actual B: Retail details this week' })).toBeInTheDocument();
+    expect(screen.getByRole('meter', { name: "Share of the week's goal" })).toHaveAttribute('aria-valuenow', '16');
+  });
+
+  it('the Sales card turns over to every week, this week first', async () => {
+    auth.user = { id: 1, role: 'Admin', is_superuser: true };
+    const user = userEvent.setup();
+    renderPhone();
+    await user.click(screen.getByRole('button', { name: 'Show past weeks: Sales' }));
+    expect(screen.getByRole('button', { name: 'Show the trend: Sales' })).toHaveFocus();
+    const weeks = screen.getAllByRole('button', { name: /Show its days$/ }).map((b) => b.getAttribute('aria-label'));
+    expect(weeks[0]).toMatch(/^This Week/);
+    expect(weeks).toHaveLength(3);
   });
 });

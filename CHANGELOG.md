@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.212.0] -->
-<!-- Last reviewed: 2026-10-22 (2.212.0) -->
+<!-- Line 1 release: ## [2.213.0] -->
+<!-- Last reviewed: 2026-10-22 (2.213.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.213.0] - 2026-10-22
+
+User-facing theme: **Dashboard is one screen: Sales on the left, the four department cards on the right (Bill, 2026-10-22).** Fix-it lane x-dash-cards.
+
+### Changed
+- **One screen:** Sales on the left, the four department cards on the right (stacked on phone). Today's focus is gone; everyone sees the department cards and goals.
+- **One number per card** for this week (Monday to today) against its goal: Buying purchased inventory, Processing processed inventory at our price, Restoration items finished, Retail quality score. Card weeks now run Monday to today, the same week as the day row.
+- **Flip:** the corner button on each card and on Sales turns it over to past weeks, so the front stays small.
+
+### Added
+- **Details:** tap a card's number, a day or a week to see what's behind it: Buying's orders with cost (each opens its order), who processed what with price and retail (opens their items in Inventory search), and who restored what with the value added.
+
+### Fixed
+- Retail's Spot / Do / Cross summary and the Dashboard load much faster.
+- On Sundays the sales "This Week" showed an empty week.
 
 ## [2.212.0] - 2026-10-22
 

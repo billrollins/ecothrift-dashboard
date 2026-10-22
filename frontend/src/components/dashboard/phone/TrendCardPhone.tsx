@@ -1,5 +1,5 @@
 import { Box, Card, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { SalesMetrics } from '../../../types/pos.types';
 import { dashboardPalette, dashboardPhoneCardSx } from '../dashboardCardStyles';
 import { formatDashboardCurrency, parseDashboardAmount } from '../dashboardFormatters';
@@ -20,7 +20,8 @@ const WINDOW_DAYS: Record<WindowWeeks, number> = {
   13: 90,
 };
 
-export function TrendCardPhone({ sales }: { sales: SalesMetrics }) {
+/** `action`: the flip button in the header's corner (owner 2026-10-22). */
+export function TrendCardPhone({ sales, action }: { sales: SalesMetrics; action?: ReactNode }) {
   const [weeks, setWeeks] = useState<WindowWeeks>(4);
   const goalAmount = sales.goal ? parseDashboardAmount(sales.goal.amount) : null;
   const windowDays = WINDOW_DAYS[weeks];
@@ -83,6 +84,7 @@ export function TrendCardPhone({ sales }: { sales: SalesMetrics }) {
             <ToggleButton value={4}>4 wk</ToggleButton>
             <ToggleButton value={13}>13 wk</ToggleButton>
           </ToggleButtonGroup>
+          {action}
         </Box>
         <Typography
           sx={{

@@ -9,7 +9,7 @@ from .views import (
     DeliveryAvailabilityViewSet, DeliveryJobViewSet,
     DeliveryDayViewSet, DeliveryViewSet,
     dashboard_metrics, dashboard_alerts, dashboard_sales_goal,
-    dashboard_department_goals,
+    dashboard_department_goals, dashboard_department_details, dashboard_processed_items,
     sale_mode,
     delivery_address_suggest, delivery_distance_quote, delivery_optimize_route,
     delivery_runs, delivery_run_detail, delivery_run_set_phase,
@@ -180,4 +180,6 @@ urlpatterns = [
     path('dashboard/alerts/', dashboard_alerts, name='dashboard-alerts'),
     path('dashboard/sales-goal/', dashboard_sales_goal, name='dashboard-sales-goal'),
     path('dashboard/department-goals/', dashboard_department_goals, name='dashboard-department-goals'),
+    path('dashboard/department-details/', dashboard_department_details, name='dashboard-department-details'),
+    path('dashboard/processed-items/', dashboard_processed_items, name='dashboard-processed-items'),
 ]

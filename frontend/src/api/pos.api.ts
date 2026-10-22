@@ -3,7 +3,10 @@ import type {
   DashboardMetrics,
   DashboardSalesGoal,
   DashboardDepartmentGoal,
+  DepartmentDetails,
+  DepartmentDetailsKey,
   DepartmentGoalKey,
+  ProcessedItemsPage,
   Register,
   Drawer,
   DeliveryAvailability,
@@ -899,6 +902,25 @@ export function upsertDashboardDepartmentGoal(data: {
 
 export function getDashboardAlerts(): Promise<{ data: unknown[] }> {
   return api.get('/pos/dashboard/alerts/');
+}
+
+/** What is behind a department card's number for a period (dates YYYY-MM-DD). */
+export function getDashboardDepartmentDetails(params: {
+  department: DepartmentDetailsKey;
+  start: string;
+  end: string;
+}): Promise<{ data: DepartmentDetails }> {
+  return api.get<DepartmentDetails>('/pos/dashboard/department-details/', { params });
+}
+
+/** The items one person put on the floor in a period; `user` is an id or 'none' (nobody recorded). */
+export function getDashboardProcessedItems(params: {
+  user: string;
+  start: string;
+  end: string;
+  page?: number;
+}): Promise<{ data: ProcessedItemsPage }> {
+  return api.get<ProcessedItemsPage>('/pos/dashboard/processed-items/', { params });
 }
 
 // ── Staff purchases (owner, 2026-10-07): payroll deduction ─────────

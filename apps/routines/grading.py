@@ -11,6 +11,7 @@ from typing import Any
 
 from django.utils import timezone
 
+from apps.core.services.read_memo import memo_read
 from apps.webstore.services.hours import _local_now, is_open_day
 
 from .baseline import log10_tail_score, section_baseline, store_baseline, tail_probs
@@ -75,8 +76,13 @@ def fresh_tags_expected(day: date) -> bool:
     cannot be retired, so ``is_active`` only matters for tests)."""
     if not is_open_day(day):
         return False
-    row = Routine.objects.filter(system_key=SYSTEM_FRESH_TAGS, is_active=True).values_list('created_at', flat=True).first()
+    row = _fresh_tags_created_at()
     return row is not None and timezone.localtime(row).date() <= day
+
+
+@memo_read
+def _fresh_tags_created_at():
+    return Routine.objects.filter(system_key=SYSTEM_FRESH_TAGS, is_active=True).values_list('created_at', flat=True).first()
 
 
 def _weights(cfg: dict | None = None) -> tuple[float, float, float]:
@@ -299,6 +305,7 @@ def closed_section_ids(day: date) -> set[int]:
     return closed
 
 
+@memo_read
 def _active_sections():
     return list(Section.objects.filter(is_active=True).select_related('owner').order_by('sort_order', 'name'))
 

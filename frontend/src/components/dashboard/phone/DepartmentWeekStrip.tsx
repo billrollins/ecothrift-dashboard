@@ -24,7 +24,7 @@ export function DepartmentWeekStrip({
   const days = week?.days ?? [];
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, px: 0.75, pt: 0.5, pb: 0.75 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, px: { xs: 0.75, md: 0.25 }, pt: 0.5, pb: { xs: 0.75, md: 0.25 } }}>
       <Box
         sx={{
           display: 'grid',
@@ -36,7 +36,7 @@ export function DepartmentWeekStrip({
           <Typography
             key={`${head}-${idx}`}
             sx={{
-              fontSize: '0.75rem',
+              fontSize: { xs: '0.75rem', md: '0.66rem' },
               fontWeight: 800,
               color: 'text.secondary',
               textAlign: 'center',
@@ -98,13 +98,19 @@ export function DepartmentWeekStrip({
                 cursor: clickable ? 'pointer' : 'default',
                 font: 'inherit',
                 color: 'inherit',
+                ...(clickable
+                  ? {
+                      '@media (hover: hover)': { '&:hover': { boxShadow: '0 0 0 2px rgba(47, 103, 173, 0.45)' } },
+                      '&:focus-visible': { outline: '2px solid', outlineColor: dashboardPalette.blue, outlineOffset: 1 },
+                    }
+                  : {}),
               }}
             >
               <Typography
                 noWrap
                 title={value === '\u2014' ? 'No activity' : value}
                 sx={{
-                  fontSize: '0.75rem',
+                  fontSize: { xs: '0.75rem', md: value.length >= 6 ? '0.66rem' : '0.74rem' },
                   fontWeight: isToday || showAchieved ? 900 : 800,
                   lineHeight: 1.15,
                   color: fail
@@ -129,8 +135,8 @@ export function DepartmentWeekStrip({
 }
 
 const cellBoxSx = {
-  minHeight: 48,
-  height: 48,
+  minHeight: { xs: 48, md: 40 },
+  height: { xs: 48, md: 40 },
   minWidth: 0,
   border: '1px solid',
   borderColor: 'rgba(91, 111, 95, 0.32)',

@@ -13,6 +13,8 @@ STAFF_ONLY = [
     ('get', '/api/pos/dashboard/alerts/'),
     ('get', '/api/pos/dashboard/sales-goal/'),
     ('get', '/api/pos/dashboard/department-goals/'),
+    ('get', '/api/pos/dashboard/department-details/'),
+    ('get', '/api/pos/dashboard/processed-items/'),
     ('get', '/api/ai/models/'),
     ('post', '/api/ai/chat/'),
     ('get', '/api/core/system/print-server-version/'),

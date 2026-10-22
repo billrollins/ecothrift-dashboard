@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from apps.core.models import AppSetting
+from apps.core.services.read_memo import memo_read
 from apps.webstore.services.hours import DEFAULT_HOURS, _parse_hhmm, effective_day
 
 PREFIX = 'retail_qa.'
@@ -171,6 +172,7 @@ def _coerce(name: str, raw: Any, fallback: Any) -> Any:
         return deepcopy(fallback)
 
 
+@memo_read
 def retail_qa_settings() -> dict[str, Any]:
     """Current values, defaults filled in for anything unset or unparsable."""
     stored = {
