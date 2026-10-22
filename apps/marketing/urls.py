@@ -14,4 +14,5 @@ urlpatterns = [
     path('photos/', views.photos, name='marketing-photos'),
     path('photos/<int:pk>/', views.photo_detail, name='marketing-photo'),
     path('photos/<int:pk>/image/', views.photo_image, name='marketing-photo-image'),
+    path('tag/<str:sku>/', views.tag_lookup, name='marketing-tag'),
 ]

@@ -2,12 +2,13 @@
 
 Photos are a shared library, apart from posts (owner, 2026-10-21): staff stock real photos on the floor, and the
 poster builds a post from them later, even from home. A post uses library photos through `SocialPostPhoto`, in
-order: the first ones fill the template's photo zones, any more go out as extra framed images. A photo is "used"
-while any post holds it, so the library can show the unused ones.
+order; each goes out as its own image. A photo of an item (its tag scanned) carries the item's tag overlay (owner
+2026-10-22, F6: photo overlays, not templates; `services/tags.py`). A photo is "used" while any post holds it, so
+the library can show the unused ones.
 
 One post per day (`slot_date`): the week's cadence makes the rows (`services/cadence.py`), and the poster fills
-them in. Posting is copy and paste for now (owner call F5): Studio copies the text and saves the framed images,
-and the poster pastes the Facebook link back to mark it Posted.
+them in. Posting is copy and paste for now (owner call F5): Studio copies the text and saves the images, and the
+poster pastes the Facebook link back to mark it Posted.
 """
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -33,6 +34,13 @@ class SocialPhoto(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True, db_index=True)
     taken_at = models.DateTimeField(null=True, blank=True, help_text="The phone's time for the file, when sent.")
     is_archived = models.BooleanField(default=False)
+
+    CORNER_CHOICES = [('bl', 'Bottom left'), ('br', 'Bottom right'), ('tl', 'Top left'), ('tr', 'Top right')]
+    tag_overlay = models.BooleanField(
+        default=True, help_text="Draw the item's tag (price, returns, ThriftBucks) on the photo. Only with an item.",
+    )
+    tag_corner = models.CharField(max_length=2, choices=CORNER_CHOICES, default='bl')
+    edited_at = models.DateTimeField(null=True, blank=True, help_text='When the photo was last cropped or adjusted.')
 
     class Meta:
         ordering = ['-uploaded_at', '-id']
@@ -62,7 +70,7 @@ class SocialPost(models.Model):
     STATUS_POSTED = 'posted'
     STATUS_CHOICES = [(STATUS_DRAFT, 'Draft'), (STATUS_READY, 'Ready'), (STATUS_POSTED, 'Posted')]
 
-    # Photo zones per template (the editor draws them; the check counts them).
+    # Retired 2026-10-22 (F6: each photo is its own image). The column stays so old posts keep their value.
     LAYOUT_HERO = 'hero'
     LAYOUT_HERO3 = 'hero3'
     LAYOUT_GRID4 = 'grid4'

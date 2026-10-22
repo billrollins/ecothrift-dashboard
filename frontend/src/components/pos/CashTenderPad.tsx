@@ -23,7 +23,7 @@ function money(cents: number): string {
 type Props = {
   received: CashCount;
   onChange: (next: CashCount) => void;
-  /** What cash must cover, in cents (for a split, the cash part is whatever is handed over). */
+  /** What the cash must meet, in cents (for a split, the cash part is whatever is handed over). */
   dueCents: number;
   /** The drawer's contents by bill and coin, when Dash knows them: change comes from what is there. */
   drawerContents?: CashCount | null;

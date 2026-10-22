@@ -3,11 +3,17 @@ import { Box, Button, Chip, Typography } from '@mui/material';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import type { SocialPostStatus } from '../../../api/marketing.api';
 import { ccTokens } from '../../../theme';
+import { useStudioPaths } from './studioPaths';
 
-/** The Studio's one header: eyebrow, page name, the two rooms (Week, Photos), and the page's own actions. */
+/**
+ * The Studio's one header: eyebrow, page name, the two rooms (Week, Photos), and the page's own actions. In the phone
+ * app the bottom bar has the rooms, so only the actions show; on the desk a Phone app link opens `/social` (open it on
+ * a phone to put Social Studio on the home screen).
+ */
 export function StudioHeader({ title, actions }: { title: string; actions?: ReactNode }) {
   const { pathname } = useLocation();
-  const onPhotos = pathname.startsWith('/studios/social/photos');
+  const paths = useStudioPaths();
+  const onPhotos = pathname.startsWith(paths.photos);
   return (
     <Box
       sx={{
@@ -25,12 +31,19 @@ export function StudioHeader({ title, actions }: { title: string; actions?: Reac
         <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2, fontSize: { xs: 20, md: 24 } }}>{title}</Typography>
       </Box>
       <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Button size="small" component={RouterLink} to="/studios/social" variant={onPhotos ? 'outlined' : 'contained'}>
-          Week
-        </Button>
-        <Button size="small" component={RouterLink} to="/studios/social/photos" variant={onPhotos ? 'contained' : 'outlined'}>
-          Photos
-        </Button>
+        {!paths.inApp ? (
+          <>
+            <Button size="small" component={RouterLink} to={paths.week} variant={onPhotos ? 'outlined' : 'contained'}>
+              Week
+            </Button>
+            <Button size="small" component={RouterLink} to={paths.photos} variant={onPhotos ? 'contained' : 'outlined'}>
+              Photos
+            </Button>
+            <Button size="small" component={RouterLink} to="/social" title="Open on a phone and add it to the home screen">
+              Phone app
+            </Button>
+          </>
+        ) : null}
         {actions}
       </Box>
     </Box>

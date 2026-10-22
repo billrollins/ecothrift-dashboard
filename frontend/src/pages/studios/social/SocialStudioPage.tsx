@@ -36,6 +36,7 @@ import {
 } from '../../../api/marketing.api';
 import { ccTokens } from '../../../theme';
 import { formatDay, pageSx, StatusChip, StudioHeader } from './socialParts';
+import { useStudioPaths } from './studioPaths';
 
 type Day = SocialWeek['days'][number];
 
@@ -146,6 +147,7 @@ export default function SocialStudioPage() {
   const theme = useTheme();
   const desk = useMediaQuery(theme.breakpoints.up('md'));
   const navigate = useNavigate();
+  const paths = useStudioPaths();
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const [start, setStart] = useState<string | undefined>(undefined);
@@ -191,7 +193,7 @@ export default function SocialStudioPage() {
       isToday={Boolean(data && day.date === data.today)}
       canRate={Boolean(data?.can_rate)}
       swapFrom={swapFrom}
-      onOpen={(post) => navigate(`/studios/social/post/${post.id}`)}
+      onOpen={(post) => navigate(paths.post(post.id))}
       onSwapPick={onSwapPick}
       onRate={(post, value) => rate.mutate({ id: post.id, value })}
     />

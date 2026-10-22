@@ -2,10 +2,11 @@
  * Studios → Social Studio → Photos (the "Photo dump", owner 2026-10-21): staff stock real photos on the floor,
  * and whoever posts builds a post from them later, even from home. Phone-first: the camera is the first thing
  * on the page (and opens by itself when the page is reached with ?camera=1 from a tap). Optional category and
- * scanned tag go with the batch. The grid filters to Unused, This week, and a category.
+ * scanned tag go with the batch (in the phone app, Scan tag opens the camera on the Scan tab). The grid filters to
+ * Unused, This week, and a category. A photo opens its details, and Edit photo crops it, brightens it and sets its tag.
  */
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -27,14 +28,21 @@ import {
 } from '../../../api/marketing.api';
 import { ccTokens } from '../../../theme';
 import { CameraButtons, CategorySelect, PhotoGrid, PhotoInput, SOCIAL_CATEGORIES as categories } from './PhotoLibrary';
+import SocialPhotoEditor from './SocialPhotoEditor';
 import { formatDay, pageSx, StudioHeader } from './socialParts';
+import { useStudioPaths } from './studioPaths';
 
 function errorText(err: unknown, fallback: string): string {
   const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
   return typeof detail === 'string' ? detail : fallback;
 }
 
-function PhotoDialog({ photo, categories, onClose }: { photo: SocialPhoto; categories: string[]; onClose: () => void }) {
+function PhotoDialog({ photo, categories, onClose, onEdit }: {
+  photo: SocialPhoto;
+  categories: string[];
+  onClose: () => void;
+  onEdit: () => void;
+}) {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const [category, setCategory] = useState(photo.category);
@@ -68,6 +76,7 @@ function PhotoDialog({ photo, categories, onClose }: { photo: SocialPhoto; categ
       <DialogActions>
         <Button color="error" onClick={() => save.mutate({ is_archived: true })} disabled={save.isPending}>Archive</Button>
         <Box sx={{ flex: 1 }} />
+        <Button onClick={onEdit} disabled={save.isPending}>Edit photo</Button>
         <Button onClick={onClose}>Cancel</Button>
         <Button variant="contained" disabled={save.isPending} onClick={() => save.mutate({ category, sku, note })}>Save</Button>
       </DialogActions>
@@ -82,6 +91,9 @@ export default function SocialPhotosPage() {
   const [category, setCategory] = useState('');
   const [sku, setSku] = useState('');
   const [open, setOpen] = useState<SocialPhoto | null>(null);
+  const [editing, setEditing] = useState<SocialPhoto | null>(null);
+  const paths = useStudioPaths();
+  const navigate = useNavigate();
   const [lastBatch, setLastBatch] = useState(0);
   const autoCamera = useRef<HTMLInputElement>(null);
 
@@ -115,13 +127,20 @@ export default function SocialPhotosPage() {
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, mb: 1.5 }}>
             <CategorySelect value={category} onChange={setCategory} categories={categories} />
-            <TextField
-              size="small"
-              label="Scan or type the tag"
-              value={sku}
-              onChange={(e) => setSku(e.target.value)}
-              sx={{ flex: { xs: '1 1 100%', sm: '1 1 180px' } }}
-            />
+            <Box sx={{ display: 'flex', gap: 1, flex: { xs: '1 1 100%', sm: '1 1 180px' } }}>
+              <TextField
+                size="small"
+                label="Scan or type the tag"
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                sx={{ flex: 1 }}
+              />
+              {paths.inApp ? (
+                <Button variant="outlined" onClick={() => navigate('/social/scan', { replace: true })} sx={{ flexShrink: 0 }}>
+                  Scan tag
+                </Button>
+              ) : null}
+            </Box>
           </Box>
           <CameraButtons onFiles={(files) => upload.mutate(files)} busy={upload.isPending} />
           <PhotoInput ref={autoCamera} onFiles={(files) => upload.mutate(files)} />
@@ -135,7 +154,22 @@ export default function SocialPhotosPage() {
           <PhotoGrid categories={categories} onPick={setOpen} />
         </Box>
       </Box>
-      {open ? <PhotoDialog photo={open} categories={categories} onClose={() => setOpen(null)} /> : null}
+      {open ? (
+        <PhotoDialog
+          photo={open}
+          categories={categories}
+          onClose={() => setOpen(null)}
+          onEdit={() => { setEditing(open); setOpen(null); }}
+        />
+      ) : null}
+      {editing ? (
+        <SocialPhotoEditor
+          photo={editing}
+          size="4:5"
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); queryClient.invalidateQueries({ queryKey: ['marketing'] }); }}
+        />
+      ) : null}
     </Box>
   );
 }

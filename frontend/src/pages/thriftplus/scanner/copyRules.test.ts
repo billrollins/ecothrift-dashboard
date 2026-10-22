@@ -65,6 +65,8 @@ function asCopy(text: string): string {
 function hitsIn(files: string[], rules: RegExp[]): string[] {
   const hits: string[] = [];
   for (const file of files) {
+    // The register's Cover (someone covering a drawer, 2026-10-21) is not the retired Thrift+ "cover" fee.
+    if (/RegisterCover\.tsx$/.test(file)) continue;
     const text = asCopy(readFileSync(file, 'utf8'));
     for (const re of rules) {
       const m = text.match(re);

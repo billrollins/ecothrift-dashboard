@@ -9,17 +9,41 @@ export type SocialPostType =
   | 'live_from_floor'
   | 'scheduled';
 export type SocialPostStatus = 'draft' | 'ready' | 'posted';
-export type SocialLayout = 'hero' | 'hero3' | 'grid4';
-/** Facebook feed sizes now; '9:16' (stories) joins with more channels. */
+/** Facebook feed sizes now; '9:16' (stories) joins with more channels. Each photo goes out at this size. */
 export type SocialSize = '1:1' | '4:5';
 export type SocialCta = '' | 'come_in' | 'message_us' | 'ask_hold';
 
 export interface SocialCheck {
-  key: 'photos' | 'hook' | 'where_when' | 'thrift_plus' | 'cta' | 'frame';
+  key: 'photos' | 'hook' | 'where_when' | 'thrift_plus' | 'cta' | 'tags';
   label: string;
   ok: boolean;
   missing: string;
 }
+
+/**
+ * The facts the tag overlay draws for one item (`/api/marketing/tag/<sku>/`): the member scanner's card, with the
+ * tag's own retail (only when it passed the retail check). Money is a string of dollars; ThriftBucks never get "$".
+ */
+export interface SocialTag {
+  sku: string;
+  title: string;
+  price: string;
+  retail: string | null;
+  /** Today's ThriftBucks for a member; null when none. */
+  thriftbucks: string | null;
+  /** false = AS IS. */
+  returnable: boolean;
+  return_note: string;
+  age_restricted: boolean;
+  /** false = sold or off the floor. */
+  available: boolean;
+}
+
+export type SocialTagLookup =
+  | { status: 'found'; item: SocialTag }
+  | { status: 'not_found'; sku: string };
+
+export type TagCorner = 'bl' | 'br' | 'tl' | 'tr';
 
 export interface SocialPhoto {
   id: number;
@@ -34,7 +58,14 @@ export interface SocialPhoto {
   uploaded_at: string | null;
   taken_at: string | null;
   is_archived: boolean;
+  /** Draw the item's tag on the photo (only when it has an item). */
+  tag_overlay: boolean;
+  tag_corner: TagCorner;
+  /** Set when the photo was cropped or adjusted: fetch the image with it so a cached copy is not used. */
+  edited_at: string | null;
   used_in: Array<{ post_id: number; slot_date: string }>;
+  /** The item's live tag facts: in a post's photos, one photo's answers and uploads. */
+  tag?: SocialTag | null;
 }
 
 export interface SocialPost {
@@ -46,8 +77,6 @@ export interface SocialPost {
   hook: string;
   body: string;
   call_to_action: SocialCta;
-  layout: SocialLayout;
-  zones: number;
   size: SocialSize;
   status: SocialPostStatus;
   source: 'manual' | 'ai';
@@ -127,7 +156,7 @@ export const getSocialPost = (id: number) =>
 
 export const patchSocialPost = (
   id: number,
-  data: Partial<Pick<SocialPost, 'hook' | 'body' | 'category' | 'call_to_action' | 'layout' | 'size'>>,
+  data: Partial<Pick<SocialPost, 'hook' | 'body' | 'category' | 'call_to_action' | 'size'>>,
 ) => api.patch<SocialPost>(`/marketing/posts/${id}/`, data).then((r) => r.data);
 
 export const setSocialPostPhotos = (id: number, photoIds: number[]) =>
@@ -176,9 +205,22 @@ export const uploadSocialPhotos = (files: File[], extra: { category?: string; sk
 
 export const patchSocialPhoto = (
   id: number,
-  data: Partial<{ category: string; note: string; sku: string; is_archived: boolean }>,
+  data: Partial<{ category: string; note: string; sku: string; is_archived: boolean; tag_overlay: boolean; tag_corner: TagCorner }>,
 ) => api.patch<SocialPhoto>(`/marketing/photos/${id}/`, data).then((r) => r.data);
 
-/** The full photo as a blob from our own address, so the frame's canvas can export it. */
-export const fetchSocialPhotoBlob = (id: number) =>
-  api.get<Blob>(`/marketing/photos/${id}/image/`, { responseType: 'blob' }).then((r) => r.data);
+/** The full photo as a blob from our own address, so the canvas can export it. `v`: the photo's `edited_at`. */
+export const fetchSocialPhotoBlob = (id: number, v?: string | null) =>
+  api.get<Blob>(`/marketing/photos/${id}/image/`, { responseType: 'blob', params: v ? { v } : {} }).then((r) => r.data);
+
+/** The photo editor's result (crop, rotate, light) takes the photo's place. */
+export const replaceSocialPhotoImage = (id: number, file: Blob) => {
+  const form = new FormData();
+  form.append('file', file, `photo-${id}.jpg`);
+  return api.post<SocialPhoto>(`/marketing/photos/${id}/image/`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data);
+};
+
+/** Scan a tag: the item's overlay facts. */
+export const lookupSocialTag = (sku: string) =>
+  api.get<SocialTagLookup>(`/marketing/tag/${encodeURIComponent(sku.trim().toUpperCase())}/`).then((r) => r.data);

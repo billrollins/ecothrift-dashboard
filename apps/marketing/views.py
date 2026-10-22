@@ -15,7 +15,8 @@ from apps.webstore.services.hours import get_hours_config, is_open_day
 
 from .models import SocialPhoto, SocialPost, SocialPostPhoto
 from .services import cadence
-from .services.photos import PhotoError, save_photo
+from .services.photos import PhotoError, replace_image, save_photo
+from .services.tags import lookup
 from .services.posts import (
     PostError,
     brand_payload,
@@ -247,7 +248,7 @@ def photos(request):
             except PhotoError as exc:
                 failed.append({'name': getattr(upload, 'name', ''), 'detail': exc.detail})
         return Response(
-            {'photos': [photo_payload(p, used_in=[]) for p in saved], 'failed': failed},
+            {'photos': [photo_payload(p, used_in=[], with_tag=True) for p in saved], 'failed': failed},
             status=201 if saved else 400,
         )
     params = request.query_params
@@ -295,18 +296,48 @@ def photo_detail(request, pk):
     if 'is_archived' in data:
         photo.is_archived = bool(data.get('is_archived'))
         changed.append('is_archived')
+    if 'tag_overlay' in data:
+        photo.tag_overlay = bool(data.get('tag_overlay'))
+        changed.append('tag_overlay')
+    if 'tag_corner' in data:
+        corner = str(data.get('tag_corner') or '')
+        if corner not in dict(SocialPhoto.CORNER_CHOICES):
+            return _err('Pick a corner for the tag.', 'BAD_CHOICE')
+        photo.tag_corner = corner
+        changed.append('tag_corner')
     if changed:
         photo.save(update_fields=changed)
-    return Response(photo_payload(photo))
+        # A Ready post whose product photo lost its tag goes back to Draft.
+        for post in SocialPost.objects.filter(post_photos__photo=photo, status=SocialPost.STATUS_READY):
+            settle_status(post)
+    return Response(photo_payload(photo, with_tag=True))
+
+
+@api_view(['GET', 'POST'])
+@permission_classes(STAFF)
+@parser_classes([MultiPartParser, FormParser])
+def photo_image(request, pk):
+    """GET: the full photo from our own address, so the canvas can draw it and export the PNG (ask with `?v=` the
+    photo's `edited_at`, as an edit keeps the address). POST `file`: the photo editor's result replaces it."""
+    photo = SocialPhoto.objects.filter(pk=pk).first()
+    if photo is None or not photo.image:
+        return _err('Photo not found.', 'NOT_FOUND', 404)
+    if request.method == 'POST':
+        upload = request.FILES.get('file')
+        if upload is None:
+            return _err('Send the edited photo.', 'NO_FILES')
+        try:
+            replace_image(photo, upload)
+        except PhotoError as exc:
+            return _err(exc.detail, exc.code)
+        return Response(photo_payload(photo, with_tag=True))
+    response = FileResponse(photo.image.open('rb'), content_type='image/jpeg')
+    response['Cache-Control'] = 'private, max-age=86400'
+    return response
 
 
 @api_view(['GET'])
 @permission_classes(STAFF)
-def photo_image(request, pk):
-    """The full photo from our own address, so the editor's canvas can draw it and export the PNG."""
-    photo = SocialPhoto.objects.filter(pk=pk).first()
-    if photo is None or not photo.image:
-        return _err('Photo not found.', 'NOT_FOUND', 404)
-    response = FileResponse(photo.image.open('rb'), content_type='image/jpeg')
-    response['Cache-Control'] = 'private, max-age=86400'
-    return response
+def tag_lookup(request, sku):
+    """Scan a tag: the item's overlay facts (price, checked retail, today's ThriftBucks, 3-day returns or AS IS)."""
+    return Response(lookup(sku))

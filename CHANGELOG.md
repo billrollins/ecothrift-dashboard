@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.209.1] -->
-<!-- Last reviewed: 2026-10-22 (2.209.1) -->
+<!-- Line 1 release: ## [2.210.0] -->
+<!-- Last reviewed: 2026-10-22 (2.210.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.210.0] - 2026-10-22
+
+User-facing theme: **Social Studio becomes a phone app with tag scans and photo tags (Bill, 2026-10-22).** Initiative: retail_tags_and_social (phase 3).
+
+### Added
+- **Social Studio phone app:** open dash.ecothrift.us/social and add it to the home screen. The buttons at the bottom are Post, Photos, Scan, Schedule and Me.
+- **Scan a tag** with the camera, take photos of the item, and each photo carries its tag: price, retail (only when it passed the retail check), Thrift+ 3-day returns or AS IS, and today's ThriftBucks for Thrift+ members.
+- **Edit any photo:** crop, turn, brighten, and move or hide its tag.
+
+### Changed
+- **The fixed post frames are gone;** each photo goes out on its own (this also removes the old frame line that said members "earn" ThriftBucks).
+- **Thrift+ Member app:** an item shows its retail only when the tag may print it (it passed the retail check), so the app and the tag always agree.
+
+### Fixed
+- Two checks that failed since the last releases: a stray dash in the post editor, and the copy rule mistaking the register's Cover for the retired Thrift+ "cover".
 
 ## [2.209.1] - 2026-10-22
 

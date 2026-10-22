@@ -1,16 +1,18 @@
 /**
- * Social Studio post editor (`/studios/social/post/:id`). Desk: the live frame on the left, the words, photos and
- * checks on the right. Phone: the frame on top, then the same steps. Tap a photo spot (or drop a library photo on
- * it) to fill it from the library or the camera. The Always-include list must pass before Ready; Post it copies
- * the caption and saves the framed PNGs in one tap, then the Facebook link marks it Posted.
+ * Social Studio post editor (`/studios/social/post/:id`; in the phone app `/social/post/:id` and the Post tab).
+ * Each photo goes out as its own image at the post's size, a product photo carrying its tag (owner 2026-10-22, F6:
+ * photo overlays, not templates). Desk: the photos on the left, the idea, words, checks and Post it on the right.
+ * Phone: the same steps, one under the other. The Always-include list must pass before Ready; Post it copies the
+ * caption and hands over the photos in one tap, then the Facebook link marks it Posted.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
   Box,
   Button,
   Card,
+  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -23,13 +25,17 @@ import {
   TextField,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
+import ChevronLeftRounded from '@mui/icons-material/ChevronLeftRounded';
+import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
+import EditRounded from '@mui/icons-material/EditRounded';
 import RadioButtonUncheckedRounded from '@mui/icons-material/RadioButtonUncheckedRounded';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -45,16 +51,17 @@ import {
   setSocialPostPhotos,
   uploadSocialPhotos,
   type SocialCta,
-  type SocialLayout,
   type SocialPhoto,
   type SocialPostDetail,
   type SocialSize,
 } from '../../../api/marketing.api';
 import { ccTokens } from '../../../theme';
-import { FrameCanvas, loadFrameFonts, loadLogo, usePhotoImages } from './FrameCanvas';
 import { CameraButtons, CategorySelect, PhotoGrid, SOCIAL_CATEGORIES } from './PhotoLibrary';
-import { exportPlan, LAYOUT_LABELS, LAYOUT_ZONES, renderPng } from './socialFrame';
+import SocialPhotoEditor from './SocialPhotoEditor';
 import { formatDay, pageSx, StatusChip, StudioHeader } from './socialParts';
+import { useStudioPaths } from './studioPaths';
+import { TagPhoto, useTagAssets, usePhotoImages } from './TagPhoto';
+import { renderTagJpeg } from './tagOverlay';
 
 type ApiError = { response?: { data?: { detail?: string } } };
 
@@ -63,20 +70,12 @@ function errorText(err: unknown, fallback: string): string {
   return typeof detail === 'string' ? detail : fallback;
 }
 
-/** Put `photoId` in `zone`: a photo already in the post moves there (trading places), a new one takes the spot. */
-export function placePhoto(ids: number[], zone: number, photoId: number): number[] {
+/** Move the photo at `from` one place left (-1) or right (+1). */
+export function movePhoto(ids: number[], from: number, step: -1 | 1): number[] {
+  const to = from + step;
+  if (from < 0 || from >= ids.length || to < 0 || to >= ids.length) return ids;
   const next = [...ids];
-  const from = next.indexOf(photoId);
-  if (zone >= next.length) {
-    if (from >= 0) next.splice(from, 1);
-    next.push(photoId);
-    return next;
-  }
-  if (from >= 0) {
-    [next[zone], next[from]] = [next[from], next[zone]];
-    return next;
-  }
-  next[zone] = photoId;
+  [next[from], next[to]] = [next[to], next[from]];
   return next;
 }
 
@@ -100,23 +99,17 @@ function Step({ n, title, children, done }: { n: number; title: string; children
 
 function PickerDialog({
   open,
-  zone,
-  filled,
   selectedIds,
   defaultCategory,
   onPick,
   onUploaded,
-  onRemove,
   onClose,
 }: {
   open: boolean;
-  zone: number;
-  filled: boolean;
   selectedIds: number[];
   defaultCategory: string;
   onPick: (photo: SocialPhoto) => void;
   onUploaded: (photos: SocialPhoto[]) => void;
-  onRemove: () => void;
   onClose: () => void;
 }) {
   const theme = useTheme();
@@ -130,7 +123,7 @@ function PickerDialog({
   return (
     <Dialog open={open} onClose={onClose} fullScreen={phone} fullWidth maxWidth="md">
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Box sx={{ flex: 1 }}>Photo spot {zone + 1}</Box>
+        <Box sx={{ flex: 1 }}>Add photos</Box>
         <IconButton aria-label="Close" onClick={onClose}><CloseRounded /></IconButton>
       </DialogTitle>
       <DialogContent dividers>
@@ -139,52 +132,94 @@ function PickerDialog({
         </Box>
         <PhotoGrid categories={SOCIAL_CATEGORIES} onPick={onPick} selectedIds={selectedIds} defaultUnused />
       </DialogContent>
-      {filled ? (
-        <DialogActions>
-          <Button color="error" onClick={onRemove}>Take this photo out</Button>
-        </DialogActions>
-      ) : null}
     </Dialog>
+  );
+}
+
+function PhotoTile({
+  photo,
+  image,
+  size,
+  index,
+  count,
+  locked,
+  onEdit,
+  onMove,
+  onRemove,
+}: {
+  photo: SocialPhoto;
+  image: HTMLImageElement | null;
+  size: SocialSize;
+  index: number;
+  count: number;
+  locked: boolean;
+  onEdit: () => void;
+  onMove: (step: -1 | 1) => void;
+  onRemove: () => void;
+}) {
+  const tagOff = Boolean(photo.tag) && !photo.tag_overlay;
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      <Box
+        component={locked ? 'div' : 'button'}
+        type={locked ? undefined : 'button'}
+        onClick={locked ? undefined : onEdit}
+        aria-label={locked ? undefined : `Edit photo ${index + 1}`}
+        sx={{ display: 'block', width: '100%', p: 0, border: 0, bgcolor: 'transparent', cursor: locked ? 'default' : 'pointer' }}
+      >
+        <TagPhoto photo={photo} image={image} size={size} />
+      </Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, mt: 0.5, flexWrap: 'wrap' }}>
+        <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: ccTokens.ink2, mr: 0.5 }}>{index + 1}</Typography>
+        {photo.tag ? <Chip size="small" label={photo.tag.sku} sx={{ height: 20, fontSize: 11 }} /> : null}
+        {tagOff ? <Chip size="small" color="warning" label="Tag off" sx={{ height: 20, fontSize: 11 }} /> : null}
+        {photo.tag && !photo.tag.available ? <Chip size="small" color="error" label="Sold" sx={{ height: 20, fontSize: 11 }} /> : null}
+        <Box sx={{ flex: 1 }} />
+        {!locked ? (
+          <>
+            <Tooltip title="Edit"><IconButton size="small" aria-label="Edit photo" onClick={onEdit}><EditRounded fontSize="small" /></IconButton></Tooltip>
+            <IconButton size="small" aria-label="Move left" disabled={index === 0} onClick={() => onMove(-1)}><ChevronLeftRounded fontSize="small" /></IconButton>
+            <IconButton size="small" aria-label="Move right" disabled={index === count - 1} onClick={() => onMove(1)}><ChevronRightRounded fontSize="small" /></IconButton>
+            <IconButton size="small" aria-label="Take this photo out" onClick={onRemove}><CloseRounded fontSize="small" /></IconButton>
+          </>
+        ) : null}
+      </Box>
+    </Box>
   );
 }
 
 function PostItDialog({ post, onClose, onPosted }: { post: SocialPostDetail; onClose: () => void; onPosted: () => void }) {
   const { enqueueSnackbar } = useSnackbar();
-  const images = usePhotoImages(post.photo_ids);
+  const images = usePhotoImages(post.photos);
+  const { logo, ready: assetsReady } = useTagAssets();
   const [files, setFiles] = useState<File[] | null>(null);
   const [failed, setFailed] = useState('');
   const [sent, setSent] = useState(false);
   const [url, setUrl] = useState('');
-  const plan = useMemo(() => exportPlan(post.layout, post.photo_ids.length), [post.layout, post.photo_ids.length]);
-  const ready = post.photo_ids.every((id) => images.has(id));
+  const ready = assetsReady && post.photos.every((p) => images.has(p.id));
 
-  // Render the PNGs as soon as the photos are in, so the one tap below can hand them over straight away.
+  // Draw the photos as soon as they are in, so the one tap below can hand them over straight away.
   useEffect(() => {
     if (!ready || files) return;
     let alive = true;
     (async () => {
-      await loadFrameFonts();
-      const logo = await loadLogo();
       const out: File[] = [];
-      for (let i = 0; i < plan.length; i += 1) {
-        const step = plan[i];
-        const ids = post.photo_ids.slice(step.from, step.from + step.count);
-        const blob = await renderPng({
-          layout: step.layout,
+      for (let i = 0; i < post.photos.length; i += 1) {
+        const photo = post.photos[i];
+        const blob = await renderTagJpeg({
           size: post.size,
-          hook: step.withHook ? post.hook : '',
-          withHook: step.withHook,
-          address: post.brand.address,
-          hours: post.brand.hours,
+          photo: images.get(photo.id) ?? null,
+          tag: photo.tag,
+          overlay: photo.tag_overlay,
+          corner: photo.tag_corner,
           logo,
-          photos: ids.map((id) => images.get(id) ?? null),
         });
-        out.push(new File([blob], `ecothrift-${post.slot_date}-${i + 1}.png`, { type: 'image/png' }));
+        out.push(new File([blob], `ecothrift-${post.slot_date}-${i + 1}.jpg`, { type: 'image/jpeg' }));
       }
       if (alive) setFiles(out);
-    })().catch((err) => { if (alive) setFailed(err instanceof Error ? err.message : 'Could not draw the images.'); });
+    })().catch((err) => { if (alive) setFailed(err instanceof Error ? err.message : 'Could not draw the photos.'); });
     return () => { alive = false; };
-  }, [ready, files, plan, post, images]);
+  }, [ready, files, post, images, logo]);
 
   const copyAndSave = () => {
     if (!files) return;
@@ -219,12 +254,13 @@ function PostItDialog({ post, onClose, onPosted }: { post: SocialPostDetail; onC
     onError: (err) => enqueueSnackbar(errorText(err, 'Could not mark it posted.'), { variant: 'error' }),
   });
 
+  const n = post.photos.length;
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>Post it</DialogTitle>
       <DialogContent dividers>
         {failed ? <Alert severity="error" sx={{ mb: 1.5 }}>{failed}</Alert> : null}
-        <Typography sx={{ fontWeight: 700, mb: 0.75 }}>1. Copy the text and save the {plan.length} image{plan.length === 1 ? '' : 's'}</Typography>
+        <Typography sx={{ fontWeight: 700, mb: 0.75 }}>1. Copy the text and save the {n} photo{n === 1 ? '' : 's'}</Typography>
         <Button
           fullWidth
           size="large"
@@ -233,9 +269,9 @@ function PostItDialog({ post, onClose, onPosted }: { post: SocialPostDetail; onC
           startIcon={files ? null : <CircularProgress size={18} color="inherit" />}
           onClick={copyAndSave}
         >
-          {files ? 'Copy text + save images' : 'Drawing the images…'}
+          {files ? 'Copy text + save photos' : 'Drawing the photos…'}
         </Button>
-        <Typography sx={{ fontWeight: 700, mt: 2, mb: 0.75 }}>2. On Facebook: new post, add the images, paste the text</Typography>
+        <Typography sx={{ fontWeight: 700, mt: 2, mb: 0.75 }}>2. On Facebook: new post, add the photos, paste the text</Typography>
         <TextField
           multiline
           fullWidth
@@ -272,10 +308,11 @@ function PostItDialog({ post, onClose, onPosted }: { post: SocialPostDetail; onC
   );
 }
 
-export default function SocialPostEditorPage() {
+export default function SocialPostEditorPage({ postId: fixedId }: { postId?: number } = {}) {
   const { id } = useParams();
-  const postId = Number(id);
+  const postId = fixedId ?? Number(id);
   const navigate = useNavigate();
+  const paths = useStudioPaths();
   const theme = useTheme();
   const desk = useMediaQuery(theme.breakpoints.up('md'));
   const queryClient = useQueryClient();
@@ -283,10 +320,12 @@ export default function SocialPostEditorPage() {
   const key = ['marketing', 'post', postId];
   const query = useQuery({ queryKey: key, queryFn: () => getSocialPost(postId), enabled: Number.isFinite(postId) });
   const post = query.data;
+  const images = usePhotoImages(post?.photos ?? []);
 
   const [hook, setHook] = useState('');
   const [body, setBody] = useState('');
-  const [picker, setPicker] = useState<number | null>(null);
+  const [picker, setPicker] = useState(false);
+  const [editing, setEditing] = useState<SocialPhoto | null>(null);
   const [postIt, setPostIt] = useState(false);
   useEffect(() => {
     if (!post) return;
@@ -301,11 +340,15 @@ export default function SocialPostEditorPage() {
     queryClient.invalidateQueries({ queryKey: ['marketing', 'week'] });
     queryClient.invalidateQueries({ queryKey: ['marketing', 'today'] });
   };
+  const reload = () => {
+    queryClient.invalidateQueries({ queryKey: key });
+    queryClient.invalidateQueries({ queryKey: ['marketing', 'photos'] });
+  };
   const onError = (err: unknown) => enqueueSnackbar(errorText(err, 'Could not save.'), { variant: 'error' });
   const patch = useMutation({ mutationFn: (data: Parameters<typeof patchSocialPost>[1]) => patchSocialPost(postId, data), onSuccess: apply, onError });
   const photos = useMutation({
     mutationFn: (ids: number[]) => setSocialPostPhotos(postId, ids),
-    onSuccess: (next) => { apply(next); queryClient.invalidateQueries({ queryKey: key }); queryClient.invalidateQueries({ queryKey: ['marketing', 'photos'] }); },
+    onSuccess: (next) => { apply(next); reload(); },
     onError,
   });
   const ready = useMutation({ mutationFn: () => markSocialPostReady(postId), onSuccess: apply, onError });
@@ -315,7 +358,6 @@ export default function SocialPostEditorPage() {
   if (!post) return <Box sx={pageSx}><Alert severity="error">This post is not available.</Alert></Box>;
 
   const locked = post.status === 'posted';
-  const zones = LAYOUT_ZONES[post.layout];
   const limit = post.rules.hook_max_chars;
   const saveText = () => {
     if (locked) return;
@@ -324,92 +366,65 @@ export default function SocialPostEditorPage() {
     if (body !== post.body) data.body = body;
     if (Object.keys(data).length) patch.mutate(data);
   };
-  const fillZone = (zone: number, photoId: number) => {
-    // An empty spot takes the next free place, so the photos stay in order.
-    photos.mutate(placePhoto(post.photo_ids, Math.min(zone, post.photo_ids.length), photoId));
-  };
-  const openZone = (zone: number) => { if (!locked) setPicker(zone); };
   const failing = post.checks.filter((c) => !c.ok);
+  const check = (k: string) => post.checks.find((c) => c.key === k)?.ok;
+  const ids = post.photo_ids;
 
-  const frame = (
-    <FrameCanvas
-      layout={post.layout}
-      size={post.size}
-      hook={hook}
-      address={post.brand.address}
-      hours={post.brand.hours}
-      photoIds={post.photo_ids}
-      activeZone={locked ? -1 : Math.min(post.photo_ids.length, zones - 1)}
-      onZone={locked ? undefined : openZone}
-      onDropPhoto={locked ? undefined : fillZone}
-      maxHeight={desk ? 'calc(100vh - 170px)' : undefined}
-    />
+  const photoStep = (
+    <Step n={2} title="Photos" done={check('photos') && check('tags')}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', mb: 1.25 }}>
+        <ToggleButtonGroup
+          exclusive
+          size="small"
+          value={post.size}
+          disabled={locked}
+          onChange={(_e, size: SocialSize | null) => size && patch.mutate({ size })}
+        >
+          <ToggleButton value="4:5" sx={{ textTransform: 'none' }}>4:5 tall</ToggleButton>
+          <ToggleButton value="1:1" sx={{ textTransform: 'none' }}>1:1 square</ToggleButton>
+        </ToggleButtonGroup>
+        {!locked ? <Button size="small" variant="outlined" onClick={() => setPicker(true)}>Add photos</Button> : null}
+      </Box>
+      <Typography sx={{ fontSize: 13, color: ccTokens.ink2, mb: 1.25 }}>
+        Each photo goes out on its own, product photos with their tag. Tap a photo to crop, brighten or move its tag.
+      </Typography>
+      {post.photos.length ? (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', md: 'repeat(2, minmax(0, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' }, gap: 1.25 }}>
+          {post.photos.map((photo, index) => (
+            <PhotoTile
+              key={`${photo.id}:${photo.edited_at ?? ''}`}
+              photo={photo}
+              image={images.get(photo.id) ?? null}
+              size={post.size}
+              index={index}
+              count={post.photos.length}
+              locked={locked}
+              onEdit={() => setEditing(photo)}
+              onMove={(step) => photos.mutate(movePhoto(ids, index, step))}
+              onRemove={() => photos.mutate(ids.filter((pid) => pid !== photo.id))}
+            />
+          ))}
+        </Box>
+      ) : (
+        <Typography sx={{ py: 2, color: ccTokens.ink2 }}>No photos yet. Add the ones staff took, or take some now.</Typography>
+      )}
+    </Step>
   );
 
-  const extras = post.photos.slice(zones);
-  const form = (
-    <Box sx={{ minWidth: 0 }}>
-      <Step n={1} title="The idea" done={Boolean(post.category || post.post_type === 'scheduled')}>
-        <Typography sx={{ fontSize: 14, color: ccTokens.ink2, mb: 1 }}>{POST_TYPE_IDEAS[post.post_type]}</Typography>
-        <CategorySelect
-          value={post.category}
-          onChange={(category) => patch.mutate({ category })}
-          categories={SOCIAL_CATEGORIES}
-        />
-      </Step>
+  const ideaStep = (
+    <Step n={1} title="The idea" done={Boolean(post.category || post.post_type === 'scheduled')}>
+      <Typography sx={{ fontSize: 14, color: ccTokens.ink2, mb: 1 }}>{POST_TYPE_IDEAS[post.post_type]}</Typography>
+      <CategorySelect
+        value={post.category}
+        onChange={(category) => patch.mutate({ category })}
+        categories={SOCIAL_CATEGORIES}
+      />
+    </Step>
+  );
 
-      <Step n={2} title="Photos and frame" done={post.checks.find((c) => c.key === 'frame')?.ok && post.checks.find((c) => c.key === 'photos')?.ok}>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1.25 }}>
-          <ToggleButtonGroup
-            exclusive
-            size="small"
-            value={post.layout}
-            disabled={locked}
-            onChange={(_e, layout: SocialLayout | null) => layout && patch.mutate({ layout })}
-          >
-            {(Object.keys(LAYOUT_LABELS) as SocialLayout[]).map((l) => <ToggleButton key={l} value={l} sx={{ textTransform: 'none' }}>{LAYOUT_LABELS[l]}</ToggleButton>)}
-          </ToggleButtonGroup>
-          <ToggleButtonGroup
-            exclusive
-            size="small"
-            value={post.size}
-            disabled={locked}
-            onChange={(_e, size: SocialSize | null) => size && patch.mutate({ size })}
-          >
-            <ToggleButton value="4:5" sx={{ textTransform: 'none' }}>4:5</ToggleButton>
-            <ToggleButton value="1:1" sx={{ textTransform: 'none' }}>1:1</ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-        <Typography sx={{ fontSize: 13, color: ccTokens.ink2, mb: 1 }}>
-          Tap a spot in the frame to fill it{desk ? ', or drag a photo onto it' : ''}. Photos past the frame go out as extra framed images.
-        </Typography>
-        {!locked ? (
-          <Button size="small" variant="outlined" onClick={() => setPicker(post.photo_ids.length)}>
-            {post.photo_ids.length >= zones ? 'Add an extra photo' : `Fill spot ${post.photo_ids.length + 1}`}
-          </Button>
-        ) : null}
-        {extras.length ? (
-          <Box sx={{ display: 'flex', gap: 0.75, mt: 1.25, flexWrap: 'wrap' }}>
-            {extras.map((photo) => (
-              <Box key={photo.id} sx={{ position: 'relative', width: 72, height: 72, borderRadius: '8px', overflow: 'hidden', bgcolor: '#e8f5e9' }}>
-                {photo.thumb_url ? <Box component="img" src={photo.thumb_url} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
-                {!locked ? (
-                  <IconButton
-                    size="small"
-                    aria-label="Take this photo out"
-                    onClick={() => photos.mutate(post.photo_ids.filter((pid) => pid !== photo.id))}
-                    sx={{ position: 'absolute', top: 2, right: 2, bgcolor: 'rgba(255,255,255,.85)', p: 0.25 }}
-                  >
-                    <CloseRounded sx={{ fontSize: 16 }} />
-                  </IconButton>
-                ) : null}
-              </Box>
-            ))}
-          </Box>
-        ) : null}
-      </Step>
-
-      <Step n={3} title="The words" done={post.checks.find((c) => c.key === 'hook')?.ok && post.checks.find((c) => c.key === 'cta')?.ok}>
+  const rest = (
+    <>
+      <Step n={3} title="The words" done={check('hook') && check('cta')}>
         <TextField
           fullWidth
           size="small"
@@ -420,7 +435,7 @@ export default function SocialPostEditorPage() {
           onChange={(e) => setHook(e.target.value)}
           onBlur={saveText}
           error={hook.trim().length > limit}
-          helperText={`${hook.trim().length}/${limit}`}
+          helperText={`${hook.trim().length}/${limit} · the first line of the post`}
           sx={{ mb: 1.25 }}
         />
         <TextField
@@ -448,7 +463,7 @@ export default function SocialPostEditorPage() {
           {(Object.keys(CTA_LABELS) as Array<keyof typeof CTA_LABELS>).map((c) => <MenuItem key={c} value={c}>{CTA_LABELS[c]}</MenuItem>)}
         </TextField>
         <Typography sx={{ fontSize: 12.5, color: ccTokens.ink3, mt: 1 }}>
-          The address, hours and Thrift+ line are added to the text and the frame by themselves.
+          The address, hours and Thrift+ line are added to the text by themselves.
         </Typography>
       </Step>
 
@@ -496,7 +511,7 @@ export default function SocialPostEditorPage() {
           </>
         )}
       </Step>
-    </Box>
+    </>
   );
 
   return (
@@ -506,42 +521,46 @@ export default function SocialPostEditorPage() {
         actions={(
           <>
             <StatusChip status={post.status} />
-            <IconButton aria-label="Back to the week" onClick={() => navigate('/studios/social')}><ArrowBackRounded /></IconButton>
+            {fixedId == null ? (
+              <IconButton aria-label="Back to the week" onClick={() => navigate(paths.week)}><ArrowBackRounded /></IconButton>
+            ) : null}
           </>
         )}
       />
       {desk ? (
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(380px, 1fr)', gap: 2.5, alignItems: 'start' }}>
-          <Box sx={{ position: 'sticky', top: 16 }}>{frame}</Box>
-          {form}
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(380px, 1fr)', gap: 2.5, alignItems: 'start' }}>
+          <Box sx={{ minWidth: 0 }}>{photoStep}</Box>
+          <Box sx={{ minWidth: 0 }}>{ideaStep}{rest}</Box>
         </Box>
       ) : (
-        <>
-          <Box sx={{ mb: 1.5 }}>{frame}</Box>
-          {form}
-        </>
+        <Box sx={{ minWidth: 0 }}>
+          {ideaStep}
+          {photoStep}
+          {rest}
+        </Box>
       )}
       <PickerDialog
-        open={picker != null}
-        zone={picker ?? 0}
-        filled={picker != null && picker < post.photo_ids.length}
-        selectedIds={post.photo_ids}
+        open={picker}
+        selectedIds={ids}
         defaultCategory={post.category}
-        onClose={() => setPicker(null)}
-        onPick={(photo) => { if (picker != null) fillZone(picker, photo.id); setPicker(null); }}
-        onUploaded={(uploaded) => {
-          if (picker == null || !uploaded.length) return;
-          let ids = placePhoto(post.photo_ids, Math.min(picker, post.photo_ids.length), uploaded[0].id);
-          uploaded.slice(1).forEach((p) => { ids = [...ids, p.id]; });
-          photos.mutate(ids);
-          setPicker(null);
+        onClose={() => setPicker(false)}
+        onPick={(photo) => {
+          if (!ids.includes(photo.id)) photos.mutate([...ids, photo.id]);
+          setPicker(false);
         }}
-        onRemove={() => {
-          if (picker == null) return;
-          photos.mutate(post.photo_ids.filter((_pid, i) => i !== picker));
-          setPicker(null);
+        onUploaded={(uploaded) => {
+          photos.mutate([...ids, ...uploaded.map((p) => p.id).filter((pid) => !ids.includes(pid))]);
+          setPicker(false);
         }}
       />
+      {editing ? (
+        <SocialPhotoEditor
+          photo={editing}
+          size={post.size}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); reload(); }}
+        />
+      ) : null}
       {postIt ? (
         <PostItDialog
           post={post}

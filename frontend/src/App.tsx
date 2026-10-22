@@ -20,6 +20,8 @@ const ClockPage = lazy(() => import('./pages/kiosk/ClockPage'));
 const ThriftPlusScannerPage = lazy(() => import('./pages/thriftplus/scanner/ThriftPlusScannerPage'));
 // Thrift+ Staff (owner 2026-10-16): the store phones' app at /staff (Finalize, Members, Scan, Join QR).
 const StaffApp = lazy(() => import('./pages/thriftplus/staff/StaffApp'));
+// Social Studio (owner 2026-10-22): the phone app at /social (Post, Photos, Scan, Schedule, Me).
+const SocialApp = lazy(() => import('./pages/studios/social/SocialApp'));
 const BstockLoginHandoffPage = lazy(() => import('./pages/routines/BstockLoginHandoffPage'));
 const CountPage = lazy(() => import('./pages/inventory/count/CountPage'));
 const InventoriesPage = lazy(() => import('./pages/inventory/count/InventoriesPage'));
@@ -147,6 +149,20 @@ function StaffAppGate() {
       <StaffRoute>
         <Suspense fallback={<LoadingScreen message="Loading…" />}>
           <StaffApp />
+        </Suspense>
+      </StaffRoute>
+    </ProtectedRoute>
+  );
+}
+
+/** Social Studio's phone app behind the staff sign-in; signing in comes back to the tab that was opened. */
+function SocialAppGate() {
+  const location = useLocation();
+  return (
+    <ProtectedRoute next={`${location.pathname}${location.search}`}>
+      <StaffRoute>
+        <Suspense fallback={<LoadingScreen message="Loading…" />}>
+          <SocialApp />
         </Suspense>
       </StaffRoute>
     </ProtectedRoute>
@@ -730,6 +746,10 @@ function AppRoutes() {
           Finalize, Members, Scan and Join QR on its bottom bar. The old Finalize address lands in it. */}
       <Route path="/staff/*" element={<StaffAppGate />} />
       <Route path="/thriftplus/finalize" element={<Navigate to="/staff/find" replace />} />
+
+      {/* Social Studio on a phone (owner 2026-10-22): staff, Employee and up. Full screen, outside MainLayout, so it
+          installs as its own home-screen app (scope /social/). Post, Photos, Scan, Schedule and Me on its bottom bar. */}
+      <Route path="/social/*" element={<SocialAppGate />} />
 
       {/* Hosted time kiosk - full-bleed, keeps the host's staff JWT, outside MainLayout. */}
       <Route

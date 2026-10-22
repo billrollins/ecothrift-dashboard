@@ -3,12 +3,13 @@
 **Always include** (plan): a post can be marked Ready only when every line passes, and each miss is named.
 
 1. Real photos: `marketing.min_photos` (3) or more from the library.
-2. One hook line: written, and no longer than `marketing.hook_max_chars` (80) so the frame holds it.
-3. Where and when: the store address (`store_address`) and hours (`online_sales.hours`); both go on the frame and
-   in the caption by themselves, so this fails only when one is missing.
+2. One hook line: written, and no longer than `marketing.hook_max_chars` (80): the caption's first line.
+3. Where and when: the store address (`store_address`) and hours (`online_sales.hours`); both go in the caption
+   by themselves, so this fails only when one is missing.
 4. The Thrift+ line (`marketing.thrift_plus_line`): added to the caption by itself.
 5. A call to action: come in, message us, or ask for a hold.
-6. The brand frame: every photo zone of the chosen template is filled.
+6. Product photos show their tag (owner 2026-10-22, F6): every photo with an item has its tag overlay on. Scene
+   photos (no item) carry none. Replaced the brand frame (fixed templates, retired the same day).
 
 A Ready post that is edited until it fails goes back to Draft. A Posted post is locked (only the owner's rating
 changes). Marking Posted closes the day's Today's post routine run.
@@ -50,7 +51,7 @@ def store_address() -> str:
 
 
 def brand_payload(settings: dict | None = None) -> dict:
-    """What the frame and the caption print: address, hours, the Thrift+ line."""
+    """What the caption prints: address, hours, the Thrift+ line."""
     settings = settings or marketing_settings()
     return {
         'address': store_address(),
@@ -66,8 +67,9 @@ def _photo_ids(post: SocialPost) -> list[int]:
 def check_post(post: SocialPost, *, settings: dict | None = None, brand: dict | None = None) -> list[dict]:
     settings = settings or marketing_settings()
     brand = brand or brand_payload(settings)
-    photos = len(_photo_ids(post))
-    zones = SocialPost.LAYOUT_ZONES.get(post.layout, 0)
+    rows = list(post.post_photos.values_list('photo__item_id', 'photo__tag_overlay'))
+    photos = len(rows)
+    untagged = sum(1 for item_id, overlay in rows if item_id and not overlay)
     need = settings['min_photos']
     hook = (post.hook or '').strip()
     limit = settings['hook_max_chars']
@@ -79,7 +81,6 @@ def check_post(post: SocialPost, *, settings: dict | None = None, brand: dict | 
         hook_miss = 'Write one hook line: what it is and why now.'
     else:
         hook_miss = f'Shorten the hook to {limit} characters (now {len(hook)}).'
-    empty = max(0, zones - photos)
     return [
         line('photos', f'{need}+ real photos', photos >= need,
              f'Add {need - photos} more real photo{"" if need - photos == 1 else "s"} ({need} or more).'),
@@ -89,8 +90,8 @@ def check_post(post: SocialPost, *, settings: dict | None = None, brand: dict | 
         line('thrift_plus', 'The Thrift+ line', brand['thrift_plus_line'],
              'The Thrift+ line is empty in Settings > Store > Social Studio.'),
         line('cta', 'A call to action', post.call_to_action in CTA_LINES, 'Pick a call to action.'),
-        line('frame', 'The brand frame', zones and empty == 0,
-             f'Fill the {empty} empty photo spot{"" if empty == 1 else "s"} in the frame.'),
+        line('tags', 'Product photos show their tag', untagged == 0,
+             f'Turn the tag on for {untagged} product photo{"" if untagged == 1 else "s"}.'),
     ]
 
 
@@ -187,14 +188,15 @@ def close_routine_run(post: SocialPost, *, user) -> None:
         resolve_nudges_for_run(run)
 
 
-def photo_payload(photo: SocialPhoto, *, used_in: list[dict] | None = None) -> dict:
+def photo_payload(photo: SocialPhoto, *, used_in: list[dict] | None = None, with_tag: bool = False) -> dict:
+    """`with_tag` adds the item's live tag facts for the overlay (a few reads per photo: posts and one photo only)."""
     def url(field):
         try:
             return field.url if field else None
         except Exception:
             return None
 
-    return {
+    out = {
         'id': photo.pk,
         'image_url': url(photo.image),
         'thumb_url': url(photo.thumbnail) or url(photo.image),
@@ -207,11 +209,19 @@ def photo_payload(photo: SocialPhoto, *, used_in: list[dict] | None = None) -> d
         'uploaded_at': photo.uploaded_at.isoformat() if photo.uploaded_at else None,
         'taken_at': photo.taken_at.isoformat() if photo.taken_at else None,
         'is_archived': photo.is_archived,
+        'tag_overlay': photo.tag_overlay,
+        'tag_corner': photo.tag_corner,
+        'edited_at': photo.edited_at.isoformat() if photo.edited_at else None,
         'used_in': used_in if used_in is not None else [
             {'post_id': row.post_id, 'slot_date': row.post.slot_date.isoformat()}
             for row in photo.post_photos.select_related('post')
         ],
     }
+    if with_tag:
+        from apps.marketing.services.tags import tag_card
+
+        out['tag'] = tag_card(photo.item) if photo.item_id and photo.item else None
+    return out
 
 
 def post_payload(post: SocialPost, *, settings: dict | None = None, brand: dict | None = None,
@@ -228,8 +238,6 @@ def post_payload(post: SocialPost, *, settings: dict | None = None, brand: dict 
         'hook': post.hook,
         'body': post.body,
         'call_to_action': post.call_to_action,
-        'layout': post.layout,
-        'zones': SocialPost.LAYOUT_ZONES.get(post.layout, 0),
         'size': post.size,
         'status': post.status,
         'source': post.source,
@@ -243,6 +251,8 @@ def post_payload(post: SocialPost, *, settings: dict | None = None, brand: dict 
         'text': post_text(post, brand=brand),
     }
     if with_photos:
-        rows = post.post_photos.select_related('photo', 'photo__item', 'photo__uploaded_by').order_by('position')
-        out['photos'] = [photo_payload(row.photo, used_in=[]) for row in rows]
+        rows = post.post_photos.select_related(
+            'photo', 'photo__item', 'photo__item__product', 'photo__uploaded_by',
+        ).order_by('position')
+        out['photos'] = [photo_payload(row.photo, used_in=[], with_tag=True) for row in rows]
     return out

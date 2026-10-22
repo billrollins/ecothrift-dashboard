@@ -142,7 +142,7 @@ class PostFlowTests(TestCase):
 
     def test_check_names_every_missing_piece(self):
         missing = missing_lines(self.post)
-        self.assertEqual(len(missing), 4)  # photos, hook, call to action, frame; address/hours/Thrift+ come built in
+        self.assertEqual(len(missing), 3)  # photos, hook, call to action; address/hours/Thrift+ come built in
         self.assertTrue(missing[0].startswith('Add 3 more real photos'))
         self.post.hook = 'x' * 81
         self.assertIn('Shorten the hook to 80 characters (now 81).', missing_lines(self.post))
@@ -171,7 +171,7 @@ class PostFlowTests(TestCase):
         url = f'/api/marketing/posts/{self.post.pk}/'
         blocked = self.client.post(url + 'ready/')
         self.assertEqual(blocked.status_code, 400)
-        self.assertEqual(len(blocked.data['missing']), 4)
+        self.assertEqual(len(blocked.data["missing"]), 3)
         ids = self._upload(4)
         self.client.put(url + 'photos/', {'photo_ids': ids}, format='json')
         res = self.client.patch(url, {'hook': 'New in: a whole wall of kitchen gear', 'call_to_action': 'come_in'},

@@ -125,7 +125,10 @@ def item_card(item, *, factor: Decimal | None = None, guide=None) -> dict:
         f'Condition: {CONDITION_LABELS[item.condition]}' if item.condition in CONDITION_LABELS else '',
     ] if x]
     details += [line[5:].strip() for line in (item.notes or '').splitlines() if line.upper().startswith('NOTE:')][:3]
-    retail = item.retail or (profile.retail_estimate if profile is not None else None)
+    # Only a retail the tag may print (it passed the retail check at check-in), so the app never shows one the tag doesn't.
+    from apps.inventory.services.tag_retail import tag_retail
+
+    retail = tag_retail(item)
     restricted = RestrictedProduct.objects.filter(product_id=item.product_id).exists()
     return {
         'sku': item.sku, 'title': short_title(name), 'category': category, 'category_label': CATEGORY_LABELS[category],
