@@ -19,6 +19,8 @@ import {
   TableRow,
   TextField,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import {
@@ -35,6 +37,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { IconClose as Close } from '../../../icons/ecoIcons';
 import { formatCurrency, formatCurrencyWhole } from '../../../utils/format';
 import { finalizeWarnings, pctText, refundRuleText, unitsText } from './truckFinalizeDisplay';
+import { BStockDisputePanel } from './BStockDisputePanel';
 
 const SUMMARY: { key: TruckMeasure; label: string; help: string }[] = [
   { key: 'manifest', label: 'Manifest', help: 'What the manifest lists' },
@@ -58,6 +61,7 @@ export default function TruckFinalizePage() {
   const qc = useQueryClient();
   const [allLines, setAllLines] = useState(false);
   const [confirm, setConfirm] = useState<'finalize' | 'reopen' | null>(null);
+  const phone = useMediaQuery(useTheme().breakpoints.down('sm'));
   const key = ['truck-finalize', orderId, allLines] as const;
 
   const { data, isLoading, isError } = useQuery({
@@ -96,7 +100,7 @@ export default function TruckFinalizePage() {
   const t = data.totals;
 
   return (
-    <Box sx={{ p: { xs: 1.5, md: 3 }, maxWidth: 1400, mx: 'auto' }}>
+    <Box sx={{ p: { xs: 1.5, md: 3 }, maxWidth: 1400, mx: 'auto', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5, mb: 2 }}>
         <Box sx={{ flex: 1, minWidth: 260 }}>
           <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 800 }}>
@@ -186,6 +190,8 @@ export default function TruckFinalizePage() {
         </Box>
       </Paper>
 
+      <BStockDisputePanel orderId={orderId} />
+
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Unfulfilled lines</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -193,7 +199,31 @@ export default function TruckFinalizePage() {
           are not counted missing.
         </Typography>
         {!finalized ? <AdjustmentForm orderId={orderId} onSaved={onSaved} /> : null}
-        {data.adjustments.length > 0 ? (
+        {data.adjustments.length > 0 && phone ? (
+          <Box sx={{ mt: 1, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 1 }}>
+            {data.adjustments.map((a) => (
+              <Box key={a.id} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1, display: 'flex', gap: 1 }}>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    Line {a.row_number} · {a.units} units · {a.timing === 'before_arrival' ? 'before arrival' : 'after arrival'}
+                  </Typography>
+                  <Typography variant="body2" noWrap title={a.title}>{a.title}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {a.refund_amount ? `Refund ${formatCurrency(a.refund_amount)} · ` : ''}
+                    {a.note ? `${a.note} · ` : ''}
+                    {a.created_by}
+                  </Typography>
+                </Box>
+                {!finalized ? (
+                  <IconButton size="small" aria-label="Remove adjustment" onClick={() => removeAdj.mutate(a.id)}>
+                    <Close />
+                  </IconButton>
+                ) : null}
+              </Box>
+            ))}
+          </Box>
+        ) : data.adjustments.length > 0 ? (
+          <Box sx={{ overflowX: 'auto' }}>
           <Table size="small" sx={{ mt: 1 }}>
             <TableHead>
               <TableRow>
@@ -228,6 +258,7 @@ export default function TruckFinalizePage() {
               ))}
             </TableBody>
           </Table>
+          </Box>
         ) : null}
       </Paper>
 
@@ -241,6 +272,15 @@ export default function TruckFinalizePage() {
             label="All lines"
           />
         </Box>
+        {phone ? (
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 1 }}>
+            {data.lines.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">No problems: every expected unit was checked in.</Typography>
+            ) : (
+              data.lines.map((l) => <LineCard key={l.manifest_row_id} line={l} />)
+            )}
+          </Box>
+        ) : (
         <Box sx={{ overflowX: 'auto' }}>
           <Table size="small" sx={{ '& td, & th': { whiteSpace: 'nowrap' } }}>
             <TableHead>
@@ -289,6 +329,7 @@ export default function TruckFinalizePage() {
             </TableBody>
           </Table>
         </Box>
+        )}
       </Paper>
 
       <ConfirmDialog
@@ -305,6 +346,38 @@ export default function TruckFinalizePage() {
         onConfirm={() => confirm && step.mutate(confirm)}
         onCancel={() => setConfirm(null)}
       />
+    </Box>
+  );
+}
+
+function LineCard({ line: l }: { line: TruckFinalizeDTO['lines'][number] }) {
+  const parts = [
+    `Manifest ${unitsText(l.units.manifest)}`,
+    l.units.unfulfilled ? `Unfulfilled ${unitsText(l.units.unfulfilled)}` : '',
+    `Received ${unitsText(l.units.received)}`,
+    l.units.broken ? `Broken ${unitsText(l.units.broken)}` : '',
+    l.units.over ? `Over ${unitsText(l.units.over)}` : '',
+  ].filter(Boolean);
+  return (
+    <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1 }}>
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'baseline' }}>
+        <Typography variant="body2" sx={{ fontWeight: 700, flex: 1, minWidth: 0 }} noWrap title={l.title}>
+          {l.row_number}. {l.title}
+        </Typography>
+        {l.units.missing ? (
+          <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 800, whiteSpace: 'nowrap' }}>
+            {unitsText(l.units.missing)} missing
+          </Typography>
+        ) : null}
+      </Box>
+      <Typography variant="caption" color="text.secondary" component="div">
+        {parts.join(' · ')}
+      </Typography>
+      <Typography variant="caption" color="text.secondary" component="div">
+        {formatCurrency(l.unit_retail)} each
+        {l.units.missing ? ` · missing ${formatCurrency(l.retail.missing)}` : ''}
+        {l.pallet_code ? ` · pallet ${l.pallet_code.split(':').pop()}` : ''}
+      </Typography>
     </Box>
   );
 }
@@ -343,13 +416,13 @@ function AdjustmentForm({ orderId, onSaved }: { orderId: number; onSaved: (d: Tr
   const ready = /^\d+$/.test(rowNumber) && /^\d+$/.test(units) && Number(units) > 0;
   return (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
-      <TextField size="small" label="Manifest line #" value={rowNumber} onChange={(e) => setRowNumber(e.target.value.trim())} sx={{ width: 130 }} />
-      <TextField size="small" label="Units" value={units} onChange={(e) => setUnits(e.target.value.trim())} sx={{ width: 90 }} />
-      <TextField select size="small" label="When" value={timing} onChange={(e) => setTiming(e.target.value as TruckAdjustmentPayload['timing'])} sx={{ width: 160 }}>
+      <TextField size="small" label="Manifest line #" value={rowNumber} onChange={(e) => setRowNumber(e.target.value.trim())} sx={{ width: { xs: 'calc(50% - 4px)', sm: 130 } }} />
+      <TextField size="small" label="Units" value={units} onChange={(e) => setUnits(e.target.value.trim())} sx={{ width: { xs: 'calc(50% - 4px)', sm: 90 } }} />
+      <TextField select size="small" label="When" value={timing} onChange={(e) => setTiming(e.target.value as TruckAdjustmentPayload['timing'])} sx={{ width: { xs: 'calc(50% - 4px)', sm: 160 } }}>
         <MenuItem value="before_arrival">Before arrival</MenuItem>
         <MenuItem value="after_arrival">After arrival</MenuItem>
       </TextField>
-      <TextField size="small" label="Refund $ (if known)" value={refund} onChange={(e) => setRefund(e.target.value.trim())} sx={{ width: 150 }} />
+      <TextField size="small" label="Refund $ (if known)" value={refund} onChange={(e) => setRefund(e.target.value.trim())} sx={{ width: { xs: 'calc(50% - 4px)', sm: 150 } }} />
       <TextField size="small" label="Note" value={note} onChange={(e) => setNote(e.target.value)} sx={{ flex: 1, minWidth: 180 }} />
       <Button
         variant="outlined"

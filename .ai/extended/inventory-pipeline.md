@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (truck pallets E1; truck finalize E2) -->
+<!-- Last updated: 2026-10-21 (truck pallets E1; truck finalize E2; B-Stock disputes E2b) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -80,7 +80,26 @@ finalized** step). `services/truck_finalize.py`; `GET /inventory/orders/{id}/tru
   until a manager reopens it (`…/reopen/`). Warnings (units still pending, pallets not done, no sale price) never
   block. Adjustments: `POST …/truck-finalize/adjustments/` `{row_number | manifest_row_id, units, timing,
   refund_amount?, note?}`, `DELETE …/adjustments/{id}/`.
-- The dispute itself is not filed here (E2b).
+- **B-Stock dispute (E2b)** on the same page: see below.
+
+### B-Stock disputes (E2b, 2026-10-21)
+
+B-Stock wants the buyer to mark every issue on its on-screen manifest (item, condition, units, MSRP per unit, total
+MSRP, UPC) and attach 1-4 photos per pallet, a truck photo and the BOL; it often sends a new manifest to fill in
+again (owner walkthrough: `.ai/reference/bstock-disputes/`). Dash builds that once and links it.
+
+- **Start dispute** on the truck page creates a `BStockDispute` with an unguessable token. Its page
+  `/dispute/<token>/` needs no sign-in (`views_public_dispute.py`, template `inventory/bstock_dispute.html`,
+  `noindex`, `no-store`): summary, **Items affected** in B-Stock's columns plus pallet id and LPN (missing units =
+  "Not received", broken = "Damaged"), the BOL and truck photo, each pallet's photos with its label, and already
+  adjusted (unfulfilled) lines. Downloads: Excel (Items affected, Summary, Full manifest), CSV, and a streamed zip
+  (Excel + CSV + full-size photos).
+- Staff copy the link and a suggested note into B-Stock's "Additional information". **Status** draft → filed →
+  refunded / partly refunded / denied / closed unresolved; filing freezes the lines and totals in `snapshot`; back to
+  draft makes them live again (a new manifest from B-Stock). B-Stock's dispute ID and the refund received are kept.
+- Every open and download is logged (`BStockDisputeEvent`: kind, a 16-character hash of IP + browser, the browser
+  name); our own previews carry `?from=dash` and do not count. The panel says how often B-Stock opened it and what.
+- APIs: `GET/POST /inventory/orders/{id}/bstock-disputes/`, `PATCH …/bstock-disputes/{dispute_id}/`.
 
 ### Review surfaces (pre- vs post-finalize)
 

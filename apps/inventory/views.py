@@ -2258,6 +2258,8 @@ _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
         'truck_finalize_add_adjustment',
         'truck_finalize_delete_adjustment',
         'truck_finalize_step',
+        'bstock_disputes',
+        'bstock_dispute_update',
     },
 )
 
@@ -2725,6 +2727,35 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             except ValueError as e:
                 return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(truck_report(order))
+
+    @action(detail=True, methods=['get', 'post'], url_path='bstock-disputes')
+    def bstock_disputes(self, request, pk=None):
+        """The truck's B-Stock disputes (GET), or start one from today's missing and broken lines (POST)."""
+        from apps.inventory.models import BStockDispute
+        from apps.inventory.services import bstock_disputes as svc
+
+        order = self.get_object()
+        if request.method == 'POST':
+            svc.create_dispute(request.user, order)
+        rows = BStockDispute.objects.filter(purchase_order=order).order_by('-created_at')
+        data = [svc.dispute_out(d, request.build_absolute_uri(f'/dispute/{d.token}/')) for d in rows]
+        return Response({'disputes': data}, status=status.HTTP_201_CREATED if request.method == 'POST' else 200)
+
+    @action(detail=True, methods=['patch'], url_path=r'bstock-disputes/(?P<dispute_id>\d+)')
+    def bstock_dispute_update(self, request, pk=None, dispute_id=None):
+        """Status (filing freezes the lines), B-Stock's dispute id, the note we send, refund received."""
+        from apps.inventory.models import BStockDispute
+        from apps.inventory.services import bstock_disputes as svc
+
+        order = self.get_object()
+        dispute = BStockDispute.objects.filter(purchase_order=order, pk=int(dispute_id)).first()
+        if dispute is None:
+            return Response({'detail': 'Dispute not found.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            svc.update_dispute(dispute, request.data)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(svc.dispute_out(dispute, request.build_absolute_uri(f'/dispute/{dispute.token}/')))
 
     @action(detail=True, methods=['post'], url_path='upload-manifest')
     def upload_manifest(self, request, pk=None):
@@ -8391,6 +8422,25 @@ def classify_item_view(request):
 
 @api_view(['GET'])
 @perm_classes([IsAuthenticated, IsStaff])
+def shrink_estimate_view(request):
+    """Estimated stock on hand from how long each shelf item has gone unseen (E4, services/shrink_age.py).
+
+    ``?items=seen|aging|lost|marked_gone`` adds that band's items, longest unseen first (``&limit=``, at most 500).
+    """
+    from apps.inventory.services.shrink_age import BANDS, estimated_on_hand
+
+    band = request.query_params.get('items') or None
+    if band and band not in dict(BANDS):
+        return Response({'detail': 'items must be one of: ' + ', '.join(k for k, _ in BANDS)}, status=400)
+    try:
+        limit = min(max(int(request.query_params.get('limit') or 200), 1), 500)
+    except ValueError:
+        limit = 200
+    return Response(estimated_on_hand(with_items=band, limit=limit))
+
+
+@api_view(['GET'])
+@perm_classes([IsAuthenticated, IsStaff])
 def store_report_view(request):
     """Manager store report: on-shelf inventory summary, stale items, pricing gaps.
 
@@ -9394,6 +9444,17 @@ class RestorationJobViewSet(
                 }
             )
         return Response({'found': 'none'})
+
+    @action(detail=False, methods=['get'])
+    def tracking(self, request):
+        """Restoration list (E3): path, next stop, landing and days. ``?scope=open|done`` ``&days=30``."""
+        from apps.inventory.services.restoration_tracking import tracking_rows
+
+        try:
+            days = int(request.query_params.get('days') or 30)
+        except ValueError:
+            days = 30
+        return Response(tracking_rows(scope=request.query_params.get('scope') or 'open', days=min(max(days, 1), 365)))
 
     @action(detail=False, methods=['get'])
     def scoreboard(self, request):

@@ -33,7 +33,7 @@ It covers the full lifecycle of merchandise and store operations:
 
 **Currently parked / partial:**
 
-- **Online Sales** workspace — code retained; staff routes redirect to Dashboard (`ONLINE_SALES_ENABLED=false`)  
+- **Online Sales** workspace (Manager+) — Listings (tabs Catalog, To list, **Sold online**), Holds, Messages. Sold online (E5, 2026-10-21): record an item sold online and paid outside the register (tag, price, Facebook / other online); it leaves inventory, with Undo; lists every online sale of 90 days, holds paid at the register included. A listing's Mark sold also takes its item out.  
 - **Staff Consignment** — routes still work; **hidden from sidebar**  
 - **Finalization** and **Disputes** — nav links exist but pages are **placeholders** (not built)  
 
@@ -178,6 +178,7 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 |------|------|----------------|
 | **TARS** | `/restoration/tars` | Full-screen “TARS Studio” bench for test / assemble / repair / salvage workflows. Opens in a **new window** from nav. |
 | **Parts requests** | `/restoration/parts-requests` | Manager+ queue of parts requests from restoration work. |
+| **Restoration list** | `/restoration/tracking` | Every item in restoration: path (tested / assembled / repaired / salvaged), next stop, landing, days; In progress or Finished (30 days). |
 
 ### Inventory workspace
 

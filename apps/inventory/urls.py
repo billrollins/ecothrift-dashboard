@@ -15,7 +15,7 @@ from .views import (
     RestorationPartsOrderViewSet,
     RestorationGradeScaleViewSet,
     manifest_field_metadata_view, item_lookup,
-    classify_item_view, store_report_view,
+    classify_item_view, shrink_estimate_view, store_report_view,
     verify_present_view, quick_reprice_view, duplicate_item_for_resale_view,
     mark_sold_item_on_shelf_view, estimate_price_view,
 )
@@ -53,6 +53,7 @@ urlpatterns = [
     path('items/lookup/<str:sku>/', item_lookup, name='item-lookup'),
     path('classify/', classify_item_view, name='classify-item'),
     path('store-report/', store_report_view, name='store-report'),
+    path('shrink-estimate/', shrink_estimate_view, name='shrink-estimate'),
     path('items/<int:pk>/verify-present/', verify_present_view, name='item-verify-present'),
     path('items/<int:pk>/quick-reprice/', quick_reprice_view, name='item-quick-reprice'),
     path('items/<int:pk>/duplicate-for-resale/', duplicate_item_for_resale_view, name='item-duplicate-for-resale'),

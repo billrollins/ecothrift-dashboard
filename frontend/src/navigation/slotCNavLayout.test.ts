@@ -281,6 +281,7 @@ describe('Enhancement requests placement', () => {
       'restorationQueue',
       'tars',
       'restorationPartsRequests',
+      'restorationTracking',
     ]);
     // The Sidebar draws the hairline only for a non-empty guest list.
     expect(group?.guestItems).toEqual([]);

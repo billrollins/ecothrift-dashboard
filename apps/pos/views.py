@@ -2113,16 +2113,20 @@ class CartViewSet(viewsets.ModelViewSet):
             # Mark items as sold
             for line in cart.lines.filter(item__isnull=False):
                 item = line.item
+                reservation_id = None
+                if isinstance(getattr(line, 'meta', None), dict):
+                    reservation_id = line.meta.get('web_reservation_id')
                 item.status = 'sold'
                 item.sold_at = timezone.now()
                 qty = line.quantity or 1
                 item.sold_for = (line.line_total / qty).quantize(Decimal('0.01'))
+                # Sales channel (SAL-01): an Online Sales hold picked up here is an online sale paid at the register.
+                item.sale_channel = (
+                    Item.SALE_CHANNEL_ONLINE_PICKUP if reservation_id else Item.SALE_CHANNEL_STORE
+                )
                 item.save()
 
                 # Complete matching Online Sales reservation (pickup).
-                reservation_id = None
-                if isinstance(getattr(line, 'meta', None), dict):
-                    reservation_id = line.meta.get('web_reservation_id')
                 if reservation_id:
                     from apps.webstore.models import Reservation
                     from apps.webstore.services.reservations import complete_reservation

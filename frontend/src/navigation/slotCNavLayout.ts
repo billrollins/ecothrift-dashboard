@@ -42,7 +42,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'restoration',
     label: 'Restoration',
-    itemIds: ['restorationQueue', 'tars', 'restorationPartsRequests'],
+    itemIds: ['restorationQueue', 'tars', 'restorationPartsRequests', 'restorationTracking'],
     guestItemIds: ['enhancementRequests'],
   },
   {

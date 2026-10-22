@@ -8,6 +8,7 @@ from django.conf import settings
 
 from apps.core.views import robots_txt, sitemap_xml
 from apps.hiring.public_views import short_link as hiring_short_link
+from apps.inventory import views_public_dispute as dispute_views
 
 # Django contrib.admin must not use /admin/ — React SPA routes live at /admin/* (settings, users, etc.).
 urlpatterns = [
@@ -26,6 +27,12 @@ urlpatterns = [
     # The interview short link in texts (ecothrift.us/i/<code>, owner 2026-10-12).
     re_path(r'^i/(?P<code>[A-Za-z0-9]{1,12})/?$', hiring_short_link, name='hiring-short-link'),
     path('sitemap.xml', sitemap_xml, name='sitemap-xml'),
+    # The B-Stock dispute page (E2b): no sign-in, the unguessable link is the key; sent to B-Stock with a dispute.
+    path('dispute/<str:token>/', dispute_views.dispute_page, name='bstock-dispute'),
+    path('dispute/<str:token>/dispute.xlsx', dispute_views.dispute_xlsx, name='bstock-dispute-xlsx'),
+    path('dispute/<str:token>/items.csv', dispute_views.dispute_csv, name='bstock-dispute-csv'),
+    path('dispute/<str:token>/dispute.zip', dispute_views.dispute_zip, name='bstock-dispute-zip'),
+    path('dispute/<str:token>/photo/<int:attachment_id>/', dispute_views.dispute_photo, name='bstock-dispute-photo'),
     re_path(
         r'^admin/?$',
         RedirectView.as_view(url='/db-admin/', permanent=False),

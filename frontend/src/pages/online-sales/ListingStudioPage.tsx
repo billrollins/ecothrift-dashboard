@@ -671,7 +671,7 @@ export default function ListingStudioPage() {
       <ConfirmDialog
         open={confirmSold}
         title="Mark listing sold?"
-        message="Sets status to sold. Active holds will block this action."
+        message="Sets the listing to sold and takes its item out of inventory at the listing price, as sold online and paid outside the register. Active holds block this; a hold paid at the register needs no Mark sold."
         confirmLabel="Mark sold"
         severity="warning"
         loading={markSold.isPending}

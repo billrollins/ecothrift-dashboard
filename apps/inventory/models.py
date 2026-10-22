@@ -1872,6 +1872,25 @@ class Item(models.Model):
     )
     sold_at = models.DateTimeField(null=True, blank=True)
     sold_for = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    SALE_CHANNEL_STORE = 'store'
+    SALE_CHANNEL_ONLINE_PICKUP = 'online_pickup'
+    SALE_CHANNEL_FACEBOOK = 'facebook'
+    SALE_CHANNEL_ONLINE_OTHER = 'online_other'
+    SALE_CHANNEL_CHOICES = [
+        ('', 'Unknown'),
+        (SALE_CHANNEL_STORE, 'In store'),
+        (SALE_CHANNEL_ONLINE_PICKUP, 'Online hold, paid at the register'),
+        (SALE_CHANNEL_FACEBOOK, 'Facebook, paid outside the register'),
+        (SALE_CHANNEL_ONLINE_OTHER, 'Online, paid outside the register'),
+    ]
+    ONLINE_SALE_CHANNELS = (SALE_CHANNEL_ONLINE_PICKUP, SALE_CHANNEL_FACEBOOK, SALE_CHANNEL_ONLINE_OTHER)
+    sale_channel = models.CharField(
+        max_length=16,
+        choices=SALE_CHANNEL_CHOICES,
+        blank=True,
+        default='',
+        help_text='Where the last sale happened (set at the register or by Online Sales "Sold online"). Blank before 2026-10-21.',
+    )
     notes = models.TextField(blank=True, default='')
     DISPUTE_TYPE_BROKEN = 'broken'
     DISPUTE_TYPE_UNDELIVERED = 'undelivered'
@@ -2477,6 +2496,98 @@ class ManifestAdjustment(models.Model):
 
     def __str__(self):
         return f'Unfulfilled {self.units} on row {self.manifest_row_id} (PO {self.purchase_order_id})'
+
+
+class BStockDispute(models.Model):
+    """A truck's dispute with B-Stock: the lines we claim, a read-only page to send them, and their decision.
+
+    B-Stock asks the buyer to mark the issues on its on-screen manifest and attach pallet photos, a truck photo and
+    the BOL. Dash builds the same thing: a page at ``/dispute/<token>/`` (no sign-in, unguessable link) with the
+    affected lines, the photos and downloads (Excel, photos zip). Lines are live while the dispute is a draft and
+    frozen in ``snapshot`` once it is filed. ``services/bstock_disputes.py``.
+    """
+
+    STATUS_DRAFT = 'draft'
+    STATUS_FILED = 'filed'
+    STATUS_REFUNDED = 'refunded'
+    STATUS_PARTIAL = 'partial'
+    STATUS_DENIED = 'denied'
+    STATUS_UNRESOLVED = 'unresolved'
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Draft'),
+        (STATUS_FILED, 'Filed'),
+        (STATUS_REFUNDED, 'Refunded'),
+        (STATUS_PARTIAL, 'Partly refunded'),
+        (STATUS_DENIED, 'Denied'),
+        (STATUS_UNRESOLVED, 'Closed unresolved'),
+    ]
+    CLOSED_STATUSES = (STATUS_REFUNDED, STATUS_PARTIAL, STATUS_DENIED, STATUS_UNRESOLVED)
+
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='bstock_disputes',
+    )
+    token = models.CharField(max_length=64, unique=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
+    bstock_dispute_id = models.CharField(max_length=60, blank=True, default='')
+    note = models.TextField(
+        blank=True,
+        default='',
+        help_text="What we tell B-Stock (their 'Additional information').",
+    )
+    snapshot = models.JSONField(default=dict, blank=True, help_text='Lines and totals frozen when filed.')
+    refund_expected = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    refund_received = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    filed_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'B-Stock dispute {self.bstock_dispute_id or self.pk} (PO {self.purchase_order_id})'
+
+
+class BStockDisputeEvent(models.Model):
+    """Who looked at a dispute page and what they opened (so we learn what B-Stock uses)."""
+
+    KIND_VIEW = 'view'
+    KIND_PHOTO = 'photo'
+    KIND_XLSX = 'xlsx'
+    KIND_CSV = 'csv'
+    KIND_ZIP = 'zip'
+    KIND_CHOICES = [
+        (KIND_VIEW, 'Opened the page'),
+        (KIND_PHOTO, 'Opened a photo'),
+        (KIND_XLSX, 'Downloaded Excel'),
+        (KIND_CSV, 'Downloaded CSV'),
+        (KIND_ZIP, 'Downloaded photos'),
+    ]
+
+    dispute = models.ForeignKey(BStockDispute, on_delete=models.CASCADE, related_name='events')
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+    detail = models.CharField(max_length=120, blank=True, default='')
+    signed_in = models.BooleanField(default=False, help_text='A Dash user (our own staff), not B-Stock.')
+    visitor = models.CharField(max_length=16, blank=True, default='', help_text='Short hash of IP + browser.')
+    user_agent = models.CharField(max_length=200, blank=True, default='')
+    at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-at']
+        indexes = [models.Index(fields=['dispute', 'at'])]
+
+    def __str__(self):
+        return f'{self.kind} on dispute {self.dispute_id} at {self.at}'
 
 
 class ReceivingAttachment(models.Model):

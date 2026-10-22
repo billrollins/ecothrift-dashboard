@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (legacy fullscreen Studio removed) -->
+<!-- Last updated: 2026-10-21 (legacy fullscreen Studio removed; Restoration list E3: path, next, landed, days) -->
 # Restoration / TARS
 
 Staff restoration: Ashley prices grades, Mike runs the bench, Bill sees what it earned. Initiative: [`finalize_tars_app`](../initiatives/_archived/finalize_tars_app.md). Shipped **v2.71.0** (GitHub; not Heroku).
@@ -14,6 +14,7 @@ House rule: **nothing may shift the page** when state changes. Standing conditio
 | **`/restoration/overview`** | TARS home: scoreboard strip + queue (also Ashley's desk). `/restoration/queue` redirects here. |
 | **`/restoration/bench`** | Command deck (item, notes, grade & value, dispatch) + grades + purchase summaries + current action and one history. |
 | **`/restoration/parts-requests`** | Superuser command center: live pipeline board + history by item. Sidebar badge counts approvals, cancel asks, and reviews. |
+| **`/restoration/tracking`** | Restoration list (E3): what is in restoration now, oldest first, or finished in the last 30 days. |
 | **`/restoration/tars`** | Old Studio bookmarks → in-dashboard bench, else overview. |
 | **`/inventory/restorations`** | Processing TO/FROM hub (grade setup + returns desk). |
 
@@ -74,6 +75,21 @@ Rates are judged against a **floor** (what an hour costs, default `$19.80`) and 
 Processing check-in with `dispatch=restoration` creates a `queued` job. Incomplete grade values → `needs_setup`. Dispatch away from restoration deletes a `queued` job.
 
 ---
+
+## Restoration list (E3, 2026-10-21)
+
+`GET /api/inventory/restoration-jobs/tracking/?scope=open|done&days=30` (`services/restoration_tracking.py`). Nothing new
+is recorded; it reads what the job already holds.
+
+- **Path** = the kinds of bench work logged (`RestorationAction.category`): tested, assembled, repaired, salvaged,
+  each with the day first done; a part line sent to salvage counts as salvaged. Inspection alone is not a step.
+- **Next** = `bench_disposition` (back to processing, back stock, salvage, online), or before that the intended
+  destination ("Meant for shelf"); returned untouched = back to processing.
+- **Landed** = the main item after Processing checks it back in (`processing_handled_at`): floor, back stock, online,
+  salvage, sold.
+- **Days** in restoration (sent → checked back in, or now) and in the current stage (stage stamps: `created_at`,
+  `sent_at`, `bench_started_at`, `pending_started_at`, `dispositioned_at`, `returned_at`). Open = not yet checked back
+  in, so Done items waiting for Processing stay on the list ("Waiting for processing").
 
 ## Surfaces
 

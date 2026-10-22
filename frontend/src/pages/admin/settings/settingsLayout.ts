@@ -163,6 +163,12 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
         help: "How 'what we can expect back' is worked out for missing and broken goods (B-Stock's rule).",
         keys: ['truck_refund_rate', 'truck_refund_deductible'],
       },
+      {
+        id: 'shrink-age',
+        title: 'Shrink by age',
+        help: 'Estimated stock on hand: how likely an item on the shelf is gone, from how long since anyone saw it.',
+        keys: ['shrink_age_start_days', 'shrink_age_lost_days', 'shrink_age_start_pct', 'shrink_count_not_found_lost'],
+      },
     ],
   },
   {

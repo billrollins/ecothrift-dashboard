@@ -43,6 +43,7 @@ import {
   WhenCell,
 } from './presentation';
 import { useOnlineSalesMobile } from './useOnlineSalesMobile';
+import { SoldOnlinePanel } from './SoldOnlinePanel';
 import { IconAdd as Add, IconSearch as Search } from '../../icons/ecoIcons';
 
 const LISTING_STATUSES = ['draft', 'ready', 'published', 'paused', 'sold', 'archived'];
@@ -57,7 +58,7 @@ type WorkQueueItem = {
   existing_listing_id: number | null;
 };
 
-type ListingsTab = 'catalog' | 'tolist';
+type ListingsTab = 'catalog' | 'tolist' | 'sold';
 type FbFilter = '' | '1' | '0';
 
 function ListingThumb({ listing }: { listing: WebListing }) {
@@ -563,7 +564,8 @@ export default function OnlineSalesListingsPage() {
   // back button all land where you were.
   const isMobile = useOnlineSalesMobile();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab: ListingsTab = searchParams.get('tab') === 'tolist' ? 'tolist' : 'catalog';
+  const rawTab = searchParams.get('tab');
+  const tab: ListingsTab = rawTab === 'tolist' || rawTab === 'sold' ? rawTab : 'catalog';
 
   const setTab = (next: ListingsTab) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -593,9 +595,11 @@ export default function OnlineSalesListingsPage() {
       >
         <Tab value="catalog" label="Catalog" sx={{ textTransform: 'none', fontWeight: 600 }} />
         <Tab value="tolist" label="To list" sx={{ textTransform: 'none', fontWeight: 600 }} />
+        <Tab value="sold" label="Sold online" sx={{ textTransform: 'none', fontWeight: 600 }} />
       </Tabs>
       {tab === 'catalog' && <CatalogPanel />}
       {tab === 'tolist' && <ToListPanel />}
+      {tab === 'sold' && <SoldOnlinePanel />}
     </Box>
   );
 }

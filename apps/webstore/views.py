@@ -228,6 +228,24 @@ class WebListingViewSet(viewsets.ModelViewSet):
                 },
                 status=409,
             )
+        # The listing's item leaves inventory too (E5): sold online, paid outside the register.
+        item = listing.item
+        if item is not None and item.status not in ('sold', 'scrapped', 'lost'):
+            from apps.webstore.services.sold_online import record_online_sale
+
+            channel = 'facebook' if (listing.fb_posted_url or listing.fb_posted_at) else 'online_other'
+            price = request.data.get('sold_for')
+            try:
+                record_online_sale(
+                    request.user,
+                    sku=item.sku,
+                    sold_for=listing.price if price in (None, '') else price,
+                    channel=request.data.get('channel') or channel,
+                    note=f'Listing #{listing.pk} marked sold',
+                )
+            except (ValueError, LookupError) as e:
+                return Response({'detail': str(e)}, status=400)
+            listing.refresh_from_db()
         listing.status = 'sold'
         listing.save(update_fields=['status', 'updated_at'])
         return Response(WebListingSerializer(listing).data)
@@ -1920,6 +1938,48 @@ def work_queue_remove_item(request, item_id: int):
         'location': item.location,
         'detail': 'Removed from Online Sales queue.',
     })
+
+
+@api_view(['GET', 'POST'])
+@perm_classes([IsAuthenticated, IsManagerOrAdmin])
+def sold_online(request):
+    """Online sales (E5). GET ?days=90: both kinds, newest first. POST {sku, sold_for, channel, note}: record an item
+    sold online and paid outside the register (it leaves inventory)."""
+    from apps.webstore.services.sold_online import online_sales_list, record_online_sale
+
+    if request.method == 'POST':
+        try:
+            record_online_sale(
+                request.user,
+                sku=str(request.data.get('sku') or ''),
+                sold_for=request.data.get('sold_for'),
+                channel=str(request.data.get('channel') or ''),
+                note=str(request.data.get('note') or ''),
+            )
+        except LookupError as e:
+            return Response({'detail': str(e)}, status=404)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=400)
+    try:
+        days = min(max(int(request.query_params.get('days') or 90), 1), 365)
+    except ValueError:
+        days = 90
+    return Response({'days': days, 'results': online_sales_list(days)}, status=201 if request.method == 'POST' else 200)
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsManagerOrAdmin])
+def sold_online_undo(request, item_id: int):
+    """Put an item recorded as sold online back on the shelf."""
+    from apps.webstore.services.sold_online import online_sales_list, undo_online_sale
+
+    try:
+        undo_online_sale(request.user, item_id)
+    except LookupError as e:
+        return Response({'detail': str(e)}, status=404)
+    except ValueError as e:
+        return Response({'detail': str(e)}, status=400)
+    return Response({'days': 90, 'results': online_sales_list(90)})
 
 
 @api_view(['GET'])

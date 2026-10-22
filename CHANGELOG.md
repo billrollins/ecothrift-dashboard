@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.205.1] -->
-<!-- Last reviewed: 2026-10-21 (2.205.1) -->
+<!-- Line 1 release: ## [2.206.0] -->
+<!-- Last reviewed: 2026-10-21 (2.206.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.206.0] - 2026-10-21
+
+User-facing theme: **B-Stock disputes from Dash, a restoration list, estimated stock without a full count, and online sales leaving inventory (Bill, 2026-10-21, critic review point 2).** Outside initiatives (critic-review release list).
+
+### Added
+- **B-Stock disputes** (Finish truck → B-Stock dispute): one link shows B-Stock every missing or damaged line in their layout, with pallet photos, the truck photo and BOL, and Excel or zip downloads. Dash records the dispute's status, B-Stock's dispute ID and the refund, and shows when B-Stock opened the link and what they downloaded.
+- **Restoration list** (Restoration → Restoration list): every item in restoration, oldest first, with what was done (tested, assembled, repaired, salvaged), where it goes next and how many days it has been there; finished items show where they landed.
+- **Shrink by age:** estimated stock on hand without a full count. A shelf item not seen for 90 to 180 days counts as partly gone, and lost past 180 days; items the last count couldn't find count as lost unless marked back stock. The days and percentages are your settings (Settings → Inventory → Shrink by age).
+- **Sold online** (Online Sales → Listings → Sold online): record an item sold on Facebook or elsewhere online and paid there; it leaves inventory, with Undo. Every sale now records where it happened (in store, or an online hold paid at the register), and marking a listing sold takes its item out of inventory too.
+
+### Changed
+- **Finish truck, the Pallets window and the dispute page** work on a phone as well as a computer.
 
 ## [2.205.1] - 2026-10-21
 

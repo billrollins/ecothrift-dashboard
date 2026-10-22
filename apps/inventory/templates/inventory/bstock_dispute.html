@@ -1,0 +1,163 @@
+{% load dispute_format %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Dispute {{ p.order.order_number }} - Eco-Thrift</title>
+<style>
+  :root { --ink: #0f172a; --soft: #475569; --mute: #64748b; --line: #e2e8f0; --green: #2e7d32; --red: #c62828; --bg: #f8fafc; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: var(--ink); background: var(--bg); }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; border-bottom: 3px solid var(--green); padding-bottom: 14px; margin-bottom: 18px; }
+  header .who { flex: 1; min-width: 260px; }
+  .kicker { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+  h1 { margin: 2px 0 2px; font-size: 24px; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  .muted { color: var(--mute); }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .fact .v { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .fact .s { font-size: 12px; color: var(--mute); }
+  .claim .v { color: var(--red); }
+  .downloads a { display: inline-block; margin: 0 8px 8px 0; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--green); color: var(--green); text-decoration: none; font-weight: 700; }
+  .downloads a.primary { background: var(--green); color: #fff; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--mute); background: #f1f5f9; position: sticky; top: 0; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: nowrap; }
+  tfoot td { font-weight: 800; background: #f8fafc; }
+  .issue { font-weight: 700; white-space: nowrap; }
+  .issue.missing { color: var(--red); }
+  .issue.broken { color: #9a6a14; }
+  .scroll { overflow-x: auto; }
+  .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+  .photos a { display: block; text-decoration: none; color: var(--soft); font-size: 12px; }
+  .photos img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); background: #eef2f7; }
+  .pallet { margin-bottom: 14px; }
+  .pallet h3 { font-size: 13px; margin: 0 0 6px; }
+  .note { white-space: pre-wrap; }
+  footer { margin-top: 24px; font-size: 12px; color: var(--mute); }
+  @media (max-width: 640px) {
+    main { padding: 14px 12px 32px; }
+    h1 { font-size: 20px; }
+    .downloads { width: 100%; }
+    .downloads a { display: block; text-align: center; margin: 0 0 8px; }
+    .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .photos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    td, th { padding: 6px; }
+  }
+  @media print { body { background: #fff; } .downloads { display: none; } .card { break-inside: avoid; } th { position: static; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="who">
+      <div class="kicker">Eco-Thrift · dispute for B-Stock</div>
+      <h1>Order {{ p.order.order_number }}</h1>
+      <div>{{ p.order.vendor }}{% if p.order.description %} · {{ p.order.description }}{% endif %}</div>
+      <div class="muted">
+        {% if p.order.delivered_date %}Delivered {{ p.order.delivered_date }} · {% endif %}
+        {% if dispute.bstock_dispute_id %}B-Stock dispute {{ dispute.bstock_dispute_id }} · {% endif %}
+        Status: {{ status_label }}
+      </div>
+    </div>
+    <div class="downloads">
+      <a class="primary" href="/dispute/{{ dispute.token }}/dispute.xlsx{{ from_q }}">Download Excel</a>
+      <a href="/dispute/{{ dispute.token }}/items.csv{{ from_q }}">CSV</a>
+      <a href="/dispute/{{ dispute.token }}/dispute.zip{{ from_q }}">Everything (Excel + photos, zip)</a>
+    </div>
+  </header>
+
+  <section class="card">
+    <h2>Summary</h2>
+    <div class="facts">
+      <div class="fact"><div class="s">Manifest</div><div class="v">{{ p.totals.manifest_units|floatformat:"-1g" }} units</div><div class="s">{{ p.totals.manifest_retail|money }} retail</div></div>
+      {% if p.totals.unfulfilled_units %}<div class="fact"><div class="s">Unfulfilled (adjusted)</div><div class="v">{{ p.totals.unfulfilled_units|floatformat:"-1g" }} units</div><div class="s">not claimed here</div></div>{% endif %}
+      <div class="fact"><div class="s">Received</div><div class="v">{{ p.totals.received_units|floatformat:"-1g" }} units</div></div>
+      <div class="fact claim"><div class="s">Not received</div><div class="v">{{ p.totals.missing_units|floatformat:"-1g" }} units</div><div class="s">{{ p.totals.missing_retail|money }} retail</div></div>
+      <div class="fact claim"><div class="s">Damaged</div><div class="v">{{ p.totals.broken_units|floatformat:"-1g" }} units</div><div class="s">{{ p.totals.broken_retail|money }} retail</div></div>
+      <div class="fact claim"><div class="s">Claimed</div><div class="v">{{ p.totals.claimed_retail|money }}</div><div class="s">{% if p.totals.claimed_pct is not None %}{{ p.totals.claimed_pct }}% of manifest retail{% endif %}</div></div>
+    </div>
+    {% if dispute.note %}<p class="note">{{ dispute.note }}</p>{% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Items affected ({{ p.lines|length }} line{{ p.lines|length|pluralize }})</h2>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th class="n">Line</th><th>Item</th><th>Condition</th><th>Issue</th><th class="n">Units</th><th class="n">MSRP per unit</th><th class="n">Total MSRP</th><th>UPC</th><th>Pallet ID</th><th>LPN</th></tr>
+        </thead>
+        <tbody>
+          {% for l in p.lines %}
+          <tr>
+            <td class="n">{{ l.row_number }}</td>
+            <td>{{ l.title }}</td>
+            <td>{{ l.condition|default:"-" }}</td>
+            <td class="issue {% if l.issue == 'Damaged' %}broken{% else %}missing{% endif %}">{{ l.issue }}</td>
+            <td class="n">{{ l.units|floatformat:"-1g" }}</td>
+            <td class="n">{{ l.unit_retail|money }}</td>
+            <td class="n">{{ l.total_retail|money }}</td>
+            <td class="mono">{{ l.upc|default:"-" }}</td>
+            <td class="mono">{{ l.pallet_id|default:"-" }}</td>
+            <td class="mono">{{ l.lpn|default:"-" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="10" class="muted">No affected lines.</td></tr>
+          {% endfor %}
+        </tbody>
+        {% if p.lines %}
+        <tfoot><tr><td colspan="4">Total claimed</td><td class="n">{{ p.totals.claimed_units|floatformat:"-1g" }}</td><td></td><td class="n">{{ p.totals.claimed_retail|money }}</td><td colspan="3"></td></tr></tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Proof of delivery and truck</h2>
+    <div class="photos">
+      {% for ph in documents %}<a href="/dispute/{{ dispute.token }}/photo/{{ ph.id }}/{{ from_q }}" target="_blank" rel="noopener"><img src="{{ ph.thumb_url }}" alt="{{ ph.caption }}" loading="lazy">{{ ph.caption }}</a>{% endfor %}
+      {% for ph in truck_photos %}<a href="/dispute/{{ dispute.token }}/photo/{{ ph.id }}/{{ from_q }}" target="_blank" rel="noopener"><img src="{{ ph.thumb_url }}" alt="{{ ph.caption }}" loading="lazy">{{ ph.caption }}</a>{% endfor %}
+      {% if not documents and not truck_photos %}<span class="muted">No BOL or truck photo on file.</span>{% endif %}
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Pallets as received ({{ pallet_groups|length }})</h2>
+    {% for g in pallet_groups %}
+    <div class="pallet">
+      <h3>{{ g.caption }}</h3>
+      <div class="photos">
+        {% for ph in g.photos %}<a href="/dispute/{{ dispute.token }}/photo/{{ ph.id }}/{{ from_q }}" target="_blank" rel="noopener"><img src="{{ ph.thumb_url }}" alt="{{ ph.caption }}" loading="lazy">{{ ph.side|capfirst }}</a>{% endfor %}
+      </div>
+    </div>
+    {% empty %}
+    <p class="muted">No pallet photos on file.</p>
+    {% endfor %}
+  </section>
+
+  {% if p.adjustments %}
+  <section class="card">
+    <h2>Already adjusted (unfulfilled, not claimed here)</h2>
+    <table>
+      <thead><tr><th class="n">Line</th><th>Item</th><th class="n">Units</th><th>When</th><th>Note</th></tr></thead>
+      <tbody>
+        {% for a in p.adjustments %}
+        <tr><td class="n">{{ a.row_number }}</td><td>{{ a.title }}</td><td class="n">{{ a.units }}</td><td>{% if a.timing == 'after_arrival' %}After arrival{% else %}Before arrival{% endif %}</td><td>{{ a.note }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  <footer>
+    Prepared by Eco-Thrift, Omaha, NE. Lines and units come from the manifest; "Not received" units were never checked
+    in when the truck was processed, item by item. Built {{ p.built_at|slice:":10" }}.
+  </footer>
+</main>
+</body>
+</html>

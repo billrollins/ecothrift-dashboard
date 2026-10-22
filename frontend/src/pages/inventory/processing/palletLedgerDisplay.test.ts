@@ -73,8 +73,8 @@ describe('palletLedgerDisplay', () => {
   });
 
   it('missing waits for a finished pallet and never guesses without pallet ids', () => {
-    expect(missingHeadline(ledger()).helper).toBe('Finish a pallet to see it');
-    expect(missingHeadline(ledger({ has_manifest_pallets: false })).helper).toBe('No pallet ids on manifest');
+    expect(missingHeadline(ledger()).helper).toBe('After a pallet is done');
+    expect(missingHeadline(ledger({ has_manifest_pallets: false })).helper).toBe('Manifest has no pallet ids');
     const done = missingHeadline(ledger({ running: acct(), pallets_done: 1 }));
     expect(done.value).toBe('7.1%');
     expect(done.tone).toBe('warning');

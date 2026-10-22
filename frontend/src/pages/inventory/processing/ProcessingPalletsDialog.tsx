@@ -17,6 +17,8 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import type { TruckPalletDTO, TruckPalletLedgerDTO, TruckPalletStep } from '../../../api/truckPallets.api';
@@ -52,6 +54,7 @@ export function ProcessingPalletsDialog({ open, onClose, orderId, ledger, onShow
   const { enqueueSnackbar } = useSnackbar();
   const step = useTruckPalletStep(orderId);
   const [scan, setScan] = useState('');
+  const phone = useMediaQuery(useTheme().breakpoints.down('sm'));
   const cur = currentPallet(ledger);
   const running = missingHeadline(ledger);
 
@@ -78,15 +81,44 @@ export function ProcessingPalletsDialog({ open, onClose, orderId, ledger, onShow
 
   const truck = ledger?.truck;
 
+  const actions = (p: TruckPalletDTO, isCur: boolean) => (
+    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+      {p.code && ledger?.has_manifest_pallets ? (
+        <Button
+          size="small"
+          onClick={() => {
+            onShowRows(p.code);
+            onClose();
+          }}
+        >
+          Rows
+        </Button>
+      ) : null}
+      {p.status === 'done' ? (
+        <Button size="small" disabled={step.isPending} onClick={() => run('reopen', { pallet_id: p.id })}>
+          Reopen
+        </Button>
+      ) : isCur ? (
+        <Button size="small" color="success" disabled={step.isPending} onClick={() => run('finish', { pallet_id: p.id })}>
+          Finish
+        </Button>
+      ) : (
+        <Button size="small" disabled={step.isPending} onClick={() => run('start', { pallet_id: p.id })}>
+          Start
+        </Button>
+      )}
+    </Box>
+  );
+
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg" fullScreen={phone}>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 800 }}>
             Truck pallets
           </Typography>
           <Typography variant="h6" sx={{ lineHeight: 1.2 }}>
-            Received vs manifest, pallet by pallet
+            {phone ? 'Pallets' : 'Received vs manifest, pallet by pallet'}
           </Typography>
         </Box>
         <Button component={RouterLink} to={`/inventory/orders/${orderId}/truck`} size="small">
@@ -100,13 +132,14 @@ export function ProcessingPalletsDialog({ open, onClose, orderId, ledger, onShow
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mb: 2 }}>
           <TextField
             size="small"
-            label="Scan or type a pallet label"
+            label="Pallet label"
+            placeholder="Scan or type"
             value={scan}
             onChange={(e) => setScan(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') startScanned();
             }}
-            sx={{ minWidth: 260 }}
+            sx={{ minWidth: { xs: 0, sm: 260 }, flex: { xs: 1, sm: 'none' } }}
             autoFocus
           />
           <Button variant="contained" onClick={startScanned} disabled={!scan.trim() || step.isPending}>
@@ -156,6 +189,41 @@ export function ProcessingPalletsDialog({ open, onClose, orderId, ledger, onShow
           </Box>
         ) : null}
 
+        {phone ? (
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 1 }}>
+            {(ledger?.pallets ?? []).map((p) => {
+              const pct = missingPct(p);
+              const isCur = cur?.id === p.id;
+              return (
+                <Box
+                  key={p.id}
+                  sx={{ border: 1, borderColor: isCur ? 'primary.main' : 'divider', borderRadius: 1, p: 1 }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography sx={{ fontFamily: processingTokens.monoFontFamily, fontWeight: 800, flex: 1, minWidth: 0 }} noWrap>
+                      #{p.number} {p.code ? p.label : ''}
+                    </Typography>
+                    <Chip
+                      size="small"
+                      label={STATUS_LABEL[p.status]}
+                      color={p.status === 'done' ? 'success' : p.status === 'processing' ? 'primary' : 'default'}
+                      variant={p.status === 'waiting' ? 'outlined' : 'filled'}
+                    />
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" component="div">
+                    {ledger?.has_manifest_pallets
+                      ? `Manifest ${fmtUnits(p.manifest_units)} · received ${fmtUnits(p.received_units)} · missing ${fmtUnits(p.missing_units)} (${fmtPct(pct)})`
+                      : `${fmtUnits(p.checked_in_units)} checked in`}
+                    {p.broken_units ? ` · broken ${p.broken_units}` : ''}
+                    {p.added_units ? ` · added ${p.added_units}` : ''}
+                    {p.from_other_pallets_units ? ` · ${p.from_other_pallets_units} from other pallets` : ''}
+                  </Typography>
+                  {actions(p, isCur)}
+                </Box>
+              );
+            })}
+          </Box>
+        ) : (
         <Table size="small" sx={{ '& td, & th': { whiteSpace: 'nowrap' } }}>
           <TableHead>
             <TableRow>
@@ -212,39 +280,14 @@ export function ProcessingPalletsDialog({ open, onClose, orderId, ledger, onShow
                   <TableCell align="right">{p.broken_units || '-'}</TableCell>
                   <TableCell align="right">{p.added_units || '-'}</TableCell>
                   <TableCell align="right">{p.from_other_pallets_units || '-'}</TableCell>
-                  <TableCell align="right">
-                    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                      {p.code && ledger?.has_manifest_pallets ? (
-                        <Button
-                          size="small"
-                          onClick={() => {
-                            onShowRows(p.code);
-                            onClose();
-                          }}
-                        >
-                          Rows
-                        </Button>
-                      ) : null}
-                      {p.status === 'done' ? (
-                        <Button size="small" disabled={step.isPending} onClick={() => run('reopen', { pallet_id: p.id })}>
-                          Reopen
-                        </Button>
-                      ) : isCur ? (
-                        <Button size="small" color="success" disabled={step.isPending} onClick={() => run('finish', { pallet_id: p.id })}>
-                          Finish
-                        </Button>
-                      ) : (
-                        <Button size="small" disabled={step.isPending} onClick={() => run('start', { pallet_id: p.id })}>
-                          Start
-                        </Button>
-                      )}
-                    </Box>
+                  <TableCell align="right">{actions(p, isCur)}
                   </TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
+        )}
         {ledger?.unassigned ? (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
             {fmtUnits(ledger.unassigned.manifest_units)} manifest units have no pallet id (missing so far:{' '}

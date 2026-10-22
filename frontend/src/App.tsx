@@ -112,6 +112,7 @@ const OwnerPage = lazy(() => import('./pages/owner/OwnerPage'));
 const PartsCommandCenterPage = lazy(() => import('./pages/restoration/parts/PartsCommandCenterPage'));
 const RestorationQueuePage = lazy(() => import('./pages/restoration/queue/RestorationQueuePage'));
 const RestorationBenchPage = lazy(() => import('./pages/restoration/RestorationBenchPage'));
+const RestorationTrackingPage = lazy(() => import('./pages/restoration/tracking/RestorationTrackingPage'));
 const RestorationLayout = lazy(() => import('./pages/restoration/RestorationLayout'));
 const TarsStudioRedirect = lazy(() => import('./pages/restoration/TarsStudioRedirect'));
 const OnlineSalesListingsPage = lazy(() => import('./pages/online-sales/OnlineSalesListingsPage'));
@@ -367,6 +368,7 @@ function AppRoutes() {
           <Route path="queue" element={<Navigate to="/restoration/overview" replace />} />
           <Route path="bench" element={<RestorationBenchPage />} />
           <Route path="parts-requests" element={<PartsCommandCenterPage />} />
+          <Route path="tracking" element={<RestorationTrackingPage />} />
         </Route>
         <Route
           path="/admin/pos-setup"

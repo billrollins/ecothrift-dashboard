@@ -334,6 +334,30 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'inventory',
     kind: 'weight',
   },
+  shrink_age_start_days: {
+    label: 'Shrink: maybe gone after (days unseen)',
+    help: 'An item on the shelf nobody has scanned, sold, moved or repriced for this many days starts to count as maybe gone (default 90).',
+    tab: 'inventory',
+    kind: 'days',
+  },
+  shrink_age_lost_days: {
+    label: 'Shrink: lost after (days unseen)',
+    help: 'Unseen this many days, an item counts as lost (default 180).',
+    tab: 'inventory',
+    kind: 'days',
+  },
+  shrink_age_start_pct: {
+    label: 'Shrink: chance gone at the start',
+    help: 'The chance an item is gone when it reaches the first limit; it rises in a straight line to 100% at the lost limit (default 10%).',
+    tab: 'inventory',
+    kind: 'weight',
+  },
+  shrink_count_not_found_lost: {
+    label: 'Shrink: not found in the last count = lost',
+    help: 'Items the last full count expected and did not find, with no mark and not seen since, count as lost. Off: they follow the days rule.',
+    tab: 'inventory',
+    kind: 'switch',
+  },
   delivery_service_minutes_per_stop: {
     label: 'Delivery unload time (minutes / stop)',
     help: 'Delivery Field: assumed on-site unload/service minutes per stop for ETA totals (5-120). Default 20.',

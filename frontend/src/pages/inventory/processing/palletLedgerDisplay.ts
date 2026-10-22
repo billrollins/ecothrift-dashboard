@@ -57,10 +57,10 @@ export function palletHeadline(ledger: TruckPalletLedgerDTO | undefined): Pallet
 export function missingHeadline(ledger: TruckPalletLedgerDTO | undefined): PalletHeadline {
   if (!ledger) return { value: '-', helper: 'Missing', tone: 'default' };
   if (!ledger.has_manifest_pallets) {
-    return { value: '-', helper: 'No pallet ids on manifest', tone: 'default' };
+    return { value: '-', helper: 'Manifest has no pallet ids', tone: 'default' };
   }
   if (!ledger.running) {
-    return { value: '-', helper: 'Finish a pallet to see it', tone: 'default' };
+    return { value: '-', helper: 'After a pallet is done', tone: 'default' };
   }
   const pct = missingPct(ledger.running);
   return {

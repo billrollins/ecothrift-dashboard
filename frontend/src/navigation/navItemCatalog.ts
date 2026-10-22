@@ -296,6 +296,12 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Parts Requests',
     icon: 'parts',
   },
+  restorationTracking: {
+    id: 'restorationTracking',
+    path: '/restoration/tracking',
+    label: 'Restoration list',
+    icon: 'repairQueue',
+  },
   restorations: {
     id: 'restorations',
     path: '/restoration/overview',

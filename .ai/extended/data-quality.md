@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (TP-05 and TP-06: Thrift+ watchdogs on the Owner page. Earlier 2026-10-14: TP-02: Thrift+ members with no photo, no card; TP-04 retired with the cover. Earlier: inventory_effort Phase 7: ITM-16, SHR-05, SHR-06) -->
+<!-- Last updated: 2026-10-21 (TP-05 and TP-06: Thrift+ watchdogs on the Owner page. Earlier 2026-10-14: TP-02: Thrift+ members with no photo, no card; TP-04 retired with the cover. Earlier: inventory_effort Phase 7: ITM-16, SHR-05, SHR-06; E5: SAL-01 railed, sale channel; E4 shrink by age: SHR-02 filled. Earlier: TP-02, TP-04; inventory_effort Phase 7: ITM-16, SHR-05, SHR-06) -->
 # Data quality: register, handling, and rails
 
 Eco-Thrift has run for 4+ years, through at least 3 database restarts and many workflow changes. The data is not clean, and it never will be all at once: new, better data keeps arriving on top of old, messy data. This file is how we live with that.
@@ -50,6 +50,24 @@ The rail is what must be captured at each stage so the next stage can trust it. 
 | 14 | Inventory counts | none | Monday floor counts: found, missing, moved | None (SHR-01, SHR-02) |
 
 ---
+
+## Shrink by age (E4, 2026-10-21)
+
+Estimated stock on hand without a full count: `GET /api/inventory/shrink-estimate/[?items=<band>]`
+(`apps/inventory/services/shrink_age.estimated_on_hand`); the Owner page Scorecard reads it.
+
+- **Who:** items with status `on_shelf`, not in restoration, processing or salvage.
+- **Seen** = the latest of check-in / listing, a count scan, a register / lookup / audit scan, a price, location,
+  status, condition or found change, a count's "back stock" mark, or work on its Online Sales listing. **fill:** an item with no check-in or listing date
+  is seen at `created_at` (`undated_units`).
+- **Likelihood lost:** 0 under 90 days unseen; 10% at 90 rising straight to 100% at 180; past 180, lost. Owner settings
+  `shrink_age_start_days`, `shrink_age_lost_days`, `shrink_age_start_pct`.
+- **Counts:** an item a count marked gone (stolen, broken, scrap, owner took, sold generic, sold online) and not seen
+  since is lost. An item the last closed full count expected and did not find, with no mark and not seen since, is
+  that count's "Shrink (general)": lost while `shrink_count_not_found_lost` is on (default), else the days rule;
+  `last_count_not_found` always reports it.
+- **Estimated on hand** = sum of (1 - likelihood), in units and $ at today's tag; bands: seen, aging, lost, marked
+  gone, not found in the last count. Register IDs: SHR-01, SHR-02, SHR-04, ITM-02, ITM-03.
 
 ## Eras
 
@@ -111,7 +129,7 @@ Scope numbers are from the dev database copy, as of the date given.
 | ITM-06 | items | 83,491 of 83,506 `scrapped` items are the April 2026 import's label for "not a recorded sale" on legacy rows, not a floor scrap | 83,506 (R-012); 1 native scrap (2026-08-07) | Shrink, recovery, have | **exclude** `BACKFILL:` scrapped rows from shrink and have; the native one is **unknown**. The Orders numbers leave them out and flag the order `old_system_unsold` (inventory_effort Phase 5, 2026-10-06) | Scrap reason and date on every scrap | handled (decision 3) |
 | PRD-01 | products | Duplicate products (same title) | 53,969 groups, 132,419 rows = 66% of 200,079 (R-006) | Product-level sales, matching, vectors | **fill:** group by normalized title for analysis | Match on create; a scheduled dedupe job | open |
 | PRD-02 | products | No embeddings or pgvector; the early vector R&D is not in this repo | `pg_extension`: only `pg_trgm` (R-006) | Product matching (bstock Phase 4) | **use** exact and TF-IDF matching for now | Vectors (future) | planned: pgvector in local and Heroku, with fastembed vectors; FAISS optional for batch runs only (owner, 2026-09-24) |
-| SAL-01 | sales | No sales channel; every sale is POS | 55,008 of 55,012 on POS carts (R-004) | In-store vs online | **use** as in store | A channel on every sale | open |
+| SAL-01 | sales | No sales channel; every sale is POS | 55,008 of 55,012 on POS carts (R-004) | In-store vs online | **use** as in store before 2026-10-21 (`Item.sale_channel` blank) | `Item.sale_channel` on every sale since 2026-10-21 (E5): the register sets `store` or `online_pickup` (a hold rung up); Online Sales → Listings → Sold online records `facebook` / `online_other` (paid outside the register; the item leaves inventory, an `ItemHistory` "sold" line names where and who) | railed |
 | SAL-02 | sales | No Thrift+ cash back or realized-price field | all (R-004) | Realized price, cash-back pricing | **use** `sold_for` (net of `sale_percent`) as realized | Record cash back per sale | open |
 | SAL-03 | sales | Monthly sales swing hard (11,010 units in Oct 2025 vs 1,552 in Apr 2026) | 18 months (R-004) | Weekly sales rates | **use** a 90-day window; **flag** seasonality and eras | n/a | open |
 | SHR-01 | inventory | The shelf has never been counted; stock listed long ago may be gone | 11,017 on-shelf items listed over 90 days ago, $416k retail (R-004) | Have, cover, Need | **use** as have (may overstate supply); **flag** | Monday floor counts; mark missing items lost | open |
@@ -161,7 +179,7 @@ Scope numbers are from the dev database copy, as of the date given.
 | SHR-06 | inventory | Found on the floor while the system has it as scrapped, intake or lost (mostly old-system tags never retagged) | 61 in the first full count (41 scrapped, 19 intake, 1 lost); 9 more old tags already retagged in the spring (take the old tag off) | Have, shrink | **fix:** back on the shelf (Request `stocktake.back_on_shelf`); an old tag with a retagged copy is left alone | The count puts it back on the shelf by itself (v2.138.0) | railed |
 | ITM-12 | items | 4 categories added 2026-09-23 (Lawn & garden, Appliances, Arts & crafts, Automotive) have no history: past items and past AI picks use the old 19 (the garden truck sits in Home décor) | all history (2026-09-23) | Need, sales by category | **fill:** Need 50 until they have sales; recovery = the store-wide (Mixed lots) rate, flagged on the auction page (their own rate was 0, valuing appliance trucks at $0, R-055) | AI prompts and check-in know the 23; product-intelligence backfill re-places history | handled (fill) |
 | ITM-13 | products | V1/V2 products carry a near-random category. On the gold set, the current category matched a hand label for 8 of 82 V1/V2 products (10%), against 81 of 98 for V3 (83%). There is no consistent mapping, so it isn't an ID shift. 72 of 300 gold rows are flagged `miscat_old`. Weighted by the real mix it is milder: Spark keeps the current category on 3,575 of 5,566 V1/V2 title groups (64%; Electronics is mostly right). 1,991 groups ($32k sold) would move, and 1,861 of those moves are auto-accepted (`workspace/backfill/pilot_out_v1v2_placed.jsonl`) | 2,774 V1/V2 products placed outside Mixed, 3,667 sold items, $78k (Electronics $48k) (R-027). Gold set 2026-09-23 | Category sales history before 2026-04. **Not** Need, want mix or speed: their 90-day window is 99.75% V3 (R-027) | **unknown:** treat a V1/V2 product's category as missing; don't trust it or copy it to siblings | The product_intelligence backfill re-places V1/V2 products (`workspace/backfill/pilot_out_v1v2_placed.jsonl`). No free-copy source exists for them: 0 of 183k V1/V2 items have a manifest row, and only 1% of their titles have a V3 twin | open |
-| SHR-02 | shrink | No shrink measure at all | all | Truck value, report card | **unknown** | Counts (SHR-01) and scrap reasons (ITM-06) | open |
+| SHR-02 | shrink | No shrink measure at all | all | Truck value, report card | **fill:** shrink by age (E4, below): likelihood lost from days unseen, plus the last count's unmarked not-found items | Counts (SHR-01) and scrap reasons (ITM-06) | handled |
 | TP-01 | thrift+ | A floor item with no Thrift+ reward state once the switch is on (no member price until the nightly run) | QA check (after launch) | Member prices, the scanner card | **use** reward 0 until the next run | The nightly `recompute_rewards` | railed (QA check) |
 | TP-02 | thrift+ | An active member with no photo (the cashier can't check who is paying; no Thrift+ card since 2026-10-14) | QA check | Member identity at the register | **flag** | Photo at signup | railed (QA check) |
 | TP-03 | thrift+ | A store-credit or banked balance below zero | QA check (should be 0) | Money owed to members | **flag**; investigate the ledger | Spending checks the balance; returns and voids reverse exact rows | railed (QA check) |

@@ -226,6 +226,40 @@ export function markWebListingSold(id: number): Promise<{ data: WebListing }> {
   return api.post(`/webstore/listings/${id}/mark-sold/`);
 }
 
+/** E5: an online sale paid outside the register (it leaves inventory), or one picked up at the register. */
+export type OnlineSaleChannel = 'online_pickup' | 'facebook' | 'online_other';
+
+export interface OnlineSaleRow {
+  item_id: number;
+  sku: string;
+  title: string;
+  sold_at: string | null;
+  sold_for: string | null;
+  channel: OnlineSaleChannel;
+  channel_label: string;
+  paid_at_register: boolean;
+  recorded_by: string;
+  note: string;
+  can_undo: boolean;
+}
+
+export function getOnlineSales(days = 90): Promise<{ data: { days: number; results: OnlineSaleRow[] } }> {
+  return api.get('/webstore/sold-online/', { params: { days } });
+}
+
+export function recordOnlineSale(body: {
+  sku: string;
+  sold_for: string;
+  channel: 'facebook' | 'online_other';
+  note?: string;
+}): Promise<{ data: { days: number; results: OnlineSaleRow[] } }> {
+  return api.post('/webstore/sold-online/', body);
+}
+
+export function undoOnlineSale(itemId: number): Promise<{ data: { days: number; results: OnlineSaleRow[] } }> {
+  return api.post(`/webstore/sold-online/${itemId}/undo/`);
+}
+
 export interface WebstoreHours {
   timezone: string;
   open: string;

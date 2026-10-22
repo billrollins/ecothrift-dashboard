@@ -27,6 +27,8 @@ from .views import (
     change_hold_email,
     request_hold,
     sales_log,
+    sold_online,
+    sold_online_undo,
     thread_mark_read,
     thread_post_message,
     my_conversation_delete,
@@ -129,5 +131,7 @@ urlpatterns = [
         name='webstore-work-queue-remove',
     ),
     path('sales-log/', sales_log, name='webstore-sales-log'),
+    path('sold-online/', sold_online, name='webstore-sold-online'),
+    path('sold-online/<int:item_id>/undo/', sold_online_undo, name='webstore-sold-online-undo'),
     path('', include(router.urls)),
 ]
