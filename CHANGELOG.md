@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.214.0] -->
-<!-- Last reviewed: 2026-10-22 (2.214.0) -->
+<!-- Line 1 release: ## [2.214.1] -->
+<!-- Last reviewed: 2026-10-22 (2.214.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.214.1] - 2026-10-22
+
+User-facing theme: **Dashboard cards flip without moving the page (Bill, 2026-10-22).** Fix-it lane x-dash-flipfix.
+
+### Fixed
+- Turning a Dashboard card over no longer pushes the rest of the screen around; the card now flips inside its own space.
 
 ## [2.214.0] - 2026-10-22
 

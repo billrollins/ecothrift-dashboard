@@ -2,6 +2,10 @@
  * Flip cards (owner 2026-10-22): a small corner button turns a Dashboard card over to its numbers for past weeks, so
  * the front stays small. Each side's button is a real button with a label (keyboard and screen reader friendly, no
  * hover-only), and the side you cannot see is inert: it takes no focus and is not read out.
+ *
+ * The turn is flat (owner 2026-10-22: the 3D turn drew the card taller than its slot, so a scrollbar came and went
+ * and the page jumped): the card squeezes to a line, the sides swap, and it opens again. It never draws outside its
+ * own box, so nothing around it moves.
  */
 import { Box, IconButton, Tooltip, useMediaQuery } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material';
@@ -10,7 +14,8 @@ import Today from '@mui/icons-material/Today';
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { dashboardPalette } from './dashboardCardStyles';
 
-const FLIP_MS = 450;
+/** Each half of the turn: squeeze, then open. */
+const HALF_MS = 160;
 
 export function FlipButton({
   label,
@@ -73,11 +78,13 @@ export function FlipCard({
 }) {
   const [flipped, setFlipped] = useState(false);
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const turnRef = useRef<HTMLDivElement>(null);
   const frontRef = useRef<HTMLDivElement>(null);
   const backRef = useRef<HTMLDivElement>(null);
   const frontButton = useRef<HTMLButtonElement>(null);
   const backButton = useRef<HTMLButtonElement>(null);
   const moveFocus = useRef(false);
+  const turning = useRef(false);
 
   // `inert` through the DOM: React 18 does not pass it as a prop.
   useLayoutEffect(() => {
@@ -90,24 +97,54 @@ export function FlipCard({
     }
   }, [flipped]);
 
-  const flip = () => {
+  const swap = () => {
     moveFocus.current = true;
     setFlipped((value) => !value);
   };
 
-  const faceSx = {
+  const flip = () => {
+    const el = turnRef.current;
+    if (turning.current) return;
+    if (reduceMotion || !el || typeof el.animate !== 'function') {
+      swap();
+      return;
+    }
+    turning.current = true;
+    const squeeze = el.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], {
+      duration: HALF_MS,
+      easing: 'ease-in',
+      fill: 'forwards',
+    });
+    let turned = false;
+    const turnOver = () => {
+      if (turned) return;
+      turned = true;
+      window.clearTimeout(fallback);
+      swap();
+      // Open first, then drop the squeeze, so no frame shows the card full width on the old side.
+      el.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: HALF_MS, easing: 'ease-out' });
+      squeeze.cancel();
+      turning.current = false;
+    };
+    // A stalled animation clock (a page that is not being drawn) must not leave the card unturned.
+    const fallback = window.setTimeout(turnOver, HALF_MS * 3);
+    squeeze.finished.then(turnOver, turnOver);
+  };
+
+  const faceSx = (shown: boolean) => ({
     gridArea: '1 / 1',
     minWidth: 0,
     minHeight: 0,
     display: 'flex',
-    backfaceVisibility: 'hidden',
-    WebkitBackfaceVisibility: 'hidden',
+    // Both sides keep their room (the card is as tall as its taller side); only the shown one paints.
+    visibility: shown ? 'visible' : 'hidden',
     '& > *': { flex: 1, minWidth: 0 },
-  } as const;
+  }) as const;
 
   return (
-    <Box sx={{ perspective: '1600px', display: 'grid', minWidth: 0, minHeight: 0, ...sx }}>
+    <Box sx={{ display: 'grid', minWidth: 0, minHeight: 0, ...sx }}>
       <Box
+        ref={turnRef}
         data-flipped={flipped ? 'true' : 'false'}
         sx={{
           display: 'grid',
@@ -115,12 +152,9 @@ export function FlipCard({
           gridTemplateRows: 'minmax(0, 1fr)',
           minWidth: 0,
           minHeight: 0,
-          transformStyle: 'preserve-3d',
-          transition: reduceMotion ? 'none' : `transform ${FLIP_MS}ms cubic-bezier(0.2, 0.7, 0.2, 1)`,
-          transform: flipped ? 'rotateY(180deg)' : 'none',
         }}
       >
-        <Box ref={frontRef} aria-hidden={flipped} sx={faceSx}>
+        <Box ref={frontRef} aria-hidden={flipped} sx={faceSx(!flipped)}>
           {front(
             <FlipButton
               side="front"
@@ -130,7 +164,7 @@ export function FlipCard({
             />,
           )}
         </Box>
-        <Box ref={backRef} aria-hidden={!flipped} sx={{ ...faceSx, transform: 'rotateY(180deg)' }}>
+        <Box ref={backRef} aria-hidden={!flipped} sx={faceSx(flipped)}>
           {back(
             <FlipButton
               side="back"

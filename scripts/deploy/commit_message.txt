@@ -1,11 +1,8 @@
-v2.214.0 — Social Studio posts on Instagram, Google, Nextdoor and TikTok
+v2.214.1 — Dashboard cards flip without moving the page
 
-User-facing theme: **Social Studio posts on more channels: Instagram, Google Business Profile, Nextdoor and TikTok beside Facebook (Bill, 2026-10-22).** Initiative: retail_tags_and_social (phase 6).
+User-facing theme: **Dashboard cards flip without moving the page (Bill, 2026-10-22).** Fix-it lane x-dash-flipfix.
 
-### Added
-- **More channels:** Post it now covers Instagram, Google Business Profile, Nextdoor and TikTok as well as Facebook. Each gets its own wording (local hashtags on Instagram and TikTok, short text for Google) and photos in its size: tall 9:16 for Stories and TikTok, 4:3 for Google.
-- **One channel at a time:** pick a channel, copy, post, paste its link. Post it then moves to the next channel.
-- **Numbers per channel:** numbers are typed per channel, and the Numbers page shows which channel does best.
-- **Settings:** choose the channels in Settings > Store > Social Studio (Facebook, Instagram and Google to start). Open each account first.
+### Fixed
+- Turning a Dashboard card over no longer pushes the rest of the screen around; the card now flips inside its own space.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
