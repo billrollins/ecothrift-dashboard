@@ -97,8 +97,8 @@ export function TagErrorsSummaryBody({ week, summary }: { week: string; summary:
                           </Clip>
                         </td>
                         <td className="r">{row.count}</td>
-                        <td className="r">{row.checked_in_this_week || '—'}</td>
-                        <td className="r">{rate == null ? '—' : rate.toFixed(1)}</td>
+                        <td className="r">{row.checked_in_this_week || '-'}</td>
+                        <td className="r">{rate == null ? '-' : rate.toFixed(1)}</td>
                       </tr>
                     );
                   })}
@@ -126,7 +126,7 @@ export function TagErrorsSummaryBody({ week, summary }: { week: string; summary:
                         </Clip>
                       </td>
                       <td className="r">{row.count}</td>
-                      <td><Clip muted>{topReason(row.by_reason) || '—'}</Clip></td>
+                      <td><Clip muted>{topReason(row.by_reason) || '-'}</Clip></td>
                     </tr>
                   ))}
                 </tbody>

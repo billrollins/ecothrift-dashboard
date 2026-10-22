@@ -61,7 +61,7 @@ function PhotoDialog({ photo, categories, onClose }: { photo: SocialPhoto; categ
         </Box>
         <TextField size="small" fullWidth label="Note" value={note} onChange={(e) => setNote(e.target.value)} />
         <Typography sx={{ mt: 1.25, fontSize: 13, color: ccTokens.ink2 }}>
-          {photo.uploaded_by_name || 'Someone'} · {photo.uploaded_at ? new Date(photo.uploaded_at).toLocaleString() : '—'}
+          {photo.uploaded_by_name || 'Someone'} · {photo.uploaded_at ? new Date(photo.uploaded_at).toLocaleString() : '-'}
           {photo.used_in.length ? ` · in ${photo.used_in.map((u) => formatDay(u.slot_date)).join(', ')}` : ' · not used yet'}
         </Typography>
       </DialogContent>

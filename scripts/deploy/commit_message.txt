@@ -1,8 +1,12 @@
-v2.207.1 — Print server 1.9.9: retail on price tags
+v2.208.0 — View as: see Dash as any employee, read-only
 
-User-facing theme: **Print server 1.9.9: retail on price tags (Bill, 2026-10-22).** Install it on every register and the processing label PCs: Settings → Printing → Download.
+User-facing theme: **View as: the owner sees Dash exactly as any employee does (Bill, 2026-10-21).** Outside initiatives.
 
-### Changed
-- **Print server 1.9.9** (published to Settings → Printing): price tags print "Retail $x" above the logo when Dash sends a checked retail (tag truth, v2.207.0).
+### Added
+- **View as:** from the account menu, the eye next to a person in Users, or their drawer, see Dash exactly as that employee does (their menu, Today, Dashboard, Thrift+ Staff) without signing out.
+- While viewing, nothing can be saved, sent or punched. A bright band across the top says who you're viewing, with **Back to Bill**. It ends on Back, on sign-out, or after 2 hours, and each start and stop is logged on the person's history.
+
+### Fixed
+- Stray dashes in the Tag errors and Social Studio screens (house punctuation rule).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

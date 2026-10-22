@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (staff messages, one-time secrets, issue_register_pins) -->
+<!-- Last updated: 2026-10-22 (View as) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -128,6 +128,24 @@ One PIN per staff member for the register (manager approvals, Cover). Code: `app
 | `POST /api/auth/sign-out-everywhere/` | Blacklists every live refresh token of mine, stamps `User.sessions_ended_at` (access tokens issued before it are refused at once, `IdleStampJWTAuthentication`), clears this cookie, logs `signed_out_all`. |
 
 ---
+
+## View as (owner, 2026-10-22)
+
+The owner sees Dash exactly as one employee does, without signing out: their role, capabilities, nav, Today, Dashboard,
+register landing and Thrift+ Staff. Code: `apps/accounts/services/view_as.py`, `middleware.py` (`ViewAsMiddleware`),
+`authentication.py`, `view_as_views.py`; UI `frontend/src/components/viewAs/`. Tests: `apps/accounts/tests/test_view_as.py`,
+`ViewAsBanner.test.tsx`.
+
+| Piece | How |
+|-------|-----|
+| Who | Superusers only. Never as another superuser, as yourself, or as a switched-off or customer login. |
+| Start | Account menu → **View as…** (a picker), the eye on each person in Users → Employees (desktop), or **View as** in the employee drawer (phones too). `POST /api/auth/view-as/start/ { user_id }` makes a `ViewAsSession` row and answers an access token with the claim `view_as` = its id; Dash then reloads at `/`. |
+| Keeps going | The row holds the refresh token's `jti`; `refresh/` from that sign-in keeps handing out view-as tokens (other devices are not affected). The token never outlives the view. |
+| On each request | `IdleStampJWTAuthentication` runs the request as the employee (`request.user`) and keeps the owner as `request.real_user` (audit). The owner is the one stamped active and charged for AI. `GET /api/auth/me/` carries `view_as` (who, job, who is signed in, ends at) for the banner. |
+| Read only | `ViewAsMiddleware` refuses every POST, PUT, PATCH and DELETE: `403 { code: VIEW_AS_READ_ONLY, detail: "Viewing as Maria K: read only" }`. Allowed: Back, sign-out, refresh, and the searches sent as POST (`READ_POSTS`: Thrift+ register find and pending, returns find). Every read (and those searches) runs inside a transaction that is always rolled back, so nothing a page writes on open is kept (a message marked read, a stamp). |
+| Ends | Back (`POST /api/auth/view-as/stop/`), sign-out (`logout/`, Sign out on all devices), after 2 hours, when the owner loses superuser, or when a new View as starts. Then any request with the old token answers `401 VIEW_AS_ENDED` and the browser reloads as the owner. |
+| Audit | `AccountEvent` on the employee: `view_as_start` and `view_as_stop` (with why), the owner as actor. `ViewAsSession` keeps started, expires, ended and why. |
+| Banner | `ViewAsBanner` (in `main.tsx`, on every screen): bright amber band, "Viewing as Maria K (Processing Associate) · signed in as Bill · read only · ends 3:40 PM · Back to Bill"; on phones two short lines. It sets `--view-as-band` so `MainLayout`, its sidebar and Thrift+ Staff start below it. The avatar shows the employee's initials with an eye badge; the menu's first row is Back. |
 
 ## Staff messages and one-time secrets (2026-10-21)
 

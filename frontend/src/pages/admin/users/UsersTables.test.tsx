@@ -13,6 +13,12 @@ const state = vi.hoisted(() => ({
   saveProfile: vi.fn(),
   saveUser: vi.fn(),
   saveCustomer: vi.fn(),
+  viewer: { id: 1, is_superuser: false, view_as: null } as Record<string, unknown>,
+  startViewAs: vi.fn(),
+}));
+
+vi.mock('../../../contexts/AuthContext', () => ({
+  useAuth: () => ({ user: state.viewer, startViewAs: state.startViewAs }),
 }));
 
 vi.mock('../../../api/hr.api', () => ({
@@ -116,6 +122,8 @@ const EMPLOYEE = {
 describe('EmployeesPanel directory', () => {
   beforeEach(() => {
     state.users = [EMPLOYEE];
+    state.viewer = { id: 1, is_superuser: false, view_as: null };
+    state.startViewAs.mockReset().mockResolvedValue(undefined);
     state.saveProfile.mockReset().mockResolvedValue({});
     state.saveUser.mockReset().mockResolvedValue({});
   });
@@ -125,6 +133,21 @@ describe('EmployeesPanel directory', () => {
     expect(screen.getByTestId('headers').textContent).toBe(
       'Employee|#|Dept|Job|Level|Role|Type|Phone|Tenure|Access',
     );
+  });
+
+  it('gives the owner a View as button on each person, never on another owner', async () => {
+    state.viewer = { id: 1, is_superuser: true, view_as: null };
+    state.users = [EMPLOYEE, { ...EMPLOYEE, id: 12, full_name: 'Other Owner', is_superuser: true }];
+    const user = userEvent.setup();
+    wrap(<EmployeesPanel onSelect={() => {}} />);
+    expect(screen.queryByTestId('people-view-as-12')).not.toBeInTheDocument();
+    await user.click(screen.getByTestId('people-view-as-11'));
+    expect(state.startViewAs).toHaveBeenCalledWith(11);
+  });
+
+  it('shows no View as to anyone but the owner', () => {
+    wrap(<EmployeesPanel onSelect={() => {}} />);
+    expect(screen.queryByTestId('people-view-as-11')).not.toBeInTheDocument();
   });
 
   it('shows the red over-hours chip on the row and saves the level on the row', async () => {

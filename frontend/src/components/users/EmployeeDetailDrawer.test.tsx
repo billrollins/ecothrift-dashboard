@@ -7,6 +7,12 @@ import EmployeeDetailDrawer from './EmployeeDetailDrawer';
 
 const state = vi.hoisted(() => ({
   user: null as null | Record<string, unknown>,
+  viewer: { id: 1, is_superuser: false, view_as: null } as Record<string, unknown>,
+  startViewAs: vi.fn(),
+}));
+
+vi.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => ({ user: state.viewer, startViewAs: state.startViewAs }),
 }));
 
 vi.mock('../../api/hr.api', () => ({
@@ -152,6 +158,19 @@ describe('EmployeeDetailDrawer', () => {
   it('has no flag when they are within their hours', () => {
     wrap();
     expect(screen.queryByTestId('over-hours-flag')).not.toBeInTheDocument();
+  });
+
+  it('offers the owner View as, and nobody else', () => {
+    state.user = { ...FULL_USER, is_staff: true };
+    state.viewer = { id: 1, is_superuser: false, view_as: null };
+    const first = wrap();
+    expect(screen.queryByTestId('drawer-view-as')).not.toBeInTheDocument();
+    first.unmount();
+    state.viewer = { id: 1, is_superuser: true, view_as: null };
+    wrap();
+    screen.getByTestId('drawer-view-as').click();
+    expect(screen.getByTestId('drawer-view-as')).toHaveTextContent('View as New');
+    expect(state.startViewAs).toHaveBeenCalledWith(7);
   });
 
   it('offers Reactivate instead of Deactivate once someone is off', () => {

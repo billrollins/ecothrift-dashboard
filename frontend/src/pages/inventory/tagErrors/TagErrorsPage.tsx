@@ -56,7 +56,7 @@ function itemTitle(row: BadTag): string {
 }
 
 function itemSub(row: BadTag): string {
-  return [row.item?.sku || row.code, row.item?.brand].filter(Boolean).join(' · ') || '—';
+  return [row.item?.sku || row.code, row.item?.brand].filter(Boolean).join(' · ') || '-';
 }
 
 /**
@@ -259,7 +259,7 @@ function ItemLink({ row, sx }: { row: BadTag; sx?: object }) {
 
 /** A person or truck that narrows the list (managers), or plain text. */
 function FilterLink({ label, onClick, tip }: { label: string; onClick?: () => void; tip: string }) {
-  if (!onClick || label === '—') return <>{label}</>;
+  if (!onClick || label === '-') return <>{label}</>;
   return (
     <Tooltip title={tip} enterDelay={300}>
       <Link component="button" type="button" underline="hover" color="inherit" onClick={onClick} sx={{ font: 'inherit', textAlign: 'left', maxWidth: '100%', ...cellText }}>
@@ -329,7 +329,7 @@ function TagErrorsTable({
                 <TableCell>
                   <Box sx={cellText}>
                     <FilterLink
-                      label={trace.checked_in_by || '—'}
+                      label={trace.checked_in_by || '-'}
                       tip={`Show only tags ${trace.checked_in_by} checked in`}
                       onClick={manager && trace.checked_in_by_id ? () => onProcessor(trace.checked_in_by_id as number) : undefined}
                     />
@@ -339,7 +339,7 @@ function TagErrorsTable({
                 <TableCell>
                   <Box sx={{ ...cellText, ...num }}>
                     <FilterLink
-                      label={trace.order_number || '—'}
+                      label={trace.order_number || '-'}
                       tip={`Show only tags from truck ${trace.order_number}`}
                       onClick={manager && trace.purchase_order_id ? () => onTruck(trace.purchase_order_id as number) : undefined}
                     />
@@ -406,9 +406,9 @@ function TagErrorCard({ row }: { row: BadTag }) {
       ) : null}
       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mt: 1 }}>
         <Field label="Tag said" value={tagSaid(row)} />
-        <Field label="Should be" value={right || '—'} tone={right ? 'good' : undefined} />
+        <Field label="Should be" value={right || '-'} tone={right ? 'good' : undefined} />
         <Field label="Found" value={row.where_label} sub={whoWhen(row.found_by, row.found_at)} />
-        <Field label="Checked in" value={trace.checked_in_by || '—'} sub={trace.checked_in_at ? when(trace.checked_in_at) : undefined} />
+        <Field label="Checked in" value={trace.checked_in_by || '-'} sub={trace.checked_in_at ? when(trace.checked_in_at) : undefined} />
         <Field label="Truck" value={traceLine(trace)} />
         <Field label={row.fixed_at ? 'Fixed' : 'Status'} value={row.fixed_at ? row.fixed_by || 'Fixed' : 'Open'} sub={row.fixed_at ? when(row.fixed_at) : undefined} />
       </Box>

@@ -62,14 +62,14 @@ export function tagErrorsLink(opts: { week: string; processor?: number | null; p
 }
 
 export function money(v: string | null | undefined): string {
-  if (v == null || v === '') return '—';
+  if (v == null || v === '') return '-';
   const n = Number(v);
-  return Number.isFinite(n) ? `$${n.toFixed(2)}` : '—';
+  return Number.isFinite(n) ? `$${n.toFixed(2)}` : '-';
 }
 
 /** What the tag said: "$14.00 · retail $70.00", or just the price. */
 export function tagSaid(row: Pick<BadTag, 'tag_price' | 'tag_retail'>): string {
-  if (row.tag_price == null && row.tag_retail == null) return '—';
+  if (row.tag_price == null && row.tag_retail == null) return '-';
   const price = money(row.tag_price);
   return row.tag_retail != null && row.tag_retail !== '' ? `${price} · retail ${money(row.tag_retail)}` : price;
 }
@@ -82,28 +82,28 @@ export function shouldBe(row: Pick<BadTag, 'right_price' | 'right_retail'>): str
   return parts.join(' · ');
 }
 
-/** Where the item came from: "PO-1234 · row 56 · pallet 3" ('—' with no trace). */
+/** Where the item came from: "PO-1234 · row 56 · pallet 3" ('-' with no trace). */
 export function traceLine(trace: BadTagTrace): string {
   const parts = [];
   if (trace.order_number) parts.push(trace.order_number);
   if (trace.manifest_row_number != null) parts.push(`row ${trace.manifest_row_number}`);
   if (trace.pallet) parts.push(`pallet ${trace.pallet.number}`);
-  return parts.length ? parts.join(' · ') : '—';
+  return parts.length ? parts.join(' · ') : '-';
 }
 
 export function when(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   try {
     return format(parseISO(iso), 'MMM d, h:mm a');
   } catch {
-    return '—';
+    return '-';
   }
 }
 
-/** "Maria · Oct 21, 2:14 PM" ('—' when nobody is known). */
+/** "Maria · Oct 21, 2:14 PM" ('-' when nobody is known). */
 export function whoWhen(name: string | null | undefined, iso: string | null | undefined): string {
   const parts = [name || '', iso ? when(iso) : ''].filter(Boolean);
-  return parts.length ? parts.join(' · ') : '—';
+  return parts.length ? parts.join(' · ') : '-';
 }
 
 /** Chip colour per reason: a wrong item or missing tag is red; a wrong number is amber. */

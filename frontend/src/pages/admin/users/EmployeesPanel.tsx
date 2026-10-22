@@ -18,14 +18,17 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   InputAdornment,
   MenuItem,
   Stack,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
   Typography,
 } from '@mui/material';
+import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -54,6 +57,9 @@ import {
   useUsers,
 } from '../../../hooks/useEmployees';
 import { useIsMobileLayout } from '../../../hooks/useIsMobileLayout';
+import { useAuth } from '../../../contexts/AuthContext';
+import { canViewAs } from '../../../components/viewAs/viewAs';
+import { useStartViewAs } from '../../../components/viewAs/useStartViewAs';
 import { usePayLevels } from '../../../hooks/usePayLevels';
 import { PayLevelField } from '../../../components/hr/PayLevelField';
 import { OverHoursChip } from '../../../components/hr/OverHoursFlag';
@@ -230,6 +236,9 @@ function EmployeeMobileRow({ user, onSelect }: { user: User; onSelect: (id: numb
 export default function EmployeesPanel({ onSelect }: Props) {
   const isMobile = useIsMobileLayout();
   const { enqueueSnackbar } = useSnackbar();
+  const { user: viewer } = useAuth();
+  const viewAs = useStartViewAs();
+  const ownerViews = Boolean(viewer?.is_superuser && !viewer.view_as);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('1');
@@ -334,6 +343,36 @@ export default function EmployeesPanel({ onSelect }: Props) {
       }
     },
     [enqueueSnackbar, patchRow, revertRow, updateUser],
+  );
+
+  // View as (owner only): see Dash as this person, read only. Next to the name; on phones it is in the drawer.
+  const viewAsColumns: GridColDef<User>[] = useMemo(
+    () => (ownerViews
+      ? [{
+          field: 'view_as',
+          headerName: '',
+          width: 56,
+          sortable: false,
+          renderCell: ({ row }: { row: User }) =>
+            canViewAs(viewer, row) ? (
+              <Tooltip title={`View Dash as ${row.first_name || row.full_name}`}>
+                <IconButton
+                  size="small"
+                  aria-label={`View as ${row.full_name}`}
+                  data-testid={`people-view-as-${row.id}`}
+                  disabled={viewAs.pendingId != null}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void viewAs.start(row.id);
+                  }}
+                >
+                  <VisibilityRounded fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            ) : null,
+        }]
+      : []),
+    [ownerViews, viewAs, viewer],
   );
 
   const columns: GridColDef<User>[] = useMemo(
@@ -530,6 +569,10 @@ export default function EmployeesPanel({ onSelect }: Props) {
     [departmentOptions, levelOptions, roleOptions, saveAccount, saveProfile, typeOptions],
   );
 
+  useEffect(() => {
+    if (viewAs.error) enqueueSnackbar(viewAs.error, { variant: 'error' });
+  }, [enqueueSnackbar, viewAs.error]);
+
   const handleCreate = async () => {
     if (!createForm.email.trim()) {
       enqueueSnackbar('Email is required', { variant: 'warning' });
@@ -659,7 +702,7 @@ export default function EmployeesPanel({ onSelect }: Props) {
         <Box sx={GRID_FILL_SX}>
           <DataGrid
             rows={rows}
-            columns={columns}
+            columns={ownerViews ? [columns[0], ...viewAsColumns, ...columns.slice(1)] : columns}
             getRowId={(r) => r.id}
             loading={isLoading}
             disableRowSelectionOnClick

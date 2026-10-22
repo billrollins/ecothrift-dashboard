@@ -68,7 +68,7 @@ export default function StaffApp() {
   const tab = tabOf(location.pathname);
 
   return (
-    <Box data-testid="staff-app" sx={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
+    <Box data-testid="staff-app" sx={{ position: 'fixed', inset: 0, top: 'var(--view-as-band, 0px)', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
       {!midway ? (
         <Box
           component="header"

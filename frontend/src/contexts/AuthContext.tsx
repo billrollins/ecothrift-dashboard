@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { roleRank } from '../auth/roles';
-import type { User } from '../types/accounts.types';
+import type { User, ViewAs } from '../types/accounts.types';
 import * as accountsApi from '../api/accounts.api';
 import { deviceKindHeaders, rememberIdleSignOut, setAccessToken } from '../api/client';
 
@@ -19,7 +19,14 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   hasRole: (role: User['role'] | null) => boolean;
   setLanguage: (language: 'en' | 'es') => Promise<void>;
+  /** View as (owner 2026-10-21): set while the owner sees Dash as `user`. Read only; the server refuses writes. */
+  viewAs: ViewAs | null;
+  startViewAs: (userId: number) => Promise<void>;
+  stopViewAs: () => Promise<void>;
 }
+
+/** Where Back returns to: the page the owner started View as from. */
+const VIEW_AS_RETURN_KEY = 'view_as_return';
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -102,6 +109,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const viewAs = user?.view_as ?? null;
+
+  /** Start: keep the view-as token and open Dash fresh, so every screen loads as that person (their landing page). */
+  const startViewAs = useCallback(async (userId: number) => {
+    const { data } = await accountsApi.startViewAs(userId);
+    try {
+      sessionStorage.setItem(VIEW_AS_RETURN_KEY, `${window.location.pathname}${window.location.search}`);
+    } catch {
+      // No storage: Back goes to the owner's home page.
+    }
+    setAccessToken(data.access);
+    window.location.assign('/');
+  }, []);
+
+  /** Back: end it on the server, then reload as the owner where View as started. */
+  const stopViewAs = useCallback(async () => {
+    try {
+      await accountsApi.stopViewAs();
+    } catch {
+      // Already ended: the reload below is still right.
+    }
+    let back = '/';
+    try {
+      back = sessionStorage.getItem(VIEW_AS_RETURN_KEY) || '/';
+      sessionStorage.removeItem(VIEW_AS_RETURN_KEY);
+    } catch {
+      // No storage.
+    }
+    setAccessToken(null);
+    window.location.assign(back.startsWith('/') ? back : '/');
+  }, []);
+
+  // Two hours at most: reload when it runs out (the server has ended it by then).
+  const viewAsEnds = viewAs?.expires_at;
+  useEffect(() => {
+    if (!viewAsEnds) return undefined;
+    const wait = new Date(viewAsEnds).getTime() - Date.now() + 1000;
+    const timer = window.setTimeout(() => window.location.reload(), Math.max(wait, 1000));
+    return () => window.clearTimeout(timer);
+  }, [viewAsEnds]);
+
   const hasRole = useCallback(
     (role: User['role'] | null): boolean => {
       if (!user?.role || role == null) return false;
@@ -118,6 +166,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     hasRole,
     setLanguage,
+    viewAs,
+    startViewAs,
+    stopViewAs,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

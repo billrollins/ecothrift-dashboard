@@ -94,7 +94,7 @@ function PostCard({
             sx={{ flex: 1, px: 1.25, py: 0.75, display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start' }}
           >
             <Typography sx={{ fontWeight: 700, fontSize: 15, lineHeight: 1.25 }}>{POST_TYPE_LABELS[post.post_type]}</Typography>
-            <Typography sx={{ fontSize: 13, color: ccTokens.ink2, minHeight: 18 }}>{post.category || '—'}</Typography>
+            <Typography sx={{ fontSize: 13, color: ccTokens.ink2, minHeight: 18 }}>{post.category || '-'}</Typography>
             <Typography sx={{ fontSize: 13, mt: 0.75, color: post.hook ? ccTokens.ink : ccTokens.ink3, overflowWrap: 'anywhere' }}>
               {post.hook || POST_TYPE_IDEAS[post.post_type]}
             </Typography>

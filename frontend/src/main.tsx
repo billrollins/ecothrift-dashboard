@@ -6,6 +6,7 @@ import { ThemeProvider, CssBaseline } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { AuthProvider } from './contexts/AuthContext';
+import ViewAsBanner from './components/viewAs/ViewAsBanner';
 import { AppSnackbarProvider } from './components/feedback/AppSnackbarProvider';
 import { AppErrorBoundary } from './components/feedback/AppErrorBoundary';
 import theme from './theme';
@@ -36,6 +37,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <AppSnackbarProvider maxSnack={3} autoHideDuration={4000}>
               <AppErrorBoundary>
                 <AuthProvider>
+                  <ViewAsBanner />
                   <App />
                 </AuthProvider>
               </AppErrorBoundary>

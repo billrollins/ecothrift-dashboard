@@ -338,6 +338,8 @@ class AccountEvent(models.Model):
     KIND_PIN_SET = 'register_pin_set'
     KIND_PIN_CLEARED = 'register_pin_cleared'
     KIND_SIGNED_OUT_ALL = 'signed_out_all'
+    KIND_VIEW_AS_START = 'view_as_start'
+    KIND_VIEW_AS_STOP = 'view_as_stop'
     KIND_CHOICES = [
         (KIND_CREATED, 'Created'), (KIND_ROLE, 'Role changed'), (KIND_OFF, 'Switched off'), (KIND_ON, 'Switched on'),
         (KIND_USERNAME, 'Username changed'), (KIND_LINK, 'Set-password link issued'),
@@ -346,6 +348,8 @@ class AccountEvent(models.Model):
         (KIND_MERGED_IN, 'A customer login merged in'), (KIND_MERGED_INTO, 'Merged into a staff login'),
         (KIND_PIN_SET, 'Register PIN set'), (KIND_PIN_CLEARED, 'Register PIN cleared'),
         (KIND_SIGNED_OUT_ALL, 'Signed out on all devices'),
+        (KIND_VIEW_AS_START, 'Owner started viewing Dash as this person'),
+        (KIND_VIEW_AS_STOP, 'Owner stopped viewing Dash as this person'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='account_events')
@@ -424,3 +428,22 @@ class StaffMessageSecret(models.Model):
 
     def __str__(self):
         return f'Secret for message {self.message_id}'
+
+
+class ViewAsSession(models.Model):
+    """The owner seeing Dash as one employee (owner 2026-10-21, ``services/view_as.py``): read only, at most two hours,
+    ended by Back or sign-out. Access tokens carry this row's id (claim ``view_as``); ending the row ends the view."""
+    real_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='view_as_sessions')
+    target = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    started_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    ended_at = models.DateTimeField(null=True, blank=True)
+    ended_why = models.CharField(max_length=20, blank=True, default='')
+    refresh_jti = models.CharField(max_length=64, blank=True, default='', db_index=True,
+                                   help_text='The sign-in (refresh token) it was started from; a refresh keeps it.')
+
+    class Meta:
+        ordering = ['-started_at']
+
+    def __str__(self):
+        return f'{self.real_user_id} as {self.target_id}'

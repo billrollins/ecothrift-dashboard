@@ -8,6 +8,7 @@ from .views import (
     customer_reset_password_view, customer_resend_verification_view,
 )
 from .me_views import me_details_view, me_page_view, me_pin_view, sign_out_everywhere_view
+from .view_as_views import view_as_start_view, view_as_stop_view
 
 urlpatterns = [
     path('login/', login_view, name='auth-login'),
@@ -18,6 +19,8 @@ urlpatterns = [
     path('me/details/', me_details_view, name='auth-me-details'),
     path('me/pin/', me_pin_view, name='auth-me-pin'),
     path('sign-out-everywhere/', sign_out_everywhere_view, name='auth-sign-out-everywhere'),
+    path('view-as/start/', view_as_start_view, name='auth-view-as-start'),
+    path('view-as/stop/', view_as_stop_view, name='auth-view-as-stop'),
     path('capabilities/', capabilities_view, name='auth-capabilities'),
     path('change-password/', change_password_view, name='auth-change-password'),
     path('verify-password/', verify_password_view, name='auth-verify-password'),

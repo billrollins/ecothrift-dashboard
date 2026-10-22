@@ -85,6 +85,19 @@ export interface User {
   consignee?: ConsigneeProfile | null;
   /** Set on the People screens when this week is past 40 plus their overtime allowance. */
   hours_flag?: { hours: string; limit: string; text: string; link: string } | null;
+  /** View as (owner 2026-10-21): from `GET /api/auth/me/` only. Set while the owner sees Dash as this person. */
+  view_as?: ViewAs | null;
+}
+
+/** The owner viewing Dash as an employee: read only, at most two hours (`apps/accounts/services/view_as.py`). */
+export interface ViewAs {
+  session: number;
+  /** "Maria K", her full name and job (position, else role). */
+  target: { id: number; name: string; full_name: string; job: string };
+  /** Who is really signed in. */
+  real_user: { id: number; name: string; full_name: string };
+  started_at: string;
+  expires_at: string;
 }
 
 export interface LoginRequest {

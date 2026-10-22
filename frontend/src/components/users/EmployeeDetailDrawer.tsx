@@ -22,6 +22,7 @@ import {
 } from '@mui/material';
 import Key from '@mui/icons-material/Key';
 import LockReset from '@mui/icons-material/LockReset';
+import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
 import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { ConfirmDialog } from '../common/ConfirmDialog';
@@ -44,6 +45,9 @@ import { PayLevelField } from '../hr/PayLevelField';
 import { OverHoursAlert } from '../hr/OverHoursFlag';
 import { SetPasswordLinkDialog } from './SetPasswordLinkDialog';
 import { IconClose as Close } from '../../icons/ecoIcons';
+import { useAuth } from '../../contexts/AuthContext';
+import { canViewAs } from '../viewAs/viewAs';
+import { useStartViewAs } from '../viewAs/useStartViewAs';
 
 type Props = {
   userId: number | null;
@@ -118,6 +122,8 @@ const EMPTY_PROFILE: ProfileForm = {
 export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
   const isMobile = useIsMobileLayout();
   const { enqueueSnackbar } = useSnackbar();
+  const { user: viewer } = useAuth();
+  const viewAs = useStartViewAs();
   const { data: user, isLoading } = useUser(open ? userId : null);
   const updateUser = useUpdateUser();
   const updateProfile = useUpdateEmployeeProfile();
@@ -376,7 +382,24 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
                 >
                   {user.is_active ? 'Deactivate' : 'Reactivate'}
                 </Button>
+                {/* View as (owner only): see Dash exactly as this person does, read only. */}
+                {canViewAs(viewer, user) ? (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="inherit"
+                    startIcon={<VisibilityRounded />}
+                    onClick={() => void viewAs.start(user.id)}
+                    disabled={viewAs.pendingId != null}
+                    data-testid="drawer-view-as"
+                  >
+                    View as {user.first_name || 'them'}
+                  </Button>
+                ) : null}
               </Stack>
+              {viewAs.error ? (
+                <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1 }}>{viewAs.error}</Typography>
+              ) : null}
             </DrawerSection>
 
             {employee ? (

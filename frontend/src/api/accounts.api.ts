@@ -1,5 +1,5 @@
 import type { PaginatedResponse } from '../types/index';
-import type { User, LoginResponse } from '../types/accounts.types';
+import type { User, LoginResponse, ViewAs } from '../types/accounts.types';
 import type { PayLevel } from '../utils/payLevels';
 import api from './client';
 
@@ -44,6 +44,16 @@ export interface CapabilityRow {
   label: string;
   holders: string[];
   source: string;
+}
+
+/** View as (owner only): start seeing Dash as this person. Answers a view-as access token. */
+export function startViewAs(userId: number): Promise<{ data: { access: string; view_as: ViewAs } }> {
+  return api.post('/auth/view-as/start/', { user_id: userId });
+}
+
+/** Back: stop viewing as. */
+export function stopViewAs(): Promise<{ data: { ended: boolean; detail: string } }> {
+  return api.post('/auth/view-as/stop/');
 }
 
 export function getMyCapabilities(): Promise<{ data: { capabilities: string[] } }> {

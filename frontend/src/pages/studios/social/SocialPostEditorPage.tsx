@@ -475,7 +475,7 @@ export default function SocialPostEditorPage() {
         {locked ? (
           <>
             <Typography sx={{ fontSize: 14 }}>
-              {post.posted_by_name || 'Someone'} · {post.posted_at ? new Date(post.posted_at).toLocaleString() : '—'}
+              {post.posted_by_name || 'Someone'} · {post.posted_at ? new Date(post.posted_at).toLocaleString() : '-'}
             </Typography>
             {post.posted_url ? <Link href={post.posted_url} target="_blank" rel="noopener" sx={{ fontSize: 14, overflowWrap: 'anywhere' }}>{post.posted_url}</Link> : null}
             {post.can_rate ? (

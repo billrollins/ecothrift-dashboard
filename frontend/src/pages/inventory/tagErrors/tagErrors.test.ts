@@ -34,7 +34,7 @@ describe('tag errors display', () => {
   it('shows what the tag said and what it should be', () => {
     expect(tagSaid({ tag_price: '14', tag_retail: '70' })).toBe('$14.00 · retail $70.00');
     expect(tagSaid({ tag_price: '14', tag_retail: null })).toBe('$14.00');
-    expect(tagSaid({ tag_price: null, tag_retail: null })).toBe('—');
+    expect(tagSaid({ tag_price: null, tag_retail: null })).toBe('-');
     expect(shouldBe({ right_price: '9.5', right_retail: null })).toBe('$9.50');
     expect(shouldBe({ right_price: null, right_retail: '40' })).toBe('retail $40.00');
     expect(shouldBe({ right_price: null, right_retail: null })).toBe('');
@@ -52,7 +52,7 @@ describe('tag errors display', () => {
       pallet: { id: 3, number: 3, code: 'P3' },
     };
     expect(traceLine(trace)).toBe('PO-1234 · row 56 · pallet 3');
-    expect(traceLine({ ...trace, order_number: '', manifest_row_number: null, pallet: null })).toBe('—');
+    expect(traceLine({ ...trace, order_number: '', manifest_row_number: null, pallet: null })).toBe('-');
   });
 
   it('rates errors per 100 tags checked in, only when some were', () => {

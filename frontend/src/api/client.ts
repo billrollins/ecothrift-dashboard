@@ -124,10 +124,21 @@ function processQueue(error: unknown, token: string | null = null): void {
   failedQueue = [];
 }
 
+/** View as ended (Back in another tab, sign-out, or the 2 hours): the server answers 401 `VIEW_AS_ENDED`. */
+export function isViewAsEnded(data: unknown): boolean {
+  return Boolean(data && typeof data === 'object' && (data as { code?: unknown }).code === 'VIEW_AS_ENDED');
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+    if (error.response?.status === 401 && isViewAsEnded(error.response.data)) {
+      // Reload: the sign-in's refresh now hands back the owner's own token, and every screen starts again as them.
+      window.location.reload();
+      return Promise.reject(error);
+    }
 
     if (
       error.response?.status === 401

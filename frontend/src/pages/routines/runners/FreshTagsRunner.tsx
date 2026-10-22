@@ -16,7 +16,7 @@ import {
 type Tone = 'pass' | 'fail' | 'na';
 type Option<V extends string> = { value: V; label: string; tone: Tone };
 
-const money = (v: string | null | undefined) => (v == null || v === '' ? '—' : `$${Number(v).toFixed(2)}`);
+const money = (v: string | null | undefined) => (v == null || v === '' ? '-' : `$${Number(v).toFixed(2)}`);
 
 /** "Tue, Oct 20" in the runner's language; '' when the day is unknown. */
 export function freshDayLabel(day: string | null | undefined, lang: AppLanguage): string {

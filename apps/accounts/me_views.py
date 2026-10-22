@@ -123,6 +123,9 @@ def end_all_sessions(user) -> int:
     user.sessions_ended_at = timezone.now()
     user.save(update_fields=['sessions_ended_at'])
     AccountEvent.log(user, AccountEvent.KIND_SIGNED_OUT_ALL, actor=user, detail=f'{count} sign-ins ended')
+    from .services import view_as
+
+    view_as.end_all(user, view_as.ENDED_SIGN_OUT)
     return count
 
 

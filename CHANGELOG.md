@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.207.1] -->
-<!-- Last reviewed: 2026-10-22 (2.207.1) -->
+<!-- Line 1 release: ## [2.208.0] -->
+<!-- Last reviewed: 2026-10-22 (2.208.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.208.0] - 2026-10-22
+
+User-facing theme: **View as: the owner sees Dash exactly as any employee does (Bill, 2026-10-21).** Outside initiatives.
+
+### Added
+- **View as:** from the account menu, the eye next to a person in Users, or their drawer, see Dash exactly as that employee does (their menu, Today, Dashboard, Thrift+ Staff) without signing out.
+- While viewing, nothing can be saved, sent or punched. A bright band across the top says who you're viewing, with **Back to Bill**. It ends on Back, on sign-out, or after 2 hours, and each start and stop is logged on the person's history.
+
+### Fixed
+- Stray dashes in the Tag errors and Social Studio screens (house punctuation rule).
 
 ## [2.207.1] - 2026-10-22
 

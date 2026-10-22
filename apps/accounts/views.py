@@ -210,9 +210,17 @@ def refresh_view(request):
             return _clear_refresh_cookie(response)
         if user is not None:
             idle.stamp(user, force=True)
-        new_access = str(refresh.access_token)
+        # View as: a sign-in that started viewing as someone keeps getting view-as tokens until it ends.
+        from .services import view_as
+
+        session = view_as.session_for_refresh(user, refresh) if user is not None else None
+        new_access = view_as.access_token(refresh, session)
+        renewed = _renewed_refresh(refresh)
+        if session is not None and renewed != str(refresh):
+            session.refresh_jti = RefreshToken(renewed)['jti']
+            session.save(update_fields=['refresh_jti'])
         response = Response({'access': new_access})
-        return _set_refresh_cookie(response, _renewed_refresh(refresh))
+        return _set_refresh_cookie(response, renewed)
     except Exception:
         response = Response(
             {'detail': 'Invalid or expired refresh token.'},
@@ -224,11 +232,19 @@ def refresh_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def logout_view(request):
-    """Blacklist the refresh token and clear the cookie."""
+    """Blacklist the refresh token and clear the cookie. Signing out also ends any view as."""
+    from .services import view_as
+
+    viewing = getattr(request._request, 'view_as_session', None)
+    if viewing is not None:
+        view_as.end(viewing, view_as.ENDED_SIGN_OUT)
     refresh_token = request.COOKIES.get(REFRESH_COOKIE_NAME)
     if refresh_token:
         try:
             token = RefreshToken(refresh_token)
+            owner = User.objects.filter(pk=token.get('user_id'), is_superuser=True).first()
+            if owner is not None:
+                view_as.end_all(owner, view_as.ENDED_SIGN_OUT)
             token.blacklist()
         except Exception:
             pass
@@ -283,8 +299,13 @@ def me_view(request):
             .select_related('employee', 'consignee')
             .get(pk=request.user.pk)
         )
-    serializer = UserSerializer(user)
-    return Response(serializer.data)
+    data = dict(UserSerializer(user).data)
+    # View as: the banner (who is being viewed, who is signed in, when it ends). Null when not viewing.
+    from .services import view_as
+
+    session = getattr(request._request, 'view_as_session', None)
+    data['view_as'] = view_as.payload(session) if session is not None else None
+    return Response(data)
 
 
 class AuthVerifyPasswordThrottle(_FixedScopeThrottle):

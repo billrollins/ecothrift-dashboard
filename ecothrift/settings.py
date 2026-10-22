@@ -136,6 +136,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # View as (owner 2026-10-21): refuses writes and rolls back reads while the owner views Dash as an employee.
+    'apps.accounts.middleware.ViewAsMiddleware',
     'apps.core.middleware.AIUsageActorMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',

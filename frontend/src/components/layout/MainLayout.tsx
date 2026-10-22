@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   AppBar,
   Avatar,
+  Badge,
   Box,
   Drawer as MuiDrawer,
   IconButton,
@@ -23,11 +24,14 @@ import Logout from '@mui/icons-material/Logout';
 import Person from '@mui/icons-material/Person';
 import LockReset from '@mui/icons-material/LockReset';
 import TranslateOutlined from '@mui/icons-material/TranslateOutlined';
+import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoadingScreen } from '../feedback/LoadingScreen';
 import { AppErrorBoundary } from '../feedback/AppErrorBoundary';
 import ChangePasswordDialog from '../users/ChangePasswordDialog';
+import ViewAsDialog from '../viewAs/ViewAsDialog';
+import { VIEW_AS_BAND_VAR, VIEW_AS_BRIGHT, VIEW_AS_INK } from '../viewAs/ViewAsBanner';
 import { Sidebar, SIDEBAR_WIDTH } from './Sidebar';
 import { PhoneTabBar } from './PhoneTabBar';
 import { phoneShellTitle, showsPhoneTabBar } from './phoneFirstRoutes';
@@ -51,13 +55,17 @@ const PROFILE_NAV_IDS = ['today'] as const;
 
 const DASHBOARD_BACKDROP = dashboardPalette.backdrop;
 
+/** The View as band's height (0 when not viewing): the shell starts below it. */
+const BAND = `var(${VIEW_AS_BAND_VAR}, 0px)`;
+
 export default function MainLayout() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
-  const { user, logout, setLanguage } = useAuth();
+  const [viewAsOpen, setViewAsOpen] = useState(false);
+  const { user, logout, setLanguage, viewAs, stopViewAs } = useAuth();
   const lang = user?.language === 'es' ? 'es' : 'en';
   const navigate = useNavigate();
   const location = useLocation();
@@ -136,7 +144,7 @@ export default function MainLayout() {
   );
 
   return (
-    <Box sx={{ display: 'flex', height: '100dvh', maxHeight: '100dvh', overflow: 'hidden' }}>
+    <Box sx={{ display: 'flex', mt: BAND, height: `calc(100dvh - ${BAND})`, maxHeight: `calc(100dvh - ${BAND})`, overflow: 'hidden' }}>
       {/* Sidebar */}
       {isMobile ? (
         <MuiDrawer
@@ -163,6 +171,8 @@ export default function MainLayout() {
             flexShrink: 0,
             '& .MuiDrawer-paper': {
               width: SIDEBAR_WIDTH,
+              top: BAND,
+              height: `calc(100% - ${BAND})`,
               boxSizing: 'border-box',
               overflowX: 'hidden',
               borderRight: '1px solid #f1f5f9',
@@ -230,9 +240,24 @@ export default function MainLayout() {
                     aria-label="Account menu"
                     sx={{ width: 44, height: 44 }}
                   >
-                    <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontSize: 14 }}>
-                      {user.first_name?.[0]}{user.last_name?.[0]}
-                    </Avatar>
+                    {/* View as: the employee's initials with a small eye badge. */}
+                    <Badge
+                      overlap="circular"
+                      anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                      invisible={!viewAs}
+                      badgeContent={<VisibilityRounded sx={{ fontSize: 12 }} />}
+                      data-testid={viewAs ? 'avatar-viewing-badge' : undefined}
+                      sx={{
+                        '& .MuiBadge-badge': {
+                          bgcolor: VIEW_AS_BRIGHT, color: VIEW_AS_INK, border: `2px solid ${VIEW_AS_INK}`,
+                          minWidth: 20, width: 20, height: 20, p: 0, borderRadius: '50%',
+                        },
+                      }}
+                    >
+                      <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontSize: 14 }}>
+                        {user.first_name?.[0]}{user.last_name?.[0]}
+                      </Avatar>
+                    </Badge>
                   </IconButton>
                   <Menu
                     anchorEl={anchorEl}
@@ -241,6 +266,22 @@ export default function MainLayout() {
                     transformOrigin={{ horizontal: 'right', vertical: 'top' }}
                     anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
                   >
+                    {viewAs ? (
+                      <MenuItem
+                        data-testid="account-menu-view-as-back"
+                        onClick={() => {
+                          handleMenuClose();
+                          void stopViewAs();
+                        }}
+                        sx={{ bgcolor: VIEW_AS_BRIGHT, '&:hover': { bgcolor: '#ffd54f' } }}
+                      >
+                        <ListItemIcon><VisibilityRounded fontSize="small" sx={{ color: VIEW_AS_INK }} /></ListItemIcon>
+                        <ListItemText
+                          primary={`Back to ${viewAs.real_user.name.split(' ')[0]}`}
+                          secondary={`Viewing as ${viewAs.target.name} · read only`}
+                        />
+                      </MenuItem>
+                    ) : null}
                     {/* Me: my details, password and register PIN, hours, shifts, sign out everywhere. */}
                     <MenuItem
                       data-testid="account-menu-me"
@@ -305,6 +346,18 @@ export default function MainLayout() {
                         </ToggleButton>
                       </ToggleButtonGroup>
                     </MenuItem>
+                    {user.is_superuser && !viewAs ? (
+                      <MenuItem
+                        data-testid="account-menu-view-as"
+                        onClick={() => {
+                          handleMenuClose();
+                          setViewAsOpen(true);
+                        }}
+                      >
+                        <ListItemIcon><VisibilityRounded fontSize="small" /></ListItemIcon>
+                        <ListItemText primary="View as…" secondary="See Dash as an employee" />
+                      </MenuItem>
+                    ) : null}
                     <MenuItem
                       onClick={() => {
                         handleMenuClose();
@@ -323,6 +376,7 @@ export default function MainLayout() {
                     open={passwordOpen}
                     onClose={() => setPasswordOpen(false)}
                   />
+                  {user.is_superuser ? <ViewAsDialog open={viewAsOpen} onClose={() => setViewAsOpen(false)} /> : null}
                 </>
               )}
             </Toolbar>
