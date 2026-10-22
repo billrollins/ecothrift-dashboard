@@ -335,6 +335,22 @@ class MisfitFilterTests(AddItemBase):
         self.assertEqual((mine['misfit'], mine['source'], mine['checked_in_by']), (True, 'misfit', 'Dana Tester'))
         self.assertFalse(next(i for i in items if i['sku'] == 'ITMAI0010')['misfit'])
 
+    def test_pr_fixit_quick_adds_with_no_order_are_misfits_too(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            found = Product.objects.create(title='Brass Floor Lamp', brand='Generic', category=self.cat)
+            house = Product.objects.create(title='Brass Desk Lamp', brand='Generic', category=self.cat)
+        Item.objects.create(product=found, sku='ITMAI0200', price=Decimal('15.00'), status='on_shelf', source='misc',
+                            notes='INVENTORY_COUNT_QUICK_ADD')
+        po = PurchaseOrder.objects.create(vendor=Vendor.objects.create(code='HSE', name='House'), order_number='HSE-1',
+                                          ordered_date='2026-10-01', status='complete')
+        Item.objects.create(product=house, sku='ITMAI0201', price=Decimal('9.00'), status='on_shelf', source='misc',
+                            purchase_order=po)    # misc on a real order is not a Misfit
+        self.assertEqual([x['product_id'] for x in inventory_search.search('brass lamp', misfit=True)['results']],
+                         [found.pk])
+        self.assertEqual(len(inventory_search.search('brass lamp')['results']), 2)
+        self.assertTrue(inventory_search.product_items(found.pk)['items'][0]['misfit'])
+        self.assertFalse(inventory_search.product_items(house.pk)['items'][0]['misfit'])
+
     def test_misfit_order_is_made_once_per_year(self):
         a = misfit_order(timezone.localdate())
         self.assertEqual(misfit_order(timezone.localdate()).pk, a.pk)

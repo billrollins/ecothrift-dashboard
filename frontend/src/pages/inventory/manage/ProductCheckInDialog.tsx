@@ -28,6 +28,7 @@ import { printedPreviewToLabelInputs } from '../../../hooks/useProcessingWorkspa
 import { LargeCheckInConfirmDialog } from '../processing/LargeCheckInConfirmDialog';
 import { isLargeCheckIn } from '../processing/largeCheckIn';
 import { printProcessingLabelsAndMarkPrinted } from '../processing/printProcessingLabel';
+import { useRetailCheckPrompt, withRetailCheck } from '../processing/RetailCheckDialog';
 import {
   normalizeProcessingCondition,
   PROCESSING_ITEM_CONDITION_OPTIONS,
@@ -104,6 +105,7 @@ export function ProductCheckInDialog({
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const checkInMutation = useProductCheckIn();
+  const retailCheck = useRetailCheckPrompt();
 
   const [quantity, setQuantity] = useState('1');
   const [condition, setCondition] = useState<ItemCondition>(PROCESSING_ITEM_DEFAULT_CONDITION);
@@ -186,7 +188,13 @@ export function ProductCheckInDialog({
     }
     try {
       localStorage.setItem(LS_PRINT_ON_CHECKIN, String(doPrint));
-      const data = await checkInMutation.mutateAsync({ productId: product.id, payload });
+      // A retail that looks wrong is answered before the tag prints, as in Processing (409 retail_check).
+      const data = await withRetailCheck(
+        payload,
+        (body) => checkInMutation.mutateAsync({ productId: product.id, payload: body }),
+        retailCheck.ask,
+      );
+      if (!data) return;
       if (doPrint && data.printed_items_preview?.length) {
         const result = await printProcessingLabelsAndMarkPrinted(
           printedPreviewToLabelInputs(data.printed_items_preview),
@@ -442,6 +450,7 @@ export function ProductCheckInDialog({
         }}
       />
 
+      {retailCheck.dialog}
       <ConfirmDialog
         open={retailConfirmOpen}
         title="Check in without retail?"

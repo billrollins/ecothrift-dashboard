@@ -2412,12 +2412,15 @@ def product_check_in(user, product: Product, data: dict) -> dict:
         'model': product.model or '',
         'category': category_name,
     }
-    result = processing_add_item(user, order, payload)
-    row_id = result.get('processing_row_id')
-    if not row_id:
-        raise ValueError('Could not create processing row for check-in')
+    # One transaction: a check-in stopped by the retail check (or anything else) leaves no pending added row behind,
+    # so answering it and sending again does not pile rows up on the order.
+    with transaction.atomic():
+        result = processing_add_item(user, order, payload)
+        row_id = result.get('processing_row_id')
+        if not row_id:
+            raise ValueError('Could not create processing row for check-in')
 
-    check_in_result = processing_row_check_in(user, order, row_id, payload)
+        check_in_result = processing_row_check_in(user, order, row_id, payload)
     created_item_ids = [item['id'] for item in check_in_result.get('items', [])]
 
     return {

@@ -6964,6 +6964,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     def check_in(self, request, pk=None):
         """Create on-shelf items for a locked catalog product on a selected purchase order."""
         from apps.inventory.processing_ops import MAX_CHECK_IN_QUANTITY, product_check_in
+        from apps.inventory.services.tag_retail import RetailCheckNeeded
 
         product = self.get_object()
         data = request.data if isinstance(request.data, dict) else {}
@@ -6980,6 +6981,9 @@ class ProductViewSet(viewsets.ModelViewSet):
             )
         try:
             result = product_check_in(request.user, product, {**data, 'quantity': quantity})
+        except RetailCheckNeeded as e:
+            # The same answer Processing and Add item give: confirm, fix or no retail, then send again.
+            return Response({'detail': str(e), **e.payload}, status=status.HTTP_409_CONFLICT)
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response({

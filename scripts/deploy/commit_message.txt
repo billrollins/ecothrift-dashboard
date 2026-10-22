@@ -1,11 +1,9 @@
-v2.215.0 — Add item is back for Misfit items
+v2.215.1 — Misfit filter takes quick adds; the + check-in asks about retail
 
-User-facing theme: **Add item is back: things we sell that came with no purchase order ("Misfit" items) (Bill, 2026-10-22).** Fix-it lane x-add-item.
+User-facing theme: **Misfit filter takes quick adds; the + check-in asks about a wrong-looking retail (Bill, 2026-10-22).** Fix-it lane x-add-item-2.
 
-### Added
-- **Add item:** Find item > Add item adds things we sell that came with no purchase order ("Misfit" items). Search by name, brand or model, or scan a tag or barcode; each result shows a photo, the typical price and how many sold.
-- **New products, fast:** not in the list? Copy a near match and edit it, or let the AI draft it from a rough title and an optional photo, in our exact categories. You check it before anything is saved.
-- **Check-in like Processing:** quantity, condition, Floor / Back stock / Restoration, a suggested price from what it (or similar items) sold for, the retail check, and the tags print. Restoration needs estimates: the work, hours or parts cost, and what it's worth after.
-- **Find item:** a "Misfit only" switch, every item shows who checked it in and when, and Find item now works on a phone (cards instead of the wide table).
+### Fixed
+- "Misfit only" in Find item now also shows PR Fix-it quick adds (untagged finds with no purchase order).
+- Adding more of a product with the + button now asks about a retail that looks wrong (It is right / Fix it / No retail on tag) instead of failing, and a stopped check-in no longer leaves an empty row on the order.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

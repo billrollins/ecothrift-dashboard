@@ -4,8 +4,9 @@ Add item.
 
 Check-ins, their restoration jobs and Processing all hang off a purchase order, so a Misfit item lives on the year's
 **Misfit order** (`MISFIT-<year>`, vendor MIS "The Island of Misfit Items", made on first use, no cost). Its items
-carry `Item.source = 'misfit'`, with who checked them in and when. The older catch-alls `MISFIT-V1-2024` and
-`MISFIT-V2-2025` (orphans from the V1 and V2 eras, source `purchased`) count as Misfit in Find item's filter too.
+carry `Item.source = 'misfit'`, with who checked them in and when. Find item's Misfit filter also counts the older
+catch-alls `MISFIT-V1-2024` and `MISFIT-V2-2025` (orphans from the V1 and V2 eras, source `purchased`) and PR
+Fix-it's quick adds (an untagged find on the floor: source `misc`, no purchase order; Mainline, 2026-10-22).
 """
 from __future__ import annotations
 
@@ -50,9 +51,19 @@ def misfit_order(today: date | None = None) -> PurchaseOrder:
 
 
 def misfit_items_q(prefix: str = '') -> Q:
-    """Items that are Misfits: source misfit, or on any Misfit order (the older catch-alls). `prefix` is the
-    lookup path to the item (for example 'items__')."""
+    """Items that are Misfits: source misfit, on any Misfit order (the older catch-alls), or a PR Fix-it quick add
+    (source misc with no purchase order). `prefix` is the lookup path to the item (for example 'items__')."""
     order_ids = list(
         PurchaseOrder.objects.filter(order_number__istartswith=PREFIX).values_list('pk', flat=True)
     )
-    return Q(**{f'{prefix}source': 'misfit'}) | Q(**{f'{prefix}purchase_order_id__in': order_ids})
+    return (
+        Q(**{f'{prefix}source': 'misfit'})
+        | Q(**{f'{prefix}purchase_order_id__in': order_ids})
+        | Q(**{f'{prefix}source': 'misc', f'{prefix}purchase_order__isnull': True})
+    )
+
+
+def is_misfit_item(source: str, order_number: str | None) -> bool:
+    """The same rule for one item already read (Find item's items list)."""
+    order = str(order_number or '')
+    return source == 'misfit' or order.upper().startswith(PREFIX) or (source == 'misc' and not order)

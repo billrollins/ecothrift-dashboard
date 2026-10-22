@@ -267,10 +267,12 @@ def product_items(product_id: int, *, include_sold: bool = True) -> dict[str, An
         'purchase_order__order_number', 'checked_in_at', 'listed_at', 'sold_at', 'sold_for', 'label_printed_at',
         'source', 'checked_in_by__first_name', 'checked_in_by__last_name',
     )[:ITEMS_CAP])
+    from apps.inventory.services.misfit import is_misfit_item
+
     for r in rows:
         r['order_number'] = r.pop('purchase_order__order_number') or ''
         # Who checked it in (with checked_in_at: who and when), on every item, Misfits included.
         r['checked_in_by'] = ' '.join(
             x for x in (r.pop('checked_in_by__first_name'), r.pop('checked_in_by__last_name')) if x)
-        r['misfit'] = r['source'] == 'misfit' or r['order_number'].upper().startswith('MISFIT')
+        r['misfit'] = is_misfit_item(r['source'], r['order_number'])
     return {'product_id': product_id, 'count': total, 'items': rows}

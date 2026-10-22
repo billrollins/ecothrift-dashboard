@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-22 (processed_by view from the Dashboard; Add item: Misfit items, Misfit filter, who checked in, phone cards) -->
+<!-- Last updated: 2026-10-22 (processed_by view; Add item; Misfit filter takes PR Fix-it quick adds; "+" check-in 409) -->
 # Inventory search and the standard object views
 
 Owner, 2026-10-02: one fast search for everything in inventory, and one standard way to open a product, a check-in
@@ -23,9 +23,10 @@ or an item anywhere on the site. It replaced the old Catalog page (`/inventory/w
   `pages/inventory/ProcessedItemsView.tsx`, `GET /api/pos/dashboard/processed-items/`.
 - In the menu it is **Inventory > Search** (2026-10-02; with Run count, and PR Fix-it under a line). Bill calls it
   Find item.
-- **Misfit only** (2026-10-22): items with no purchase order (source `misfit`, or on any `MISFIT-*` order, so the V1
-  and V2 orphans count too). The items list shows a Misfit chip in the Order column, and **who** checked each item
-  in beside the date.
+- **Misfit only** (2026-10-22): items with no purchase order: source `misfit`, anything on a `MISFIT-*` order (so the
+  V1 and V2 orphans count too), and PR Fix-it quick adds (source `misc` with no order). `services/misfit.py`
+  (`misfit_items_q`, `is_misfit_item`); 7 to 81 ms on the local copy, no extra index needed. The items list shows a
+  Misfit chip in the Order column, and **who** checked each item in beside the date.
 - **Phone** (below `sm`): one card per product (name, brand, category; shelf, price, sold, retail), a Sort box
   instead of the column headers, and the items as short cards. The desk keeps the table.
 

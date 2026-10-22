@@ -28,6 +28,7 @@ import { printedPreviewToLabelInputs } from '../../../hooks/useProcessingWorkspa
 import { MAX_CHECK_IN_QUANTITY, isLargeCheckIn } from '../processing/largeCheckIn';
 import { LargeCheckInConfirmDialog } from '../processing/LargeCheckInConfirmDialog';
 import { printProcessingLabelsAndMarkPrinted } from '../processing/printProcessingLabel';
+import { useRetailCheckPrompt, withRetailCheck } from '../processing/RetailCheckDialog';
 import {
   normalizeProcessingCondition,
   PROCESSING_ITEM_DEFAULT_CONDITION,
@@ -227,6 +228,7 @@ function ItemCheckInEditPanel({
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const { confirm, ConfirmDialogHost } = useWorkbenchConfirmDialog();
+  const retailCheck = useRetailCheckPrompt();
   const { confirmSavePrint, SavePrintDialogHost } = useWorkbenchSavePrintDialog();
 
   const [quantity, setQuantity] = useState('1');
@@ -394,19 +396,26 @@ function ItemCheckInEditPanel({
     mutationFn: async (doPrint: boolean) => {
       if (!checkIn?.product || !selectedOrder) throw new Error('Check-in not loaded.');
       if (!isValidCheckInPrice(price)) throw new Error('Shelf price is required.');
-      const { data } = await productCheckIn(checkIn.product, {
-        quantity: qtyValue,
-        purchase_order: selectedOrder.id,
-        condition,
-        dispatch: salvageLocked ? 'salvage' : dispatch,
-        price: price.trim(),
-        retail: retail.trim() || undefined,
-        notes: notes.trim() || undefined,
-        specifications,
-      });
+      const productId = checkIn.product;
+      // A retail that looks wrong is answered before the tag prints (409 retail_check); null = backed out.
+      const data = await withRetailCheck(
+        {
+          quantity: qtyValue,
+          purchase_order: selectedOrder.id,
+          condition,
+          dispatch: salvageLocked ? 'salvage' : dispatch,
+          price: price.trim(),
+          retail: retail.trim() || undefined,
+          notes: notes.trim() || undefined,
+          specifications,
+        },
+        async (body) => (await productCheckIn(productId, body)).data,
+        retailCheck.ask,
+      );
       return { data, doPrint };
     },
     onSuccess: async ({ data, doPrint }) => {
+      if (!data) return;
       const ok = await handleProductCheckInCreated(data, doPrint, {
         enqueueSnackbar,
         queryClient,
@@ -847,6 +856,7 @@ function ItemCheckInEditPanel({
     </Box>
     {ConfirmDialogHost}
     {SavePrintDialogHost}
+    {retailCheck.dialog}
     <LargeCheckInConfirmDialog
       open={duplicateVolumeConfirm != null}
       quantity={qtyValue}
@@ -894,6 +904,7 @@ function ItemCheckInCreatePanel({
 }: ItemCheckInCreatePanelProps) {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
+  const retailCheck = useRetailCheckPrompt();
 
   const [selectedOrder, setSelectedOrder] = useState<ProductCheckInOrderOption | null>(null);
   const [pickedProduct, setPickedProduct] = useState<Product | null>(null);
@@ -941,19 +952,25 @@ function ItemCheckInCreatePanel({
     mutationFn: async (doPrint: boolean) => {
       if (!product || !selectedOrder) throw new Error('Order and product are required.');
       if (!isValidCheckInPrice(price)) throw new Error('Shelf price is required.');
-      const { data } = await productCheckIn(product.id, {
-        quantity: qtyValue,
-        purchase_order: selectedOrder.id,
-        condition,
-        dispatch: salvageLocked ? 'salvage' : dispatch,
-        price: price.trim(),
-        retail: retail.trim() || undefined,
-        notes: notes.trim() || undefined,
-        specifications,
-      });
+      // A retail that looks wrong is answered before the tag prints (409 retail_check); null = backed out.
+      const data = await withRetailCheck(
+        {
+          quantity: qtyValue,
+          purchase_order: selectedOrder.id,
+          condition,
+          dispatch: salvageLocked ? 'salvage' : dispatch,
+          price: price.trim(),
+          retail: retail.trim() || undefined,
+          notes: notes.trim() || undefined,
+          specifications,
+        },
+        async (body) => (await productCheckIn(product.id, body)).data,
+        retailCheck.ask,
+      );
       return { data, doPrint };
     },
     onSuccess: async ({ data, doPrint }) => {
+      if (!data) return;
       await handleProductCheckInCreated(data, doPrint, {
         enqueueSnackbar,
         queryClient,
@@ -1286,6 +1303,7 @@ function ItemCheckInCreatePanel({
           : null}
         </Stack>
       </Box>
+      {retailCheck.dialog}
       <LargeCheckInConfirmDialog
         open={createVolumeConfirm != null}
         quantity={qtyValue}

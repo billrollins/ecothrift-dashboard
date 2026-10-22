@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.215.0] -->
-<!-- Last reviewed: 2026-10-22 (2.215.0) -->
+<!-- Line 1 release: ## [2.215.1] -->
+<!-- Last reviewed: 2026-10-22 (2.215.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.215.1] - 2026-10-22
+
+User-facing theme: **Misfit filter takes quick adds; the + check-in asks about a wrong-looking retail (Bill, 2026-10-22).** Fix-it lane x-add-item-2.
+
+### Fixed
+- "Misfit only" in Find item now also shows PR Fix-it quick adds (untagged finds with no purchase order).
+- Adding more of a product with the + button now asks about a retail that looks wrong (It is right / Fix it / No retail on tag) instead of failing, and a stopped check-in no longer leaves an empty row on the order.
 
 ## [2.215.0] - 2026-10-22
 

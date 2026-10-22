@@ -1866,6 +1866,8 @@ export interface ProductCheckInPayload {
   notes?: string;
   specifications?: Record<string, string>;
   status?: string;
+  /** The answer to a 409 retail check (RetailCheckDialog). */
+  retail_check?: 'confirm' | 'fix' | 'none';
 }
 
 export interface ProductCheckInResponse {

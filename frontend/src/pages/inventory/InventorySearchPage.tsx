@@ -444,7 +444,7 @@ function SearchBody({ q, sold, misfit, page, sort, setParam }: {
             control={<Switch size="small" checked={sold} onChange={(e) => setParam({ sold: e.target.checked ? '1' : null, page: null })} />}
             label="Include sold"
           />
-          <Tooltip title="Only items with no purchase order (added with Add item)">
+          <Tooltip title="Only items with no purchase order (Add item, PR Fix-it quick adds, the old Misfit orders)">
             <FormControlLabel
               sx={{ whiteSpace: 'nowrap', m: 0 }}
               control={<Switch size="small" checked={misfit} onChange={(e) => setParam({ misfit: e.target.checked ? '1' : null, page: null })} />}

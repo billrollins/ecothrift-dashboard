@@ -126,6 +126,22 @@ class ProductCheckInEndpointTests(ProductCheckInBase):
         resp = self._check_in(purchase_order='')
         self.assertEqual(resp.status_code, 400, resp.data)
 
+    def test_the_retail_check_answers_409_and_leaves_nothing_behind(self):
+        rows_before = ProcessingRow.objects.filter(purchase_order=self.order).count()
+        for _ in range(2):   # asking twice must not pile pending rows up on the order
+            resp = self._check_in(retail='999.00')   # over 6x the $19.99 tag
+            self.assertEqual(resp.status_code, 409, resp.data)
+            self.assertEqual(resp.data['code'], 'retail_check')
+            self.assertTrue(resp.data['reasons'])
+        self.assertEqual(ProcessingRow.objects.filter(purchase_order=self.order).count(), rows_before)
+        self.assertFalse(Item.objects.filter(product=self.product).exists())
+
+        ok = self._check_in(retail='999.00', retail_check='confirm')
+        self.assertEqual(ok.status_code, 201, ok.data)
+        self.assertEqual(ProcessingRow.objects.filter(purchase_order=self.order).count(), rows_before + 1)
+        self.assertEqual(set(Item.objects.filter(product=self.product).values_list('retail_check', flat=True)),
+                         {'confirmed'})
+
 
 class ProductCheckInOrdersEndpointTests(ProductCheckInBase):
     def test_lists_misfit_default_first(self):
