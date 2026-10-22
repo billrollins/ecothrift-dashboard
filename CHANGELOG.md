@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.210.1] -->
-<!-- Last reviewed: 2026-10-22 (2.210.1) -->
+<!-- Line 1 release: ## [2.210.2] -->
+<!-- Last reviewed: 2026-10-22 (2.210.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.210.2] - 2026-10-22
+
+User-facing theme: **The camera turns off the moment you leave the app (Bill, 2026-10-22).** Outside initiatives.
+
+### Fixed
+- **Thrift+ Member, Thrift+ Staff and Social Studio scanners (and the selfie camera):** switching apps, locking the phone or closing the app now stops the camera right away. Before, the phone could keep showing "A site is using your camera" after the app was closed, because the camera was only released on the page's next screen update, which a hidden page may never run.
 
 ## [2.210.1] - 2026-10-22
 

@@ -67,10 +67,21 @@ export default function SelfieCamera({ onPhoto, onFail }: {
         if (!stopped) onFail();
       }
     })();
-    return () => {
-      stopped = true;
+    // Leaving the page (another app, the lock screen, closing it) stops the camera at once (owner 2026-10-22).
+    const release = () => {
       stream.current?.getTracks().forEach((t) => t.stop());
       stream.current = null;
+    };
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') release();
+    };
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', release);
+    return () => {
+      stopped = true;
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', release);
+      release();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

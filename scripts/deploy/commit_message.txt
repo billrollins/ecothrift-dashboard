@@ -1,8 +1,8 @@
-v2.210.1 — Staff see the department goals on the Dashboard again
+v2.210.2 — The camera turns off the moment you leave the app
 
-User-facing theme: **Staff see the department goals on the Dashboard again (Bill, 2026-10-22).** Outside initiatives.
+User-facing theme: **The camera turns off the moment you leave the app (Bill, 2026-10-22).** Outside initiatives.
 
 ### Fixed
-- **Dashboard:** the weekly department cards and goals show for everyone again (v2.200.0 had made them owner-only), under Today's focus.
+- **Thrift+ Member, Thrift+ Staff and Social Studio scanners (and the selfie camera):** switching apps, locking the phone or closing the app now stops the camera right away. Before, the phone could keep showing "A site is using your camera" after the app was closed, because the camera was only released on the page's next screen update, which a hidden page may never run.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

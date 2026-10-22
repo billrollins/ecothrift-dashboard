@@ -196,6 +196,8 @@ export function useQrCamera({
   const onDecodeRef = useRef(onDecode);
   const idleTimer = useRef<number | null>(null);
   const trackRef = useRef<MediaStreamTrack | null>(null);
+  /** The open camera stream, so leaving the page can stop it at once (owner 2026-10-22: the camera stayed on). */
+  const liveStream = useRef<MediaStream | null>(null);
   const digitalRef = useRef(1);
   const zoomInfoRef = useRef<ZoomInfo | null>(null);
   const lensRef = useRef<Lens>(lens);
@@ -207,11 +209,25 @@ export function useQrCamera({
   zoomInfoRef.current = zoomInfo;
   lensRef.current = lens;
 
-  // Release the camera when the phone locks or switches apps.
+  // Release the camera when the phone locks, switches apps or closes the page. The tracks stop right here, not after a
+  // re-render: a hidden page can be frozen before React renders again, and the phone then shows the camera as still on.
   useEffect(() => {
-    const onChange = () => setVisible(document.visibilityState !== 'hidden');
+    const release = () => {
+      liveStream.current?.getTracks().forEach((t) => t.stop());
+      liveStream.current = null;
+    };
+    const onChange = () => {
+      const hidden = document.visibilityState === 'hidden';
+      if (hidden) release();
+      setVisible(!hidden);
+    };
     document.addEventListener('visibilitychange', onChange);
-    return () => document.removeEventListener('visibilitychange', onChange);
+    window.addEventListener('pagehide', release);
+    return () => {
+      document.removeEventListener('visibilitychange', onChange);
+      window.removeEventListener('pagehide', release);
+      release();
+    };
   }, []);
 
   /** Any scan or touch: push the idle timeout back. */
@@ -354,6 +370,7 @@ export function useQrCamera({
       }
       frameHandle = null;
       stream?.getTracks().forEach((t) => t.stop());
+      if (liveStream.current === stream) liveStream.current = null;
       stream = null;
       trackRef.current = null;
       if (videoRef.current) videoRef.current.srcObject = null;
@@ -415,6 +432,12 @@ export function useQrCamera({
           return;
         }
         stream = media;
+        liveStream.current = media;
+        if (document.visibilityState === 'hidden') {
+          // The page was hidden while the camera was starting.
+          stop();
+          return;
+        }
         const loaded = await loading;
         if (cancelled) {
           stop();
@@ -527,7 +550,10 @@ export function useQrCamera({
 
         schedule();
       } catch (err) {
-        if (cancelled) return;
+        if (cancelled) {
+          stop();
+          return;
+        }
         stop();
         setStatus('blocked');
         setSwitching(false);
