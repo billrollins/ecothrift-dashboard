@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.207.0] -->
-<!-- Last reviewed: 2026-10-21 (2.207.0) -->
+<!-- Line 1 release: ## [2.207.1] -->
+<!-- Last reviewed: 2026-10-22 (2.207.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.207.1] - 2026-10-22
+
+User-facing theme: **Print server 1.9.9: retail on price tags (Bill, 2026-10-22).** Install it on every register and the processing label PCs: Settings → Printing → Download.
+
+### Changed
+- **Print server 1.9.9** (published to Settings → Printing): price tags print "Retail $x" above the logo when Dash sends a checked retail (tag truth, v2.207.0).
 
 ## [2.207.0] - 2026-10-21
 

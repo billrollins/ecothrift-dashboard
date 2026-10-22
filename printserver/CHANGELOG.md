@@ -5,6 +5,13 @@ Ship: `.ai/protocols/ship-print-server.md`. Script: `python printserver/distribu
 
 ---
 
+## [1.9.9] — 2026-10-22 (install on every register and the processing label PCs)
+
+Owner 2026-10-21 (retail_tags_and_social Phase 1): retail on the tag only when it passed the check at check-in.
+
+- **Price tags:** a "Retail $x" line above the logo when Dash sends `retail_text` (Dash v2.207.0 sends it only for a
+  checked retail; Settings → Inventory → Price tags and the retail check). Without it the tag prints exactly as before.
+
 ## [1.9.8] — 2026-10-21 (install on every register: REG-01, REG-02, TRAIN)
 
 Owner 2026-10-21 (critic review point 3; non-profit sales).
