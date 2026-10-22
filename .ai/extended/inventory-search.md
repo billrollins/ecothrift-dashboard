@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-22 (processed_by view from the Dashboard) -->
+<!-- Last updated: 2026-10-22 (processed_by view from the Dashboard; Add item: Misfit items, Misfit filter, who checked in, phone cards) -->
 # Inventory search and the standard object views
 
 Owner, 2026-10-02: one fast search for everything in inventory, and one standard way to open a product, a check-in
@@ -16,12 +16,51 @@ or an item anywhere on the site. It replaced the old Catalog page (`/inventory/w
   a tag, the plus icon on a product adds more of it (a new check-in).
 - **Sort:** every column header sorts all the matches on the server (high to low first; A to Z for Product), blanks
   last. The header box ticks every product on the page with something on the shelf.
-- Page state is in the URL: `q`, `sold`, `page`, `sort`, `open=<product|checkin|item>:<id>`.
+- Page state is in the URL: `q`, `sold`, `misfit`, `page`, `sort`, `open=<product|checkin|item>:<id>`.
 - **Items one person put on the floor** (2026-10-22, from a Processing row in the Dashboard's details):
   `processed_by=<user id|none>&from=YYYY-MM-DD&to=YYYY-MM-DD` shows those items (SKU, product, status, day, price,
   retail; a list on a phone) instead of the search. "Search all inventory" goes back. Code:
   `pages/inventory/ProcessedItemsView.tsx`, `GET /api/pos/dashboard/processed-items/`.
-- In the menu it is **Inventory > Search** (2026-10-02; with Run count, and PR Fix-it under a line).
+- In the menu it is **Inventory > Search** (2026-10-02; with Run count, and PR Fix-it under a line). Bill calls it
+  Find item.
+- **Misfit only** (2026-10-22): items with no purchase order (source `misfit`, or on any `MISFIT-*` order, so the V1
+  and V2 orphans count too). The items list shows a Misfit chip in the Order column, and **who** checked each item
+  in beside the date.
+- **Phone** (below `sm`): one card per product (name, brand, category; shelf, price, sold, retail), a Sort box
+  instead of the column headers, and the items as short cards. The desk keeps the table.
+
+## Add item: Misfit items (owner, 2026-10-22)
+
+The **Add item** button on this page adds something we sell that came with no purchase order. It replaced the old
+item list's Add item (removed in v2.202.0). A modal (full screen on a phone), built on Processing's parts:
+
+1. **Find the product.** One box: a scanned tag, product number, barcode (UPC/EAN/GTIN, with or without leading
+   zeros), part number or model answers first (Enter picks a single exact match, for scanners); then the words, on
+   `Product.search_text` (trigram index; words under 3 letters are checked on the candidates). Ranking: words in what
+   the product is ("Beater **for** KitchenAid Mixer" is a beater), the whole phrase, a name close to what was typed,
+   the brand; then times sold and shelf count. Each row: photo, tag name, typical price (median sold, else median
+   shelf), times sold, Use / Copy. Measured on the local copy of production (202k products): 8 to 96 ms. Vectors are
+   not used for typed words (that needs the model on the web server); they are used for price comps.
+2. **Not found: make the product.** *Copy* a near match and edit title, brand, model; or *AI fill*: a rough title and
+   an optional photo (camera on a phone). The AI drafts title, tag name, brand, model, category and subcategory (the
+   taxonomy's exact names: anything else is dropped) and a retail estimate; the person checks it. Through the AI
+   router (purpose `SUGGEST_PRODUCT`, Settings > AI), logged in AIUsage as `inventory.add_item_ai`; the router now
+   sends photos to xAI, Google and Spark too. The product is made at check-in (one transaction), or matched when the
+   same UPC or title/brand/model/category exists. Profile fields keep their source (`human`, or `ai:<model>` when
+   left as drafted); the photo is kept on the product (`Product.photo`, `photo_thumb`; 2048 px and 480 px).
+3. **Check in.** Quantity, condition, where it goes (Floor, Back stock, Restoration = location `on_shelf`,
+   `back_storage`, `restoration`), the price (`suggest_price`: the median this product sold for once it has 2 sales,
+   else what similar products sold for, by stored vector when the product has one, else by title), the retail
+   through the same retail check as Processing (an AI or copied retail is an estimate, so it is asked about).
+   **Restoration needs estimates**: the work (test / assemble / repair / salvage), hours or parts cost, and the
+   value after; they go on the job's queue note and `defaults_snapshot.restoration_estimate`, then the usual Grade
+   for Restoration dialog opens.
+4. **Tags print** the Processing way. Items are on the year's Misfit order (`MISFIT-<year>`, vendor MIS, made on
+   first use, no cost: item cost stays unknown), source `misfit`, with who and when.
+
+Who: the same people as Processing check-in (staff). Code: `apps/inventory/services/add_item.py`, `misfit.py`,
+`api_add_item.py` (`/api/inventory/add-item/find|price|taxonomy|ai-fill|check-in/`),
+`frontend/src/pages/inventory/addItem/`; tests `test_add_item.py`, `addItemModel.test.ts`.
 
 ## Speed (target: under a second; measured 15 to 360 ms on a copy of production, 2026-10-02)
 

@@ -160,13 +160,23 @@ def _sort_expression(key: str):
 SORT_KEYS = ('title', 'on_shelf', 'retail', 'price', 'sold', 'avg_sold', 'days', 'last_sold')
 
 
-def search(q: str, *, include_sold: bool = False, page: int = 1, page_size: int = PAGE_SIZE, sort: str = '') -> dict[str, Any]:
+def search(
+    q: str, *, include_sold: bool = False, page: int = 1, page_size: int = PAGE_SIZE, sort: str = '',
+    misfit: bool = False,
+) -> dict[str, Any]:
     """One page of products for `q`. `include_sold` also shows products with nothing on the shelf.
-    `sort` is a column key from SORT_KEYS, with a leading `-` for high to low; empty = best match first."""
+    `sort` is a column key from SORT_KEYS, with a leading `-` for high to low; empty = best match first.
+    `misfit` keeps only Misfit items (no purchase order: Add item, services/misfit.py)."""
     started = time.perf_counter()
     q = (q or '').strip()[:200]
     page = max(1, page)
     items = Item.objects.filter(product=OuterRef('pk'))
+    misfit_q = None
+    if misfit:
+        from apps.inventory.services.misfit import misfit_items_q
+
+        misfit_q = misfit_items_q()
+        items = items.filter(misfit_q)
     has_shelf = Exists(items.filter(status=ON_SHELF))
 
     matched_sku: dict[int, str] = {}
@@ -178,6 +188,9 @@ def search(q: str, *, include_sold: bool = False, page: int = 1, page_size: int 
             first = [hit.product]
 
     qs = Product.objects.filter(is_active=True).annotate(has_shelf=has_shelf)
+    if misfit_q is not None:
+        # A semi-join on the (few) Misfit items first, so the Exists below only runs for their products.
+        qs = qs.filter(pk__in=Item.objects.filter(misfit_q).values('product_id'))
     for word in _words(q):
         qs = qs.filter(search_text__contains=word)
     qs = qs.filter(has_shelf=True) if not include_sold else qs.filter(Exists(items))
@@ -209,7 +222,7 @@ def search(q: str, *, include_sold: bool = False, page: int = 1, page_size: int 
     products = (first if page == 1 else []) + [by_id[i] for i in page_ids if i in by_id]
 
     fuzzy = False
-    if not products and q and page == 1:
+    if not products and q and page == 1 and not misfit:
         close = Product.objects.filter(is_active=True, search_text__trigram_word_similar=q)
         close = close.filter(Exists(items)) if include_sold else close.filter(has_shelf)
         products = list(close[:20])
@@ -252,7 +265,12 @@ def product_items(product_id: int, *, include_sold: bool = True) -> dict[str, An
     rows = list(qs.order_by(shelf_first, '-checked_in_at', '-id').values(
         'id', 'sku', 'price', 'retail', 'status', 'condition', 'location', 'check_in_id', 'purchase_order_id',
         'purchase_order__order_number', 'checked_in_at', 'listed_at', 'sold_at', 'sold_for', 'label_printed_at',
+        'source', 'checked_in_by__first_name', 'checked_in_by__last_name',
     )[:ITEMS_CAP])
     for r in rows:
         r['order_number'] = r.pop('purchase_order__order_number') or ''
+        # Who checked it in (with checked_in_at: who and when), on every item, Misfits included.
+        r['checked_in_by'] = ' '.join(
+            x for x in (r.pop('checked_in_by__first_name'), r.pop('checked_in_by__last_name')) if x)
+        r['misfit'] = r['source'] == 'misfit' or r['order_number'].upper().startswith('MISFIT')
     return {'product_id': product_id, 'count': total, 'items': rows}

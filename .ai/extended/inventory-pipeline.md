@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (truck pallets E1; truck finalize E2; B-Stock disputes E2b; truck pallets E1; truck finalize E2; tag truth: retail check, bad tags) -->
+<!-- Last updated: 2026-10-22 (Misfit item source; retail_source estimate from Add item) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -338,7 +338,7 @@ Shipped 2026-06-10 per the Fable verdict in [`preprocessing_ai_cleanup_review`](
 
 ## Tag truth (retail_tags_and_social Phase 1, 2026-10-21)
 
-**Retail check at check-in** (`services/tag_retail.py`, in `_check_in_processing_row`, so row and check-in-together both). A retail is flagged when it is over `tags.retail_check_price_multiple` (6) times the tag price, over `tags.retail_check_median_multiple` (2) times the product's usual retail (median of its items, once it has `tags.retail_check_min_items` (3)), or when the manifest has no retail and nobody typed one (an estimate). A flag returns **409** `code: retail_check` with the reasons; the Item Processor asks (It is right / Fix it / No retail on tag) and resends with `retail_check: confirm | fix | none` (fix sends the new `retail`). `Item.retail_check` keeps the result ('' never checked, passed, confirmed, fixed, no_retail, missing) and `Item.retail_source` the source (manifest, typed, estimate); the check-in's `defaults_snapshot.retail_check` keeps the reasons. The retail is never dropped: cost allocation still uses it.
+**Retail check at check-in** (`services/tag_retail.py`, in `_check_in_processing_row`, so row and check-in-together both). A retail is flagged when it is over `tags.retail_check_price_multiple` (6) times the tag price, over `tags.retail_check_median_multiple` (2) times the product's usual retail (median of its items, once it has `tags.retail_check_min_items` (3)), or when the manifest has no retail and nobody typed one (an estimate; an added row's retail counts as typed unless the caller sends `retail_source: estimate`, as Add item does for an AI or copied retail). A flag returns **409** `code: retail_check` with the reasons; the Item Processor asks (It is right / Fix it / No retail on tag) and resends with `retail_check: confirm | fix | none` (fix sends the new `retail`). `Item.retail_check` keeps the result ('' never checked, passed, confirmed, fixed, no_retail, missing) and `Item.retail_source` the source (manifest, typed, estimate); the check-in's `defaults_snapshot.retail_check` keeps the reasons. The retail is never dropped: cost allocation still uses it.
 
 **Retail on the tag** (owner call F1): `tags.retail_on_tag` = `checked` (default: only passed, confirmed or fixed), `always`, or `never`. The server computes `tag_retail` on `ItemSerializer`, workspace items, `printed_items_preview` and PR Fix-it labels (`retail_text`); the label prints "Retail $x" above the logo (print server `retail_text`, older print servers ignore it). A reprint with a new price prints no retail until the server says so. Tags already printed are untouched.
 
@@ -372,7 +372,8 @@ Core inventory entity flowing through the system.
 |-------------|--------------------------------|
 | `purchased` | From vendor PO (default)       |
 | `consignment` | Consignee item               |
-| `house`     | Store-owned / house inventory  |
+| `misc`      | Store-owned / house inventory (was `house`); PR Fix-it quick adds |
+| `misfit`    | No purchase order: Find item > Add item (2026-10-22). Any check-in on a `MISFIT-*` order makes one (`services/misfit.py`); kept on the year's `MISFIT-<year>` order. See [`inventory-search.md`](inventory-search.md) |
 
 ### Fields
 

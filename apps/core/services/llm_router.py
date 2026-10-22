@@ -247,6 +247,18 @@ def _message_text(content) -> str:
     return str(content or '')
 
 
+def _message_images(content) -> list[tuple[str, str]]:
+    """Anthropic-style base64 image blocks as (media type, base64 data), for xAI/Google/Spark."""
+    if not isinstance(content, list):
+        return []
+    out = []
+    for block in content:
+        source = block.get('source') if isinstance(block, dict) and block.get('type') == 'image' else None
+        if isinstance(source, dict) and source.get('type') == 'base64' and source.get('data'):
+            out.append((str(source.get('media_type') or 'image/jpeg'), str(source['data'])))
+    return out
+
+
 def _build_messages(user, messages) -> list[dict]:
     if messages:
         return list(messages)
@@ -385,7 +397,11 @@ def _openai_compatible_complete(
     if system:
         oai_messages.append({'role': 'system', 'content': system})
     for m in messages:
-        oai_messages.append({'role': m.get('role', 'user'), 'content': _message_text(m.get('content'))})
+        text, images = _message_text(m.get('content')), _message_images(m.get('content'))
+        content = text if not images else [{'type': 'text', 'text': text}] + [
+            {'type': 'image_url', 'image_url': {'url': f'data:{media};base64,{data}'}} for media, data in images
+        ]
+        oai_messages.append({'role': m.get('role', 'user'), 'content': content})
 
     payload: dict = {'model': model_id, 'messages': oai_messages}
     if max_tokens is not None:
@@ -473,7 +489,10 @@ def _google_complete(
     contents = []
     for m in messages:
         role = 'model' if m.get('role') == 'assistant' else 'user'
-        contents.append({'role': role, 'parts': [{'text': _message_text(m.get('content'))}]})
+        parts = [{'text': _message_text(m.get('content'))}] + [
+            {'inline_data': {'mime_type': media, 'data': data}} for media, data in _message_images(m.get('content'))
+        ]
+        contents.append({'role': role, 'parts': parts})
 
     generation_config: dict = {}
     if temperature is not None:

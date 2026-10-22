@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.214.1] -->
-<!-- Last reviewed: 2026-10-22 (2.214.1) -->
+<!-- Line 1 release: ## [2.215.0] -->
+<!-- Last reviewed: 2026-10-22 (2.215.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.215.0] - 2026-10-22
+
+User-facing theme: **Add item is back: things we sell that came with no purchase order ("Misfit" items) (Bill, 2026-10-22).** Fix-it lane x-add-item.
+
+### Added
+- **Add item:** Find item > Add item adds things we sell that came with no purchase order ("Misfit" items). Search by name, brand or model, or scan a tag or barcode; each result shows a photo, the typical price and how many sold.
+- **New products, fast:** not in the list? Copy a near match and edit it, or let the AI draft it from a rough title and an optional photo, in our exact categories. You check it before anything is saved.
+- **Check-in like Processing:** quantity, condition, Floor / Back stock / Restoration, a suggested price from what it (or similar items) sold for, the retail check, and the tags print. Restoration needs estimates: the work, hours or parts cost, and what it's worth after.
+- **Find item:** a "Misfit only" switch, every item shows who checked it in and when, and Find item now works on a phone (cards instead of the wide table).
 
 ## [2.214.1] - 2026-10-22
 

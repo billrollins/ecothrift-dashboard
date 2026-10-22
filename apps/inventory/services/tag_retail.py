@@ -135,7 +135,7 @@ def assess(
         if retail > typical * Decimal(str(cfg['tags.retail_check_median_multiple'])):
             reasons.append(f'This product usually carries ${typical} retail ({n} items).')
     if source == SOURCE_ESTIMATE:
-        reasons.append('The manifest has no retail for this line; this figure is an estimate.')
+        reasons.append('This retail is an estimate: no manifest figure, and nobody typed it.')
     return {
         'status': 'flagged' if reasons else CHECK_PASSED,
         'source': source,

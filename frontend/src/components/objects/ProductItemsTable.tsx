@@ -4,8 +4,8 @@
  */
 import { useRef, useState } from 'react';
 import {
-  Box, CircularProgress, IconButton, Link, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip,
-  Typography,
+  Box, Chip, CircularProgress, IconButton, Link, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField,
+  Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -28,6 +28,27 @@ export interface ProductLabelInfo {
 function shortDate(iso: string | null): string {
   if (!iso) return '';
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+}
+
+/** When it was checked in, and by whom. */
+function checkedIn(item: InventorySearchItem): string {
+  return [shortDate(item.checked_in_at), item.checked_in_by].filter(Boolean).join(' · ');
+}
+
+/** Where it came from: its order, or Misfit (no purchase order). */
+function OrderCell({ item }: { item: InventorySearchItem }) {
+  const order = item.purchase_order_id ? (
+    <Link component={RouterLink} to={`/inventory/orders/${item.purchase_order_id}`} underline="hover"
+      sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
+      {item.order_number || `#${item.purchase_order_id}`}
+    </Link>
+  ) : null;
+  if (!item.misfit) return order;
+  return (
+    <Tooltip title={item.order_number ? `No purchase order (kept on ${item.order_number})` : 'No purchase order'}>
+      <Chip size="small" variant="outlined" color="warning" label="Misfit" sx={{ height: 20 }} />
+    </Tooltip>
+  );
 }
 
 /** What the item sold for (or its shelf price) as a share of its retail. */
@@ -143,10 +164,71 @@ export function ProductItemsTable({
     void queryClient.invalidateQueries({ queryKey: ['inventory-search-items', productId] });
     void queryClient.invalidateQueries({ queryKey: ['inventory-search'] });
   };
+  const theme = useTheme();
+  const phone = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const priceSaved = (item: InventorySearchItem) => (price: string) => {
+    refresh();
+    enqueueSnackbar(`Price saved for ${item.sku}.`, {
+      variant: 'success',
+      action: () => (
+        <Link component="button" type="button" color="inherit" onClick={() => void reprint(item, price)} sx={{ mr: 1 }}>
+          Reprint tag
+        </Link>
+      ),
+    });
+  };
+  const reprintButton = (item: InventorySearchItem) => item.status === 'on_shelf' && (
+    <Tooltip title={item.label_printed_at ? `Reprint tag (printed ${shortDate(item.label_printed_at)})` : 'Print tag'}>
+      <IconButton size="small" onClick={() => void reprint(item)} aria-label={`Reprint tag for ${item.sku}`}>
+        <Print fontSize="small" />
+      </IconButton>
+    </Tooltip>
+  );
 
   if (isLoading) return <CircularProgress size={20} sx={{ m: 1.5 }} />;
   if (isError || !data) return <Typography sx={{ p: 1.5 }} color="error">The items could not be loaded.</Typography>;
   if (!data.items.length) return <Typography sx={{ p: 1.5 }} color="text.secondary">No items.</Typography>;
+
+  if (phone) {
+    // A phone: one short card per item instead of thirteen columns.
+    return (
+      <Box>
+        {data.items.map((item) => (
+          <Box key={item.id} sx={{ py: 1, borderBottom: 1, borderColor: 'divider',
+            bgcolor: highlightSku && item.sku === highlightSku ? 'action.selected' : undefined }}>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              {selection && item.status === 'on_shelf' && (
+                <SelectBox kind="item" id={item.id} label={`Select ${item.sku}`} forced={wholeProduct} />
+              )}
+              <ObjectLink type="item" id={item.id} label={item.sku} />
+              <StatusBadge status={item.status} size="small" />
+              <Box sx={{ flex: 1 }} />
+              <Typography variant="body2" component="div"><PriceCell item={item} onSaved={priceSaved(item)} /></Typography>
+              {reprintButton(item)}
+            </Stack>
+            <Typography variant="caption" color="text.secondary" component="div" sx={{ textTransform: 'capitalize' }}>
+              {[item.retail && Number(item.retail) > 0 ? `retail ${formatCurrency(item.retail)}` : '', pctOfRetail(item),
+                item.condition.replace(/_/g, ' '), item.location.replace(/_/g, ' ')].filter(Boolean).join(' · ')}
+            </Typography>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 0.25 }}>
+              <OrderCell item={item} />
+              <Typography variant="caption" color="text.secondary">
+                {[checkedIn(item) && `in ${checkedIn(item)}`,
+                  item.sold_at && `sold ${shortDate(item.sold_at)}${item.sold_for ? ` · ${formatCurrency(item.sold_for)}` : ''}`]
+                  .filter(Boolean).join(' · ')}
+              </Typography>
+            </Stack>
+          </Box>
+        ))}
+        {data.count > data.items.length && (
+          <Typography variant="caption" color="text.secondary" sx={{ py: 1, display: 'block' }}>
+            Showing {data.items.length} of {data.count} items. Open the product for all of them.
+          </Typography>
+        )}
+      </Box>
+    );
+  }
 
   return (
     <Box>
@@ -181,46 +263,19 @@ export function ProductItemsTable({
               <TableCell><ObjectLink type="item" id={item.id} label={item.sku} /></TableCell>
               <TableCell><StatusBadge status={item.status} size="small" /></TableCell>
               <TableCell align="right">
-                <PriceCell
-                  item={item}
-                  onSaved={(price) => {
-                    refresh();
-                    enqueueSnackbar(`Price saved for ${item.sku}.`, {
-                      variant: 'success',
-                      action: () => (
-                        <Link component="button" type="button" color="inherit" onClick={() => void reprint(item, price)} sx={{ mr: 1 }}>
-                          Reprint tag
-                        </Link>
-                      ),
-                    });
-                  }}
-                />
+                <PriceCell item={item} onSaved={priceSaved(item)} />
               </TableCell>
               <TableCell align="right">{item.retail && Number(item.retail) > 0 ? formatCurrency(item.retail) : ''}</TableCell>
               <TableCell align="right">{pctOfRetail(item)}</TableCell>
               <TableCell sx={{ textTransform: 'capitalize' }}>{item.condition.replace(/_/g, ' ')}</TableCell>
               <TableCell>{item.location.replace(/_/g, ' ')}</TableCell>
               <TableCell>{item.check_in_id ? <ObjectLink type="checkin" id={item.check_in_id} /> : ''}</TableCell>
-              <TableCell>
-                {item.purchase_order_id ? (
-                  <Link component={RouterLink} to={`/inventory/orders/${item.purchase_order_id}`} underline="hover">
-                    {item.order_number || `#${item.purchase_order_id}`}
-                  </Link>
-                ) : ''}
-              </TableCell>
-              <TableCell>{shortDate(item.checked_in_at)}</TableCell>
+              <TableCell><OrderCell item={item} /></TableCell>
+              <TableCell>{checkedIn(item)}</TableCell>
               <TableCell>
                 {item.sold_at ? `${shortDate(item.sold_at)}${item.sold_for ? ` · ${formatCurrency(item.sold_for)}` : ''}` : ''}
               </TableCell>
-              <TableCell align="right">
-                {item.status === 'on_shelf' && (
-                  <Tooltip title={item.label_printed_at ? `Reprint tag (printed ${shortDate(item.label_printed_at)})` : 'Print tag'}>
-                    <IconButton size="small" onClick={() => void reprint(item)} aria-label={`Reprint tag for ${item.sku}`}>
-                      <Print fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                )}
-              </TableCell>
+              <TableCell align="right">{reprintButton(item)}</TableCell>
             </TableRow>
           ))}
         </TableBody>

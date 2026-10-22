@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (legacy fullscreen Studio removed; Restoration list E3: path, next, landed, days) -->
+<!-- Last updated: 2026-10-22 (Add item's restoration estimates) -->
 # Restoration / TARS
 
 Staff restoration: Ashley prices grades, Mike runs the bench, Bill sees what it earned. Initiative: [`finalize_tars_app`](../initiatives/_archived/finalize_tars_app.md). Shipped **v2.71.0** (GitHub; not Heroku).
@@ -72,7 +72,10 @@ Rates are judged against a **floor** (what an hour costs, default `$19.80`) and 
 | `GET /api/inventory/restoration-jobs/{id}/notes/` | Union of notes on the check-in's items. |
 | `PATCH /api/inventory/item-notes/{id}/` · `POST …/void/` | Author's own manual notes only. |
 
-Processing check-in with `dispatch=restoration` creates a `queued` job. Incomplete grade values → `needs_setup`. Dispatch away from restoration deletes a `queued` job.
+Processing check-in with `dispatch=restoration` creates a `queued` job. Find item > Add item (Misfit items) requires
+estimates first: the work (test / assemble / repair / salvage), hours or parts cost, and the value after. They are
+written to the job's `queue_note` ("Estimate: test, repair · about 1.5 h · worth $80.00 after", also on the notes
+trail) and `defaults_snapshot.restoration_estimate`; then the same Grade for Restoration dialog opens. Incomplete grade values → `needs_setup`. Dispatch away from restoration deletes a `queued` job.
 
 ---
 

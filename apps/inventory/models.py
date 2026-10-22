@@ -1563,6 +1563,10 @@ class Product(models.Model):
     # One lowercased line for inventory search: the product's own fields plus its standard (profile).
     # Written by apps.inventory.services.inventory_search.rebuild_search_text, never by hand.
     search_text = models.TextField(blank=True, default='')
+    # A photo of the product (Add item, 2026-10-22): kept at 2048 px with a 480 px thumbnail; shown in Add item's
+    # search so staff can tell it is the thing in their hand.
+    photo = models.FileField(upload_to='inventory/products/', blank=True, default='')
+    photo_thumb = models.FileField(upload_to='inventory/products/', blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1785,6 +1789,8 @@ class Item(models.Model):
         ('purchased', 'Purchased'),
         ('consignment', 'Consignment'),
         ('misc', 'Miscellaneous'),
+        # No real purchase: added from Find item > Add item, kept on the year's Misfit order (services/misfit.py).
+        ('misfit', 'Misfit'),
     ]
     STATUS_CHOICES = [
         ('intake', 'Intake'),
@@ -1937,6 +1943,8 @@ class Item(models.Model):
             GinIndex(name='item_searchtext_trgm', fields=['search_text'], opclasses=['gin_trgm_ops']),
             # Inventory search asks "is anything of this product on the shelf" for every match: this keeps it small.
             models.Index(fields=['product'], name='item_onshelf_product_idx', condition=models.Q(status='on_shelf')),
+            # Find item's Misfit filter.
+            models.Index(fields=['product'], name='item_misfit_product_idx', condition=models.Q(source='misfit')),
         ]
 
     def __str__(self):

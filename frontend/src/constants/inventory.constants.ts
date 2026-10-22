@@ -1,7 +1,7 @@
 import type { ItemCondition, ItemSource } from '../types/inventory.types';
 
 /** Ordered list for source dropdowns (replaces duplicated literals in pages). */
-export const ITEM_SOURCES: ItemSource[] = ['purchased', 'consignment', 'misc'];
+export const ITEM_SOURCES: ItemSource[] = ['purchased', 'consignment', 'misc', 'misfit'];
 
 /** Human-readable labels for item source values. */
 export function formatItemSourceLabel(value: string): string {

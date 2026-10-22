@@ -29,6 +29,7 @@ from apps.inventory.services.manual_item import (
     find_or_create_product_for_manual_item,
     normalize_search_tags,
 )
+from apps.inventory.services.misfit import is_misfit_order
 from apps.inventory.product_identity import (
     merge_identifiers,
 )
@@ -533,8 +534,10 @@ def _check_in_processing_row(
     default_retail = scale_row_amount_for_product_link(effective_row_unit_retail(row), product.id, row)
     retail_found = tag_retail.assess(
         product.id, item_retail, item_price, manifest_retail=manifest_retail,
-        # An added (unmanifested) row's retail was typed by the person who added it.
-        typed=is_added_row or (retail is not None and retail != default_retail),
+        # An added (unmanifested) row's retail was typed by the person who added it, unless the caller says it
+        # is an estimate (Add item's AI retail: it goes through the check like any estimate).
+        typed=(is_added_row and str(data.get('retail_source') or '') != tag_retail.SOURCE_ESTIMATE)
+        or (retail is not None and retail != default_retail),
     )
     retail_check = tag_retail.resolve(
         retail_found, str(data.get('retail_check') or ''), retail=item_retail, price=item_price,
@@ -590,7 +593,8 @@ def _check_in_processing_row(
             retail_check=retail_check,
             retail_source=retail_found['source'],
             cost=unit_cost,
-            source='purchased',
+            # A check-in on a Misfit order (no real purchase) is a Misfit item (Add item, 2026-10-22).
+            source='misfit' if is_misfit_order(order) else 'purchased',
             status='on_shelf',
             condition=cond_db,
             location=location,

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-22 (Social Studio phone app at /social) -->
+<!-- Last updated: 2026-10-22 (Social Studio phone app at /social; Find item > Add item) -->
 # Eco-Thrift Dashboard — App Map for Navigation Consultation
 
 **Purpose:** Hand this document to a consulting AI (or UX reviewer) to evaluate whether the staff navbar, workspaces, and page grouping can be organized more clearly.
@@ -185,7 +185,7 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 
 | Page | Path | What it does |
 |------|------|----------------|
-| **Catalog** | `/inventory/workbench` | Unified catalog UI for products, check-ins, and items (search-heavy). Primary inventory records home. |
+| **Search** (Find item) | `/inventory/search` | One box, one row per product, its items one click away (`/inventory/workbench` redirects here). **Add item** adds Misfit items (no purchase order); **Misfit only** filters to them. Phone: cards. |
 | **Item** | `/inventory/search?open=item:<id>` | Single item window over Inventory search: price, status, history, reprice/print. The old `/inventory/items` list and page were removed 2026-10-21. |
 
 ### Retail Floor workspace

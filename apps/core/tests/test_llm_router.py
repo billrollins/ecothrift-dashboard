@@ -192,6 +192,27 @@ class RouterCompletionTests(SimpleTestCase):
         self.assertEqual(result.text, 'gemini says hi')
         self.assertEqual(result.output_tokens, 4)
 
+    def test_a_photo_reaches_xai_and_google_too(self):
+        """Anthropic-style image blocks (Add item's AI fill photo) are turned into each provider's own form."""
+        content = [{'type': 'text', 'text': 'what is it'},
+                   {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': 'QUJD'}}]
+        xai = {'model': 'grok-4.3', 'choices': [{'message': {'content': 'a lamp'}}], 'usage': {}}
+        with mock.patch('requests.post', return_value=_FakeHTTPResponse(xai)) as post:
+            llm_complete(model_id='grok-4.3', messages=[{'role': 'user', 'content': content}])
+        self.assertEqual(post.call_args.kwargs['json']['messages'][0]['content'], [
+            {'type': 'text', 'text': 'what is it'},
+            {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,QUJD'}},
+        ])
+        google = {'candidates': [{'content': {'parts': [{'text': 'a lamp'}]}}], 'usageMetadata': {}}
+        with mock.patch('requests.post', return_value=_FakeHTTPResponse(google)) as post:
+            llm_complete(model_id='gemini-2.5-flash', messages=[{'role': 'user', 'content': content}])
+        self.assertEqual(post.call_args.kwargs['json']['contents'][0]['parts'], [
+            {'text': 'what is it'}, {'inline_data': {'mime_type': 'image/jpeg', 'data': 'QUJD'}},
+        ])
+        with mock.patch('requests.post', return_value=_FakeHTTPResponse(xai)) as post:   # text alone is unchanged
+            llm_complete(model_id='grok-4.3', user='hi')
+        self.assertEqual(post.call_args.kwargs['json']['messages'][0]['content'], 'hi')
+
     def test_google_tool_input(self):
         payload = {
             'candidates': [

@@ -27,7 +27,7 @@ export type PurchaseOrderCondition =
 /**
  * Item source choices
  */
-export type ItemSource = 'purchased' | 'consignment' | 'misc';
+export type ItemSource = 'purchased' | 'consignment' | 'misc' | 'misfit';
 
 /**
  * Item status choices

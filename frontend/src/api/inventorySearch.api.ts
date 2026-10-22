@@ -56,6 +56,11 @@ export interface InventorySearchItem {
   sold_at: string | null;
   sold_for: string | null;
   label_printed_at: string | null;
+  source: string;
+  /** Who checked it in (with checked_in_at: who and when). */
+  checked_in_by: string;
+  /** No purchase order: added from Find item > Add item, or on an old Misfit catch-all order. */
+  misfit: boolean;
 }
 
 export interface InventorySearchItemsResponse {
@@ -67,9 +72,15 @@ export interface InventorySearchItemsResponse {
 /** Column keys the server can sort on; a leading `-` means high to low. */
 export type InventorySortKey = 'title' | 'on_shelf' | 'retail' | 'price' | 'sold' | 'avg_sold' | 'days' | 'last_sold';
 
-export function searchInventory(params: { q: string; sold: boolean; page: number; sort?: string }, signal?: AbortSignal) {
+export function searchInventory(
+  params: { q: string; sold: boolean; page: number; sort?: string; misfit?: boolean },
+  signal?: AbortSignal,
+) {
   return api.get<InventorySearchResponse>('/inventory/search/', {
-    params: { q: params.q, sold: params.sold ? 1 : undefined, page: params.page, sort: params.sort || undefined },
+    params: {
+      q: params.q, sold: params.sold ? 1 : undefined, page: params.page, sort: params.sort || undefined,
+      misfit: params.misfit ? 1 : undefined,
+    },
     signal,
   });
 }

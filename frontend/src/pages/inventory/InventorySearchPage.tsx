@@ -1,17 +1,18 @@
 /**
  * Inventory search: one box, one table, one row per product, with its items one click away.
  * Replaces the old Catalog page (`/inventory/workbench`). Search runs on the server
- * (`apps/inventory/services/inventory_search.py`); the page state lives in the URL (`q`, `sold`, `page`, `sort`, `open`).
- * Bulk work (price changes for managers, tag reprints) lives in `components/objects/bulkTools.tsx`.
+ * (`apps/inventory/services/inventory_search.py`); the page state lives in the URL (`q`, `sold`, `misfit`, `page`, `sort`,
+ * `open`). Bulk work (price changes for managers, tag reprints) lives in `components/objects/bulkTools.tsx`.
+ * **Add item** (Misfit items, no purchase order) opens `addItem/AddItemDialog.tsx`. On a phone the results are cards.
  */
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import AddBox from '@mui/icons-material/AddBox';
 import KeyboardArrowDown from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRight from '@mui/icons-material/KeyboardArrowRight';
 import {
-  Box, Button, Checkbox, Chip, Collapse, FormControlLabel, IconButton, InputAdornment, LinearProgress, Link, Paper, Stack, Switch,
-  Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TableSortLabel, TextField, Tooltip,
-  Typography,
+  Box, Button, Checkbox, Chip, Collapse, FormControlLabel, IconButton, InputAdornment, LinearProgress, Link, MenuItem, Paper,
+  Stack, Switch, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TableSortLabel, TextField,
+  Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -31,7 +32,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../utils/format';
 import { parseRichSearch, parseWorkbenchSelection } from '../../utils/richInventorySearch';
 import { ProcessedItemsView } from './ProcessedItemsView';
-import { IconSearch as Search } from '../../icons/ecoIcons';
+import { IconAdd, IconSearch as Search } from '../../icons/ecoIcons';
+import { AddItemDialog } from './addItem/AddItemDialog';
 
 const DEBOUNCE_MS = 200;
 
@@ -267,6 +269,79 @@ Original title: ${row.original_title}`}>
   );
 }
 
+/** A phone: the same product as a card, its items one tap away. */
+function ResultCard({ row, includeSold, startOpen }: { row: InventorySearchRow; includeSold: boolean; startOpen: boolean }) {
+  const [open, setOpen] = useState(startOpen);
+  const { openObject } = useObjectModal();
+  const details = [row.brand, [row.category, row.subcategory].filter(Boolean).join(' › ')].filter(Boolean);
+  const stats = [
+    { label: 'Shelf', value: String(row.on_shelf), strong: row.on_shelf > 0 },
+    { label: 'Price', value: priceRange(row) || '-' },
+    { label: 'Sold', value: row.sold ? `${row.sold}${row.avg_sold != null ? ` · ${formatCurrency(row.avg_sold)}` : ''}` : '-' },
+    { label: 'Retail', value: row.retail != null ? formatCurrency(row.retail) : '-' },
+  ];
+  return (
+    <Paper variant="outlined" sx={{ mb: 1, overflow: 'hidden' }}>
+      <Box onClick={() => setOpen((v) => !v)} sx={{ p: 1.25, cursor: 'pointer' }}>
+        <Stack direction="row" spacing={0.5} alignItems="flex-start">
+          {row.on_shelf > 0 && (
+            <Box onClick={(e) => e.stopPropagation()}>
+              <SelectBox kind="product" id={row.product_id} label={`Select every shelf item of ${row.title}`} />
+            </Box>
+          )}
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.25 }}>
+              {row.title}
+              {row.matched_sku && <Chip size="small" color="primary" label={row.matched_sku} sx={{ ml: 1, height: 18 }} />}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" noWrap component="div">{details.join(' · ')}</Typography>
+          </Box>
+          <IconButton
+            size="small"
+            aria-label={`Add items of ${row.title}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              openObject({ type: 'new-checkin', id: row.product_id });
+            }}
+          >
+            <AddBox fontSize="small" />
+          </IconButton>
+          {open ? <KeyboardArrowDown fontSize="small" sx={{ mt: 0.5 }} /> : <KeyboardArrowRight fontSize="small" sx={{ mt: 0.5 }} />}
+        </Stack>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 1, mt: 0.75 }}>
+          {stats.map((s) => (
+            <Box key={s.label} sx={{ minWidth: 0 }}>
+              <Typography variant="caption" color="text.secondary" component="div" sx={{ lineHeight: 1.1 }}>{s.label}</Typography>
+              <Typography variant="body2" noWrap sx={{ fontWeight: 700, color: s.strong ? 'success.main' : undefined }}>{s.value}</Typography>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+      <Collapse in={open} timeout="auto" unmountOnExit>
+        <Box sx={{ px: 1.25, pb: 1, bgcolor: 'action.hover' }}>
+          <ProductItemsTable
+            productId={row.product_id}
+            includeSold={includeSold}
+            highlightSku={row.matched_sku}
+            product={{ title: row.tag_name || row.title, brand: row.brand, product_number: row.product_number }}
+          />
+          <SimilarProducts productId={row.product_id} />
+        </Box>
+      </Collapse>
+    </Paper>
+  );
+}
+
+const PHONE_SORTS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Best match' },
+  { value: '-on_shelf', label: 'Most on the shelf' },
+  { value: '-sold', label: 'Most sold' },
+  { value: '-last_sold', label: 'Sold most recently' },
+  { value: 'price', label: 'Lowest price' },
+  { value: '-price', label: 'Highest price' },
+  { value: 'title', label: 'Name A to Z' },
+];
+
 /** The header box: ticks every product on this page that has something on the shelf. */
 function SelectAll({ rows }: { rows: InventorySearchRow[] }) {
   const sel = useOptionalSelection();
@@ -303,10 +378,14 @@ function SortHeader({ label, column, sort, onSort, align, text }: {
   );
 }
 
-function SearchBody({ q, sold, page, sort, setParam }: {
-  q: string; sold: boolean; page: number; sort: string; setParam: (changes: Record<string, string | null>) => void;
+function SearchBody({ q, sold, misfit, page, sort, setParam }: {
+  q: string; sold: boolean; misfit: boolean; page: number; sort: string;
+  setParam: (changes: Record<string, string | null>) => void;
 }) {
   const [text, setText] = useState(q);
+  const [adding, setAdding] = useState(false);
+  const theme = useTheme();
+  const phone = useMediaQuery(theme.breakpoints.down('sm'));
   useEffect(() => setText(q), [q]);
   useEffect(() => {
     if (text === q) return undefined;
@@ -315,8 +394,8 @@ function SearchBody({ q, sold, page, sort, setParam }: {
   }, [text, q, setParam]);
 
   const { data, isFetching, isError } = useQuery({
-    queryKey: ['inventory-search', q, sold, page, sort],
-    queryFn: async ({ signal }) => (await searchInventory({ q, sold, page, sort }, signal)).data,
+    queryKey: ['inventory-search', q, sold, page, sort, misfit],
+    queryFn: async ({ signal }) => (await searchInventory({ q, sold, page, sort, misfit }, signal)).data,
     placeholderData: keepPreviousData,
   });
   const rows = data?.results ?? [];
@@ -327,34 +406,82 @@ function SearchBody({ q, sold, page, sort, setParam }: {
     return data.fuzzy ? `Nothing matched exactly. Closest ${n}.` : `${n} · ${data.took_ms} ms`;
   }, [data]);
 
+  const empty = sold
+    ? 'Nothing found.'
+    : misfit
+      ? 'No Misfit items on the shelf match. Turn on "Include sold" to see sold ones too.'
+      : 'Nothing on the shelf matches. Turn on "Include sold" to search everything we have had.';
+
   return (
     <Box>
-      <PageHeader title="Inventory search" dense />
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }} sx={{ mb: 1 }}>
+      <PageHeader
+        title="Inventory search"
+        dense
+        action={(
+          <Button variant="contained" startIcon={<IconAdd />} onClick={() => setAdding(true)} size={phone ? 'small' : 'medium'}>
+            Add item
+          </Button>
+        )}
+      />
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 1, sm: 2 }} alignItems={{ sm: 'center' }} sx={{ mb: 1 }}>
         <TextField
-          autoFocus
+          autoFocus={!phone}
           fullWidth
           size="small"
-          placeholder="Search by name, brand, model, category, UPC, product number, or scan a tag"
+          placeholder={phone ? 'Name, brand, model, UPC, or scan a tag' : 'Search by name, brand, model, category, UPC, product number, or scan a tag'}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') setParam({ q: text || null, page: null });
           }}
           InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> }}
-          inputProps={{ 'aria-label': 'Search inventory' }}
+          inputProps={{ 'aria-label': 'Search inventory', enterKeyHint: 'search' }}
         />
-        <FormControlLabel
-          sx={{ whiteSpace: 'nowrap', m: 0 }}
-          control={<Switch size="small" checked={sold} onChange={(e) => setParam({ sold: e.target.checked ? '1' : null, page: null })} />}
-          label="Include sold"
-        />
+        <Stack direction="row" spacing={2} alignItems="center" useFlexGap
+          sx={{ flexShrink: 0, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
+          <FormControlLabel
+            sx={{ whiteSpace: 'nowrap', m: 0 }}
+            control={<Switch size="small" checked={sold} onChange={(e) => setParam({ sold: e.target.checked ? '1' : null, page: null })} />}
+            label="Include sold"
+          />
+          <Tooltip title="Only items with no purchase order (added with Add item)">
+            <FormControlLabel
+              sx={{ whiteSpace: 'nowrap', m: 0 }}
+              control={<Switch size="small" checked={misfit} onChange={(e) => setParam({ misfit: e.target.checked ? '1' : null, page: null })} />}
+              label="Misfit only"
+            />
+          </Tooltip>
+          {phone && (
+            <TextField
+              select
+              size="small"
+              value={sort}
+              onChange={(e) => onSort(e.target.value || null)}
+              sx={{ minWidth: 160, flex: 1 }}
+              SelectProps={{ displayEmpty: true }}
+              inputProps={{ 'aria-label': 'Sort' }}
+            >
+              {PHONE_SORTS.map((s) => <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>)}
+            </TextField>
+          )}
+        </Stack>
       </Stack>
       <Box sx={{ height: 4, mb: 0.5 }}>{isFetching && <LinearProgress />}</Box>
       <BulkBar />
       <Typography variant="caption" color={isError ? 'error' : 'text.secondary'} sx={{ display: 'block', mb: 0.5 }}>
         {isError ? 'The search failed. Try again.' : summary}
       </Typography>
+      {adding && <AddItemDialog open onClose={() => setAdding(false)} />}
+      {phone ? (
+        <Box>
+          {rows.map((row) => (
+            <ResultCard key={row.product_id} row={row} includeSold={sold} startOpen={!!row.matched_sku || rows.length === 1} />
+          ))}
+          {data && !rows.length && (
+            <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>{empty}</Typography>
+          )}
+        </Box>
+      ) : (
       <TableContainer component={Paper} variant="outlined">
         <Table size="small" stickyHeader aria-label="Inventory search results" sx={{ '& th': { whiteSpace: 'nowrap' }, '& th, & td': { px: 1 } }}>
           <TableHead>
@@ -386,15 +513,14 @@ function SearchBody({ q, sold, page, sort, setParam }: {
             {data && !rows.length && (
               <TableRow>
                 <TableCell colSpan={11}>
-                  <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
-                    {sold ? 'Nothing found.' : 'Nothing on the shelf matches. Turn on "Include sold" to search everything we have had.'}
-                  </Typography>
+                  <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>{empty}</Typography>
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </TableContainer>
+      )}
       {data && data.count > data.page_size && (
         <TablePagination
           component="div"
@@ -413,6 +539,7 @@ export default function InventorySearchPage() {
   const [params, setParams] = useSearchParams();
   const q = params.get('q') ?? '';
   const sold = params.get('sold') === '1';
+  const misfit = params.get('misfit') === '1';
   const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
   const sort = params.get('sort') ?? '';
   // From a Processing row in the Dashboard's details: the items one person put on the floor (owner 2026-10-22).
@@ -449,7 +576,7 @@ export default function InventorySearchPage() {
             setParam={setParam}
           />
         ) : (
-          <SearchBody q={q} sold={sold} page={page} sort={sort} setParam={setParam} />
+          <SearchBody q={q} sold={sold} misfit={misfit} page={page} sort={sort} setParam={setParam} />
         )}
       </SelectionProvider>
     </ObjectModalProvider>
