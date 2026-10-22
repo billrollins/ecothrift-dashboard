@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-22 (View as) -->
+<!-- Last updated: 2026-10-22 (View as; register PIN count_wrong for Cover) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -112,7 +112,7 @@ One PIN per staff member for the register (manager approvals, Cover). Code: `app
 | Who | Any active staff login (Employee, Manager, Admin, owner). A switched-off login or ended employment has no working PIN. |
 | Set | The person sets their own on the Me page (`POST /api/auth/me/pin/`, their password first): 4 to 6 digits. Too-easy PINs (1111, 1234, 9876) are refused. An Admin clears a forgotten one (Users → employee drawer → Register PIN → Clear PIN; `POST /api/accounts/users/{id}/clear-register-pin/`). Each set and clear is an `AccountEvent`. |
 | Unique | A PIN alone says who it is. Stored as `User.register_pin_hash` (HMAC with the server secret, unique), never the PIN. A PIN someone else has: "Pick a different PIN"; five of those in an hour stop that person for the hour. |
-| Check | `check_pin(pin, device=..., min_role=None)` answers the user or raises `PinError` (`PIN_WRONG`, `PIN_LOCKED`, `PIN_NEEDED`). A right PIN below `min_role` counts as wrong. |
+| Check | `check_pin(pin, device=..., min_role=None)` answers the user or raises `PinError` (`PIN_WRONG`, `PIN_LOCKED`, `PIN_NEEDED`). A right PIN below `min_role` counts as wrong. `count_wrong(device)` counts a real PIN that isn't the one asked for (Cover's Back) as a wrong try. |
 | Lockout | Five wrong tries in a row lock PIN entry **on that register or device** for 15 minutes (`device_key(request, register)`; REG-11: never store-wide). A right PIN clears the count. |
 | Logging | Each caller logs what the PIN approved. |
 

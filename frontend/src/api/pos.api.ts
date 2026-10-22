@@ -107,6 +107,15 @@ export function cashDrop(drawerId: number, data: Record<string, unknown>): Promi
   return api.post(`/pos/drawers/${drawerId}/drop/`, data);
 }
 
+/** Paid in / paid out (2026-10-21): `{ amount, total, reason }`; the reason is required. */
+export function moveDrawerCash(
+  drawerId: number,
+  kind: 'paid-in' | 'paid-out',
+  data: Record<string, unknown>,
+): Promise<{ data: unknown }> {
+  return api.post(`/pos/drawers/${drawerId}/${kind}/`, data);
+}
+
 // Supplemental
 export function getSupplemental(): Promise<{ data: unknown }> {
   return api.get('/pos/supplemental/');
@@ -732,6 +741,16 @@ export function getCartCardPreview(
  * kicks the drawer. `cart` when it is for a sale whose receipt did not print. */
 export function logOpenDrawer(drawerId: number, body: { cart?: number; reason?: string } = {}): Promise<{ data: { id: number } }> {
   return api.post(`/pos/drawers/${drawerId}/open-drawer/`, body);
+}
+
+/** Cover (2026-10-22): the person stepping in types their own register PIN; answers the drawer with its `cover`. */
+export function coverDrawer(drawerId: number, pin: string): Promise<{ data: Drawer }> {
+  return api.post<Drawer>(`/pos/drawers/${drawerId}/cover/`, { pin });
+}
+
+/** Back: the drawer's own cashier types their PIN and the cover ends. */
+export function endDrawerCover(drawerId: number, pin: string): Promise<{ data: Drawer }> {
+  return api.post<Drawer>(`/pos/drawers/${drawerId}/cover-back/`, { pin });
 }
 
 /** A tax-exempt sale to a non-profit (2026-10-21): `org` and `number`, or a `photo` of the certificate; `off` undoes it. */

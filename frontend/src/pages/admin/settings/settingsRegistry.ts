@@ -485,6 +485,21 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     kind: 'percent',
     defaultValue: 0.5,
   },
+  // Register money (critic review point 3, 2026-10-21): the owner's alone.
+  'pos.discount_cap_percent': {
+    label: 'Discount cap without a manager',
+    help: 'A discount bigger than this percent of the sale needs a manager\'s PIN and a reason. Default 20.',
+    tab: 'store',
+    kind: 'count',
+    defaultValue: 20,
+  },
+  'pos.close_note_over': {
+    label: 'Drawer close: note needed when off by more than',
+    help: 'A drawer count more than this many dollars over or short needs a note saying why. Default $5.',
+    tab: 'store',
+    kind: 'money',
+    defaultValue: '5.00',
+  },
   // Store sale calendar and the register's on/off: changed at the register, not here.
   'pos.labor_day_sale': {
     label: 'Store sale calendar',
@@ -819,6 +834,7 @@ export function isOwnerOnlyKey(key: string): boolean {
 
 const OWNER_SALE_KEYS = new Set([
   'pos.store_sale_name', 'pos.store_sale_percent', 'pos.line_sale_on', 'pos.line_sale_name', 'pos.line_sale_percent',
+  'pos.discount_cap_percent', 'pos.close_note_over',
 ]);
 
 /** Known to the registry, or job state: anything else is Unsorted. */

@@ -190,7 +190,7 @@ describe('Refresh on the cart (owner 2026-10-20)', () => {
 
 describe('The popup after a member\'s sale with a 3-day-return item (owner 2026-10-20)', () => {
   async function pay(user: ReturnType<typeof userEvent.setup>) {
-    await user.type(await screen.findByLabelText('Cash tendered'), '100');
+    await user.click(await screen.findByTestId('cash-hundreds')); // the cashier taps the $100 handed over (2026-10-21)
     await user.click(screen.getByRole('button', { name: 'Complete sale' }));
   }
 

@@ -165,6 +165,12 @@ def check_pin(pin: str, *, device: str, min_role: str | None = None) -> User:
     if user is not None and can_hold_pin(user) and role_rank(user) >= need:
         cache.delete(_fail_key(device))
         return user
+    count_wrong(device, manager=need >= ROLE_RANK['Manager'])
+
+
+def count_wrong(device: str, *, manager: bool = False):
+    """A wrong try on this device: always raises ``PIN_WRONG`` (with ``tries_left``), or ``PIN_LOCKED`` on the fifth.
+    Also for a real PIN that is not the one asked for (Cover's Back wants the drawer's own cashier)."""
     failures = (cache.get(_fail_key(device)) or 0) + 1
     if failures >= MAX_FAILURES:
         cache.delete(_fail_key(device))
@@ -172,5 +178,5 @@ def check_pin(pin: str, *, device: str, min_role: str | None = None) -> User:
         raise PinError('PIN_LOCKED', f'Too many wrong PINs. PIN entry here is locked for {LOCK_MINUTES} minutes.',
                        http=429)
     cache.set(_fail_key(device), failures, LOCK_MINUTES * 60)
-    wrong = "That PIN is wrong, or it isn't a manager's." if need >= ROLE_RANK['Manager'] else 'That PIN is wrong.'
+    wrong = "That PIN is wrong, or it isn't a manager's." if manager else 'That PIN is wrong.'
     raise PinError('PIN_WRONG', wrong, tries_left=MAX_FAILURES - failures)

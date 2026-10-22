@@ -262,7 +262,8 @@ class TrainingRegisterSafetyTests(TestCase):
                             format='json')
         self.assertEqual((res.status_code, res.json()['code']), (400, 'TRAINING_REGISTER'))
         self.assertFalse(CashDrop.objects.exists())
-        res = self.api.post(f'/api/pos/drawers/{self.front_drawer.pk}/drop/', {'amount': {}, 'total': '20.00'},
+        res = self.api.post(f'/api/pos/drawers/{self.front_drawer.pk}/drop/',
+                            {'amount': {}, 'total': '20.00', 'reason': 'Too much cash'},
                             format='json')
         self.assertEqual(res.status_code, 200, res.content)
         self.assertEqual(CashDrop.objects.get().drawer_id, self.front_drawer.pk)

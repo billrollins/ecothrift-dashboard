@@ -58,6 +58,10 @@ import { DeviceSetupDialog } from '../../components/pos/DeviceSetupDialog';
 import { DiscountDialog, type DiscountSubmitPayload } from '../../components/pos/DiscountDialog';
 import { useManagerOk } from '../../components/pos/ManagerOkDialog';
 import TaxExemptDialog, { taxExemptText, type TaxExemptInput } from '../../components/pos/TaxExemptDialog';
+import CashTenderPad from '../../components/pos/CashTenderPad';
+import CountCheckDialog from '../../components/pos/CountCheckDialog';
+import { useRegisterCover } from '../../components/pos/RegisterCover';
+import { countCents, describeCount, hasPieces, type CashCount } from '../../utils/cashCounts';
 import { thriftCoversSale, thriftPaymentParts } from '../../utils/posPayment';
 import { SummerLinesDialog } from '../../components/pos/SummerLinesDialog';
 import {
@@ -120,7 +124,7 @@ import { localPrintService, printErrorMessage } from '../../services/localPrintS
 import type { CardPreview, Cart, CartLine, Drawer, PaymentMethod, POSDeviceConfig, Register } from '../../types/pos.types';
 import { deriveTerminalState } from './terminalState';
 import { TEST_TERMINAL_TITLE, testTerminalDeviceConfig } from '../../utils/testTerminal';
-import type { DenominationBreakdown } from '../../types/pos.types';
+import type { CountCheck, DenominationBreakdown } from '../../types/pos.types';
 import {
   parsePosAddItemError,
   snackbarVariantForPosAddItemError,
@@ -267,6 +271,13 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   const [editingLineId, setEditingLineId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState({ quantity: '', description: '', unit_price: '' });
   const [voidConfirmOpen, setVoidConfirmOpen] = useState(false);
+  // Cash by bill and coin (2026-10-21): what was tapped; "type the amount" is the fallback for odd cash.
+  const [cashReceived, setCashReceived] = useState<CashCount>({});
+  // The opening count beside the register's till fund, shown after the blind count (2026-10-21).
+  const [openingCheck, setOpeningCheck] = useState<CountCheck | null>(null);
+  const [typeCash, setTypeCash] = useState(false);
+  // After a cash sale: what Dash says to give back, until the next sale starts.
+  const [giveBack, setGiveBack] = useState<{ change: string; text: string; short: boolean } | null>(null);
   // A receipt that did not print (2026-10-21, REG-03): a box that stays until someone deals with it. For a cash sale
   // the drawer rode in the same print job, so it did not open either.
   const [printProblem, setPrintProblem] = useState<{ cart: Cart | null; message: string; drawerShut: boolean } | null>(
@@ -359,6 +370,9 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   // Always keep a ref to the latest todayDrawer so callbacks are never stale
   const todayDrawerRef = useRef(todayDrawer);
   todayDrawerRef.current = todayDrawer;
+
+  // Cover (2026-10-22): someone stepping in at this register for a few minutes. Not on the test terminal.
+  const registerCover = useRegisterCover(isRegister && !testMode && todayDrawer?.status === 'open' ? todayDrawer : null);
 
   // Manager/non-register mode: all open drawers
   const { data: openDrawersData, isLoading: openDrawersLoading } = useDrawers(
@@ -516,12 +530,13 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
     if (registerId == null || typeof registerId !== 'number') return;
     const total = calculateTotal(openingCount);
     try {
-      await openDrawerMutation.mutateAsync({
+      const opened = await openDrawerMutation.mutateAsync({
         register: registerId,
         opening_count: openingCount,
         opening_total: total,
       });
       enqueueSnackbar('Drawer opened', { variant: 'success' });
+      if (opened?.count_check) setOpeningCheck(opened.count_check);
       setOpenDrawerDialog(false);
       setOpeningCount(EMPTY_BREAKDOWN);
     } catch (err: unknown) {
@@ -1347,6 +1362,12 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       enqueueSnackbar(practice ? 'Practice sale done. Nothing was sold.' : 'Sale completed', {
         variant: 'success',
       });
+      const back = describeCount(completedCart.change_breakdown ?? {});
+      setGiveBack(
+        back
+          ? { change: formatCurrency(completedCart.change_given ?? 0), text: back, short: Boolean(completedCart.change_short) }
+          : null,
+      );
       markRegisterActivity();
 
       // A practice sale never opens the cash drawer: no money changes hands.
@@ -1465,8 +1486,10 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
     }
 
     const payload: Record<string, unknown> = { payment_method: paymentMethod };
-    if (paymentMethod === 'cash' || paymentMethod === 'split')
+    if (paymentMethod === 'cash' || paymentMethod === 'split') {
       payload.cash_tendered = cashTendered ? parseFloat(cashTendered) : 0;
+      if (!typeCash && hasPieces(cashReceived)) payload.cash_received = cashReceived;
+    }
     if (paymentMethod === 'card' || paymentMethod === 'split')
       payload.card_amount = cardDue;
 
@@ -1504,6 +1527,24 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
 
   // Thrift+ credit and/or ThriftBucks leave nothing due (Bill, 2026-10-21): one button, no cash or card step.
   const thriftCovers = thriftCoversSale(cart);
+
+  // A cleared cash amount (after a sale, a void, a new sale) clears the tapped bills too.
+  useEffect(() => {
+    if (cashTendered === '') setCashReceived({});
+  }, [cashTendered]);
+  useEffect(() => {
+    if (cart?.id) setGiveBack(null);
+  }, [cart?.id]);
+
+  const onCashTapped = (next: CashCount) => {
+    setCashReceived(next);
+    setCashTendered(hasPieces(next) ? (countCents(next) / 100).toFixed(2) : '');
+  };
+
+  /** The drawer's contents by bill and coin, when Dash knows them (change comes from what is there). */
+  const drawerContents: CashCount | null = (isRegister
+    ? todayDrawer?.contents
+    : openDrawersList.find((d) => d.id === managerDrawerId)?.contents) ?? null;
 
   const changeDue = (() => {
     if (paymentMethod !== 'cash' && paymentMethod !== 'split') return 0;
@@ -2422,6 +2463,18 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                     <Typography variant="body2">No tax on this sale.</Typography>
                   </Alert>
                 )}
+                {giveBack && !cart && (
+                  <Alert severity="success" sx={{ mb: 1 }} onClose={() => setGiveBack(null)} data-testid="give-back-last">
+                    <Typography fontWeight={800}>
+                      Give back {giveBack.change}: {giveBack.text}
+                    </Typography>
+                    {giveBack.short && (
+                      <Typography variant="body2">
+                        The drawer may not have these. Give the same amount from what it has.
+                      </Typography>
+                    )}
+                  </Alert>
+                )}
                 {thriftCovers ? (
                   <Alert severity="success" icon={false} sx={{ mb: 1 }}>
                     <Typography fontWeight={700}>Nothing to pay: Thrift+ covers this sale.</Typography>
@@ -2448,7 +2501,19 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                   <PayrollPicker amount={amountDue(cart)} value={payrollEmployee} onChange={setPayrollEmployee} />
                 )}
 
-                {(paymentMethod === 'cash' || paymentMethod === 'split') && (
+                {(paymentMethod === 'cash' || paymentMethod === 'split') && !typeCash && (
+                  <Box sx={{ mb: 1 }}>
+                    <CashTenderPad
+                      received={cashReceived}
+                      onChange={onCashTapped}
+                      dueCents={Math.round(amountDue(cart) * 100)}
+                      drawerContents={drawerContents}
+                      split={paymentMethod === 'split'}
+                      disabled={completeCartMutation.isPending}
+                    />
+                  </Box>
+                )}
+                {(paymentMethod === 'cash' || paymentMethod === 'split') && typeCash && (
                   <TextField
                     fullWidth
                     size="small"
@@ -2460,7 +2525,20 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                     sx={{ mb: 1 }}
                   />
                 )}
-                {(paymentMethod === 'cash' || paymentMethod === 'split') && changeDue > 0 && (
+                {(paymentMethod === 'cash' || paymentMethod === 'split') && (
+                  <Button
+                    size="small"
+                    sx={{ mb: 1, textTransform: 'none' }}
+                    onClick={() => {
+                      setTypeCash((v) => !v);
+                      setCashTendered('');
+                    }}
+                    data-testid="cash-type-toggle"
+                  >
+                    {typeCash ? 'Tap the bills and coins instead' : 'Type the amount instead'}
+                  </Button>
+                )}
+                {(paymentMethod === 'cash' || paymentMethod === 'split') && typeCash && changeDue > 0 && (
                   <Typography
                     variant="h6"
                     color="success.main"
@@ -2577,6 +2655,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         }
         action={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {(terminalState === 'ready' || terminalState === 'active_sale') && registerCover.button}
             {/* The Labor Day sale is retired (owner 2026-10-16): the chip shows only while a sale is actually on, so it
                 can be turned off, never on by accident. */}
             {/* Only the owner turns it off (REG-21); everyone else sees it. */}
@@ -2614,6 +2693,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       />
 
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {(terminalState === 'ready' || terminalState === 'active_sale') && registerCover.banner}
         {(terminalState === 'ready' || terminalState === 'active_sale') && (
           <SuspendedSalesBar
             drawerId={cart?.drawer ?? todayDrawer?.id}
@@ -3168,6 +3248,10 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         onCancel={() => setTaxExemptOpen(false)}
       />
 
+      {registerCover.dialog}
+
+      <CountCheckDialog check={openingCheck} title="Opening count" onClose={() => setOpeningCheck(null)} />
+
       {/* A receipt that did not print (REG-03): loud, and it stays until someone deals with it. */}
       <Dialog open={printProblem !== null} maxWidth="xs" fullWidth data-testid="print-problem">
         <DialogTitle sx={{ color: 'error.main', fontWeight: 800 }}>
@@ -3270,6 +3354,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
           const payload: Record<string, unknown> = { payment_method: paymentMethod };
           if (paymentMethod === 'cash' || paymentMethod === 'split') {
             payload.cash_tendered = cashTendered ? parseFloat(cashTendered) : 0;
+            if (!typeCash && hasPieces(cashReceived)) payload.cash_received = cashReceived;
           }
           if (paymentMethod === 'card' || paymentMethod === 'split') {
             const cash = parseFloat(cashTendered) || 0;

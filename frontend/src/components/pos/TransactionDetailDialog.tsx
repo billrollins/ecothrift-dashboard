@@ -66,6 +66,7 @@ export function TransactionDetailDialog({ open, cart, onClose, onCartUpdated }: 
             <Typography variant="body2" color="text.secondary">
               {format(new Date(cart.completed_at ?? cart.created_at), 'PPp')} ·{' '}
               {cart.cashier_name ?? '-'}
+              {cart.covering_for_name ? ` (covering for ${cart.covering_for_name})` : ''}
             </Typography>
             <Box sx={{ mt: 2 }}>
               {(cart.lines ?? []).map((line: CartLine) => (

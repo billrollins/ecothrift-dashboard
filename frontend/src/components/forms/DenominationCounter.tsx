@@ -29,6 +29,8 @@ interface DenominationCounterProps {
   expectedTotal?: number;
   disabled?: boolean;
   label?: string;
+  /** Only the bills (a handoff, the hand count at close) or only the coins. */
+  only?: 'bills' | 'coins';
 }
 
 export default function DenominationCounter({
@@ -37,8 +39,10 @@ export default function DenominationCounter({
   expectedTotal,
   disabled = false,
   label = 'Cash Count',
+  only,
 }: DenominationCounterProps) {
   const total = calculateTotal(value);
+  const shown = DENOMINATIONS.filter((d) => !only || (only === 'bills') === (d.value >= 1));
   const variance = expectedTotal !== undefined ? total - expectedTotal : undefined;
 
   const handleChange = (key: keyof DenominationBreakdown, qty: number) => {
@@ -49,7 +53,7 @@ export default function DenominationCounter({
     <Paper sx={{ p: 2 }}>
       <Typography variant="h6" gutterBottom>{label}</Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 1.5 }}>
-        {DENOMINATIONS.map((d) => {
+        {shown.map((d) => {
           const qty = value[d.key] || 0;
           const denomTotal = qty * d.value;
           return (
@@ -64,7 +68,7 @@ export default function DenominationCounter({
                 fullWidth
                 slotProps={{
                   input: {
-                    inputProps: { min: 0 },
+                    inputProps: { min: 0, 'aria-label': d.label },
                   },
                 }}
               />

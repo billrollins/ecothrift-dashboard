@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 from decimal import Decimal
 
 
@@ -58,6 +59,17 @@ class Drawer(models.Model):
     cash_sales_total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     expected_cash = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     variance = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # What should be in the drawer by bill and coin (2026-10-21, cash by denomination): the opening count, plus each
+    # cash sale's money received less the change given, less drops. The closing count is checked against it.
+    contents = models.JSONField(default=dict, blank=True)
+    # Blind counts (2026-10-21, drawer life): what was expected is kept beside what was counted, shown only after.
+    opening_expected = models.JSONField(null=True, blank=True, help_text="The register's till fund at opening.")
+    closing_expected = models.JSONField(null=True, blank=True, help_text='The contents Dash expected at close.')
+    coin_counter_total = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text='Coins from the office coin counter when only its total was entered (no count per coin).',
+    )
+    close_note = models.TextField(blank=True, default='')
 
     class Meta:
         unique_together = ('register', 'date')
@@ -83,12 +95,49 @@ class DrawerHandoff(models.Model):
     expected_total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     variance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     notes = models.TextField(blank=True, default='')
+    # Since 2026-10-21 a handoff counts the bills only (coins are counted at the end of the day in the office).
+    bills_only = models.BooleanField(default=False)
+    expected_count = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ['-counted_at']
 
     def __str__(self):
         return f'Handoff {self.drawer} at {self.counted_at}'
+
+
+class DrawerCover(models.Model):
+    """Someone stepping in at a register for a few minutes (Bill, 2026-10-21, digest point 3): they tap Cover and type
+    their own register PIN once; the register says "Covered by ..." and the sales made meanwhile are theirs. It ends
+    with Back and the drawer's own cashier's PIN, after 10 idle minutes, or when the drawer changes hands or closes."""
+    END_BACK = 'back'
+    END_IDLE = 'idle'
+    END_REPLACED = 'replaced'
+    END_HANDOFF = 'handoff'
+    END_CLOSED = 'closed'
+    END_CHOICES = [
+        (END_BACK, 'Back (the cashier\'s PIN)'),
+        (END_IDLE, 'Ended after 10 idle minutes'),
+        (END_REPLACED, 'Someone else covered'),
+        (END_HANDOFF, 'The drawer changed hands'),
+        (END_CLOSED, 'The drawer closed'),
+    ]
+
+    drawer = models.ForeignKey(Drawer, on_delete=models.CASCADE, related_name='covers')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='drawer_covers',
+                             help_text='Who stepped in.')
+    cashier = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+',
+                                help_text="The drawer's own cashier, who ends it with Back.")
+    started_at = models.DateTimeField(default=timezone.now)
+    last_activity_at = models.DateTimeField(default=timezone.now)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    ended_how = models.CharField(max_length=10, choices=END_CHOICES, blank=True, default='')
+
+    class Meta:
+        ordering = ['-started_at']
+
+    def __str__(self):
+        return f'{self.user} covering {self.drawer}'
 
 
 class CashDrop(models.Model):
@@ -100,12 +149,36 @@ class CashDrop(models.Model):
     )
     dropped_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True, default='')
+    reason = models.CharField(max_length=200, blank=True, default='')
 
     class Meta:
         ordering = ['-dropped_at']
 
     def __str__(self):
         return f'Drop ${self.total} from {self.drawer}'
+
+
+class CashMovement(models.Model):
+    """Money put in or taken out of an open drawer for something other than a sale (2026-10-21, drawer life): change
+    brought in, a small purchase or a refund paid from the drawer. Always with a reason; the expected cash and the
+    drawer's contents follow it. Drops (to the office) are ``CashDrop``."""
+    KIND_PAID_IN = 'paid_in'
+    KIND_PAID_OUT = 'paid_out'
+    KIND_CHOICES = [(KIND_PAID_IN, 'Paid in'), (KIND_PAID_OUT, 'Paid out')]
+
+    drawer = models.ForeignKey(Drawer, on_delete=models.CASCADE, related_name='movements')
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+    amount = models.JSONField(default=dict, blank=True)
+    total = models.DecimalField(max_digits=10, decimal_places=2)
+    reason = models.CharField(max_length=200)
+    performed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='cash_movements')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.get_kind_display()} ${self.total} ({self.drawer})'
 
 
 class SupplementalDrawer(models.Model):
@@ -129,6 +202,11 @@ class SupplementalTransaction(models.Model):
         ('draw', 'Draw'),
         ('return', 'Return'),
         ('audit_adjustment', 'Audit Adjustment'),
+        # The cash chain (2026-10-21, REG-19): a drawer's till comes out of the office at opening, its drops go in during
+        # the day, and everything in it goes back in at the office close.
+        ('drawer_open', 'Drawer opened (till out)'),
+        ('drop', 'Drop from a drawer'),
+        ('drawer_close', 'Drawer closed (cash in)'),
     ]
 
     supplemental = models.ForeignKey(
@@ -212,6 +290,8 @@ class Cart(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
         related_name='carts',
     )
+    # Made while someone covered the register (2026-10-22): ``cashier`` is then the person covering.
+    cover = models.ForeignKey('DrawerCover', on_delete=models.SET_NULL, null=True, blank=True, related_name='sales')
     # Retired (T62, 2026-10-20): the old "scan CUS-nnn" customer. Nothing sets it any more; the customer on a sale is
     # the Thrift+ member (``thriftplus.CartMember``). Old rows keep their value; a later release drops the column.
     customer = models.ForeignKey(
@@ -226,6 +306,11 @@ class Cart(models.Model):
     payment_method = models.CharField(max_length=10, choices=PAYMENT_METHODS, default='cash')
     cash_tendered = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     change_given = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # By bill and coin (2026-10-21): what the customer handed over (tapped at the register) and what Dash said to give
+    # back. ``cash_received_typed``: the cashier typed an amount instead, so the bills are Dash's best guess.
+    cash_received = models.JSONField(null=True, blank=True)
+    change_breakdown = models.JSONField(null=True, blank=True)
+    cash_received_typed = models.BooleanField(default=False)
     card_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     card_type = models.CharField(max_length=10, choices=CARD_TYPES, blank=True, default='')
     card_surcharge_rate = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('0'))

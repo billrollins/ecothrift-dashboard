@@ -75,6 +75,9 @@ export interface DrawerHandoff {
   expected_total: string;
   variance: string;
   notes: string;
+  /** Since 2026-10-21 a handoff counts the bills only; what Dash expected, by bill. */
+  bills_only?: boolean;
+  expected_count?: Partial<Record<keyof DenominationBreakdown, number>>;
 }
 
 export interface CashDrop {
@@ -86,6 +89,8 @@ export interface CashDrop {
   dropped_by_name: string | null;
   dropped_at: string;
   notes: string;
+  /** Why it was dropped (2026-10-21: required). */
+  reason?: string;
 }
 
 export interface Drawer {
@@ -112,10 +117,55 @@ export interface Drawer {
   cash_sales_total: string;
   expected_cash: string | null;
   variance: string | null;
+  /** What should be in the drawer by bill and coin (2026-10-21): opening count + cash taken in - change - drops. */
+  contents?: Partial<Record<keyof DenominationBreakdown, number>>;
+  /** Blind counts (2026-10-21): the till fund expected at opening, the contents expected at close, the coin counter's
+   * total when coins were not counted by coin, and the close note. */
+  opening_expected?: Partial<Record<keyof DenominationBreakdown, number>> | null;
+  closing_expected?: Partial<Record<keyof DenominationBreakdown, number>> | null;
+  coin_counter_total?: string | null;
+  close_note?: string;
   card_sales_total?: string;
   card_surcharge_total?: string;
   handoffs: DrawerHandoff[];
   drops: CashDrop[];
+  movements?: CashMovement[];
+  /** Someone covering the register now (2026-10-22), or null. */
+  cover?: DrawerCoverInfo | null;
+  /** Only on the answer to an open, handoff, takeover or close: the blind count beside what was expected. */
+  count_check?: CountCheck;
+}
+
+/** Cover (2026-10-22): who stepped in, whose drawer it is, and when 10 idle minutes are up (a sale moves it). */
+export interface DrawerCoverInfo {
+  id: number;
+  user: number;
+  user_name: string;
+  cashier: number;
+  cashier_name: string;
+  started_at: string;
+  idle_ends_at: string;
+}
+
+/** Paid in / paid out (2026-10-21): money in or out of an open drawer for something other than a sale, with a reason. */
+export interface CashMovement {
+  id: number;
+  drawer: number;
+  kind: 'paid_in' | 'paid_out';
+  amount: Partial<Record<keyof DenominationBreakdown, number>>;
+  total: string;
+  reason: string;
+  performed_by: number;
+  performed_by_name: string | null;
+  created_at: string;
+}
+
+/** A blind count's answer: counted beside expected by bill and coin (coins as one row from the coin counter). */
+export interface CountCheck {
+  rows: { key: string; label: string; counted: number | string; expected: number | string; difference: number | string }[];
+  counted_total: string;
+  expected_total: string;
+  difference_total: string;
 }
 
 export interface SupplementalDrawer {
@@ -233,6 +283,13 @@ export interface Cart {
   payment_method: PaymentMethod;
   cash_tendered: string | null;
   change_given: string | null;
+  /** By bill and coin (2026-10-21): what was handed over, and what Dash said to give back. */
+  cash_received?: Partial<Record<keyof DenominationBreakdown, number>> | null;
+  change_breakdown?: Partial<Record<keyof DenominationBreakdown, number>> | null;
+  /** The cashier typed an amount: the bills in `cash_received` are Dash's guess. */
+  cash_received_typed?: boolean;
+  /** Only on the Complete answer: the drawer could not make the change exactly from what Dash knows is in it. */
+  change_short?: boolean;
   card_amount: string | null;
   card_type?: CardType;
   card_surcharge_rate?: string;
@@ -260,6 +317,9 @@ export interface Cart {
   tax_exempt_by?: number | null;
   tax_exempt_by_name?: string | null;
   tax_exempt_at?: string | null;
+  /** Sold while covering someone's drawer (2026-10-22): the cover, and whose drawer it was. */
+  cover?: number | null;
+  covering_for_name?: string | null;
   created_at: string;
   lines: CartLine[];
   receipt?: Receipt | null;

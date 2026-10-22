@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (lock the till: checked counts, recount fix, drawer edits managers only) -->
+<!-- Last updated: 2026-10-22 (drawer life: blind counts, bills-only handoff, paid in / out, drops with a reason, office close into the office ledger; cash by denomination at the register) -->
 
 # Cash Management — Extended Context
 
@@ -28,6 +28,23 @@ Reusable form at `frontend/src/components/forms/DenominationCounter.tsx`:
 - Shows per-denomination subtotal and running total
 - Optional `expectedTotal` prop: displays variance (green if within $0.01, warning/error otherwise)
 - Exports: `calculateTotal(breakdown)`, `EMPTY_BREAKDOWN`, `DENOMINATIONS`
+
+### Cash by denomination at the register (2026-10-21, digest point 3, `pos.0043`)
+
+- **Tap the money handed over:** the register's cash panel is a pad of bills and coins (`components/pos/CashTenderPad.tsx`): tap a bill to add it (touch or mouse), right-click or Shift-tap to take one back; with the pad focused, keys Q W E R T Y = $100 $50 $20 $10 $5 $1 and A S D F = 25¢ 10¢ 5¢ 1¢ (Shift takes one back, Backspace undoes). Exact cash, Undo and Clear. "Type the amount instead" is the fallback; Dash then guesses the bills (`cash_received_typed`).
+- **What to give back:** the pad shows "Change $2.60: give back 2 × $1, 2 × quarters, 1 × dimes" from what the drawer holds; after the sale the panel keeps the server's answer until the next sale. Fewest pieces, largest first, or an exact search when the drawer is short of a coin (30¢ with no nickels: 3 dimes). If the drawer can't make it (Dash's contents drifted), it says so (`change_short`) and the cashier gives the same amount from what is there. Same rules on both sides: `services/cash_counts.make_change` and `utils/cashCounts.ts`.
+- **Complete** takes `cash_received` (a count); its sum is the cash tendered (a `cash_tendered` sent too must match: `CASH_MISMATCH`). The sale keeps `cash_received`, `change_breakdown` and `cash_received_typed`.
+- **The drawer's contents** (`Drawer.contents`, by bill and coin) start as the opening count, gain each cash sale's money received less the change given (under a row lock), lose drops by their count, and get a void's money back out. A count can go below 0 when Dash and the drawer disagree; the closing count shows it. The training register touches no drawer.
+
+### A drawer's life (2026-10-22, digest point 3, REG-18/19, `pos.0044`, `services/drawer_life.py`)
+
+- **Blind counts.** Opening, handoff and close are counted without seeing what Dash expects. The answer after the count (`count_check` on the response) shows counted, expected and the difference by bill and coin (`components/pos/CountCheckDialog.tsx`). Opening is checked against the register's till fund (`Register.starting_breakdown`; none set, no check). A cashier's Drawers card hides the running cash sales while the drawer is open.
+- **Handoff and takeover count the bills only** (Bill, 10-21): coins in the count are refused; expected = the bills in `Drawer.contents`. The handoff keeps `bills_only` and `expected_count`.
+- **Expected cash** = opening + cash sales - drops + paid in - paid out.
+- **Paid in / paid out** (`CashMovement`, `POST /pos/drawers/{id}/paid-in/` and `/paid-out/`, `{amount, total, reason}`): money in or out that is not a sale or a drop; a reason is required; the drawer's contents follow. Not on the training register or a closed drawer.
+- **Drops need a reason** (`CashDrop.reason`) and go into the office.
+- **The office close** (`close`): bills by hand plus the coins by coin or the coin counter's total (`coins_total`, one row; not both). More than the owner's `pos.close_note_over` off (Settings → Store → Register money, default $5) needs a `note` (400 `NOTE_REQUIRED`, which does not say by how much). Only the drawer's cashier or a manager closes it (403 `NOT_YOUR_DRAWER`). The drawer keeps `closing_expected`, `coin_counter_total`, `close_note`.
+- **The cash chain into the office ledger** (`SupplementalTransaction`): the till leaves the office at opening (`drawer_open`), drops go in (`drop`), and everything counted at the close goes in (`drawer_close`); the office's total and bills/coins move with each. Nothing for the training register or when no supplemental drawer is set up.
 
 ## Supplemental Drawer
 
@@ -65,7 +82,7 @@ Note: `get_supplemental()` returns `.first()` — single supplemental drawer per
 ## CashDrop
 
 - Safe drops during a shift, taken from the register drawer
-- `drawer` (FK), `amount` (JSONField), `total`, `dropped_by`, `notes`
+- `drawer` (FK), `amount` (JSONField), `total`, `dropped_by`, `notes`, `reason` (required since 2026-10-22)
 - Endpoint: `POST /pos/drawers/{id}/drop/`
 
 ## BankTransaction
@@ -80,11 +97,11 @@ Note: `get_supplemental()` returns `.first()` — single supplemental drawer per
 
 When closing a drawer (`POST /pos/drawers/{id}/close/`):
 
-1. **Expected cash** = `opening_total + cash_sales_total - drops`. `cash_sales_total` grows by each cash sale's amount due (the change handed back is never in it) and is added in the database, so two sales at once both count.
+1. **Expected cash** = `opening_total + cash_sales_total - drops + paid in - paid out` (`drawer_life.expected_cash`). `cash_sales_total` grows by each cash sale's amount due (the change handed back is never in it) and is added in the database, so two sales at once both count.
 2. **Variance** = `closing_total - expected_cash`
 3. Drawer is marked closed with `closing_count`, `closing_total`, `expected_cash`, `variance`
 
-Cash drops are taken from the drawer during the shift; the close compares the physical count to opening + sales.
+Cash drops are taken from the drawer during the shift; the close compares the physical count to opening + sales. The count is blind and goes into the office ledger: see "A drawer's life" above.
 
 ## CashManagementPage Layout
 

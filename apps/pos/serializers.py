@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.db.models import DecimalField, OuterRef, Subquery, Sum
 from rest_framework import serializers
 from .models import (
-    Register, Drawer, DrawerHandoff, CashDrop,
+    Register, Drawer, DrawerHandoff, CashDrop, CashMovement,
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
     Cart, CartLine, Receipt, RevenueGoal, DashboardSalesGoal,
     DashboardDepartmentGoal,
@@ -48,7 +48,7 @@ class DrawerHandoffSerializer(serializers.ModelSerializer):
             'id', 'drawer', 'outgoing_cashier', 'outgoing_cashier_name',
             'incoming_cashier', 'incoming_cashier_name',
             'counted_at', 'count', 'counted_total', 'expected_total',
-            'variance', 'notes',
+            'variance', 'notes', 'bills_only', 'expected_count',
         ]
         read_only_fields = ['id']
 
@@ -60,9 +60,18 @@ class CashDropSerializer(serializers.ModelSerializer):
         model = CashDrop
         fields = [
             'id', 'drawer', 'amount', 'total',
-            'dropped_by', 'dropped_by_name', 'dropped_at', 'notes',
+            'dropped_by', 'dropped_by_name', 'dropped_at', 'notes', 'reason',
         ]
         read_only_fields = ['id', 'dropped_at']
+
+
+class CashMovementSerializer(serializers.ModelSerializer):
+    performed_by_name = serializers.CharField(source='performed_by.full_name', read_only=True, default=None)
+
+    class Meta:
+        model = CashMovement
+        fields = ['id', 'drawer', 'kind', 'amount', 'total', 'reason', 'performed_by', 'performed_by_name', 'created_at']
+        read_only_fields = fields
 
 
 class DrawerSerializer(serializers.ModelSerializer):
@@ -76,6 +85,9 @@ class DrawerSerializer(serializers.ModelSerializer):
     closed_by_name = serializers.CharField(source='closed_by.full_name', read_only=True, default=None)
     handoffs = DrawerHandoffSerializer(many=True, read_only=True)
     drops = CashDropSerializer(many=True, read_only=True)
+    movements = CashMovementSerializer(many=True, read_only=True)
+    # Cover (2026-10-22): who is covering the register now, or null.
+    cover = serializers.SerializerMethodField()
     card_sales_total = serializers.SerializerMethodField()
     card_surcharge_total = serializers.SerializerMethodField()
 
@@ -88,13 +100,18 @@ class DrawerSerializer(serializers.ModelSerializer):
             'opening_count', 'opening_total',
             'closed_by', 'closed_by_name', 'closed_at',
             'closing_count', 'closing_total',
-            'cash_sales_total', 'expected_cash', 'variance',
+            'cash_sales_total', 'expected_cash', 'variance', 'contents',
+            'opening_expected', 'closing_expected', 'coin_counter_total', 'close_note',
             'card_sales_total', 'card_surcharge_total',
-            'handoffs', 'drops',
+            'handoffs', 'drops', 'movements', 'cover',
         ]
         # Lock the till (2026-10-21): a drawer is opened, handed off, closed and dropped through its own actions,
         # which check every count. Nothing is written through the drawer record itself.
         read_only_fields = fields
+
+    def get_cover(self, obj):
+        from apps.pos.services.cover import peek
+        return peek(obj)
 
     def get_card_sales_total(self, obj):
         from apps.pos.services.card_surcharge import drawer_card_totals
@@ -202,6 +219,8 @@ class CartSerializer(serializers.ModelSerializer):
     payroll_employee_name = serializers.CharField(source='payroll_employee.full_name', read_only=True, default=None)
     voided_by_name = serializers.CharField(source='voided_by.full_name', read_only=True, default=None)
     tax_exempt_by_name = serializers.CharField(source='tax_exempt_by.full_name', read_only=True, default=None)
+    # Cover (2026-10-22): sold while covering this cashier's drawer.
+    covering_for_name = serializers.CharField(source='cover.cashier.full_name', read_only=True, default=None)
     tax_exempt_photo_url = serializers.SerializerMethodField()
     card_type_fixed_by_name = serializers.SerializerMethodField()
     card_type_fix_deadline = serializers.SerializerMethodField()
@@ -217,6 +236,7 @@ class CartSerializer(serializers.ModelSerializer):
             'id', 'drawer', 'cashier', 'cashier_name', 'customer',
             'status', 'subtotal', 'tax_rate', 'tax_amount', 'total',
             'payment_method', 'cash_tendered', 'change_given', 'card_amount',
+            'cash_received', 'change_breakdown', 'cash_received_typed',
             'card_type', 'card_surcharge_rate', 'card_surcharge_amount',
             'card_charged_total',
             'card_type_fixed_at', 'card_type_fixed_by', 'card_type_fixed_by_name',
@@ -224,7 +244,7 @@ class CartSerializer(serializers.ModelSerializer):
             'completed_at', 'suspended_at', 'created_at',
             'voided_at', 'voided_by', 'voided_by_name', 'void_reason',
             'tax_exempt_org', 'tax_exempt_number', 'tax_exempt_photo_url', 'tax_exempt_by', 'tax_exempt_by_name',
-            'tax_exempt_at',
+            'tax_exempt_at', 'cover', 'covering_for_name',
             'lines', 'receipt', 'savings', 'thrift_credit', 'thrift_plus', 'thrift_row',
         ]
         # Lock the till (2026-10-21): status and money change only through the register's actions (complete, void,
@@ -234,11 +254,12 @@ class CartSerializer(serializers.ModelSerializer):
             'voided_at', 'voided_by', 'void_reason',
             'tax_exempt_org', 'tax_exempt_number', 'tax_exempt_by', 'tax_exempt_at',
             'status', 'payment_method', 'cash_tendered', 'change_given', 'card_amount', 'completed_at',
+            'cash_received', 'change_breakdown', 'cash_received_typed',
             'card_type', 'card_surcharge_rate', 'card_surcharge_amount',
             'card_charged_total',
             'card_type_fixed_at', 'card_type_fixed_by', 'card_type_fixed_by_name',
             'card_type_fix_deadline', 'payroll_employee', 'payroll_employee_name',
-            'savings', 'thrift_credit', 'thrift_plus',
+            'savings', 'thrift_credit', 'thrift_plus', 'cover',
             'customer',  # retired (T62): the customer on a sale is the Thrift+ member (CartMember)
         ]
 

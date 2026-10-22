@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.208.0] -->
-<!-- Last reviewed: 2026-10-22 (2.208.0) -->
+<!-- Line 1 release: ## [2.209.0] -->
+<!-- Last reviewed: 2026-10-22 (2.209.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.209.0] - 2026-10-22
+
+User-facing theme: **Cash by bill and coin, blind drawer counts, and Cover at the register (Bill, 2026-10-21, critic review point 3).** Outside initiatives (critic-review release list).
+
+### Added
+- **Cash by bill and coin:** the cashier taps the bills and coins the customer hands over; Dash says exactly what change to give from what's in the drawer, and keeps the drawer's contents by bill and coin. Typing an amount still works.
+- **Blind drawer counts:** opening, handoff and closing counts are done without seeing what Dash expects; the difference by bill and coin shows after. A close more than $5 off needs a note (an owner setting).
+- **Handoffs count the bills only;** coins are counted at the end of the day in the office.
+- **Paid in / Paid out** on the Drawers page, and cash drops, always say why.
+- **The office close:** bills by hand, coins by coin or the coin counter's total; the till comes out of the office drawer at opening, drops and the closing count go back into it, all in the office ledger.
+- **Cover:** someone stepping in at a register taps Cover and types their own register PIN once. An orange banner says "Covered by …" and the sales made meanwhile are theirs (Transactions shows "covering for …"). It ends when the drawer's own cashier taps Back with their PIN, after 10 minutes with no sales, or when the drawer is handed off or closed.
+- Settings → Store → Register money (owner only): the close-note amount and the discount cap.
 
 ## [2.208.0] - 2026-10-22
 

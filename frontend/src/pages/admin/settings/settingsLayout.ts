@@ -60,6 +60,12 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
         help: 'The owner only. The store sale takes a percent off every eligible line; the line sale only lines a cashier marks.',
         keys: ['pos.store_sale_name', 'pos.store_sale_percent', 'pos.line_sale_on', 'pos.line_sale_name', 'pos.line_sale_percent'],
       },
+      {
+        id: 'register-money',
+        title: 'Register money',
+        help: 'The owner only. When a discount needs a manager, and when a drawer count needs a note.',
+        keys: ['pos.discount_cap_percent', 'pos.close_note_over'],
+      },
       { id: 'staff-purchases', title: 'Staff purchases', help: 'Payroll deduction at the register.', custom: ['staff-purchases'] },
       { id: 'owner-page', title: 'Owner page', help: 'Targets on the Owner page Scorecard.', keys: ['owner.scorecard_targets'] },
       { id: 'dashboard', title: 'Dashboard', help: 'What staff see on the Dashboard.', keys: ['dashboard.focus_numbers'] },

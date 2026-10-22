@@ -176,6 +176,9 @@ export default function TransactionListPage() {
       field: 'cashier_name',
       headerName: 'Cashier',
       width: 200,
+      // Cover (2026-10-22): sold while stepping in for someone.
+      valueGetter: (_value, row) =>
+        row.covering_for_name ? `${row.cashier_name ?? '-'} (covering ${row.covering_for_name})` : row.cashier_name,
     },
     {
       field: 'payment_method',
@@ -422,6 +425,7 @@ export default function TransactionListPage() {
               <Typography variant="body2" color="text.secondary">
                 {format(new Date(selectedCart.completed_at ?? selectedCart.created_at), 'PPp')} ·{' '}
                 {selectedCart.cashier_name ?? '-'}
+                {selectedCart.covering_for_name ? ` (covering for ${selectedCart.covering_for_name})` : ''}
               </Typography>
               {selectedCart.status === 'voided' && selectedCart.voided_by_name && (
                 <Typography variant="body2" color="error">

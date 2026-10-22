@@ -3,8 +3,21 @@ from .models import (
     Register, Drawer, DrawerHandoff, CashDrop,
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
     Cart, CartLine, Receipt, RevenueGoal,
-    DeliveryDay, DeliveryJob, DeliveryTestDataset, RegisterApproval, RegisterEvent,
+    DeliveryDay, DeliveryJob, DeliveryTestDataset, RegisterApproval, RegisterEvent, DrawerCover,
 )
+
+
+@admin.register(DrawerCover)
+class DrawerCoverAdmin(admin.ModelAdmin):
+    """Covers at the register (2026-10-22): who stepped in for whom, when, and how it ended. Read only."""
+    list_display = ('started_at', 'drawer', 'user', 'cashier', 'ended_at', 'ended_how')
+    list_filter = ('ended_how',)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(RegisterEvent)

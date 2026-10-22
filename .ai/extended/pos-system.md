@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (tax-exempt sale to a non-profit; no tax on a line: pop; lock the till, manager OK, paid with Thrift+, Open drawer, loud print failures, COPY reprints) -->
+<!-- Last updated: 2026-10-22 (Cover; drawer life; cash by denomination; tax-exempt sale to a non-profit; no tax on a line: pop; lock the till, manager OK, paid with Thrift+, Open drawer, loud print failures, COPY reprints) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -72,10 +72,10 @@
 ## Drawer Lifecycle
 
 1. **Open** — `POST /pos/drawers/` with `register`, `opening_count`, `opening_total`; one drawer per register per day
-2. **Handoff** — `POST /pos/drawers/{id}/handoff/` with `incoming_cashier`, `count`, `counted_total`; updates `current_cashier`
-3. **Takeover** — `POST /pos/drawers/{id}/takeover/` with optional `count`, `counted_total`, `notes`; incoming cashier claims drawer
-4. **Drops** — `POST /pos/drawers/{id}/drop/` with `amount`, `total`; records cash removed
-5. **Close** — `POST /pos/drawers/{id}/close/` with `closing_count`, `closing_total`; sets status `closed`, computes `expected_cash` and `variance`. Drawer payload also has read-only `card_sales_total` and `card_surcharge_total` (completed carts; surcharge is never in expected cash).
+2. **Handoff** — `POST /pos/drawers/{id}/handoff/` with `incoming_cashier`, `count` (bills only, blind), `counted_total`; updates `current_cashier`
+3. **Takeover** — `POST /pos/drawers/{id}/takeover/` with optional `count` (bills only), `counted_total`, `notes`; incoming cashier claims drawer
+4. **Drops** — `POST /pos/drawers/{id}/drop/` with `amount`, `total`, `reason` (required); records cash removed, into the office. **Paid in / out** — `/paid-in/`, `/paid-out/` with `amount`, `total`, `reason`.
+5. **Close** — `POST /pos/drawers/{id}/close/` with `closing_count` (bills, and coins by coin) or `coins_total` (coin counter), optional `note` (needed past `pos.close_note_over`); blind, the difference comes back as `count_check`; sets status `closed`, computes `expected_cash` and `variance`. Details: `cash-management.md` § A drawer's life. Drawer payload also has read-only `card_sales_total` and `card_surcharge_total` (completed carts; surcharge is never in expected cash).
 6. **Reopen** — `POST /pos/drawers/{id}/reopen/` — Manager/Admin only; sets status back to `open`; optional `cashier` body param to reassign
 
 Denomination counts (JSON) are used at each step for reconciliation.
@@ -116,6 +116,18 @@ Denomination counts (JSON) are used at each step for reconciliation.
 - Every line is untaxed (`Cart.recalculate`), lines added later too. The sale keeps `tax_exempt_org`, `tax_exempt_number`, `tax_exempt_photo` (`pos/tax_exempt/`), `tax_exempt_by`, `tax_exempt_at`; on and off are `RegisterEvent`s (`tax_exempt`, `tax_exempt_off`) with who. Any cashier, no PIN.
 - **Receipt:** "Tax exempt: <org> #<number>" under the totals (payload `tax_exempt`; print server 1.9.8, the same exe as COPY). **Transactions** shows it with who marked it and a link to the certificate photo.
 - **Sales tax report:** the whole sale counts as exempt sales, and `exempt_organizations` lists each one (day, receipt, organization, number or "photo on file", amount, who); the page and the CSV list them.
+
+## Cover (Bill, 2026-10-21, `pos.0045`, `services/cover.py`)
+
+- **Start:** at the register (not the test terminal), the person stepping in taps **Cover** in the header and types their own register PIN once (`POST /pos/drawers/{id}/cover/` `{pin}`, `check_pin`, any active staff). Their own drawer: 400 `OWN_DRAWER`. Someone else tapping Cover takes it over (the first ends `replaced`).
+- **While covered:** an orange banner "Covered by Dee Next" with **Back** (`components/pos/RegisterCover.tsx`). Sales started or finished meanwhile are theirs: `Cart.cashier` is the person covering and `Cart.cover` the `DrawerCover`; Transactions and the sale detail say "(covering for Cara)". A sale started under a cover that has ended is the person who finishes it.
+- **End:** Back plus the drawer's own cashier's PIN (`/cover-back/`; someone else's PIN counts as a wrong try, `NOT_COVERED` when none); 10 minutes with no sale activity (cart create, add item and complete keep it going; ended lazily the next time the drawer is used, as of when it went idle; the page re-reads the drawer when `idle_ends_at` passes); a handoff or takeover (`handoff`) or the close (`closed`).
+- `DrawerCover`: drawer, user (who stepped in), cashier (whose drawer), started_at, last_activity_at, ended_at, ended_how. The drawer payload has `cover` (who, whose, `idle_ends_at`) or null. Admin: read only.
+- Every cashier needs a register PIN (the Mainline stages `accounts.issue_register_pins`).
+
+## Cash by denomination (2026-10-21, `pos.0043`)
+
+The cashier taps the bills and coins handed over; Dash says what to give back from the drawer's contents and keeps the drawer's contents by bill and coin. Details: `cash-management.md` § Cash by denomination at the register.
 
 ## Paid with Thrift+ (Bill, 2026-10-21, `pos.0039`)
 
@@ -253,10 +265,11 @@ The `useDeviceConfig` hook (`frontend/src/hooks/useDeviceConfig.ts`) reads/write
 
 - **Manager view**: Cards for all registers; cashier view limited to their own register
 - **Unconfigured guard**: If device has no config and user is not manager, shows an `Alert` directing to POS Terminal settings
-- **Per-register cards**: Shows register name/code; if no drawer → "Open Drawer"; if open → cashier, opened at, opening total, cash sales, Handoff / Close Drawer / Takeover buttons; if closed → "Drawer Closed" + "Reopen Drawer" (Manager+ only, amber)
-- **Open Drawer dialog**: DenominationCounter; `POST /pos/drawers/`
-- **Close Drawer dialog**: DenominationCounter; `POST /pos/drawers/{id}/close/`
-- **Handoff dialog**: Select incoming cashier, DenominationCounter; `POST /pos/drawers/{id}/handoff/`
+- **Per-register cards**: Shows register name/code; if no drawer → "Open Drawer"; if open → cashier, opened at, opening total, cash sales (managers only while open: counts are blind), paid in / out, Cash drop / Paid in / Paid out / Handoff (Manager+) / Close Drawer; if closed → over or short and the close note, "Reopen Drawer" (Manager+ only, amber). View detail lists handoffs (managers see each one's over / short), drops with their reason, paid in / out with reason and who.
+- **Open Drawer dialog**: DenominationCounter (blind); `POST /pos/drawers/`; the till difference shows after (`CountCheckDialog`)
+- **Close Drawer dialog** (the office count): bills by hand, then coins by coin or the coin counter's total; a note box that turns required on `NOTE_REQUIRED`; `POST /pos/drawers/{id}/close/`; the difference by bill and coin shows after
+- **Handoff dialog**: Select incoming cashier, DenominationCounter for bills only; `POST /pos/drawers/{id}/handoff/`; the bills' difference shows after
+- **Cash drop / Paid in / Paid out dialogs**: DenominationCounter + a required reason
 - **Reopen dialog**: Manager confirmation; `POST /pos/drawers/{id}/reopen/`
 
 ---

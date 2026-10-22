@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from django.db import IntegrityError, transaction
-from django.db.models import F, Sum, Q, Count
+from django.db.models import F, Prefetch, Sum, Q, Count
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -13,6 +13,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsEmployee, IsSuperAdmin, IsTeamMember
+from apps.accounts.services.register_pin import PinError
 from apps.core.models import WorkLocation
 from apps.inventory.models import Item, ItemScanHistory
 from apps.inventory.services.resale_duplicate import duplicate_item_for_resale
@@ -22,7 +23,7 @@ from .models import (
     Cart, CartLine, Receipt, RevenueGoal, DashboardSalesGoal,
     DashboardDepartmentGoal,
     DeliveryAvailability, DeliveryDay, DeliveryJob, DeliveryJobItem,
-    DeliveryRun, DeliveryRunStop, DeliveryAttachment, RegisterApproval, RegisterEvent,
+    DeliveryRun, DeliveryRunStop, DeliveryAttachment, RegisterApproval, RegisterEvent, CashMovement, DrawerCover,
 )
 from .serializers import thrift_earned_on
 from .serializers import (
@@ -36,9 +37,13 @@ from .serializers import (
     DeliveryAvailabilitySerializer, DeliveryJobSerializer, DeliveryDayWriteSerializer,
 )
 from .filters import CartFilter, DrawerFilter
+from .services import cover as cover_service
+from .services import drawer_life
 from .services import manager_ok
 from .services import suspend as suspend_service
-from .services.cash_counts import CashCountError, clean_amount, clean_count, count_and_total, count_total
+from .services.cash_counts import (
+    CashCountError, add_counts, clean_amount, clean_count, count_and_total, count_total, make_change,
+)
 from .services.discounts import (
     REASON_GOOGLE_REVIEW,
     DiscountError,
@@ -293,7 +298,11 @@ class DrawerViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = Drawer.objects.select_related(
             'register', 'current_cashier', 'opened_by', 'closed_by',
-        ).prefetch_related('handoffs', 'drops').all()
+        ).prefetch_related(
+            'handoffs', 'drops', 'movements',
+            Prefetch('covers', queryset=DrawerCover.objects.filter(ended_at__isnull=True).select_related('user', 'cashier'),
+                     to_attr='_open_covers'),
+        ).all()
         # The training register's drawer is practice money: left out of drawer lists (and so out of the
         # manager terminal's open-drawer pick) unless its register is asked for. Detail routes still find it.
         if self.action == 'list' and not _include_training_rows(self.request.query_params, 'register'):
@@ -345,23 +354,37 @@ class DrawerViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Blind (2026-10-21): the till fund the register should start with is shown only after the count.
         try:
-            drawer = Drawer.objects.create(
-                register_id=register_id,
-                date=today,
-                status='open',
-                current_cashier=request.user,
-                opened_by=request.user,
-                opened_at=timezone.now(),
-                opening_count=opening_count,
-                opening_total=opening_total,
-            )
-        except Exception as e:
+            till = clean_count(register.starting_breakdown, 'Till fund')
+        except CashCountError:
+            till = {}
+        try:
+            with transaction.atomic():
+                drawer = Drawer.objects.create(
+                    register_id=register_id,
+                    date=today,
+                    status='open',
+                    current_cashier=request.user,
+                    opened_by=request.user,
+                    opened_at=timezone.now(),
+                    opening_count=opening_count,
+                    opening_total=opening_total,
+                    contents=opening_count,
+                    opening_expected=till or None,
+                )
+                # The till comes out of the office (the supplemental drawer), REG-19.
+                drawer_life.post_to_office('drawer_open', drawer, opening_count, opening_total, request.user, sign=-1,
+                                           note=f'Opened {register.code}')
+        except IntegrityError:
             return Response(
-                {'detail': f'Could not create drawer: {str(e)}'},
+                {'detail': 'A drawer is already open for this register today.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        return Response(DrawerSerializer(drawer).data, status=status.HTTP_201_CREATED)
+        data = DrawerSerializer(drawer).data
+        if till:
+            data['count_check'] = drawer_life.count_check(opening_count, till)
+        return Response(data, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['post'], url_path='open-training')
     def open_training(self, request):
@@ -416,9 +439,19 @@ class DrawerViewSet(viewsets.ModelViewSet):
         )
 
     def _drawer_expected_cash(self, drawer):
-        """Expected cash in drawer: opening + cash sales - drops."""
-        total_drops = drawer.drops.aggregate(s=Sum('total'))['s'] or Decimal('0')
-        return drawer.opening_total + drawer.cash_sales_total - total_drops
+        """Expected cash in drawer: opening + cash sales - drops + paid in - paid out."""
+        return drawer_life.expected_cash(drawer)
+
+    def _bills_count(self, request, label):
+        """A handoff count (Bill, 2026-10-21): the bills only. Coins are counted at the end of the day in the office."""
+        count = clean_count(request.data.get('count'), label)
+        if drawer_life.coins_of(count):
+            raise CashCountError('A handoff counts the bills only. Coins are counted at the end of the day in the office.')
+        sent = clean_amount(request.data.get('counted_total'), f'{label} total')
+        total = count_total(count)
+        if count and sent is not None and sent != total:
+            raise CashCountError(f'{label} total ${sent} does not match the bills counted (${total}).')
+        return count, (total if count else sent)
 
     @action(detail=True, methods=['post'])
     def handoff(self, request, pk=None):
@@ -442,11 +475,14 @@ class DrawerViewSet(viewsets.ModelViewSet):
             )
         incoming_cashier_id = incoming.pk
         try:
-            count, counted_total = count_and_total(request.data, 'count', 'counted_total', 'Handoff count')
+            count, counted_total = self._bills_count(request, 'Handoff count')
         except CashCountError as exc:
             return _cash_count_error(exc)
+        if counted_total is None:
+            return _cash_count_error(CashCountError('Count the bills in the drawer.'))
 
-        expected = self._drawer_expected_cash(drawer)
+        expected_bills = drawer_life.bills_of(drawer.contents)
+        expected = count_total(expected_bills)
         variance = counted_total - expected
 
         handoff = DrawerHandoff.objects.create(
@@ -459,12 +495,17 @@ class DrawerViewSet(viewsets.ModelViewSet):
             expected_total=expected,
             variance=variance,
             notes=request.data.get('notes', ''),
+            bills_only=True,
+            expected_count=expected_bills,
         )
 
         drawer.current_cashier_id = incoming_cashier_id
         drawer.save(update_fields=['current_cashier'])
+        cover_service.end_all(drawer, DrawerCover.END_HANDOFF)
 
-        return Response(DrawerHandoffSerializer(handoff).data)
+        data = DrawerHandoffSerializer(handoff).data
+        data['count_check'] = drawer_life.count_check(count, expected_bills, bills_only=True)
+        return Response(data)
 
     @action(detail=True, methods=['post'])
     def takeover(self, request, pk=None):
@@ -476,21 +517,12 @@ class DrawerViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
-            count = clean_count(request.data.get('count'), 'Takeover count')
-            sent = clean_amount(request.data.get('counted_total'), 'Takeover count total')
+            count, sent = self._bills_count(request, 'Takeover count')
         except CashCountError as exc:
             return _cash_count_error(exc)
-        if count:
-            counted_total = count_total(count)
-            if sent is not None and sent != counted_total:
-                return _cash_count_error(CashCountError(
-                    f'Takeover count total ${sent} does not match the bills and coins counted (${counted_total}).'))
-        elif sent is not None:
-            counted_total = sent
-        else:
-            counted_total = self._drawer_expected_cash(drawer)
-
-        expected = self._drawer_expected_cash(drawer)
+        expected_bills = drawer_life.bills_of(drawer.contents)
+        expected = count_total(expected_bills)
+        counted_total = sent if sent is not None else expected
         variance = counted_total - expected
 
         handoff = DrawerHandoff.objects.create(
@@ -503,22 +535,34 @@ class DrawerViewSet(viewsets.ModelViewSet):
             expected_total=expected,
             variance=variance,
             notes=request.data.get('notes', '') or 'Takeover',
+            bills_only=True,
+            expected_count=expected_bills,
         )
 
         drawer.current_cashier = request.user
         drawer.save(update_fields=['current_cashier'])
+        cover_service.end_all(drawer, DrawerCover.END_HANDOFF)
 
-        return Response(DrawerSerializer(drawer).data)
+        data = DrawerSerializer(drawer).data
+        if sent is not None:
+            data['count_check'] = drawer_life.count_check(count, expected_bills, bills_only=True)
+        return Response(data)
 
     @action(detail=True, methods=['post'])
     def close(self, request, pk=None):
-        """Close a drawer."""
+        """The office close (2026-10-21): a blind count of the bills by hand and the coins from the coin counter (by coin, or
+        its total as ``coins_total``); the difference by bill and coin comes back after. More than the owner's
+        ``pos.close_note_over`` (default $5) off needs a ``note``. Everything counted goes into the office ledger.
+        The drawer's own cashier or a manager closes it."""
         drawer = self.get_object()
         if drawer.status != 'open':
             return Response(
                 {'detail': 'Drawer is not open.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if drawer.current_cashier_id != request.user.pk and not IsManagerOrAdmin().has_permission(request, self):
+            return Response({'detail': "Only this drawer's cashier or a manager closes it.", 'code': 'NOT_YOUR_DRAWER'},
+                            status=status.HTTP_403_FORBIDDEN)
         # Sales set aside at this register (Suspend, owner 2026-10-20) do not survive the day: warn first, and the
         # close that says so voids them (nothing was sold, so no item or cash changes).
         set_aside = list(suspend_service.suspended_in_drawer(drawer.pk))
@@ -537,18 +581,38 @@ class DrawerViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_409_CONFLICT,
             )
         try:
-            closing_count, closing_total = count_and_total(
-                request.data, 'closing_count', 'closing_total', 'Closing count',
-            )
+            closing_count = clean_count(request.data.get('closing_count'), 'Closing count')
+            coins_total = clean_amount(request.data.get('coins_total'), 'Coin counter total')
+            sent = clean_amount(request.data.get('closing_total'), 'Closing count total')
         except CashCountError as exc:
             return _cash_count_error(exc)
+        if coins_total is not None and drawer_life.coins_of(closing_count):
+            return _cash_count_error(CashCountError(
+                "Enter the coins by coin or as the coin counter's total, not both."))
+        if closing_count or coins_total is not None:
+            closing_total = count_total(closing_count) + (coins_total or Decimal('0'))
+            if sent is not None and sent != closing_total:
+                return _cash_count_error(CashCountError(
+                    f'Closing count total ${sent} does not match the bills and coins counted (${closing_total}).'))
+        elif sent is not None:
+            closing_total = sent
+        else:
+            return _cash_count_error(CashCountError('Closing count total is required: count the drawer.'))
+
+        expected = self._drawer_expected_cash(drawer)
+        variance = closing_total - expected
+        note = request.data.get('note')
+        note = note.strip() if isinstance(note, str) else ''
+        if abs(variance) > drawer_life.close_note_over() and not note:
+            return Response(
+                {'detail': f'The count is more than ${drawer_life.close_note_over()} off. Add a note saying why.',
+                 'code': 'NOTE_REQUIRED'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         with transaction.atomic():
             if set_aside:
                 suspend_service.void_all_for_drawer(drawer.pk, request.user)
-
-            expected = self._drawer_expected_cash(drawer)
-            variance = closing_total - expected
 
             drawer.status = 'closed'
             drawer.closed_by = request.user
@@ -557,9 +621,19 @@ class DrawerViewSet(viewsets.ModelViewSet):
             drawer.closing_total = closing_total
             drawer.expected_cash = expected
             drawer.variance = variance
+            drawer.closing_expected = drawer.contents
+            drawer.coin_counter_total = coins_total
+            drawer.close_note = note[:2000]
             drawer.save()
+            cover_service.end_all(drawer, DrawerCover.END_CLOSED)
+            # Everything counted goes back into the office (REG-19).
+            drawer_life.post_to_office('drawer_close', drawer, closing_count, closing_total, request.user, sign=1,
+                                       note=f'Closed {drawer.register.code}' + (f': {note[:200]}' if note else ''))
 
-        return Response(DrawerSerializer(drawer).data)
+        data = DrawerSerializer(drawer).data
+        data['count_check'] = drawer_life.count_check(closing_count, drawer.contents or {}, coins_total=coins_total)
+        data['count_check']['difference_total'] = str(variance)
+        return Response(data)
 
     @action(detail=True, methods=['post'])
     def reopen(self, request, pk=None):
@@ -589,6 +663,75 @@ class DrawerViewSet(viewsets.ModelViewSet):
         drawer.save(update_fields=['status', 'current_cashier'])
 
         return Response(DrawerSerializer(drawer).data)
+
+    def _move_cash(self, request, kind):
+        drawer = self.get_object()
+        if drawer.register.is_training:
+            return Response({'detail': 'This is the training register: practice only. Cash is not recorded.',
+                             'code': TRAINING_REFUSED}, status=status.HTTP_400_BAD_REQUEST)
+        if drawer.status != 'open':
+            return Response({'detail': 'This drawer is closed.', 'code': 'DRAWER_CLOSED'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            amount, total = count_and_total(request.data, 'amount', 'total', 'Amount')
+        except CashCountError as exc:
+            return _cash_count_error(exc)
+        if total <= 0:
+            return _cash_count_error(CashCountError('Enter the cash.'))
+        reason = request.data.get('reason')
+        reason = reason.strip() if isinstance(reason, str) else ''
+        if not reason:
+            return Response({'detail': 'Say what the cash is for.', 'code': 'REASON_REQUIRED'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            move = CashMovement.objects.create(drawer=drawer, kind=kind, amount=amount, total=total,
+                                               reason=reason[:200], performed_by=request.user)
+            if amount:
+                locked = Drawer.objects.select_for_update().get(pk=drawer.pk)
+                sign = 1 if kind == CashMovement.KIND_PAID_IN else -1
+                locked.contents = add_counts(locked.contents, amount, sign)
+                locked.save(update_fields=['contents'])
+        return Response({'id': move.pk, 'kind': move.kind, 'total': str(move.total), 'reason': move.reason},
+                        status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='paid-in')
+    def paid_in(self, request, pk=None):
+        """Cash put into the drawer for something other than a sale (2026-10-21): change brought in. With a reason."""
+        return self._move_cash(request, CashMovement.KIND_PAID_IN)
+
+    @action(detail=True, methods=['post'], url_path='paid-out')
+    def paid_out(self, request, pk=None):
+        """Cash taken out for something other than a sale or a drop (2026-10-21): a small purchase. With a reason."""
+        return self._move_cash(request, CashMovement.KIND_PAID_OUT)
+
+    def _drawer_now(self, drawer):
+        """The drawer's payload, read again so its cover is current."""
+        return DrawerSerializer(self.get_queryset().get(pk=drawer.pk)).data
+
+    @action(detail=True, methods=['post'])
+    def cover(self, request, pk=None):
+        """Cover (Bill, 2026-10-21): the person stepping in types their own register PIN once (``pin``). The register
+        then says "Covered by ..." and the sales finished meanwhile are theirs. Ends with ``cover-back``, after 10 idle
+        minutes, or when the drawer changes hands or closes."""
+        drawer = self.get_object()
+        if drawer.status != 'open':
+            return Response({'detail': 'This drawer is closed.', 'code': 'DRAWER_CLOSED'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            cover_service.start(drawer, str(request.data.get('pin') or ''), request=request)
+        except PinError as exc:
+            return Response(exc.payload(), status=exc.http)
+        return Response(self._drawer_now(drawer))
+
+    @action(detail=True, methods=['post'], url_path='cover-back')
+    def cover_back(self, request, pk=None):
+        """Back: the drawer's own cashier types their PIN (``pin``) and the cover ends."""
+        drawer = self.get_object()
+        try:
+            cover_service.back(drawer, str(request.data.get('pin') or ''), request=request)
+        except PinError as exc:
+            return Response(exc.payload(), status=exc.http)
+        return Response(self._drawer_now(drawer))
 
     @action(detail=True, methods=['post'], url_path='open-drawer')
     def open_drawer(self, request, pk=None):
@@ -643,14 +786,26 @@ class DrawerViewSet(viewsets.ModelViewSet):
             return _cash_count_error(exc)
         if total <= 0:
             return _cash_count_error(CashCountError('Enter the cash being dropped.'))
+        reason = request.data.get('reason')
+        reason = reason.strip() if isinstance(reason, str) else ''
+        if not reason:
+            return Response({'detail': 'Say why the cash is dropped.', 'code': 'REASON_REQUIRED'},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-        cash_drop = CashDrop.objects.create(
-            drawer=drawer,
-            amount=amount,
-            total=total,
-            dropped_by=request.user,
-            notes=request.data.get('notes', ''),
-        )
+        with transaction.atomic():
+            cash_drop = CashDrop.objects.create(
+                drawer=drawer,
+                amount=amount,
+                total=total,
+                dropped_by=request.user,
+                notes=request.data.get('notes', '') or '',
+                reason=reason[:200],
+            )
+            drawer_life.post_to_office('drop', drawer, amount, total, request.user, sign=1, note=reason)
+            if amount:  # by bill and coin: the drawer's contents go down by the same
+                locked = Drawer.objects.select_for_update().get(pk=drawer.pk)
+                locked.contents = add_counts(locked.contents, amount, -1)
+                locked.save(update_fields=['contents'])
 
         return Response(CashDropSerializer(cash_drop).data)
 
@@ -848,7 +1003,7 @@ class CartViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Cart.objects.select_related(
-            'drawer', 'cashier', 'receipt', 'card_type_fixed_by', 'voided_by', 'tax_exempt_by',
+            'drawer', 'cashier', 'receipt', 'card_type_fixed_by', 'voided_by', 'tax_exempt_by', 'cover__cashier',
         ).prefetch_related('lines').all()
         # Practice sales on the training register stay out of the Transactions list (they showed as
         # "Completed" under All). The terminal still finds its own open cart by asking for its drawer.
@@ -926,8 +1081,12 @@ class CartViewSet(viewsets.ModelViewSet):
         except AppSetting.DoesNotExist:
             tax_rate = Decimal('0.07')
 
+        # Cover (2026-10-22): a sale started while someone covers the register is theirs.
+        cover = cover_service.active_cover(drawer) if drawer is not None else None
+        cover_service.touch(cover)
         serializer.save(
-            cashier=self.request.user,
+            cashier=cover.user if cover else self.request.user,
+            cover=cover,
             tax_rate=tax_rate,
         )
 
@@ -938,6 +1097,7 @@ class CartViewSet(viewsets.ModelViewSet):
         refused = _finished_sale_response(cart)
         if refused is not None:
             return refused
+        cover_service.touch(cover_service.active_cover(cart.drawer))
         sku = (request.data.get('sku') or '').strip()
         if not sku:
             return Response(
@@ -2013,16 +2173,35 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
+        # The bills and coins handed over (2026-10-21, cash by denomination): the register taps them, and their sum is
+        # the cash tendered. A typed amount still works (old screens, odd cash); Dash then guesses the bills.
+        try:
+            cash_received = clean_count(request.data.get('cash_received'), 'Cash received')
+        except CashCountError as exc:
+            return Response({'detail': str(exc), 'code': 'INVALID_COUNT'}, status=400)
+        if payment_method not in ('cash', 'split'):
+            cash_received = {}
+
         # Every money field is checked before anything is written: a bad one is a plain 400, never a server error.
         try:
             cash_tendered = parse_money(
-                request.data.get('cash_tendered'), 'Cash tendered', required=payment_method in ('cash', 'split'),
+                request.data.get('cash_tendered'), 'Cash tendered',
+                required=payment_method in ('cash', 'split') and not cash_received,
             )
             change_given = parse_money(request.data.get('change_given'), 'Change given')
             card_amount = parse_money(request.data.get('card_amount'), 'Card amount')
             card_charged_total = parse_money(request.data.get('card_charged_total'), 'Card charged total')
         except CardSurchargeError as exc:
             return Response({'detail': str(exc), 'code': 'INVALID_AMOUNT'}, status=400)
+        if cash_received:
+            received_total = count_total(cash_received)
+            if cash_tendered is not None and cash_tendered != received_total:
+                return Response(
+                    {'detail': f'Cash tendered ${cash_tendered} does not match the bills and coins tapped '
+                               f'(${received_total}).', 'code': 'CASH_MISMATCH'},
+                    status=400,
+                )
+            cash_tendered = received_total
         raw_card_type = '' if thrift_paid else (request.data.get('card_type') or '')
         if not isinstance(raw_card_type, str):
             return Response({'detail': 'card_type must be credit or debit.', 'code': 'INVALID_AMOUNT'}, status=400)
@@ -2077,6 +2256,10 @@ class CartViewSet(viewsets.ModelViewSet):
                 cart.card_surcharge_rate = surcharge_fields['card_surcharge_rate']
                 cart.card_surcharge_amount = surcharge_fields['card_surcharge_amount']
                 cart.card_charged_total = surcharge_fields['card_charged_total']
+                if payment_method in ('cash', 'split'):
+                    cart.cash_received = cash_received or make_change(cash_tendered or Decimal('0'))[0]
+                    cart.cash_received_typed = not cash_received
+                    cart.change_breakdown = make_change(change_given or Decimal('0'))[0]
                 cart.status = 'training'  # not 'completed': every report counts completed sales only
                 cart.completed_at = timezone.now()
                 cart.save()
@@ -2101,14 +2284,31 @@ class CartViewSet(viewsets.ModelViewSet):
             cart.payroll_employee = payroll_employee
             cart.status = 'completed'
             cart.completed_at = timezone.now()
-            cart.save()
+            # Cover (2026-10-22): a sale finished while someone covers the register is theirs; one started under a cover
+            # that has ended is the person finishing it.
+            cover = cover_service.active_cover(cart.drawer)
+            if cover is not None:
+                cart.cashier_id, cart.cover = cover.user_id, cover
+                cover_service.touch(cover)
+            elif cart.cover_id is not None:
+                cart.cashier, cart.cover = request.user, None
 
-            # Update drawer cash_sales_total (void takes the same amount back out). Added in the database, so two
-            # registers' sales on one drawer at the same moment both count.
+            # Cash by denomination (2026-10-21): the bills and coins go into the drawer, and Dash says which to give
+            # back, from what the drawer holds (fewest pieces). The drawer row is locked, so two registers' sales on
+            # one drawer at the same moment both count. Void takes the same back out.
+            change_short = False
             if payment_method in ('cash', 'split'):
-                Drawer.objects.filter(pk=cart.drawer_id).update(
-                    cash_sales_total=F('cash_sales_total') + _sale_cash(cart),
-                )
+                drawer = Drawer.objects.select_for_update().get(pk=cart.drawer_id)
+                received = cash_received or make_change(cash_tendered or Decimal('0'))[0]
+                in_drawer = add_counts(drawer.contents, received)
+                give, change_short = make_change(change_given or Decimal('0'), in_drawer)
+                cart.cash_received = received
+                cart.cash_received_typed = not cash_received
+                cart.change_breakdown = give
+                drawer.contents = add_counts(in_drawer, give, -1)
+                drawer.cash_sales_total = F('cash_sales_total') + _sale_cash(cart)
+                drawer.save(update_fields=['contents', 'cash_sales_total'])
+            cart.save()
 
             # Mark items as sold
             for line in cart.lines.filter(item__isnull=False):
@@ -2156,7 +2356,11 @@ class CartViewSet(viewsets.ModelViewSet):
                 receipt_number=Receipt.generate_receipt_number(),
             )
 
-        return Response(CartSerializer(cart).data)
+        data = CartSerializer(cart).data
+        # The drawer could not make the change exactly from what Dash thinks is in it (it drifted, or it is short of a
+        # coin): the register says so, and the cashier uses what is there.
+        data['change_short'] = change_short
+        return Response(data)
 
     @action(detail=True, methods=['post'], url_path='tax-exempt')
     def tax_exempt(self, request, pk=None):
@@ -2333,7 +2537,10 @@ class CartViewSet(viewsets.ModelViewSet):
                 drawer = Drawer.objects.select_for_update().get(pk=cart.drawer_id)
                 if drawer.status == 'open':
                     drawer.cash_sales_total -= _sale_cash(cart)
-                    drawer.save(update_fields=['cash_sales_total'])
+                    if cart.cash_received:  # the bills taken in go back, the change given comes back in
+                        drawer.contents = add_counts(add_counts(drawer.contents, cart.cash_received, -1),
+                                                     cart.change_breakdown)
+                    drawer.save(update_fields=['cash_sales_total', 'contents'])
 
             cart.status = 'voided'
             cart.save()

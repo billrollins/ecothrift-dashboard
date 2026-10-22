@@ -295,7 +295,8 @@ class DrawerInputTests(_CashPathFixtures, TestCase):
         self._bad(self.client.post(url, {'amount': {}, 'total': '0'}, format='json'))
         self._bad(self.client.post(url, {'total': '-20.00'}, format='json'))
         self._bad(self.client.post(url, {'amount': {'twenties': 2}, 'total': '20.00'}, format='json'))
-        ok = self.client.post(url, {'amount': {'twenties': 2}, 'total': '40.00'}, format='json')
+        ok = self.client.post(url, {'amount': {'twenties': 2}, 'total': '40.00', 'reason': 'Too much cash'},
+                              format='json')
         self.assertEqual(ok.status_code, 200, ok.content)
         Drawer.objects.filter(pk=self.drawer.pk).update(status='closed')
         r = self.client.post(url, {'amount': {'twenties': 1}}, format='json')
