@@ -33,3 +33,7 @@ class Command(BaseCommand):
             return
         created = materialize_routines(day)
         self.stdout.write(f'Created {created} routine run(s) for {day.isoformat()}.')
+        # The day's AI post ideas (Social Studio), waiting when Retail opens Today's post. Never fails the routines.
+        from apps.marketing.services.ideas import morning_ideas
+
+        self.stdout.write(morning_ideas(day))

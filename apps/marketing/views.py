@@ -15,6 +15,7 @@ from apps.webstore.services.hours import get_hours_config, is_open_day
 
 from .models import SocialPhoto, SocialPost, SocialPostPhoto
 from .services import cadence
+from .services.ideas import IdeasError, apply_idea, request_ideas, rewrite
 from .services.photos import PhotoError, replace_image, save_photo
 from .services.tags import lookup
 from .services.posts import (
@@ -192,6 +193,52 @@ def post_posted(request, pk):
     except PostError as exc:
         return _post_error(exc)
     return _post_response(post)
+
+
+@api_view(['POST'])
+@permission_classes(STAFF)
+def post_ideas(request, pk):
+    """Get ideas: the AI writes 3 to 5 post ideas in the background (the page polls the post)."""
+    post = _post(pk)
+    if post is None:
+        return _err('Post not found.', 'NOT_FOUND', 404)
+    try:
+        post = request_ideas(post, user=request.user)
+    except IdeasError as exc:
+        return _err(exc.detail, exc.code)
+    return _post_response(post, status=202)
+
+
+@api_view(['POST'])
+@permission_classes(STAFF)
+def post_use_idea(request, pk, index):
+    """Use this idea: its words replace the post's, its photos are added."""
+    post = _post(pk)
+    if post is None:
+        return _err('Post not found.', 'NOT_FOUND', 404)
+    try:
+        post = apply_idea(post, index)
+    except IdeasError as exc:
+        return _err(exc.detail, exc.code)
+    return _post_response(post)
+
+
+@api_view(['POST'])
+@permission_classes(STAFF)
+def post_rewrite(request, pk):
+    """A fast rewrite: `part` hook or body, `mode` new or shorter, `current` the words on screen. 3 options back."""
+    post = _post(pk)
+    if post is None:
+        return _err('Post not found.', 'NOT_FOUND', 404)
+    if post.status == SocialPost.STATUS_POSTED:
+        return _err('This post is posted; it cannot change.', 'POSTED')
+    data = request.data
+    try:
+        options = rewrite(post, part=str(data.get('part') or ''), mode=str(data.get('mode') or ''),
+                          current=str(data.get('current') or '')[:4000])
+    except IdeasError as exc:
+        return _err(exc.detail, exc.code)
+    return Response({'options': options})
 
 
 @api_view(['POST'])

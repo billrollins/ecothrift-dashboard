@@ -87,7 +87,7 @@ class SocialPost(models.Model):
     CTA_HOLD = 'ask_hold'
     CTA_CHOICES = [(CTA_COME_IN, 'Come in'), (CTA_MESSAGE, 'Message us'), (CTA_HOLD, 'Ask for a hold')]
 
-    # Phase 3 hook: the daily AI draft fills `ai_brief` and sets source=ai. Nothing writes either yet.
+    # The post ideas AI (services/ideas.py) keeps its ideas in `ai_brief`; using one sets source=ai.
     SOURCE_MANUAL = 'manual'
     SOURCE_AI = 'ai'
     SOURCE_CHOICES = [(SOURCE_MANUAL, 'Manual'), (SOURCE_AI, 'AI draft')]

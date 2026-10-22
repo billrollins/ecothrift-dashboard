@@ -63,6 +63,8 @@ FEATURE_LABELS = {
     'categorize_manifests': 'Buying: manifest categories',
     'ai_template_creation': 'Buying: manifest templates',
     'ai_key_mapping': 'Buying: manifest key mapping',
+    'marketing.post_ideas': 'Social Studio: post ideas',
+    'marketing.rewrite': 'Social Studio: rewrites',
     'ai_title_category_estimate': 'Buying: auction category estimates',
     'daily_brief': 'Morning brief (retired)',
 }

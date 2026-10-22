@@ -72,10 +72,11 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
       {
         id: 'social',
         title: 'Social Studio',
-        help: 'Which days get a post, the category rotation, and what a post must include before it is Ready.',
+        help: 'Which days get a post, the category rotation, what a post must include before it is Ready, and the AI post ideas.',
         keys: [
           'marketing.post_weekdays', 'marketing.min_photos', 'marketing.hook_max_chars', 'marketing.repeat_days',
           'marketing.in_season', 'marketing.season_weight', 'marketing.thrift_plus_line',
+          'marketing.ai_morning_ideas', 'marketing.ai_new_in_days',
         ],
       },
       {

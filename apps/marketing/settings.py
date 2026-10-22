@@ -31,6 +31,10 @@ DEFAULTS: dict[str, Any] = {
     # How much an in-season category's floor stock counts for in the rotation.
     'season_weight': 2,
     'thrift_plus_line': DEFAULT_THRIFT_PLUS_LINE,
+    # Phase 4: the morning job asks for each posting day's AI post ideas (Get ideas works either way).
+    'ai_morning_ideas': True,
+    # "New in" for the post ideas: items checked in over this many days.
+    'ai_new_in_days': 3,
 }
 
 
@@ -64,4 +68,10 @@ def marketing_settings() -> dict[str, Any]:
     line = rows.get(PREFIX + 'thrift_plus_line')
     if isinstance(line, str):
         out['thrift_plus_line'] = line.strip()
+    morning = rows.get(PREFIX + 'ai_morning_ideas')
+    if isinstance(morning, bool):
+        out['ai_morning_ideas'] = morning
+    out['ai_new_in_days'] = _number(
+        rows.get(PREFIX + 'ai_new_in_days', DEFAULTS['ai_new_in_days']), DEFAULTS['ai_new_in_days'], low=1, high=30,
+    )
     return out

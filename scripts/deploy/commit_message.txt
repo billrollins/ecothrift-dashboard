@@ -1,8 +1,11 @@
-v2.210.2 — The camera turns off the moment you leave the app
+v2.211.0 — Social Studio post ideas and fast AI rewrites
 
-User-facing theme: **The camera turns off the moment you leave the app (Bill, 2026-10-22).** Outside initiatives.
+User-facing theme: **Social Studio suggests post ideas from what's in the store (Bill, 2026-10-22).** Initiative: retail_tags_and_social (phase 4).
 
-### Fixed
-- **Thrift+ Member, Thrift+ Staff and Social Studio scanners (and the selfie camera):** switching apps, locking the phone or closing the app now stops the camera right away. Before, the phone could keep showing "A site is using your camera" after the app was closed, because the camera was only released on the page's next screen update, which a hidden page may never run.
+### Added
+- **Post ideas:** Social Studio suggests 3 to 5 post ideas a day from what's in the store: new stock with prices, the week's photos, loads coming, sales and the season. Each comes with its photos and a list of what to photograph. Tap Use this idea to fill in the post. The ideas are written each posting morning, so they're waiting in Today's post.
+- **Fast AI buttons** under the hook and the words (New hooks, Shorter, Another take) give 3 options in a few seconds.
+- **Post it on a desk** opens a side drawer: copy the text, then copy, drag or download the photos into Facebook.
+- The AI runs on Gemini 3.8 Flash (about 1.4 cents per day's ideas); it shows under AI spend on the Owner page and can be changed in Settings → AI.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

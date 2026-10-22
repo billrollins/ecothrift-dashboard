@@ -250,9 +250,17 @@ def post_payload(post: SocialPost, *, settings: dict | None = None, brand: dict 
         'photo_ids': _photo_ids(post),
         'text': post_text(post, brand=brand),
     }
+    from apps.marketing.services.ideas import ideas_payload
+
+    out['ideas'] = ideas_payload(post)
     if with_photos:
         rows = post.post_photos.select_related(
             'photo', 'photo__item', 'photo__item__product', 'photo__uploaded_by',
         ).order_by('position')
         out['photos'] = [photo_payload(row.photo, used_in=[], with_tag=True) for row in rows]
+        # Thumbnails for the photos the AI's ideas pick.
+        ids = {pk for idea in (out['ideas'] or {}).get('ideas', []) for pk in idea.get('photo_ids', [])}
+        out['idea_photos'] = {
+            str(p.pk): photo_payload(p, used_in=[])['thumb_url'] for p in SocialPhoto.objects.filter(pk__in=ids)
+        }
     return out

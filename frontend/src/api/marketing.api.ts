@@ -88,8 +88,43 @@ export interface SocialPost {
   passes: boolean;
   photo_ids: number[];
   text: string;
+  /** The AI's post ideas (Phase 4); null before the first ask. */
+  ideas: SocialIdeas | null;
   photos?: SocialPhoto[];
 }
+
+export interface SocialShot {
+  shot: string;
+  /** Set when the shot is one item (title, tag and location come from Dash, not the AI). */
+  sku: string;
+  title: string;
+  tag_price: string;
+  location: string;
+}
+
+export interface SocialIdea {
+  title: string;
+  hook: string;
+  body: string;
+  call_to_action: Exclude<SocialCta, ''>;
+  /** This week's library photos the idea uses, best first. */
+  photo_ids: number[];
+  /** Photos still worth taking. */
+  shots: SocialShot[];
+  /** Never-say words still in the words: change them before posting. */
+  flags: string[];
+}
+
+export interface SocialIdeas {
+  state: 'drafting' | 'done' | 'failed';
+  error: string;
+  ideas: SocialIdea[];
+  by: string;
+  finished_at: string | null;
+}
+
+export type RewritePart = 'hook' | 'body';
+export type RewriteMode = 'new' | 'shorter';
 
 export interface SocialBrand {
   address: string;
@@ -115,6 +150,8 @@ export interface SocialWeek {
 
 export interface SocialPostDetail extends SocialPost {
   photos: SocialPhoto[];
+  /** Thumbnails of the photos the ideas pick, by photo id. */
+  idea_photos: Record<string, string | null>;
   brand: SocialBrand;
   rules: SocialRules;
   can_rate: boolean;
@@ -170,6 +207,18 @@ export const markSocialPostReady = (id: number) =>
 
 export const markSocialPostPosted = (id: number, url: string) =>
   api.post<SocialPost>(`/marketing/posts/${id}/posted/`, { url }).then((r) => r.data);
+
+/** Get ideas: the AI writes 3 to 5 post ideas in the background; poll the post until they are done. */
+export const requestSocialIdeas = (id: number) =>
+  api.post<SocialPost>(`/marketing/posts/${id}/ideas/`).then((r) => r.data);
+
+/** Use this idea: its words replace the post's, its photos are added. */
+export const applySocialIdea = (id: number, index: number) =>
+  api.post<SocialPost>(`/marketing/posts/${id}/ideas/${index}/use/`).then((r) => r.data);
+
+/** A fast rewrite: 3 options for the hook or the words (nothing is saved). */
+export const rewriteSocialPost = (id: number, part: RewritePart, mode: RewriteMode, current: string) =>
+  api.post<{ options: string[] }>(`/marketing/posts/${id}/rewrite/`, { part, mode, current }).then((r) => r.data.options);
 
 export const rateSocialPost = (id: number, rating: number | null) =>
   api.post<SocialPost>(`/marketing/posts/${id}/rating/`, { rating: rating ?? '' }).then((r) => r.data);

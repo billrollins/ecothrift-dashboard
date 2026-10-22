@@ -2,8 +2,10 @@
  * Social Studio post editor (`/studios/social/post/:id`; in the phone app `/social/post/:id` and the Post tab).
  * Each photo goes out as its own image at the post's size, a product photo carrying its tag (owner 2026-10-22, F6:
  * photo overlays, not templates). Desk: the photos on the left, the idea, words, checks and Post it on the right.
- * Phone: the same steps, one under the other. The Always-include list must pass before Ready; Post it copies the
- * caption and hands over the photos in one tap, then the Facebook link marks it Posted.
+ * Phone: the same steps, one under the other. The idea step holds the AI's post ideas (Phase 4: Use this idea fills
+ * the words and adds the photos), and the hook and the words have fast AI rewrites. The Always-include list must
+ * pass before Ready; Post it (PostIt.tsx: the share sheet on a phone, a drawer on a desk) hands over the text and
+ * the photos, then the Facebook link marks it Posted.
  */
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -15,7 +17,6 @@ import {
   Chip,
   CircularProgress,
   Dialog,
-  DialogActions,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -42,7 +43,6 @@ import { useSnackbar } from 'notistack';
 import {
   CTA_LABELS,
   getSocialPost,
-  markSocialPostPosted,
   markSocialPostReady,
   patchSocialPost,
   POST_TYPE_IDEAS,
@@ -60,8 +60,9 @@ import { CameraButtons, CategorySelect, PhotoGrid, SOCIAL_CATEGORIES } from './P
 import SocialPhotoEditor from './SocialPhotoEditor';
 import { formatDay, pageSx, StatusChip, StudioHeader } from './socialParts';
 import { useStudioPaths } from './studioPaths';
-import { TagPhoto, useTagAssets, usePhotoImages } from './TagPhoto';
-import { renderTagJpeg } from './tagOverlay';
+import PostIt from './PostIt';
+import { PostIdeas, RewriteButtons } from './PostIdeas';
+import { TagPhoto, usePhotoImages } from './TagPhoto';
 
 type ApiError = { response?: { data?: { detail?: string } } };
 
@@ -188,126 +189,6 @@ function PhotoTile({
   );
 }
 
-function PostItDialog({ post, onClose, onPosted }: { post: SocialPostDetail; onClose: () => void; onPosted: () => void }) {
-  const { enqueueSnackbar } = useSnackbar();
-  const images = usePhotoImages(post.photos);
-  const { logo, ready: assetsReady } = useTagAssets();
-  const [files, setFiles] = useState<File[] | null>(null);
-  const [failed, setFailed] = useState('');
-  const [sent, setSent] = useState(false);
-  const [url, setUrl] = useState('');
-  const ready = assetsReady && post.photos.every((p) => images.has(p.id));
-
-  // Draw the photos as soon as they are in, so the one tap below can hand them over straight away.
-  useEffect(() => {
-    if (!ready || files) return;
-    let alive = true;
-    (async () => {
-      const out: File[] = [];
-      for (let i = 0; i < post.photos.length; i += 1) {
-        const photo = post.photos[i];
-        const blob = await renderTagJpeg({
-          size: post.size,
-          photo: images.get(photo.id) ?? null,
-          tag: photo.tag,
-          overlay: photo.tag_overlay,
-          corner: photo.tag_corner,
-          logo,
-        });
-        out.push(new File([blob], `ecothrift-${post.slot_date}-${i + 1}.jpg`, { type: 'image/jpeg' }));
-      }
-      if (alive) setFiles(out);
-    })().catch((err) => { if (alive) setFailed(err instanceof Error ? err.message : 'Could not draw the photos.'); });
-    return () => { alive = false; };
-  }, [ready, files, post, images, logo]);
-
-  const copyAndSave = () => {
-    if (!files) return;
-    // Both start inside the tap: browsers only allow the clipboard and the share sheet right after one.
-    const copied = navigator.clipboard?.writeText(post.text).then(() => true).catch(() => false) ?? Promise.resolve(false);
-    const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
-    const shared = nav.canShare && nav.canShare({ files })
-      ? nav.share({ files }).then(() => true).catch(() => false)
-      : Promise.resolve(false);
-    shared.then((ok) => {
-      if (ok) return;
-      files.forEach((file) => {
-        const href = URL.createObjectURL(file);
-        const a = document.createElement('a');
-        a.href = href;
-        a.download = file.name;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(href), 4000);
-      });
-    });
-    copied.then((ok) => {
-      setSent(true);
-      enqueueSnackbar(ok ? 'Text copied. Paste it into the Facebook post.' : 'Copy the text below by hand.', { variant: ok ? 'success' : 'warning' });
-    });
-  };
-
-  const posted = useMutation({
-    mutationFn: () => markSocialPostPosted(post.id, url.trim()),
-    onSuccess: () => { enqueueSnackbar('Posted. Nice work.', { variant: 'success' }); onPosted(); },
-    onError: (err) => enqueueSnackbar(errorText(err, 'Could not mark it posted.'), { variant: 'error' }),
-  });
-
-  const n = post.photos.length;
-  return (
-    <Dialog open onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Post it</DialogTitle>
-      <DialogContent dividers>
-        {failed ? <Alert severity="error" sx={{ mb: 1.5 }}>{failed}</Alert> : null}
-        <Typography sx={{ fontWeight: 700, mb: 0.75 }}>1. Copy the text and save the {n} photo{n === 1 ? '' : 's'}</Typography>
-        <Button
-          fullWidth
-          size="large"
-          variant="contained"
-          disabled={!files}
-          startIcon={files ? null : <CircularProgress size={18} color="inherit" />}
-          onClick={copyAndSave}
-        >
-          {files ? 'Copy text + save photos' : 'Drawing the photos…'}
-        </Button>
-        <Typography sx={{ fontWeight: 700, mt: 2, mb: 0.75 }}>2. On Facebook: new post, add the photos, paste the text</Typography>
-        <TextField
-          multiline
-          fullWidth
-          minRows={4}
-          maxRows={10}
-          value={post.text}
-          slotProps={{ input: { readOnly: true } }}
-          size="small"
-        />
-        <Typography sx={{ fontWeight: 700, mt: 2, mb: 0.75 }}>3. Paste the link to the post</Typography>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
-          <TextField
-            size="small"
-            fullWidth
-            placeholder="https://www.facebook.com/…"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            slotProps={{ htmlInput: { inputMode: 'url' } }}
-          />
-          <Button
-            variant={sent ? 'contained' : 'outlined'}
-            disabled={!url.trim() || posted.isPending}
-            onClick={() => posted.mutate()}
-            sx={{ flex: { xs: '1 1 100%', sm: '0 0 auto' }, whiteSpace: 'nowrap' }}
-          >
-            Mark posted
-          </Button>
-        </Box>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
 export default function SocialPostEditorPage({ postId: fixedId }: { postId?: number } = {}) {
   const { id } = useParams();
   const postId = fixedId ?? Number(id);
@@ -318,7 +199,13 @@ export default function SocialPostEditorPage({ postId: fixedId }: { postId?: num
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const key = ['marketing', 'post', postId];
-  const query = useQuery({ queryKey: key, queryFn: () => getSocialPost(postId), enabled: Number.isFinite(postId) });
+  const query = useQuery({
+    queryKey: key,
+    queryFn: () => getSocialPost(postId),
+    enabled: Number.isFinite(postId),
+    // While the AI writes ideas, look again every few seconds.
+    refetchInterval: (q) => (q.state.data?.ideas?.state === 'drafting' ? 3000 : false),
+  });
   const post = query.data;
   const images = usePhotoImages(post?.photos ?? []);
 
@@ -419,6 +306,18 @@ export default function SocialPostEditorPage({ postId: fixedId }: { postId?: num
         onChange={(category) => patch.mutate({ category })}
         categories={SOCIAL_CATEGORIES}
       />
+      <PostIdeas
+        post={post}
+        locked={locked}
+        onChange={(next, usedIdea) => {
+          apply(next);
+          if (usedIdea) {
+            setHook(next.hook);
+            setBody(next.body);
+            reload();
+          }
+        }}
+      />
     </Step>
   );
 
@@ -438,6 +337,14 @@ export default function SocialPostEditorPage({ postId: fixedId }: { postId?: num
           helperText={`${hook.trim().length}/${limit} · the first line of the post`}
           sx={{ mb: 1.25 }}
         />
+        {!locked ? (
+          <RewriteButtons
+            postId={post.id}
+            part="hook"
+            current={hook}
+            onPick={(text) => { setHook(text); patch.mutate({ hook: text }); }}
+          />
+        ) : null}
         <TextField
           fullWidth
           multiline
@@ -450,6 +357,14 @@ export default function SocialPostEditorPage({ postId: fixedId }: { postId?: num
           onBlur={saveText}
           sx={{ mb: 1.25 }}
         />
+        {!locked ? (
+          <RewriteButtons
+            postId={post.id}
+            part="body"
+            current={body}
+            onPick={(text) => { setBody(text); patch.mutate({ body: text }); }}
+          />
+        ) : null}
         <TextField
           select
           size="small"
@@ -562,8 +477,9 @@ export default function SocialPostEditorPage({ postId: fixedId }: { postId?: num
         />
       ) : null}
       {postIt ? (
-        <PostItDialog
+        <PostIt
           post={post}
+          desk={desk}
           onClose={() => setPostIt(false)}
           onPosted={() => { setPostIt(false); queryClient.invalidateQueries({ queryKey: ['marketing'] }); }}
         />

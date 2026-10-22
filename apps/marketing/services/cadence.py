@@ -85,18 +85,22 @@ def in_season(day: date, *, settings: dict | None = None) -> set[str]:
     return set(SEASON_BY_MONTH.get(day.month, ()))
 
 
-def floor_counts() -> dict[str, int]:
-    """Items on the floor per real category (register ITM-15: the profile category wins when it is a real one)."""
-    from apps.inventory.models import Item
-
-    name = Case(
+def item_category():
+    """An item's category name (register ITM-15: the profile category wins when it is a real one)."""
+    return Case(
         When(product__profile__category__in=REAL_CATEGORIES, then=F('product__profile__category')),
         default=F('product__category__name'),
         output_field=CharField(),
     )
+
+
+def floor_counts() -> dict[str, int]:
+    """Items on the floor per real category."""
+    from apps.inventory.models import Item
+
     rows = (
         Item.objects.filter(status='on_shelf')
-        .annotate(cat=name).values('cat').annotate(n=Count('id'))
+        .annotate(cat=item_category()).values('cat').annotate(n=Count('id'))
     )
     return {row['cat']: row['n'] for row in rows if row['cat'] in REAL_CATEGORIES}
 

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.210.2] -->
-<!-- Last reviewed: 2026-10-22 (2.210.2) -->
+<!-- Line 1 release: ## [2.211.0] -->
+<!-- Last reviewed: 2026-10-22 (2.211.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.211.0] - 2026-10-22
+
+User-facing theme: **Social Studio suggests post ideas from what's in the store (Bill, 2026-10-22).** Initiative: retail_tags_and_social (phase 4).
+
+### Added
+- **Post ideas:** Social Studio suggests 3 to 5 post ideas a day from what's in the store: new stock with prices, the week's photos, loads coming, sales and the season. Each comes with its photos and a list of what to photograph. Tap Use this idea to fill in the post. The ideas are written each posting morning, so they're waiting in Today's post.
+- **Fast AI buttons** under the hook and the words (New hooks, Shorter, Another take) give 3 options in a few seconds.
+- **Post it on a desk** opens a side drawer: copy the text, then copy, drag or download the photos into Facebook.
+- The AI runs on Gemini 3.8 Flash (about 1.4 cents per day's ideas); it shows under AI spend on the Owner page and can be changed in Settings → AI.
 
 ## [2.210.2] - 2026-10-22
 

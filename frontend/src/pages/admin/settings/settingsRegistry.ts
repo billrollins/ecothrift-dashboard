@@ -215,6 +215,20 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     kind: 'text',
     defaultValue: 'Thrift+ is free to join, nothing owed. Members collect ThriftBucks on most items. Join at any register in a minute, or start on your phone from our website. ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value. Members 18+. Full terms on our website and at every register.',
   },
+  'marketing.ai_morning_ideas': {
+    label: 'AI post ideas each morning',
+    help: "On: the morning job writes each post day's AI ideas, so they are waiting in Today's post. Get ideas in the Studio works either way. Cost shows under AI spend on the Owner page.",
+    tab: 'store',
+    kind: 'switch',
+    defaultValue: true,
+  },
+  'marketing.ai_new_in_days': {
+    label: 'AI ideas: "new in" covers (days)',
+    help: 'The AI looks at items checked in over this many days for new stock to show.',
+    tab: 'store',
+    kind: 'days',
+    defaultValue: 3,
+  },
   'mailbox.email_signature': {
     label: 'Email signature',
     help: 'Added to replies sent from the mailbox. HTML; {{staff_name}} becomes the sender.',

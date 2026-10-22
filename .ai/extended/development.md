@@ -74,7 +74,7 @@ npm run dev
 |----------|---------|
 | Daily (after store-local midnight, e.g. 11:00 UTC) | `python manage.py materialize_routines` |
 
-Creates `RoutineRun` rows for the current America/Chicago store day. Closed Sunday and Monday (`apps/webstore/services/hours.py`) produce nothing. Use `--dry-run` to count matching routines. Replace the old `materialize_duties` dashboard job — it is not in the Procfile.
+Creates `RoutineRun` rows for the current America/Chicago store day, then asks the AI for that day's Social Studio post ideas (one call; off with `marketing.ai_morning_ideas`; a failure never stops the routines). Closed Sunday and Monday (`apps/webstore/services/hours.py`) produce nothing. Use `--dry-run` to count matching routines. Replace the old `materialize_duties` dashboard job — it is not in the Procfile.
 
 ## Heroku Scheduler (Online Sales)
 
