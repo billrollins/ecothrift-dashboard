@@ -5,6 +5,7 @@ import { dutyColors, thinScrollSx } from '../../components/duty/tokens';
 import { useAuth } from '../../hooks/useAuth';
 import { pick } from '../../i18n/routines';
 import { VerifyBlock } from './runners/VerifyBlock';
+import { photoDataUrl } from '../../utils/photoDataUrl';
 import { answeredCount, deriveResult, failCount, flattenChecks, unansweredCount } from './scoring';
 
 const runnerFieldSx = {
@@ -370,9 +371,7 @@ function PhotoControl({
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (!file) return;
-          const reader = new FileReader();
-          reader.onload = () => onPatch({ photo: String(reader.result || '') });
-          reader.readAsDataURL(file);
+          void photoDataUrl(file).then((photo) => onPatch({ photo }));
         }}
       />
     </Button>

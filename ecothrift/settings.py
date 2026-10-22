@@ -234,6 +234,10 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+# Checklist photos ride in the JSON body as data URLs (2026-10-22: a full-size phone photo went past Django's 2.5 MB
+# default and the save failed). The phone shrinks them now; this leaves room for a few.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024
+
 # ── REST Framework ────────────────────────────────────────────────────────────
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

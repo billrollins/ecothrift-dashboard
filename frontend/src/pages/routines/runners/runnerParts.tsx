@@ -2,6 +2,7 @@ import { Box, Button, TextField, Typography } from '@mui/material';
 import CameraAltOutlined from '@mui/icons-material/CameraAltOutlined';
 import type { ReactNode } from 'react';
 import { dutyColors, thinScrollSx } from '../../../components/duty/tokens';
+import { photoDataUrl } from '../../../utils/photoDataUrl';
 import { IconAdd as AddRounded, IconRemove as RemoveRounded } from '../../../icons/ecoIcons';
 
 export const runnerFieldSx = {
@@ -348,9 +349,7 @@ export function PhotoButton({
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (!file) return;
-          const reader = new FileReader();
-          reader.onload = () => onPhoto(String(reader.result || ''));
-          reader.readAsDataURL(file);
+          void photoDataUrl(file).then(onPhoto);
         }}
       />
     </Button>

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.209.0] -->
-<!-- Last reviewed: 2026-10-22 (2.209.0) -->
+<!-- Line 1 release: ## [2.209.1] -->
+<!-- Last reviewed: 2026-10-22 (2.209.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.209.1] - 2026-10-22
+
+User-facing theme: **Checklists with photos save again (Carrie's "Could not save", 2026-10-22).** Outside initiatives.
+
+### Fixed
+- **Checklist photos:** a full-size phone photo made the checklist too big to save ("Could not save."). Photos are now shrunk on the phone before they're sent (long side 1,600 px), and the server takes larger saves.
 
 ## [2.209.0] - 2026-10-22
 
