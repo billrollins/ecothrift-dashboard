@@ -10,13 +10,17 @@
  * - "+x.xx ThriftBucks today" over "for Thrift+ members": a number with the unit's name, never "$" (V8), with
  *   "Thrift+ members" in the same view (V10). Today's, because the number changes day to day.
  *
- * Drawn 1080 CSS px wide and saved at 2x as JPEG (a 4:5 photo is 2160 x 2700).
+ * Drawn 1080 CSS px wide and saved at 2x as JPEG (a 4:5 photo is 2160 x 2700). Phase 6 adds the other channels'
+ * sizes: 9:16 for Stories and TikTok (the top and bottom 250 px stay clear of the tag and the store mark, where the
+ * apps put their own buttons; creative-method.md) and 4:3 for Google Business Profile.
  */
-import type { SocialSize, SocialTag, TagCorner } from '../../../api/marketing.api';
+import type { PhotoSize, SocialTag, TagCorner } from '../../../api/marketing.api';
 
 export const PHOTO_WIDTH = 1080;
 export const EXPORT_SCALE = 2;
-export const PHOTO_HEIGHTS: Record<SocialSize, number> = { '1:1': 1080, '4:5': 1350 };
+export const PHOTO_HEIGHTS: Record<PhotoSize, number> = { '1:1': 1080, '4:5': 1350, '9:16': 1920, '4:3': 810 };
+/** Room kept clear at the top and bottom of a size (9:16: the Story and TikTok buttons). */
+export const SAFE_EDGE: Record<PhotoSize, number> = { '1:1': 0, '4:5': 0, '9:16': 250, '4:3': 0 };
 export const CORNER_LABELS: Record<TagCorner, string> = {
   tl: 'Top left', tr: 'Top right', bl: 'Bottom left', br: 'Bottom right',
 };
@@ -95,10 +99,10 @@ export function cardHeight(words: TagWords): number {
 }
 
 /** Where the card sits: `corner` of a `height`-tall photo. */
-export function cardRect(corner: TagCorner, height: number, words: TagWords): Rect {
+export function cardRect(corner: TagCorner, height: number, words: TagWords, edge = 0): Rect {
   const h = cardHeight(words);
   const x = corner.endsWith('l') ? MARGIN : PHOTO_WIDTH - MARGIN - CARD_W;
-  const y = corner.startsWith('t') ? MARGIN : height - MARGIN - h;
+  const y = corner.startsWith('t') ? MARGIN + edge : height - MARGIN - edge - h;
   return { x, y, w: CARD_W, h };
 }
 
@@ -157,10 +161,10 @@ function drawCard(ctx: CanvasRenderingContext2D, r: Rect, words: TagWords) {
   ctx.restore();
 }
 
-function drawMark(ctx: CanvasRenderingContext2D, logo: HTMLImageElement, right: boolean) {
+function drawMark(ctx: CanvasRenderingContext2D, logo: HTMLImageElement, right: boolean, edge = 0) {
   const h = 52;
   const w = Math.round((logo.width / logo.height) * h);
-  const box = { x: right ? PHOTO_WIDTH - MARGIN - w - 32 : MARGIN, y: MARGIN, w: w + 32, h: h + 20 };
+  const box = { x: right ? PHOTO_WIDTH - MARGIN - w - 32 : MARGIN, y: MARGIN + edge, w: w + 32, h: h + 20 };
   ctx.save();
   ctx.fillStyle = COLORS.mark;
   roundRect(ctx, box, box.h / 2);
@@ -170,7 +174,7 @@ function drawMark(ctx: CanvasRenderingContext2D, logo: HTMLImageElement, right: 
 }
 
 export interface TagPhotoInput {
-  size: SocialSize;
+  size: PhotoSize;
   photo: HTMLImageElement | ImageBitmap | null;
   tag: SocialTag | null | undefined;
   overlay: boolean;
@@ -181,6 +185,7 @@ export interface TagPhotoInput {
 /** Draw one post photo at `scale` (1 = 1080 wide). */
 export function drawTagPhoto(ctx: CanvasRenderingContext2D, input: TagPhotoInput, scale = 1): void {
   const height = PHOTO_HEIGHTS[input.size];
+  const edge = SAFE_EDGE[input.size];
   ctx.save();
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   ctx.fillStyle = '#eef3ef';
@@ -191,10 +196,10 @@ export function drawTagPhoto(ctx: CanvasRenderingContext2D, input: TagPhotoInput
   }
   const showTag = Boolean(input.tag && input.overlay);
   // The store mark sits top left, or top right when the tag takes the top left.
-  if (input.logo) drawMark(ctx, input.logo, showTag && input.corner === 'tl');
+  if (input.logo) drawMark(ctx, input.logo, showTag && input.corner === 'tl', edge);
   if (showTag && input.tag) {
     const words = tagWords(input.tag);
-    drawCard(ctx, cardRect(input.corner, height, words), words);
+    drawCard(ctx, cardRect(input.corner, height, words, edge), words);
   }
   ctx.restore();
 }

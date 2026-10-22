@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.213.0] -->
-<!-- Last reviewed: 2026-10-22 (2.213.0) -->
+<!-- Line 1 release: ## [2.214.0] -->
+<!-- Last reviewed: 2026-10-22 (2.214.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.214.0] - 2026-10-22
+
+User-facing theme: **Social Studio posts on more channels: Instagram, Google Business Profile, Nextdoor and TikTok beside Facebook (Bill, 2026-10-22).** Initiative: retail_tags_and_social (phase 6).
+
+### Added
+- **More channels:** Post it now covers Instagram, Google Business Profile, Nextdoor and TikTok as well as Facebook. Each gets its own wording (local hashtags on Instagram and TikTok, short text for Google) and photos in its size: tall 9:16 for Stories and TikTok, 4:3 for Google.
+- **One channel at a time:** pick a channel, copy, post, paste its link. Post it then moves to the next channel.
+- **Numbers per channel:** numbers are typed per channel, and the Numbers page shows which channel does best.
+- **Settings:** choose the channels in Settings > Store > Social Studio (Facebook, Instagram and Google to start). Open each account first.
 
 ## [2.213.0] - 2026-10-22
 

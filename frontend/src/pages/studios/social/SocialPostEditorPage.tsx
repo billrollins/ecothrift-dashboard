@@ -415,6 +415,11 @@ export default function SocialPostEditorPage({ postId: fixedId }: { postId?: num
                 <Rating value={post.rating} onChange={(_e, value) => rate.mutate(value)} />
               </Box>
             ) : null}
+            {post.channels.some((c) => !c.posted_url) ? (
+              <Button variant="outlined" sx={{ mt: 1.25 }} onClick={() => setPostIt(true)}>
+                Post on more channels ({post.channels.filter((c) => !c.posted_url).map((c) => c.label).join(', ')})
+              </Button>
+            ) : null}
             <Box sx={{ mt: 1.5 }}>
               <PostNumbersForm
                 postId={post.id}
@@ -489,7 +494,13 @@ export default function SocialPostEditorPage({ postId: fixedId }: { postId?: num
           post={post}
           desk={desk}
           onClose={() => setPostIt(false)}
-          onPosted={() => { setPostIt(false); queryClient.invalidateQueries({ queryKey: ['marketing'] }); }}
+          onPosted={(next) => {
+            // Stays open for the next channel; the post detail comes back with the channel marked.
+            queryClient.setQueryData(key, next);
+            queryClient.invalidateQueries({ queryKey: ['marketing', 'week'] });
+            queryClient.invalidateQueries({ queryKey: ['marketing', 'today'] });
+            queryClient.invalidateQueries({ queryKey: ['marketing', 'numbers'] });
+          }}
         />
       ) : null}
     </Box>

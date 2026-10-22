@@ -1,8 +1,10 @@
-"""Post numbers, the spend ledger and what moves the needle (Lane F Phase 5).
+"""Post numbers, the spend ledger and what moves the needle (Lane F Phase 5; per channel since Phase 6).
 
-**Numbers.** A posted post gets its numbers typed from Facebook's insights twice: after 1 day and after 7 days
-(reach, reactions, comments, shares, messages, link clicks; engagement is the last five added). A mark is due once
-that many days have passed since it was posted. Pulled from Meta later, once the owner makes the Meta app (F5).
+**Numbers.** On each channel a post went out on, it gets its numbers typed from that channel's insights twice: after
+1 day and after 7 days (reach, reactions, comments, shares, messages, link clicks; engagement is the last five
+added). A mark is due once that many days have passed since it went out there. A post's reach and engagement add up
+its channels (each channel's 7-day numbers when typed, else its 1-day). Pulled from Meta later, once the owner makes
+the Meta app (F5).
 
 **Spend.** The ledger (owner call F3: $0 to start): boosts, print, events, other; optionally tied to a post.
 
@@ -20,7 +22,8 @@ small sample.
   Only spotlights a full 7 days old count.
 
 **Weekly card** (the Owner page): this week's posts (out and planned), reach and engagement, the best post, numbers
-still due, spend this week and month, and the read's one-line headline.
+still due, spend this week and month, and the read's one-line headline. The read uses the Facebook day (the post's
+own Posted).
 """
 from __future__ import annotations
 
@@ -31,7 +34,7 @@ from decimal import Decimal
 from django.db.models import Count, Sum
 from django.utils import timezone
 
-from apps.marketing.models import MarketingSpend, SocialPost, SocialPostNumbers
+from apps.marketing.models import CHANNEL_CHOICES, CHANNEL_FACEBOOK, MarketingSpend, SocialPost, SocialPostNumbers
 from apps.marketing.services import cadence
 
 NUMBER_FIELDS = ('reach', 'reactions', 'comments', 'shares', 'messages', 'link_clicks')
@@ -68,19 +71,38 @@ def posted_day(post: SocialPost) -> date | None:
 # ── Numbers ──────────────────────────────────────────────────────────────────
 
 
-def due_marks(post: SocialPost, today: date, have: set[int] | None = None) -> list[int]:
-    """The marks (1, 7) whose day has come and that have no numbers yet."""
-    day = posted_day(post)
-    if post.status != SocialPost.STATUS_POSTED or day is None:
-        return []
+CHANNEL_LABELS = dict(CHANNEL_CHOICES)
+
+
+def channel_days(post: SocialPost) -> dict[str, date]:
+    """The day the post went out on each channel (Facebook: the post's own Posted)."""
+    out = {}
+    if post.status == SocialPost.STATUS_POSTED and post.posted_at:
+        out[CHANNEL_FACEBOOK] = timezone.localdate(post.posted_at)
+    for row in post.channel_posts.all():
+        out[row.channel] = timezone.localdate(row.posted_at)
+    return out
+
+
+def due_marks(post: SocialPost, today: date, have: set[tuple[str, int]] | None = None) -> list[dict]:
+    """The (channel, mark) pairs whose day has come and that have no numbers yet."""
     if have is None:
-        have = set(post.numbers.values_list('mark', flat=True))
-    return [mark for mark, _ in SocialPostNumbers.MARK_CHOICES if day + timedelta(days=mark) <= today and mark not in have]
+        have = set(post.numbers.values_list('channel', 'mark'))
+    out = []
+    for channel, day in channel_days(post).items():
+        for mark, _ in SocialPostNumbers.MARK_CHOICES:
+            if day + timedelta(days=mark) <= today and (channel, mark) not in have:
+                out.append({'channel': channel, 'label': CHANNEL_LABELS[channel], 'mark': mark})
+    order = [key for key, _ in CHANNEL_CHOICES]
+    return sorted(out, key=lambda d: (order.index(d['channel']), d['mark']))
 
 
-def save_numbers(post: SocialPost, mark, data: dict, *, user) -> SocialPostNumbers:
-    if post.status != SocialPost.STATUS_POSTED:
-        raise NumbersError('Numbers go on a posted post.', 'NOT_POSTED')
+def save_numbers(post: SocialPost, mark, data: dict, *, user, channel: str = CHANNEL_FACEBOOK) -> SocialPostNumbers:
+    channel = channel or CHANNEL_FACEBOOK
+    if channel not in CHANNEL_LABELS:
+        raise NumbersError('Pick a channel.', 'BAD_CHANNEL')
+    if channel not in channel_days(post):
+        raise NumbersError(f'Mark it posted on {CHANNEL_LABELS[channel]} first.', 'NOT_POSTED')
     try:
         mark = int(mark)
     except (TypeError, ValueError):
@@ -98,8 +120,7 @@ def save_numbers(post: SocialPost, mark, data: dict, *, user) -> SocialPostNumbe
             raise NumbersError(f'{field.replace("_", " ").capitalize()} is out of range.', 'BAD_NUMBER')
         values[field] = n
     row, _ = SocialPostNumbers.objects.update_or_create(
-        post=post, channel=SocialPostNumbers._meta.get_field('channel').default, mark=mark,
-        defaults={**values, 'entered_by': user},
+        post=post, channel=channel, mark=mark, defaults={**values, 'entered_by': user},
     )
     return row
 
@@ -116,16 +137,31 @@ def _row(n: SocialPostNumbers | None) -> dict | None:
 
 
 def numbers_payload(post: SocialPost, today: date | None = None) -> dict:
-    rows = {n.mark: n for n in post.numbers.select_related('entered_by')}
+    """Per channel the post went out on: its 1-day and 7-day numbers and which are due."""
+    rows = {(n.channel, n.mark): n for n in post.numbers.select_related('entered_by')}
+    due = due_marks(post, today or timezone.localdate(), set(rows))
+    days = channel_days(post)
     return {
-        'day1': _row(rows.get(SocialPostNumbers.MARK_DAY)),
-        'day7': _row(rows.get(SocialPostNumbers.MARK_WEEK)),
-        'due': due_marks(post, today or timezone.localdate(), set(rows)),
+        'channels': [
+            {
+                'key': key, 'label': label,
+                'day1': _row(rows.get((key, SocialPostNumbers.MARK_DAY))),
+                'day7': _row(rows.get((key, SocialPostNumbers.MARK_WEEK))),
+                'due': [d['mark'] for d in due if d['channel'] == key],
+            }
+            for key, label in CHANNEL_CHOICES if key in days
+        ],
+        'due': due,
     }
 
 
-def _latest(rows: dict[int, SocialPostNumbers]) -> SocialPostNumbers | None:
-    return rows.get(SocialPostNumbers.MARK_WEEK) or rows.get(SocialPostNumbers.MARK_DAY)
+def _latest_by_channel(rows) -> dict[str, SocialPostNumbers]:
+    """Each channel's 7-day numbers when typed, else its 1-day."""
+    out: dict[str, SocialPostNumbers] = {}
+    for n in rows:
+        if n.channel not in out or n.mark > out[n.channel].mark:
+            out[n.channel] = n
+    return out
 
 
 # ── Spend ────────────────────────────────────────────────────────────────────
@@ -181,14 +217,14 @@ def spend_total(start: date, end: date) -> Decimal:
 def _posted(start: date, end: date) -> list[SocialPost]:
     posts = list(
         SocialPost.objects.filter(status=SocialPost.STATUS_POSTED, slot_date__gte=start, slot_date__lte=end)
-        .prefetch_related('numbers').order_by('slot_date')
+        .prefetch_related('numbers', 'channel_posts').order_by('slot_date')
     )
     return posts
 
 
 def _hit(post: SocialPost) -> dict:
-    rows = {n.mark: n for n in post.numbers.all()}
-    latest = _latest(rows)
+    latest = _latest_by_channel(post.numbers.all())
+    counted = list(latest.values())
     return {
         'id': post.pk,
         'slot_date': post.slot_date.isoformat(),
@@ -198,10 +234,29 @@ def _hit(post: SocialPost) -> dict:
         'hook': post.hook,
         'posted_url': post.posted_url,
         'rating': post.rating,
-        'mark': latest.mark if latest else None,
-        'reach': latest.reach if latest else None,
-        'engagement': latest.engagement if latest else None,
+        'channels': [key for key, _ in CHANNEL_CHOICES if key in channel_days(post)],
+        # 1 while any channel has only its 1-day numbers, 7 when all are 7-day; None without numbers.
+        'mark': min(n.mark for n in counted) if counted else None,
+        'reach': sum(n.reach for n in counted) if counted else None,
+        'engagement': sum(n.engagement for n in counted) if counted else None,
+        'by_channel': {key: {'reach': n.reach, 'engagement': n.engagement, 'mark': n.mark} for key, n in latest.items()},
     }
+
+
+def _by_channel(hits: list[dict]) -> list[dict]:
+    """Per channel: posts that went out there, how many have numbers, average reach and engagement there."""
+    out = []
+    for key, label in CHANNEL_CHOICES:
+        posted = [h for h in hits if key in h['channels']]
+        if not posted:
+            continue
+        counted = [h['by_channel'][key] for h in posted if key in h['by_channel']]
+        out.append({
+            'key': key, 'label': label, 'posts': len(posted), 'with_numbers': len(counted),
+            'avg_reach': round(_mean([c['reach'] for c in counted])) if counted else None,
+            'avg_engagement': round(_mean([c['engagement'] for c in counted])) if counted else None,
+        })
+    return out
 
 
 def _groups(hits: list[dict], key: str, label_of) -> list[dict]:
@@ -328,7 +383,7 @@ def insights(today: date | None = None, weeks: int = DEFAULT_WEEKS) -> dict:
     labels = dict(SocialPost.TYPE_CHOICES)
     due = []
     for post in posts:
-        marks = due_marks(post, today, {n.mark for n in post.numbers.all()})
+        marks = due_marks(post, today, {(n.channel, n.mark) for n in post.numbers.all()})
         if marks:
             due.append({'id': post.pk, 'slot_date': post.slot_date.isoformat(), 'hook': post.hook,
                         'post_type_label': post.get_post_type_display(), 'due': marks})
@@ -340,6 +395,7 @@ def insights(today: date | None = None, weeks: int = DEFAULT_WEEKS) -> dict:
         'hits': sorted(hits, key=lambda h: -(h['engagement'] if h['engagement'] is not None else -1)),
         'by_type': _groups(hits, 'post_type', lambda k: labels.get(k, k)),
         'by_category': _groups(hits, 'category', lambda k: k),
+        'by_channel': _by_channel(hits),
         'read': sales_read(posts, today),
         'spend': {
             'week': _money(spend_total(monday, today)),
@@ -354,7 +410,7 @@ def weekly_card(today: date | None = None) -> dict:
     today = today or timezone.localdate()
     monday = today - timedelta(days=today.weekday())
     week_posts = list(SocialPost.objects.filter(slot_date__gte=monday, slot_date__lte=monday + timedelta(days=6))
-                      .prefetch_related('numbers'))
+                      .prefetch_related('numbers', 'channel_posts'))
     posted = [p for p in week_posts if p.status == SocialPost.STATUS_POSTED]
     hits = [_hit(p) for p in posted]
     counted = [h for h in hits if h['reach'] is not None]

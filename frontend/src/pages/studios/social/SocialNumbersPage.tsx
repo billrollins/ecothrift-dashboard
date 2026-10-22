@@ -3,7 +3,8 @@
  * Lane F Phase 5, apps/marketing/services/numbers.py.
  *
  * - **Numbers due:** posted posts still owed their 1-day or 7-day numbers; tap to type them.
- * - **Hits:** the posts of the last weeks by engagement; the averages by post type and by category.
+ * - **Hits:** the posts of the last weeks by engagement (their channels added up); the averages by post type, by
+ *   category and by channel (Phase 6).
  * - **Rough read:** post days against the same weekday (tickets and sales), and spotlight categories against the
  *   weeks before, each with how many it rests on. Not proof.
  * - **Spend:** the marketing ledger ($0 to start, owner call F3); the owner adds and removes.
@@ -44,7 +45,9 @@ import {
   SPEND_KIND_LABELS,
   type HitGroup,
   type NumbersPage,
+  type PostHit,
   type SalesRead,
+  type SocialChannel,
   type SpendKind,
 } from '../../../api/marketing.api';
 import { ccTokens } from '../../../theme';
@@ -73,6 +76,22 @@ function Panel({ title, hint, children, action }: { title: string; hint?: string
       {hint ? <Typography sx={{ fontSize: 12.5, color: ccTokens.ink3, mb: 1 }}>{hint}</Typography> : null}
       {children}
     </Card>
+  );
+}
+
+const CHANNEL_SHORT: Record<SocialChannel, string> = {
+  facebook: 'Facebook', instagram: 'Instagram', google: 'Google', nextdoor: 'Nextdoor', tiktok: 'TikTok',
+};
+
+/** Where a post went out, each with its own engagement when typed. */
+function ChannelChips({ hit }: { hit: PostHit }) {
+  return (
+    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
+      {hit.channels.map((c) => {
+        const n = hit.by_channel[c];
+        return <Chip key={c} size="small" variant="outlined" label={n ? `${CHANNEL_SHORT[c]} ${n.engagement}` : CHANNEL_SHORT[c]} sx={{ height: 20, fontSize: 11 }} />;
+      })}
+    </Box>
   );
 }
 
@@ -200,14 +219,18 @@ export default function SocialNumbersPage() {
   if (!data) return <Box sx={pageSx}><Alert severity="error">The numbers did not load.</Alert></Box>;
 
   const due = (
-    <Panel title="Numbers due" hint="Type them from the post's insights on Facebook.">
+    <Panel title="Numbers due" hint="Type them from the post's insights on each channel.">
       {data.due.length ? data.due.map((d) => (
         <Box key={d.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5, borderTop: `1px solid ${ccTokens.line}` }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{formatDay(d.slot_date)} · {d.post_type_label}</Typography>
             <Typography sx={{ fontSize: 12.5, color: ccTokens.ink2, overflowWrap: 'anywhere' }}>{d.hook}</Typography>
           </Box>
-          {d.due.map((m) => <Chip key={m} size="small" color="warning" label={m === 1 ? '1 day' : '7 days'} />)}
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: { xs: 150, sm: 'none' } }}>
+            {d.due.map((m) => (
+              <Chip key={`${m.channel}-${m.mark}`} size="small" color="warning" label={`${m.label} ${m.mark === 1 ? '1 day' : '7 days'}`} />
+            ))}
+          </Box>
           <Button size="small" onClick={() => navigate(paths.post(d.id))}>Type</Button>
         </Box>
       )) : <Typography sx={{ fontSize: 13, color: ccTokens.ink2 }}>All caught up.</Typography>}
@@ -215,7 +238,7 @@ export default function SocialNumbersPage() {
   );
 
   const hits = (
-    <Panel title="Hits" hint={`Posts of the last ${data.weeks} weeks by engagement (the 7-day numbers when typed).`}>
+    <Panel title="Hits" hint={`Posts of the last ${data.weeks} weeks by engagement: their channels added up, the 7-day numbers when typed.`}>
       {!data.hits.length ? <Typography sx={{ fontSize: 13, color: ccTokens.ink2 }}>Nothing posted yet.</Typography> : desk ? (
         <Table size="small">
           <TableHead>
@@ -234,6 +257,7 @@ export default function SocialNumbersPage() {
                 <TableCell>
                   <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{h.post_type_label}{h.category ? ` · ${h.category}` : ''}</Typography>
                   <Typography sx={{ fontSize: 12.5, color: ccTokens.ink2 }}>{h.hook}</Typography>
+                  {h.channels.length > 1 ? <ChannelChips hit={h} /> : null}
                 </TableCell>
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{h.reach ?? '-'}</TableCell>
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{h.engagement ?? '-'}{h.mark === 1 ? ' (1 day)' : ''}</TableCell>
@@ -252,6 +276,7 @@ export default function SocialNumbersPage() {
               </Typography>
             </Box>
             <Typography sx={{ fontSize: 12.5, color: ccTokens.ink2 }}>{h.hook}</Typography>
+            {h.channels.length > 1 ? <ChannelChips hit={h} /> : null}
           </Box>
         ))
       )}
@@ -266,6 +291,11 @@ export default function SocialNumbersPage() {
       <Panel title="By category">
         <Groups rows={data.by_category} />
       </Panel>
+      {data.by_channel.length > 1 ? (
+        <Panel title="By channel" hint="Average engagement and reach on each channel (posts with numbers there, of all posted there).">
+          <Groups rows={data.by_channel} />
+        </Panel>
+      ) : null}
     </>
   );
   const read = (

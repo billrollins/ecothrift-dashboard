@@ -262,6 +262,9 @@ def post_payload(post: SocialPost, *, settings: dict | None = None, brand: dict 
         ).order_by('position')
         out['photos'] = [photo_payload(row.photo, used_in=[], with_tag=True) for row in rows]
         out['numbers'] = numbers_payload(post)
+        from apps.marketing.services.channels import channels_payload
+
+        out['channels'] = channels_payload(post, brand=brand)
         # Thumbnails for the photos the AI's ideas pick.
         ids = {pk for idea in (out['ideas'] or {}).get('ideas', []) for pk in idea.get('photo_ids', [])}
         out['idea_photos'] = {

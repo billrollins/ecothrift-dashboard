@@ -1,7 +1,7 @@
-<!-- Last updated: 2026-10-22 (Phase 5: post numbers, spend ledger, the rough read, the Owner card) -->
+<!-- Last updated: 2026-10-22 (Phase 6: more channels) -->
 # Social Studio (marketing)
 
-Retail makes and posts one good Facebook post every open day from one screen. Initiative: [`retail_tags_and_social`](../initiatives/retail_tags_and_social.md) Phases 2 to 5. How a creative should look: [`creative-method.md`](creative-method.md).
+Retail makes and posts one good Facebook post every open day from one screen. Initiative: [`retail_tags_and_social`](../initiatives/retail_tags_and_social.md) Phases 2 to 6. How a creative should look: [`creative-method.md`](creative-method.md).
 
 ## App
 
@@ -12,8 +12,9 @@ Retail makes and posts one good Facebook post every open day from one screen. In
 | `SocialPhoto` | The photo library ("Photo dump"): a real photo (2048 px JPEG plus a 480 px thumbnail, the receiving photo pattern), optional category, optional item (scan the tag), note, who and when, archived. Photos live apart from posts, so staff stock them on the floor and the poster builds a post later, even from home. Since Phase 3: `tag_overlay` (on by default; draws the item's tag on the photo), `tag_corner` (bl / br / tl / tr), `edited_at` (the photo editor replaced the image). |
 | `SocialPost` | One per day (`slot_date`): post type, category, hook, more words, call to action, size (`1:1`, `4:5`: every photo goes out at it), status draft / ready / posted, the Facebook link, who posted and when, the owner's rating 1-5. `layout` is retired (the fixed templates, 2026-10-22) and kept only as a column. `ai_brief` holds the AI's post ideas (state, the ideas, who asked, when); `source` turns `ai` when one is used. |
 | `SocialPostPhoto` | A library photo in a post, in order. Each goes out as its own image. A photo held by any post counts as used. |
-| `SocialPostNumbers` | How a posted post did on a channel (`facebook` now): reach, reactions, comments, shares, messages, link clicks, at mark 1 (after 1 day) or 7 (after 7 days); one row per post, channel and mark; who typed it. Engagement is the last five added. |
+| `SocialPostNumbers` | How a posted post did on a channel (facebook, instagram, google, nextdoor, tiktok): reach, reactions, comments, shares, messages, link clicks, at mark 1 (after 1 day) or 7 (after 7 days); one row per post, channel and mark; who typed it. Engagement is the last five added. |
 | `MarketingSpend` | The spend ledger (owner call F3, $0 to start): day, kind (boost, print, event, other), amount, note, optional post, who. |
+| `SocialPostChannel` | A post put out on one more channel (Phase 6): the channel, the link there, who and when. Facebook stays on the post itself (`posted_url`, which closes the routine). |
 
 ## The week
 
@@ -53,6 +54,26 @@ Phase 5 (`services/numbers.py`, `SocialNumbersPage.tsx`, `PostNumbersForm.tsx`).
 - **Spend:** the owner (superuser) adds and removes rows (`POST /api/marketing/spend/`, `DELETE /api/marketing/spend/<id>/`); everyone sees the totals.
 - **Owner page Social card** (`GET /api/core/owner/social/`, `weekly_card`): this week's posts (out of planned), reach and engagement, the best post, numbers due, spend this week and month, the read's headline and its best post type (2+ days).
 
+## More channels
+
+Phase 6, owner call F4 (`services/channels.py`). Channels on: Settings > Store > Social Studio `marketing.channels` (any of facebook, instagram, google, nextdoor, tiktok; Facebook always; default Facebook, Instagram and Google Business Profile). The owner opens each account first.
+
+| Channel | Words | Photos |
+|---------|-------|--------|
+| Facebook | hook, words, call to action, where and when, the Thrift+ line | the post's size (4:5 or 1:1) |
+| Instagram | the same, then a few local hashtags (#Omaha #OmahaThrift ...) | the post's size, or 9:16 for a Story |
+| Google Business Profile | the same, cut to 1500 characters | 4:3 |
+| Nextdoor | the same, plain (no hashtags) | the post's size |
+| TikTok | the same, then hashtags, under 2200 characters | 9:16 (a photo post; add a sound in the app) |
+
+The Thrift+ line goes on every channel (it carries the terms ThriftBucks words need, V10). 9:16 photos keep the tag and the store mark out of the top and bottom 250 px (the apps' buttons; `SAFE_EDGE` in `tagOverlay.ts`).
+
+**Post it** (`PostIt.tsx`) has a channel picker: each channel's words, a one-line how-to, the photos at its size and its link. It opens on the first channel not posted yet and moves on after each Mark posted. A channel can be marked posted once the post passes the Always-include check (`POST /api/marketing/posts/<id>/channels/<channel>/posted/`, the link host checked per channel); Facebook through it is the post's own Posted. After Facebook, the post shows **Post on more channels**.
+
+**Numbers per channel:** numbers are typed per channel the post went out on, each due after 1 and 7 days from its own day (`PUT .../numbers/` with `channel`). A post's reach and engagement add up its channels; the Numbers page adds a By channel panel and channel chips on hits. The rough read still uses the Facebook day.
+
+Not yet: posting through the Meta API (Facebook and Instagram) waits on the owner's Meta app (F5); Reels and TikTok video are made in the apps.
+
 ## Today's post routine
 
 Seeded by `routines/0029_social_post_routine`: kind `social_post`, no `system_key` (out of Retail QA grading), Retail department, one shared run, due 11:30 (late morning), expires end of day. It is made only on posting days the store is open. The runner shows today's post and opens it in the Studio; Submit waits until the post is Posted, and marking it Posted closes the run by itself. The owner moves the time with Hard nag at in Routine Control.
@@ -75,4 +96,4 @@ Owner 2026-10-22 (F7): **Social Studio installs as its own home-screen app** at 
 
 ## Settings
 
-Settings > Store > Social Studio: `marketing.post_weekdays` (Tue-Sat), `marketing.min_photos` (3), `marketing.hook_max_chars` (80), `marketing.repeat_days` (14), `marketing.in_season` (blank = calendar), `marketing.season_weight` (2), `marketing.thrift_plus_line`, `marketing.ai_morning_ideas` (on), `marketing.ai_new_in_days` (3). All are starting guesses.
+Settings > Store > Social Studio: `marketing.post_weekdays` (Tue-Sat), `marketing.min_photos` (3), `marketing.hook_max_chars` (80), `marketing.repeat_days` (14), `marketing.in_season` (blank = calendar), `marketing.season_weight` (2), `marketing.thrift_plus_line`, `marketing.ai_morning_ideas` (on), `marketing.ai_new_in_days` (3), `marketing.channels` (Facebook, Instagram, Google). All are starting guesses.

@@ -3,7 +3,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box } from '@mui/material';
-import { fetchSocialPhotoBlob, type SocialPhoto, type SocialSize } from '../../../api/marketing.api';
+import { fetchSocialPhotoBlob, type PhotoSize, type SocialPhoto } from '../../../api/marketing.api';
 import logoUrl from '../../../assets/logo-full-white-quartersize.png';
 import { drawTagPhoto, loadImage, PHOTO_HEIGHTS, PHOTO_WIDTH } from './tagOverlay';
 
@@ -88,7 +88,7 @@ export function TagPhoto({
 }: {
   photo: SocialPhoto;
   image: HTMLImageElement | null;
-  size: SocialSize;
+  size: PhotoSize;
   /** Override the photo's own setting (the editor's live switch). */
   overlay?: boolean;
   corner?: SocialPhoto['tag_corner'];

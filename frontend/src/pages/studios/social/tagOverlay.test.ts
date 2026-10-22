@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { SocialTag } from '../../../api/marketing.api';
 import { socialTabOf } from './SocialApp';
 import { movePhoto } from './SocialPostEditorPage';
-import { cardRect, coverCrop, money, PHOTO_HEIGHTS, PHOTO_WIDTH, tagWords } from './tagOverlay';
+import { cardRect, coverCrop, money, PHOTO_HEIGHTS, PHOTO_WIDTH, SAFE_EDGE, tagWords } from './tagOverlay';
+import { firstOpenChannel } from './PostIt';
 import { centredCrop } from './SocialPhotoEditor';
 
 const TAG: SocialTag = {
@@ -59,15 +60,24 @@ describe('tag overlay words', () => {
 describe('tag overlay layout', () => {
   it('keeps the card inside the photo in every corner and size', () => {
     const words = tagWords(TAG);
-    for (const size of ['1:1', '4:5'] as const) {
+    for (const size of ['1:1', '4:5', '9:16', '4:3'] as const) {
       for (const corner of ['tl', 'tr', 'bl', 'br'] as const) {
-        const r = cardRect(corner, PHOTO_HEIGHTS[size], words);
+        const edge = SAFE_EDGE[size];
+        const r = cardRect(corner, PHOTO_HEIGHTS[size], words, edge);
         expect(r.x).toBeGreaterThanOrEqual(0);
-        expect(r.y).toBeGreaterThanOrEqual(0);
+        expect(r.y).toBeGreaterThanOrEqual(edge);
         expect(r.x + r.w).toBeLessThanOrEqual(PHOTO_WIDTH);
-        expect(r.y + r.h).toBeLessThanOrEqual(PHOTO_HEIGHTS[size]);
+        expect(r.y + r.h).toBeLessThanOrEqual(PHOTO_HEIGHTS[size] - edge);
       }
     }
+  });
+
+  it('keeps 9:16 photos clear of the Story and TikTok buttons', () => {
+    expect(PHOTO_HEIGHTS['9:16']).toBe(1920);
+    expect(SAFE_EDGE['9:16']).toBe(250);
+    const bottom = cardRect('bl', 1920, tagWords(TAG), SAFE_EDGE['9:16']);
+    expect(bottom.y + bottom.h).toBeLessThanOrEqual(1920 - 250);
+    expect(PHOTO_HEIGHTS['4:3']).toBe(810);
   });
 
   it('fills the photo without stretching', () => {
@@ -88,6 +98,15 @@ describe('tag overlay layout', () => {
 });
 
 describe('studio helpers', () => {
+  it('opens Post it on the first channel not posted yet', () => {
+    const ch = (key: 'facebook' | 'instagram' | 'google', posted: boolean) => ({
+      key, label: key, sizes: ['4:5' as const], text: '', max_chars: 2200, how: '',
+      posted_url: posted ? 'https://x' : '', posted_at: null, posted_by_name: '',
+    });
+    expect(firstOpenChannel([ch('facebook', true), ch('instagram', false), ch('google', false)])?.key).toBe('instagram');
+    expect(firstOpenChannel([ch('facebook', true)])?.key).toBe('facebook');
+  });
+
   it('moves a photo one place and ignores moves off the end', () => {
     expect(movePhoto([1, 2, 3], 0, 1)).toEqual([2, 1, 3]);
     expect(movePhoto([1, 2, 3], 2, -1)).toEqual([1, 3, 2]);

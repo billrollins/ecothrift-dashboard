@@ -15,6 +15,7 @@ from apps.webstore.services.hours import get_hours_config, is_open_day
 
 from .models import MarketingSpend, SocialPhoto, SocialPost, SocialPostPhoto
 from .services import cadence
+from .services.channels import mark_channel_posted
 from .services.ideas import IdeasError, apply_idea, request_ideas, rewrite
 from .services.numbers import NumbersError, add_spend, insights, numbers_payload, save_numbers, spend_payload
 from .services.photos import PhotoError, replace_image, save_photo
@@ -245,13 +246,15 @@ def post_rewrite(request, pk):
 @api_view(['GET', 'PUT'])
 @permission_classes(STAFF)
 def post_numbers(request, pk):
-    """A posted post's numbers. PUT `mark` (1 or 7) with reach, reactions, comments, shares, messages, link_clicks."""
+    """A posted post's numbers per channel. PUT `channel` (default facebook), `mark` (1 or 7) and reach, reactions,
+    comments, shares, messages, link_clicks."""
     post = _post(pk)
     if post is None:
         return _err('Post not found.', 'NOT_FOUND', 404)
     if request.method == 'PUT':
         try:
-            save_numbers(post, request.data.get('mark'), request.data, user=request.user)
+            save_numbers(post, request.data.get('mark'), request.data, user=request.user,
+                         channel=str(request.data.get('channel') or 'facebook'))
         except NumbersError as exc:
             return _err(exc.detail, exc.code)
     return Response(numbers_payload(post))
@@ -288,6 +291,25 @@ def spend_delete(request, pk):
     if not deleted:
         return _err('That spend is gone.', 'NOT_FOUND', 404)
     return Response(status=204)
+
+
+@api_view(['POST'])
+@permission_classes(STAFF)
+def post_channel_posted(request, pk, channel):
+    """Posted on a channel: its link (Facebook: the post's own Posted, which closes the routine)."""
+    post = _post(pk)
+    if post is None:
+        return _err('Post not found.', 'NOT_FOUND', 404)
+    try:
+        mark_channel_posted(post, channel, url=request.data.get('url'), user=request.user)
+    except PostError as exc:
+        return _post_error(exc)
+    post.refresh_from_db()
+    payload = post_payload(post)
+    payload['brand'] = brand_payload()
+    payload['rules'] = {k: marketing_settings()[k] for k in ('min_photos', 'hook_max_chars')}
+    payload['can_rate'] = bool(request.user.is_superuser)
+    return Response(payload)
 
 
 @api_view(['POST'])

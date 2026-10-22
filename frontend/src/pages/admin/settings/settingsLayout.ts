@@ -75,7 +75,7 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
         keys: [
           'marketing.post_weekdays', 'marketing.min_photos', 'marketing.hook_max_chars', 'marketing.repeat_days',
           'marketing.in_season', 'marketing.season_weight', 'marketing.thrift_plus_line',
-          'marketing.ai_morning_ideas', 'marketing.ai_new_in_days',
+          'marketing.ai_morning_ideas', 'marketing.ai_new_in_days', 'marketing.channels',
         ],
       },
       {

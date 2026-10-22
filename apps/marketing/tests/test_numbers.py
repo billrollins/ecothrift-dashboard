@@ -51,13 +51,13 @@ class NumbersTests(TestCase):
     def test_numbers_come_due_at_1_and_7_days_and_save(self):
         post = _posted(self.today - timedelta(days=8))
         url = f'/api/marketing/posts/{post.pk}/numbers/'
-        self.assertEqual(self.client.get(url).data['due'], [1, 7])
+        self.assertEqual([d['mark'] for d in self.client.get(url).data['due']], [1, 7])
         res = self.client.put(url, {'mark': 1, 'reach': '1,200', 'reactions': 40, 'comments': 5, 'shares': 3,
                                     'messages': 2, 'link_clicks': 0}, format='json')
         self.assertEqual(res.status_code, 200, res.data)
-        self.assertEqual(res.data['day1']['reach'], 1200)
-        self.assertEqual(res.data['day1']['engagement'], 50)
-        self.assertEqual(res.data['due'], [7])
+        self.assertEqual(res.data['channels'][0]['day1']['reach'], 1200)
+        self.assertEqual(res.data['channels'][0]['day1']['engagement'], 50)
+        self.assertEqual(res.data['channels'][0]['due'], [7])
         self.client.put(url, {'mark': 1, 'reach': 1300}, format='json')  # typed again: replaced, not added
         self.assertEqual(SocialPostNumbers.objects.get(post=post, mark=1).reach, 1300)
         self.assertEqual(self.client.put(url, {'mark': 3}, format='json').data['code'], 'BAD_MARK')
@@ -69,8 +69,8 @@ class NumbersTests(TestCase):
         bad = self.client.put(f'/api/marketing/posts/{draft.pk}/numbers/', {'mark': 1}, format='json')
         self.assertEqual(bad.data['code'], 'NOT_POSTED')
         detail = self.client.get(f'/api/marketing/posts/{post.pk}/').data
-        self.assertEqual(detail['numbers_due'], [7])
-        self.assertEqual(detail['numbers']['day1']['reach'], 1300)
+        self.assertEqual([(d['channel'], d['mark']) for d in detail['numbers_due']], [('facebook', 7)])
+        self.assertEqual(detail['numbers']['channels'][0]['day1']['reach'], 1300)
 
     def test_spend_is_the_owners_and_adds_up(self):
         res = self.client.post('/api/marketing/spend/', {'kind': 'boost', 'amount': '5'}, format='json')

@@ -145,7 +145,38 @@ class SocialPostPhoto(models.Model):
 
 
 CHANNEL_FACEBOOK = 'facebook'
-CHANNEL_CHOICES = [(CHANNEL_FACEBOOK, 'Facebook')]  # Phase 6 adds Instagram, Google Business Profile, Nextdoor, TikTok.
+CHANNEL_INSTAGRAM = 'instagram'
+CHANNEL_GOOGLE = 'google'
+CHANNEL_NEXTDOOR = 'nextdoor'
+CHANNEL_TIKTOK = 'tiktok'
+# Owner call F4 (Phase 6): Instagram and Google Business Profile first, Nextdoor next, TikTok when there is video.
+CHANNEL_CHOICES = [
+    (CHANNEL_FACEBOOK, 'Facebook'),
+    (CHANNEL_INSTAGRAM, 'Instagram'),
+    (CHANNEL_GOOGLE, 'Google Business Profile'),
+    (CHANNEL_NEXTDOOR, 'Nextdoor'),
+    (CHANNEL_TIKTOK, 'TikTok'),
+]
+
+
+class SocialPostChannel(models.Model):
+    """A post put out on one more channel (Phase 6): the link to it there, who and when. Facebook stays on the post
+    itself (`SocialPost.posted_url`), which closes the day's Today's post routine."""
+
+    post = models.ForeignKey(SocialPost, on_delete=models.CASCADE, related_name='channel_posts')
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES)
+    posted_url = models.URLField(max_length=500)
+    posted_at = models.DateTimeField()
+    posted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+
+    class Meta:
+        ordering = ['post', 'channel']
+        constraints = [models.UniqueConstraint(fields=['post', 'channel'], name='marketing_post_channel_once')]
+
+    def __str__(self):
+        return f'post {self.post_id} on {self.channel}'
 
 
 class SocialPostNumbers(models.Model):

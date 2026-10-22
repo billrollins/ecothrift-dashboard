@@ -15,6 +15,7 @@ urlpatterns = [
     path('posts/<int:pk>/ideas/<int:index>/use/', views.post_use_idea, name='marketing-post-use-idea'),
     path('posts/<int:pk>/rewrite/', views.post_rewrite, name='marketing-post-rewrite'),
     path('posts/<int:pk>/numbers/', views.post_numbers, name='marketing-post-numbers'),
+    path('posts/<int:pk>/channels/<str:channel>/posted/', views.post_channel_posted, name='marketing-post-channel-posted'),
     path('numbers/', views.numbers_page, name='marketing-numbers'),
     path('spend/', views.spend_add, name='marketing-spend'),
     path('spend/<int:pk>/', views.spend_delete, name='marketing-spend-delete'),

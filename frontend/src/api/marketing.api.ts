@@ -11,6 +11,33 @@ export type SocialPostType =
 export type SocialPostStatus = 'draft' | 'ready' | 'posted';
 /** Facebook feed sizes now; '9:16' (stories) joins with more channels. Each photo goes out at this size. */
 export type SocialSize = '1:1' | '4:5';
+/** Every photo size a channel takes: the feed sizes, 9:16 (Stories, TikTok) and 4:3 (Google Business Profile). */
+export type PhotoSize = SocialSize | '9:16' | '4:3';
+
+/** The channels a post can go out on (Phase 6, owner call F4). */
+export type SocialChannel = 'facebook' | 'instagram' | 'google' | 'nextdoor' | 'tiktok';
+
+/** One channel in Post it: its own words, photo sizes and posted link. */
+export interface PostChannel {
+  key: SocialChannel;
+  label: string;
+  /** The first is the default; Instagram also offers 9:16 for a Story. */
+  sizes: PhotoSize[];
+  text: string;
+  max_chars: number;
+  /** How to post it there, in one line. */
+  how: string;
+  posted_url: string;
+  posted_at: string | null;
+  posted_by_name: string;
+}
+
+/** A channel's numbers still owed: after 1 day or after 7 days. */
+export interface NumbersDue {
+  channel: SocialChannel;
+  label: string;
+  mark: 1 | 7;
+}
 export type SocialCta = '' | 'come_in' | 'message_us' | 'ask_hold';
 
 export interface SocialCheck {
@@ -91,7 +118,7 @@ export interface SocialPost {
   /** The AI's post ideas (Phase 4); null before the first ask. */
   ideas: SocialIdeas | null;
   /** Numbers due on a posted post: 1 (after a day) and / or 7 (after a week). */
-  numbers_due: Array<1 | 7>;
+  numbers_due: NumbersDue[];
   photos?: SocialPhoto[];
 }
 
@@ -153,6 +180,8 @@ export interface SocialWeek {
 export interface SocialPostDetail extends SocialPost {
   photos: SocialPhoto[];
   numbers: PostNumbers;
+  /** The channels on (plus any it already went out on), Facebook first. */
+  channels: PostChannel[];
   /** Thumbnails of the photos the ideas pick, by photo id. */
   idea_photos: Record<string, string | null>;
   brand: SocialBrand;
@@ -211,6 +240,10 @@ export const markSocialPostReady = (id: number) =>
 export const markSocialPostPosted = (id: number, url: string) =>
   api.post<SocialPost>(`/marketing/posts/${id}/posted/`, { url }).then((r) => r.data);
 
+/** Posted on a channel: its link (Facebook is the post's own Posted). The post detail comes back. */
+export const markChannelPosted = (id: number, channel: SocialChannel, url: string) =>
+  api.post<SocialPostDetail>(`/marketing/posts/${id}/channels/${channel}/posted/`, { url }).then((r) => r.data);
+
 /** Get ideas: the AI writes 3 to 5 post ideas in the background; poll the post until they are done. */
 export const requestSocialIdeas = (id: number) =>
   api.post<SocialPost>(`/marketing/posts/${id}/ideas/`).then((r) => r.data);
@@ -242,17 +275,29 @@ export type PostNumbersRow = Record<NumberField, number> & {
   entered_at: string | null;
 };
 
-export interface PostNumbers {
+export interface ChannelNumbers {
+  key: SocialChannel;
+  label: string;
   day1: PostNumbersRow | null;
   day7: PostNumbersRow | null;
   due: Array<1 | 7>;
 }
 
+/** Per channel the post went out on (Facebook first), and every mark still due. */
+export interface PostNumbers {
+  channels: ChannelNumbers[];
+  due: NumbersDue[];
+}
+
 export const getPostNumbers = (id: number) =>
   api.get<PostNumbers>(`/marketing/posts/${id}/numbers/`).then((r) => r.data);
 
-export const savePostNumbers = (id: number, mark: 1 | 7, values: Partial<Record<NumberField, number | string>>) =>
-  api.put<PostNumbers>(`/marketing/posts/${id}/numbers/`, { mark, ...values }).then((r) => r.data);
+export const savePostNumbers = (
+  id: number,
+  channel: SocialChannel,
+  mark: 1 | 7,
+  values: Partial<Record<NumberField, number | string>>,
+) => api.put<PostNumbers>(`/marketing/posts/${id}/numbers/`, { channel, mark, ...values }).then((r) => r.data);
 
 export interface PostHit {
   id: number;
@@ -263,10 +308,14 @@ export interface PostHit {
   hook: string;
   posted_url: string;
   rating: number | null;
-  /** Which numbers these are (7 when typed, else 1); null when none yet. */
+  /** The channels it went out on. */
+  channels: SocialChannel[];
+  /** 1 while any channel has only its 1-day numbers, 7 when all are 7-day; null when none yet. */
   mark: 1 | 7 | null;
+  /** Its channels added up. */
   reach: number | null;
   engagement: number | null;
+  by_channel: Partial<Record<SocialChannel, { reach: number; engagement: number; mark: 1 | 7 }>>;
 }
 
 export interface HitGroup {
@@ -320,10 +369,11 @@ export interface SpendRow {
 export interface NumbersPage {
   today: string;
   weeks: number;
-  due: Array<{ id: number; slot_date: string; hook: string; post_type_label: string; due: Array<1 | 7> }>;
+  due: Array<{ id: number; slot_date: string; hook: string; post_type_label: string; due: NumbersDue[] }>;
   hits: PostHit[];
   by_type: HitGroup[];
   by_category: HitGroup[];
+  by_channel: HitGroup[];
   read: SalesRead;
   spend: { week: string; month: string; rows: SpendRow[] };
   /** The owner adds and removes spend. */

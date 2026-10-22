@@ -215,6 +215,13 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     kind: 'text',
     defaultValue: 'Thrift+ is free to join, nothing owed. Members collect ThriftBucks on most items. Join at any register in a minute, or start on your phone from our website. ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value. Members 18+. Full terms on our website and at every register.',
   },
+  'marketing.channels': {
+    label: 'Channels we post on',
+    help: 'Post it offers these, each with its own words and photo sizes. Any of: facebook, instagram, google (Google Business Profile), nextdoor, tiktok. Facebook is always on. Open the account before adding it.',
+    tab: 'store',
+    kind: 'list',
+    defaultValue: ['facebook', 'instagram', 'google'],
+  },
   'marketing.ai_morning_ideas': {
     label: 'AI post ideas each morning',
     help: "On: the morning job writes each post day's AI ideas, so they are waiting in Today's post. Get ideas in the Studio works either way. Cost shows under AI spend on the Owner page.",
