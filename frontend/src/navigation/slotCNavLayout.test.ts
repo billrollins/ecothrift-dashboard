@@ -169,9 +169,9 @@ describe('Studios and Admin placement', () => {
   const retailFloor = SLOT_C_NAV_GROUPS.find((g) => g.id === 'retailFloor');
   const onlineSales = SLOT_C_NAV_GROUPS.find((g) => g.id === 'onlineSales');
 
-  it('keeps Admin as Departments, Shifts, Routines, Command Center, Time & payroll, Requests, and Settings', () => {
+  it('keeps Admin as Departments, Shifts, Routines, Command Center, Time & payroll, Requests, Keys, and Settings', () => {
     expect(admin?.itemIds).toEqual([
-      'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'settings',
+      'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'keys', 'settings',
     ]);
     expect(NAV_ITEM_CATALOG.superRequests?.superuserOnly).toBe(true);
     expect(NAV_ITEM_CATALOG.adminRoutines?.superuserOnly).toBe(true);
@@ -235,7 +235,7 @@ describe('Command Center placement', () => {
     expect(storeSales?.guestItemIds).toEqual(['retailQa']);
     expect(storeSales?.itemIds).not.toContain('retailQa');
     expect(admin?.itemIds).toEqual([
-      'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'settings',
+      'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'keys', 'settings',
     ]);
     expect(NAV_ITEM_CATALOG.retailQa?.label).toBe('Command Center');
     expect(NAV_ITEM_CATALOG.retailQa?.roles).toEqual(['Manager', 'Admin']);

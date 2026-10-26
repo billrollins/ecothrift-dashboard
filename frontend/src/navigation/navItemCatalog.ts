@@ -396,6 +396,14 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'thriftPlus',
     superuserOnly: true,
   },
+  keys: {
+    id: 'keys',
+    path: '/admin/keys',
+    label: 'Keys',
+    // Every key and key ring, and where each one is (owner, 2026-10-26). Owner and Admin only: the photos show the cuts.
+    icon: 'permissions',
+    roles: ['Admin'],
+  },
   superRequests: {
     id: 'superRequests',
     path: '/admin/requests',

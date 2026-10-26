@@ -1,13 +1,12 @@
-v2.219.0 — Inventory → Review: Vendors, Price points and Flags
+v2.220.0 — Key Log: keys, key rings and photo search
 
-User-facing theme: **Inventory Review phase 3: Vendors, Price points and Flags tabs (Bill, 2026-10-26).** Initiative: inventory review.
+User-facing theme: **Key Log: every key, every key ring, where everything is (Bill, 2026-10-26).** New app apps/keys.
 
 ### Added
-- Inventory → Review has Vendors and Price points tabs with the same numbers as Categories. Tap a vendor or a price range to see its items in Inventory search.
-- New Flags tab: what each flag means, its limit, and which categories, vendors and price ranges carry it right now. Managers can change a limit right there.
-- Inventory search can filter by vendor and price range (from Review).
-
-### Fixed
-- The "All" line now shows the same totals on every tab.
+- New Admin → Keys page (owner and Admin only): every key with its photo, name and notes; every key ring; and "Where is everything": each ring and who has it now, plus keys on no ring.
+- Key rings have a home (a place or a person) and a check out / check in log saying who has it and since when.
+- Taking a key photo: a live camera with a key box at 5x zoom where the phone allows it (Android), or the phone's own camera (iPhone 5x lens) and then crop to the box.
+- The AI reads each key photo (type, keyway, brand, stamped code, cuts) and saves it on the key; you can fix any of it by hand.
+- Find a key: take a photo; the closest 9 logged keys come up numbered, and the AI says which one matches (or none) for you to check.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

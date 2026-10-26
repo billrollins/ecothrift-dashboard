@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-22 (Social Studio phone app at /social; Find item > Add item) -->
+<!-- Last updated: 2026-10-26 (Admin → Keys) -->
 # Eco-Thrift Dashboard — App Map for Navigation Consultation
 
 **Purpose:** Hand this document to a consulting AI (or UX reviewer) to evaluate whether the staff navbar, workspaces, and page grouping can be organized more clearly.
@@ -225,6 +225,7 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 | **Customers** | `/admin/customers` | Admin: customer list. |
 | **Permissions** | `/admin/permissions` | Admin: permission matrix UI. |
 | **Settings** | `/admin/settings` | Manager+: app settings. Tabs `?tab=` — System, Printing, Store, Assumptions, **Retail QA** (grade weights, letter lines, audit floors, idle prompt minutes), Permissions (Admin only), **AI** (superuser only: model catalog, per-action model + effort). |
+| **Keys** | `/admin/keys` (`?tab=rings`, `where`, `find`) | Owner and Admin role: every key with its photo and AI-read metrics, key rings with check out / check in, where everything is, find a key from a photo. Desk and phone layouts. Details: `keys.md`. |
 | **Label Studio** | `/admin/label-studio` (+ `/:id`) | Manager+: label template library and visual/PDF designer; print integration. |
 | **Blog Studio** | `/blog-studio` | Superuser TipTap blog CMS for the public site; **new window**. |
 | **Schedule** | `/people/schedule` | Manager+: build the week (Retail fixed, other departments flexible), record call-ins and no-shows, call-in counts over 30 / 90 days. Staff see their own week on Me. |

@@ -124,6 +124,7 @@ INSTALLED_APPS = [
     'apps.hiring',
     'apps.texting',
     'apps.marketing',
+    'apps.keys',
 ]
 
 MIDDLEWARE = [

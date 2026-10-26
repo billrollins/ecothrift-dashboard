@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (HR line: schedule, call-ins, pay numbers; no sick leave) -->
+<!-- Last updated: 2026-10-26 (keys.md row) -->
 # ecothrift-dashboard — AI Context
 
 ## Project summary
@@ -116,6 +116,7 @@ Load on demand. Do not read them all at session start. When you add, rename or r
 | [`thrift-plus-surfaces.md`](extended/thrift-plus-surfaces.md) | Every place a customer joins, signs in or is finalized, and the staff screens that help (member app, website, Staff app, POS, Dash). **A change to any of them ships only when every row is updated** (ship protocol, project steps). |
 | [`thrift-plus-limited-warranty.md`](extended/thrift-plus-limited-warranty.md) | Member returns, Poster C, AS IS signs, receipt warranty lines, the terms (the Limited Warranty text to use) |
 | [`thrift-plus-legal-memo.md`](extended/thrift-plus-legal-memo.md) | Thrift+ and IDs, photos, privacy, 18+ items, returns, store credit, sales tax, advertising (AI research for the attorney, with a design-impact digest) |
+| [`keys.md`](extended/keys.md) | Keys and key rings (Admin → Keys): photos, the AI key read and photo search, check out / in |
 | [`known-issues.md`](extended/known-issues.md) | Known issues and live gaps (check before a ship) |
 | [`marketing.md`](extended/marketing.md) | Social Studio: the photo library, the week's posts and category rotation, the Always-include check, Post it, the Today's post routine |
 | [`pos-system.md`](extended/pos-system.md) | Registers, drawers, carts, terminal, receipts |

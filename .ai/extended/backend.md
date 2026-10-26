@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (pay numbers and period lock; week schedule and call-ins) -->
+<!-- Last updated: 2026-10-26 (apps.keys) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -21,6 +21,7 @@ Django project with apps under `apps/`:
 | `apps.blog` | Blog Studio |
 | `apps.floorplan` | Floorplan builder |
 | `apps.labels` | Custom Label Studio |
+| `apps.keys` | Keys, key rings and their check-out log; AI key read and photo search (see [`keys.md`](keys.md)) |
 | `apps.routines` | Periodic / on-demand fill-in forms, Sections, Retail QA Command Center (`/api/routines/qa/`) |
 | `apps.documents` | PDF upload, field placement, assignment, flattened signed PDFs |
 

@@ -92,7 +92,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'admin',
     label: 'Admin',
     roles: ['Manager', 'Admin'],
-    itemIds: ['departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'settings'],
+    itemIds: ['departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'keys', 'settings'],
     guestItemIds: ['icons'],
   },
 ];
@@ -197,7 +197,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'admin',
     label: 'Admin',
     shortLabel: 'Admin',
-    helper: 'Departments, shifts, routines, payroll, and settings',
+    helper: 'Departments, shifts, routines, payroll, keys, and settings',
     icon: 'settings',
     shortcutColor: '#1E293B',
     shortcutDigit: 0,

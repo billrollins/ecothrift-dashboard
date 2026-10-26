@@ -53,6 +53,7 @@ const TodayPage = lazy(() => import('./pages/routines/TodayPage'));
 const TimePayrollPage = lazy(() => import('./pages/admin/TimePayrollPage'));
 const EnhancementRequestsPage = lazy(() => import('./pages/admin/EnhancementRequestsPage'));
 const IconsPage = lazy(() => import('./pages/admin/IconsPage'));
+const KeysPage = lazy(() => import('./pages/admin/keys/KeysPage'));
 const AdminRoutinesPage = lazy(() => import('./pages/admin/routines/AdminRoutinesPage'));
 const RetailQaPage = lazy(() => import('./pages/admin/retailqa/RetailQaPage'));
 const ShiftsPage = lazy(() => import('./pages/admin/ShiftsPage'));
@@ -195,6 +196,13 @@ function LegacyQuickRepriceRedirect() {
   const [params] = useSearchParams();
   const sku = params.get('sku');
   return <Navigate to={`/inventory/pr-fixit?tab=reprice${sku ? `&sku=${encodeURIComponent(sku)}` : ''}`} replace />;
+}
+
+/** The owner (superuser) or an Admin. */
+function OwnerOrAdminRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!user?.is_superuser && user?.role !== 'Admin') return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
 }
 
 function SuperAdminRoute({ children }: { children: React.ReactNode }) {
@@ -504,6 +512,14 @@ function AppRoutes() {
             <SuperAdminRoute>
               <QAPage />
             </SuperAdminRoute>
+          }
+        />
+        <Route
+          path="/admin/keys"
+          element={
+            <OwnerOrAdminRoute>
+              <KeysPage />
+            </OwnerOrAdminRoute>
           }
         />
         <Route

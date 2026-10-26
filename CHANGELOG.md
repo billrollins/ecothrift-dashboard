@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.219.0] -->
-<!-- Last reviewed: 2026-10-26 (2.219.0) -->
+<!-- Line 1 release: ## [2.220.0] -->
+<!-- Last reviewed: 2026-10-26 (2.220.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.220.0] - 2026-10-26
+
+User-facing theme: **Key Log: every key, every key ring, where everything is (Bill, 2026-10-26).** New app apps/keys.
+
+### Added
+- New Admin → Keys page (owner and Admin only): every key with its photo, name and notes; every key ring; and "Where is everything": each ring and who has it now, plus keys on no ring.
+- Key rings have a home (a place or a person) and a check out / check in log saying who has it and since when.
+- Taking a key photo: a live camera with a key box at 5x zoom where the phone allows it (Android), or the phone's own camera (iPhone 5x lens) and then crop to the box.
+- The AI reads each key photo (type, keyway, brand, stamped code, cuts) and saves it on the key; you can fix any of it by hand.
+- Find a key: take a photo; the closest 9 logged keys come up numbered, and the AI says which one matches (or none) for you to check.
 
 ## [2.219.0] - 2026-10-26
 
