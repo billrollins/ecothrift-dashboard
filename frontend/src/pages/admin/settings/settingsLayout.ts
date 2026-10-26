@@ -195,6 +195,15 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
         help: 'Estimated stock on hand: how likely an item on the shelf is gone, from how long since anyone saw it.',
         keys: ['shrink_age_start_days', 'shrink_age_lost_days', 'shrink_age_start_pct', 'shrink_count_not_found_lost'],
       },
+      {
+        id: 'review',
+        title: 'Inventory review',
+        help: 'Stale, and the limits behind the flags on Inventory → Review.',
+        keys: [
+          'inventory_review_stale_days', 'inventory_review_overstock_weeks', 'inventory_review_short_weeks',
+          'inventory_review_stale_heavy_share', 'inventory_review_slowing_share', 'inventory_review_missing_share',
+        ],
+      },
     ],
   },
   {

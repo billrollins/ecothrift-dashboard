@@ -1,8 +1,9 @@
-<!-- Last updated: 2026-10-26 (phase 1: sale facts and the weekly rollup) -->
+<!-- Last updated: 2026-10-26 (phase 2: Inventory → Review, Categories tab) -->
 # Inventory review
 
 The owner's plan (approved 2026-10-22): weekly numbers per category, subcategory, vendor and price point, so the
-floor can be read and buying steered. Phase 1 is the data; phase 2 adds Inventory → Review (Categories tab).
+floor can be read and buying steered. Phase 1 is the data (shipped v2.216.0); phase 2 is Inventory → Review (Categories
+tab); phase 3 adds Vendors, Price points and a Flags tab.
 
 ## Sale facts on the item (phase 1)
 
@@ -26,7 +27,7 @@ floor can be read and buying steered. Phase 1 is the data; phase 2 adds Inventor
 
 One row per (week starting Monday, dimension, key), rebuilt from items by `services/inventory_week.py`.
 Command: `python manage.py rebuild_inventory_weeks` (last 8 weeks; on an empty table, all 2 years), `--full`
-(2 years), `--weeks N`. Heroku Scheduler: daily, after `compute_daily_category_stats`. About 7 s nightly and 50 s for
+(2 years), `--weeks N`. It runs at the end of the daily `compute_daily_category_stats` (no Scheduler job of its own; `--skip-inventory-weeks` skips it). About 7 s nightly and 50 s for
 the full build on a production-size copy. Buying's `CategoryStats` is not changed.
 
 | Dimension | Key | Notes |
@@ -57,3 +58,30 @@ the full build on a production-size copy. Buying's `CategoryStats` is not change
 
 Checked on a copy of production (2026-10-26): every dimension's open-week on hand equals the live on-shelf count, and
 the chain holds for every week.
+
+## Inventory → Review, Categories tab (phase 2)
+
+`/inventory/review` (nav: Inventory → Review, under Search; everyone who sees Search, `IsStaff`, cost numbers shown as on
+Vendors). Page `pages/inventory/InventoryReviewPage.tsx`; API `GET /api/inventory/review/?span=1|4&category=<name>`
+(`services/inventory_review.py`). About 0.5 s on a production-size copy.
+
+- **Week** = the last complete Monday-to-Sunday week; **4 weeks** = the last four. In, out (sold + scrapped + lost +
+  out_other), recovery and days to sell come from `InventoryWeek` over those weeks.
+- **On hand, stale, bulk, missing data are now**: one grouped query over the items on the shelf (same rules as the
+  rollup).
+- **Weeks of supply** = on hand ÷ (units sold in the last 4 weeks ÷ 4), whatever the toggle. "99+" above 99.
+- **Recovery** = net ÷ retail on sold items with a retail, and net ÷ cost (×) where cost exists. **Days** = the median of
+  the weeks' medians, weighted by units sold.
+- **Flags** (owner settings, Settings → Inventory → Inventory review; seeded by migration 0119):
+
+| Flag | Rule | Setting (default) |
+|---|---|---|
+| Overstocked | weeks of supply above the limit, or stock with no sale in 4 weeks | `inventory_review_overstock_weeks` (12) |
+| Short | weeks of supply below the limit | `inventory_review_short_weeks` (2) |
+| Stale-heavy | stale share of on hand above the limit | `inventory_review_stale_heavy_share` (40%) |
+| Slowing | 4-week sales at least this far below the 12-week average, with at least 1 sale a week over 12 weeks | `inventory_review_slowing_share` (30%) |
+| Missing data | Mixed lots, or on hand with no retail or no check-in date above the limit | `inventory_review_missing_share` (10%) |
+
+- **Drill**: a category row opens its subcategories (`?category=`); a subcategory row opens Inventory search with
+  `category` and `sub`; the stale % opens it with `stale=1` too. "See items" opens the whole category.
+- Desk: a sortable table with the total on top. Phone: one card per row with a sort menu.

@@ -2,7 +2,7 @@
  * Inventory search: one box, one table, one row per product, with its items one click away.
  * Replaces the old Catalog page (`/inventory/workbench`). Search runs on the server
  * (`apps/inventory/services/inventory_search.py`); the page state lives in the URL (`q`, `sold`, `misfit`, `page`, `sort`,
- * `open`). Bulk work (price changes for managers, tag reprints) lives in `components/objects/bulkTools.tsx`.
+ * `open`, and Inventory → Review's drill: `category`, `sub`, `stale`). Bulk work (price changes for managers, tag reprints) lives in `components/objects/bulkTools.tsx`.
  * **Add item** (Misfit items, no purchase order) opens `addItem/AddItemDialog.tsx`. On a phone the results are cards.
  */
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
@@ -378,8 +378,35 @@ function SortHeader({ label, column, sort, onSort, align, text }: {
   );
 }
 
-function SearchBody({ q, sold, misfit, page, sort, setParam }: {
-  q: string; sold: boolean; misfit: boolean; page: number; sort: string;
+/** Inventory → Review's drill on the search: its category, subcategory and stale filters. */
+export interface SearchDrill {
+  category: string;
+  sub: string;
+  stale: boolean;
+}
+
+function DrillChips({ drill, setParam }: { drill: SearchDrill; setParam: (changes: Record<string, string | null>) => void }) {
+  if (!drill.category && !drill.sub && !drill.stale) return null;
+  return (
+    <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mb: 1 }} aria-label="Filters from Inventory review">
+      {drill.category && (
+        <Chip size="small" label={`Category: ${drill.category}`}
+          onDelete={() => setParam({ category: null, sub: null, page: null })} />
+      )}
+      {drill.sub && (
+        <Chip size="small" label={`Subcategory: ${drill.sub === '(none)' ? 'none' : drill.sub}`}
+          onDelete={() => setParam({ sub: null, page: null })} />
+      )}
+      {drill.stale && (
+        <Chip size="small" color="warning" variant="outlined" label="Stale: on the shelf too long"
+          onDelete={() => setParam({ stale: null, page: null })} />
+      )}
+    </Stack>
+  );
+}
+
+function SearchBody({ q, sold, misfit, page, sort, drill, setParam }: {
+  q: string; sold: boolean; misfit: boolean; page: number; sort: string; drill: SearchDrill;
   setParam: (changes: Record<string, string | null>) => void;
 }) {
   const [text, setText] = useState(q);
@@ -394,8 +421,8 @@ function SearchBody({ q, sold, misfit, page, sort, setParam }: {
   }, [text, q, setParam]);
 
   const { data, isFetching, isError } = useQuery({
-    queryKey: ['inventory-search', q, sold, page, sort, misfit],
-    queryFn: async ({ signal }) => (await searchInventory({ q, sold, page, sort, misfit }, signal)).data,
+    queryKey: ['inventory-search', q, sold, page, sort, misfit, drill.category, drill.sub, drill.stale],
+    queryFn: async ({ signal }) => (await searchInventory({ q, sold, page, sort, misfit, ...drill }, signal)).data,
     placeholderData: keepPreviousData,
   });
   const rows = data?.results ?? [];
@@ -466,6 +493,7 @@ function SearchBody({ q, sold, misfit, page, sort, setParam }: {
           )}
         </Stack>
       </Stack>
+      <DrillChips drill={drill} setParam={setParam} />
       <Box sx={{ height: 4, mb: 0.5 }}>{isFetching && <LinearProgress />}</Box>
       <BulkBar />
       <Typography variant="caption" color={isError ? 'error' : 'text.secondary'} sx={{ display: 'block', mb: 0.5 }}>
@@ -540,6 +568,10 @@ export default function InventorySearchPage() {
   const q = params.get('q') ?? '';
   const sold = params.get('sold') === '1';
   const misfit = params.get('misfit') === '1';
+  const category = params.get('category') ?? '';
+  const sub = params.get('sub') ?? '';
+  const stale = params.get('stale') === '1';
+  const drill = useMemo<SearchDrill>(() => ({ category, sub, stale }), [category, sub, stale]);
   const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
   const sort = params.get('sort') ?? '';
   // From a Processing row in the Dashboard's details: the items one person put on the floor (owner 2026-10-22).
@@ -576,7 +608,7 @@ export default function InventorySearchPage() {
             setParam={setParam}
           />
         ) : (
-          <SearchBody q={q} sold={sold} misfit={misfit} page={page} sort={sort} setParam={setParam} />
+          <SearchBody q={q} sold={sold} misfit={misfit} page={page} sort={sort} drill={drill} setParam={setParam} />
         )}
       </SelectionProvider>
     </ObjectModalProvider>

@@ -7,7 +7,9 @@ from .api_bulk_price import (
     bulk_labels_view, bulk_price_apply_view, bulk_price_detail_view, bulk_price_list_view, bulk_price_preview_view,
     bulk_price_undo_view,
 )
-from .api_inventory_search import inventory_search_items_view, inventory_search_similar_view, inventory_search_view
+from .api_inventory_search import (
+    inventory_review_view, inventory_search_items_view, inventory_search_similar_view, inventory_search_view,
+)
 from .api_product_similar import similar_products_view
 from .views import (
     VendorViewSet, CategoryViewSet, PurchaseOrderViewSet,
@@ -46,6 +48,7 @@ urlpatterns = [
     path('search/', inventory_search_view, name='inventory-search'),
     path('search/items/', inventory_search_items_view, name='inventory-search-items'),
     path('search/similar/', inventory_search_similar_view, name='inventory-search-similar'),
+    path('review/', inventory_review_view, name='inventory-review'),
     path('add-item/find/', add_item_find_view, name='add-item-find'),
     path('add-item/price/', add_item_price_view, name='add-item-price'),
     path('add-item/taxonomy/', add_item_taxonomy_view, name='add-item-taxonomy'),

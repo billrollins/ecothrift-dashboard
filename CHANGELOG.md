@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.217.0] -->
-<!-- Last reviewed: 2026-10-26 (2.217.0) -->
+<!-- Line 1 release: ## [2.218.0] -->
+<!-- Last reviewed: 2026-10-26 (2.218.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.218.0] - 2026-10-26
+
+User-facing theme: **Inventory Review phase 2: Inventory → Review with a Categories tab (Bill, 2026-10-22).** Initiative: inventory review.
+
+### Added
+- New Inventory → Review page. For each category, see in, out, on hand, weeks of supply, stale, bulk, recovery and days to sell for the last week or the last 4 weeks, with flags for overstocked, short, stale-heavy, slowing and missing data.
+- Tap a category to see its subcategories, then a subcategory to see its items in Inventory search. The stale number opens just the stale items.
+- The flag limits are settings under Settings → Inventory → Inventory review.
+
+### Changed
+- The weekly inventory numbers now rebuild every night with the buying stats. No separate job is needed.
 
 ## [2.217.0] - 2026-10-26
 

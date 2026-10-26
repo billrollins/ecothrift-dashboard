@@ -1,4 +1,4 @@
-"""Nightly ``InventoryWeek`` rollup (inventory review). Heroku Scheduler: daily, after ``compute_daily_category_stats``.
+"""Nightly ``InventoryWeek`` rollup (inventory review). Runs at the end of the daily ``compute_daily_category_stats``.
 
     python manage.py rebuild_inventory_weeks            # the last 8 weeks (all 2 years on the first run)
     python manage.py rebuild_inventory_weeks --full     # every week of the 2-year backfill

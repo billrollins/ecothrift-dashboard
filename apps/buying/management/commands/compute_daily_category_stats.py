@@ -50,6 +50,11 @@ class Command(BaseCommand):
             help='Skip full recompute for non-archived open/closing auctions with future end_time.',
         )
         parser.add_argument(
+            '--skip-inventory-weeks',
+            action='store_true',
+            help='Skip the weekly inventory rollup (rebuild_inventory_weeks) that runs at the end.',
+        )
+        parser.add_argument(
             '--database',
             default='default',
             help='Django DB alias (default: default). Optional second alias "production" when PROD_DATABASE_* is set.',
@@ -91,6 +96,7 @@ class Command(BaseCommand):
 
         if skip_re:
             self.stdout.write('Skipped full recompute (--skip-recompute-open).')
+            self._inventory_weeks(options, db)
             return
 
         stats = load_category_stats_dict(using=db)
@@ -109,3 +115,15 @@ class Command(BaseCommand):
             recompute_auction_full(a, stats=stats)
             n += 1
         self.stdout.write(self.style.SUCCESS(f'Full recompute for {n} open/closing auction(s).'))
+        self._inventory_weeks(options, db)
+
+    def _inventory_weeks(self, options, db: str) -> None:
+        """The weekly inventory rollup rides on this daily job (inventory review); a failure never breaks the stats."""
+        if options.get('skip_inventory_weeks') or db != 'default':
+            return
+        try:
+            from django.core.management import call_command
+
+            call_command('rebuild_inventory_weeks', stdout=self.stdout, stderr=self.stderr)
+        except Exception as exc:  # never block the daily stats
+            self.stderr.write(f'Inventory weeks skipped: {exc}')

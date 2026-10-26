@@ -405,6 +405,42 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'inventory',
     kind: 'weight',
   },
+  inventory_review_stale_days: {
+    label: 'Review: stale after (days on the shelf)',
+    help: 'Inventory → Review and the weekly numbers: an item on the shelf longer than this is stale (default 90).',
+    tab: 'inventory',
+    kind: 'days',
+  },
+  inventory_review_overstock_weeks: {
+    label: 'Review: overstocked above (weeks of supply)',
+    help: 'Flags a category with more weeks of supply than this, or stock with no sale in 4 weeks (default 12).',
+    tab: 'inventory',
+    kind: 'count',
+  },
+  inventory_review_short_weeks: {
+    label: 'Review: short below (weeks of supply)',
+    help: 'Flags a category with fewer weeks of supply than this (default 2).',
+    tab: 'inventory',
+    kind: 'count',
+  },
+  inventory_review_stale_heavy_share: {
+    label: 'Review: stale-heavy above',
+    help: 'Flags a category when more of its on hand than this is stale (default 40%).',
+    tab: 'inventory',
+    kind: 'percent',
+  },
+  inventory_review_slowing_share: {
+    label: 'Review: slowing when sales drop by',
+    help: 'Flags a category when its last 4 weeks sell this much below its 12-week average (default 30%).',
+    tab: 'inventory',
+    kind: 'percent',
+  },
+  inventory_review_missing_share: {
+    label: 'Review: missing data above',
+    help: 'Flags a category when more of its on hand than this has no retail or no check-in date (default 10%). Mixed lots is always flagged.',
+    tab: 'inventory',
+    kind: 'percent',
+  },
   shrink_age_start_days: {
     label: 'Shrink: maybe gone after (days unseen)',
     help: 'An item on the shelf nobody has scanned, sold, moved or repriced for this many days starts to count as maybe gone (default 90).',

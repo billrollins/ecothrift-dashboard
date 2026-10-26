@@ -69,6 +69,7 @@ const ProcessingWorkspacePage = lazy(() => import('./pages/inventory/processing/
 const TruckFinalizePage = lazy(() => import('./pages/inventory/truck/TruckFinalizePage'));
 const RestorationsPage = lazy(() => import('./pages/inventory/restorations/RestorationsPage'));
 const InventorySearchPage = lazy(() => import('./pages/inventory/InventorySearchPage'));
+const InventoryReviewPage = lazy(() => import('./pages/inventory/InventoryReviewPage'));
 const LegacyWorkbenchRedirect = lazy(() =>
   import('./pages/inventory/InventorySearchPage').then((m) => ({ default: m.LegacyWorkbenchRedirect })),
 );
@@ -309,6 +310,7 @@ function AppRoutes() {
         <Route path="/inventory/processing/:id" element={<ProcessingWorkspacePage />} />
         <Route path="/inventory/restorations" element={<RestorationsPage />} />
         <Route path="/inventory/search" element={<InventorySearchPage />} />
+        <Route path="/inventory/review" element={<InventoryReviewPage />} />
         <Route path="/inventory/products/:id" element={<ProductPage />} />
         {/* The old Catalog page: its links land on Inventory search with the same thing open. */}
         <Route path="/inventory/workbench" element={<LegacyWorkbenchRedirect />} />

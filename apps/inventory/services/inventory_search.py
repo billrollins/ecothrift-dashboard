@@ -31,6 +31,7 @@ from django.db.models import (
 )
 
 from django.db.models import Value
+from django.db.models.expressions import RawSQL
 from django.db.models.functions import Coalesce, Lower, NullIf, Replace, StrIndex
 
 from apps.inventory.models import Item, Product, ProductProfile
@@ -180,11 +181,13 @@ SORT_KEYS = ('title', 'on_shelf', 'retail', 'price', 'sold', 'avg_sold', 'days',
 
 def search(
     q: str, *, include_sold: bool = False, page: int = 1, page_size: int = PAGE_SIZE, sort: str = '',
-    misfit: bool = False,
+    misfit: bool = False, category: str = '', sub: str | None = None, stale: bool = False,
 ) -> dict[str, Any]:
     """One page of products for `q`. `include_sold` also shows products with nothing on the shelf.
     `sort` is a column key from SORT_KEYS, with a leading `-` for high to low; empty = best match first.
-    `misfit` keeps only Misfit items (no purchase order: Add item, services/misfit.py)."""
+    `misfit` keeps only Misfit items (no purchase order: Add item, services/misfit.py).
+    `category`, `sub` and `stale` are Inventory → Review's drill (services/inventory_review.py): products with a unit
+    in that category (taxonomy bucket) and subcategory, or on the shelf longer than the stale days."""
     started = time.perf_counter()
     q = (q or '').strip()[:200]
     page = max(1, page)
@@ -209,6 +212,11 @@ def search(
     if misfit_q is not None:
         # A semi-join on the (few) Misfit items first, so the Exists below only runs for their products.
         qs = qs.filter(pk__in=Item.objects.filter(misfit_q).values('product_id'))
+    drill = bool(category or sub is not None or stale)
+    if drill:
+        from apps.inventory.services.inventory_review import product_ids_sql
+
+        qs = qs.filter(pk__in=RawSQL(*product_ids_sql(category=category, sub=sub, stale=stale, on_shelf=not include_sold)))
     words = _words(q)
     if words:
         qs = matching_words(qs, words)
@@ -240,7 +248,7 @@ def search(
     products = (first if page == 1 else []) + [by_id[i] for i in page_ids if i in by_id]
 
     fuzzy = False
-    if not products and q and page == 1 and not misfit:
+    if not products and q and page == 1 and not misfit and not drill:
         close = Product.objects.filter(is_active=True, search_text__trigram_word_similar=q)
         close = close.filter(Exists(items)) if include_sold else close.filter(has_shelf)
         products = list(close[:20])
@@ -248,6 +256,7 @@ def search(
 
     return {
         'q': q, 'page': page, 'page_size': page_size, 'sort': sort,
+        'category': category, 'sub': sub, 'stale': stale,
         'count': min(count, COUNT_CAP), 'more': count > COUNT_CAP, 'fuzzy': fuzzy,
         'results': _rows(products, matched_sku),
         'took_ms': round((time.perf_counter() - started) * 1000),

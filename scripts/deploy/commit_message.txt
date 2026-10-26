@@ -1,14 +1,13 @@
-v2.217.0 — Restoration estimates from every Processing path; search ignores spaces
+v2.218.0 — Inventory → Review: the Categories tab
 
-User-facing theme: **Restoration needs estimates from every Processing path; search ignores spaces (Bill, 2026-10-26).** Fix-it lane x-resto-est.
+User-facing theme: **Inventory Review phase 2: Inventory → Review with a Categories tab (Bill, 2026-10-22).** Initiative: inventory review.
+
+### Added
+- New Inventory → Review page. For each category, see in, out, on hand, weeks of supply, stale, bulk, recovery and days to sell for the last week or the last 4 weeks, with flags for overstocked, short, stale-heavy, slowing and missing data.
+- Tap a category to see its subcategories, then a subcategory to see its items in Inventory search. The stale number opens just the stale items.
+- The flag limits are settings under Settings → Inventory → Inventory review.
 
 ### Changed
-- Everything Processing sends to Restoration now needs estimates: the work, hours or parts cost, and what it's worth after, the same as Add item. This covers check-in, edit check-in, check in together, the product + check-in and the Goes to dropdown. The estimate shows in the Restoration queue.
-- The Inventory item editor can't send an item to Restoration any more; it points you to the check-in, which asks for the estimates.
-- Search ignores spaces: "barstool" finds "Bar Stool" in Inventory search and Add item.
-
-### Fixed
-- "Check in together" shows up again on a row that has the same product as other rows.
-- On a phone, the Add items buttons fit on one line each.
+- The weekly inventory numbers now rebuild every night with the buying stats. No separate job is needed.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

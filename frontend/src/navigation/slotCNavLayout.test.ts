@@ -202,7 +202,7 @@ describe('Studios and Admin placement', () => {
   });
 
   it('keeps Floorplans out of Retail Floor (Studios only) and Messages on Online Sales', () => {
-    expect(retailFloor?.itemIds).toEqual(['inventoryWorkbench', 'inventoryCount', 'inventories']);
+    expect(retailFloor?.itemIds).toEqual(['inventoryWorkbench', 'inventoryReview', 'inventoryCount', 'inventories']);
     expect(retailFloor?.guestItemIds).toEqual(['prFixit', 'tagErrors']);   // under a line
     expect(NAV_ITEM_CATALOG.tagErrors).toMatchObject({ path: '/inventory/tag-errors', label: 'Tag errors' });
     expect(NAV_ITEM_CATALOG.tagErrors?.roles).toBeUndefined();

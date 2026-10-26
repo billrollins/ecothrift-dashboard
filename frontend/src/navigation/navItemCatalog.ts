@@ -65,6 +65,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Search',
     icon: 'findItem',
   },
+  // Weekly numbers per category: in, out, on hand, supply, stale, recovery, flags (inventory review, owner 2026-10-22).
+  inventoryReview: {
+    id: 'inventoryReview',
+    path: '/inventory/review',
+    label: 'Review',
+    icon: 'reports',
+  },
   floorplans: {
     id: 'floorplans',
     path: '/floor-ops/floorplans',

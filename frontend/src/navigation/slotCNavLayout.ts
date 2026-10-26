@@ -48,7 +48,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'retailFloor',
     label: 'Inventory',
-    itemIds: ['inventoryWorkbench', 'inventoryCount', 'inventories'],
+    itemIds: ['inventoryWorkbench', 'inventoryReview', 'inventoryCount', 'inventories'],
     guestItemIds: ['prFixit', 'tagErrors'],
   },
   {
