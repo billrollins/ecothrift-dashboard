@@ -61,6 +61,7 @@ urlpatterns = [
     path('api/hiring/', include('apps.hiring.urls')),
     path('api/marketing/', include('apps.marketing.urls')),  # Social Studio
     path('api/keys/', include('apps.keys.urls')),  # Keys and key rings (owner and Admin)
+    path('api/supplies/', include('apps.supplies.urls')),  # supply lists, weekly count, the order
 ]
 
 # Serve the React SPA for all non-API routes in production

@@ -21,6 +21,12 @@ vi.mock('../../api/hiring.api', () => ({
 vi.mock('../../api/messages.api', () => ({
   getThreads: vi.fn().mockResolvedValue({ data: [{ id: 7, subject: 'Your register PIN', unread: 1, preview_from: 'Bill R' }] }),
 }));
+vi.mock('../../api/supplies.api', () => ({
+  getSupplyLists: vi.fn().mockResolvedValue({
+    cycle: { week_start: '2026-11-02', deadline: '2026-11-02T21:00:00Z' }, can_edit: false, is_owner: false,
+    lists: [{ id: 3, name: 'Processing', item_count: 4, count: null }, { id: 4, name: 'Front', item_count: 2, count: { id: 1 } }],
+  }),
+}));
 vi.mock('../../components/hr/HoursPayPanel', () => ({ HoursPayPanel: () => <div data-testid="hours-pay" /> }));
 vi.mock('../../components/hr/MyWeek', () => ({ MyWeek: () => <div data-testid="my-week" /> }));
 vi.mock('../../components/users/ChangePasswordDialog', () => ({ default: () => null }));
@@ -81,6 +87,14 @@ describe('MePage', () => {
     expect(await screen.findByText('Messages (1 unread)')).toBeInTheDocument();
     expect(screen.getByTestId('my-week')).toBeInTheDocument();
     expect(screen.getByTestId('me-pin-status')).toHaveTextContent('Register PIN: not set yet');
+  });
+
+  it('lists the supply lists that still need the count this week', async () => {
+    renderPage();
+    const block = await screen.findByTestId('me-supplies');
+    expect(block).toHaveTextContent('Processing');
+    expect(block).not.toHaveTextContent('Front');
+    expect(within(block).getByRole('link', { name: 'Count' })).toHaveAttribute('href', '/supplies/count/3');
   });
 
   it('uses two columns on a desk and one on a phone', async () => {

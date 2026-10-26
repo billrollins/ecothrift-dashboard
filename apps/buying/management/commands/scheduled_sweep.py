@@ -1,4 +1,5 @@
-"""Hourly: discovery sweep + lightweight valuation for active non-archived auctions."""
+"""Hourly: the week's supply order once its count deadline passes (``apps.supplies``), then the discovery sweep
++ lightweight valuation for active non-archived auctions."""
 
 from __future__ import annotations
 
@@ -33,10 +34,25 @@ class Command(BaseCommand):
             action='store_true',
             help='Pass through to discovery dry_run (no DB writes from discovery).',
         )
+        parser.add_argument(
+            '--skip-supplies',
+            action='store_true',
+            help="Skip building the week's supply order (apps.supplies) that runs first.",
+        )
 
     def handle(self, *args, **options):
         slug = options.get('marketplace')
         dry = bool(options.get('dry_run'))
+        if not dry and not options.get('skip_supplies'):
+            # First and inside a try, so a B-Stock failure never stops the order and an order failure never
+            # stops the sweep.
+            try:
+                from apps.supplies.services.orders import run_due
+
+                self.stdout.write(run_due())
+            except Exception as exc:  # noqa: BLE001
+                logger.exception('Supply order build failed')
+                self.stderr.write(f'Supply order skipped: {exc}')
         try:
             summary = pipeline.run_discovery(
                 marketplace_slug=slug,

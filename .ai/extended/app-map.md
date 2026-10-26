@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-26 (Admin → Keys) -->
+<!-- Last updated: 2026-10-26 (Admin → Keys; Supplies in Essentials: lists, weekly count, owner order) -->
 # Eco-Thrift Dashboard — App Map for Navigation Consultation
 
 **Purpose:** Hand this document to a consulting AI (or UX reviewer) to evaluate whether the staff navbar, workspaces, and page grouping can be organized more clearly.
@@ -229,6 +229,7 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 | **Label Studio** | `/admin/label-studio` (+ `/:id`) | Manager+: label template library and visual/PDF designer; print integration. |
 | **Blog Studio** | `/blog-studio` | Superuser TipTap blog CMS for the public site; **new window**. |
 | **Schedule** | `/people/schedule` | Manager+: build the week (Retail fixed, other departments flexible), record call-ins and no-shows, call-in counts over 30 / 90 days. Staff see their own week on Me. |
+| **Supplies** | `/supplies`, `/supplies/lists/:id`, `/supplies/count/:id`, `/supplies/order` | Essentials, every staff login: supply lists and the weekly count (also a block on Me while a list needs counting). Manager+ edit lists; the order page is the owner's (linked from the Owner page). Desk and phone layouts. Details: `supplies.md`. |
 | **Messages** | `/messages` | Every staff login (envelope in the top bar; also Thrift+ Staff and a section on Me). Owner and managers start a thread to one person or a department; anyone on it replies; read receipts; one-time secrets (a PIN) shown once. |
 | **Social Studio** | `/studios/social`, `/studios/social/photos`, `/studios/social/numbers`, `/studios/social/post/:id` | Studios workspace, every staff login (the Studios group has no role gate since 2026-10-21; its other pages keep Manager+). The week's posts, the photo library, the post editor and Post it. Desk and phone layouts. Details: `marketing.md`. |
 | **Social Studio app** | `/social` (`post`, `photos`, `scan`, `week`, `numbers`, `me`) | Every staff login, full screen outside MainLayout, installs as its own home-screen app (scope `/social/`). Bottom bar: Post, Photos, Scan, Schedule, Me. Details: `marketing.md` → The phone app. |

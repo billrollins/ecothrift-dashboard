@@ -34,6 +34,7 @@ import {
 } from '../../api/accounts.api';
 import { getMyCheckins, getMyOnboarding } from '../../api/hiring.api';
 import { getThreads } from '../../api/messages.api';
+import { getSupplyLists } from '../../api/supplies.api';
 import { HoursPayPanel } from '../../components/hr/HoursPayPanel';
 import { MyWeek } from '../../components/hr/MyWeek';
 import ChangePasswordDialog from '../../components/users/ChangePasswordDialog';
@@ -295,6 +296,27 @@ function MyOnboardingAndCheckIns() {
   );
 }
 
+/** The weekly supply count (owner, 2026-10-26): shown only while a list still needs this week's count. */
+function SupplyCount() {
+  const query = useQuery({ queryKey: ['supplies', 'lists'], queryFn: () => getSupplyLists(), retry: false, staleTime: 60_000 });
+  const waiting = (query.data?.lists ?? []).filter((l) => !l.count && l.item_count);
+  if (!waiting.length || !query.data) return null;
+  const due = new Date(query.data.cycle.deadline).toLocaleString('en-US', {
+    timeZone: 'America/Chicago', weekday: 'short', hour: 'numeric', minute: '2-digit',
+  });
+  return (
+    <Section title="Supply count" testId="me-supplies">
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>Due {due}</Typography>
+      {waiting.map((l) => (
+        <Box key={l.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
+          <Typography variant="body2" sx={{ flex: 1 }}>{l.name}</Typography>
+          <Button size="small" variant="contained" component={RouterLink} to={`/supplies/count/${l.id}`}>Count</Button>
+        </Box>
+      ))}
+    </Section>
+  );
+}
+
 /** My messages: the newest three threads and what is unread; the envelope at the top opens them all. */
 function MyMessages({ basePath }: { basePath: string }) {
   const threads = useQuery({ queryKey: ['messages', 'threads'], queryFn: async () => (await getThreads()).data, staleTime: 30_000 });
@@ -396,6 +418,7 @@ export default function MePage({ compact = false }: { compact?: boolean }) {
     ) : null,
     messages: <MyMessages basePath={compact ? '/staff/messages' : '/messages'} />,
     onboarding: <MyOnboardingAndCheckIns />,
+    supplies: <SupplyCount />,
     signOut: (
       <Box sx={{ mt: 1, mb: 2 }}>
         <SignOutEverywhere />
@@ -424,6 +447,7 @@ export default function MePage({ compact = false }: { compact?: boolean }) {
             {blocks.signOut}
           </Box>
           <Box>
+            {blocks.supplies}
             {blocks.hours}
             {blocks.week}
             {blocks.usual}
@@ -431,6 +455,7 @@ export default function MePage({ compact = false }: { compact?: boolean }) {
         </Box>
       ) : (
         <>
+          {blocks.supplies}
           {blocks.details}
           {blocks.security}
           {blocks.hours}

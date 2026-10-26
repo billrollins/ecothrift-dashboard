@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.220.0] -->
-<!-- Last reviewed: 2026-10-26 (2.220.0) -->
+<!-- Line 1 release: ## [2.221.0] -->
+<!-- Last reviewed: 2026-10-26 (2.221.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.221.0] - 2026-10-26
+
+User-facing theme: **Supplies: department lists, a Monday count and the week's order (Bill, 2026-10-26).** New app apps/supplies.
+
+### Added
+- New Supplies page for everyone: one supply list per department or by name, with vendor, link, Amazon ID, pack size, min, max and price. Links open in a new tab.
+- Managers build lists by hand, from a CSV (template to download), or by pasting a link: the AI fills the name and pack (and the price if you paste the page text); you check it before saving.
+- Weekly supply count, due Monday 3 pm (change it in Settings → Store → Supplies). Phone-first: a number for every item, last week's count shown grey for reference.
+- After the deadline the week's order builds itself by rule: at or under min, order back up to max in whole packs. Every line says why.
+- Owner order page: vendor by vendor with totals, one button that puts every Amazon item in the cart, and Ordered ticks with who and when. The Owner page shows missed counts and "Supply order ready".
 
 ## [2.220.0] - 2026-10-26
 

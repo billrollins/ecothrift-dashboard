@@ -380,6 +380,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     superuserOnly: true,
     pathAliases: ['/brief'],
   },
+  // Supply lists, the weekly count and (owner) the order (owner, 2026-10-26). Every staff login counts.
+  supplies: {
+    id: 'supplies',
+    path: '/supplies',
+    label: 'Supplies',
+    icon: 'purchaseOrder',
+  },
   reports: {
     id: 'reports',
     path: '/reports',

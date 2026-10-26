@@ -679,6 +679,28 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'retail-qa',
     kind: 'count',
   },
+  // Supplies (owner, 2026-10-26): the weekly count is due Monday 3 pm store time.
+  'supplies.count_weekday': {
+    label: 'Supply count due day',
+    help: 'The day the weekly supply count is due. The order is built within the hour after the deadline.',
+    tab: 'store',
+    kind: 'weekday',
+    defaultValue: 0,
+  },
+  'supplies.count_due_time': {
+    label: 'Supply count due time',
+    help: 'Store time, 24-hour, e.g. 15:00 for 3 pm.',
+    tab: 'store',
+    kind: 'text',
+    defaultValue: '15:00',
+  },
+  'supplies.check_links': {
+    label: 'Check supply links',
+    help: 'On: the order build opens each non-Amazon item link once and flags the ones that are gone (page not found).',
+    tab: 'store',
+    kind: 'switch',
+    defaultValue: true,
+  },
   'retail_qa.fresh_tag_count': {
     label: 'Items in the fresh-tag check',
     help: 'How many items the daily fresh-tag check draws from the last day anything was checked in. Default 10.',

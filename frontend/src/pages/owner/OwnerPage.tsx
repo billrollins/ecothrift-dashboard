@@ -48,7 +48,11 @@ import { NAV_ITEM_CATALOG } from '../../navigation/navItemCatalog';
 import { formatCurrency, formatCurrencyWhole } from '../../utils/format';
 
 /** Owner-only pages with no sidebar entry. */
-const EXTRA_OWNER_LINKS = [{ label: 'Data checks (QA)', path: '/admin/qa' }];
+const EXTRA_OWNER_LINKS = [
+  { label: 'Data checks (QA)', path: '/admin/qa' },
+  // The week's supply order (owner, 2026-10-26); the lists are in the sidebar for everyone.
+  { label: 'Supply order', path: '/supplies/order' },
+];
 
 const SPEND_RANGES: { value: SpendRange; label: string }[] = [
   { value: 'today', label: 'Today' },

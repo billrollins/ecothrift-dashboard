@@ -69,6 +69,12 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
       { id: 'staff-purchases', title: 'Staff purchases', help: 'Payroll deduction at the register.', custom: ['staff-purchases'] },
       { id: 'owner-page', title: 'Owner page', help: 'Targets on the Owner page Scorecard.', keys: ['owner.scorecard_targets'] },
       {
+        id: 'supplies',
+        title: 'Supplies',
+        help: 'When the weekly supply count is due. After it the order is built within the hour, from the counts.',
+        keys: ['supplies.count_weekday', 'supplies.count_due_time', 'supplies.check_links'],
+      },
+      {
         id: 'social',
         title: 'Social Studio',
         help: 'Which days get a post, the category rotation, what a post must include before it is Ready, and the AI post ideas.',

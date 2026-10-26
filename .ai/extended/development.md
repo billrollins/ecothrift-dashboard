@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-07 (AI_MODEL_<PURPOSE> keys gone from Heroku, T23; bstock log in workspace/logs, T43) -->
+<!-- Last updated: 2026-10-26 (scheduled_sweep builds the week's supply order first) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -66,7 +66,7 @@ npm run dev
 | Hourly | `python manage.py scheduled_sweep` |
 | Every 10 minutes | `python manage.py pull_shortlist_manifests` |
 
-`compute_daily_category_stats` ends by running `rebuild_inventory_weeks` (inside a try, so a failure never breaks the buying stats; [`inventory-review.md`](inventory-review.md)). It refreshes SQL-backed `CategoryStats` (including `need_score_1to99`), invalidates the category-need cache, and (unless `--skip-recompute-open`) runs a full valuation pass for non-archived open/closing auctions with a future `end_time`. `scheduled_sweep` runs discovery then `recompute_active_auctions_lightweight`. `pull_shortlist_manifests` is a backstop: it prunes old auto-pulled rows, finishes leftover category mapping, then resumes a `ManifestPullJob` whose thread died (queued for a minute, or running with a heartbeat 8+ minutes old) and fails it when the login has run out. It never starts a pull; only the **Pull B-Stock manifests** routine's Pull button does. See [`bstock.md`](bstock.md) → Manifests. **Removed:** the legacy nightly **`recompute_cost_pipeline`** — item costs use **`PurchaseOrder.est_shrink`** and **`recompute_all_item_costs`** for backfills only.
+`compute_daily_category_stats` ends by running `rebuild_inventory_weeks` (inside a try, so a failure never breaks the buying stats; [`inventory-review.md`](inventory-review.md)). It refreshes SQL-backed `CategoryStats` (including `need_score_1to99`), invalidates the category-need cache, and (unless `--skip-recompute-open`) runs a full valuation pass for non-archived open/closing auctions with a future `end_time`. `scheduled_sweep` first builds the week's supply order once its count deadline has passed (inside a try; `--skip-supplies` skips it; [`supplies.md`](supplies.md)), then runs discovery then `recompute_active_auctions_lightweight`. `pull_shortlist_manifests` is a backstop: it prunes old auto-pulled rows, finishes leftover category mapping, then resumes a `ManifestPullJob` whose thread died (queued for a minute, or running with a heartbeat 8+ minutes old) and fails it when the login has run out. It never starts a pull; only the **Pull B-Stock manifests** routine's Pull button does. See [`bstock.md`](bstock.md) → Manifests. **Removed:** the legacy nightly **`recompute_cost_pipeline`** — item costs use **`PurchaseOrder.est_shrink`** and **`recompute_all_item_costs`** for backfills only.
 
 ## Heroku Scheduler (Routines)
 

@@ -71,6 +71,10 @@ const TruckFinalizePage = lazy(() => import('./pages/inventory/truck/TruckFinali
 const RestorationsPage = lazy(() => import('./pages/inventory/restorations/RestorationsPage'));
 const InventorySearchPage = lazy(() => import('./pages/inventory/InventorySearchPage'));
 const InventoryReviewPage = lazy(() => import('./pages/inventory/InventoryReviewPage'));
+const SuppliesPage = lazy(() => import('./pages/supplies/SuppliesPage'));
+const SupplyListPage = lazy(() => import('./pages/supplies/SupplyListPage'));
+const SupplyCountPage = lazy(() => import('./pages/supplies/SupplyCountPage'));
+const SupplyOrderPage = lazy(() => import('./pages/supplies/SupplyOrderPage'));
 const LegacyWorkbenchRedirect = lazy(() =>
   import('./pages/inventory/InventorySearchPage').then((m) => ({ default: m.LegacyWorkbenchRedirect })),
 );
@@ -319,6 +323,12 @@ function AppRoutes() {
         <Route path="/inventory/restorations" element={<RestorationsPage />} />
         <Route path="/inventory/search" element={<InventorySearchPage />} />
         <Route path="/inventory/review" element={<InventoryReviewPage />} />
+        {/* Supplies (owner, 2026-10-26): lists and the weekly count for everyone; the order is the owner's. */}
+        <Route path="/supplies" element={<SuppliesPage />} />
+        <Route path="/supplies/count" element={<Navigate to="/supplies" replace />} />
+        <Route path="/supplies/lists/:id" element={<SupplyListPage />} />
+        <Route path="/supplies/count/:id" element={<SupplyCountPage />} />
+        <Route path="/supplies/order" element={<SuperAdminRoute><SupplyOrderPage /></SuperAdminRoute>} />
         <Route path="/inventory/products/:id" element={<ProductPage />} />
         {/* The old Catalog page: its links land on Inventory search with the same thing open. */}
         <Route path="/inventory/workbench" element={<LegacyWorkbenchRedirect />} />
