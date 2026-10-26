@@ -13,6 +13,7 @@ from django.db import transaction
 
 from apps.core.models import ApprovalRequest
 from apps.core.services.approval_requests import Kind, Progress, register
+from apps.inventory.services import sale_facts
 
 CHUNK = 200
 
@@ -65,7 +66,8 @@ def _sold_apply(request: ApprovalRequest, progress: Progress) -> dict:
                 item.status = 'sold'
                 item.sold_at = line.cart.completed_at
                 item.sold_for = (line.line_total / (line.quantity or 1)).quantize(Decimal('0.01'))
-                item.save(update_fields=['status', 'sold_at', 'sold_for', 'updated_at'])
+                item.save(update_fields=['status', 'sold_at', 'sold_for', 'updated_at',
+                                         *sale_facts.apply(item, sale_facts.for_line(line, item.sold_for))])
                 done_ids.append(item.pk)
         progress.update(done=min(i + CHUNK, len(ids)), total=len(ids), cursor=i + CHUNK, changed=done_ids,
                         log=f'{len(done_ids):,} marked sold so far.')
@@ -76,7 +78,8 @@ def _sold_undo(request: ApprovalRequest) -> dict:
     from apps.inventory.models import Item
 
     ids = (request.result or {}).get('item_ids') or []
-    n = Item.objects.filter(pk__in=ids, status='sold').update(status='on_shelf', sold_at=None, sold_for=None)
+    n = Item.objects.filter(pk__in=ids, status='sold').update(status='on_shelf', sold_at=None, sold_for=None,
+                                                                   sold_net=None, thriftbucks_at_sale=None)
     return {'back_on_floor': n}
 
 

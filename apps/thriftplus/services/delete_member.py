@@ -195,6 +195,7 @@ def _undo_sale(cart) -> int:
                 item.status = 'on_shelf'
                 item.sold_at = None
                 item.sold_for = None
+                item.sold_net = item.thriftbucks_at_sale = None
                 item.save()
                 back += 1
     _cancel_delivery_jobs_for_cart(cart)

@@ -22,6 +22,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.inventory.models import Item, ItemHistory
+from apps.inventory.services import sale_facts
 from apps.webstore.models import Reservation, WebListing
 
 OFF_REGISTER_CHANNELS = (Item.SALE_CHANNEL_FACEBOOK, Item.SALE_CHANNEL_ONLINE_OTHER)
@@ -71,6 +72,7 @@ def record_online_sale(user, *, sku: str, sold_for, channel: str, note: str = ''
     item.status = 'sold'
     item.sold_at = timezone.now()
     item.sold_for = price
+    sale_facts.apply(item, sale_facts.facts(price))
     item.sale_channel = channel
     item.save()
     where = dict(Item.SALE_CHANNEL_CHOICES)[channel]
@@ -103,6 +105,7 @@ def undo_online_sale(user, item_id: int) -> Item:
     item.status = 'on_shelf'
     item.sold_at = None
     item.sold_for = None
+    sale_facts.apply(item, sale_facts.CLEARED)
     item.sale_channel = ''
     item.save()
     ItemHistory.objects.create(

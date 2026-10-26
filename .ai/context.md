@@ -120,6 +120,7 @@ Load on demand. Do not read them all at session start. When you add, rename or r
 | [`marketing.md`](extended/marketing.md) | Social Studio: the photo library, the week's posts and category rotation, the Always-include check, Post it, the Today's post routine |
 | [`pos-system.md`](extended/pos-system.md) | Registers, drawers, carts, terminal, receipts |
 | [`print-server.md`](extended/print-server.md) | Local FastAPI: labels, receipts, drawer kick |
+| [`inventory-review.md`](extended/inventory-review.md) | Sale facts (`sold_net`, ThriftBucks at sale) and the weekly inventory rollup `InventoryWeek` |
 | [`inventory-search.md`](extended/inventory-search.md) | Inventory search, the product / check-in / item modals, when to use a modal, page, tabs or drawer |
 | [`product-standard.md`](extended/product-standard.md) | What every product must look like; standardize and dedupe |
 | [`product-taxonomy.md`](extended/product-taxonomy.md) | Category, subcategory, price-tag short name (TAX rulings) |

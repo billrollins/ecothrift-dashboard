@@ -1,8 +1,10 @@
-v2.215.2 — Claude models work in the AI router again
+v2.216.0 — Inventory Review phase 1: sale facts and weekly inventory numbers
 
-User-facing theme: **Claude models work in the AI router again (2026-10-26).** Fix-it lane r-anthropic-temperature.
+User-facing theme: **Inventory Review phase 1: what we keep on each sale, and nightly weekly inventory numbers (Bill, 2026-10-22).** Initiative: inventory review.
 
-### Fixed
-- AI features set to a Claude model (e.g. Claude Haiku) work again; they were failing with a 'temperature' error before reaching Anthropic.
+### Added
+- Each sale now records what the store keeps after Thrift+ ThriftBucks, and how many ThriftBucks the item earned, so recovery numbers stop overstating member sales.
+- A request in Dash → Requests fills that in for past sales; nothing about old sale prices changes.
+- New nightly weekly inventory numbers by category, subcategory, vendor and price point: in, out, on hand, stale, bulk, sales, keep, and days to sell. Two years of history are built on the first run. This is the data for the coming Inventory → Review page.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

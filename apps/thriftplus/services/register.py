@@ -792,6 +792,17 @@ def _save_snapshot(line, snap: dict) -> None:
     line.meta = meta
 
 
+def _save_sale_facts(line, snap: dict) -> None:
+    """The item's sold_net and thriftbucks_at_sale from the snapshot (inventory review): the kept ThriftBucks come off
+    sold_for; ThriftBucks spent are a tender and never do."""
+    from apps.inventory.models import Item
+    from apps.inventory.services import sale_facts
+
+    qty = line.quantity or 1
+    sold_for = (line.line_total / qty).quantize(CENT)
+    Item.objects.filter(pk=line.item_id, status='sold').update(**sale_facts.facts(sold_for, snap, qty))
+
+
 def after_complete(cart, *, user=None) -> None:
     """The completed sale's ledger rows, each line's snapshot, and each item's reward at sale. Runs inside the POS's
     completion transaction; a failure in the member's part is logged and never stops the sale."""
@@ -841,8 +852,11 @@ def _member_sale(cart, member: CartMember, lines: list, item_lines: list, *, use
         bucks = bucks_by_line.get(line.pk, ZERO)
         ledger.record(account, LedgerEntry.KIND_BANK, kept, 'sale', cart=cart, line=line, actor=user)
         ledger.record(account, LedgerEntry.KIND_BANK, -bucks, 'spend', cart=cart, line=line, actor=user)
-        _save_snapshot(line, _snapshot(line, collected=collected, redeemed=redeemed, bucks=bucks,
-                                       paid=paid.get(line.pk, ZERO), rate=rate, use_by=use_by, rules_=rules_))
+        snap = _snapshot(line, collected=collected, redeemed=redeemed, bucks=bucks,
+                         paid=paid.get(line.pk, ZERO), rate=rate, use_by=use_by, rules_=rules_)
+        _save_snapshot(line, snap)
+        if _is_item(line):
+            _save_sale_facts(line, snap)
         kept_total += kept
         redeemed_total += redeemed
         if _is_item(line):

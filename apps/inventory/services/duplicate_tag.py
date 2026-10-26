@@ -18,6 +18,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.inventory.models import Item, ItemHistory
+from apps.inventory.services import sale_facts
 
 NOTE = 'Two items, one tag'
 
@@ -65,6 +66,8 @@ def move_sale_to_new_item(item: Item, user, *, where: str) -> Item:
         checked_in_by=item.checked_in_by,
         sold_at=item.sold_at,
         sold_for=item.sold_for,
+        sold_net=item.sold_net,
+        thriftbucks_at_sale=item.thriftbucks_at_sale,
     )
     # Its cost is copied; an order-wide re-cost would rewrite every other item unchanged.
     twin.save(defer_po_cost_recompute=True)
@@ -75,7 +78,8 @@ def move_sale_to_new_item(item: Item, user, *, where: str) -> Item:
     item.status = 'on_shelf'
     item.sold_at = None
     item.sold_for = None
-    item.save(update_fields=['status', 'sold_at', 'sold_for', 'search_text', 'updated_at'])
+    item.save(update_fields=['status', 'sold_at', 'sold_for', 'search_text', 'updated_at',
+                             *sale_facts.apply(item, sale_facts.CLEARED)])
     ItemHistory.objects.create(
         item=item, event_type='status_change', old_value='sold', new_value='on_shelf',
         note=f'{NOTE}: found here ({where}); its old sale moved to {twin.sku}', created_by=user,
@@ -102,7 +106,9 @@ def undo_move_sale(item: Item, twin: Item, user) -> bool:
     item.status = 'sold'
     item.sold_at = twin.sold_at
     item.sold_for = twin.sold_for
-    item.save(update_fields=['status', 'sold_at', 'sold_for', 'search_text', 'updated_at'])
+    moved = {name: getattr(twin, name) for name in sale_facts.FIELDS}
+    item.save(update_fields=['status', 'sold_at', 'sold_for', 'search_text', 'updated_at',
+                             *sale_facts.apply(item, moved)])
     ItemHistory.objects.create(
         item=item, event_type='status_change', old_value='on_shelf', new_value='sold',
         note=f'{NOTE}: undone; the sale moved back from {twin.sku}', created_by=user,

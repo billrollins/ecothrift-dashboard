@@ -580,3 +580,55 @@ register(Kind(
     kind='inventory.merge_vendor', label='Merge one vendor into another (TGT into TRGET)',
     preview=_vendor_preview, apply=_vendor_apply, undo=_vendor_undo,
 ))
+
+
+# ── Sale facts backfill (inventory review, 2026-10-22) ─────────────────────────
+
+def _facts_preview(params: dict) -> dict:
+    from apps.inventory.services import sale_facts
+
+    counts = sale_facts.backfill_counts()
+    sample = [
+        {'sku': line.item.sku, 'sold_for': str(line.item.sold_for), **{k: str(v) for k, v in sale_facts.for_line(line, line.item.sold_for).items()},
+         'kept': (line.meta.get('thrift_plus') or {}).get('kept'), 'qty': line.quantity}
+        for line in sale_facts.member_lines()[:15]
+    ]
+    return {
+        'counts': {'Sold items with no net yet': counts['unfilled'],
+                   'Of them, Thrift+ member sales since 10-16': counts['member_items']},
+        'changes': [
+            'Fills the new "net" (what the store keeps per unit) and "ThriftBucks at sale" on old sales. The sale price '
+            '(sold_for) is never changed.',
+            'Thrift+ member sales: net = sale price less the kept ThriftBucks per unit, from the receipt line\'s '
+            'snapshot; ThriftBucks at sale = what each unit collected. ThriftBucks spent are a tender and never come off.',
+            'Every other sale: net = sale price, no ThriftBucks.',
+            'Only empty fields are filled, so it is safe to run again; there is nothing to undo.',
+        ],
+        'sample': sample,
+    }
+
+
+def _facts_apply(request: ApprovalRequest, progress: Progress) -> dict:
+    from apps.inventory.services import sale_facts
+
+    state = progress.state
+    members = state.get('members')
+    if members is None:
+        members = sale_facts.backfill_members()
+        progress.update(members=members, cursor=0, log=f'{len(members):,} Thrift+ member sales filled.')
+    after = int(progress.cursor or 0)
+    rest = int(state.get('rest') or 0)
+    while True:
+        n, last = sale_facts.backfill_rest_chunk(after)
+        if not last:
+            break
+        rest += n
+        after = last
+        progress.update(cursor=after, rest=rest, log=f'{rest:,} other sales filled so far.')
+    return {'member_items': len(members), 'other_items': rest}
+
+
+register(Kind(
+    kind='inventory.backfill_sale_facts', label='Fill net and ThriftBucks at sale on old sales',
+    preview=_facts_preview, apply=_facts_apply, undo=None,
+))

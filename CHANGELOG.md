@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.215.2] -->
-<!-- Last reviewed: 2026-10-26 (2.215.2) -->
+<!-- Line 1 release: ## [2.216.0] -->
+<!-- Last reviewed: 2026-10-26 (2.216.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.216.0] - 2026-10-26
+
+User-facing theme: **Inventory Review phase 1: what we keep on each sale, and nightly weekly inventory numbers (Bill, 2026-10-22).** Initiative: inventory review.
+
+### Added
+- Each sale now records what the store keeps after Thrift+ ThriftBucks, and how many ThriftBucks the item earned, so recovery numbers stop overstating member sales.
+- A request in Dash → Requests fills that in for past sales; nothing about old sale prices changes.
+- New nightly weekly inventory numbers by category, subcategory, vendor and price point: in, out, on hand, stale, bulk, sales, keep, and days to sell. Two years of history are built on the first run. This is the data for the coming Inventory → Review page.
 
 ## [2.215.2] - 2026-10-26
 

@@ -184,6 +184,7 @@ from apps.inventory.services.receiving_photos import (
     replace_receiving_photo,
     save_receiving_photo,
 )
+from apps.inventory.services import sale_facts
 from apps.inventory.services.manifest_meta import compute_category_count
 from .cleanup_condition import normalize_cleanup_condition
 from .cleanup_csv_validate import validate_cleanup_row_values
@@ -8337,7 +8338,8 @@ def mark_sold_item_on_shelf_view(request, pk):
     item.status = 'on_shelf'
     item.sold_at = None
     item.sold_for = None
-    item.save(update_fields=['status', 'sold_at', 'sold_for', 'updated_at'])
+    item.save(update_fields=['status', 'sold_at', 'sold_for', 'updated_at',
+                             *sale_facts.apply(item, sale_facts.CLEARED)])
 
     if item.source == 'consignment' and hasattr(item, 'consignment'):
         ci = item.consignment

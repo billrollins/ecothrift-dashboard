@@ -16,6 +16,7 @@ from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsEmployee, IsS
 from apps.accounts.services.register_pin import PinError
 from apps.core.models import WorkLocation
 from apps.inventory.models import Item, ItemScanHistory
+from apps.inventory.services import sale_facts
 from apps.inventory.services.resale_duplicate import duplicate_item_for_resale
 from .models import (
     Register, Drawer, DrawerHandoff, CashDrop,
@@ -2320,6 +2321,8 @@ class CartViewSet(viewsets.ModelViewSet):
                 item.sold_at = timezone.now()
                 qty = line.quantity or 1
                 item.sold_for = (line.line_total / qty).quantize(Decimal('0.01'))
+                # Sale facts: sold_net = sold_for here; a member's kept ThriftBucks come off in after_complete.
+                sale_facts.apply(item, sale_facts.facts(item.sold_for))
                 # Sales channel (SAL-01): an Online Sales hold picked up here is an online sale paid at the register.
                 item.sale_channel = (
                     Item.SALE_CHANNEL_ONLINE_PICKUP if reservation_id else Item.SALE_CHANNEL_STORE
@@ -2557,6 +2560,7 @@ class CartViewSet(viewsets.ModelViewSet):
                         item.status = 'on_shelf'
                         item.sold_at = None
                         item.sold_for = None
+                        sale_facts.apply(item, sale_facts.CLEARED)
                         item.save()
 
             # Thrift+: give back what the sale wrote to the member's cover, bank and credit.

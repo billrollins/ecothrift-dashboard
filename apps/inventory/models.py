@@ -1883,6 +1883,11 @@ class Item(models.Model):
     )
     sold_at = models.DateTimeField(null=True, blank=True)
     sold_for = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Sale facts (inventory review, 2026-10-22; services/sale_facts.py). sold_net is what the store keeps per unit:
+    # sold_for less the kept ThriftBucks the line earned. thriftbucks_at_sale is the ThriftBucks the unit collected.
+    # ThriftBucks spent are a tender and never come off here. Both clear with sold_for.
+    sold_net = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    thriftbucks_at_sale = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     SALE_CHANNEL_STORE = 'store'
     SALE_CHANNEL_ONLINE_PICKUP = 'online_pickup'
     SALE_CHANNEL_FACEBOOK = 'facebook'
@@ -3097,3 +3102,66 @@ class CatalogMerge(models.Model):
 
     def __str__(self):
         return f'{self.merged_id} → {self.survivor_id} ({self.method})'
+
+
+class InventoryWeek(models.Model):
+    """
+    The nightly inventory rollup (inventory review, 2026-10-22): one row per week (starting Monday), dimension and key.
+    Rebuilt from items by ``services/inventory_week.py`` (``rebuild_inventory_weeks``); nothing else writes here.
+    Money is in dollars. ``on_hand`` and its parts are as of the week's end (now, for the open week).
+    """
+
+    DIM_CATEGORY = 'category'
+    DIM_SUBCATEGORY = 'subcategory'
+    DIM_VENDOR = 'vendor'
+    DIM_PRICE_POINT = 'price_point'
+    DIMENSION_CHOICES = [
+        (DIM_CATEGORY, 'Category'),
+        (DIM_SUBCATEGORY, 'Subcategory'),
+        (DIM_VENDOR, 'Vendor'),
+        (DIM_PRICE_POINT, 'Price point'),
+    ]
+
+    week_start = models.DateField()
+    dimension = models.CharField(max_length=16, choices=DIMENSION_CHOICES)
+    # The category a subcategory row sits under; '' for the other dimensions.
+    parent = models.CharField(max_length=100, blank=True, default='')
+    key = models.CharField(max_length=120)
+    label = models.CharField(max_length=200, blank=True, default='')
+
+    units_in = models.IntegerField(default=0)
+    legacy_sold = models.IntegerField(default=0, help_text='Old-system imports sold this week: no real in date, never on hand.')
+    units_sold = models.IntegerField(default=0)
+    units_scrapped = models.IntegerField(default=0)
+    units_lost = models.IntegerField(default=0)
+    units_out_other = models.IntegerField(default=0, help_text='Left with the old "returned" status.')
+    units_returned = models.IntegerField(default=0, help_text='Thrift+ returns taken in this week (the item stays sold).')
+
+    on_hand = models.IntegerField(default=0)
+    stale_on_hand = models.IntegerField(default=0)
+    bulk_on_hand = models.IntegerField(default=0)
+    on_hand_retail = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    on_hand_no_retail = models.IntegerField(default=0)
+    on_hand_no_checkin = models.IntegerField(default=0, help_text='On hand with no check-in date (created date used).')
+
+    sales = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    net = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    sold_retail = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    sold_with_retail = models.IntegerField(default=0)
+    sold_net_with_retail = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    sold_cost = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    sold_with_cost = models.IntegerField(default=0)
+    sold_net_with_cost = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    sold_no_checkin = models.IntegerField(default=0)
+    median_days_to_sell = models.FloatField(null=True, blank=True)
+
+    computed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['week_start', 'dimension', 'parent', 'key'], name='inv_week_unique'),
+        ]
+        indexes = [models.Index(fields=['dimension', 'week_start'], name='inv_week_dim_week')]
+
+    def __str__(self):
+        return f'{self.week_start} {self.dimension} {self.parent + " / " if self.parent else ""}{self.key}'

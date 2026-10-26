@@ -63,6 +63,7 @@ npm run dev
 | Schedule | Command |
 |----------|---------|
 | Daily (e.g. 03:00 UTC) | `python manage.py compute_daily_category_stats` |
+| Daily, after it | `python manage.py rebuild_inventory_weeks` (the weekly inventory rollup; [`inventory-review.md`](inventory-review.md)) |
 | Hourly | `python manage.py scheduled_sweep` |
 | Every 10 minutes | `python manage.py pull_shortlist_manifests` |
 
