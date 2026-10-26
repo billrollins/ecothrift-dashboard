@@ -8,7 +8,8 @@ One row per (week starting Monday, dimension, key):
   ``category_from_profile`` switch the same way Buying does);
 - **subcategory**: ``ProductProfile.subcategory`` under its category (``parent``); '' is "No subcategory";
 - **vendor**: the order's vendor code ('' is "No vendor"; Misfit items sit on MIS);
-- **price_point**: the tag price band (``PRICE_POINTS``).
+- **price_point**: the tag price band (``PRICE_POINTS``);
+- **all**: the whole store, one row a week (key ''), so every Review tab shows the same total.
 
 How an item is counted:
 
@@ -62,8 +63,8 @@ NO_SUBCATEGORY = 'No subcategory'
 NO_VENDOR = 'No vendor'
 
 # GROUPING(cat, sub, vcode, band): a 1 bit is a column not grouped.
-_GROUPS = {7: 'category', 3: 'subcategory', 13: 'vendor', 14: 'price_point'}
-_SETS = 'GROUPING SETS ((ws, cat), (ws, cat, sub), (ws, vcode, vname), (ws, band))'
+_GROUPS = {7: 'category', 3: 'subcategory', 13: 'vendor', 14: 'price_point', 15: 'all'}
+_SETS = 'GROUPING SETS ((ws, cat), (ws, cat, sub), (ws, vcode, vname), (ws, band), (ws))'
 
 FLOW_FIELDS = ('units_in', 'legacy_sold', 'units_sold', 'units_scrapped', 'units_lost', 'units_out_other', 'sales', 'net',
                'sold_retail', 'sold_with_retail', 'sold_net_with_retail', 'sold_cost', 'sold_with_cost',
@@ -97,7 +98,7 @@ def _start(day: date) -> datetime:
     return timezone.make_aware(datetime.combine(day, time.min))
 
 
-def _band_sql() -> str:
+def band_sql() -> str:
     whens = []
     for key, _label, _lo, hi in PRICE_POINTS:
         if hi is not None:
@@ -117,7 +118,7 @@ def _base_sql() -> str:
                ({case}) AS cat,
                TRIM(COALESCE(pp.subcategory, '')) AS sub,
                COALESCE(v.code, '') AS vcode, COALESCE(v.name, '') AS vname,
-               {_band_sql()} AS band,
+               {band_sql()} AS band,
                (i.checked_in_at IS NULL OR i.notes LIKE 'BACKFILL:%%') AS no_checkin,
                CASE WHEN i.notes LIKE 'BACKFILL:%%' AND i.status = 'sold' THEN COALESCE(i.sold_at, i.updated_at)
                     ELSE COALESCE(i.checked_in_at, i.created_at) END AS in_raw,
@@ -223,6 +224,8 @@ def _returns(start: datetime, end: datetime) -> list[tuple]:
 def _ident(g: int, cat, sub, vcode, vname, band) -> tuple[str, str, str, str]:
     """(dimension, parent, key, label) for one grouped row."""
     dim = _GROUPS[g]
+    if dim == 'all':
+        return dim, '', '', 'All'
     if dim == 'category':
         return dim, '', cat, cat
     if dim == 'subcategory':

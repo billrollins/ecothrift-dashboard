@@ -38,10 +38,16 @@ export interface ReviewRow {
   recovery: number | null;
   net_to_cost: number | null;
   flags: ReviewFlag[];
+  /** Price points: their order (Under $5 first); the total is -1. */
+  rank: number;
 }
+
+/** A Review tab's rows: categories (and their subcategories), vendors or price points. */
+export type ReviewDimension = 'category' | 'vendor' | 'price_point';
 
 export interface ReviewResponse {
   span: 1 | 4;
+  dimension: ReviewDimension;
   category: string | null;
   from: string;
   to: string;
@@ -53,11 +59,35 @@ export interface ReviewResponse {
   flags: { key: ReviewFlag; label: string }[];
 }
 
-export function getInventoryReview(params: { span: 1 | 4; category?: string | null }, signal?: AbortSignal) {
+export function getInventoryReview(
+  params: { span: 1 | 4; dimension?: ReviewDimension; category?: string | null }, signal?: AbortSignal,
+) {
   return api.get<ReviewResponse>('/inventory/review/', {
-    params: { span: params.span, category: params.category || undefined },
+    params: { tab: params.dimension ?? 'category', span: params.span, category: params.category || undefined },
     signal,
   });
+}
+
+/** What carries one flag now, per tab. */
+export interface FlagCarrier {
+  key: string;
+  label: string;
+  on_hand: number;
+}
+
+export interface FlagsResponse {
+  span: 1 | 4;
+  from: string;
+  to: string;
+  as_of: string;
+  settings: Record<string, number>;
+  /** The owner setting behind each flag, and `stale_days`. */
+  setting_keys: Record<ReviewFlag | 'stale_days', string>;
+  flags: { key: ReviewFlag; label: string; carried: Record<ReviewDimension, FlagCarrier[]> }[];
+}
+
+export function getReviewFlags(span: 1 | 4, signal?: AbortSignal) {
+  return api.get<FlagsResponse>('/inventory/review/flags/', { params: { span }, signal });
 }
 
 /** The subcategory key the search drill uses for "no subcategory". */

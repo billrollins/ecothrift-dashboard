@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.218.0] -->
-<!-- Last reviewed: 2026-10-26 (2.218.0) -->
+<!-- Line 1 release: ## [2.219.0] -->
+<!-- Last reviewed: 2026-10-26 (2.219.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.219.0] - 2026-10-26
+
+User-facing theme: **Inventory Review phase 3: Vendors, Price points and Flags tabs (Bill, 2026-10-26).** Initiative: inventory review.
+
+### Added
+- Inventory → Review has Vendors and Price points tabs with the same numbers as Categories. Tap a vendor or a price range to see its items in Inventory search.
+- New Flags tab: what each flag means, its limit, and which categories, vendors and price ranges carry it right now. Managers can change a limit right there.
+- Inventory search can filter by vendor and price range (from Review).
+
+### Fixed
+- The "All" line now shows the same totals on every tab.
 
 ## [2.218.0] - 2026-10-26
 

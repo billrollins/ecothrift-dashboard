@@ -18,8 +18,8 @@ or an item anywhere on the site. It replaced the old Catalog page (`/inventory/w
   last. The header box ticks every product on the page with something on the shelf.
 - Page state is in the URL: `q`, `sold`, `misfit`, `page`, `sort`, `open=<product|checkin|item>:<id>`.
 - **Review's drill** (2026-10-26): `category` (taxonomy bucket, the same as Buying), `sub` (profile subcategory;
-  `(none)` = none) and `stale=1` (on the shelf longer than `inventory_review_stale_days`) keep products with such a unit
-  on the shelf (`inventory_review.product_ids_sql`). They show as chips with an x. [`inventory-review.md`](inventory-review.md)
+  `(none)` = none), `vendor` (order's vendor code; `(none)` = no order), `price_point` (tag price band) and `stale=1`
+  (on the shelf longer than `inventory_review_stale_days`) keep products with one unit on the shelf matching them all (`inventory_review.product_ids_sql`). They show as chips with an x. [`inventory-review.md`](inventory-review.md)
 - **Items one person put on the floor** (2026-10-22, from a Processing row in the Dashboard's details):
   `processed_by=<user id|none>&from=YYYY-MM-DD&to=YYYY-MM-DD` shows those items (SKU, product, status, day, price,
   retail; a list on a phone) instead of the search. "Search all inventory" goes back. Code:

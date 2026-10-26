@@ -8,7 +8,7 @@ from .api_bulk_price import (
     bulk_price_undo_view,
 )
 from .api_inventory_search import (
-    inventory_review_view, inventory_search_items_view, inventory_search_similar_view, inventory_search_view,
+    inventory_review_flags_view, inventory_review_view, inventory_search_items_view, inventory_search_similar_view, inventory_search_view,
 )
 from .api_product_similar import similar_products_view
 from .views import (
@@ -49,6 +49,7 @@ urlpatterns = [
     path('search/items/', inventory_search_items_view, name='inventory-search-items'),
     path('search/similar/', inventory_search_similar_view, name='inventory-search-similar'),
     path('review/', inventory_review_view, name='inventory-review'),
+    path('review/flags/', inventory_review_flags_view, name='inventory-review-flags'),
     path('add-item/find/', add_item_find_view, name='add-item-find'),
     path('add-item/price/', add_item_price_view, name='add-item-price'),
     path('add-item/taxonomy/', add_item_taxonomy_view, name='add-item-taxonomy'),

@@ -76,7 +76,7 @@ export function searchInventory(
   params: {
     q: string; sold: boolean; page: number; sort?: string; misfit?: boolean;
     /** Inventory → Review's drill: a taxonomy category, a subcategory (`(none)` = none), on the shelf too long. */
-    category?: string; sub?: string; stale?: boolean;
+    category?: string; sub?: string; stale?: boolean; vendor?: string; price_point?: string;
   },
   signal?: AbortSignal,
 ) {
@@ -85,6 +85,7 @@ export function searchInventory(
       q: params.q, sold: params.sold ? 1 : undefined, page: params.page, sort: params.sort || undefined,
       misfit: params.misfit ? 1 : undefined,
       category: params.category || undefined, sub: params.sub || undefined, stale: params.stale ? 1 : undefined,
+      vendor: params.vendor || undefined, price_point: params.price_point || undefined,
     },
     signal,
   });

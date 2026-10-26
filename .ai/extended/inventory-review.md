@@ -1,9 +1,10 @@
-<!-- Last updated: 2026-10-26 (phase 2: Inventory → Review, Categories tab) -->
+<!-- Last updated: 2026-10-26 (phase 3: Vendors, Price points and Flags tabs) -->
 # Inventory review
 
 The owner's plan (approved 2026-10-22): weekly numbers per category, subcategory, vendor and price point, so the
-floor can be read and buying steered. Phase 1 is the data (shipped v2.216.0); phase 2 is Inventory → Review (Categories
-tab); phase 3 adds Vendors, Price points and a Flags tab.
+floor can be read and buying steered. Phase 1 is the data (v2.216.0); phase 2 is Inventory → Review, Categories tab
+(v2.218.0); phase 3 adds the Vendors, Price points and Flags tabs. Phase 4 (recovery per item, behind a switch) is not
+built.
 
 ## Sale facts on the item (phase 1)
 
@@ -36,6 +37,7 @@ the full build on a production-size copy. Buying's `CategoryStats` is not change
 | subcategory | `ProductProfile.subcategory`, `parent` = its category | '' = "No subcategory" |
 | vendor | vendor code | '' = "No vendor"; Misfit items are on MIS |
 | price_point | `u5`, `5-10`, `10-25`, `25-50`, `50-100`, `100+` | today's tag price (no price history) |
+| all | '' | the whole store, one row a week (phase 3), so every Review tab shows the same total |
 
 **Rules** (data-quality first: nothing is dropped, every gap is counted):
 
@@ -85,3 +87,18 @@ Vendors). Page `pages/inventory/InventoryReviewPage.tsx`; API `GET /api/inventor
 - **Drill**: a category row opens its subcategories (`?category=`); a subcategory row opens Inventory search with
   `category` and `sub`; the stale % opens it with `stale=1` too. "See items" opens the whole category.
 - Desk: a sortable table with the total on top. Phone: one card per row with a sort menu.
+
+## Vendors, Price points and Flags tabs (phase 3)
+
+- `?tab=vendors` / `?tab=price-points` (API `?tab=vendor|price_point`): the same columns and flags as Categories, one
+  row per vendor code ("No vendor" for items with no order; Misfit items are on MIS) or tag price band (in band order).
+  A row opens Inventory search with `vendor=<code>` (`(none)` = no vendor) or `price_point=<band>`; the stale % adds
+  `stale=1`. Vendor names come from the rollup, or from `Vendor` for a vendor with stock but no rollup rows yet.
+- **Totals** read the rollup's `all` rows (or, inside a category, the category's own rows), so the "All" row is the
+  same on every tab. Until a rebuild has written `all` rows for every week shown, the total adds up the rows.
+  Migration 0120 only adds the `all` choice; run `rebuild_inventory_weeks --full` once after deploy (else the nightly
+  run fills the last 8 weeks and the 12-week totals add up the rows until then).
+- `?tab=flags` (API `GET /api/inventory/review/flags/?span=`, `inventory_review.flags_summary`): each flag's rule, its
+  limit, and what carries it now on each tab (first 8 per tab, "+N more"). A category chip opens its subcategories;
+  a vendor or price point chip opens its items. Managers (and the Super User) change a limit right there (the same
+  settings as Settings → Inventory → Inventory review, `PATCH /api/core/settings/<key>/`); everyone else sees the limits.

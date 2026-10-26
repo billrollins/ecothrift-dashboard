@@ -2,7 +2,7 @@
  * Inventory search: one box, one table, one row per product, with its items one click away.
  * Replaces the old Catalog page (`/inventory/workbench`). Search runs on the server
  * (`apps/inventory/services/inventory_search.py`); the page state lives in the URL (`q`, `sold`, `misfit`, `page`, `sort`,
- * `open`, and Inventory → Review's drill: `category`, `sub`, `stale`). Bulk work (price changes for managers, tag reprints) lives in `components/objects/bulkTools.tsx`.
+ * `open`, and Inventory → Review's drill: `category`, `sub`, `vendor`, `price_point`, `stale`). Bulk work (price changes for managers, tag reprints) lives in `components/objects/bulkTools.tsx`.
  * **Add item** (Misfit items, no purchase order) opens `addItem/AddItemDialog.tsx`. On a phone the results are cards.
  */
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
@@ -378,15 +378,23 @@ function SortHeader({ label, column, sort, onSort, align, text }: {
   );
 }
 
-/** Inventory → Review's drill on the search: its category, subcategory and stale filters. */
+/** Inventory → Review's drill on the search: its category, subcategory, vendor, price point and stale filters. */
 export interface SearchDrill {
   category: string;
   sub: string;
   stale: boolean;
+  vendor: string;
+  price_point: string;
 }
 
+/** Tag price bands (apps/inventory/services/inventory_week.py PRICE_POINTS). */
+const PRICE_POINT_LABELS: Record<string, string> = {
+  u5: 'Under $5', '5-10': '$5 to $10', '10-25': '$10 to $25', '25-50': '$25 to $50', '50-100': '$50 to $100',
+  '100+': '$100 and up',
+};
+
 function DrillChips({ drill, setParam }: { drill: SearchDrill; setParam: (changes: Record<string, string | null>) => void }) {
-  if (!drill.category && !drill.sub && !drill.stale) return null;
+  if (!drill.category && !drill.sub && !drill.stale && !drill.vendor && !drill.price_point) return null;
   return (
     <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mb: 1 }} aria-label="Filters from Inventory review">
       {drill.category && (
@@ -396,6 +404,14 @@ function DrillChips({ drill, setParam }: { drill: SearchDrill; setParam: (change
       {drill.sub && (
         <Chip size="small" label={`Subcategory: ${drill.sub === '(none)' ? 'none' : drill.sub}`}
           onDelete={() => setParam({ sub: null, page: null })} />
+      )}
+      {drill.vendor && (
+        <Chip size="small" label={`Vendor: ${drill.vendor === '(none)' ? 'none' : drill.vendor}`}
+          onDelete={() => setParam({ vendor: null, page: null })} />
+      )}
+      {drill.price_point && (
+        <Chip size="small" label={`Price: ${PRICE_POINT_LABELS[drill.price_point] ?? drill.price_point}`}
+          onDelete={() => setParam({ price_point: null, page: null })} />
       )}
       {drill.stale && (
         <Chip size="small" color="warning" variant="outlined" label="Stale: on the shelf too long"
@@ -421,7 +437,7 @@ function SearchBody({ q, sold, misfit, page, sort, drill, setParam }: {
   }, [text, q, setParam]);
 
   const { data, isFetching, isError } = useQuery({
-    queryKey: ['inventory-search', q, sold, page, sort, misfit, drill.category, drill.sub, drill.stale],
+    queryKey: ['inventory-search', q, sold, page, sort, misfit, drill.category, drill.sub, drill.stale, drill.vendor, drill.price_point],
     queryFn: async ({ signal }) => (await searchInventory({ q, sold, page, sort, misfit, ...drill }, signal)).data,
     placeholderData: keepPreviousData,
   });
@@ -571,7 +587,11 @@ export default function InventorySearchPage() {
   const category = params.get('category') ?? '';
   const sub = params.get('sub') ?? '';
   const stale = params.get('stale') === '1';
-  const drill = useMemo<SearchDrill>(() => ({ category, sub, stale }), [category, sub, stale]);
+  const vendor = params.get('vendor') ?? '';
+  const pricePoint = params.get('price_point') ?? '';
+  const drill = useMemo<SearchDrill>(
+    () => ({ category, sub, stale, vendor, price_point: pricePoint }), [category, sub, stale, vendor, pricePoint],
+  );
   const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
   const sort = params.get('sort') ?? '';
   // From a Processing row in the Dashboard's details: the items one person put on the floor (owner 2026-10-22).

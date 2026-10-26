@@ -26,9 +26,9 @@ KITCHEN = 'Kitchen & dining'
 def week(ws: date, key: str = KITCHEN, *, dimension='category', parent='', **values):
     defaults = dict(units_in=0, units_sold=0, sales=D('0'), net=D('0'), sold_retail=D('0'), sold_with_retail=0,
                     sold_net_with_retail=D('0'), sold_cost=D('0'), sold_with_cost=0, sold_net_with_cost=D('0'))
+    label = values.pop('label', key or 'No subcategory')
     defaults.update(values)
-    return InventoryWeek.objects.create(week_start=ws, dimension=dimension, parent=parent, key=key, label=key or 'No subcategory',
-                                        **defaults)
+    return InventoryWeek.objects.create(week_start=ws, dimension=dimension, parent=parent, key=key, label=label, **defaults)
 
 
 class ReviewTests(TestCase):
@@ -121,3 +121,71 @@ class DailyStatsRunsTheRollupTests(TestCase):
         with mock.patch('apps.inventory.services.inventory_week.nightly') as nightly:
             call_command('compute_daily_category_stats', '--skip-recompute-open', '--skip-inventory-weeks', stdout=out)
         nightly.assert_not_called()
+
+
+class VendorPriceFlagsTests(ReviewTests):
+    """Phase 3: the Vendors and Price points tabs on the same rollup, and the Flags tab."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.inventory.models import PurchaseOrder, Vendor
+
+        vendor = Vendor.objects.create(name='Week test', code='RVTST')
+        po = PurchaseOrder.objects.create(vendor=vendor, order_number='RV-1', ordered_date=date(2026, 4, 1))
+        Item.objects.filter(product=self.mug).update(purchase_order=po)
+        week(LAST, 'RVTST', dimension='vendor', label='Week test (RVTST)', units_in=1, units_sold=1, median_days_to_sell=4.0)
+        week(LAST, 'u5', dimension='price_point', units_in=2, units_sold=1)
+
+    def _tab(self, dimension):
+        with mock.patch('apps.inventory.services.inventory_week.bulk_min_units', return_value=6):
+            return review.review(1, dimension=dimension, today=TODAY)
+
+    def test_vendors_name_themselves_and_keep_no_vendor(self):
+        data = self._tab('vendor')
+        rows = {r['key']: r for r in data['rows']}
+        self.assertEqual((rows['RVTST']['label'], rows['RVTST']['on_hand'], rows['RVTST']['units_in']), ('Week test (RVTST)', 1, 1))
+        self.assertEqual((rows['']['label'], rows['']['on_hand']), ('No vendor', 6))
+        self.assertEqual((data['total']['label'], data['total']['on_hand']), ('All vendors', 7))
+
+    def test_price_points_follow_the_tag_price_in_band_order(self):
+        data = self._tab('price_point')
+        rows = {r['key']: r for r in data['rows']}
+        self.assertEqual((rows['5-10']['on_hand'], rows['u5']['on_hand'], rows['u5']['units_in']), (6, 1, 2))
+        self.assertEqual((rows['u5']['label'], rows['u5']['rank'], rows['5-10']['rank']), ('Under $5', 0, 1))
+
+    def test_the_flags_tab_lists_what_carries_each_flag(self):
+        with mock.patch('apps.inventory.services.inventory_week.bulk_min_units', return_value=6):
+            data = review.flags_summary(1, today=TODAY)
+        flags = {f['key']: f['carried'] for f in data['flags']}
+        self.assertEqual([c['key'] for c in flags['slowing']['category']], [KITCHEN])
+        self.assertEqual(data['setting_keys']['stale'], 'inventory_review_stale_heavy_share')
+        self.assertEqual(set(flags['missing']), {'category', 'vendor', 'price_point'})
+
+    def test_the_search_drill_takes_a_vendor_and_a_price_point(self):
+        def ids(**kw):
+            return {r['product_id'] for r in inventory_search.search('', **kw)['results']}
+
+        self.assertEqual(ids(vendor='RVTST'), {self.mug.pk})
+        self.assertEqual(ids(vendor=review.NO_SUBCATEGORY_KEY), {self.pan.pk})
+        self.assertEqual(ids(price_point='u5'), {self.mug.pk})
+        self.assertEqual(ids(price_point='5-10', stale=True), {self.pan.pk})
+
+    def test_the_api_takes_a_tab_and_serves_the_flags(self):
+        api = APIClient()
+        user = User.objects.create_user('rv3@example.com', 'Pat', 'Clerk', password='x-pass-123')
+        user.groups.add(Group.objects.get_or_create(name='Employee')[0])
+        api.force_authenticate(user)
+        self.assertEqual(api.get('/api/inventory/review/', {'tab': 'vendor'}).json()['dimension'], 'vendor')
+        self.assertEqual(api.get('/api/inventory/review/', {'tab': 'nonsense'}).json()['dimension'], 'category')
+        flags = api.get('/api/inventory/review/flags/', {'span': 4})
+        self.assertEqual((flags.status_code, flags.json()['span'], len(flags.json()['flags'])), (200, 4, 5))
+
+
+class WholeStoreTotalTests(ReviewTests):
+    def test_the_total_reads_the_whole_store_rows_once_they_cover_every_week(self):
+        for k in range(12):
+            week(LAST - timedelta(weeks=k), '', dimension='all', label='All', units_in=2, units_sold=1,
+                 median_days_to_sell=50.0)
+        self.assertEqual(self._review()['total']['median_days_to_sell'], 50.0)
+        InventoryWeek.objects.filter(dimension='all', week_start=LAST - timedelta(weeks=11)).delete()
+        self.assertEqual(self._review()['total']['median_days_to_sell'], 10.0)  # a week missing: adds up the rows

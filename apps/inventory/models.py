@@ -3120,11 +3120,13 @@ class InventoryWeek(models.Model):
     DIM_SUBCATEGORY = 'subcategory'
     DIM_VENDOR = 'vendor'
     DIM_PRICE_POINT = 'price_point'
+    DIM_ALL = 'all'
     DIMENSION_CHOICES = [
         (DIM_CATEGORY, 'Category'),
         (DIM_SUBCATEGORY, 'Subcategory'),
         (DIM_VENDOR, 'Vendor'),
         (DIM_PRICE_POINT, 'Price point'),
+        (DIM_ALL, 'Whole store'),
     ]
 
     week_start = models.DateField()

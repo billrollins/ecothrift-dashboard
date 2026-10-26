@@ -186,7 +186,7 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 | Page | Path | What it does |
 |------|------|----------------|
 | **Search** (Find item) | `/inventory/search` | One box, one row per product, its items one click away (`/inventory/workbench` redirects here). **Add item** adds Misfit items (no purchase order); **Misfit only** filters to them. Phone: cards. |
-| **Review** | `/inventory/review` | Inventory review, Categories tab (Vendors and Price points in phase 3): Week / 4 weeks of in, out, on hand, weeks of supply, stale, bulk, recovery, days to sell and flags. A category opens its subcategories; a subcategory opens its items in Search. Everyone who sees Search. Desk: sortable table; phone: cards. [`inventory-review.md`](inventory-review.md) |
+| **Review** | `/inventory/review` | Inventory review, tabs Categories, Vendors, Price points and Flags: Week / 4 weeks of in, out, on hand, weeks of supply, stale, bulk, recovery, days to sell and flags. A category opens its subcategories; a subcategory, vendor or price point opens its items in Search. Flags: each rule, its limit (managers edit it there) and what carries it. Everyone who sees Search. Desk: sortable table; phone: cards. [`inventory-review.md`](inventory-review.md) |
 | **Item** | `/inventory/search?open=item:<id>` | Single item window over Inventory search: price, status, history, reprice/print. The old `/inventory/items` list and page were removed 2026-10-21. |
 
 ### Retail Floor workspace

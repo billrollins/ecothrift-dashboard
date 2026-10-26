@@ -69,12 +69,12 @@ def settings() -> dict[str, float]:
     return out
 
 
-def _stock_sql(by_sub: bool, stale_days: int, bulk: int) -> tuple[str, dict]:
+def _stock_sql(dimension: str, by_sub: bool, stale_days: int, bulk: int) -> tuple[str, dict]:
     case = taxonomy_bucket_case_sql()
-    group = 'cat, sub' if by_sub else 'cat'
+    key = {'category': 'sub' if by_sub else 'cat', 'vendor': 'vcode', 'price_point': 'band'}[dimension]
     where = 'WHERE cat = %(category)s' if by_sub else ''
     sql = f"""
-    SELECT {group},
+    SELECT {key},
         COUNT(*),
         COUNT(*) FILTER (WHERE in_at < now() - make_interval(days => %(stale)s)),
         COUNT(*) FILTER (WHERE product_units >= %(bulk)s),
@@ -84,6 +84,8 @@ def _stock_sql(by_sub: bool, stale_days: int, bulk: int) -> tuple[str, dict]:
     FROM (
         SELECT ({case}) AS cat,
                TRIM(COALESCE(pp.subcategory, '')) AS sub,
+               COALESCE(v.code, '') AS vcode,
+               {inventory_week.band_sql()} AS band,
                COALESCE(i.checked_in_at, i.created_at) AS in_at,
                (i.retail IS NULL OR i.retail <= 0) AS no_retail,
                (i.checked_in_at IS NULL OR i.notes LIKE 'BACKFILL:%%') AS no_checkin,
@@ -92,10 +94,12 @@ def _stock_sql(by_sub: bool, stale_days: int, bulk: int) -> tuple[str, dict]:
         LEFT JOIN inventory_product p ON p.id = i.product_id
         LEFT JOIN inventory_manifestrow mr ON mr.id = i.manifest_row_id
         LEFT JOIN inventory_productprofile pp ON pp.product_id = i.product_id
+        LEFT JOIN inventory_purchaseorder po ON po.id = i.purchase_order_id
+        LEFT JOIN inventory_vendor v ON v.id = po.vendor_id
         WHERE i.status = 'on_shelf'
     ) s
     {where}
-    GROUP BY {group}
+    GROUP BY {key}
     """
     return sql, {'stale': stale_days, 'bulk': bulk}
 
@@ -104,19 +108,15 @@ STOCK_FIELDS = ('on_hand', 'stale_on_hand', 'bulk_on_hand', 'on_hand_no_retail',
                 'on_hand_missing')
 
 
-def live_stock(category: str | None, *, stale_days: int, bulk: int) -> dict[str, dict[str, int]]:
-    """Per category (or per subcategory of ``category``): the shelf right now."""
-    sql, params = _stock_sql(category is not None, stale_days, bulk)
+def live_stock(category: str | None, *, stale_days: int, bulk: int, dimension: str = 'category') -> dict[str, dict[str, int]]:
+    """Per category (or per subcategory of ``category``), vendor code or price point: the shelf right now."""
+    sql, params = _stock_sql(dimension, category is not None, stale_days, bulk)
     if category is not None:
         params['category'] = category
     out: dict[str, dict[str, int]] = {}
     with connection.cursor() as cursor:
         cursor.execute(sql, params)
-        for row in cursor.fetchall():
-            if category is not None:
-                key, vals = row[1], row[2:]
-            else:
-                key, vals = row[0], row[1:]
+        for key, *vals in cursor.fetchall():
             out[key] = dict(zip(STOCK_FIELDS, (int(v) for v in vals)))
     return out
 
@@ -198,10 +198,24 @@ WEEK_FIELDS = ('week_start', 'parent', 'key', 'label', 'units_in', 'legacy_sold'
                'median_days_to_sell')
 
 
-def review(span: int = 1, category: str | None = None, *, today: date | None = None) -> dict[str, Any]:
-    """The Categories tab: one row per category, or per subcategory of ``category``, plus the total."""
+DIMENSIONS = ('category', 'vendor', 'price_point')
+TOTAL_LABELS = {'category': 'All categories', 'vendor': 'All vendors', 'price_point': 'All price points'}
+
+
+def _vendor_labels(codes) -> dict[str, str]:
+    from apps.inventory.models import Vendor
+
+    return {code: f'{name} ({code})' for code, name in Vendor.objects.filter(code__in=list(codes)).values_list('code', 'name')}
+
+
+def review(span: int = 1, category: str | None = None, *, dimension: str = 'category',
+           today: date | None = None) -> dict[str, Any]:
+    """One tab: a row per category (or per subcategory of ``category``), vendor or price point, plus the total."""
     from apps.inventory.models import InventoryWeek
 
+    dimension = dimension if dimension in DIMENSIONS else 'category'
+    if dimension != 'category':
+        category = None
     span = span if span in SPANS else 1
     cfg = settings()
     last = inventory_week.week_of(today or timezone.localdate()) - timedelta(days=7)
@@ -210,7 +224,7 @@ def review(span: int = 1, category: str | None = None, *, today: date | None = N
 
     qs = InventoryWeek.objects.filter(week_start__in=trend)
     if category is None:
-        qs = qs.filter(dimension=InventoryWeek.DIM_CATEGORY)
+        qs = qs.filter(dimension=dimension)
     else:
         qs = qs.filter(dimension=InventoryWeek.DIM_SUBCATEGORY, parent=category)
     weeks_by_key: dict[str, list[dict]] = defaultdict(list)
@@ -219,20 +233,40 @@ def review(span: int = 1, category: str | None = None, *, today: date | None = N
         weeks_by_key[r['key']].append(r)
         labels[r['key']] = r['label']
     stock = live_stock(category, stale_days=int(cfg['inventory_review_stale_days']),
-                       bulk=inventory_week.bulk_min_units())
+                       bulk=inventory_week.bulk_min_units(), dimension=dimension)
+    keys = set(weeks_by_key) | set(stock)
+    if dimension == 'vendor':
+        labels = {**_vendor_labels(k for k in keys if k and k not in labels), **labels}
+    order = [p[0] for p in inventory_week.PRICE_POINTS]
 
     rows = []
-    for key in sorted(set(weeks_by_key) | set(stock)):
-        label = labels.get(key) or (key if category is None else (key or inventory_week.NO_SUBCATEGORY))
-        rows.append(_row(key, label, weeks_by_key.get(key, []), stock.get(key, {}), span_weeks, supply_weeks, cfg))
-    all_weeks = [w for ws in weeks_by_key.values() for w in ws]
+    for key in sorted(keys):
+        if dimension == 'vendor':
+            label = labels.get(key) or (key or inventory_week.NO_VENDOR)
+        elif dimension == 'price_point':
+            label = inventory_week.PRICE_POINT_LABELS.get(key, key)
+        else:
+            label = labels.get(key) or (key if category is None else (key or inventory_week.NO_SUBCATEGORY))
+        row = _row(key, label, weeks_by_key.get(key, []), stock.get(key, {}), span_weeks, supply_weeks, cfg)
+        row['rank'] = order.index(key) if key in order else 0
+        rows.append(row)
+    # The total reads the store's own rows (or the category's), so it is the same on every tab. Until a rebuild has
+    # written them for every week shown, it adds up the rows.
+    whole = (InventoryWeek.objects.filter(week_start__in=trend, dimension=InventoryWeek.DIM_ALL) if category is None
+             else InventoryWeek.objects.filter(week_start__in=trend, dimension=InventoryWeek.DIM_CATEGORY, key=category))
+    whole_weeks = list(whole.values(*WEEK_FIELDS))
+    shown = {w['week_start'] for ws in weeks_by_key.values() for w in ws}
+    if not whole_weeks or not shown <= {w['week_start'] for w in whole_weeks}:
+        whole_weeks = [w for ws in weeks_by_key.values() for w in ws]
+    all_weeks = whole_weeks
     all_stock = {name: sum(s.get(name, 0) for s in stock.values()) for name in STOCK_FIELDS}
-    total = _row(category or '', category or 'All categories', all_weeks, all_stock, span_weeks, supply_weeks, cfg)
+    total = _row(category or '', category or TOTAL_LABELS[dimension], all_weeks, all_stock, span_weeks, supply_weeks, cfg)
+    total['rank'] = -1
     if category is None:
         total['flags'] = [f for f in total['flags'] if f != 'missing']  # the whole store always holds Mixed lots
 
     return {
-        'span': span, 'category': category,
+        'span': span, 'dimension': dimension, 'category': category,
         'from': min(span_weeks).isoformat(), 'to': (max(span_weeks) + timedelta(days=6)).isoformat(),
         'as_of': timezone.localtime().isoformat(),
         'built': InventoryWeek.objects.filter(week_start=last).order_by('-computed_at')
@@ -244,10 +278,11 @@ def review(span: int = 1, category: str | None = None, *, today: date | None = N
 
 # ── Inventory search filters (the drill from a row to its items) ───────────────
 
-def product_ids_sql(*, category: str = '', sub: str | None = None, stale: bool = False,
-                    on_shelf: bool = True) -> tuple[str, list]:
+def product_ids_sql(*, category: str = '', sub: str | None = None, stale: bool = False, vendor: str | None = None,
+                    price_point: str = '', on_shelf: bool = True) -> tuple[str, list]:
     """SQL for the product ids with a unit matching the Review drill: its category (taxonomy bucket), subcategory
-    (``NO_SUBCATEGORY_KEY`` = none), stale (on the shelf longer than the stale days). For ``pk__in=RawSQL(...)``."""
+    (``NO_SUBCATEGORY_KEY`` = none), vendor code (``NO_SUBCATEGORY_KEY`` = no vendor), price point (a
+    ``PRICE_POINTS`` key), stale (on the shelf longer than the stale days). For ``pk__in=RawSQL(...)``."""
     where, params = [], []
     if on_shelf or stale:
         where.append("i.status = 'on_shelf'")
@@ -257,6 +292,12 @@ def product_ids_sql(*, category: str = '', sub: str | None = None, stale: bool =
     if sub is not None:
         where.append("TRIM(COALESCE(pp.subcategory, '')) = %s")
         params.append('' if sub == NO_SUBCATEGORY_KEY else sub)
+    if vendor is not None:
+        where.append("COALESCE(v.code, '') = %s")
+        params.append('' if vendor == NO_SUBCATEGORY_KEY else vendor)
+    if price_point:
+        where.append(f'{inventory_week.band_sql()} = %s')
+        params.append(price_point)
     if stale:
         where.append('COALESCE(i.checked_in_at, i.created_at) < %s')
         params.append(timezone.now() - timedelta(days=inventory_week.stale_days()))
@@ -265,6 +306,38 @@ def product_ids_sql(*, category: str = '', sub: str | None = None, stale: bool =
         LEFT JOIN inventory_product p ON p.id = i.product_id
         LEFT JOIN inventory_manifestrow mr ON mr.id = i.manifest_row_id
         LEFT JOIN inventory_productprofile pp ON pp.product_id = i.product_id
+        LEFT JOIN inventory_purchaseorder po ON po.id = i.purchase_order_id
+        LEFT JOIN inventory_vendor v ON v.id = po.vendor_id
         WHERE {' AND '.join(where) or 'TRUE'}
     """
     return sql, params
+
+
+# Which owner setting each flag (and stale itself) reads.
+SETTING_KEYS = {
+    'overstocked': 'inventory_review_overstock_weeks',
+    'short': 'inventory_review_short_weeks',
+    'stale': 'inventory_review_stale_heavy_share',
+    'slowing': 'inventory_review_slowing_share',
+    'missing': 'inventory_review_missing_share',
+    'stale_days': 'inventory_review_stale_days',
+}
+
+
+def flags_summary(span: int = 1, *, today: date | None = None) -> dict[str, Any]:
+    """The Flags tab: each flag, its setting, and what carries it now, per category, vendor and price point."""
+    carried: dict[str, dict[str, list[dict]]] = {k: {d: [] for d in DIMENSIONS} for k, _label in FLAGS}
+    data: dict[str, Any] = {}
+    for dim in DIMENSIONS:
+        data = review(span, dimension=dim, today=today)
+        for row in data['rows']:
+            for flag in row['flags']:
+                carried[flag][dim].append({'key': row['key'], 'label': row['label'], 'on_hand': row['on_hand']})
+    for by_dim in carried.values():
+        for rows in by_dim.values():
+            rows.sort(key=lambda r: -r['on_hand'])
+    return {
+        'span': data['span'], 'from': data['from'], 'to': data['to'], 'as_of': data['as_of'],
+        'settings': data['settings'], 'setting_keys': SETTING_KEYS,
+        'flags': [{'key': k, 'label': label, 'carried': carried[k]} for k, label in FLAGS],
+    }
