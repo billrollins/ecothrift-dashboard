@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-22 (Add item's restoration estimates) -->
+<!-- Last updated: 2026-10-26 (estimates required on every path into Restoration) -->
 # Restoration / TARS
 
 Staff restoration: Ashley prices grades, Mike runs the bench, Bill sees what it earned. Initiative: [`finalize_tars_app`](../initiatives/_archived/finalize_tars_app.md). Shipped **v2.71.0** (GitHub; not Heroku).
@@ -72,10 +72,16 @@ Rates are judged against a **floor** (what an hour costs, default `$19.80`) and 
 | `GET /api/inventory/restoration-jobs/{id}/notes/` | Union of notes on the check-in's items. |
 | `PATCH /api/inventory/item-notes/{id}/` · `POST …/void/` | Author's own manual notes only. |
 
-Processing check-in with `dispatch=restoration` creates a `queued` job. Find item > Add item (Misfit items) requires
-estimates first: the work (test / assemble / repair / salvage), hours or parts cost, and the value after. They are
-written to the job's `queue_note` ("Estimate: test, repair · about 1.5 h · worth $80.00 after", also on the notes
-trail) and `defaults_snapshot.restoration_estimate`; then the same Grade for Restoration dialog opens. Incomplete grade values → `needs_setup`. Dispatch away from restoration deletes a `queued` job.
+Processing check-in with `dispatch=restoration` creates a `queued` job. **Every path into Restoration requires
+estimates** (owner, 2026-10-26; Add item since 10-22): the work (test / assemble / repair / salvage), hours or parts
+cost, and the value after. The API refuses without them (`services/restoration_estimate.py`, sent as `restoration`).
+Paths: Processing check-in and Edit check-in, Check in together, the product "+" check-in, the check-in panel
+(create / duplicate / edit), Add item, and the Goes-to dropdown in Prior check-ins (asks for them in a small dialog,
+then moves the whole check-in). Item-level edits (processing-patch, print-and-check-in, print-multiple,
+bulk-disposition) can no longer send to Restoration: they make no job. An edit of a check-in already in Restoration
+keeps its estimate. They are written to the job's `queue_note` ("Estimate: test, repair · about 1.5 h · worth $80.00
+after", also on the notes trail) and `defaults_snapshot.restoration_estimate`; Add item then opens the same Grade for
+Restoration dialog. UI: `pages/inventory/restorationEstimate/`. Incomplete grade values → `needs_setup`. Dispatch away from restoration deletes a `queued` job.
 
 ---
 

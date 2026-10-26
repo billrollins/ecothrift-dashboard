@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-22 (processed_by view; Add item; Misfit filter takes PR Fix-it quick adds; "+" check-in 409) -->
+<!-- Last updated: 2026-10-26 (spaces ignored: "barstool" finds "Bar Stool") -->
 # Inventory search and the standard object views
 
 Owner, 2026-10-02: one fast search for everything in inventory, and one standard way to open a product, a check-in
@@ -67,7 +67,11 @@ Who: the same people as Processing check-in (staff). Code: `apps/inventory/servi
 
 - `Product.search_text`: one lowercased line per product, built from the product (title, brand, model, product
   number, UPC) and its standard (title, tag name, brand, model, category, subcategory, aliases). GIN trigram index
-  `inv_product_search_trgm`. Every word of the query must appear in it.
+  `inv_product_search_trgm`. Every word of the query must appear in it, **spaces ignored** (2026-10-26): a word
+  matches the line with its spaces taken out, so "barstool" finds "Bar Stool" (`matching_words`, index
+  `inv_product_search_nosp_trgm` on `replace(search_text, ' ', '')`; ~1-3 ms on 200k products, "toy" ~50 ms).
+  Inventory search and Add item's find use it. Processing's product picker (ProductSearchAutocomplete, the products
+  API's `search`) is a different matcher and does not.
 - Numbers are computed only for the 50 products on the page; items load only when a row is opened.
 - Kept current by: a save of the product or its profile (`apps/inventory/signals.py`), the bulk loaders
   (`standard_load.load_standard`, `product_profile.apply_proposals`), and `python manage.py rebuild_product_search`.

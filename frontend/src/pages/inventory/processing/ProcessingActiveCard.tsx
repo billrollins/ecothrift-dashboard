@@ -60,6 +60,7 @@ import { isTaxonomyV1CategoryName, TAXONOMY_V1_CATEGORY_NAMES } from '../../../c
 import { ProcessingGoogleSearchButton } from './ProcessingGoogleSearchButton';
 import { parseSearchTagsCsv } from './processingGoogleQuery';
 import { ProcessingCheckInDialog, type ProcessingCheckInSeed } from './ProcessingCheckInDialog';
+import { RestorationEstimateDialog } from '../restorationEstimate/RestorationEstimateDialog';
 import { ProcessingRowSection } from './ProcessingRowSection';
 import { processingTokens } from './processingTokens';
 import { ManifestFieldNavContext, ManifestFieldNavProvider, type ManifestFieldId } from './manifestFieldNav';
@@ -1399,6 +1400,8 @@ export function ProcessingActiveCard({
   const [restartSummary, setRestartSummary] = useState<ProcessingRestartSummary | null>(null);
   const patchItem = useProcessingPatchItem(orderId);
   const [checkInOpen, setCheckInOpen] = useState(false);
+  /** A check-in the Goes-to dropdown is sending to Restoration: it waits for the estimates. */
+  const [restorationTarget, setRestorationTarget] = useState<CheckedInHistoryRow | null>(null);
   const [checkInSeed, setCheckInSeed] = useState<ProcessingCheckInSeed | null>(null);
   const [checkInProductId, setCheckInProductId] = useState<number | null>(null);
   const [productEditorOpen, setProductEditorOpen] = useState(false);
@@ -1756,7 +1759,7 @@ export function ProcessingActiveCard({
   /** Edit mode of the detailed dialog: update the clicked ItemCheckIn in place. */
   async function handleUpdateItemCheckIn(
     itemCheckInId: number,
-    payload: ProcessingCheckInPayload,
+    payload: Partial<ProcessingCheckInPayload>,
     options: { printLabels: boolean },
   ): Promise<boolean> {
     try {
@@ -1791,6 +1794,15 @@ export function ProcessingActiveCard({
     field: 'condition' | 'dispatch',
     value: string,
   ) {
+    if (field === 'dispatch' && value === 'restoration') {
+      // Restoration needs the estimates and a job, so the whole check-in goes (owner, 2026-10-26).
+      if (target.itemCheckInId == null) {
+        enqueueSnackbar('Open this check-in to send it to Restoration.', { variant: 'warning' });
+        return;
+      }
+      setRestorationTarget(target);
+      return;
+    }
     const editable = target.items.filter((it) => it.status === 'on_shelf');
     const skipped = target.items.length - editable.length;
     try {
@@ -2417,6 +2429,20 @@ export function ProcessingActiveCard({
 
       </Box>
 
+      <RestorationEstimateDialog
+        open={restorationTarget != null}
+        busy={updateItemCheckIn.isPending}
+        onCancel={() => setRestorationTarget(null)}
+        onConfirm={async (estimate) => {
+          if (restorationTarget?.itemCheckInId == null) return;
+          const ok = await handleUpdateItemCheckIn(
+            restorationTarget.itemCheckInId,
+            { dispatch: 'restoration', restoration: estimate },
+            { printLabels: false },
+          );
+          if (ok) setRestorationTarget(null);
+        }}
+      />
       <ProcessingCheckInDialog
         open={checkInOpen}
         row={row}

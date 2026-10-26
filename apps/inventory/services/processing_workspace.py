@@ -1748,6 +1748,10 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
 
     rw_vals = {name: getattr(bk, name) for name in PROCESSING_WORKSPACE_ROW_VALUE_FIELDS}
     base = serialize_processing_workspace_row_values(rw_vals, [], product=bk.matched_product)
+    if bk.matched_product_id:
+        # The open row's card offers Check in together from these (the list rows already carry them).
+        peers = _same_product_peers_for_order(order, product_ids=[bk.matched_product_id])
+        base['sameProductRowNumbers'] = peers.get(bk.pk, [])
 
     if bk.row_kind == ProcessingRow.ROW_KIND_ADDED:
         items = attributed_items_for_processing_row(bk)

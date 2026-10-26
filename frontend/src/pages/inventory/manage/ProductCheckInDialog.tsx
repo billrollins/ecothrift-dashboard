@@ -38,6 +38,13 @@ import {
 import { manageItemsSearchUrl } from '../../../utils/richInventorySearch';
 import { processingTokens } from '../processing/processingTokens';
 import { IconPrint as LocalPrintshop } from '../../../icons/ecoIcons';
+import { RestorationEstimateFields } from '../restorationEstimate/RestorationEstimateFields';
+import {
+  EMPTY_ESTIMATE,
+  estimatePayload,
+  estimateProblems,
+  type RestorationEstimateForm,
+} from '../restorationEstimate/restorationEstimate';
 
 const LS_PRINT_ON_CHECKIN = 'productCheckIn.printLabels';
 const MAX_IDS_IN_URL = 150;
@@ -119,6 +126,7 @@ export function ProductCheckInDialog({
   const [retailConfirmOpen, setRetailConfirmOpen] = useState(false);
   const [pendingPrint, setPendingPrint] = useState(false);
   const [priceTouched, setPriceTouched] = useState(false);
+  const [estimate, setEstimate] = useState<RestorationEstimateForm>(EMPTY_ESTIMATE);
 
   const debouncedOrderSearch = useDebouncedValue(orderSearch, 300);
   const ordersQuery = useProductCheckInOrders(debouncedOrderSearch, open);
@@ -127,6 +135,14 @@ export function ProductCheckInDialog({
   const qtyValue = useMemo(() => parseCheckInQuantity(quantity), [quantity]);
   const salvageLocked = condition === 'salvage';
   const busy = parentLoading || checkInMutation.isPending;
+  // Every item sent to Restoration carries estimates (owner, 2026-10-26).
+  const toRestoration = !salvageLocked && dispatch === 'restoration';
+  const restorationIssues = toRestoration
+    ? [
+      ...(qtyValue !== 1 ? ['Restoration takes one item at a time. Set the quantity to 1.'] : []),
+      ...estimateProblems(estimate),
+    ]
+    : [];
 
   useEffect(() => {
     if (!open) return;
@@ -142,6 +158,7 @@ export function ProductCheckInDialog({
     setRetailConfirmOpen(false);
     setPendingPrint(false);
     setPriceTouched(false);
+    setEstimate(EMPTY_ESTIMATE);
   }, [open, product.id]);
 
   useEffect(() => {
@@ -164,6 +181,7 @@ export function ProductCheckInDialog({
       condition,
       dispatch: salvageLocked ? 'salvage' : dispatch,
       notes: notes.trim() || undefined,
+      ...(toRestoration ? { restoration: estimatePayload(estimate) } : {}),
     };
   };
 
@@ -209,6 +227,9 @@ export function ProductCheckInDialog({
         }
       } else {
         enqueueSnackbar(`Checked in ${data.created_count} item(s)`, { variant: 'success' });
+      }
+      if (data.restoration_job_id) {
+        enqueueSnackbar('It is in the Restoration queue with your estimates.', { variant: 'info' });
       }
       if (onSuccess) {
         onSuccess({
@@ -256,7 +277,7 @@ export function ProductCheckInDialog({
   };
 
   const priceError = priceTouched && !isValidPrice(price);
-  const canSubmit = Boolean(selectedOrder) && isValidPrice(price) && !busy;
+  const canSubmit = Boolean(selectedOrder) && isValidPrice(price) && !busy && restorationIssues.length === 0;
 
   return (
     <>
@@ -417,12 +438,18 @@ export function ProductCheckInDialog({
                 sx={{ gridColumn: '1 / -1' }}
               />
             </Box>
+            {toRestoration ?
+              <RestorationEstimateFields value={estimate} onChange={setEstimate} disabled={busy} />
+            : null}
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 2, py: 1, gap: 0.75, borderTop: 1, borderColor: processingTokens.border, flexWrap: 'wrap' }}>
-          <Button onClick={onClose} disabled={busy} sx={{ mr: 'auto' }}>
+          <Button onClick={onClose} disabled={busy}>
             Cancel
           </Button>
+          <Typography variant="caption" color="warning.main" sx={{ mr: 'auto' }}>
+            {restorationIssues[0] ?? ''}
+          </Typography>
           <Button variant="outlined" disabled={!canSubmit} onClick={() => handleSubmit(false)}>
             Check in without printing
           </Button>

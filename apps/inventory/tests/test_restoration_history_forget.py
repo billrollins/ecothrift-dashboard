@@ -17,6 +17,7 @@ class RestorationHistoryForgetTests(RestorationQueueTestBase):
     def _bench_job(self):
         order, pr, product = self._restoration_order()
         check_in = self._check_in_restoration(order, pr, product)
+        self._clear_estimate_note(check_in.data['item_check_in_id'])
         job = RestorationJob.objects.get(item_check_in_id=check_in.data['item_check_in_id'])
         self.client.post(f'/api/inventory/restoration-jobs/{job.id}/send/')
         self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')

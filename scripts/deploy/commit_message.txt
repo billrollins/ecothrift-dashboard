@@ -1,10 +1,14 @@
-v2.216.0 — Inventory Review phase 1: sale facts and weekly inventory numbers
+v2.217.0 — Restoration estimates from every Processing path; search ignores spaces
 
-User-facing theme: **Inventory Review phase 1: what we keep on each sale, and nightly weekly inventory numbers (Bill, 2026-10-22).** Initiative: inventory review.
+User-facing theme: **Restoration needs estimates from every Processing path; search ignores spaces (Bill, 2026-10-26).** Fix-it lane x-resto-est.
 
-### Added
-- Each sale now records what the store keeps after Thrift+ ThriftBucks, and how many ThriftBucks the item earned, so recovery numbers stop overstating member sales.
-- A request in Dash → Requests fills that in for past sales; nothing about old sale prices changes.
-- New nightly weekly inventory numbers by category, subcategory, vendor and price point: in, out, on hand, stale, bulk, sales, keep, and days to sell. Two years of history are built on the first run. This is the data for the coming Inventory → Review page.
+### Changed
+- Everything Processing sends to Restoration now needs estimates: the work, hours or parts cost, and what it's worth after, the same as Add item. This covers check-in, edit check-in, check in together, the product + check-in and the Goes to dropdown. The estimate shows in the Restoration queue.
+- The Inventory item editor can't send an item to Restoration any more; it points you to the check-in, which asks for the estimates.
+- Search ignores spaces: "barstool" finds "Bar Stool" in Inventory search and Add item.
+
+### Fixed
+- "Check in together" shows up again on a row that has the same product as other rows.
+- On a phone, the Add items buttons fit on one line each.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -138,6 +138,8 @@ export function ItemManagePanel({
     };
   }, [item]);
 
+  // Restoration needs a job and estimates, so it goes from the check-in, not the item (owner, 2026-10-26).
+  const restorationBlocked = dispatch === 'restoration' && baseline?.dispatch !== 'restoration';
   const isDirty = useMemo(() => {
     if (!baseline) return false;
     return (
@@ -180,7 +182,7 @@ export function ItemManagePanel({
   });
 
   const handleSave = async () => {
-    if (!item || locked || !isDirty) return;
+    if (!item || locked || !isDirty || restorationBlocked) return;
     let printAfterSave = false;
     const priceChanged = baseline ? !moneyValuesEqual(price, baseline.price) : false;
     if (priceChanged) {
@@ -451,6 +453,11 @@ export function ItemManagePanel({
           specsHelperText="Supplements the product catalog specs - saved on this item only."
           disabled={locked}
         />
+        {restorationBlocked ?
+          <Typography variant="caption" color="warning.main" component="div" sx={{ mt: 1 }}>
+            Send it to Restoration from its check-in (Check in, or Edit check-in): Restoration needs the estimates.
+          </Typography>
+        : null}
       </Box>
 
       <Divider />
@@ -478,7 +485,7 @@ export function ItemManagePanel({
             size="small"
             variant="contained"
             startIcon={<SaveOutlinedIcon />}
-            disabled={locked || !isDirty || saveMutation.isPending}
+            disabled={locked || !isDirty || saveMutation.isPending || restorationBlocked}
             onClick={() => void handleSave()}
             sx={{ bgcolor: processingTokens.primary, '&:hover': { bgcolor: processingTokens.primaryDark }, fontWeight: 800 }}
           >

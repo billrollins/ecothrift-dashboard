@@ -24,6 +24,13 @@ import {
   PROCESSING_ITEM_DISPATCH_OPTIONS,
 } from './processingItemFormOptions';
 import { queueTitleText } from './processingQueueCellText';
+import { RestorationEstimateFields } from '../restorationEstimate/RestorationEstimateFields';
+import {
+  EMPTY_ESTIMATE,
+  estimatePayload,
+  estimateProblems,
+  type RestorationEstimateForm,
+} from '../restorationEstimate/restorationEstimate';
 
 export interface CheckInTogetherDialogProps {
   open: boolean;
@@ -44,6 +51,7 @@ export function CheckInTogetherDialog({ open, rows, loading, onClose, onSubmit }
   const [price, setPrice] = useState('');
   const [notes, setNotes] = useState('');
   const [qtyByRowId, setQtyByRowId] = useState<Record<number, string>>({});
+  const [estimate, setEstimate] = useState<RestorationEstimateForm>(EMPTY_ESTIMATE);
 
   useEffect(() => {
     if (!open) return;
@@ -57,6 +65,7 @@ export function CheckInTogetherDialog({ open, rows, loading, onClose, onSubmit }
     setDispatch(first?.dispatch || 'on_shelf');
     setPrice(first?.price ?? '');
     setNotes('');
+    setEstimate(EMPTY_ESTIMATE);
   }, [open, rows]);
 
   const totalUnits = useMemo(
@@ -68,6 +77,15 @@ export function CheckInTogetherDialog({ open, rows, loading, onClose, onSubmit }
       }, 0),
     [rows, qtyByRowId],
   );
+
+  // Every item sent to Restoration carries estimates, one item per row (owner, 2026-10-26).
+  const toRestoration = dispatch === 'restoration';
+  const problems = toRestoration
+    ? [
+      ...(totalUnits !== rows.length ? ['Restoration takes one item at a time. Set each quantity to 1.'] : []),
+      ...estimateProblems(estimate),
+    ]
+    : [];
 
   const buildPayload = (): Record<string, unknown> | null => {
     if (productId == null) return null;
@@ -85,6 +103,7 @@ export function CheckInTogetherDialog({ open, rows, loading, onClose, onSubmit }
       dispatch,
       price: price.trim() || undefined,
       notes: notes.trim() || undefined,
+      ...(toRestoration ? { restoration: estimatePayload(estimate) } : {}),
     };
   };
 
@@ -154,6 +173,11 @@ export function CheckInTogetherDialog({ open, rows, loading, onClose, onSubmit }
             minRows={1}
           />
         </Box>
+        {toRestoration ?
+          <Box sx={{ mb: 2 }}>
+            <RestorationEstimateFields value={estimate} onChange={setEstimate} disabled={loading} />
+          </Box>
+        : null}
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -191,17 +215,20 @@ export function CheckInTogetherDialog({ open, rows, loading, onClose, onSubmit }
           </TableBody>
         </Table>
       </DialogContent>
-      <DialogActions>
+      <DialogActions sx={{ flexWrap: 'wrap' }}>
+        <Typography variant="caption" color="warning.main" sx={{ mr: 'auto', pl: 1 }}>
+          {problems[0] ?? ''}
+        </Typography>
         <Button onClick={onClose} disabled={loading}>
           Cancel
         </Button>
-        <Button onClick={() => void handleSubmit(false)} disabled={loading || productId == null}>
+        <Button onClick={() => void handleSubmit(false)} disabled={loading || productId == null || problems.length > 0}>
           Check in without print
         </Button>
         <Button
           variant="contained"
           onClick={() => void handleSubmit(true)}
-          disabled={loading || productId == null}
+          disabled={loading || productId == null || problems.length > 0}
           startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
         >
           Check in & print

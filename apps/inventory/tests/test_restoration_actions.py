@@ -23,6 +23,7 @@ class RestorationActionTestBase(RestorationQueueTestBase):
         super().setUp()
         order, pr, product = self._restoration_order()
         resp = self._check_in_restoration(order, pr, product)
+        self._clear_estimate_note(resp.data['item_check_in_id'])
         self.job = RestorationJob.objects.get(item_check_in_id=resp.data['item_check_in_id'])
         self.job = check_in_restoration_job(self.job, self.user)
 

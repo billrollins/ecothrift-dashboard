@@ -17,6 +17,7 @@ class RestorationQueueDetailsTests(RestorationQueueTestBase):
         order, pr, product = self._restoration_order()
         resp = self._check_in_restoration(order, pr, product)
         self.assertEqual(resp.status_code, 200, resp.data)
+        self._clear_estimate_note(resp.data['item_check_in_id'])
         self.job = RestorationJob.objects.get(item_check_in_id=resp.data['item_check_in_id'])
 
     def _patch(self, payload, job=None):

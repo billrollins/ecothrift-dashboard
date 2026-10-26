@@ -75,6 +75,13 @@ class SameProductPeerTests(ProcessingCollapseTestBase):
         self.assertEqual(by_num[40]['sameProductRowNumbers'], [12, 41])
         self.assertNotIn(40, by_num[40]['sameProductRowNumbers'])
 
+    def test_row_detail_carries_peers_for_check_in_together(self):
+        from apps.inventory.services.processing_workspace import build_processing_row_detail
+
+        order, _product, rows = self._controllers_order()
+        detail = build_processing_row_detail(order, processing_row_id=rows[0].pk)
+        self.assertEqual(detail['row']['sameProductRowNumbers'], [40, 41])
+
 
 class CheckInTogetherTests(ProcessingCollapseTestBase):
     def test_together_check_in_creates_items_with_distinct_manifest_rows(self):

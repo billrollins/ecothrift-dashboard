@@ -873,6 +873,11 @@ class ItemSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        if attrs.get('location') == 'restoration' and getattr(self.instance, 'location', None) != 'restoration':
+            # Restoration needs a job and estimates, so it goes from the check-in (owner, 2026-10-26).
+            from apps.inventory.processing_ops import ITEM_LEVEL_RESTORATION_MESSAGE
+
+            raise serializers.ValidationError({'location': ITEM_LEVEL_RESTORATION_MESSAGE})
         raw = self.initial_data if isinstance(self.initial_data, dict) else {}
         for key in ('category', 'model', 'upc', 'identifiers', 'tags'):
             if key in raw:

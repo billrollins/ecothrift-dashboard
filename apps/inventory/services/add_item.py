@@ -5,7 +5,8 @@ Built like Processing's check-in, and on the same code: the item is checked in o
 restoration jobs are the ones Processing uses.
 
 1. **Find the product** (`find`): one box. A scanned tag, product number, barcode or part number answers first; then
-   the words, on `Product.search_text` (trigram index). Each row has the photo, short name, typical price and times
+   the words, on `Product.search_text` (trigram index), spaces ignored like Inventory search ("barstool" finds
+   "Bar Stool"). Each row has the photo, short name, typical price and times
    sold. Vectors are not used here: turning typed words into a vector needs the model, which the web server never
    loads. They are used for price comps (below) when the product has one.
 2. **Not found: make the product.** Copy a near match and edit it, or AI fill (`ai_draft`): a rough title and an
@@ -34,7 +35,7 @@ from django.db.models import Count, Q, Value
 from django.db.models.functions import StrIndex
 from django.utils import timezone
 
-from apps.inventory.models import Item, ItemCheckIn, Product, ProductProfile, RestorationJob
+from apps.inventory.models import Item, ItemCheckIn, Product, ProductProfile
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,6 @@ CANDIDATES = 300            # text matches ranked in full; a broader word is ord
 ID_KEYS = ('upc', 'ean', 'gtin', 'sku', 'mpn', 'item_number', 'asin')
 BARCODE_KEYS = ('upc', 'ean', 'gtin')
 DESTINATIONS = {'floor': 'on_shelf', 'back_stock': 'back_storage', 'restoration': 'restoration'}
-WORK_KINDS = ('test', 'assemble', 'repair', 'salvage')
 OWN_SALES_ENOUGH = 2        # a product's own sales price it once it has this many; else similar products do
 COMPS = 12
 TITLE_MAX, SHORT_MAX = 120, 28
@@ -164,7 +164,9 @@ def _score(p: Product, words: list[str], counts: dict) -> float:
     subject = _SUBJECT_END.split(title, maxsplit=1)[0]
     phrase = ' '.join(words)
     score = 4.0 if subject.startswith(phrase) else 3.0 if phrase in subject else 1.0 if phrase in title else 0.0
-    score += sum(2.0 if w in subject else 0.5 if w in title else 0.0 for w in words) / max(1, len(words))
+    # Spaces ignored, as the search does: "barstool" is in "bar stool".
+    subject_ns, title_ns = subject.replace(' ', ''), title.replace(' ', '')
+    score += sum(2.0 if w in subject_ns else 0.5 if w in title_ns else 0.0 for w in words) / max(1, len(words))
     score += len(phrase) / max(len(subject), len(phrase), 1)
     brand = ((profile.brand if profile and profile.brand else p.brand) or '').lower()
     if brand and brand != 'generic' and (brand in words or phrase.startswith(brand)):
@@ -216,11 +218,11 @@ def find(q: str, *, limit: int = RESULTS) -> dict[str, Any]:
     # A scanned tag, barcode or product number is the answer; a model or part number also shows what mentions it.
     if long_words and not any(kind in ('tag', 'barcode', 'product_number') for _p, kind, _s in exact):
         # Only words of 3+ letters reach the trigram index; shorter ones are checked on the candidates.
-        qs = Product.objects.filter(is_active=True).exclude(pk__in=exact_ids)
-        for w in long_words:
-            qs = qs.filter(search_text__contains=w)
-        rows = list(qs.annotate(pos=StrIndex('search_text', Value(long_words[0])))
-                    .order_by('pos', '-pk').values_list('pk', 'search_text')[:CANDIDATES])
+        from apps.inventory.services.inventory_search import matching_words
+
+        qs = matching_words(Product.objects.filter(is_active=True).exclude(pk__in=exact_ids), long_words)
+        rows = list(qs.annotate(pos=StrIndex('search_spaceless', Value(long_words[0])))
+                    .order_by('pos', '-pk').values_list('pk', 'search_spaceless')[:CANDIDATES])
         short = [w for w in words if len(w) < 3]
         text_ids = [pk for pk, text in rows if all(w in (text or '') for w in short)]
         if not text_ids and not exact_ids and len(q) >= 4:
@@ -532,47 +534,14 @@ def _money(value, label: str, *, required: bool = False) -> Decimal | None:
 
 
 def restoration_estimate(raw: Any) -> dict[str, Any]:
-    """Restoration needs estimates (owner, 2026-10-22): the work, hours or parts cost, and the value after."""
-    raw = raw if isinstance(raw, dict) else {}
-    work = [w for w in WORK_KINDS if w in {str(x).strip().lower() for x in (raw.get('work') or [])}]
-    if not work:
-        raise AddItemError('Restoration: pick the work it needs (test, assemble, repair or salvage).')
-    hours = _money(raw.get('hours'), 'hours')
-    parts = _money(raw.get('parts_cost'), 'parts cost')
-    if not (hours or parts):
-        raise AddItemError('Restoration: give the hours or the parts cost (or both).')
-    value_after = _money(raw.get('value_after'), 'value after')
-    if not value_after:
-        raise AddItemError('Restoration: give what it is worth after the work.')
-    return {'work': work, 'hours': str(hours) if hours else None, 'parts_cost': str(parts) if parts else None,
-            'value_after': str(value_after)}
+    """Restoration needs estimates (owner, 2026-10-22): the work, hours or parts cost, and the value after.
+    The rule is Processing's (`services/restoration_estimate.py`); here it answers as an AddItemError."""
+    from apps.inventory.services.restoration_estimate import RestorationEstimateError, restoration_estimate as checked
 
-
-def estimate_line(estimate: dict[str, Any]) -> str:
-    bits = [', '.join(estimate['work'])]
-    if estimate.get('hours'):
-        bits.append(f"about {Decimal(estimate['hours']).normalize():f} h")
-    if estimate.get('parts_cost'):
-        bits.append(f"parts ${estimate['parts_cost']}")
-    bits.append(f"worth ${estimate['value_after']} after")
-    return 'Estimate: ' + ' · '.join(bits)
-
-
-def _record_estimate(user, check_in_id: int, estimate: dict) -> None:
-    """On the check-in (with Processing's handoff) and as the job's queue note, so the Restoration queue shows it."""
-    from apps.inventory.services.item_notes import record_surface_note_for_job
-
-    check_in = ItemCheckIn.objects.get(pk=check_in_id)
-    snapshot = dict(check_in.defaults_snapshot or {})
-    snapshot['restoration_estimate'] = {**estimate, 'recorded_at': timezone.now().isoformat(),
-                                        'recorded_by_id': getattr(user, 'pk', None)}
-    check_in.defaults_snapshot = snapshot
-    check_in.save(update_fields=['defaults_snapshot', 'updated_at'])
-    job = RestorationJob.objects.filter(item_check_in=check_in).first()
-    if job is not None:
-        job.queue_note = estimate_line(estimate)
-        job.save(update_fields=['queue_note', 'updated_at'])
-        record_surface_note_for_job(job, 'queue', job.queue_note, author=user, source_key='queue')
+    try:
+        return checked(raw)
+    except RestorationEstimateError as e:
+        raise AddItemError(str(e)) from e
 
 
 def check_in(user, data: dict, *, photo=None) -> dict[str, Any]:
@@ -618,6 +587,7 @@ def check_in(user, data: dict, *, photo=None) -> dict[str, Any]:
             'retail_source': str(data.get('retail_source') or '').strip(),
             'retail_check': str(data.get('retail_check') or '').strip(),
             'notes': notes,
+            'restoration': estimate,
             'product_mode': 'existing',
             'product_id': product.pk,
             'title': product.title,
@@ -632,8 +602,6 @@ def check_in(user, data: dict, *, photo=None) -> dict[str, Any]:
             snapshot_origin = {**origin, 'destination': destination}
             ItemCheckIn.objects.filter(pk=check_in_id).update(
                 defaults_snapshot=_merged_snapshot(check_in_id, {'add_item': snapshot_origin}))
-        if estimate is not None and check_in_id:
-            _record_estimate(user, check_in_id, estimate)
 
     if photo is not None:
         try:

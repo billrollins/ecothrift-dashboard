@@ -13,6 +13,7 @@ import type {
   TaxonomyCategory,
 } from '../../../api/addItem.api';
 import type { ItemCondition } from '../../../types/inventory.types';
+import { estimatePayload, estimateProblems, WORK_OPTIONS } from '../restorationEstimate/restorationEstimate';
 
 export const DESTINATION_OPTIONS: Array<{ value: AddItemDestination; label: string }> = [
   { value: 'floor', label: 'Floor' },
@@ -20,12 +21,8 @@ export const DESTINATION_OPTIONS: Array<{ value: AddItemDestination; label: stri
   { value: 'restoration', label: 'Restoration' },
 ];
 
-export const WORK_OPTIONS: Array<{ value: RestorationWork; label: string }> = [
-  { value: 'test', label: 'Test' },
-  { value: 'assemble', label: 'Assemble' },
-  { value: 'repair', label: 'Repair' },
-  { value: 'salvage', label: 'Salvage' },
-];
+// The Restoration estimate rules are shared with every Processing check-in (owner, 2026-10-26).
+export { WORK_OPTIONS };
 
 /** Matches that are the answer by themselves: Enter picks them. */
 export const EXACT_MATCHES: AddItemMatch[] = ['tag', 'barcode', 'product_number', 'model', 'part_number'];
@@ -107,9 +104,7 @@ export function checkInProblems(form: CheckInForm): string[] {
   if (form.retail.trim() && money(form.retail) == null) out.push('The retail must be a dollar amount.');
   if (form.destination === 'restoration') {
     if (quantityOf(form) !== 1) out.push('Restoration takes one item at a time.');
-    if (!form.work.length) out.push('Pick the work it needs.');
-    if (!(money(form.hours) || money(form.partsCost))) out.push('Give the hours or the parts cost.');
-    if (!money(form.valueAfter)) out.push('Give what it is worth after the work.');
+    out.push(...estimateProblems(form));
   }
   return out;
 }
@@ -129,12 +124,7 @@ export function buildCheckInPayload(picked: PickedProduct, form: CheckInForm): A
     payload.retail_source = form.retailFrom === 'estimate' ? 'estimate' : 'typed';
   }
   if (form.destination === 'restoration') {
-    payload.restoration = {
-      work: form.work,
-      hours: form.hours.trim() || undefined,
-      parts_cost: form.partsCost.trim() || undefined,
-      value_after: form.valueAfter.trim(),
-    };
+    payload.restoration = estimatePayload(form);
   }
   return payload;
 }

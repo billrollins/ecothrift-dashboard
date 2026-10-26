@@ -558,6 +558,17 @@ export interface ProcessingWorkspaceItemDTO {
   dispute_description: string;
 }
 
+/** The work a Restoration item needs (owner, 2026-10-22). */
+export type RestorationWork = 'test' | 'assemble' | 'repair' | 'salvage';
+
+/** Every item sent to Restoration carries these (owner, 2026-10-26). Server: `services/restoration_estimate.py`. */
+export interface RestorationEstimatePayload {
+  work: RestorationWork[];
+  hours?: string;
+  parts_cost?: string;
+  value_after: string;
+}
+
 export interface ItemCheckInDefaultsDTO extends Record<string, unknown> {
   condition?: string;
   dispatch?: string;
@@ -568,6 +579,7 @@ export interface ItemCheckInDefaultsDTO extends Record<string, unknown> {
   restoration_scale?: string;
   restoration_grade_values?: Record<string, number>;
   processing_handoff?: ProcessingHandoff;
+  restoration_estimate?: Partial<RestorationEstimatePayload> | null;
 }
 
 export interface ItemCheckInDTO {

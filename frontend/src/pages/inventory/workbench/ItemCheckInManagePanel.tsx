@@ -50,6 +50,14 @@ import { WorkbenchCopyableChip } from './WorkbenchCopyableChip';
 import { useWorkbenchConfirmDialog } from './useWorkbenchConfirmDialog';
 import { useWorkbenchSavePrintDialog } from './WorkbenchSavePrintDialog';
 import { normalizeItemSpecObject } from './ItemSpecificationsEditor';
+import { RestorationEstimateFields } from '../restorationEstimate/RestorationEstimateFields';
+import {
+  EMPTY_ESTIMATE,
+  estimateFromSaved,
+  estimatePayload,
+  estimateProblems,
+  type RestorationEstimateForm,
+} from '../restorationEstimate/restorationEstimate';
 import { IconCopy as ContentCopyOutlinedIcon, IconPrint as LocalPrintshop, IconPrint as LocalPrintshopOutlinedIcon, IconSave as SaveOutlinedIcon } from '../../../icons/ecoIcons';
 
 export interface ItemCheckInManagePanelProps {
@@ -182,7 +190,24 @@ function checkInFormBaseline(checkIn: ItemCheckInCatalog) {
     specifications: normalizeItemSpecObject(
       checkIn.specifications ?? (defaults.specifications as Record<string, unknown> | undefined),
     ),
+    estimate: estimateFromSaved(defaults.restoration_estimate as Parameters<typeof estimateFromSaved>[0]),
   };
+}
+
+/**
+ * Every item sent to Restoration carries estimates (owner, 2026-10-26): what still stops a check-in going there.
+ * `required` is false for an edit of a check-in already in Restoration (it keeps the estimate it has).
+ */
+function restorationIssues(
+  toRestoration: boolean,
+  estimate: RestorationEstimateForm,
+  { required, quantity }: { required: boolean; quantity?: number },
+): string[] {
+  if (!toRestoration) return [];
+  return [
+    ...(quantity != null && quantity !== 1 ? ['Restoration takes one item at a time. Set the quantity to 1.'] : []),
+    ...(required ? estimateProblems(estimate) : []),
+  ];
 }
 
 function duplicateDraftDefaults() {
@@ -238,6 +263,7 @@ function ItemCheckInEditPanel({
   const [retail, setRetail] = useState('');
   const [notes, setNotes] = useState('');
   const [specifications, setSpecifications] = useState<Record<string, string>>({});
+  const [estimate, setEstimate] = useState<RestorationEstimateForm>(EMPTY_ESTIMATE);
   const [selectedOrder, setSelectedOrder] = useState<ProductCheckInOrderOption | null>(null);
   const [isDuplicateDraft, setIsDuplicateDraft] = useState(false);
   const [duplicateVolumeConfirm, setDuplicateVolumeConfirm] = useState<boolean | null>(null);
@@ -268,6 +294,7 @@ function ItemCheckInEditPanel({
     setRetail(nextBaseline.retail);
     setNotes(nextBaseline.notes);
     setSpecifications(nextBaseline.specifications);
+    setEstimate(nextBaseline.estimate);
     setSelectedOrder(orderOptionFromCheckIn(checkIn));
   }, [checkIn]);
 
@@ -281,6 +308,7 @@ function ItemCheckInEditPanel({
     setRetail(nextBaseline.retail);
     setNotes(nextBaseline.notes);
     setSpecifications(nextBaseline.specifications);
+    setEstimate(nextBaseline.estimate);
     setSelectedOrder(orderOptionFromCheckIn(checkIn));
   };
 
@@ -304,8 +332,14 @@ function ItemCheckInEditPanel({
       || retail !== baseline.retail
       || notes !== baseline.notes
       || JSON.stringify(specifications) !== JSON.stringify(baseline.specifications)
+      || JSON.stringify(estimate) !== JSON.stringify(baseline.estimate)
     );
-  }, [baseline, quantity, selectedOrder, condition, dispatch, price, retail, notes, specifications]);
+  }, [baseline, quantity, selectedOrder, condition, dispatch, price, retail, notes, specifications, estimate]);
+
+  const toRestoration = !salvageLocked && dispatch === 'restoration';
+  const estimateReady = estimateProblems(estimate).length === 0;
+  const saveIssues = restorationIssues(toRestoration, estimate, { required: baseline?.dispatch !== 'restoration' });
+  const duplicateIssues = restorationIssues(toRestoration, estimate, { required: true, quantity: qtyValue });
 
   const saveMutation = useMutation({
     mutationFn: async ({ printAfterSave }: { printAfterSave: boolean }) => {
@@ -321,6 +355,7 @@ function ItemCheckInEditPanel({
         retail: retail.trim() || null,
         notes,
         specifications,
+        ...(toRestoration && estimateReady ? { restoration: estimatePayload(estimate) } : {}),
       };
       const { data } = await processingUpdateItemCheckIn(checkIn.purchase_order, checkIn.id, payload);
       return { data, printAfterSave, savedPrice: price.trim() || undefined };
@@ -353,7 +388,7 @@ function ItemCheckInEditPanel({
   });
 
   const handleSave = async () => {
-    if (!checkIn || !selectedOrder || !isDirty) return;
+    if (!checkIn || !selectedOrder || !isDirty || saveIssues.length) return;
     let printAfterSave = false;
     const priceChanged = baseline ? !moneyValuesEqual(price, baseline.price) : false;
     if (priceChanged) {
@@ -408,6 +443,7 @@ function ItemCheckInEditPanel({
           retail: retail.trim() || undefined,
           notes: notes.trim() || undefined,
           specifications,
+          ...(toRestoration ? { restoration: estimatePayload(estimate) } : {}),
         },
         async (body) => (await productCheckIn(productId, body)).data,
         retailCheck.ask,
@@ -482,7 +518,8 @@ function ItemCheckInEditPanel({
     continueDuplicateCheckIn(doPrint);
   };
 
-  const canCreateDuplicate = Boolean(checkIn?.product && selectedOrder && isValidCheckInPrice(price));
+  const canCreateDuplicate = Boolean(checkIn?.product && selectedOrder && isValidCheckInPrice(price))
+    && duplicateIssues.length === 0;
 
   const handleReprintAll = async () => {
     if (!checkIn || checkIn.items.length === 0) {
@@ -777,6 +814,19 @@ function ItemCheckInEditPanel({
           specsHelperText="Supplements the product catalog specs - saved on each item in this check-in."
           highlightRequired={isDuplicateDraft}
         />
+        {toRestoration ?
+          <Box sx={{ mt: 1 }}>
+            <RestorationEstimateFields
+              value={estimate}
+              onChange={setEstimate}
+              disabled={saveMutation.isPending || duplicateMutation.isPending}
+              showProblem={isDuplicateDraft || baseline?.dispatch !== 'restoration'}
+            />
+            {(isDuplicateDraft ? duplicateIssues : saveIssues).filter((m) => m.startsWith('Restoration takes')).map((m) => (
+              <Typography key={m} variant="caption" color="warning.main" component="div" sx={{ mt: 0.5 }}>{m}</Typography>
+            ))}
+          </Box>
+        : null}
       </Box>
 
       <Divider />
@@ -790,7 +840,7 @@ function ItemCheckInEditPanel({
           borderColor: workbenchDetailTokens.borderSubtle,
         }}
       >
-        <Stack direction="row" spacing={0.75} justifyContent="space-between" alignItems="center">
+        <Stack direction="row" spacing={0.75} justifyContent="space-between" alignItems="center" flexWrap="wrap" useFlexGap>
           {isDuplicateDraft ?
             <>
               <Button
@@ -802,7 +852,7 @@ function ItemCheckInEditPanel({
               >
                 Cancel
               </Button>
-              <Stack direction="row" spacing={0.75}>
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap justifyContent="flex-end" sx={{ '& .MuiButton-root': { whiteSpace: 'nowrap' } }}>
                 <Button
                   size="small"
                   variant="outlined"
@@ -843,7 +893,7 @@ function ItemCheckInEditPanel({
                 size="small"
                 variant="contained"
                 startIcon={<SaveOutlinedIcon />}
-                disabled={!isDirty || saveMutation.isPending}
+                disabled={!isDirty || saveMutation.isPending || saveIssues.length > 0}
                 onClick={() => void handleSave()}
                 sx={{ bgcolor: processingTokens.primary, '&:hover': { bgcolor: processingTokens.primaryDark }, fontWeight: 800 }}
               >
@@ -915,6 +965,7 @@ function ItemCheckInCreatePanel({
   const [retail, setRetail] = useState('');
   const [notes, setNotes] = useState('');
   const [specifications, setSpecifications] = useState<Record<string, string>>({});
+  const [estimate, setEstimate] = useState<RestorationEstimateForm>(EMPTY_ESTIMATE);
   const [createVolumeConfirm, setCreateVolumeConfirm] = useState<boolean | null>(null);
   const [createRetailConfirmOpen, setCreateRetailConfirmOpen] = useState(false);
   const [createPendingPrint, setCreatePendingPrint] = useState(false);
@@ -930,6 +981,7 @@ function ItemCheckInCreatePanel({
     setRetail(cleared.retail);
     setNotes(cleared.notes);
     setSpecifications(cleared.specifications);
+    setEstimate(EMPTY_ESTIMATE);
   }, [productId]);
 
   const productQuery = useQuery({
@@ -946,7 +998,9 @@ function ItemCheckInCreatePanel({
 
   const qtyValue = useMemo(() => parseCheckInQty(quantity), [quantity]);
   const salvageLocked = condition === 'salvage';
-  const canCreate = showForm && isValidCheckInPrice(price);
+  const toRestoration = !salvageLocked && dispatch === 'restoration';
+  const createIssues = restorationIssues(toRestoration, estimate, { required: true, quantity: qtyValue });
+  const canCreate = showForm && isValidCheckInPrice(price) && createIssues.length === 0;
 
   const createMutation = useMutation({
     mutationFn: async (doPrint: boolean) => {
@@ -963,6 +1017,7 @@ function ItemCheckInCreatePanel({
           retail: retail.trim() || undefined,
           notes: notes.trim() || undefined,
           specifications,
+          ...(toRestoration ? { restoration: estimatePayload(estimate) } : {}),
         },
         async (body) => (await productCheckIn(product.id, body)).data,
         retailCheck.ask,
@@ -1247,6 +1302,14 @@ function ItemCheckInCreatePanel({
               specsHelperText="Supplements the product catalog specs - saved on each item in this check-in."
               highlightRequired
             />
+            {toRestoration ?
+              <Box sx={{ mt: 1 }}>
+                <RestorationEstimateFields value={estimate} onChange={setEstimate} disabled={createMutation.isPending} showProblem />
+                {createIssues.filter((m) => m.startsWith('Restoration takes')).map((m) => (
+                  <Typography key={m} variant="caption" color="warning.main" component="div" sx={{ mt: 0.5 }}>{m}</Typography>
+                ))}
+              </Box>
+            : null}
           </>
         }
       </Box>
@@ -1262,7 +1325,7 @@ function ItemCheckInCreatePanel({
           borderColor: workbenchDetailTokens.borderSubtle,
         }}
       >
-        <Stack direction="row" spacing={0.75} justifyContent="space-between" alignItems="center">
+        <Stack direction="row" spacing={0.75} justifyContent="space-between" alignItems="center" flexWrap="wrap" useFlexGap>
           {onCancelCreate ?
             <Button
               size="small"
@@ -1275,7 +1338,7 @@ function ItemCheckInCreatePanel({
             </Button>
           : <Box />}
           {showForm ?
-            <Stack direction="row" spacing={0.75}>
+            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap justifyContent="flex-end" sx={{ '& .MuiButton-root': { whiteSpace: 'nowrap' } }}>
               <Button
                 size="small"
                 variant="outlined"

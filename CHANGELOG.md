@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.216.0] -->
-<!-- Last reviewed: 2026-10-26 (2.216.0) -->
+<!-- Line 1 release: ## [2.217.0] -->
+<!-- Last reviewed: 2026-10-26 (2.217.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.217.0] - 2026-10-26
+
+User-facing theme: **Restoration needs estimates from every Processing path; search ignores spaces (Bill, 2026-10-26).** Fix-it lane x-resto-est.
+
+### Changed
+- Everything Processing sends to Restoration now needs estimates: the work, hours or parts cost, and what it's worth after, the same as Add item. This covers check-in, edit check-in, check in together, the product + check-in and the Goes to dropdown. The estimate shows in the Restoration queue.
+- The Inventory item editor can't send an item to Restoration any more; it points you to the check-in, which asks for the estimates.
+- Search ignores spaces: "barstool" finds "Bar Stool" in Inventory search and Add item.
+
+### Fixed
+- "Check in together" shows up again on a row that has the same product as other rows.
+- On a phone, the Add items buttons fit on one line each.
 
 ## [2.216.0] - 2026-10-26
 

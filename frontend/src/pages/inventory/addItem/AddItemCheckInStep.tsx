@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import {
-  Box, Button, Chip, CircularProgress, InputAdornment, Link, Stack, TextField, Typography,
+  Box, Button, Chip, CircularProgress, Link, Stack, TextField, Typography,
 } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { getAddItemPrice } from '../../../api/addItem.api';
@@ -10,8 +10,9 @@ import { CheckInQtyStepper, CompactMoneyField, SegmentedOptionButtons } from '..
 import { PROCESSING_ITEM_CONDITION_OPTIONS } from '../processing/processingItemFormOptions';
 import { MAX_CHECK_IN_QUANTITY } from '../processing/largeCheckIn';
 import { ProductPhoto } from './AddItemFindStep';
+import { RestorationEstimateFields } from '../restorationEstimate/RestorationEstimateFields';
 import {
-  checkInProblems, DESTINATION_OPTIONS, formatMoney, money, pctOfRetail, productName, quantityOf, WORK_OPTIONS,
+  checkInProblems, DESTINATION_OPTIONS, formatMoney, money, pctOfRetail, productName, quantityOf,
   type CheckInForm, type PickedProduct,
 } from './addItemModel';
 
@@ -97,9 +98,6 @@ export function AddItemCheckInStep({
   const retailNote = form.retailFrom === 'estimate'
     ? (picked.kind === 'new' && picked.spec.how === 'ai' ? 'The AI’s estimate: you will be asked to confirm it.' : 'An estimate from a similar product: you will be asked to confirm it.')
     : form.retailFrom === 'product' ? 'What this product usually carries.' : 'Optional. It prints on the tag when it passes the retail check.';
-  const toggleWork = (value: CheckInForm['work'][number]) => set({
-    work: form.work.includes(value) ? form.work.filter((w) => w !== value) : [...form.work, value],
-  });
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
@@ -179,36 +177,7 @@ export function AddItemCheckInStep({
             </Box>
 
             {restoration && (
-              <Box sx={{ p: 1.5, borderRadius: 1.5, border: 1, borderColor: 'warning.light', bgcolor: 'rgba(237, 108, 2, 0.04)' }}>
-                <Typography variant="body2" sx={{ fontWeight: 800, mb: 1 }}>Restoration estimates (required)</Typography>
-                <Label>Work it needs</Label>
-                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
-                  {WORK_OPTIONS.map((w) => (
-                    <Chip
-                      key={w.value}
-                      label={w.label}
-                      color={form.work.includes(w.value) ? 'primary' : 'default'}
-                      variant={form.work.includes(w.value) ? 'filled' : 'outlined'}
-                      onClick={() => toggleWork(w.value)}
-                      disabled={busy}
-                    />
-                  ))}
-                </Stack>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr' }, gap: 1.25 }}>
-                  <TextField size="small" label="Hours" value={form.hours} onChange={(e) => set({ hours: e.target.value })}
-                    inputProps={{ inputMode: 'decimal' }} disabled={busy} />
-                  <TextField size="small" label="Parts cost" value={form.partsCost} onChange={(e) => set({ partsCost: e.target.value })}
-                    InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
-                    inputProps={{ inputMode: 'decimal' }} disabled={busy} />
-                  <TextField size="small" label="Worth after" required value={form.valueAfter}
-                    onChange={(e) => set({ valueAfter: e.target.value })}
-                    InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
-                    inputProps={{ inputMode: 'decimal' }} disabled={busy} sx={{ gridColumn: { xs: '1 / -1', sm: 'auto' } }} />
-                </Box>
-                <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.75 }}>
-                  Hours or parts cost (or both). It goes to the Restoration queue with these.
-                </Typography>
-              </Box>
+              <RestorationEstimateFields value={form} onChange={(next) => set(next)} disabled={busy} />
             )}
 
             <TextField size="small" label="Notes" placeholder="Optional"

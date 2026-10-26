@@ -439,12 +439,16 @@ def _check_in_processing_row(
     restoration_scale = ''
     restoration_grade_values: dict[str, float] = {}
     processing_handoff = None
+    restoration_estimate = None
     if dispatch == 'restoration':
         from apps.inventory.services.restoration import (
             normalize_processing_handoff,
             validate_restoration_check_in_payload,
         )
+        from apps.inventory.services.restoration_estimate import restoration_estimate as checked_estimate
 
+        # Every item Processing sends to Restoration carries estimates (owner, 2026-10-26).
+        restoration_estimate = checked_estimate(data.get('restoration'))
         restoration_scale, restoration_grade_values = validate_restoration_check_in_payload(data)
         if 'processing_handoff' in data:
             processing_handoff = normalize_processing_handoff(
@@ -560,6 +564,7 @@ def _check_in_processing_row(
     }
     if dispatch == 'restoration':
         from apps.inventory.services.restoration import merge_restoration_into_defaults_snapshot
+        from apps.inventory.services.restoration_estimate import SNAPSHOT_KEY, stamped
 
         defaults_snapshot = merge_restoration_into_defaults_snapshot(
             defaults_snapshot,
@@ -567,6 +572,7 @@ def _check_in_processing_row(
             restoration_grade_values,
             processing_handoff,
         )
+        defaults_snapshot[SNAPSHOT_KEY] = stamped(restoration_estimate, user)
     from apps.inventory.services.truck_pallets import resolve_check_in_pallet
 
     pallet = resolve_check_in_pallet(user, order, data, manifest_row)
@@ -625,12 +631,15 @@ def _check_in_processing_row(
     if dispatch == 'restoration':
         from apps.inventory.services.restoration import create_restoration_job_from_check_in
 
+        from apps.inventory.services.restoration_estimate import note_on_job
+
         job = create_restoration_job_from_check_in(
             batch,
             scale=restoration_scale,
             grade_values=restoration_grade_values,
             user=user,
         )
+        note_on_job(job, restoration_estimate, user)
     else:
         job = None
     from apps.inventory.services.item_notes import append_item_note, handoff_note_body
@@ -800,6 +809,7 @@ def processing_check_in_together(user, order: PurchaseOrder, data: dict) -> dict
         'price': data.get('price'),
         'retail': data.get('retail') or data.get('unit_retail'),
         'notes': data.get('notes') or '',
+        'restoration': data.get('restoration'),
     }
 
     check_in_ids: list[int] = []
@@ -1752,6 +1762,22 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
                 restoration_grade_values,
             )
 
+        # Sending a check-in to Restoration needs the estimates (owner, 2026-10-26); one already on it counts.
+        restoration_estimate = None
+        if effective_dispatch == 'restoration' and ('restoration' in data or prior_dispatch != 'restoration'):
+            from apps.inventory.services.restoration_estimate import (
+                SNAPSHOT_KEY,
+                restoration_estimate as checked_estimate,
+                saved_estimate,
+                stamped,
+            )
+
+            if 'restoration' in data:
+                restoration_estimate = checked_estimate(data.get('restoration'))
+                snapshot[SNAPSHOT_KEY] = stamped(restoration_estimate, user)
+            else:
+                restoration_estimate = saved_estimate(snapshot) or checked_estimate(None)
+
         if dispatch:
             snapshot['dispatch'] = dispatch
             if prior_dispatch == 'restoration' and dispatch != 'restoration':
@@ -1770,12 +1796,17 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
                 if existing_job.stage != RestorationJob.STAGE_QUEUED:
                     raise ValueError('Restoration values cannot be edited after the job leaves the queue.')
             if prior_dispatch != 'restoration' or restoration_config_present:
-                create_restoration_job_from_check_in(
+                existing_job = create_restoration_job_from_check_in(
                     check_in,
                     scale=restoration_scale,
                     grade_values=restoration_grade_values,
                     user=user,
                 )
+            if restoration_estimate is not None and existing_job is not None:
+                if existing_job.stage == RestorationJob.STAGE_QUEUED:
+                    from apps.inventory.services.restoration_estimate import note_on_job
+
+                    note_on_job(existing_job, restoration_estimate, user)
 
         if histories:
             ItemHistory.objects.bulk_create(histories)
@@ -1813,6 +1844,17 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
     }
 
 
+ITEM_LEVEL_RESTORATION_MESSAGE = (
+    'Send it to Restoration from its check-in (Check in, or Edit check-in): Restoration needs the estimates.'
+)
+
+
+def _refuse_item_level_restoration(dispatch) -> None:
+    """These item-level paths make no Restoration job and take no estimates (owner, 2026-10-26)."""
+    if str(dispatch or '').strip() == 'restoration':
+        raise ValueError(ITEM_LEVEL_RESTORATION_MESSAGE)
+
+
 def processing_print_and_check_in(user, item: Item, data: dict) -> dict:
     """Check in one item. Raises ValueError on bad input."""
     if item.status not in ('intake', 'processing'):
@@ -1824,6 +1866,7 @@ def processing_print_and_check_in(user, item: Item, data: dict) -> dict:
     retail = parse_decimal(data.get('retail') or data.get('unit_retail'))
     price = parse_decimal(data.get('price'))
     dispatch = data.get('dispatch') or 'on_shelf'
+    _refuse_item_level_restoration(dispatch)
     notes = str(data.get('notes') or '')
 
     if cond_db == 'salvage':
@@ -1956,6 +1999,7 @@ def processing_print_multiple(user, order: PurchaseOrder, data: dict) -> dict:
     retail = parse_decimal(data.get('retail') or data.get('unit_retail'))
     price = parse_decimal(data.get('price'))
     dispatch = data.get('dispatch') or 'on_shelf'
+    _refuse_item_level_restoration(dispatch)
     notes = str(data.get('notes') or '')
     if cond_db == 'salvage':
         location = 'salvage'
@@ -2162,6 +2206,7 @@ def processing_bulk_disposition(user, order: PurchaseOrder, data: dict) -> dict:
             idx += cnt
             cond_db = _resolve_condition_db(g.get('condition'))
             dispatch = g.get('dispatch') or 'on_shelf'
+            _refuse_item_level_restoration(dispatch)
             disputed = g.get('disputed')
             if cond_db == 'salvage':
                 location = 'salvage'
@@ -2430,6 +2475,7 @@ def product_check_in(user, product: Product, data: dict) -> dict:
         'created_item_ids': created_item_ids,
         'processing_row_id': row_id,
         'item_check_in_id': check_in_result.get('item_check_in_id'),
+        'restoration_job_id': check_in_result.get('restoration_job_id'),
         'printed_items_preview': check_in_result.get('printed_items_preview') or [],
     }
 
@@ -2599,6 +2645,8 @@ def processing_patch_item(user, item: Item, data: dict) -> dict:
         updates['condition'] = _resolve_condition_db(data.get('condition'))
     eff_condition = updates.get('condition', item.condition)
     if 'dispatch' in data:
+        if item.location != 'restoration':
+            _refuse_item_level_restoration(data.get('dispatch'))
         if eff_condition == 'salvage':
             updates['location'] = 'salvage'
         else:

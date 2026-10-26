@@ -32,6 +32,8 @@ from apps.inventory.services.restoration import (
     restoration_job_needs_setup,
 )
 
+RESTORATION_ESTIMATE = {'work': ['repair'], 'hours': '1.5', 'value_after': '60'}
+
 FUNCTIONAL_GRADES = {
     'Working': 19.99,
     'Repairable': 12.0,
@@ -119,6 +121,7 @@ class RestorationQueueTestBase(TestCase):
                 'quantity': quantity,
                 'condition': 'good',
                 'dispatch': 'restoration',
+                'restoration': RESTORATION_ESTIMATE,
                 'price': price,
                 'retail': retail,
                 'product_mode': 'existing',
@@ -128,6 +131,14 @@ class RestorationQueueTestBase(TestCase):
             },
             format='json',
         )
+
+    def _clear_estimate_note(self, check_in_id):
+        """Check-ins carry their estimate as the queue note (2026-10-26); note tests start from a blank one."""
+        from apps.inventory.models import ItemNote
+
+        job = RestorationJob.objects.get(item_check_in_id=check_in_id)
+        ItemNote.objects.filter(restoration_job_id=job.pk, surface='queue').delete()
+        RestorationJob.objects.filter(pk=job.pk).update(queue_note='')
 
     def _restoration_unit_job_ids(self, order, pr, product, count, **kwargs):
         job_ids = []
@@ -241,6 +252,7 @@ class ProcessingHandoffTests(RestorationQueueTestBase):
                 'quantity': 1,
                 'condition': 'good',
                 'dispatch': 'restoration',
+                'restoration': RESTORATION_ESTIMATE,
                 'price': '19.99',
                 'product_mode': 'existing',
                 'product_id': product.id,
@@ -291,6 +303,7 @@ class RestorationJobApiTests(RestorationQueueTestBase):
                 'quantity': 1,
                 'condition': 'good',
                 'dispatch': 'restoration',
+                'restoration': RESTORATION_ESTIMATE,
                 'price': '19.99',
                 'product_mode': 'existing',
                 'product_id': product.id,
@@ -2000,7 +2013,9 @@ class RestorationDispatchPathTests(RestorationQueueTestBase):
         )
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertTrue(resp.data['valuation_pending'])
-        self.assertEqual(resp.data['queue_note'], '{Sent Back to Queue}: Does this power on at all?')
+        # The check-in's estimate stays first; the question follows it.
+        self.assertTrue(resp.data['queue_note'].startswith('Estimate: repair'), resp.data['queue_note'])
+        self.assertTrue(resp.data['queue_note'].endswith('{Sent Back to Queue}: Does this power on at all?'))
         self.assertEqual(resp.data['valuation_request_notes'], 'Does this power on at all?')
         self.assertEqual(resp.data['valuation_requested_grades'], [])
 

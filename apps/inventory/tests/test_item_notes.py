@@ -26,6 +26,7 @@ class ItemNotesServiceTests(RestorationQueueTestBase):
         order, row, product = self._restoration_order()
         resp = self._check_in_restoration(order, row, product)
         self.assertEqual(resp.status_code, 200, resp.data)
+        self._clear_estimate_note(resp.data['item_check_in_id'])
         self.job = RestorationJob.objects.get(item_check_in_id=resp.data['item_check_in_id'])
         self.item = self.job.item_check_in.items.order_by('id').first()
 
@@ -179,6 +180,7 @@ class ItemNotesBackfillTests(RestorationQueueTestBase):
     def test_backfill_reads_queue_note_and_timeline(self):
         order, row, product = self._restoration_order(order_number='PO-NOTE-BF')
         resp = self._check_in_restoration(order, row, product)
+        self._clear_estimate_note(resp.data['item_check_in_id'])
         job = RestorationJob.objects.get(item_check_in_id=resp.data['item_check_in_id'])
         self.client.patch(
             f'/api/inventory/restoration-jobs/{job.pk}/queue-details/',

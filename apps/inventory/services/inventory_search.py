@@ -4,6 +4,10 @@ Inventory search (owner, 2026-10-02): one box, one table, one row per product, u
 - **What is searched:** `Product.search_text`, one lowercased line per product built from the product (title, brand,
   model, product number, UPC) and its standard (title, tag name, brand, model, category, subcategory, aliases). A
   trigram index answers "every word appears somewhere in it".
+- **Spaces don't matter** (owner, 2026-10-26): a word matches the line with its spaces taken out, so "barstool" finds
+  "Bar Stool". A word in the line is also in it without spaces, so nothing found before is lost. The spaceless line
+  has its own trigram index (`inv_product_search_nosp_trgm`). `matching_words` is the one matcher; Add item's find
+  uses it too.
 - **A SKU** (typed or scanned) goes straight to that item's product.
 - **Numbers** (on shelf, price range, retail, sold, average sold price, each as a percent of retail, days to sell)
   are computed only for the page shown.
@@ -22,11 +26,12 @@ from typing import Any
 
 from django.db import connection
 from django.db.models import (
-    Avg, Case, Count, DurationField, Exists, ExpressionWrapper, F, IntegerField, Max, Min, OuterRef, Q, Sum, When,
+    Avg, Case, Count, DurationField, Exists, ExpressionWrapper, F, IntegerField, Max, Min, OuterRef, Q, Sum,
+    TextField, When,
 )
 
 from django.db.models import Value
-from django.db.models.functions import Coalesce, Lower, NullIf, StrIndex
+from django.db.models.functions import Coalesce, Lower, NullIf, Replace, StrIndex
 
 from apps.inventory.models import Item, Product, ProductProfile
 
@@ -80,6 +85,19 @@ def rebuild_all(batch: int = 20000, log=None) -> int:
 
 def _words(q: str) -> list[str]:
     return [w for w in re.split(r'\s+', q.lower().strip()) if w][:8]
+
+
+# The search line with its spaces taken out; the expression matches the index in the model, so keep them the same.
+SPACELESS_TEXT = Replace('search_text', Value(' '), Value(''), output_field=TextField())
+
+
+def matching_words(qs, words: list[str]):
+    """Products whose search line holds every word, spaces ignored ("barstool" finds "bar stool"). Adds
+    `search_spaceless`, for ordering by where the first word sits."""
+    qs = qs.annotate(search_spaceless=SPACELESS_TEXT)
+    for word in words:
+        qs = qs.filter(search_spaceless__contains=word)
+    return qs
 
 
 def _stats(ids: list[int]) -> dict[int, dict[str, Any]]:
@@ -191,16 +209,16 @@ def search(
     if misfit_q is not None:
         # A semi-join on the (few) Misfit items first, so the Exists below only runs for their products.
         qs = qs.filter(pk__in=Item.objects.filter(misfit_q).values('product_id'))
-    for word in _words(q):
-        qs = qs.filter(search_text__contains=word)
+    words = _words(q)
+    if words:
+        qs = matching_words(qs, words)
     qs = qs.filter(has_shelf=True) if not include_sold else qs.filter(Exists(items))
     if first:
         qs = qs.exclude(pk=first[0].pk)
-    words = _words(q)
     if words:
         # The line starts with the product's title, so "ninja blender" puts the Ninja blender before an accessory
         # that only mentions Ninja at its end.
-        qs = qs.annotate(pos=StrIndex('search_text', Value(words[0]))).order_by('-has_shelf', 'pos', '-pk')
+        qs = qs.annotate(pos=StrIndex('search_spaceless', Value(words[0]))).order_by('-has_shelf', 'pos', '-pk')
     else:
         qs = qs.order_by('-pk')
     key = sort.lstrip('-')

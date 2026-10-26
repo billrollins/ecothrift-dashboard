@@ -1,5 +1,6 @@
 import type { PaginatedResponse } from '../types/index';
 import type {
+  RestorationEstimatePayload,
   Vendor,
   PurchaseOrder,
   PurchaseOrderDetailSurface,
@@ -1360,6 +1361,8 @@ export interface ProcessingCheckInPayload {
   restoration_scale?: string;
   restoration_grade_values?: Record<string, number>;
   processing_handoff?: ProcessingHandoff;
+  /** Required when dispatch is restoration (owner, 2026-10-26). */
+  restoration?: RestorationEstimatePayload;
 }
 
 export interface ProcessingRowCheckInPayload extends ProcessingCheckInPayload {
@@ -1399,6 +1402,7 @@ export interface ProcessingCheckInTogetherPayload {
   dispatch?: string;
   price?: string;
   notes?: string;
+  restoration?: RestorationEstimatePayload;
 }
 
 export interface ProcessingCheckInTogetherResponse {
@@ -1868,6 +1872,8 @@ export interface ProductCheckInPayload {
   status?: string;
   /** The answer to a 409 retail check (RetailCheckDialog). */
   retail_check?: 'confirm' | 'fix' | 'none';
+  /** Required when dispatch is restoration (owner, 2026-10-26). */
+  restoration?: RestorationEstimatePayload;
 }
 
 export interface ProductCheckInResponse {
@@ -1877,6 +1883,7 @@ export interface ProductCheckInResponse {
   created_item_ids: number[];
   processing_row_id: number;
   item_check_in_id: number | null;
+  restoration_job_id?: number | null;
   printed_items_preview: PrintedItemPreview[];
 }
 

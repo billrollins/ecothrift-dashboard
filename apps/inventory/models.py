@@ -4,10 +4,10 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.indexes import GinIndex, OpClass
 from django.db import models
 from django.db.models import IntegerField, Max
-from django.db.models.functions import Cast, Substr
+from django.db.models.functions import Cast, Replace, Substr
 from django.utils.text import slugify
 from django.utils import timezone
 from pgvector.django import HnswIndex, VectorField
@@ -1588,6 +1588,11 @@ class Product(models.Model):
             # Near-duplicate search (product_intelligence Phase 4; R-022: 0.55 s per lookup without it).
             GinIndex(fields=['title'], name='inv_product_title_trgm', opclasses=['gin_trgm_ops']),
             GinIndex(fields=['search_text'], name='inv_product_search_trgm', opclasses=['gin_trgm_ops']),
+            # Spaces ignored ("barstool" finds "bar stool", 2026-10-26): inventory_search.SPACELESS_TEXT.
+            GinIndex(
+                OpClass(Replace('search_text', models.Value(' '), models.Value('')), name='gin_trgm_ops'),
+                name='inv_product_search_nosp_trgm',
+            ),
         ]
 
     def __str__(self):

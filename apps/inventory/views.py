@@ -6994,6 +6994,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             'created_item_ids': result['created_item_ids'],
             'processing_row_id': result['processing_row_id'],
             'item_check_in_id': result.get('item_check_in_id'),
+            'restoration_job_id': result.get('restoration_job_id'),
             'printed_items_preview': result.get('printed_items_preview') or [],
         }, status=status.HTTP_201_CREATED)
 
