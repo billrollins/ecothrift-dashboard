@@ -297,8 +297,12 @@ def _anthropic_complete(
         kwargs['system'] = [
             {'type': 'text', 'text': system, 'cache_control': {'type': 'ephemeral'}},
         ]
+    # Body fields the pinned SDK's messages.create() has no keyword for (anthropic 1.x
+    # dropped temperature; a kwarg there is a TypeError before any request). extra_body
+    # sends them on every SDK version.
+    extra_body: dict = {}
     if temperature is not None:
-        kwargs['temperature'] = temperature
+        extra_body['temperature'] = temperature
     if timeout is not None:
         kwargs['timeout'] = timeout
     if tools:
@@ -308,8 +312,9 @@ def _anthropic_complete(
                 {'type': 'tool', 'name': tool_name} if force_tool else {'type': 'auto'}
             )
     if effort:
-        # extra_body works on every SDK version; the native output_config kwarg does not.
-        kwargs['extra_body'] = {'output_config': {'effort': effort}}
+        extra_body['output_config'] = {'effort': effort}
+    if extra_body:
+        kwargs['extra_body'] = extra_body
 
     try:
         response = client.messages.create(**kwargs)

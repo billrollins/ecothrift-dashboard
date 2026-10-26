@@ -435,6 +435,32 @@ class EffortAndCompatRetryTests(SimpleTestCase):
         self.assertTrue(stub.call_args_list[1].kwargs['force_tool'])
         self.assertFalse(stub.call_args_list[2].kwargs['force_tool'])
 
+    def test_anthropic_request_fits_installed_sdk(self):
+        # Real client, create() autospecced from the installed SDK: an unknown kwarg
+        # raises TypeError here exactly as it does in production. No network.
+        import anthropic
+        from anthropic.resources.messages import Messages
+
+        client = anthropic.Anthropic(api_key='ant-k')
+        tools = [{'name': 't', 'description': '', 'input_schema': {'type': 'object', 'properties': {}}}]
+        with mock.patch('anthropic.Anthropic', return_value=client), mock.patch.object(
+            Messages, 'create', autospec=True,
+            return_value=_FakeAnthropicResponse([_FakeAnthropicBlock('text', text='ok')]),
+        ) as create:
+            result = llm_complete(
+                model_id='claude-haiku-4-5', system='sys', user='hi', temperature=0.2,
+                timeout=30, effort='low', tool_name='t', tools=tools,
+            )
+        self.assertEqual(result.text, 'ok')
+        kwargs = create.call_args.kwargs
+        self.assertNotIn('temperature', kwargs)
+        self.assertEqual(
+            kwargs['extra_body'], {'temperature': 0.2, 'output_config': {'effort': 'low'}},
+        )
+        self.assertEqual(kwargs['model'], 'claude-haiku-4-5')
+        self.assertEqual(kwargs['timeout'], 30)
+        self.assertEqual(kwargs['tool_choice'], {'type': 'tool', 'name': 't'})
+
     def test_opus_5_5_is_compatible_up_front(self):
         client = self._anthropic_client()
         client.messages.create.return_value = _FakeAnthropicResponse(
@@ -449,6 +475,7 @@ class EffortAndCompatRetryTests(SimpleTestCase):
         self.assertEqual(client.messages.create.call_count, 1)
         kwargs = client.messages.create.call_args.kwargs
         self.assertNotIn('temperature', kwargs)
+        self.assertNotIn('extra_body', kwargs)
         self.assertEqual(kwargs['tool_choice'], {'type': 'auto'})
         self.assertIn('You must answer by calling the tool `t`', kwargs['system'][0]['text'])
         self.assertEqual(result.tool_input, {'a': 1})

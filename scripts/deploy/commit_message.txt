@@ -1,9 +1,8 @@
-v2.215.1 — Misfit filter takes quick adds; the + check-in asks about retail
+v2.215.2 — Claude models work in the AI router again
 
-User-facing theme: **Misfit filter takes quick adds; the + check-in asks about a wrong-looking retail (Bill, 2026-10-22).** Fix-it lane x-add-item-2.
+User-facing theme: **Claude models work in the AI router again (2026-10-26).** Fix-it lane r-anthropic-temperature.
 
 ### Fixed
-- "Misfit only" in Find item now also shows PR Fix-it quick adds (untagged finds with no purchase order).
-- Adding more of a product with the + button now asks about a retail that looks wrong (It is right / Fix it / No retail on tag) instead of failing, and a stopped check-in no longer leaves an empty row on the order.
+- AI features set to a Claude model (e.g. Claude Haiku) work again; they were failing with a 'temperature' error before reaching Anthropic.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

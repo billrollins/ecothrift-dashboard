@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.215.1] -->
-<!-- Last reviewed: 2026-10-22 (2.215.1) -->
+<!-- Line 1 release: ## [2.215.2] -->
+<!-- Last reviewed: 2026-10-26 (2.215.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.215.2] - 2026-10-26
+
+User-facing theme: **Claude models work in the AI router again (2026-10-26).** Fix-it lane r-anthropic-temperature.
+
+### Fixed
+- AI features set to a Claude model (e.g. Claude Haiku) work again; they were failing with a 'temperature' error before reaching Anthropic.
 
 ## [2.215.1] - 2026-10-22
 
