@@ -441,6 +441,36 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'inventory',
     kind: 'percent',
   },
+  inventory_recovery_estimate: {
+    label: 'Recovery estimate (owner)',
+    help: "On: Preprocessing and Processing check-in show what similar items keep of retail with a suggested price band, the price estimate uses it when there is no trained model, and Inventory review flags categories priced high or low. Off by default.",
+    tab: 'inventory',
+    kind: 'switch',
+  },
+  inventory_recovery_prior_n: {
+    label: 'Recovery: sales before a source counts fully',
+    help: 'Each source (category, subcategory, vendor, price point, condition, similar products) is pulled toward its parent by this many sales (default 30).',
+    tab: 'inventory',
+    kind: 'count',
+  },
+  inventory_recovery_band_share: {
+    label: 'Recovery: suggested band either side',
+    help: 'The suggested price band is retail x recovery, this far either side (default 20%).',
+    tab: 'inventory',
+    kind: 'percent',
+  },
+  inventory_review_price_gap_share: {
+    label: 'Review: priced high or low beyond',
+    help: 'Flags a category when the shelf asks this much more or less of retail than sold items kept over 12 weeks (default 25%). Needs the recovery estimate switch.',
+    tab: 'inventory',
+    kind: 'percent',
+  },
+  inventory_review_price_min_n: {
+    label: 'Review: sales needed for priced flags',
+    help: 'The priced high / low flags need at least this many sales with a retail over 12 weeks (default 20).',
+    tab: 'inventory',
+    kind: 'count',
+  },
   shrink_age_start_days: {
     label: 'Shrink: maybe gone after (days unseen)',
     help: 'An item on the shelf nobody has scanned, sold, moved or repriced for this many days starts to count as maybe gone (default 90).',
@@ -907,6 +937,8 @@ export function isOwnerOnlyKey(key: string): boolean {
 const OWNER_SALE_KEYS = new Set([
   'pos.store_sale_name', 'pos.store_sale_percent', 'pos.line_sale_on', 'pos.line_sale_name', 'pos.line_sale_percent',
   'pos.discount_cap_percent', 'pos.close_note_over',
+  // Inventory review phase 4: the owner turns the recovery estimate on (2026-10-28).
+  'inventory_recovery_estimate',
 ]);
 
 /** Known to the registry, or job state: anything else is Unsorted. */

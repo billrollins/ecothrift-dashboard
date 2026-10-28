@@ -57,6 +57,8 @@ class AppSettingViewSet(viewsets.ModelViewSet):
         'pos.store_sale_name', 'pos.store_sale_percent', 'pos.line_sale_on', 'pos.line_sale_name', 'pos.line_sale_percent',
         'owner.scorecard_targets', 'dashboard.focus_numbers',
         'pos.discount_cap_percent', 'pos.close_note_over',
+        # The recovery estimate switch (inventory review phase 4, 2026-10-28): the owner turns it on.
+        'inventory_recovery_estimate',
     }
 
     def _owner_only(self, key: str) -> None:

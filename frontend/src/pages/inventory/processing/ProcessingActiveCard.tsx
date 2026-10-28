@@ -2421,6 +2421,7 @@ export function ProcessingActiveCard({
       <ProcessingCheckInDialog
         open={checkInOpen}
         row={row}
+        orderId={orderId}
         initialProductId={checkInProductId}
         loading={checkInLoading || updateItemCheckIn.isPending}
         seed={checkInSeed}

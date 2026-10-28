@@ -42,6 +42,8 @@ const FLAG_LABEL: Record<ReviewFlag, string> = {
   stale: 'Stale-heavy',
   slowing: 'Slowing',
   missing: 'Missing data',
+  priced_high: 'Priced high',
+  priced_low: 'Priced low',
 };
 
 export function pct(n: number | null | undefined): string {
@@ -72,6 +74,11 @@ export function flagHelp(flag: ReviewFlag, s: Record<string, number>, row?: Revi
       return `More than ${pct(s.inventory_review_stale_heavy_share)} of on hand is over ${s.inventory_review_stale_days} days on the shelf.`;
     case 'slowing':
       return `The last 4 weeks sold ${pct(s.inventory_review_slowing_share)} or more below the 12-week average.`;
+    case 'priced_high':
+    case 'priced_low':
+      return row
+        ? `The shelf asks ${pct(row.asking)} of retail; sold items kept ${pct(row.recovery_12wk)} over 12 weeks (n=${row.sold_with_retail_12wk.toLocaleString()}). Flagged ${pct(s.inventory_review_price_gap_share)} or more apart.`
+        : `The shelf asks ${pct(s.inventory_review_price_gap_share)} more (or less) of retail than sold items kept over 12 weeks.`;
     default:
       return row
         ? `Mixed lots, or over ${pct(s.inventory_review_missing_share)} of on hand missing data: ${row.on_hand_no_retail} with no retail, ${row.on_hand_no_checkin} with no check-in date.`
@@ -385,6 +392,7 @@ const LIMITS: { key: ReviewFlag | 'stale_days'; title: string; kind: LimitKind; 
   { key: 'stale', title: 'Stale-heavy', kind: 'share', rule: 'More of on hand stale than this.' },
   { key: 'slowing', title: 'Slowing', kind: 'share', rule: 'The last 4 weeks sold this much below the 12-week average (only with at least 1 sale a week over 12 weeks).' },
   { key: 'missing', title: 'Missing data', kind: 'share', rule: 'More of on hand with no retail or no check-in date than this. Mixed lots always carries it.' },
+  { key: 'priced_high', title: 'Priced high or low', kind: 'share', rule: 'The shelf asks this much more (or less) of retail than sold items kept over 12 weeks (at least 20 sales with a retail). Asking is a tag price and kept is after ThriftBucks, so asking runs a little above kept even when priced right.' },
 ];
 
 const UNIT: Record<LimitKind, string> = { weeks: 'weeks', share: '%', days: 'days' };
@@ -447,14 +455,19 @@ function LimitField({ limit, data, canEdit }: { limit: (typeof LIMITS)[number]; 
 
 const CARRIERS_SHOWN = 8;
 
-function Carriers({ flag }: { flag: FlagsResponse['flags'][number] }) {
+function Carriers({ flag, heading }: { flag: FlagsResponse['flags'][number]; heading?: string }) {
   const [all, setAll] = useState(false);
   const groups = DIMENSIONS.filter((d) => flag.carried[d].length);
   if (!groups.length) {
-    return <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Nothing carries it now.</Typography>;
+    return (
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+        {heading ? `${heading}: nothing now.` : 'Nothing carries it now.'}
+      </Typography>
+    );
   }
   return (
     <Stack spacing={0.75} sx={{ mt: 1 }}>
+      {heading && <Typography variant="body2" sx={{ fontWeight: 600 }}>{heading}</Typography>}
       {groups.map((d) => (
         <Box key={d}>
           <Typography variant="caption" color="text.secondary">
@@ -500,8 +513,9 @@ function FlagsTab({ span, phone, setParam }: {
       {isError && <Typography color="error" sx={{ mb: 1 }}>The flags did not load. Try again.</Typography>}
       {data && (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1.5, alignItems: 'start' }}>
-          {LIMITS.map((limit) => {
+          {LIMITS.filter((l) => l.key !== 'priced_high' || data.recovery_enabled).map((limit) => {
             const flag = limit.key === 'stale_days' ? undefined : flagByKey.get(limit.key);
+            const low = limit.key === 'priced_high' ? flagByKey.get('priced_low') : undefined;
             const stored = data.settings[data.setting_keys[limit.key]];
             return (
               <Paper key={limit.key} variant="outlined" sx={{ p: 1.5 }} aria-label={`${limit.title} flag`}>
@@ -513,7 +527,8 @@ function FlagsTab({ span, phone, setParam }: {
                   </Box>
                   <LimitField key={`${limit.key}:${stored}`} limit={limit} data={data} canEdit={canEdit} />
                 </Stack>
-                {flag && <Carriers flag={flag} />}
+                {flag && <Carriers flag={flag} heading={low ? 'Priced high' : undefined} />}
+                {low && <Carriers flag={low} heading="Priced low" />}
               </Paper>
             );
           })}

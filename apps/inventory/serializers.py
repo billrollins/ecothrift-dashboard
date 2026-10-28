@@ -214,6 +214,8 @@ class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
     """Staging review: exposes standard_/ai_/final_ layers plus effective flat aliases."""
 
     base_cost = serializers.SerializerMethodField()
+    # What similar items keep of retail (inventory review phase 4, owner's switch): null when off.
+    recovery = serializers.SerializerMethodField()
     ideal_price = serializers.SerializerMethodField()
     set_price = serializers.SerializerMethodField()
     ideal_delta_pct = serializers.SerializerMethodField()
@@ -300,6 +302,7 @@ class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
             'final_layer_visible',
             'base_cost',
             'ideal_price',
+            'recovery',
             'set_price',
             'ideal_delta_pct',
         ]
@@ -343,6 +346,24 @@ class PreprocessingReviewRowSerializer(serializers.ModelSerializer):
 
     def get_category(self, obj):
         return effective_taxonomy_category_for_row(obj)
+
+    def get_recovery(self, obj):
+        """{recovery, n, basis, low, high, mid, verdict} from category, vendor, price point and condition (no
+        neighbours here: one page of rows at a time). Needs the context's ``recovery_model``."""
+        model = self.context.get('recovery_model')
+        if model is None or not obj.unit_retail:
+            return None
+        from apps.inventory.services import recovery_estimate
+
+        price = obj.final_price if obj.final_price is not None else obj.proposed_price
+        out = recovery_estimate.estimate(
+            retail=obj.unit_retail, category=effective_taxonomy_category_for_row(obj),
+            vendor=self.context.get('recovery_vendor', ''), condition=str(effective_preprocessing_triple(obj, 'condition') or ''),
+            price=price, model=model, with_neighbours=False,
+        )
+        if out is None:
+            return None
+        return {k: out[k] for k in ('recovery', 'n', 'basis', 'low', 'high', 'mid', 'verdict')}
 
     def get_final_layer_visible(self, obj):
         return preprocessing_row_has_final(obj)
@@ -416,6 +437,7 @@ class PreprocessingReviewRowMinimalSerializer(PreprocessingReviewRowSerializer):
             'search_tags',
             'base_cost',
             'ideal_price',
+            'recovery',
             'set_price',
             'ideal_delta_pct',
             'final_layer_visible',

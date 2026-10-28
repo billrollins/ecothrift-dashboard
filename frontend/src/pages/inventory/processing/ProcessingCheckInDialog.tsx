@@ -41,6 +41,7 @@ import { processingTokens } from './processingTokens';
 import { ProcessingCheckInEditStats, ProductSummaryCard } from './ProcessingCheckInEditStats';
 import { useWorkbenchConfirmDialog } from '../workbench/useWorkbenchConfirmDialog';
 import { RestorationRequestFields } from '../restorationRequest/RestorationRequestFields';
+import { RecoveryHint } from '../../../components/inventory/RecoveryHint';
 import {
   EMPTY_REQUEST,
   requestFromSaved,
@@ -159,6 +160,8 @@ export interface ProcessingCheckInDialogProps {
   open: boolean;
   row: ProcessingWorkspaceRowDTO;
   loading: boolean;
+  /** The order being processed: its vendor feeds the recovery estimate. */
+  orderId?: number | null;
   initialProductId?: number | null;
   seed?: ProcessingCheckInSeed | null;
   onClose: () => void;
@@ -174,6 +177,7 @@ export function ProcessingCheckInDialog({
   open,
   row,
   loading,
+  orderId = null,
   initialProductId = null,
   seed = null,
   onClose,
@@ -429,6 +433,10 @@ export function ProcessingCheckInDialog({
               specsHelperText="Supplements product catalog specs; saved on each item in this check-in."
               disabled={busy}
               highlightRequired={!isEditMode}
+              belowPrice={
+                <RecoveryHint retail={retail} productId={productId} orderId={orderId} condition={condition} price={price}
+                  onUsePrice={setPrice} disabled={busy} />
+              }
             />
             {toRestoration ?
               <RestorationRequestFields value={estimate} onChange={setEstimate} disabled={busy} />

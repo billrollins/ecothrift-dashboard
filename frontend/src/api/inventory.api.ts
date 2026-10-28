@@ -954,6 +954,8 @@ export interface PreprocessingReviewRow {
   final_search_tags?: string[] | null;
   base_cost: string | null;
   ideal_price: string | null;
+  /** What similar items keep of retail, with a suggested band (owner's recovery estimate switch on; else null). */
+  recovery?: Omit<import('./recoveryEstimate.api').RecoveryEstimate, 'sources'> | null;
   set_price: string | null;
   ideal_delta_pct: number | null;
   match_candidates: PreprocessingMatchCandidate[];

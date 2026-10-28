@@ -208,7 +208,14 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
         keys: [
           'inventory_review_stale_days', 'inventory_review_overstock_weeks', 'inventory_review_short_weeks',
           'inventory_review_stale_heavy_share', 'inventory_review_slowing_share', 'inventory_review_missing_share',
+          'inventory_review_price_gap_share', 'inventory_review_price_min_n',
         ],
+      },
+      {
+        id: 'recovery',
+        title: 'Recovery estimate',
+        help: 'What similar items keep of retail, at Preprocessing and check-in. The owner turns it on.',
+        keys: ['inventory_recovery_estimate', 'inventory_recovery_prior_n', 'inventory_recovery_band_share'],
       },
     ],
   },

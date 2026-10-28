@@ -31,6 +31,7 @@ import type {
   PreprocessingReviewRowUpdate,
   PreprocessingReviewSummary,
 } from '../../api/inventory.api';
+import { recoveryLine } from './RecoveryHint';
 import { PreprocessingMatchCell } from './PreprocessingMatchCell';
 import { formatConditionLabel, ITEM_CONDITIONS } from '../../constants/inventory.constants';
 import { isTaxonomyV1CategoryName, TAXONOMY_V1_CATEGORY_NAMES } from '../../constants/taxonomyV1';
@@ -223,6 +224,13 @@ interface ReviewRowProps {
   applyRowPriceStep: (rowId: number, factor: number) => void;
   getRowByNumber: (rowNumber: number) => PreprocessingReviewRow | undefined;
   onSetMatch: (rowId: number, finalMatchedProduct: number | null, decision?: 'unset') => Promise<void>;
+}
+
+/** Outside the suggested band (the price being typed, not the saved one). */
+function recoveryVerdict(price: string, r: NonNullable<PreprocessingReviewRow['recovery']>): boolean {
+  const p = Number.parseFloat(price);
+  if (!Number.isFinite(p)) return false;
+  return p > Number.parseFloat(r.high) || p < Number.parseFloat(r.low);
 }
 
 function rowValue(row: PreprocessingReviewRow, patch: PreprocessingReviewRowPatch | undefined, field: keyof PreprocessingReviewRowPatch) {
@@ -443,6 +451,25 @@ const ReviewRow = memo(function ReviewRow({
             {delta == null ? '' : ` (${delta >= 0 ? '+' : ''}${delta.toFixed(0)}%)`}
           </Typography>
         </Tooltip>
+        {row.recovery ? (
+          <Tooltip
+            disableInteractive
+            enterDelay={300}
+            title={`${recoveryLine(row.recovery)}, based on ${row.recovery.basis}. Suggested ${money(row.recovery.low)} to ${money(row.recovery.high)}. Click to use ${money(row.recovery.mid)}.`}
+          >
+            <Typography
+              variant="caption"
+              component="button"
+              onClick={() => setField(row.id, 'final_price', row.recovery!.mid)}
+              sx={{
+                display: 'block', mx: 'auto', fontSize: 10, lineHeight: 1.2, whiteSpace: 'nowrap', background: 'none', border: 0,
+                p: 0, cursor: 'pointer', color: recoveryVerdict(price, row.recovery) ? 'warning.main' : 'text.secondary',
+              }}
+            >
+              keeps {Math.round(row.recovery.recovery * 100)}%
+            </Typography>
+          </Tooltip>
+        ) : null}
       </TableCell>
     </TableRow>
   );

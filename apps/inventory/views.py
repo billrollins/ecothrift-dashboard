@@ -649,7 +649,14 @@ def build_preprocessing_review_serializer_context(order):
         for row_id, _row_number in entries:
             others = sorted(rn for rid, rn in entries if rid != row_id)[:10]
             peers_by_row_id[row_id] = others
-    return {'same_product_peers_by_row_id': peers_by_row_id}
+    ctx = {'same_product_peers_by_row_id': peers_by_row_id}
+    # Inventory review phase 4: what similar items keep of retail, per row (the owner's switch; one model per page).
+    from .services import recovery_estimate
+
+    if recovery_estimate.is_enabled():
+        ctx['recovery_model'] = recovery_estimate.get_model()
+        ctx['recovery_vendor'] = order.vendor.code if order.vendor_id else ''
+    return ctx
 
 
 def summarize_preprocessing_rows(order, rows_qs):
@@ -5808,6 +5815,10 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
         order = self.get_object()
         rows = ManifestRow.objects.filter(purchase_order=order).select_related('matched_product')
+        from .services import recovery_estimate
+
+        recovery_model = recovery_estimate.get_model() if recovery_estimate.is_enabled() else None
+        order_vendor = order.vendor.code if order.vendor_id else ''
 
         overwrite = bool(request.data.get('overwrite', False))
         updated = 0
@@ -5841,6 +5852,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 source='purchased',
                 retail_value=row.unit_retail,
                 include_comparables=False,
+                vendor_code=order_vendor,
+                recovery_model=recovery_model,
             )
 
             row.proposed_price = result.estimated_price
@@ -8387,8 +8400,9 @@ def estimate_price_view(request):
     """Estimate a price for an item given its attributes.
 
     POST /api/inventory/estimate-price/
-    Body: { title, brand?, model?, condition?, source?, retail_value?, category? }
-    Returns: { estimated_price, low_estimate, high_estimate, confidence, method, comparables }
+    Body: { title, brand?, model?, condition?, source?, retail_value?, category?, product?, order?, price? }
+    Returns: { estimated_price, low_estimate, high_estimate, confidence, method, comparables, recovery }
+    (``recovery`` with the owner's switch ``inventory_recovery_estimate`` on, else null)
     """
     from .services.price_estimator import estimate_price
     from decimal import InvalidOperation
@@ -8411,6 +8425,9 @@ def estimate_price_view(request):
         condition=request.data.get('condition', 'unknown'),
         source=request.data.get('source', 'purchased'),
         retail_value=retail_value,
+        product_id=_int_or_none(request.data.get('product')),
+        vendor_code=_order_vendor_code(request.data.get('order')),
+        price=request.data.get('price') or None,
     )
 
     return Response({
@@ -8421,7 +8438,40 @@ def estimate_price_view(request):
         'method': result.method,
         'comparables': result.comparables,
         'notes': result.notes,
+        'recovery': result.recovery,
     })
+
+
+def _int_or_none(raw):
+    try:
+        return int(raw) if raw not in (None, '') else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _order_vendor_code(raw) -> str:
+    from .services.recovery_estimate import vendor_code
+
+    return vendor_code(_int_or_none(raw))
+
+
+@api_view(['GET'])
+@perm_classes([IsAuthenticated, IsStaff])
+def recovery_estimate_view(request):
+    """What similar items keep of retail, for a check-in screen (inventory review phase 4).
+
+    GET /api/inventory/recovery-estimate/?retail=&product=&order=&condition=&price=&category=
+    Returns: { enabled, estimate } (estimate null with the switch off, no retail, or nothing sold yet)
+    """
+    from .services import recovery_estimate
+
+    if not recovery_estimate.is_enabled():
+        return Response({'enabled': False, 'estimate': None})
+    q = request.query_params
+    return Response({'enabled': True, 'estimate': recovery_estimate.for_item_inputs(
+        retail=q.get('retail'), product_id=_int_or_none(q.get('product')), order_id=_int_or_none(q.get('order')),
+        condition=str(q.get('condition') or ''), price=q.get('price') or None, category=str(q.get('category') or ''),
+    )})
 
 
 @api_view(['POST'])

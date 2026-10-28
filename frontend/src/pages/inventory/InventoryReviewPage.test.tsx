@@ -24,11 +24,13 @@ function row(key: string, over: Partial<ReviewRow> = {}): ReviewRow {
     sold_net_with_retail: '27.00', sold_cost: '9.00', sold_with_cost: 3, sold_net_with_cost: '27.00', sold_no_checkin: 0,
     median_days_to_sell: 12.4, sold_4wk: 8, sold_12wk: 30, on_hand: 40, stale_on_hand: 10, bulk_on_hand: 20,
     on_hand_no_retail: 1, on_hand_no_checkin: 0, on_hand_missing: 1, weeks_of_supply: 20, stale_share: 0.25,
-    bulk_share: 0.5, recovery: 0.3, net_to_cost: 3, flags: ['overstocked'], rank: 0, ...over,
+    bulk_share: 0.5, recovery: 0.3, net_to_cost: 3, flags: ['overstocked'], rank: 0, asking: 0.42, recovery_12wk: 0.31,
+    sold_with_retail_12wk: 60, ...over,
   };
 }
 
 const SETTINGS = {
+  inventory_review_price_gap_share: 0.25, inventory_review_price_min_n: 20,
   inventory_review_overstock_weeks: 12, inventory_review_short_weeks: 2, inventory_review_stale_heavy_share: 0.4,
   inventory_review_slowing_share: 0.3, inventory_review_missing_share: 0.1, inventory_review_stale_days: 90,
 };
@@ -156,7 +158,9 @@ describe('InventoryReviewPage', () => {
         overstocked: 'inventory_review_overstock_weeks', short: 'inventory_review_short_weeks',
         stale: 'inventory_review_stale_heavy_share', slowing: 'inventory_review_slowing_share',
         missing: 'inventory_review_missing_share', stale_days: 'inventory_review_stale_days',
+        priced_high: 'inventory_review_price_gap_share', priced_low: 'inventory_review_price_gap_share',
       },
+      recovery_enabled: false,
       flags: [
         { key: 'overstocked', label: 'Overstocked', carried: { category: [{ key: 'Toys & games', label: 'Toys & games', on_hand: 10 }], vendor: [{ key: 'TRGET', label: 'Target (TRGET)', on_hand: 50 }], price_point: [] } },
         { key: 'short', label: 'Short', carried: { category: [], vendor: [], price_point: [] } },
@@ -189,7 +193,8 @@ describe('InventoryReviewPage', () => {
     api.getReviewFlags.mockResolvedValue({
       data: {
         span: 1, from: '2026-10-19', to: '2026-10-25', as_of: '2026-10-28T15:00:00-05:00', settings: SETTINGS,
-        setting_keys: { overstocked: 'inventory_review_overstock_weeks', short: 'inventory_review_short_weeks', stale: 'inventory_review_stale_heavy_share', slowing: 'inventory_review_slowing_share', missing: 'inventory_review_missing_share', stale_days: 'inventory_review_stale_days' },
+        setting_keys: { overstocked: 'inventory_review_overstock_weeks', short: 'inventory_review_short_weeks', stale: 'inventory_review_stale_heavy_share', slowing: 'inventory_review_slowing_share', missing: 'inventory_review_missing_share', stale_days: 'inventory_review_stale_days', priced_high: 'inventory_review_price_gap_share', priced_low: 'inventory_review_price_gap_share' },
+        recovery_enabled: false,
         flags: [],
       },
     });
@@ -198,5 +203,34 @@ describe('InventoryReviewPage', () => {
     expect(screen.getByText('40 %')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
     auth.manager = true;
+  });
+
+  it('shows the priced high or low card only with the recovery estimate on', async () => {
+    mockTabs();
+    const keys = {
+      overstocked: 'inventory_review_overstock_weeks', short: 'inventory_review_short_weeks',
+      stale: 'inventory_review_stale_heavy_share', slowing: 'inventory_review_slowing_share',
+      missing: 'inventory_review_missing_share', stale_days: 'inventory_review_stale_days',
+      priced_high: 'inventory_review_price_gap_share', priced_low: 'inventory_review_price_gap_share',
+    } as FlagsResponse['setting_keys'];
+    const none = { category: [], vendor: [], price_point: [] };
+    api.getReviewFlags.mockResolvedValue({
+      data: {
+        span: 1, from: '2026-10-19', to: '2026-10-25', as_of: '2026-10-28T15:00:00-05:00', settings: SETTINGS,
+        setting_keys: keys, recovery_enabled: true,
+        flags: [
+          { key: 'priced_high', label: 'Priced high', carried: { ...none, category: [{ key: 'Toys & games', label: 'Toys & games', on_hand: 10 }] } },
+          { key: 'priced_low', label: 'Priced low', carried: none },
+        ],
+      } satisfies FlagsResponse,
+    });
+    renderAt('/inventory/review?tab=flags');
+    const card = await screen.findByLabelText('Priced high or low flag');
+    expect(within(card).getByText('Toys & games · 10')).toBeInTheDocument();
+    expect(within(card).getByText('Priced low: nothing now.')).toBeInTheDocument();
+    expect(within(card).getByLabelText('Priced high or low limit')).toHaveValue('25');
+    expect(flagHelp('priced_high', SETTINGS, row('A'))).toBe(
+      'The shelf asks 42% of retail; sold items kept 31% over 12 weeks (n=60). Flagged 25% or more apart.',
+    );
   });
 });

@@ -12,6 +12,11 @@ APPROACH
    - Uses retail_value * 0.35 as a starting estimate
    - Adjusts by condition and source multipliers
 3. Always returns the top 3 most similar sold items from the DB for context.
+4. With the owner's switch ``inventory_recovery_estimate`` on (inventory review phase 4), it also returns
+   ``recovery``: what similar items keep of retail (``services/recovery_estimate.py``: category, subcategory, vendor,
+   price point, condition and sold neighbours, each pulled toward its parent by sample size). The heuristic fallback
+   then prices from that recovery (retail x recovery, with its band) instead of the fixed condition multipliers, and
+   says so in ``method`` ('recovery').
 
 TRAINING
 --------
@@ -58,6 +63,8 @@ class PriceEstimate:
     method: str                # 'model' | 'heuristic'
     comparables: list[dict] = field(default_factory=list)
     notes: str = ''
+    # What similar items keep of retail (switch on only); see services/recovery_estimate.py.
+    recovery: Optional[dict] = None
 
 
 def _load_model():
@@ -178,6 +185,27 @@ def _find_comparables(
     return results
 
 
+def _recovery(retail_value, category_name, subcategory, vendor_code, condition, price, product_id, model):
+    """The recovery estimate when the owner's switch is on; None otherwise or when there is nothing to go on."""
+    from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES
+    from apps.inventory.services import recovery_estimate
+
+    if not retail_value or not recovery_estimate.is_enabled():
+        return None
+    try:
+        category = category_name if category_name in TAXONOMY_V1_CATEGORY_NAMES else ''
+        if product_id and not category:
+            facts = recovery_estimate.product_facts(product_id)
+            category, subcategory = facts['category'], subcategory or facts['subcategory']
+        return recovery_estimate.estimate(
+            retail=retail_value, category=category, subcategory=subcategory, vendor=vendor_code,
+            condition=condition, price=price, product_id=product_id, model=model, with_neighbours=model is None,
+        )
+    except Exception as exc:  # never break pricing
+        logger.warning('Recovery estimate failed: %s', exc)
+        return None
+
+
 def estimate_price(
     title: str,
     brand: Optional[str] = None,
@@ -187,6 +215,12 @@ def estimate_price(
     source: str = 'purchased',
     retail_value: Optional[Decimal] = None,
     include_comparables: bool = True,
+    *,
+    product_id: Optional[int] = None,
+    vendor_code: str = '',
+    subcategory: str = '',
+    price: Optional[Decimal] = None,
+    recovery_model=None,
 ) -> PriceEstimate:
     """
     Estimate the selling price for an item.
@@ -200,6 +234,8 @@ def estimate_price(
         source:           One of: purchased / consignment / misc.
         retail_value:     Vendor-stated retail / cost.
         include_comparables: Whether to query the DB for similar sold items.
+        product_id, vendor_code, subcategory, price: what the recovery estimate reads (switch on only).
+        recovery_model:   A loaded ``RecoveryModel`` for many rows at once (no neighbours then).
 
     Returns:
         PriceEstimate with price, confidence interval, and comparables.
@@ -207,6 +243,8 @@ def estimate_price(
     comparables: list[dict] = []
     if include_comparables:
         comparables = _find_comparables(title, brand, category_name, condition)
+    recovery = _recovery(retail_value, category_name, subcategory, vendor_code, condition, price, product_id,
+                         recovery_model)
 
     ml_bundle = _load_model()
     if ml_bundle is not None:
@@ -231,9 +269,22 @@ def estimate_price(
                 confidence=confidence,
                 method='model',
                 comparables=comparables,
+                recovery=recovery,
             )
         except Exception as exc:
             logger.warning('ML price prediction failed, falling back to heuristic: %s', exc)
+
+    if recovery is not None:
+        return PriceEstimate(
+            estimated_price=Decimal(recovery['mid']),
+            low_estimate=Decimal(recovery['low']),
+            high_estimate=Decimal(recovery['high']),
+            confidence=round(min(0.85, 0.30 + recovery['n'] / (recovery['n'] + 200)), 2),
+            method='recovery',
+            comparables=comparables,
+            notes=f"Similar items keep {recovery['recovery']:.0%} of retail (n={recovery['n']}, {recovery['basis']}).",
+            recovery=recovery,
+        )
 
     # Heuristic fallback
     mid, low, high = _heuristic_estimate(retail_value, condition, source)

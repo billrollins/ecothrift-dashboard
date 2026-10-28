@@ -1,10 +1,10 @@
-<!-- Last updated: 2026-10-26 (phase 3: Vendors, Price points and Flags tabs) -->
+<!-- Last updated: 2026-10-28 (phase 4: recovery per item, behind the owner switch) -->
 # Inventory review
 
 The owner's plan (approved 2026-10-22): weekly numbers per category, subcategory, vendor and price point, so the
 floor can be read and buying steered. Phase 1 is the data (v2.216.0); phase 2 is Inventory → Review, Categories tab
-(v2.218.0); phase 3 adds the Vendors, Price points and Flags tabs. Phase 4 (recovery per item, behind a switch) is not
-built.
+(v2.218.0); phase 3 the Vendors, Price points and Flags tabs; phase 4 the recovery estimate per item, behind the
+owner's switch.
 
 ## Sale facts on the item (phase 1)
 
@@ -102,3 +102,38 @@ Vendors). Page `pages/inventory/InventoryReviewPage.tsx`; API `GET /api/inventor
   limit, and what carries it now on each tab (first 8 per tab, "+N more"). A category chip opens its subcategories;
   a vendor or price point chip opens its items. Managers (and the Super User) change a limit right there (the same
   settings as Settings → Inventory → Inventory review, `PATCH /api/core/settings/<key>/`); everyone else sees the limits.
+
+## Recovery estimate per item (phase 4, owner's switch)
+
+`services/recovery_estimate.py`, behind **`inventory_recovery_estimate`** (off by default; owner-only: Admin or the
+Super User, `AppSettingViewSet.ADMIN_ONLY`). Recovery = net (`sold_net`) ÷ retail, on sold items with a retail.
+
+- **Sources** (rate and n = sold items with a retail): the store, category, subcategory and vendor and price point from
+  the rollup over the last 52 complete weeks; condition from sold items over the last year (the rollup has none); the
+  **sold vector neighbours** (`ProductVector`, similarity ≥ 0.75, their sales over a year), only from a product's
+  stored vector so no model loads on the web server.
+- **Pulled toward the parent**: (n·r + k·parent) ÷ (n + k), k = `inventory_recovery_prior_n` (30). Category → store,
+  subcategory → category, neighbours → subcategory; vendor, price point, condition → store. Then the "what it is"
+  level, vendor, price point and condition are averaged, each weighted n ÷ (n + k).
+- **Shown n** = the most specific "what" level with at least k sales ("similar items keep 31% of retail (n=212)").
+- **Band** = retail × recovery × (1 ± `inventory_recovery_band_share`, 20%); a price outside it is priced high or low.
+- The model (all the rates) is cached for an hour (`inventory_recovery_model_v1`).
+
+Where it shows:
+
+- **Processing check-in** (`ProcessingCheckInDialog` → `CheckInDetailFieldsSection.belowPrice` →
+  `components/inventory/RecoveryHint.tsx`; `GET /api/inventory/recovery-estimate/?retail=&product=&order=&condition=&price=`):
+  the line, the band, a Priced high / low chip, and "Use $x" (the band's middle). Uses neighbours.
+- **Preprocessing** pricing table: under the Ideal price, "keeps 31%" (tooltip: n, basis, band; click to set the
+  price to the middle). From the review rows' `recovery` field (one model per page, no neighbours).
+- **The price estimator** (`price_estimator.estimate_price`, `POST /api/inventory/estimate-price/`, the order's
+  "estimate prices"): returns `recovery`; with no trained model it prices from it (`method: 'recovery'`) instead of the
+  fixed condition multipliers.
+- **Inventory review flags** Priced high / Priced low (switch on only): the shelf's asking price ÷ retail against what
+  sold kept over 12 weeks, `inventory_review_price_gap_share` (25%) apart, with at least `inventory_review_price_min_n`
+  (20) sales. Asking is a tag price and kept is after ThriftBucks, so asking runs a little above kept even when priced
+  right. On the Flags tab as one "Priced high or low" card.
+
+Settings (migration 0124): the switch, `inventory_recovery_prior_n`, `inventory_recovery_band_share`,
+`inventory_review_price_gap_share`, `inventory_review_price_min_n` (Settings → Inventory → Recovery estimate and
+Inventory review).

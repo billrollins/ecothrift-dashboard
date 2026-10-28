@@ -793,6 +793,8 @@ export interface CheckInDetailFieldsSectionProps {
   disabled?: boolean;
   /** Amber outline on required fields (price) until valid - for new/duplicate check-in. */
   highlightRequired?: boolean;
+  /** Under the retail and price row: e.g. the recovery estimate (components/inventory/RecoveryHint). */
+  belowPrice?: React.ReactNode;
 }
 
 /** Bordered form section - matches product edit detail layout. */
@@ -814,6 +816,7 @@ export function CheckInDetailFieldsSection({
   specsHelperText,
   disabled,
   highlightRequired = false,
+  belowPrice,
 }: CheckInDetailFieldsSectionProps) {
   const retailPriceLock = useRetailPriceLock();
   const salvageLocked = condition === 'salvage';
@@ -948,6 +951,7 @@ export function CheckInDetailFieldsSection({
             }
           />
         </Box>
+        {belowPrice}
         <Box sx={{ gridColumn: '1 / -1' }}>
           <ItemSpecificationsEditor
             value={specifications}

@@ -1,7 +1,7 @@
 import api from './client';
 
 /** Inventory → Review flag codes (apps/inventory/services/inventory_review.py). */
-export type ReviewFlag = 'overstocked' | 'short' | 'stale' | 'slowing' | 'missing';
+export type ReviewFlag = 'overstocked' | 'short' | 'stale' | 'slowing' | 'missing' | 'priced_high' | 'priced_low';
 
 /** One category (or subcategory) row: flows over the span from the weekly rollup, stock as of now. */
 export interface ReviewRow {
@@ -38,6 +38,10 @@ export interface ReviewRow {
   recovery: number | null;
   net_to_cost: number | null;
   flags: ReviewFlag[];
+  /** The shelf's price ÷ retail, and what sold kept of retail over 12 weeks (the priced high / low flags). */
+  asking: number | null;
+  recovery_12wk: number | null;
+  sold_with_retail_12wk: number;
   /** Price points: their order (Under $5 first); the total is -1. */
   rank: number;
 }
@@ -83,6 +87,8 @@ export interface FlagsResponse {
   settings: Record<string, number>;
   /** The owner setting behind each flag, and `stale_days`. */
   setting_keys: Record<ReviewFlag | 'stale_days', string>;
+  /** The owner's recovery estimate switch: the priced high / low flags only work with it on. */
+  recovery_enabled: boolean;
   flags: { key: ReviewFlag; label: string; carried: Record<ReviewDimension, FlagCarrier[]> }[];
 }
 

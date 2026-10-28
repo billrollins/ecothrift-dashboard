@@ -24,7 +24,7 @@ from .views import (
     manifest_field_metadata_view, item_lookup,
     classify_item_view, shrink_estimate_view, store_report_view,
     verify_present_view, quick_reprice_view, duplicate_item_for_resale_view,
-    mark_sold_item_on_shelf_view, estimate_price_view,
+    mark_sold_item_on_shelf_view, estimate_price_view, recovery_estimate_view,
 )
 
 router = DefaultRouter()
@@ -75,4 +75,5 @@ urlpatterns = [
     path('items/<int:pk>/duplicate-for-resale/', duplicate_item_for_resale_view, name='item-duplicate-for-resale'),
     path('items/<int:pk>/mark-on-shelf/', mark_sold_item_on_shelf_view, name='item-mark-on-shelf'),
     path('estimate-price/', estimate_price_view, name='estimate-price'),
+    path('recovery-estimate/', recovery_estimate_view, name='recovery-estimate'),
 ]

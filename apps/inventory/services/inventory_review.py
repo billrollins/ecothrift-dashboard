@@ -16,7 +16,11 @@ Flags, each limit an owner setting (``SETTINGS``):
 - **slowing**: 4-week sales ``inventory_review_slowing_share`` (30%) or more below the 12-week average (only with at
   least one sale a week over the 12 weeks, so a quiet category doesn't flag on noise);
 - **missing data**: Mixed lots, or more than ``inventory_review_missing_share`` (10%) of on hand with no retail or no
-  check-in date.
+  check-in date;
+- **priced high / priced low** (phase 4, only with the owner's switch ``inventory_recovery_estimate`` on): the shelf's
+  asking price ÷ retail (on hand with a retail) is more than ``inventory_review_price_gap_share`` (25%) above or below
+  what sold kept of retail over the last 12 weeks, when at least ``inventory_review_price_min_n`` (20) sold with a
+  retail. Asking is a tag price and kept is after ThriftBucks, so asking runs a little above kept even when priced right.
 """
 from __future__ import annotations
 
@@ -43,6 +47,8 @@ SETTINGS = {
     'inventory_review_stale_heavy_share': 0.40,
     'inventory_review_slowing_share': 0.30,
     'inventory_review_missing_share': 0.10,
+    'inventory_review_price_gap_share': 0.25,
+    'inventory_review_price_min_n': 20,
 }
 
 FLAGS = [
@@ -51,7 +57,10 @@ FLAGS = [
     ('stale', 'Stale-heavy'),
     ('slowing', 'Slowing'),
     ('missing', 'Missing data'),
+    ('priced_high', 'Priced high'),
+    ('priced_low', 'Priced low'),
 ]
+PRICE_FLAGS = ('priced_high', 'priced_low')
 
 
 def settings() -> dict[str, float]:
@@ -66,6 +75,9 @@ def settings() -> dict[str, float]:
         except (TypeError, ValueError):
             out[key] = default
     out['inventory_review_stale_days'] = inventory_week.stale_days()
+    from apps.inventory.services import recovery_estimate
+
+    out['inventory_recovery_estimate'] = 1.0 if recovery_estimate.is_enabled() else 0.0
     return out
 
 
@@ -80,7 +92,9 @@ def _stock_sql(dimension: str, by_sub: bool, stale_days: int, bulk: int) -> tupl
         COUNT(*) FILTER (WHERE product_units >= %(bulk)s),
         COUNT(*) FILTER (WHERE no_retail),
         COUNT(*) FILTER (WHERE no_checkin),
-        COUNT(*) FILTER (WHERE no_retail OR no_checkin)
+        COUNT(*) FILTER (WHERE no_retail OR no_checkin),
+        COALESCE(SUM(price) FILTER (WHERE NOT no_retail), 0),
+        COALESCE(SUM(retail) FILTER (WHERE NOT no_retail), 0)
     FROM (
         SELECT ({case}) AS cat,
                TRIM(COALESCE(pp.subcategory, '')) AS sub,
@@ -88,6 +102,7 @@ def _stock_sql(dimension: str, by_sub: bool, stale_days: int, bulk: int) -> tupl
                {inventory_week.band_sql()} AS band,
                COALESCE(i.checked_in_at, i.created_at) AS in_at,
                (i.retail IS NULL OR i.retail <= 0) AS no_retail,
+               COALESCE(i.price, 0) AS price, i.retail,
                (i.checked_in_at IS NULL OR i.notes LIKE 'BACKFILL:%%') AS no_checkin,
                COUNT(*) OVER (PARTITION BY i.product_id) AS product_units
         FROM inventory_item i
@@ -105,7 +120,8 @@ def _stock_sql(dimension: str, by_sub: bool, stale_days: int, bulk: int) -> tupl
 
 
 STOCK_FIELDS = ('on_hand', 'stale_on_hand', 'bulk_on_hand', 'on_hand_no_retail', 'on_hand_no_checkin',
-                'on_hand_missing')
+                'on_hand_missing', 'on_hand_price', 'on_hand_price_retail')
+MONEY_STOCK = ('on_hand_price', 'on_hand_price_retail')
 
 
 def live_stock(category: str | None, *, stale_days: int, bulk: int, dimension: str = 'category') -> dict[str, dict[str, int]]:
@@ -117,7 +133,7 @@ def live_stock(category: str | None, *, stale_days: int, bulk: int, dimension: s
     with connection.cursor() as cursor:
         cursor.execute(sql, params)
         for key, *vals in cursor.fetchall():
-            out[key] = dict(zip(STOCK_FIELDS, (int(v) for v in vals)))
+            out[key] = {name: (float(v) if name in MONEY_STOCK else int(v)) for name, v in zip(STOCK_FIELDS, vals)}
     return out
 
 
@@ -153,6 +169,14 @@ def _flags(row: dict, cfg: dict) -> list[str]:
     if row['key'] == MIXED_LOTS_UNCATEGORIZED or (
             on_hand and row['on_hand_missing'] / on_hand > cfg['inventory_review_missing_share']):
         flags.append('missing')
+    asking, kept = row['asking'], row['recovery_12wk']
+    if (cfg.get('inventory_recovery_estimate') and asking is not None and kept
+            and row['sold_with_retail_12wk'] >= cfg['inventory_review_price_min_n']):
+        gap = cfg['inventory_review_price_gap_share']
+        if asking > kept * (1 + gap):
+            flags.append('priced_high')
+        elif asking < kept * (1 - gap):
+            flags.append('priced_low')
     return flags
 
 
@@ -181,6 +205,10 @@ def _row(key: str, label: str, weeks: list[dict], stock: dict[str, int], span_we
         'sold_4wk': sold_4, 'sold_12wk': sold_12,
         **{name: stock.get(name, 0) for name in STOCK_FIELDS},
     }
+    # Asking (the shelf's price ÷ retail) against what sold kept over the 12 weeks: the priced high / low flags.
+    row['asking'] = _ratio(row['on_hand_price'], row['on_hand_price_retail'])
+    row['recovery_12wk'] = _ratio(sum(r['sold_net_with_retail'] for r in weeks), sum(r['sold_retail'] for r in weeks))
+    row['sold_with_retail_12wk'] = sum(r['sold_with_retail'] for r in weeks)
     row['weeks_of_supply'] = round(on_hand / (sold_4 / SUPPLY_WEEKS), 1) if sold_4 else None
     row['stale_share'] = _ratio(row['stale_on_hand'], on_hand)
     row['bulk_share'] = _ratio(row['bulk_on_hand'], on_hand)
@@ -189,6 +217,8 @@ def _row(key: str, label: str, weeks: list[dict], stock: dict[str, int], span_we
     row['flags'] = _flags(row, cfg)
     for name in ('sales', 'net', 'sold_retail', 'sold_net_with_retail', 'sold_cost', 'sold_net_with_cost'):
         row[name] = str(row[name])
+    for name in MONEY_STOCK:
+        row[name] = round(row[name], 2)
     return row
 
 
@@ -321,6 +351,8 @@ SETTING_KEYS = {
     'slowing': 'inventory_review_slowing_share',
     'missing': 'inventory_review_missing_share',
     'stale_days': 'inventory_review_stale_days',
+    'priced_high': 'inventory_review_price_gap_share',
+    'priced_low': 'inventory_review_price_gap_share',
 }
 
 
@@ -339,5 +371,6 @@ def flags_summary(span: int = 1, *, today: date | None = None) -> dict[str, Any]
     return {
         'span': data['span'], 'from': data['from'], 'to': data['to'], 'as_of': data['as_of'],
         'settings': data['settings'], 'setting_keys': SETTING_KEYS,
+        'recovery_enabled': bool(data['settings'].get('inventory_recovery_estimate')),
         'flags': [{'key': k, 'label': label, 'carried': carried[k]} for k, label in FLAGS],
     }

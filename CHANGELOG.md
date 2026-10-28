@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.227.0] -->
-<!-- Last reviewed: 2026-10-28 (2.227.0) -->
+<!-- Line 1 release: ## [2.228.0] -->
+<!-- Last reviewed: 2026-10-28 (2.228.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.228.0] - 2026-10-28
+
+User-facing theme: **Inventory Review phase 4: a recovery estimate for each item, behind an owner switch (Bill, 2026-10-28).**
+
+### Added
+- New owner switch, Recovery estimate (Settings → Inventory, off until you turn it on). It shows what similar items keep of retail, like "Similar items keep 31% of retail (n=212)", with a suggested price range at Processing check-in and in Preprocessing pricing.
+- It's worked out from the category, subcategory, vendor, price range, condition and the most similar products that sold, and it leans on the bigger groups when a small one has few sales.
+- With it on, check-in marks a price above or below the range, and Inventory review flags categories, vendors and price ranges priced high or low.
+- With it on, the price estimate uses it when there is no trained price model.
 
 ## [2.227.0] - 2026-10-28
 

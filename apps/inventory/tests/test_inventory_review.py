@@ -178,7 +178,7 @@ class VendorPriceFlagsTests(ReviewTests):
         self.assertEqual(api.get('/api/inventory/review/', {'tab': 'vendor'}).json()['dimension'], 'vendor')
         self.assertEqual(api.get('/api/inventory/review/', {'tab': 'nonsense'}).json()['dimension'], 'category')
         flags = api.get('/api/inventory/review/flags/', {'span': 4})
-        self.assertEqual((flags.status_code, flags.json()['span'], len(flags.json()['flags'])), (200, 4, 5))
+        self.assertEqual((flags.status_code, flags.json()['span'], len(flags.json()['flags'])), (200, 4, len(review.FLAGS)))
 
 
 class WholeStoreTotalTests(ReviewTests):
