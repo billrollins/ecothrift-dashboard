@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-28 (Received with partial packs, spend by vendor and list, We need requests) -->
+<!-- Last updated: 2026-10-28 (supplies.load_lists request: the PR Supply List sheet) -->
 # Supplies
 
 The store's supply lists, the weekly count, and the week's order. Owner design, approved 2026-10-26. App:
@@ -58,6 +58,8 @@ Spend is packs times price of each line ticked Ordered, on the store day it was 
 Anyone taps **We need…** on Supplies: what, which list (or Not sure), an optional link, note and photo (the phone camera opens). It lands on **Requests** (`/supplies/requests`) for managers and the owner, waiting first; the Supplies button shows the waiting count and the Owner page Needs you shows **Supply requests to answer**. **Approve** puts it on a list as an item (min and max needed; vendor, link, pack, unit and price optional, the link's ASIN is kept). **Decline** needs a reason. The requester sees the answer under **My requests** on Supplies (their last 10). `services/requests.py`.
 
 ## Making lists
+
+- From a data file, approved in production: the Requests kind `supplies.load_lists` (`approval_kinds.py`) reads `apps/supplies/data/<file>.json` (lists, each with a department name and items; same checks as a CSV row). Staged with `stage_request supplies.load_lists --params '{"file": "pr_supply_list_2026-10-28.json"}'`. A list is matched by name, an item by name (update) or added. `last_count` numbers become the count for the week whose deadline last passed: grey on the next count, and they order nothing. Undo deletes the lists it made. The first file is the owner's PR Supply List sheet (Retail 16, Processing 21, Restoration 4, all Amazon, no prices yet).
 
 - By hand: Add item.
 - CSV: Import CSV on the list (template: `GET /api/supplies/import-template/`; columns `name, description, vendor, vendor_url, url, vendor_item_id, pack_size, unit, min, max, price`). All or nothing: any bad row saves nothing and the rows are named. A name already on the list updates that item. An Amazon link fills the ASIN.

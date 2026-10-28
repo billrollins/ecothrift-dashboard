@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.229.0] -->
-<!-- Last reviewed: 2026-10-28 (2.229.0) -->
+<!-- Line 1 release: ## [2.229.1] -->
+<!-- Last reviewed: 2026-10-28 (2.229.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.229.1] - 2026-10-28
+
+User-facing theme: **Load the PR Supply List sheet into Supplies as an approved Request (Bill, 2026-10-28).**
+
+### Added
+- Your PR Supply List sheet can be loaded into Supplies as a Request you approve in Dash: Retail, Processing and Restoration with every Amazon item, min and max, and the sheet's counts as last week's count.
 
 ## [2.229.0] - 2026-10-28
 

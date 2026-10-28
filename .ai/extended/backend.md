@@ -138,7 +138,7 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** â
 **Approval requests** (data_platform Phase 1; the owner's rule that production data work is approved in production):
 - **Service:** `services/approval_requests.py` holds a `Kind` registry (preview, apply, undo) with `stage`, `approve`, `reject`, `run`, `resume`, `resume_stalled` and `undo`.
 - **Apply:** runs in a daemon thread after commit, in chunks, through `Progress` (heartbeat, done/total, a resumable cursor, log). An apply must be idempotent. After 5 minutes with no heartbeat a run is stale, and listing the page restarts it.
-- **Kinds** live in each app's `approval_kinds.py`, imported in `AppConfig.ready`. Inventory has `load_profile_proposals`, `apply_profile_proposals`, `seed_brand_aliases` and `merge_duplicates`.
+- **Kinds** live in each app's `approval_kinds.py`, imported in `AppConfig.ready`. Inventory has `load_profile_proposals`, `apply_profile_proposals`, `seed_brand_aliases` and `merge_duplicates`. Supplies has `load_lists` (supply lists from a data file in `apps/supplies/data/`).
 - **API:** `GET /api/core/requests/[?status=a,b]` and `POST â€¦/{id}/approve|reject|undo|resume/` (superuser).
 - **Command:** `stage_request <kind> --title --params JSON [--list]`, run in production (`heroku run`) so the preview uses production data.
 

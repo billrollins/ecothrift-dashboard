@@ -1,8 +1,8 @@
-v2.229.0 — Edit a product's category
+v2.229.1 — Load the PR Supply List as a Request
 
-User-facing theme: **Edit a product's category (Bill, 2026-10-28).**
+User-facing theme: **Load the PR Supply List sheet into Supplies as an approved Request (Bill, 2026-10-28).**
 
 ### Added
-- Edit category: the Product window and the Item window now show the product's category and subcategory with an Edit button. Pick from the store's category list; it stays as set and the cleanup passes won't change it back.
+- Your PR Supply List sheet can be loaded into Supplies as a Request you approve in Dash: Retail, Processing and Restoration with every Amazon item, min and max, and the sheet's counts as last week's count.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
