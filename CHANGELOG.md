@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.226.0] -->
-<!-- Last reviewed: 2026-10-28 (2.226.0) -->
+<!-- Line 1 release: ## [2.226.1] -->
+<!-- Last reviewed: 2026-10-28 (2.226.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.226.1] - 2026-10-28
+
+User-facing theme: **Phones and tablets get their own subcategory (TAX-78, 2026-10-28).**
+
+### Changed
+- Electronics has a new subcategory, Phones & tablets, for the devices themselves; cases, screen protectors and mounts stay in Phone & tablet cases (ruling TAX-78).
 
 ## [2.226.0] - 2026-10-28
 
