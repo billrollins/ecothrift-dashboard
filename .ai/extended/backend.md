@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-26 (apps.keys) -->
+<!-- Last updated: 2026-10-28 (listing photo originals and edits) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -32,6 +32,8 @@ Root URL prefixes: `api/auth/`, `api/accounts/`, `api/core/`, `api/hr/`, `api/in
 **Online Sales conversations:** `POST /api/webstore/conversations/<id>/reply/` takes `notify` (default true) to skip the customer email. `POST …/assign/` takes `{ "clear": true }` to unassign. Reopen and a customer reply both clear `archived_at`. Serializers include `staff_owner_name`. Seeded mailbox templates are body-only; `send_you_have_a_reply` wraps greeting and sign-off once.
 
 **Listing photos:** `WebListingImage.s3_file` is the full JPEG (max 2048px edge, any aspect). Named crops are `WebListingImageVariant` slots: **main** 1600×1200 4:3, **grid** 800×600 4:3, **thumb** 400×400 1:1. Each variant crop is `{x,y,w,h,derived}`. Defaults letterbox the whole picture into the slot (`derived` true). A staff frame (`derived` false) fills that slot. Reframes of main re-derive grid/thumb only when `derived` is true. Public catalog / detail / hold `image.url` is the full file. `POST /api/webstore/listings/<id>/images/` accepts multipart `file` + optional `crops` JSON `{main?, grid?, thumb?}`. `PATCH …/images/<image_id>/` accepts `alt` and/or `crops`. `GET /api/webstore/images/<id>/` is full; `GET …/images/<id>/<slot>/` is main/grid/thumb (fallback thumb→main→full, grid→main→full). `…/display/` aliases main. Public list `image.url` is grid; detail `images[].url` is main and `urls` has all four; hold `listing_image.url` is thumb. `python manage.py backfill_listing_image_variants` (`--listing`, `--regenerate`, `--dry-run`).
+
+**Photo originals and edits (2026-10-28):** each photo keeps `original` (the upload, upright, max 4096px) and `edits` `{rotate, crop (percent of the turned photo), brightness, contrast}`; the full JPEG and slots are built from the two (`listing_photos.apply_edits`), so the editor reopens a photo from its original. Upload with `edits` (crops then in percent of the edited photo); `PATCH …/images/<id>/` with `edits` (+ `crops`: all hand frames) rebuilds it; `GET …/listings/<id>/images/<image_id>/original/` is staff only. Staff image URLs carry `?v=<file id>` so an edit shows at once.
 
 **Hold reverse:** `POST /api/webstore/reservations/<id>/undo-complete/` undoes a staff Complete misclick (no email, erase pickup trail). Register-linked completes are refused. Released holds still use `POST …/reopen/` with a required internal note.
 

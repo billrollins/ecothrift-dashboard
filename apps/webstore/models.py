@@ -154,12 +154,21 @@ class WebListingImage(models.Model):
 
     `s3_file` is the full JPEG (max 2048px edge, any aspect) used by the
     gallery lightbox. Cropped shop surfaces live on `WebListingImageVariant`.
+    `original` is the upload as it came (turned upright), and `edits` the
+    edits made in the photo editor (turn, crop, brightness, contrast): the
+    full JPEG and the slots are rebuilt from the two whenever the edits change,
+    so an edit can always be undone (Bill, 2026-10-28).
     """
 
     listing = models.ForeignKey(WebListing, on_delete=models.CASCADE, related_name='images')
     s3_file = models.ForeignKey(
         'core.S3File', on_delete=models.CASCADE, related_name='web_listing_images',
     )
+    original = models.ForeignKey(
+        'core.S3File', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='web_listing_image_originals',
+    )
+    edits = models.JSONField(default=dict, blank=True)
     width = models.PositiveIntegerField(default=0)
     height = models.PositiveIntegerField(default=0)
     alt = models.CharField(max_length=200, blank=True, default='')

@@ -11,6 +11,17 @@ export interface ListingImageCrop {
 
 export type ListingImageSlot = 'full' | 'main' | 'grid' | 'thumb';
 
+/**
+ * The photo editor's edits, kept on the photo beside its original (Bill, 2026-10-28). `rotate` is clockwise
+ * degrees; `crop` is percents of the turned photo (null = the whole photo); brightness and contrast are percents.
+ */
+export interface ListingPhotoEdits {
+  rotate?: number;
+  crop?: { x: number; y: number; w: number; h: number } | null;
+  brightness?: number;
+  contrast?: number;
+}
+
 export interface ListingImageCrops {
   main?: ListingImageCrop;
   grid?: ListingImageCrop;
@@ -37,6 +48,8 @@ export interface WebListingImage {
   height?: number;
   display_crop?: ListingImageCrop | null;
   created_at: string;
+  edits?: ListingPhotoEdits;
+  has_original?: boolean;
 }
 
 export function listingImageUrl(image: WebListingImage, slot: ListingImageSlot): string {
@@ -179,14 +192,19 @@ export function markFbPosted(
 export function uploadWebListingImage(
   id: number,
   file: File | Blob,
-  altOrOptions?: string | { alt?: string; crop?: ListingImageCrop | null; crops?: ListingImageCrops | null },
+  altOrOptions?:
+    | string
+    | { alt?: string; crop?: ListingImageCrop | null; crops?: ListingImageCrops | null; edits?: ListingPhotoEdits | null },
 ): Promise<{ data: WebListingImage }> {
-  const opts =
-    typeof altOrOptions === 'string' ? { alt: altOrOptions } : altOrOptions || {};
+  const opts: {
+    alt?: string; crop?: ListingImageCrop | null; crops?: ListingImageCrops | null; edits?: ListingPhotoEdits | null;
+  } = typeof altOrOptions === 'string' ? { alt: altOrOptions } : altOrOptions || {};
   const form = new FormData();
   const filename = file instanceof File ? file.name : 'photo.jpg';
   form.append('file', file, filename);
   if (opts.alt) form.append('alt', opts.alt);
+  // With edits the file is the original, and crops are percents of the edited photo.
+  if (opts.edits) form.append('edits', JSON.stringify(opts.edits));
   if (opts.crops) form.append('crops', JSON.stringify(opts.crops));
   else if (opts.crop) form.append('crops', JSON.stringify({ main: opts.crop }));
   return api.post(`/webstore/listings/${id}/images/`, form, {
@@ -220,6 +238,24 @@ export function reframeWebListingImage(
 ): Promise<{ data: WebListingImage }> {
   const payload = 'w' in crops && !('main' in crops) ? { crops: { main: crops } } : { crops };
   return api.patch(`/webstore/listings/${listingId}/images/${imageId}/`, payload);
+}
+
+/** Rebuild a photo from its original with new edits; `crops` are all its hand-set frames, in percents. */
+export function editWebListingImage(
+  listingId: number,
+  imageId: number,
+  edits: ListingPhotoEdits,
+  crops: ListingImageCrops,
+): Promise<{ data: WebListingImage }> {
+  return api.patch(`/webstore/listings/${listingId}/images/${imageId}/`, { edits, crops });
+}
+
+/** The photo's original (staff only), as a Blob for the editor to start from. */
+export async function getWebListingImageOriginal(listingId: number, imageId: number): Promise<Blob> {
+  const { data } = await api.get<Blob>(`/webstore/listings/${listingId}/images/${imageId}/original/`, {
+    responseType: 'blob',
+  });
+  return data;
 }
 
 export function markWebListingSold(id: number): Promise<{ data: WebListing }> {

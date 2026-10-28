@@ -7,7 +7,7 @@ import uuid
 from django.core.files.storage import default_storage
 from django.db import transaction
 from django.db.models import Count, F, Max, Q
-from django.http import FileResponse, Http404, HttpResponseRedirect
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -297,6 +297,7 @@ class WebListingViewSet(viewsets.ModelViewSet):
         from apps.webstore.services.listing_photos import (
             ListingPhotoError,
             parse_crops_payload,
+            parse_edits_payload,
             save_listing_photo,
         )
 
@@ -307,6 +308,8 @@ class WebListingViewSet(viewsets.ModelViewSet):
         raw = file.read()
         try:
             crops = parse_crops_payload(request.data.get('crops') or request.data.get('crop'))
+            # With `edits` the file is the original and `crops` are percents of the edited photo.
+            edits = parse_edits_payload(request.data.get('edits'))
             image = save_listing_photo(
                 listing=listing,
                 raw=raw,
@@ -314,6 +317,7 @@ class WebListingViewSet(viewsets.ModelViewSet):
                 user=request.user,
                 alt=request.data.get('alt', ''),
                 crops=crops,
+                edits=edits,
             )
         except ListingPhotoError as exc:
             return Response({'detail': exc.detail, 'code': exc.code}, status=400)
@@ -333,7 +337,9 @@ class WebListingViewSet(viewsets.ModelViewSet):
         from apps.webstore.services.listing_photos import (
             ListingPhotoError,
             delete_listing_photo,
+            edit_listing_photo,
             parse_crops_payload,
+            parse_edits_payload,
             reframe_listing_photo,
         )
 
@@ -346,11 +352,21 @@ class WebListingViewSet(viewsets.ModelViewSet):
         if request.method == 'PATCH':
             has_alt = 'alt' in request.data
             has_crops = 'crops' in request.data or 'crop' in request.data
-            if not has_alt and not has_crops:
-                return Response({'detail': 'alt or crops is required.'}, status=400)
+            has_edits = 'edits' in request.data
+            if not has_alt and not has_crops and not has_edits:
+                return Response({'detail': 'alt, crops or edits is required.'}, status=400)
             if has_alt:
                 image.alt = str(request.data.get('alt'))[:200]
                 image.save(update_fields=['alt'])
+            if has_edits:
+                # The photo editor: rebuild from the original; `crops` here are percents of the edited photo.
+                try:
+                    edits = parse_edits_payload(request.data.get('edits')) or {}
+                    crops = (parse_crops_payload(request.data.get('crops')) or {}) if has_crops else None
+                    image = edit_listing_photo(image, edits, crops=crops, user=request.user)
+                except ListingPhotoError as exc:
+                    return Response({'detail': exc.detail, 'code': exc.code}, status=400)
+                return Response(WebListingImageSerializer(image).data)
             if has_crops:
                 try:
                     crops = parse_crops_payload(
@@ -364,6 +380,23 @@ class WebListingViewSet(viewsets.ModelViewSet):
             return Response(WebListingImageSerializer(image).data)
         delete_listing_photo(image)
         return Response(status=204)
+
+    @action(detail=True, methods=['get'], url_path=r'images/(?P<image_id>[0-9]+)/original')
+    def image_original(self, request, pk=None, image_id=None):
+        """The photo's original (staff only), for the photo editor to start from."""
+        from apps.webstore.services.listing_photos import ListingPhotoError, read_original_bytes
+
+        listing = self.get_object()
+        image = get_object_or_404(
+            WebListingImage.objects.select_related('s3_file', 'original'), pk=image_id, listing=listing,
+        )
+        try:
+            data = read_original_bytes(image)
+        except ListingPhotoError as exc:
+            return Response({'detail': exc.detail, 'code': exc.code}, status=404)
+        response = HttpResponse(data, content_type='image/jpeg')
+        response['Cache-Control'] = 'private, max-age=60'
+        return response
 
 
 class ReservationViewSet(

@@ -1,4 +1,9 @@
-"""Listing photo slots: full + main / grid / thumb JPEGs."""
+"""Listing photo slots: full + main / grid / thumb JPEGs.
+
+Since 2026-10-28 (Bill) a photo keeps its upload (`original`, turned upright, max 4096px edge) and the editor's
+`edits` (turn, crop, brightness, contrast). The full JPEG and the slots are built from original + edits, so the
+editor can reopen a photo from its original and every edit stays undoable.
+"""
 
 from __future__ import annotations
 
@@ -26,6 +31,10 @@ logger = logging.getLogger(__name__)
 
 FULL_MAX_EDGE = 2048
 FULL_QUALITY = 85
+ORIGINAL_MAX_EDGE = 4096
+ORIGINAL_QUALITY = 92
+ROTATIONS = (0, 90, 180, 270)
+ADJUST_RANGE = (50, 150)
 SLOTS = ('main', 'grid', 'thumb')
 SLOT_SPECS = {
     'main': {'width': 1600, 'height': 1200, 'aspect': 4 / 3, 'quality': 82},
@@ -257,14 +266,101 @@ def derive_default_crops(
     }
 
 
-def prepare_variants(
-    raw: bytes,
-    crops: dict[str, dict[str, float]] | None = None,
-) -> tuple[bytes, int, int, dict[str, tuple[bytes, dict[str, Any]]]]:
+def parse_edits_payload(value: Any) -> dict[str, Any] | None:
+    """`{rotate, crop, brightness, contrast}` from the editor, cleaned; None when not sent.
+
+    `rotate` is clockwise degrees (0/90/180/270); `crop` is `{x,y,w,h}` in percent of the turned photo (None = the
+    whole photo); brightness and contrast are percents (100 = unchanged), as the editor's sliders show them.
+    """
+    if value is None or value == '':
+        return None
+    if isinstance(value, (bytes, bytearray)):
+        value = value.decode('utf-8')
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ListingPhotoError('invalid_edits', 'Edits must be JSON.') from exc
+    if not isinstance(value, dict):
+        raise ListingPhotoError('invalid_edits', 'Edits must be a JSON object.')
     try:
-        img = _open_image(raw)
+        rotate = int(value.get('rotate') or 0) % 360
+        brightness = int(round(float(value.get('brightness', 100))))
+        contrast = int(round(float(value.get('contrast', 100))))
+    except (TypeError, ValueError) as exc:
+        raise ListingPhotoError('invalid_edits', 'Edit values must be numbers.') from exc
+    if rotate not in ROTATIONS:
+        raise ListingPhotoError('invalid_edits', 'Turn by 90 degrees at a time.')
+    lo, hi = ADJUST_RANGE
+    out: dict[str, Any] = {
+        'rotate': rotate,
+        'brightness': max(lo, min(hi, brightness)),
+        'contrast': max(lo, min(hi, contrast)),
+        'crop': None,
+    }
+    crop = value.get('crop')
+    if crop:
+        rect = _as_rect(crop)
+        x, y = max(0.0, min(rect['x'], 100.0)), max(0.0, min(rect['y'], 100.0))
+        w, h = min(rect['w'], 100.0 - x), min(rect['h'], 100.0 - y)
+        if w >= 1 and h >= 1 and not (x <= 0.05 and y <= 0.05 and w >= 99.9 and h >= 99.9):
+            out['crop'] = {'x': round(x, 4), 'y': round(y, 4), 'w': round(w, 4), 'h': round(h, 4)}
+    return out
+
+
+def pct_crops_to_px(crops: dict[str, dict[str, float]] | None, width: int, height: int) -> dict[str, dict[str, float]]:
+    """Frames from the editor, in percent of the edited photo, to its pixels."""
+    return {
+        slot: {'x': r['x'] / 100 * width, 'y': r['y'] / 100 * height, 'w': r['w'] / 100 * width,
+               'h': r['h'] / 100 * height}
+        for slot, r in (crops or {}).items()
+    }
+
+
+def edits_geometry(edits: dict | None) -> tuple:
+    """What changes the photo's shape: a frame saved for another shape no longer fits."""
+    edits = edits or {}
+    return (int(edits.get('rotate') or 0), json.dumps(edits.get('crop') or None, sort_keys=True))
+
+
+def apply_edits(img: Image.Image, edits: dict | None) -> Image.Image:
+    """Turn, crop, then brightness / contrast, the way the editor previews them (CSS brightness then contrast)."""
+    edits = edits or {}
+    rotate = int(edits.get('rotate') or 0) % 360
+    if rotate == 90:
+        img = img.transpose(Image.Transpose.ROTATE_270)
+    elif rotate == 180:
+        img = img.transpose(Image.Transpose.ROTATE_180)
+    elif rotate == 270:
+        img = img.transpose(Image.Transpose.ROTATE_90)
+    crop = edits.get('crop')
+    if crop:
+        w, h = img.size
+        left = int(round(crop['x'] / 100 * w))
+        top = int(round(crop['y'] / 100 * h))
+        right = min(w, max(left + 1, int(round((crop['x'] + crop['w']) / 100 * w))))
+        bottom = min(h, max(top + 1, int(round((crop['y'] + crop['h']) / 100 * h))))
+        img = img.crop((left, top, right, bottom))
+    b = float(edits.get('brightness', 100)) / 100
+    c = float(edits.get('contrast', 100)) / 100
+    if b != 1 or c != 1:
+        table = [max(0, min(255, int(round(v * b * c + 128 * (1 - c))))) for v in range(256)]
+        img = img.point(table * len(img.getbands()))
+    return img
+
+
+def _open(raw: bytes) -> Image.Image:
+    try:
+        return _open_image(raw)
     except ReceivingPhotoError as exc:
         raise ListingPhotoError(exc.code, exc.detail) from exc
+
+
+def prepare_variants(
+    raw: bytes | Image.Image,
+    crops: dict[str, dict[str, float]] | None = None,
+) -> tuple[bytes, int, int, dict[str, tuple[bytes, dict[str, Any]]]]:
+    img = raw if isinstance(raw, Image.Image) else _open(raw)
     src_w, src_h = img.size
     full = _resize_max_edge(img, FULL_MAX_EDGE)
     fw, fh = full.size
@@ -397,23 +493,40 @@ def save_listing_photo(
     alt: str = '',
     crops: dict[str, dict[str, float]] | None = None,
     crop: dict[str, float] | None = None,
+    edits: dict[str, Any] | None = None,
 ) -> WebListingImage:
+    """Save an upload. With `edits` the upload is the original: it is kept, and the photo is built from it.
+
+    Without `edits` (older callers) the upload is the finished photo and is its own original, and `crops` are in
+    its pixels. With `edits`, `crops` are in percent of the edited photo."""
     requested = crops or ({'main': crop} if crop else None)
-    full_bytes, width, height, slot_data = prepare_variants(raw, requested)
+    original = _resize_max_edge(_open(raw), ORIGINAL_MAX_EDGE)
+    original_bytes = encode_jpeg(original, quality=ORIGINAL_QUALITY)
+    edited = apply_edits(original, edits)
+    if edits is not None:
+        requested = pct_crops_to_px(requested, *edited.size) or None
+    full_bytes, width, height, slot_data = prepare_variants(edited, requested)
     hex_id = uuid.uuid4().hex
     saved_keys: list[str] = []
     try:
         full_saved = _save_bytes(f'webstore/listings/{listing.id}/{hex_id}.jpg', full_bytes)
         saved_keys.append(full_saved)
+        original_saved = _save_bytes(f'webstore/listings/{listing.id}/originals/{hex_id}.jpg', original_bytes)
+        saved_keys.append(original_saved)
         stem = (filename or hex_id).rsplit('.', 1)[0]
         next_pos = (listing.images.aggregate(m=Max('position'))['m'] or 0) + 1
         with transaction.atomic():
             full_sf = _create_s3_file(
                 key=full_saved, data=full_bytes, filename=f'{stem}.jpg', user=user,
             )
+            original_sf = _create_s3_file(
+                key=original_saved, data=original_bytes, filename=f'{stem}-original.jpg', user=user,
+            )
             image = WebListingImage.objects.create(
                 listing=listing,
                 s3_file=full_sf,
+                original=original_sf,
+                edits=edits or {},
                 width=width,
                 height=height,
                 alt=(alt or '')[:200],
@@ -507,9 +620,84 @@ def reframe_listing_photo(
     )
 
 
+def read_original_bytes(image: WebListingImage) -> bytes:
+    """The photo's original; a photo from before originals were kept uses its full JPEG."""
+    sf = _usable_file(image.original) if image.original_id else None
+    if sf is None:
+        return _read_full_bytes(image)
+    try:
+        with default_storage.open(sf.key, 'rb') as fh:
+            return fh.read()
+    except Exception as exc:
+        raise ListingPhotoError('missing_original', 'Could not read the original photo.') from exc
+
+
+def edit_listing_photo(
+    image: WebListingImage,
+    edits: dict[str, Any],
+    crops: dict[str, dict[str, float]] | None = None,
+    user=None,
+) -> WebListingImage:
+    """Rebuild the photo from its original with new `edits` (and optional slot frames).
+
+    `crops` (percents of the edited photo) are then the photo's hand-set frames, all of them: a slot left out is
+    back to the whole photo. Without `crops`, a frame set by hand is kept while the photo keeps its shape; a new
+    turn or crop resets the frames to the whole photo, since the old ones were drawn on another shape."""
+    user = user or image.s3_file.uploaded_by
+    had_original = bool(image.original_id and _usable_file(image.original))
+    raw = read_original_bytes(image)
+    original = _open(raw)
+    existing = _variant_map(image)
+    edited = apply_edits(original, edits)
+    sw, sh = edited.size
+    requested: dict[str, dict[str, float]] = {}
+    if crops is None and edits_geometry(image.edits) == edits_geometry(edits):
+        for slot in SLOTS:    # frames set by hand stay (they are stored in the full JPEG's pixels)
+            old = existing.get(slot)
+            if old and isinstance(old.crop, dict) and not old.crop.get('derived', True) and image.width and image.height:
+                requested[slot] = _scale_crop(old.crop, image.width, image.height, sw, sh)
+    requested.update(pct_crops_to_px(crops, sw, sh))
+    full_bytes, width, height, slot_data = prepare_variants(edited, requested or None)
+    stem = (image.s3_file.filename or uuid.uuid4().hex).rsplit('.', 1)[0].removesuffix('-original')
+    hex_id = uuid.uuid4().hex
+    full_saved = _save_bytes(f'webstore/listings/{image.listing_id}/{hex_id}.jpg', full_bytes)
+    original_saved = None
+    if not had_original:
+        original_bytes = encode_jpeg(_resize_max_edge(original, ORIGINAL_MAX_EDGE), quality=ORIGINAL_QUALITY)
+        original_saved = _save_bytes(f'webstore/listings/{image.listing_id}/originals/{hex_id}.jpg', original_bytes)
+    old_full = image.s3_file
+    with transaction.atomic():
+        full_sf = _create_s3_file(key=full_saved, data=full_bytes, filename=f'{stem}.jpg', user=user)
+        fields = {'s3_file': full_sf, 'edits': edits, 'width': width, 'height': height}
+        if original_saved:
+            fields['original'] = _create_s3_file(
+                key=original_saved, data=original_bytes, filename=f'{stem}-original.jpg', user=user,
+            )
+        WebListingImage.objects.filter(pk=image.pk).update(**fields)
+        image.refresh_from_db()
+        _write_variants(
+            image=image,
+            listing_id=image.listing_id,
+            slot_data=slot_data,
+            slots=SLOTS,
+            user=user,
+            stem=stem,
+            existing=existing,
+        )
+    if old_full is not None and old_full.pk != full_sf.pk:
+        _delete_s3_file(old_full)
+    return (
+        WebListingImage.objects.select_related('s3_file', 'original')
+        .prefetch_related('variants__s3_file')
+        .get(pk=image.pk)
+    )
+
+
 def delete_listing_photo(image: WebListingImage) -> None:
     variants = list(image.variants.select_related('s3_file'))
     files = [image.s3_file] + [v.s3_file for v in variants if v.s3_file_id]
+    if image.original_id:
+        files.append(image.original)
     image.delete()
     for sf in files:
         _delete_s3_file(sf)

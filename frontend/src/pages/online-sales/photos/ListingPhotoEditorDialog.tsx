@@ -1,3 +1,11 @@
+/**
+ * The listing photo editor (Bill, 2026-10-28). Nothing is burned into a photo: the upload is kept as its original
+ * and the editor's turn, crop, brightness and contrast are saved beside it, so clicking a photo reopens it here from
+ * the original with every edit still undoable. The shop's photo is built from the two on the server.
+ *
+ * Crop opens on Full (any shape). Main and Grid are 4:3 and Thumb is square: an untouched one starts as the biggest
+ * box of its shape in the middle of the photo, and keeps "auto" (the whole picture) until the box is moved.
+ */
 import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react';
 import {
   Box,
@@ -14,23 +22,24 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import RotateLeft from '@mui/icons-material/RotateLeft';
 import RotateRight from '@mui/icons-material/RotateRight';
 import ReactCrop, { type Crop as CropState } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { useSnackbar } from 'notistack';
-import type { ListingImageCrops, WebListingImage } from '../../../api/webstore.api';
-import { listingImageFullUrl } from '../../../api/webstore.api';
+import type { ListingImageCrops, ListingPhotoEdits, WebListingImage } from '../../../api/webstore.api';
+import { getWebListingImageOriginal } from '../../../api/webstore.api';
 import {
-  useReframeWebListingImage,
+  useEditWebListingImage,
   useUploadWebListingImage,
 } from '../../../hooks/useWebStore';
 import {
   WHOLE_PCT,
-  getEditedJpeg,
+  centerAspectPct,
   getRotatedJpeg,
-  pctToApiCrop,
   rebaseToTrim,
   rectFits,
   storedCropToPct,
@@ -54,6 +63,8 @@ const EMPTY_TOUCHED: Record<SlotId, boolean> = {
 
 const EMPTY_DRAFT: CropDraft = { custom: {}, touched: { ...EMPTY_TOUCHED } };
 
+const SLOTS: SlotId[] = ['full', 'main', 'grid', 'thumb'];
+
 const SLOT_ASPECT: Record<SlotId, number | undefined> = {
   full: undefined,
   main: 4 / 3,
@@ -62,11 +73,13 @@ const SLOT_ASPECT: Record<SlotId, number | undefined> = {
 };
 
 const SLOT_CAPTION: Record<SlotId, string> = {
-  full: 'Gallery photo (any aspect). This is what people see when they click the listing photo.',
-  main: 'Main photo on the listing: 1600 × 1200. Defaults to the whole picture.',
-  grid: 'Shop grid: 800 × 600. Defaults to the whole picture.',
-  thumb: 'Thumbnail: 400 × 400. Defaults to the whole picture.',
+  full: 'Crop the photo (any shape). This is what people see when they click the listing photo.',
+  main: 'Main photo on the listing: 1600 × 1200 (4:3). Auto shows the whole picture; move the box to frame it.',
+  grid: 'Shop grid: 800 × 600 (4:3). Auto follows Main.',
+  thumb: 'Thumbnail: 400 × 400 (square). Auto shows the whole picture.',
 };
+
+const ROUND = (n: number) => Math.round(n * 1000) / 1000;
 
 function toCropState(rect: PctRect): CropState {
   return { unit: '%', x: rect.x, y: rect.y, width: rect.w, height: rect.h };
@@ -76,17 +89,29 @@ function fromCropState(crop: CropState): PctRect {
   return { x: crop.x, y: crop.y, w: crop.width, h: crop.height };
 }
 
+function roundRect(rect: PctRect): PctRect {
+  return { x: ROUND(rect.x), y: ROUND(rect.y), w: ROUND(rect.w), h: ROUND(rect.h) };
+}
+
+/** The inverse of `rebaseToTrim`: a rect in percent of the Full trim, back to percent of the turned photo. */
+function fromTrim(rect: PctRect, full: PctRect): PctRect {
+  return {
+    x: full.x + (rect.x * full.w) / 100,
+    y: full.y + (rect.y * full.h) / 100,
+    w: (rect.w * full.w) / 100,
+    h: (rect.h * full.h) / 100,
+  };
+}
+
+/** What each slot shows, the way the server derives the untouched ones (services/listing_photos.py). */
 function deriveRects(draft: CropDraft, imageAspect: number): Record<SlotId, PctRect> {
   const full = draft.touched.full && draft.custom.full ? draft.custom.full : WHOLE_PCT;
-  const main =
-    draft.touched.main && draft.custom.main
-      ? draft.custom.main
-      : { ...full };
+  const mainSet = draft.touched.main && draft.custom.main;
+  const main = mainSet ? draft.custom.main! : { ...full };
   const grid = draft.touched.grid && draft.custom.grid ? draft.custom.grid : { ...main };
-  const thumb =
-    draft.touched.thumb && draft.custom.thumb
-      ? draft.custom.thumb
-      : { ...main };
+  const thumb = draft.touched.thumb && draft.custom.thumb
+    ? draft.custom.thumb
+    : mainSet ? centerAspectPct(main, 1, imageAspect) : { ...main };
   return { full, main, grid, thumb };
 }
 
@@ -104,30 +129,33 @@ function applySlotCrop(draft: CropDraft, slot: SlotId, next: PctRect): CropDraft
   return { custom, touched };
 }
 
-function seedFromReframe(image: WebListingImage, width: number, height: number): CropDraft {
+/** An existing photo's saved crop and hand-set frames, as the editor's draft (percent of the turned original). */
+function seedFromImage(image: WebListingImage): CropDraft {
   const custom: Partial<Record<SlotId, PctRect>> = {};
   const touched = { ...EMPTY_TOUCHED };
-  const crops = image.crops;
-  if (crops?.main && !crops.main.derived) {
-    custom.main = storedCropToPct(crops.main, width, height);
-    touched.main = true;
+  const crop = image.edits?.crop;
+  const full = crop ? { x: crop.x, y: crop.y, w: crop.w, h: crop.h } : WHOLE_PCT;
+  if (crop) {
+    custom.full = full;
+    touched.full = true;
   }
-  if (crops?.grid && !crops.grid.derived) {
-    custom.grid = storedCropToPct(crops.grid, width, height);
-    touched.grid = true;
-  }
-  if (crops?.thumb && !crops.thumb.derived) {
-    custom.thumb = storedCropToPct(crops.thumb, width, height);
-    touched.thumb = true;
-  }
+  const width = image.width ?? 0;
+  const height = image.height ?? 0;
+  (['main', 'grid', 'thumb'] as const).forEach((slot) => {
+    const stored = image.crops?.[slot];
+    if (stored && !stored.derived && width > 0 && height > 0) {
+      custom[slot] = fromTrim(storedCropToPct(stored, width, height), full);
+      touched[slot] = true;
+    }
+  });
   return { custom, touched };
 }
 
 function FramePreview({
   src,
   crop,
-  within: _within,
   aspect,
+  letterbox,
   filter,
   label,
   selected,
@@ -135,19 +163,26 @@ function FramePreview({
 }: {
   src: string;
   crop: PctRect;
-  within?: PctRect;
-  aspect: string;
+  aspect: number;
+  /** Auto: the shop shows the whole crop inside the slot with bars (as the server builds it), not stretched. */
+  letterbox?: { cropAspect: number };
   filter?: string;
   label: string;
   selected?: boolean;
   onClick?: () => void;
 }) {
-  const windowRect = crop;
-  const width = windowRect.w || 100;
-  const height = windowRect.h || 100;
-  const x = windowRect.x || 0;
-  const y = windowRect.y || 0;
-  void _within;
+  const width = crop.w || 100;
+  const height = crop.h || 100;
+  const x = crop.x || 0;
+  const y = crop.y || 0;
+  let inner = { left: 0, top: 0, w: 100, h: 100 };
+  if (letterbox && letterbox.cropAspect > 0) {
+    inner = letterbox.cropAspect > aspect
+      ? { left: 0, w: 100, h: (aspect / letterbox.cropAspect) * 100, top: 0 }
+      : { top: 0, h: 100, w: (letterbox.cropAspect / aspect) * 100, left: 0 };
+    inner.left = (100 - inner.w) / 2;
+    inner.top = (100 - inner.h) / 2;
+  }
   return (
     <Box sx={{ flex: 1, minWidth: 0 }}>
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
@@ -171,28 +206,40 @@ function FramePreview({
         <Box
           sx={{
             width: '100%',
-            aspectRatio: aspect,
+            aspectRatio: `${aspect} / 1`,
             overflow: 'hidden',
             borderRadius: 0.5,
-            bgcolor: '#0f172a',
+            // The server's bar colour (SLOT_FILL) when letterboxed.
+            bgcolor: letterbox ? 'rgb(238, 242, 240)' : '#0f172a',
             position: 'relative',
           }}
         >
           <Box
-            component="img"
-            src={src}
-            alt={label}
             sx={{
               position: 'absolute',
-              left: `${-(x / width) * 100}%`,
-              top: `${-(y / height) * 100}%`,
-              width: `${(100 / width) * 100}%`,
-              height: `${(100 / height) * 100}%`,
-              maxWidth: 'none',
-              objectFit: 'fill',
-              filter: filter || 'none',
+              left: `${inner.left}%`,
+              top: `${inner.top}%`,
+              width: `${inner.w}%`,
+              height: `${inner.h}%`,
+              overflow: 'hidden',
             }}
-          />
+          >
+            <Box
+              component="img"
+              src={src}
+              alt={label}
+              sx={{
+                position: 'absolute',
+                left: `${-(x / width) * 100}%`,
+                top: `${-(y / height) * 100}%`,
+                width: `${(100 / width) * 100}%`,
+                height: `${(100 / height) * 100}%`,
+                maxWidth: 'none',
+                objectFit: 'fill',
+                filter: filter || 'none',
+              }}
+            />
+          </Box>
         </Box>
       </Box>
     </Box>
@@ -209,21 +256,28 @@ export function ListingPhotoEditorDialog({
   open: boolean;
   listingId: number;
   files: File[];
+  /** An existing photo to edit (opened by clicking it). */
   reframe: WebListingImage | null;
   onClose: () => void;
 }) {
   const { enqueueSnackbar } = useSnackbar();
+  const theme = useTheme();
+  const phone = useMediaQuery(theme.breakpoints.down('sm'));
   const uploadImage = useUploadWebListingImage();
-  const reframeImage = useReframeWebListingImage();
+  const editImage = useEditWebListingImage();
 
-  const isReframe = Boolean(reframe);
-  const total = isReframe ? 1 : files.length;
+  const isEdit = Boolean(reframe);
+  const total = isEdit ? 1 : files.length;
 
   const [index, setIndex] = useState(0);
-  const [slot, setSlot] = useState<SlotId>('main');
-  const [fileUrl, setFileUrl] = useState<string | null>(null);
-  const [editObjectUrl, setEditObjectUrl] = useState<string | null>(null);
-  const editObjectUrlRef = useRef<string | null>(null);
+  const [slot, setSlot] = useState<SlotId>('full');
+  // The original: the picked file, or an existing photo's original from the server.
+  const [baseUrl, setBaseUrl] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  // A turned copy of the original for the screen only; the turn is saved as an edit.
+  const [turnedUrl, setTurnedUrl] = useState<string | null>(null);
+  const turnedUrlRef = useRef<string | null>(null);
+  const [rotation, setRotation] = useState(0);
   const [draft, setDraft] = useState<CropDraft>(EMPTY_DRAFT);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
   const [brightness, setBrightness] = useState(100);
@@ -232,155 +286,176 @@ export function ListingPhotoEditorDialog({
   const [rotating, setRotating] = useState(false);
   const [doneCount, setDoneCount] = useState(0);
 
-  const replaceEditUrl = (next: string | null) => {
-    if (editObjectUrlRef.current) URL.revokeObjectURL(editObjectUrlRef.current);
-    editObjectUrlRef.current = next;
-    setEditObjectUrl(next);
+  const replaceTurnedUrl = (next: string | null) => {
+    if (turnedUrlRef.current) URL.revokeObjectURL(turnedUrlRef.current);
+    turnedUrlRef.current = next;
+    setTurnedUrl(next);
   };
 
   useEffect(() => {
     return () => {
-      if (editObjectUrlRef.current) URL.revokeObjectURL(editObjectUrlRef.current);
+      if (turnedUrlRef.current) URL.revokeObjectURL(turnedUrlRef.current);
     };
   }, []);
 
+  const resetEdits = () => {
+    replaceTurnedUrl(null);
+    setRotation(0);
+    setBrightness(100);
+    setContrast(100);
+    setSlot('full');
+    setDraft(EMPTY_DRAFT);
+    setNaturalSize(null);
+  };
+
   useEffect(() => {
     if (!open) {
-      replaceEditUrl(null);
+      replaceTurnedUrl(null);
       return;
     }
     setIndex(0);
     setDoneCount(0);
-    setSlot('main');
-    setBrightness(100);
-    setContrast(100);
-    setNaturalSize(null);
-    replaceEditUrl(null);
-    if (reframe && reframe.width && reframe.height) {
-      setNaturalSize({ w: reframe.width, h: reframe.height });
-      setDraft(seedFromReframe(reframe, reframe.width, reframe.height));
-    } else {
-      setDraft(EMPTY_DRAFT);
-    }
+    resetEdits();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, files, reframe]);
 
+  // A new upload: the picked file is the original.
   useEffect(() => {
-    if (!open || isReframe) {
-      setFileUrl(null);
-      return;
-    }
+    if (!open || isEdit) return;
     const file = files[index];
     if (!file) {
-      setFileUrl(null);
+      setBaseUrl(null);
       return;
     }
     const url = URL.createObjectURL(file);
-    setFileUrl(url);
-    replaceEditUrl(null);
-    setBrightness(100);
-    setContrast(100);
-    setSlot('main');
-    setDraft(EMPTY_DRAFT);
-    setNaturalSize(null);
+    setBaseUrl(url);
+    resetEdits();
     return () => URL.revokeObjectURL(url);
-  }, [open, isReframe, files, index]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isEdit, files, index]);
 
-  const src = isReframe
-    ? reframe
-      ? listingImageFullUrl(reframe)
-      : null
-    : editObjectUrl || fileUrl;
+  // An existing photo: start from its original and its saved edits.
+  useEffect(() => {
+    if (!open || !reframe) return;
+    let cancelled = false;
+    let url: string | null = null;
+    setBaseUrl(null);
+    setLoadError(false);
+    const edits = reframe.edits ?? {};
+    void (async () => {
+      try {
+        const blob = await getWebListingImageOriginal(listingId, reframe.id);
+        if (cancelled) return;
+        url = URL.createObjectURL(blob);
+        const turn = ((edits.rotate ?? 0) % 360 + 360) % 360;
+        if (turn) replaceTurnedUrl(URL.createObjectURL(await getRotatedJpeg(url, turn)));
+        if (cancelled) return;
+        setRotation(turn);
+        setBrightness(edits.brightness ?? 100);
+        setContrast(edits.contrast ?? 100);
+        setDraft(seedFromImage(reframe));
+        setBaseUrl(url);
+      } catch {
+        if (!cancelled) setLoadError(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [open, reframe, listingId]);
+
+  const src = turnedUrl || baseUrl;
   const cssFilter = `brightness(${brightness}%) contrast(${contrast}%)`;
   const imageAspect = naturalSize && naturalSize.h > 0 ? naturalSize.w / naturalSize.h : 4 / 3;
   const rects = useMemo(() => deriveRects(draft, imageAspect), [draft, imageAspect]);
   const imageReady = Boolean(src && naturalSize);
+  const aspect = SLOT_ASPECT[slot];
+  // An untouched 4:3 or square slot starts as the biggest box of its shape inside the crop, not a stretched one.
+  const boxRect = aspect && !draft.touched[slot] ? centerAspectPct(rects.full, aspect, imageAspect) : rects[slot];
 
   const onImageLoad = (e: SyntheticEvent<HTMLImageElement>) => {
     const { naturalWidth, naturalHeight } = e.currentTarget;
     setNaturalSize({ w: naturalWidth, h: naturalHeight });
-    if (isReframe && reframe && !draft.touched.main && !draft.touched.grid && !draft.touched.thumb) {
-      setDraft(seedFromReframe(reframe, naturalWidth, naturalHeight));
-    }
   };
 
-  const bakeRotate = async (degrees: number) => {
-    if (!src || isReframe) return;
+  const turn = async (degrees: number) => {
+    if (!baseUrl) return;
+    const next = (((rotation + degrees) % 360) + 360) % 360;
     setRotating(true);
     try {
-      const blob = await getRotatedJpeg(src, degrees);
-      replaceEditUrl(URL.createObjectURL(blob));
+      replaceTurnedUrl(next ? URL.createObjectURL(await getRotatedJpeg(baseUrl, next)) : null);
+      setRotation(next);
       setDraft(EMPTY_DRAFT);
       setNaturalSize(null);
-      setSlot('main');
+      setSlot('full');
     } finally {
       setRotating(false);
     }
   };
 
+  // Back to the original as uploaded (saved only when Save is pressed).
+  const undoAll = () => {
+    if (rotation !== 0) {
+      replaceTurnedUrl(null);
+      setNaturalSize(null);
+    }
+    setRotation(0);
+    setBrightness(100);
+    setContrast(100);
+    setDraft(EMPTY_DRAFT);
+    setSlot('full');
+  };
+
   const advanceOrClose = (fromIndex: number) => {
     const next = fromIndex + 1;
     setDoneCount((n) => n + 1);
-    if (isReframe || next >= files.length) {
+    if (isEdit || next >= files.length) {
       onClose();
       return;
     }
     setIndex(next);
   };
 
-  const buildUploadCrops = (full: PctRect, trimW: number, trimH: number): ListingImageCrops | undefined => {
+  const currentEdits = (): ListingPhotoEdits => ({
+    rotate: rotation,
+    crop: draft.touched.full ? roundRect(rects.full) : null,
+    brightness,
+    contrast,
+  });
+
+  // Hand-set frames, in percent of the cropped photo (the server turns them into pixels).
+  const currentCrops = (): ListingImageCrops => {
     const crops: ListingImageCrops = {};
-    if (draft.touched.main) {
-      crops.main = pctToApiCrop(rebaseToTrim(rects.main, full), trimW, trimH);
-    }
-    if (draft.touched.grid) {
-      crops.grid = pctToApiCrop(rebaseToTrim(rects.grid, full), trimW, trimH);
-    }
-    if (draft.touched.thumb) {
-      crops.thumb = pctToApiCrop(rebaseToTrim(rects.thumb, full), trimW, trimH);
-    }
-    return Object.keys(crops).length ? crops : undefined;
+    (['main', 'grid', 'thumb'] as const).forEach((s) => {
+      if (draft.touched[s]) crops[s] = roundRect(rebaseToTrim(rects[s], rects.full));
+    });
+    return crops;
   };
 
-  const buildReframeCrops = (): ListingImageCrops | undefined => {
-    if (!naturalSize) return undefined;
-    const crops: ListingImageCrops = {};
-    if (draft.touched.main) crops.main = pctToApiCrop(rects.main, naturalSize.w, naturalSize.h);
-    if (draft.touched.grid) crops.grid = pctToApiCrop(rects.grid, naturalSize.w, naturalSize.h);
-    if (draft.touched.thumb) crops.thumb = pctToApiCrop(rects.thumb, naturalSize.w, naturalSize.h);
-    return Object.keys(crops).length ? crops : undefined;
-  };
-
-  const applyCurrent = async () => {
+  const saveCurrent = async () => {
     if (!src || !naturalSize) return;
     setBusy(true);
     try {
-      if (isReframe && reframe) {
-        const crops = buildReframeCrops();
-        if (!crops) {
-          onClose();
-          return;
-        }
-        await reframeImage.mutateAsync({ listingId, imageId: reframe.id, crops });
-        enqueueSnackbar('Frame saved', { variant: 'success' });
+      if (isEdit && reframe) {
+        await editImage.mutateAsync({ listingId, imageId: reframe.id, edits: currentEdits(), crops: currentCrops() });
+        enqueueSnackbar('Photo saved', { variant: 'success' });
         onClose();
         return;
       }
-      const fullNatural = {
-        x: (rects.full.x / 100) * naturalSize.w,
-        y: (rects.full.y / 100) * naturalSize.h,
-        width: (rects.full.w / 100) * naturalSize.w,
-        height: (rects.full.h / 100) * naturalSize.h,
-      };
-      const blob = await getEditedJpeg(src, {
-        crop: fullNatural,
-        adjustments: { brightness, contrast },
+      const file = files[index];
+      if (!file) return;
+      const crops = currentCrops();
+      await uploadImage.mutateAsync({
+        id: listingId,
+        file,
+        edits: currentEdits(),
+        crops: Object.keys(crops).length ? crops : null,
       });
-      const crops = buildUploadCrops(rects.full, fullNatural.width, fullNatural.height);
-      await uploadImage.mutateAsync({ id: listingId, file: blob, crops });
       enqueueSnackbar('Photo uploaded', { variant: 'success' });
       advanceOrClose(index);
     } catch {
-      enqueueSnackbar(isReframe ? 'Could not save frame' : 'Upload failed', { variant: 'error' });
+      enqueueSnackbar(isEdit ? 'Could not save the photo' : 'Upload failed', { variant: 'error' });
     } finally {
       setBusy(false);
     }
@@ -391,7 +466,7 @@ export function ListingPhotoEditorDialog({
     if (!file) return;
     setBusy(true);
     try {
-      await uploadImage.mutateAsync({ id: listingId, file });
+      await uploadImage.mutateAsync({ id: listingId, file, edits: {} });
       enqueueSnackbar('Photo uploaded', { variant: 'success' });
       advanceOrClose(index);
     } catch {
@@ -407,7 +482,7 @@ export function ListingPhotoEditorDialog({
       for (let i = index; i < files.length; i += 1) {
         const file = files[i];
         if (!file) continue;
-        await uploadImage.mutateAsync({ id: listingId, file });
+        await uploadImage.mutateAsync({ id: listingId, file, edits: {} });
         setDoneCount((n) => n + 1);
       }
       enqueueSnackbar('Photos uploaded', { variant: 'success' });
@@ -424,17 +499,19 @@ export function ListingPhotoEditorDialog({
     return Math.min(100, Math.round((doneCount / total) * 100));
   }, [doneCount, total]);
 
-  const visibleSlots: SlotId[] = isReframe ? ['main', 'grid', 'thumb'] : ['full', 'main', 'grid', 'thumb'];
+  const edited = rotation !== 0 || brightness !== 100 || contrast !== 100 || SLOTS.some((s) => draft.touched[s]);
 
   return (
-    <Dialog open={open} onClose={busy ? undefined : onClose} fullWidth maxWidth="md">
+    <Dialog open={open} onClose={busy ? undefined : onClose} fullWidth maxWidth="md" fullScreen={phone}>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 1 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography fontWeight={700} noWrap>
-            Frame photo
+            {isEdit ? 'Edit photo' : 'Frame photo'}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            {isReframe ? 'Reframe existing photo' : `${index + 1} of ${total}`}
+            {isEdit
+              ? 'From the original upload. Every edit can be changed or undone.'
+              : `${index + 1} of ${total} · the original upload is kept`}
           </Typography>
         </Box>
         <IconButton aria-label="Close" onClick={onClose} disabled={busy} edge="end">
@@ -443,7 +520,7 @@ export function ListingPhotoEditorDialog({
       </DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>
-          {!isReframe ? <LinearProgress variant="determinate" value={progress} /> : null}
+          {!isEdit ? <LinearProgress variant="determinate" value={progress} /> : null}
 
           <Typography variant="body2" color="text.secondary">
             {SLOT_CAPTION[slot]}
@@ -458,63 +535,61 @@ export function ListingPhotoEditorDialog({
             }}
             aria-label="Photo slot"
           >
-            {visibleSlots.map((id) => (
+            {SLOTS.map((id) => (
               <ToggleButton key={id} value={id}>
-                {id === 'full' ? 'Full' : id === 'main' ? 'Main' : id === 'grid' ? 'Grid' : 'Thumb'}
+                {id === 'full' ? 'Crop' : id === 'main' ? 'Main' : id === 'grid' ? 'Grid' : 'Thumb'}
               </ToggleButton>
             ))}
           </ToggleButtonGroup>
 
-          {!isReframe ? (
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-              <IconButton aria-label="Rotate left" onClick={() => void bakeRotate(-90)} disabled={busy || rotating}>
-                <RotateLeft />
-              </IconButton>
-              <IconButton aria-label="Rotate right" onClick={() => void bakeRotate(90)} disabled={busy || rotating}>
-                <RotateRight />
-              </IconButton>
-              <Box sx={{ minWidth: 160, flex: 1 }}>
-                <Typography variant="caption">Brightness</Typography>
-                <Slider
-                  size="small"
-                  min={50}
-                  max={150}
-                  value={brightness}
-                  onChange={(_, v) => setBrightness(v as number)}
-                />
-              </Box>
-              <Box sx={{ minWidth: 160, flex: 1 }}>
-                <Typography variant="caption">Contrast</Typography>
-                <Slider
-                  size="small"
-                  min={50}
-                  max={150}
-                  value={contrast}
-                  onChange={(_, v) => setContrast(v as number)}
-                />
-              </Box>
-            </Stack>
-          ) : null}
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+            <IconButton aria-label="Rotate left" onClick={() => void turn(-90)} disabled={busy || rotating || !baseUrl}>
+              <RotateLeft />
+            </IconButton>
+            <IconButton aria-label="Rotate right" onClick={() => void turn(90)} disabled={busy || rotating || !baseUrl}>
+              <RotateRight />
+            </IconButton>
+            <Box sx={{ minWidth: 160, flex: 1 }}>
+              <Typography variant="caption">Brightness</Typography>
+              <Slider size="small" min={50} max={150} value={brightness} onChange={(_, v) => setBrightness(v as number)} />
+            </Box>
+            <Box sx={{ minWidth: 160, flex: 1 }}>
+              <Typography variant="caption">Contrast</Typography>
+              <Slider size="small" min={50} max={150} value={contrast} onChange={(_, v) => setContrast(v as number)} />
+            </Box>
+            {edited ? (
+              <Button size="small" onClick={undoAll} disabled={busy || rotating}>
+                Undo all edits
+              </Button>
+            ) : null}
+          </Stack>
 
-          <CropBox
-            src={src}
-            crop={toCropState(rects[slot])}
-            aspect={SLOT_ASPECT[slot]}
-            filter={isReframe ? undefined : cssFilter}
-            rotating={rotating}
-            onLoad={onImageLoad}
-            onChange={(percentCrop) => {
-              setDraft((prev) => applySlotCrop(prev, slot, fromCropState(percentCrop)));
-            }}
-          />
+          {loadError ? (
+            <Typography color="error">Could not load the original photo.</Typography>
+          ) : (
+            <CropBox
+              src={src}
+              crop={toCropState(boxRect)}
+              aspect={aspect}
+              filter={cssFilter}
+              rotating={rotating}
+              onLoad={onImageLoad}
+              onChange={(percentCrop) => {
+                setDraft((prev) => applySlotCrop(prev, slot, fromCropState(percentCrop)));
+              }}
+            />
+          )}
 
           {src ? (
             <Stack direction="row" spacing={1.5} useFlexGap flexWrap="wrap">
-              {visibleSlots.map((id) => {
-                const aspect = id === 'thumb' ? '1 / 1' : id === 'full' ? `${imageAspect} / 1` : '4 / 3';
+              {SLOTS.map((id) => {
+                const cropAspect = (imageAspect * rects.full.w) / Math.max(rects.full.h, 0.0001);
+                const previewAspect = SLOT_ASPECT[id] ?? cropAspect;
+                // Auto Grid and Thumb follow a hand-set Main, so they are letterboxed only while Main is auto too.
+                const auto = id !== 'full' && !draft.touched[id] && !draft.touched.main;
                 const label =
                   id === 'full'
-                    ? 'Full · any aspect'
+                    ? 'Crop · any shape'
                     : id === 'main'
                       ? 'Main · 1600 × 1200'
                       : id === 'grid'
@@ -525,9 +600,9 @@ export function ListingPhotoEditorDialog({
                     <FramePreview
                       src={src}
                       crop={rects[id]}
-                      within={id === 'full' ? undefined : rects.full}
-                      aspect={aspect}
-                      filter={isReframe ? undefined : cssFilter}
+                      aspect={previewAspect}
+                      letterbox={auto ? { cropAspect } : undefined}
+                      filter={cssFilter}
                       label={label}
                       selected={slot === id}
                       onClick={() => setSlot(id)}
@@ -543,7 +618,7 @@ export function ListingPhotoEditorDialog({
                           });
                         }}
                       >
-                        Reset to auto
+                        {id === 'full' ? 'Whole photo' : 'Reset to auto'}
                       </Button>
                     ) : null}
                   </Box>
@@ -554,7 +629,7 @@ export function ListingPhotoEditorDialog({
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 2, py: 1.5, gap: 1, flexWrap: 'wrap' }}>
-        {!isReframe ? (
+        {!isEdit ? (
           <>
             <Button onClick={() => void skipCurrent()} disabled={busy || rotating}>
               Skip (upload as-is)
@@ -571,10 +646,10 @@ export function ListingPhotoEditorDialog({
         <Box sx={{ flex: 1 }} />
         <Button
           variant="contained"
-          onClick={() => void applyCurrent()}
+          onClick={() => void saveCurrent()}
           disabled={busy || rotating || !imageReady}
         >
-          {busy ? 'Saving…' : isReframe ? 'Save frame' : 'Apply and next'}
+          {busy ? 'Saving…' : isEdit ? 'Save photo' : 'Apply and next'}
         </Button>
       </DialogActions>
     </Dialog>
@@ -610,7 +685,7 @@ function CropBox({
         borderRadius: 1,
         p: 1,
         '& .ReactCrop__child-wrapper img': {
-          maxHeight: 380,
+          maxHeight: { xs: 320, sm: 380 },
           maxWidth: '100%',
           filter: filter || undefined,
         },

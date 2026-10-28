@@ -1,8 +1,8 @@
-v2.229.1 — Load the PR Supply List as a Request
+v2.230.0 — Listing photos keep the original; edits saved beside it
 
-User-facing theme: **Load the PR Supply List sheet into Supplies as an approved Request (Bill, 2026-10-28).**
+User-facing theme: **Listing photos keep the original, with edits saved beside it (Bill, 2026-10-28).**
 
-### Added
-- Your PR Supply List sheet can be loaded into Supplies as a Request you approve in Dash: Retail, Processing and Restoration with every Amazon item, min and max, and the sheet's counts as last week's count.
+### Changed
+- Listing photos: click a photo to edit it. The original upload is kept and edits (turn, crop, brightness, contrast) are saved beside it, so any edit can be changed or undone later. The crop starts free-shape, and Main/Grid/Thumb start with a proper box instead of a stretched one.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

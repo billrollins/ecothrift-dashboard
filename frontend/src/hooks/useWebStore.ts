@@ -5,6 +5,7 @@ import {
   createWebListing,
   deleteWebListing,
   deleteWebListingImage,
+  editWebListingImage,
   getCategoryOptions,
   getConversation,
   getConversations,
@@ -35,6 +36,8 @@ import {
   updateWebListingImageAlt,
   uploadWebListingImage,
   type ConversationParams,
+  type ListingImageCrops,
+  type ListingPhotoEdits,
   type ReservationActionName,
   type ReservationParams,
   type SalesLogParams,
@@ -113,14 +116,16 @@ export function useUploadWebListingImage() {
       alt,
       crop,
       crops,
+      edits,
     }: {
       id: number;
       file: File | Blob;
       alt?: string;
       crop?: { x: number; y: number; w: number; h: number } | null;
       crops?: { main?: { x: number; y: number; w: number; h: number }; grid?: { x: number; y: number; w: number; h: number }; thumb?: { x: number; y: number; w: number; h: number } } | null;
+      edits?: ListingPhotoEdits | null;
     }) => {
-      const { data } = await uploadWebListingImage(id, file, { alt, crop, crops });
+      const { data } = await uploadWebListingImage(id, file, { alt, crop, crops, edits });
       return data;
     },
     onSuccess: (_, variables) => {
@@ -167,6 +172,22 @@ export function useUpdateWebListingImageAlt() {
       alt: string;
     }) => {
       const { data } = await updateWebListingImageAlt(listingId, imageId, alt);
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['webListings', variables.listingId] });
+    },
+  });
+}
+
+/** Save the photo editor's edits on an existing photo (rebuilt from its original). */
+export function useEditWebListingImage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      listingId, imageId, edits, crops,
+    }: { listingId: number; imageId: number; edits: ListingPhotoEdits; crops: ListingImageCrops }) => {
+      const { data } = await editWebListingImage(listingId, imageId, edits, crops);
       return data;
     },
     onSuccess: (_, variables) => {

@@ -544,7 +544,6 @@ export default function ListingStudioPage() {
               altDrafts={altDrafts}
               title={form.title}
               busy={reorderImages.isPending}
-              onOpen={setViewerIndex}
               onReframe={setReframe}
               onMove={moveImage}
               onDelete={(imageId) =>

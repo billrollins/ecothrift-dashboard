@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.229.1] -->
-<!-- Last reviewed: 2026-10-28 (2.229.1) -->
+<!-- Line 1 release: ## [2.230.0] -->
+<!-- Last reviewed: 2026-10-28 (2.230.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.230.0] - 2026-10-28
+
+User-facing theme: **Listing photos keep the original, with edits saved beside it (Bill, 2026-10-28).**
+
+### Changed
+- Listing photos: click a photo to edit it. The original upload is kept and edits (turn, crop, brightness, contrast) are saved beside it, so any edit can be changed or undone later. The crop starts free-shape, and Main/Grid/Thumb start with a proper box instead of a stretched one.
 
 ## [2.229.1] - 2026-10-28
 

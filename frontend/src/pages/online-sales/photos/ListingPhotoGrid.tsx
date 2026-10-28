@@ -11,7 +11,6 @@ export function ListingPhotoGrid({
   altDrafts,
   title,
   busy = false,
-  onOpen,
   onReframe,
   onMove,
   onDelete,
@@ -22,7 +21,7 @@ export function ListingPhotoGrid({
   altDrafts: Record<number, string>;
   title: string;
   busy?: boolean;
-  onOpen: (index: number) => void;
+  /** Opens the photo editor (a click on the photo or the crop button). */
   onReframe: (image: WebListingImage) => void;
   onMove: (imageId: number, direction: -1 | 1) => void;
   onDelete: (imageId: number) => void;
@@ -51,8 +50,8 @@ export function ListingPhotoGrid({
             <Box
               component="button"
               type="button"
-              onClick={() => onOpen(index)}
-              aria-label={`View full photo ${index + 1}`}
+              onClick={() => onReframe(im)}
+              aria-label={`Edit photo ${index + 1}`}
               sx={{
                 display: 'block',
                 width: '100%',
@@ -120,7 +119,7 @@ export function ListingPhotoGrid({
               >
                 <ArrowDownward fontSize="small" />
               </IconButton>
-              <IconButton size="small" aria-label="Reframe photo" onClick={() => onReframe(im)}>
+              <IconButton size="small" aria-label="Edit photo" onClick={() => onReframe(im)}>
                 <Crop fontSize="small" />
               </IconButton>
               <IconButton size="small" aria-label="Delete photo" onClick={() => onDelete(im.id)}>

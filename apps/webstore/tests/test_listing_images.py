@@ -111,10 +111,12 @@ class ListingImageSlotTests(TestCase):
         body = r.json()
         self.assertEqual(body['width'], 2048)
         self.assertEqual(body['height'], 1365)
-        self.assertTrue(body['urls']['full'].endswith(f"/images/{body['id']}/"))
-        self.assertTrue(body['urls']['main'].endswith('/main/'))
-        self.assertTrue(body['urls']['grid'].endswith('/grid/'))
-        self.assertTrue(body['urls']['thumb'].endswith('/thumb/'))
+        # Staff URLs carry the file id, so a saved edit shows at once.
+        version = f"?v={WebListingImage.objects.get(pk=body['id']).s3_file_id}"
+        self.assertTrue(body['urls']['full'].endswith(f"/images/{body['id']}/{version}"))
+        self.assertTrue(body['urls']['main'].endswith(f'/main/{version}'))
+        self.assertTrue(body['urls']['grid'].endswith(f'/grid/{version}'))
+        self.assertTrue(body['urls']['thumb'].endswith(f'/thumb/{version}'))
         image = WebListingImage.objects.prefetch_related('variants__s3_file').get(pk=body['id'])
         for slot, spec in SLOT_SPECS.items():
             variant = _variant(image, slot)

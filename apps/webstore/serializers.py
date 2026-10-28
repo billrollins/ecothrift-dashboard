@@ -36,23 +36,29 @@ class WebListingImageSerializer(serializers.ModelSerializer):
     url = serializers.SerializerMethodField()
     urls = serializers.SerializerMethodField()
     crops = serializers.SerializerMethodField()
+    has_original = serializers.SerializerMethodField()
 
     class Meta:
         model = WebListingImage
         fields = [
             'id', 'alt', 'position', 'url', 'urls', 'crops',
-            'width', 'height', 'created_at',
+            'width', 'height', 'created_at', 'edits', 'has_original',
         ]
         read_only_fields = [
             'id', 'url', 'urls', 'crops',
-            'width', 'height', 'created_at',
+            'width', 'height', 'created_at', 'edits', 'has_original',
         ]
 
+    def get_has_original(self, obj) -> bool:
+        return bool(obj.original_id)
+
+    # Staff URLs carry the photo's file id: a saved edit makes a new file, so Listing Studio shows it at once
+    # instead of the cached old one.
     def get_url(self, obj) -> str:
-        return _image_url(obj.id)
+        return f'{_image_url(obj.id)}?v={obj.s3_file_id}'
 
     def get_urls(self, obj) -> dict:
-        return _image_urls(obj.id)
+        return {slot: f'{url}?v={obj.s3_file_id}' for slot, url in _image_urls(obj.id).items()}
 
     def get_crops(self, obj) -> dict:
         out = {}
