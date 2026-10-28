@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.232.0] -->
-<!-- Last reviewed: 2026-10-28 (2.232.0) -->
+<!-- Line 1 release: ## [2.232.1] -->
+<!-- Last reviewed: 2026-10-28 (2.232.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.232.1] - 2026-10-28
+
+User-facing theme: **Test fix only (2026-10-28).**
+
+### Fixed
+- A Thrift+ scanner test that could fail under load now waits properly. No change in the app.
 
 ## [2.232.0] - 2026-10-28
 

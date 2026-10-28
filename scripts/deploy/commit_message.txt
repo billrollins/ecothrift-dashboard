@@ -1,13 +1,8 @@
-v2.232.0 — Thrift+ Perks price tag; QR opens on a phone
+v2.232.1 — Steadier Thrift+ scanner test
 
-User-facing theme: **The Thrift+ Perks price tag, and a QR that opens on a customer's phone (Bill, 2026-10-28).**
+User-facing theme: **Test fix only (2026-10-28).**
 
-### Added
-- New price tag design, Thrift+ Perks: pick it in Settings → Printing (Classic stays the default; works while the new price tag drawing is on).
-- Every Perks tag says 3-DAY RETURNS WITH THRIFT+ or AS IS · NO RETURNS along the bottom.
-- The tag's QR opens the item on a customer's phone: members see it in the Thrift+ app, anyone else sees it with Get Thrift+.
-
-### Changed
-- Every scanner in the store reads the new QR as the tag number; old tags still work.
+### Fixed
+- A Thrift+ scanner test that could fail under load now waits properly. No change in the app.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
