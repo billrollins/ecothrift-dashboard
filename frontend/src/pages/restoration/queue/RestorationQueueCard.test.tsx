@@ -1,8 +1,15 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { RestorationJobDTO } from '../../../types/inventory.types';
 import { isQueueHistorySelectTarget, RestorationQueueCard } from './RestorationQueueCard';
+
+// The item name and SKU carry the item hover card, which reads through React Query.
+function renderCard(ui: React.ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(ui, { wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
+}
 
 vi.mock('../../../hooks/useItemNotes', () => ({
   useJobNotes: () => ({ data: [], isLoading: false }),
@@ -49,7 +56,7 @@ describe('isQueueHistorySelectTarget', () => {
 
 describe('RestorationQueueCard form layout', () => {
   it('keeps the row fields and drops Waiting and Dispatch', () => {
-    render(
+    renderCard(
       <RestorationQueueCard
         layout="form"
         job={formJob()}
@@ -79,7 +86,7 @@ describe('RestorationQueueCard form layout', () => {
   });
 
   it('shows Open, Hold, and Finish on a queue row', () => {
-    render(
+    renderCard(
       <RestorationQueueCard
         job={formJob()}
         scales={{ Functional: ['Working', 'Repairable', 'Parts-only'] }}
@@ -95,7 +102,7 @@ describe('RestorationQueueCard form layout', () => {
   });
 
   it('names whose bench a bench row is on', () => {
-    render(
+    renderCard(
       <RestorationQueueCard
         job={{ ...formJob(), stage: 'bench', bench_owner_id: 3, bench_owner_name: 'Mike Chen' }}
         scales={{ Functional: ['Working', 'Repairable', 'Parts-only'] }}
@@ -111,7 +118,7 @@ describe('RestorationQueueCard form layout', () => {
     const user = userEvent.setup();
     const onOpenWork = vi.fn();
     const onOpenHistory = vi.fn();
-    render(
+    renderCard(
       <RestorationQueueCard
         job={{ ...formJob(), stage: 'bench' }}
         scales={{ Functional: ['Working', 'Repairable', 'Parts-only'] }}
@@ -135,7 +142,7 @@ describe('RestorationQueueCard form layout', () => {
 
   it('toggles grade cells between dollars and percent of retail', async () => {
     const user = userEvent.setup();
-    render(
+    renderCard(
       <RestorationQueueCard
         layout="form"
         job={formJob()}

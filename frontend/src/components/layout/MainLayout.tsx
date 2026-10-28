@@ -29,6 +29,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoadingScreen } from '../feedback/LoadingScreen';
 import { AppErrorBoundary } from '../feedback/AppErrorBoundary';
+import { ObjectModalProvider } from '../objects/ObjectModal';
 import ChangePasswordDialog from '../users/ChangePasswordDialog';
 import ViewAsDialog from '../viewAs/ViewAsDialog';
 import { VIEW_AS_BAND_VAR, VIEW_AS_BRIGHT, VIEW_AS_INK } from '../viewAs/ViewAsBanner';
@@ -421,7 +422,10 @@ export default function MainLayout() {
           <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: isRetailQa ? 'hidden' : undefined }}>
             <AppErrorBoundary variant="page" resetKey={location.pathname}>
               <Suspense fallback={<LoadingScreen message="Loading…" />}>
-                <Outlet />
+                {/* Any SKU / product / order link on any page opens its object modal (pages may wrap their own). */}
+                <ObjectModalProvider>
+                  <Outlet />
+                </ObjectModalProvider>
               </Suspense>
             </AppErrorBoundary>
           </Box>

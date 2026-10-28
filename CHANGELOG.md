@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.221.1] -->
-<!-- Last reviewed: 2026-10-28 (2.221.1) -->
+<!-- Line 1 release: ## [2.222.0] -->
+<!-- Last reviewed: 2026-10-28 (2.222.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.222.0] - 2026-10-28
+
+User-facing theme: **Item hover card and the universal Item window (Bill, 2026-10-28).** Fix-it lane P4.
+
+### Added
+- Hover over an item name on Restoration Overview, Processing's checked-in list or any item SKU to see the full title, photo, price, retail, condition, specs and where it is. On a phone, tap the small (i) or press and hold the name.
+- Click an item number to open the new Item window: everything about the item in one place for Retail, Processing and Restoration: overview and specs, where it is, money, restoration work, and its whole journey from order to sale. Edit is one button away.
+- On a phone the Item window opens full screen.
+- SKUs on Shrink and Sold online now open the Item window too.
 
 ## [2.221.1] - 2026-10-28
 

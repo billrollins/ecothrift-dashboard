@@ -7,18 +7,32 @@
  * - A product also has a full page (`/inventory/products/:id`) for the work that needs room.
  * - An order opens wider (the size its old full page was); `/inventory/orders/:id` opens the Orders list with it.
  *
- * Wrap a page in `<ObjectModalProvider>` to use it.
+ * - An item opens the universal Item modal (`ItemCard.tsx`): read-only, every department's view, Edit for the editor.
+ * - On a phone the modal is full screen.
+ *
+ * MainLayout puts one `<ObjectModalProvider>` around every staff page; a page wraps its own to keep the open
+ * object in its URL.
  */
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { Box, Button, CircularProgress, Dialog, DialogContent, IconButton, Link, Stack, Tooltip, Typography } from '@mui/material';
+import { createContext, lazy, Suspense, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import {
+  Box, Button, CircularProgress, Dialog, DialogContent, IconButton, Link, Stack, Tooltip, Typography, useMediaQuery,
+  useTheme,
+} from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getProduct } from '../../api/inventory.api';
-import { ProductManagePanel } from '../../pages/inventory/manage/ProductManageDrawer';
-import { ItemCheckInManagePanel } from '../../pages/inventory/workbench/ItemCheckInManagePanel';
-import { ItemManagePanel } from '../../pages/inventory/workbench/ItemManagePanel';
-import OrderDetailPage from '../../pages/inventory/OrderDetailPage';
 import { IconBack as ArrowBack, IconClose as Close, IconOpenExternal as OpenInNew } from '../../icons/ecoIcons';
+import { ItemCardBody } from './ItemCard';
+import { ItemPeek } from './ItemPeek';
+
+// The panels load when first opened, so a provider can sit on every page (MainLayout) at no cost.
+const ProductManagePanel = lazy(() =>
+  import('../../pages/inventory/manage/ProductManageDrawer').then((m) => ({ default: m.ProductManagePanel })));
+const ItemCheckInManagePanel = lazy(() =>
+  import('../../pages/inventory/workbench/ItemCheckInManagePanel').then((m) => ({ default: m.ItemCheckInManagePanel })));
+const ItemManagePanel = lazy(() =>
+  import('../../pages/inventory/workbench/ItemManagePanel').then((m) => ({ default: m.ItemManagePanel })));
+const OrderDetailPage = lazy(() => import('../../pages/inventory/OrderDetailPage'));
 
 export type ObjectRef =
   | { type: 'product'; id: number }
@@ -57,6 +71,11 @@ interface ObjectModalContextValue {
 }
 
 const ObjectModalContext = createContext<ObjectModalContextValue | null>(null);
+
+/** The modal if a provider is above, else null (for parts that also live outside one). */
+export function useOptionalObjectModal(): ObjectModalContextValue | null {
+  return useContext(ObjectModalContext);
+}
 
 export function useObjectModal(): ObjectModalContextValue {
   const ctx = useContext(ObjectModalContext);
@@ -120,6 +139,8 @@ export function ObjectModalProvider({
     [openObject, showObject, closeObject, current],
   );
   const wide = current?.type === 'order';
+  const theme = useTheme();
+  const phone = useMediaQuery(theme.breakpoints.down('sm'));
 
   return (
     <ObjectModalContext.Provider value={value}>
@@ -129,8 +150,9 @@ export function ObjectModalProvider({
         onClose={closeObject}
         maxWidth={wide ? false : 'lg'}
         fullWidth
+        fullScreen={phone}
         scroll="paper"
-        slotProps={wide ? { paper: { sx: { width: 'min(1400px, calc(100% - 32px))', m: 2 } } } : undefined}
+        slotProps={wide && !phone ? { paper: { sx: { width: 'min(1400px, calc(100% - 32px))', m: 2 } } } : undefined}
       >
         {current && (
           <>
@@ -169,38 +191,45 @@ export function ObjectModalProvider({
             </Stack>
             <DialogContent sx={{ p: 0, minHeight: 320 }}>
               <Box key={`${current.type}:${current.id}`} sx={{ display: 'flex', flexDirection: 'column', minHeight: 320 }}>
-                {current.type === 'item' && (
-                  <ItemManagePanel
-                    itemId={current.id}
-                    onFilterItemsByProduct={(productId) => openObject({ type: 'product', id: productId })}
-                    onFilterItemsByOrder={(orderId) => openObject({ type: 'order', id: orderId })}
-                    onOpenCheckIn={(checkInId) => openObject({ type: 'checkin', id: checkInId })}
-                    onOpenItemsForCheckIn={(checkInId) => openObject({ type: 'checkin', id: checkInId })}
-                  />
-                )}
-                {current.type === 'checkin' && (
-                  <ItemCheckInManagePanel
-                    mode="edit"
-                    checkInId={current.id}
-                    onNavigate={(sel) => openObject({ type: sel.type, id: sel.id })}
-                    onApplyProductSearch={(productId) => openObject({ type: 'product', id: productId })}
-                    onOpenProductTab={(productId) => openObject({ type: 'product', id: productId })}
-                    onFilterCheckInsByProduct={(productId) => openObject({ type: 'product', id: productId })}
-                    onFilterCheckInsByOrder={(orderId) => openObject({ type: 'order', id: orderId })}
-                    onCheckInDuplicated={(checkInId) => openObject({ type: 'checkin', id: checkInId })}
-                  />
-                )}
-                {current.type === 'new-checkin' && (
-                  <ItemCheckInManagePanel
-                    mode="create"
-                    productId={current.id}
-                    onNavigate={(sel) => openObject({ type: sel.type, id: sel.id })}
-                    onCancelCreate={back}
-                    onCheckInCreated={(checkInId) => set([...stack.slice(0, -1), { type: 'checkin', id: checkInId }])}
-                  />
-                )}
-                {current.type === 'product' && <ProductBody id={current.id} onDone={closeObject} />}
-                {current.type === 'order' && <OrderDetailPage orderId={current.id} embedded />}
+                <Suspense fallback={<CircularProgress size={28} sx={{ m: 4 }} />}>
+                  {current.type === 'item' && (
+                    <ItemCardBody
+                      itemId={current.id}
+                      renderEditor={() => (
+                        <ItemManagePanel
+                          itemId={current.id}
+                          onFilterItemsByProduct={(productId) => openObject({ type: 'product', id: productId })}
+                          onFilterItemsByOrder={(orderId) => openObject({ type: 'order', id: orderId })}
+                          onOpenCheckIn={(checkInId) => openObject({ type: 'checkin', id: checkInId })}
+                          onOpenItemsForCheckIn={(checkInId) => openObject({ type: 'checkin', id: checkInId })}
+                        />
+                      )}
+                    />
+                  )}
+                  {current.type === 'checkin' && (
+                    <ItemCheckInManagePanel
+                      mode="edit"
+                      checkInId={current.id}
+                      onNavigate={(sel) => openObject({ type: sel.type, id: sel.id })}
+                      onApplyProductSearch={(productId) => openObject({ type: 'product', id: productId })}
+                      onOpenProductTab={(productId) => openObject({ type: 'product', id: productId })}
+                      onFilterCheckInsByProduct={(productId) => openObject({ type: 'product', id: productId })}
+                      onFilterCheckInsByOrder={(orderId) => openObject({ type: 'order', id: orderId })}
+                      onCheckInDuplicated={(checkInId) => openObject({ type: 'checkin', id: checkInId })}
+                    />
+                  )}
+                  {current.type === 'new-checkin' && (
+                    <ItemCheckInManagePanel
+                      mode="create"
+                      productId={current.id}
+                      onNavigate={(sel) => openObject({ type: sel.type, id: sel.id })}
+                      onCancelCreate={back}
+                      onCheckInCreated={(checkInId) => set([...stack.slice(0, -1), { type: 'checkin', id: checkInId }])}
+                    />
+                  )}
+                  {current.type === 'product' && <ProductBody id={current.id} onDone={closeObject} />}
+                  {current.type === 'order' && <OrderDetailPage orderId={current.id} embedded />}
+                </Suspense>
               </Box>
             </DialogContent>
           </>
@@ -210,7 +239,7 @@ export function ObjectModalProvider({
   );
 }
 
-/** A clickable id that opens the object's standard modal. */
+/** A clickable id that opens the object's standard modal (an item's also has the hover card). */
 export function ObjectLink({
   type,
   id,
@@ -223,7 +252,7 @@ export function ObjectLink({
   title?: string;
 }) {
   const { openObject } = useObjectModal();
-  return (
+  const link = (
     <Link
       component="button"
       type="button"
@@ -238,4 +267,6 @@ export function ObjectLink({
       {label ?? `#${id}`}
     </Link>
   );
+  // An item link also shows the item hover card.
+  return type === 'item' ? <ItemPeek itemId={id} showInfoButton={false}>{link}</ItemPeek> : link;
 }

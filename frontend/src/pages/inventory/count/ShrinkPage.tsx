@@ -37,6 +37,7 @@ import {
   type ShrinkRow,
 } from '../../../api/stocktake.api';
 import { IconDownload as Download, IconSearch as Search, IconUndo as Undo } from '../../../icons/ecoIcons';
+import { ItemSkuLink } from '../../../components/objects/ItemPeek';
 
 /** The marks, in the order the owner thinks of them; colour = how it reads in the totals. */
 const OUTCOMES: { key: ShrinkOutcome; label: string; short: string; color: 'info' | 'secondary' | 'success' | 'primary' | 'error' | 'warning' }[] = [
@@ -225,7 +226,7 @@ export default function ShrinkPage({ countId }: { countId: number }) {
 
   const columns: GridColDef<ShrinkRow>[] = useMemo(
     () => [
-      { field: 'sku', headerName: 'SKU', width: 118, renderCell: (p) => <Box sx={{ fontFamily: 'monospace', fontSize: 13 }}>{p.row.sku}</Box> },
+      { field: 'sku', headerName: 'SKU', width: 118, renderCell: (p) => <Box sx={{ fontSize: 13 }}><ItemSkuLink itemId={p.row.id} sku={p.row.sku} /></Box> },
       {
         field: 'title',
         headerName: 'Item',

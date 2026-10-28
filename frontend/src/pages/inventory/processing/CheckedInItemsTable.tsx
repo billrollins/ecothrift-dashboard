@@ -56,6 +56,7 @@ import {
   readProcessingQueueTableClientWidth,
 } from './processingQueueLayout';
 import { processingHeaderGradient, processingTokens } from './processingTokens';
+import { ItemPeek } from '../../../components/objects/ItemPeek';
 import { IconDelete as DeleteOutline, IconPrint as LocalPrintshop } from '../../../icons/ecoIcons';
 
 const CHECKED_IN_AUTOSIZE_COL_SX = {
@@ -244,6 +245,7 @@ function ProductSectionFieldCell({
   productId,
   onEditProduct,
   align = 'left',
+  peekItemId,
 }: {
   children: ReactNode;
   title?: string;
@@ -252,6 +254,8 @@ function ProductSectionFieldCell({
   productId: number | null;
   onEditProduct?: (productId: number) => void;
   align?: 'left' | 'center';
+  /** Show this item's hover card on the text (the full title, photo and facts). */
+  peekItemId?: number;
 }) {
   const editable = productId != null && onEditProduct != null;
   const displayTitle = title ?? (typeof children === 'string' ? children : undefined);
@@ -276,11 +280,15 @@ function ProductSectionFieldCell({
           }
         : undefined
       }
-      title={editable && displayTitle ? `${displayTitle} - click to edit product` : displayTitle}
+      title={peekItemId != null ? undefined : editable && displayTitle ? `${displayTitle} - click to edit product` : displayTitle}
     >
-      <CellText title={displayTitle} fontWeight={fontWeight}>
-        {children}
-      </CellText>
+      {peekItemId != null ?
+        <ItemPeek itemId={peekItemId} block>
+          <CellText fontWeight={fontWeight}>{children}</CellText>
+        </ItemPeek>
+      : <CellText title={displayTitle} fontWeight={fontWeight}>
+          {children}
+        </CellText>}
     </TableCell>
   );
 }
@@ -697,6 +705,7 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
         title={title}
         fontWeight={700}
         cellSx={PRODUCT_TITLE_COL_SX}
+        peekItemId={item.id}
       >
         {title}
       </ProductSectionFieldCell>

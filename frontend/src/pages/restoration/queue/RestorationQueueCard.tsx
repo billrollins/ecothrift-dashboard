@@ -26,6 +26,7 @@ import { FIELD_HEIGHT, FieldLabel, MoneyCell, NoteCell, NOTE_HEIGHT_PX } from '.
 import { DispatchButtons } from './DispatchButtons';
 import { dispatchOptions, type DispatchOption } from './queueDispatch';
 import type { TarsHistoryFilter } from '../tars/tarsBenchHistory';
+import { ItemPeek, ItemSkuLink } from '../../../components/objects/ItemPeek';
 import {
   DESTINATION_IDS,
   destinationLabel,
@@ -193,22 +194,25 @@ export function RestorationQueueCard({
             sx={{ minWidth: 0 }}
           >
             <Typography
+              component="span"
               sx={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '0.74rem', color: accent }}
             >
-              {sku}
+              {itemId != null ? <ItemSkuLink itemId={itemId} sku={sku} /> : sku}
             </Typography>
-            <Typography
-              noWrap
-              sx={{
-                fontWeight: 800,
-                fontSize: '0.95rem',
-                lineHeight: 1.2,
-                color: studio.ink,
-                minWidth: 0,
-              }}
-            >
-              {job.name}
-            </Typography>
+            <ItemPeek itemId={itemId}>
+              <Typography
+                noWrap
+                sx={{
+                  fontWeight: 800,
+                  fontSize: '0.95rem',
+                  lineHeight: 1.2,
+                  color: studio.ink,
+                  minWidth: 0,
+                }}
+              >
+                {job.name}
+              </Typography>
+            </ItemPeek>
           </Stack>
           <Typography noWrap sx={{ fontSize: '0.71rem', color: studio.inkMuted }}>
             {finished

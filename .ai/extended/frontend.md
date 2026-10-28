@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-22 (flat card turn; Dashboard one screen: flip cards, details drawer, no Today's focus; Me page two columns; pay numbers; Messages; Schedule page and My week; Me page; Time & payroll; Messages page; dead pages removed: old workbench, item list, web orders, product review, TARS legacy studio; old redirects) -->
+<!-- Last updated: 2026-10-28 (Universal object modal: the Item modal and the item hover card; flat card turn; Dashboard one screen: flip cards, details drawer, no Today's focus; Me page two columns; pay numbers; Messages; Schedule page and My week; Me page; Time & payroll; Messages page; dead pages removed: old workbench, item list, web orders, product review, TARS legacy studio; old redirects) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -241,6 +241,18 @@ Use instead, in order of preference:
 Cards and rows in a list must be **fixed height with every slot always rendered**, empty or not, so filling in a field never reflows the list beneath the hand. Prefer **dimming** a row that no longer applies over removing it.
 
 **Do not** mount `<Alert>` into a page body. `RestorationQueueCard.tsx` and `TarsGradeTable.tsx` are the reference implementations.
+
+## Universal object modal (Item first, 2026-10-28)
+
+One modal per kind of object, opened from its id anywhere on the site. The **Item** modal is the model; product and order follow it.
+
+- **Open it:** `<ObjectLink type="item" id={…} label={sku} />` or `<ItemSkuLink itemId sku />` (`components/objects/`). `MainLayout` puts one `ObjectModalProvider` around every staff page, so a link works on any page; a page wraps its own provider only to keep the open object in its URL (Inventory search `?open=item:5`, Orders). A link clicked inside the modal swaps its content with a Back arrow.
+- **One API per object:** `GET /api/inventory/items/<id>/card/` (`services/item_card.py`) returns the whole card in one call; `?lite=1` is the hover card (a few queries). Read-only, staff only; cost shows because the item API already shows it to staff.
+- **Layout:** header (photo, SKU with copy, title, brand · model, status and condition chips, tag price, retail, sold for) then sections that leave out empty rows: **Overview** (product, brand, model, category, condition, UPC, source, specs, notes) · **Where it is** (now, location, pallet, checked in who/when, tag printed, on the floor since, last scan) · **Money** (tag, retail, retail on the tag, retail check, manifest retail, cost estimate, sold for, store keeps, ThriftBucks, sale channel) · **Restoration** (only when there is a job: stage, scale, grade prices, bench, bench time, notes, work done) · **Journey** (one dated timeline: order, delivery, check-in, restoration, tag printed, history events, register sales, notes, count scans) · **Links** (product, order, check-in, restoration job, salvaged-from item, Inventory search).
+- **Edit:** the modal is read-only; **Edit** swaps in the existing editor (`ItemManagePanel`, its save and print) with "Back to the item". No new edit paths in the modal.
+- **Size:** desktop a large dialog (two columns: facts left, Restoration / Journey / Links right); phone (`sm` and below) a full-screen sheet, one column.
+- **Hover card** (`ItemPeek`): wrap an item name in a list with `<ItemPeek itemId>`. Desktop: shows after ~0.3 s of hover, the lite card starts loading the moment the mouse arrives and stays cached a minute. Phone: a small (i) after the name, or a long press. Used on Restoration Overview (name and SKU), Processing's checked-in table (title cell), and every `ObjectLink type="item"` (Inventory search, Processed items, Shrink, Sold online).
+- **The next object** (product, order, …) copies this: one `…/card/` endpoint, one `…Card.tsx` body inside `ObjectModal`, the same header → sections → journey → links order, read-only with Edit handing over to the existing editor.
 
 ## Buying — desktop auction list (`AuctionListDesktop`, v2.18.0 list columns + layout; v2.13.1 grid perf; need v2.14.0)
 

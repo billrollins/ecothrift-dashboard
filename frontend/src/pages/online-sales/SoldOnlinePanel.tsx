@@ -25,6 +25,7 @@ import {
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { formatCurrency } from '../../utils/format';
 import { useOnlineSalesMobile } from './useOnlineSalesMobile';
+import { ItemSkuLink } from '../../components/objects/ItemPeek';
 
 const KEY = ['online-sales-sold', 90] as const;
 
@@ -150,7 +151,7 @@ export function SoldOnlinePanel() {
                   <Typography variant="body2" sx={{ fontWeight: 800 }}>{formatCurrency(r.sold_for)}</Typography>
                 </Box>
                 <Typography variant="caption" color="text.secondary" component="div">
-                  {r.sku} · {when(r.sold_at)} · {r.channel_label}
+                  <ItemSkuLink itemId={r.item_id} sku={r.sku} /> · {when(r.sold_at)} · {r.channel_label}
                   {r.recorded_by ? ` · ${r.recorded_by}` : ''}
                 </Typography>
                 {r.can_undo ? (
@@ -179,7 +180,7 @@ export function SoldOnlinePanel() {
                 {rows.map((r) => (
                   <TableRow key={r.item_id} hover>
                     <TableCell>{when(r.sold_at)}</TableCell>
-                    <TableCell sx={{ fontFamily: 'monospace' }}>{r.sku}</TableCell>
+                    <TableCell><ItemSkuLink itemId={r.item_id} sku={r.sku} /></TableCell>
                     <TableCell sx={{ maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.note || r.title}>
                       {r.title}
                     </TableCell>
