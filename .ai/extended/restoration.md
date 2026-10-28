@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-26 (estimates required on every path into Restoration) -->
+<!-- Last updated: 2026-10-28 (stacks phase A built) -->
 # Restoration / TARS
 
 Staff restoration: Ashley prices grades, Mike runs the bench, Bill sees what it earned. Initiative: [`finalize_tars_app`](../initiatives/_archived/finalize_tars_app.md). Shipped **v2.71.0** (GitHub; not Heroku).
@@ -131,6 +131,65 @@ A part leaving as salvage skips the catalog: same product and money slots, diffe
 Main item SKU stays; a destroyed item can be remapped (`POST …/items/{id}/remap-product/`, including `product_mode=new`). Submit remaps if needed, mints parts (decreasing `parent_retail` only for shelf-bound additionals), then `POST …/processing-check-in/`, then prints. No as-is disclaimer gate.
 
 **Processing workspace:** check-in with `dispatch=restoration` stays on the Processing page. After print, `TarsQuickGradeDialog` sets scale, grade values, destination (default Shelf), and note. `starting_grade` is the lowest-value grade on the scale so value added is measurable.
+
+---
+
+## Stacks (Bill OK'd 2026-10-28; phase A built, phase B next)
+
+Bill: products with several units show as one stack with a number; decisions are made once for the group; a stack
+can be split; scanning a unit opens its stack so the whole group can go on the Bench.
+
+**What is true today.** A job is one check-in, and a check-in can hold N units (`quantity`, `items`). Scale, grade
+prices, destination and note are already on the job, so they already apply to every unit. Prod has two such jobs this
+week (12 units, 3 units). The split and combine APIs exist (`split/`, `combine/`, queued/sent only) but no screen uses
+them. The intake forms refuse quantity > 1 for Restoration, and Bench / Finish refuse a stack ("takes one item at a
+time").
+
+**1. A stack is a job with more than one unit.** The one new field is the job's family (the job a group was split from), so groups from one split find each other. It forms when Processing sends N units of
+one product in one check-in (the intake forms stop forcing quantity 1). Loose single jobs of the same product and the
+same order in the Queue get a small "Stack these 2" button (the existing combine). Nothing is ever stacked without a
+click.
+
+**2. What it shows.** The same queue card with two offset card edges behind it and a count badge (×12) on the corner.
+Columns read once for the group: Note, Destination, Scale and prices, value at stake ×N. Same height as a single card,
+so nothing shifts.
+
+**3. Group actions.** Every row action already works on the job, so it covers all units: destination, scale, prices,
+note, Hold, Finish, Back to Queue. Print reprints all N tags. Each unit keeps its own SKU.
+
+**4. Opening a stack.** Click the badge: the card opens in place to a list of units (SKU, tag note, Pull out). Phone:
+a bottom sheet with the same list. A unit row opens the Item modal (lane P4).
+
+**5. Splitting (one Split dialog, three tabs).** *Equal groups* (N groups; leftovers go to the first groups), *Pull out*
+(take N into a new group, or tick the units), *Groups of* (groups of N; the remainder is its own group). The dialog
+draws the result as little stacks before you press Split. Each new group keeps scale, prices, destination, note and
+estimate. Groups from a split stay together: they sort next to each other under one family line ("12 units · 3 groups")
+and fold into one stack when collapsed. A group on another tab says "Group 2 of 3 · others in Bench".
+
+**6. A unit goes different.** Pull out on that unit makes it a group of 1 with the same decisions; then change it.
+
+**7. Scanning.** A scan of a unit in a stack opens that stack with the unit highlighted and two buttons: **Put the whole
+group on the Bench** (primary) and **Just this one** (pulls it out and puts it on the Bench).
+
+**8. A whole stack on the Bench.** The bench works the group as one item: one clock, one grade table, parts for the
+group. Money is per unit × N (value added = N × (final − original) − parts). Finish sends all N to Processing at the
+final grade; Receive checks them in together with one form.
+
+**9. Undo.** After a split the snackbar offers Undo (stacks them back). Any time later, "Stack back together" on the
+family line rejoins groups that are on the same tab.
+
+**Built in phase A.** `stack_family` on `RestorationJob` (plain id). `split/` copies stage, `sent_at`, `created_at`,
+scale, grade prices, destination, note and the Processing request fields (`STACK_GROUP_FIELDS`; names not on the model
+yet are skipped) and puts every group in the first stack's family. `combine/` takes queued or sent cards at one stage.
+Processing and Add item no longer refuse quantity > 1 for Restoration (the forms are P5's). The Overview gets one card
+per job (the old one-row-per-unit expansion is gone). Front end: `queue/stackModel.ts` (split plans, clusters),
+`StackPanel.tsx`, `SplitStackDialog.tsx`, the `StackCluster` line in `RestorationQueue.tsx`. Stake on a stack =
+per-unit stake × units. A scan of a stack unit (Overview or Bench) opens `/restoration/overview?job=…&unit=…`. Splits
+happen on the Queue tab only; other tabs open the list read-only. Families sit together but do not fold into one card.
+
+**Build order (each ships alone).** A: stack card, open, three splits, pull out, scan opens the stack, stack back
+together, intake allows N, Stack these. B: whole stack on the Bench, Finish and Receive for N units.
+Processing lists: the ×N badge on restoration check-ins only; splitting stays in Restoration.
 
 ---
 

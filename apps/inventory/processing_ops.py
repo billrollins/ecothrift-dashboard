@@ -434,8 +434,6 @@ def _check_in_processing_row(
     retail = parse_decimal(data.get('retail') or data.get('unit_retail'))
     price = parse_decimal(data.get('price'))
     dispatch = data.get('dispatch') or 'on_shelf'
-    if dispatch == 'restoration' and quantity > 1:
-        raise ValueError('Restoration check-in is one item at a time. Set quantity to 1.')
     restoration_scale = ''
     restoration_grade_values: dict[str, float] = {}
     processing_handoff = None

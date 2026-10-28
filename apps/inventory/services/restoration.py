@@ -1056,6 +1056,32 @@ def _move_items_to_processing(
         ItemHistory.objects.bulk_create(histories)
 
 
+# Decisions made once for a stack that every group split from it keeps as-is.
+# Money on these is per unit, so nothing is scaled. Names that are not on the
+# model yet (the Processing request fields) are skipped.
+STACK_GROUP_FIELDS = (
+    'intended_destination',
+    'queue_note',
+    'requested_needs',
+    'done_price',
+    'as_is_prices',
+    'value_at_stake',
+    'holdout',
+    'found_needs',
+)
+
+
+def _stack_group_fields(job: RestorationJob) -> dict[str, Any]:
+    names = {f.name for f in RestorationJob._meta.concrete_fields}
+    out: dict[str, Any] = {}
+    for name in STACK_GROUP_FIELDS:
+        if name not in names:
+            continue
+        value = getattr(job, name)
+        out[name] = list(value) if isinstance(value, list) else dict(value) if isinstance(value, dict) else value
+    return out
+
+
 @transaction.atomic
 def split_restoration_job(
     job: RestorationJob,
@@ -1089,6 +1115,11 @@ def split_restoration_job(
     if not flat_selected:
         raise ValueError('Select at least one item to split off.')
 
+    family = job.stack_family or job.pk
+    if job.stack_family is None:
+        job.stack_family = family
+        job.save(update_fields=['stack_family', 'updated_at'])
+
     created_jobs: list[RestorationJob] = []
     for item_ids in groups:
         if not item_ids:
@@ -1096,18 +1127,23 @@ def split_restoration_job(
         new_check_in = _clone_check_in_from(check_in, user)
         Item.objects.filter(pk__in=item_ids).update(check_in=new_check_in)
         _sync_item_check_in_quantity(new_check_in)
-        created_jobs.append(
-            RestorationJob.objects.create(
-                item_check_in=new_check_in,
-                product=job.product,
-                purchase_order=job.purchase_order,
-                quantity=new_check_in.quantity,
-                stage=RestorationJob.STAGE_QUEUED,
-                scale=job.scale,
-                grade_values=dict(job.grade_values or {}),
-                created_by=user,
-            ),
+        new_job = RestorationJob.objects.create(
+            item_check_in=new_check_in,
+            product=job.product,
+            purchase_order=job.purchase_order,
+            quantity=new_check_in.quantity,
+            stage=job.stage,
+            sent_at=job.sent_at,
+            scale=job.scale,
+            grade_values=dict(job.grade_values or {}),
+            stack_family=family,
+            created_by=user,
+            **_stack_group_fields(job),
         )
+        # Waiting is counted from when the stack arrived, not from the split.
+        RestorationJob.objects.filter(pk=new_job.pk).update(created_at=job.created_at)
+        new_job.created_at = job.created_at
+        created_jobs.append(new_job)
 
     _sync_item_check_in_quantity(check_in)
     remaining = check_in.items.count()
@@ -1195,8 +1231,10 @@ def combine_restoration_jobs(
 
     ordered_jobs = [jobs_by_id[int(job_id)] for job_id in job_ids]
     target = ordered_jobs[0]
-    if any(job.stage != RestorationJob.STAGE_QUEUED for job in ordered_jobs):
-        raise ValueError('Only queued restoration stacks can be combined.')
+    if any(job.stage not in (RestorationJob.STAGE_QUEUED, RestorationJob.STAGE_SENT) for job in ordered_jobs):
+        raise ValueError('Only stacks in the queue can be combined.')
+    if len({job.stage for job in ordered_jobs}) > 1:
+        raise ValueError('Only stacks at the same stage can be combined.')
     if any(job.purchase_order_id != target.purchase_order_id for job in ordered_jobs):
         raise ValueError('Only stacks from the same order can be combined.')
     if any(job.product_id != target.product_id for job in ordered_jobs):

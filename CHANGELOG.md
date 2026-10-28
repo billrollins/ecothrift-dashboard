@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.223.0] -->
-<!-- Last reviewed: 2026-10-28 (2.223.0) -->
+<!-- Line 1 release: ## [2.224.0] -->
+<!-- Last reviewed: 2026-10-28 (2.224.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.224.0] - 2026-10-28
+
+User-facing theme: **Stacks on Restoration Overview: several units of one product as one card (Bill, 2026-10-28).** Fix-it lane P3, phase A.
+
+### Added
+- Restoration Overview: several units of one product show as one stack card, with a ×N badge and the stack's total at stake. Note, destination, scale and prices cover every unit.
+- Tap ×N to see the units. Split into equal groups, pull some out, or make groups of N, with a preview first. Undo, or "Stack back together" later.
+- Scanning a unit that is in a stack opens the stack with that unit lit; "Just this one → Bench" takes only that unit.
+- Loose cards of the same item from the same order get a "Stack these" button.
+- Processing and Add item can send more than one unit to Restoration in one check-in.
 
 ## [2.223.0] - 2026-10-28
 

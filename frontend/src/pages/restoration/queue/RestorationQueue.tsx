@@ -12,17 +12,34 @@
 import ArrowDropDown from '@mui/icons-material/ArrowDropDown';
 import ArrowDropUp from '@mui/icons-material/ArrowDropUp';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSnackbar } from 'notistack';
 import { useGradeScales } from '../../../hooks/useGradeScales';
 import { useFixRestorationFinish, usePatchRestorationQueueDetails } from '../../../hooks/useRestorationBench';
+import { useCombineRestorationJobs, useSplitRestorationJob } from '../../../hooks/useRestorationJobs';
 import type { RestorationBenchDisposition, RestorationJobDTO } from '../../../types/inventory.types';
 import { studio } from '../tars/studio/tarsStudioTheme';
 import { DispatchExplainerDialog } from './DispatchExplainerDialog';
 import { RestorationQueueCard, QUEUE_CARD_COLUMNS, QueueSection, type QueueEdit } from './RestorationQueueCard';
-import type { DispatchExplainer, DispatchOption, DispatchTarget } from './queueDispatch';
+import { dispatchOptions, type DispatchExplainer, type DispatchOption, type DispatchTarget } from './queueDispatch';
+import { SplitStackDialog } from './SplitStackDialog';
+import { StackPanel } from './StackPanel';
+import {
+  clusterQueue,
+  combinable,
+  familyElsewhere,
+  isStack,
+  unitCount,
+  type QueueEntry,
+  type SplitPlan,
+} from './stackModel';
 import type { TarsHistoryFilter } from '../tars/tarsBenchHistory';
 import {
   DEFAULT_QUEUE_SORT,
@@ -44,6 +61,9 @@ export function RestorationQueue({
   onDispatch,
   actionLabel = 'Dispatch',
   emptyMessage = 'Nothing here.',
+  allJobs,
+  focus,
+  stackable = false,
 }: {
   jobs: RestorationJobDTO[];
   accent: string;
@@ -55,16 +75,183 @@ export function RestorationQueue({
   /** Column name over the buttons. Always Dispatch - the buttons say the rest. */
   actionLabel?: string;
   emptyMessage?: string;
+  /** Every loaded job, so a group can say where the rest of its stack is. */
+  allJobs?: RestorationJobDTO[];
+  /** A scanned unit: open its stack with that unit lit. */
+  focus?: { jobId: number; sku: string; seq: number } | null;
+  /** Queue only: stacks can be split, pulled from and stacked back. */
+  stackable?: boolean;
 }) {
-  const { enqueueSnackbar } = useSnackbar();
+  const { enqueueSnackbar, closeSnackbar } = useSnackbar();
   const { scales } = useGradeScales();
   const patchDetails = usePatchRestorationQueueDetails();
   const fixFinish = useFixRestorationFinish();
+  const splitJob = useSplitRestorationJob();
+  const combineJobs = useCombineRestorationJobs();
   const [sort, setSort] = useState<QueueSort>(DEFAULT_QUEUE_SORT);
   const [explainer, setExplainer] = useState<DispatchExplainer | null>(null);
+  const [openStack, setOpenStack] = useState<{ jobId: number; sku: string | null } | null>(null);
+  const [splitFor, setSplitFor] = useState<{ job: RestorationJobDTO; picked: number[] } | null>(null);
+  const [confirmCombine, setConfirmCombine] = useState<number[] | null>(null);
 
   const ordered = useMemo(() => sortQueue(jobs, scales, sort), [jobs, scales, sort]);
-  const rowBusy = Boolean(busy || fixFinish.isPending);
+  const entries = useMemo(() => clusterQueue(ordered, stackable), [ordered, stackable]);
+  const shownIds = useMemo(() => new Set(jobs.map((j) => j.id)), [jobs]);
+  const rowBusy = Boolean(busy || fixFinish.isPending || splitJob.isPending || combineJobs.isPending);
+
+  useEffect(() => {
+    if (focus) setOpenStack({ jobId: focus.jobId, sku: focus.sku });
+  }, [focus]);
+
+  function failStack(err: unknown, fallback: string) {
+    const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    enqueueSnackbar(detail || (err instanceof Error ? err.message : fallback), { variant: 'error' });
+  }
+
+  function stackBack(ids: number[], replaceValues = false) {
+    combineJobs.mutate(
+      { job_ids: ids, replace_values: replaceValues },
+      {
+        onSuccess: (job) => {
+          setConfirmCombine(null);
+          enqueueSnackbar(`Stacked: ×${unitCount(job)}`, { variant: 'success' });
+        },
+        onError: (err) => {
+          const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? '';
+          if (!replaceValues && detail.includes('Confirm')) {
+            setConfirmCombine(ids);
+            return;
+          }
+          failStack(err, 'Could not stack them');
+        },
+      },
+    );
+  }
+
+  /** Split, then offer Undo: the groups stack straight back onto the source. */
+  function runSplit(job: RestorationJobDTO, groups: number[][], after?: (created: RestorationJobDTO[]) => void) {
+    splitJob.mutate(
+      { id: job.id, payload: { groups: groups.map((item_ids) => ({ item_ids })) } },
+      {
+        onSuccess: (result) => {
+          setSplitFor(null);
+          const ids = [result.source_job?.id, ...result.created_jobs.map((j) => j.id)].filter(
+            (id): id is number => id != null,
+          );
+          if (!result.source_job || !isStack(result.source_job)) setOpenStack(null);
+          if (after) {
+            after(result.created_jobs);
+            return;
+          }
+          const key = enqueueSnackbar(`Split into ${ids.length} groups`, {
+            variant: 'success',
+            action: (
+              <Button
+                size="small"
+                sx={{ color: '#fff', fontWeight: 900 }}
+                onClick={() => {
+                  closeSnackbar(key);
+                  stackBack(ids);
+                }}
+              >
+                Undo
+              </Button>
+            ),
+          });
+        },
+        onError: (err) => failStack(err, 'Could not split the stack'),
+      },
+    );
+  }
+
+  /** One unit to the bench: the same checks as the bench button, then split it off and go. */
+  function justThisOne(job: RestorationJobDTO, itemId: number) {
+    const unit = job.items.find((u) => u.id === itemId);
+    if (!unit) return;
+    const single = { ...job, quantity: 1, items: [unit] };
+    const bench = dispatchOptions(single, {
+      scaleGrades: scales[job.scale] ?? [],
+      occupyingBenchJob: occupyingBenchJob ?? null,
+    }).find((o) => o.target === 'bench');
+    if (bench?.tone === 'blocked') {
+      setExplainer(bench.explainer ?? null);
+      return;
+    }
+    runSplit(job, [[itemId]], (created) => {
+      if (created[0]) onDispatch(created[0], 'bench');
+    });
+  }
+
+  function renderCard(job: RestorationJobDTO) {
+    const open = openStack?.jobId === job.id && isStack(job);
+    return (
+      <Box key={queueRowKey(job)}>
+        <RestorationQueueCard
+          job={job}
+          scales={scales}
+          accent={accent}
+          busy={rowBusy}
+          occupyingBenchJob={occupyingBenchJob}
+          onOpenHistory={onOpenHistory}
+          onOpenWork={onOpenWork}
+          onEdit={applyEdit}
+          onDispatch={handleDispatch}
+          stackOpen={open}
+          onToggleStack={() => setOpenStack(open ? null : { jobId: job.id, sku: null })}
+        />
+        {open ? (
+          <StackPanel
+            job={job}
+            accent={accent}
+            highlightSku={openStack?.sku}
+            busy={rowBusy}
+            canBench={stackable}
+            onClose={() => setOpenStack(null)}
+            onSplit={(picked) => {
+              if (!stackable) {
+                setExplainer(splitOnlyInQueue);
+                return;
+              }
+              setSplitFor({ job, picked });
+            }}
+            onPullOut={(ids) => {
+              if (!stackable) {
+                setExplainer(splitOnlyInQueue);
+                return;
+              }
+              runSplit(job, [ids]);
+            }}
+            onJustThisOne={(id) => justThisOne(job, id)}
+          />
+        ) : null}
+      </Box>
+    );
+  }
+
+  function renderEntry(entry: QueueEntry) {
+    if (entry.kind === 'job') return renderCard(entry.job);
+    const family = entry.family ? entry.jobs[0].stack_family ?? null : null;
+    const elsewhere = family != null && allJobs ? familyElsewhere(family, allJobs, shownIds) : [];
+    const together = combinable(entry.jobs);
+    // The job the stack started as keeps the decisions when they are joined back.
+    const root = together.find((j) => j.id === family);
+    const ids = root ? [root.id, ...together.filter((j) => j !== root).map((j) => j.id)] : together.map((j) => j.id);
+    return (
+      <StackCluster
+        key={entry.key}
+        accent={accent}
+        units={entry.jobs.reduce((sum, j) => sum + unitCount(j), 0)}
+        groups={entry.jobs.length}
+        family={entry.family}
+        elsewhere={elsewhere.length}
+        busy={rowBusy}
+        canJoin={ids.length >= 2}
+        onJoin={() => stackBack(ids)}
+      >
+        {entry.jobs.map(renderCard)}
+      </StackCluster>
+    );
+  }
 
   function fail(err: unknown) {
     enqueueSnackbar(err instanceof Error ? err.message : 'Could not save that change', {
@@ -122,20 +309,7 @@ export function RestorationQueue({
             <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{emptyMessage}</Typography>
           </Box>
         ) : (
-          ordered.map((job) => (
-            <RestorationQueueCard
-              key={queueRowKey(job)}
-              job={job}
-              scales={scales}
-              accent={accent}
-              busy={rowBusy}
-              occupyingBenchJob={occupyingBenchJob}
-              onOpenHistory={onOpenHistory}
-              onOpenWork={onOpenWork}
-              onEdit={applyEdit}
-              onDispatch={handleDispatch}
-            />
-          ))
+          entries.map(renderEntry)
         )}
       </Stack>
       <DispatchExplainerDialog
@@ -143,7 +317,95 @@ export function RestorationQueue({
         explainer={explainer}
         onClose={() => setExplainer(null)}
       />
+      <SplitStackDialog
+        job={splitFor?.job ?? null}
+        picked={splitFor?.picked ?? NO_PICKS}
+        accent={accent}
+        busy={splitJob.isPending}
+        onClose={() => setSplitFor(null)}
+        onSplit={(plan: SplitPlan) => splitFor && runSplit(splitFor.job, plan.groups)}
+      />
+      <Dialog open={confirmCombine != null} onClose={() => setConfirmCombine(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 950 }}>Different prices</DialogTitle>
+        <DialogContent>
+          <Typography>
+            These have different retail or price. Stacking them gives every unit the first card's retail, price and
+            grade prices.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmCombine(null)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={combineJobs.isPending}
+            onClick={() => confirmCombine && stackBack(confirmCombine, true)}
+          >
+            Stack them
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
+  );
+}
+
+const NO_PICKS: number[] = [];
+
+const splitOnlyInQueue: DispatchExplainer = {
+  title: "Can't split it here",
+  whyNot: 'Stacks are split in the Queue, before any work starts.',
+  steps: ['Send it back to the Queue.', 'Then open the stack and split it.'],
+};
+
+/**
+ * Cards that belong together: groups split from one stack, or the same item
+ * from the same order. A bracket and one line say so; one button joins them.
+ * The line is a fixed height so joining or splitting never moves the cards.
+ */
+function StackCluster({
+  accent,
+  units,
+  groups,
+  family,
+  elsewhere,
+  busy,
+  canJoin,
+  onJoin,
+  children,
+}: {
+  accent: string;
+  units: number;
+  groups: number;
+  family: boolean;
+  elsewhere: number;
+  busy: boolean;
+  canJoin: boolean;
+  onJoin: () => void;
+  children: ReactNode;
+}) {
+  const said = family
+    ? `From one stack · ${units} units in ${groups} groups${elsewhere > 0 ? ` · ${elsewhere} more on other tabs` : ''}`
+    : `Same item, same order · ${units} units on ${groups} cards`;
+  return (
+    <Box
+      data-stack-cluster
+      sx={{ pl: 1.25, borderLeft: `3px dashed ${accent}`, display: 'flex', flexDirection: 'column', gap: 1 }}
+    >
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ minHeight: 30 }}>
+        <Typography noWrap sx={{ fontSize: '0.74rem', fontWeight: 800, color: studio.inkMuted, flex: 1, minWidth: 0 }}>
+          {said}
+        </Typography>
+        <Button
+          size="small"
+          variant="outlined"
+          disabled={busy || !canJoin}
+          onClick={onJoin}
+          sx={{ fontWeight: 800, flexShrink: 0 }}
+        >
+          {family ? 'Stack back together' : 'Stack these'}
+        </Button>
+      </Stack>
+      {children}
+    </Box>
   );
 }
 

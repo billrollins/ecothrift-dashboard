@@ -1018,6 +1018,10 @@ class RestorationJob(models.Model):
         default='',
     )
     queue_note = models.TextField(blank=True, default='')
+    # Stacks: groups split from one stack keep the id of the job they came
+    # from, so they sort together and can be stacked back. A plain id, not a
+    # foreign key, so it survives that job being combined away.
+    stack_family = models.PositiveIntegerField(null=True, blank=True, db_index=True)
     # TARS bench payload (JSON until reporting needs indexed columns).
     # Keys: workState (queue|bench|pending|done|returned), selectedGrade, actions,
     # procurementGroups, benchStartedAt, pending { reason, notes, storageLocation, ... }.

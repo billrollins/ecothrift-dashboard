@@ -41,7 +41,7 @@ import type {
   RestorationScanItemDTO,
 } from '../../../types/inventory.types';
 import { restorationBenchPath } from '../restorationRoutes';
-import { resolveRestorationScan, shouldPickupOnScan } from '../restorationScanFind';
+import { isStackJob, resolveRestorationScan, shouldPickupOnScan } from '../restorationScanFind';
 import { isHeldScanFocus, RestorationScanField, shouldKeepHistoryDrawer } from './RestorationScanField';
 import { TarsScanMessageDialog } from '../tars/TarsScanMessageDialog';
 import { TarsScoreboard } from '../tars/TarsScoreboard';
@@ -92,6 +92,8 @@ export default function RestorationQueuePage() {
   const scanInputRef = useRef<HTMLInputElement>(null);
   const jobParam = searchParams.get('job');
   const addParam = searchParams.get('add');
+  const unitParam = searchParams.get('unit');
+  const [stackFocus, setStackFocus] = useState<{ jobId: number; sku: string; seq: number } | null>(null);
 
   const clearSelection = useCallback(() => {
     setHistoryJobId(null);
@@ -101,6 +103,7 @@ export default function RestorationQueuePage() {
         const next = new URLSearchParams(prev);
         next.delete('job');
         next.delete('add');
+        next.delete('unit');
         return next;
       },
       { replace: true },
@@ -223,8 +226,14 @@ export default function RestorationQueuePage() {
     const match = jobs.find((job) => job.id === id);
     if (!match) return;
     setList(queueListForStage(match.stage));
+    if (unitParam && isStackJob(match)) {
+      setStackFocus((prev) =>
+        prev?.jobId === match.id && prev.sku === unitParam ? prev : { jobId: match.id, sku: unitParam, seq: Date.now() },
+      );
+      return;
+    }
     setHistoryJobId(match.id);
-  }, [addParam, jobParam, jobs, isLoading]);
+  }, [addParam, jobParam, unitParam, jobs, isLoading]);
 
   useEffect(() => {
     if (historyJobId == null) return;
@@ -275,6 +284,11 @@ export default function RestorationQueuePage() {
     setScan('');
     const result = await resolveRestorationScan(v, jobs);
     if (result.kind === 'job') {
+      if (isStackJob(result.job)) {
+        setList(queueListForStage(result.job.stage));
+        setStackFocus({ jobId: result.job.id, sku: v, seq: Date.now() });
+        return;
+      }
       if (shouldPickupOnScan(result.job, occupyingBenchJob == null)) {
         goToBench(result.job);
         return;
@@ -438,6 +452,9 @@ export default function RestorationQueuePage() {
               onOpenHistory={revealJob}
               onOpenWork={goToBench}
               onDispatch={handleDispatch}
+              allJobs={jobs}
+              focus={stackFocus}
+              stackable={list === 'queue'}
               emptyMessage={
                 list === 'queue'
                   ? 'Nothing is waiting for restoration.'

@@ -1,15 +1,15 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarProvider } from 'notistack';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RestorationJobDTO } from '../../../types/inventory.types';
-import { expandRestorationJobsForTars } from '../tars/tarsJobAdapter';
 import RestorationQueuePage from './RestorationQueuePage';
 
 const navigate = vi.fn();
 const createFromSku = vi.fn();
+const splitJob = vi.fn();
 const jobsState = vi.hoisted(() => ({ jobs: [] as RestorationJobDTO[] }));
 const lookupState = vi.hoisted(() => ({
   result: { found: 'none' as const } as
@@ -33,6 +33,8 @@ vi.mock('../../../hooks/useGradeScales', () => ({
 
 vi.mock('../../../hooks/useRestorationJobs', () => ({
   useCreateRestorationJobFromSku: () => ({ mutate: createFromSku, isPending: false }),
+  useSplitRestorationJob: () => ({ mutate: splitJob, isPending: false }),
+  useCombineRestorationJobs: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock('../../../hooks/useRestorationBench', () => ({
@@ -111,8 +113,32 @@ describe('RestorationQueuePage scan', () => {
   beforeEach(() => {
     navigate.mockReset();
     createFromSku.mockReset();
+    splitJob.mockReset();
     jobsState.jobs = [queuedJob()];
     lookupState.result = { found: 'none' };
+  });
+
+  it('opens a stack with the scanned unit lit instead of benching all of it', async () => {
+    const user = userEvent.setup();
+    const stack = {
+      ...queuedJob(),
+      quantity: 3,
+      items: [1, 2, 3].map((id) => ({ id, sku: `ET-1${id}`, status: 'in_stock', condition: '', location: '' })),
+    } as RestorationJobDTO;
+    jobsState.jobs = [stack];
+    renderPage();
+    expect(screen.getByRole('button', { name: /Stack of 3/ })).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Scan SKU'), 'ET-12{Enter}');
+    expect(navigate).not.toHaveBeenCalled();
+    const lit = await screen.findByText('Scanned');
+    expect(lit.closest('[data-stack-unit]')?.getAttribute('data-stack-unit')).toBe('ET-12');
+
+    const row = lit.closest('[data-stack-unit]') as HTMLElement;
+    await user.click(within(row).getByRole('button', { name: /Just this one → Bench/ }));
+    expect(splitJob).toHaveBeenCalledWith(
+      { id: 11, payload: { groups: [{ item_ids: [2] }] } },
+      expect.anything(),
+    );
   });
 
   it('puts a queued item on an empty bench and opens the bench', async () => {
@@ -195,14 +221,14 @@ describe('RestorationQueuePage tabs', () => {
 
   beforeEach(() => {
     navigate.mockReset();
-    // The page gets one row per item for a multi-item job, all with the same job id.
-    jobsState.jobs = expandRestorationJobsForTars([queuedJob(), multiItemJob(), doneJob()]);
+    // A multi-item job is one stack card.
+    jobsState.jobs = [queuedJob(), multiItemJob(), doneJob()];
   });
 
   it('shows only the chosen tab\'s rows, even after fast switches', async () => {
     const user = userEvent.setup();
     const { container } = renderPage();
-    expect(rowNames(container).sort()).toEqual(['11', '20', '20', '20']);
+    expect(rowNames(container).sort()).toEqual(['11', '20']);
 
     for (let i = 0; i < 3; i += 1) {
       await user.click(screen.getByRole('tab', { name: /Done/ }));
@@ -210,7 +236,7 @@ describe('RestorationQueuePage tabs', () => {
       await user.click(screen.getByRole('tab', { name: /Holding/ }));
       expect(rowNames(container)).toEqual([]);
       await user.click(screen.getByRole('tab', { name: /Queue/ }));
-      expect(rowNames(container).sort()).toEqual(['11', '20', '20', '20']);
+      expect(rowNames(container).sort()).toEqual(['11', '20']);
     }
   });
 
@@ -221,8 +247,8 @@ describe('RestorationQueuePage tabs', () => {
     await user.click(screen.getByRole('tab', { name: /Queue/ }));
 
     const pickers = screen.getAllByRole('button', { name: 'Destination for Wind Spinner' });
-    expect(pickers).toHaveLength(3);
-    await user.pointer({ keys: '[MouseLeft>]', target: pickers[2] });
-    expect(pickers[2]).toHaveAttribute('aria-expanded', 'true');
+    expect(pickers).toHaveLength(1);
+    await user.pointer({ keys: '[MouseLeft>]', target: pickers[0] });
+    expect(pickers[0]).toHaveAttribute('aria-expanded', 'true');
   });
 });

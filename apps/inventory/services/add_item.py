@@ -562,8 +562,6 @@ def check_in(user, data: dict, *, photo=None) -> dict[str, Any]:
     retail = _money(data.get('retail'), 'retail')
     estimate = None
     if destination == 'restoration':
-        if quantity != 1:
-            raise AddItemError('Restoration takes one item at a time. Set the quantity to 1.')
         estimate = restoration_estimate(data.get('restoration'))
     notes = str(data.get('notes') or '').strip()[:2000]
 

@@ -5,9 +5,10 @@ export const RESTORATION_BENCH_PATH = '/restoration/bench';
 export const RESTORATION_PARTS_PATH = '/restoration/parts-requests';
 export const RESTORATION_TARS_LEGACY_PATH = '/restoration/tars-legacy';
 
-export function restorationOverviewPath(jobId?: number | null): string {
+export function restorationOverviewPath(jobId?: number | null, unitSku?: string | null): string {
   if (jobId == null) return RESTORATION_OVERVIEW_PATH;
-  return `${RESTORATION_OVERVIEW_PATH}?job=${jobId}`;
+  const unit = unitSku?.trim() ? `&unit=${encodeURIComponent(unitSku.trim())}` : '';
+  return `${RESTORATION_OVERVIEW_PATH}?job=${jobId}${unit}`;
 }
 
 export function restorationOverviewAddPath(sku: string): string {

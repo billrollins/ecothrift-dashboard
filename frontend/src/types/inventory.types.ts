@@ -1242,6 +1242,8 @@ export interface RestorationJobDTO {
   intended_destination: RestorationIntendedDestination | '';
   /** Anything the person picking this up should know. Any staff member may write it. */
   queue_note: string;
+  /** Groups split from one stack share the id of the job they came from. */
+  stack_family?: number | null;
   bench_disposition: RestorationBenchDisposition | '';
   /** The action currently open on this job. */
   current_action: number | null;

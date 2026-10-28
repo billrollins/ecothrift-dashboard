@@ -25,6 +25,7 @@ import { fmtUsd } from '../tars/tarsProfit';
 import { FIELD_HEIGHT, FieldLabel, MoneyCell, NoteCell, NOTE_HEIGHT_PX } from './QueueInlineCells';
 import { DispatchButtons } from './DispatchButtons';
 import { dispatchOptions, type DispatchOption } from './queueDispatch';
+import { isStack, stackStake, unitCount } from './stackModel';
 import type { TarsHistoryFilter } from '../tars/tarsBenchHistory';
 import { ItemPeek, ItemSkuLink } from '../../../components/objects/ItemPeek';
 import {
@@ -63,6 +64,8 @@ export const QUEUE_CARD_COLUMNS =
 
 const SECTION_RULE = studio.rule;
 const CARD_HOVER_SHADOW = '0 4px 10px rgba(0,0,0,0.14), 0 2px 4px rgba(0,0,0,0.10)';
+/** Two card edges peeking out behind a stack. Shadows, so the card keeps its size. */
+const STACK_EDGES = `4px 4px 0 -1.5px ${studio.panel}, 4px 4px 0 0 ${studio.panelBorder}, 8px 8px 0 -1.5px ${studio.panel}, 8px 8px 0 0 ${studio.panelBorder}`;
 
 /** Row background opens history. Edits and Dispatch stay edits. */
 export function isQueueHistorySelectTarget(target: EventTarget | null): boolean {
@@ -82,6 +85,8 @@ export function RestorationQueueCard({
   onDispatch,
   layout = 'row',
   formAction,
+  stackOpen = false,
+  onToggleStack,
 }: {
   job: RestorationJobDTO;
   scales: Record<string, string[]>;
@@ -101,15 +106,23 @@ export function RestorationQueueCard({
   layout?: 'row' | 'form';
   /** Sits opposite at-stake on the form footer. Always reserve the slot. */
   formAction?: ReactNode;
+  /** The units list under a stack is showing. */
+  stackOpen?: boolean;
+  /** Tap the ×N badge: open or close the units. */
+  onToggleStack?: () => void;
 }) {
   const scaleGrades = scales[job.scale] ?? [];
   const grades = scaleGrades.length > 0 ? scaleGrades : Object.keys(job.grade_values ?? {});
   const finished = job.stage === 'done';
   const locked = Boolean(busy || finished);
   const noteLocked = Boolean(busy);
-  const potential = valuePotential(job);
+  const stacked = isStack(job);
+  const units = unitCount(job);
+  const potential = stacked ? stackStake(job) : valuePotential(job);
+  const eachPotential = valuePotential(job);
   const stale = isStale(job);
-  const sku = job.items[0]?.sku ?? job.sku ?? `Job ${job.id}`;
+  const firstSku = job.items[0]?.sku ?? job.sku ?? `Job ${job.id}`;
+  const sku = stacked ? `${firstSku} +${units - 1}` : firstSku;
   const owner = benchOwnerLine(job);
   const destinations = useMemo(
     () => dispatchOptions(job, { scaleGrades, occupyingBenchJob: occupyingBenchJob ?? null }),
@@ -174,16 +187,51 @@ export function RestorationQueueCard({
         borderRadius: `${studio.radius.lg}px`,
         border: `1.5px solid ${studio.panelBorder}`,
         borderLeft: `5px solid ${accent}`,
-        boxShadow: studio.panelShadow,
+        boxShadow: stacked ? `${STACK_EDGES}, ${studio.panelShadow}` : studio.panelShadow,
+        mb: stacked ? 1 : 0,
+        mt: stacked ? 1.25 : 0,
         position: 'relative',
         transition: 'transform 0.2s ease, box-shadow 0.2s ease',
         '&:hover': {
           transform: 'translateY(-2px)',
-          boxShadow: CARD_HOVER_SHADOW,
+          boxShadow: stacked ? `${STACK_EDGES}, ${CARD_HOVER_SHADOW}` : CARD_HOVER_SHADOW,
           zIndex: 1,
         },
       }}
     >
+      {stacked ? (
+        <Tooltip arrow title={stackOpen ? 'Close the stack' : `Open the stack: ${units} units`}>
+          <Box
+            component="button"
+            type="button"
+            aria-expanded={stackOpen}
+            aria-label={`Stack of ${units}. ${stackOpen ? 'Close' : 'Open'} the units`}
+            onClick={() => onToggleStack?.()}
+            sx={{
+              position: 'absolute',
+              top: -10,
+              right: 14,
+              zIndex: 2,
+              minWidth: 34,
+              height: 24,
+              px: 0.75,
+              borderRadius: 999,
+              border: `2px solid ${studio.panel}`,
+              bgcolor: stackOpen ? studio.ink : accent,
+              color: '#fff',
+              fontFamily: 'monospace',
+              fontWeight: 900,
+              fontSize: '0.78rem',
+              lineHeight: 1,
+              cursor: 'pointer',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+              '&:focus-visible': { outline: `2px solid ${studio.accentDark}`, outlineOffset: 1 },
+            }}
+          >
+            ×{units}
+          </Box>
+        </Tooltip>
+      ) : null}
       {/* What it is */}
       <QueueSection first>
         <Stack spacing={0} sx={{ flex: 1, minWidth: 0, minHeight: NOTE_HEIGHT_PX, pr: 0.75 }}>
@@ -197,7 +245,8 @@ export function RestorationQueueCard({
               component="span"
               sx={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '0.74rem', color: accent }}
             >
-              {itemId != null ? <ItemSkuLink itemId={itemId} sku={sku} /> : sku}
+              {itemId != null ? <ItemSkuLink itemId={itemId} sku={firstSku} /> : firstSku}
+              {stacked ? ` +${units - 1}` : ''}
             </Typography>
             <ItemPeek itemId={itemId}>
               <Typography
@@ -355,7 +404,11 @@ export function RestorationQueueCard({
       <QueueSection>
         <Tooltip
           arrow
-          title="Best grade minus worst. What is on the table if the work goes well, against doing nothing."
+          title={
+            stacked
+              ? `Best grade minus worst, times ${units} units. What is on the table for the whole stack.`
+              : 'Best grade minus worst. What is on the table if the work goes well, against doing nothing.'
+          }
         >
           <Stack spacing={0} sx={{ alignItems: { xs: 'flex-start', lg: 'center' }, cursor: 'help' }}>
             <Typography
@@ -370,7 +423,7 @@ export function RestorationQueueCard({
               {potential == null ? '-' : fmtUsd(potential)}
             </Typography>
             <Typography sx={{ fontSize: '0.62rem', color: studio.inkLabel, fontWeight: 800, letterSpacing: 0.4 }}>
-              AT STAKE
+              {stacked && eachPotential != null ? `AT STAKE · ${fmtUsd(eachPotential)} EA` : 'AT STAKE'}
             </Typography>
           </Stack>
         </Tooltip>

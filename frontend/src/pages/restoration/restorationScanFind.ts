@@ -27,7 +27,12 @@ export function isQueueStage(stage: string): boolean {
 
 /** Empty bench + a queue item: scan puts it on the bench. This trumps find. */
 export function shouldPickupOnScan(job: RestorationJobDTO, benchEmpty: boolean): boolean {
-  return benchEmpty && isQueueStage(job.stage);
+  return benchEmpty && isQueueStage(job.stage) && !isStackJob(job);
+}
+
+/** More than one unit: a scan opens the stack with that unit lit. */
+export function isStackJob(job: Pick<RestorationJobDTO, 'quantity' | 'items'>): boolean {
+  return Math.max(job.quantity ?? 0, job.items?.length ?? 0) > 1;
 }
 
 export async function fetchRestorationScanLookup(q: string): Promise<RestorationScanLookupDTO> {

@@ -1539,6 +1539,7 @@ class RestorationJobSerializer(serializers.ModelSerializer):
             'pending_started_at',
             'intended_destination',
             'queue_note',
+            'stack_family',
             'bench_disposition',
             'starting_grade',
             'final_grade',

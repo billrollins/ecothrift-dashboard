@@ -187,8 +187,6 @@ class CheckInTests(AddItemBase):
         self.assertIn('work', self.post(base).data['detail'])
         self.assertIn('hours', self.post({**base, 'restoration': {'work': ['repair']}}).data['detail'])
         self.assertIn('worth', self.post({**base, 'restoration': {'work': ['repair'], 'hours': '2'}}).data['detail'])
-        self.assertIn('one item', self.post({**base, 'quantity': 2, 'restoration': {
-            'work': ['repair'], 'hours': '2', 'value_after': '60'}}).data['detail'])
         self.assertFalse(RestorationJob.objects.exists())
         r = self.post({**base, 'restoration': {'work': ['test', 'repair', 'paint'], 'parts_cost': '15',
                                                'value_after': '60'}})

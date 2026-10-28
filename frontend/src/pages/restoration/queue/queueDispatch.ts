@@ -224,7 +224,7 @@ function pricesExplainer(
   };
 }
 
-function occupiedExplainer(occupying: RestorationJobDTO): DispatchExplainer {
+export function occupiedExplainer(occupying: RestorationJobDTO): DispatchExplainer {
   const sku = dispatchJobSku(occupying);
   return {
     title: 'Your bench is already taken',
@@ -239,7 +239,7 @@ function stackExplainer(job: RestorationJobDTO, kind: 'bench' | 'finish'): Dispa
   return {
     title: `Can't ${verb} yet`,
     whyNot: `This is a stack of ${job.quantity} items. ${kind === 'bench' ? 'The bench' : 'Finish'} takes one item at a time.`,
-    steps: ['Scan one item tag to split it off the stack.', `Then ${verb}.`],
+    steps: [`Tap ×${job.quantity} on the card to open the stack.`, `Pick Just this one, or Split it.`, `Then ${verb}.`],
   };
 }
 

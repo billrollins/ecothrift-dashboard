@@ -69,7 +69,6 @@ import type {
 } from '../types/inventory.types';
 import type { PaginatedResponse } from '../types/common.types';
 import { applyOrderToCachedList } from '../pages/restoration/parts/partsOrderCache';
-import { expandRestorationJobsForTars } from '../pages/restoration/tars/tarsJobAdapter';
 
 const BENCH_STAGES = ['queued', 'sent', 'bench', 'pending'] as const;
 
@@ -222,7 +221,7 @@ export function useTarsBenchJobs() {
       const merged = results.flat();
       const byId = new Map<number, RestorationJobDTO>();
       for (const job of merged) byId.set(job.id, job);
-      return expandRestorationJobsForTars(Array.from(byId.values()));
+      return Array.from(byId.values());
     },
     refetchInterval: 10_000,
   });

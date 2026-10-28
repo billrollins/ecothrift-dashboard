@@ -293,13 +293,17 @@ function compareQueueField(
       return aP.sum - bP.sum;
     }
     case 'stake':
-      return (valuePotential(a) ?? 0) - (valuePotential(b) ?? 0);
+      return (valuePotential(a) ?? 0) * unitsOf(a) - (valuePotential(b) ?? 0) * unitsOf(b);
     case 'waiting': {
       const aT = queuedSince(a)?.getTime() ?? 0;
       const bT = queuedSince(b)?.getTime() ?? 0;
       return bT - aT;
     }
   }
+}
+
+function unitsOf(job: RestorationJobDTO): number {
+  return Math.max(job.quantity ?? 0, job.items?.length ?? 0, 1);
 }
 
 function ageThenId(a: RestorationJobDTO, b: RestorationJobDTO): number {

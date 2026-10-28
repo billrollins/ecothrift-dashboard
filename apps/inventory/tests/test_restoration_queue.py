@@ -235,12 +235,13 @@ class ProcessingHandoffTests(RestorationQueueTestBase):
             1,
         )
 
-    def test_restoration_check_in_rejects_multi_quantity(self):
+    def test_restoration_check_in_of_several_units_is_one_stack(self):
         order, pr, product = self._restoration_order()
         resp = self._check_in_restoration(order, pr, product, quantity=2)
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn('one item at a time', resp.data['detail'].lower())
-        self.assertFalse(RestorationJob.objects.exists())
+        self.assertEqual(resp.status_code, 200, resp.data)
+        job = RestorationJob.objects.get()
+        self.assertEqual(job.quantity, 2)
+        self.assertEqual(job.item_check_in.items.count(), 2)
 
     def test_restoration_check_in_allows_incomplete_grades_with_needs_setup(self):
         """Incomplete grade values are allowed at Processing check-in; TO setup later."""

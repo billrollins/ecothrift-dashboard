@@ -459,7 +459,7 @@ export function TarsWorkstation({ chrome = 'studio' }: { chrome?: 'studio' | 'da
       return;
     }
     if (decision.action === 'overview') {
-      navigate(restorationOverviewPath(decision.jobId));
+      navigate(restorationOverviewPath(decision.jobId, v));
       return;
     }
 
@@ -474,7 +474,7 @@ export function TarsWorkstation({ chrome = 'studio' }: { chrome?: 'studio' | 'da
         void handleCheckIn(looked.job);
         return;
       }
-      navigate(restorationOverviewPath(looked.job.id));
+      navigate(restorationOverviewPath(looked.job.id, v));
       return;
     }
     if (looked.found === 'item' && looked.item) {
