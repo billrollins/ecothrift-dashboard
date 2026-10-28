@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-26 (spaces ignored: "barstool" finds "Bar Stool") -->
+<!-- Last updated: 2026-10-28 (Edit category on the Product and Item windows) -->
 # Inventory search and the standard object views
 
 Owner, 2026-10-02: one fast search for everything in inventory, and one standard way to open a product, a check-in
@@ -98,6 +98,10 @@ A modal never opens a second modal: a link inside it swaps the content and shows
 - The modal shows the existing edit panels (`ProductManagePanel`, `ItemCheckInManagePanel`, `ItemManagePanel`), so
   nothing the old page could do was lost.
 - `ProductItemsTable` is the items list used under a search row and on the product page.
+- **Edit category** (`ProductCategoryLine`, 2026-10-28): the Product window header and the Item window's Overview
+  show the product's category › subcategory with an Edit button. The choices are the taxonomy table
+  (`standardize.canon()`); Save calls `GET/POST /api/inventory/products/<id>/category/` (staff), which sets both on
+  the standard with source `human` (no machine pass overwrites it), moves `Product.category` to match, and logs it.
 
 ## Bulk work (Phase 2, built 2026-10-02)
 

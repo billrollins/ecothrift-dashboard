@@ -19,6 +19,7 @@ import {
   type ItemCardFull, type ItemJourneyEvent,
 } from './itemCardData';
 import { GoogleItLink } from './GoogleItLink';
+import { ProductCategoryLine } from './ProductCategoryLine';
 import { useObjectModal } from './ObjectModal';
 
 const STATUS_TONE: Record<string, 'success' | 'info' | 'warning' | 'default' | 'error'> = {
@@ -268,7 +269,9 @@ function CardView({ card, onEdit }: { card: ItemCardFull; onEdit: () => void }) 
                 ['Product', card.title],
                 ['Brand', card.brand],
                 ['Model', card.model],
-                ['Category', card.category],
+                ['Category', card.product_id != null
+                  ? <ProductCategoryLine productId={card.product_id} fallback={card.category} />
+                  : card.category],
                 ['Condition', card.condition_label],
                 ['UPC', card.upc],
                 ['Source', card.source_label],

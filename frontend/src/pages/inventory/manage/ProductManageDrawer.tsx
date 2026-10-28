@@ -61,6 +61,7 @@ import {
 } from '../processing/processingIdentifiers';
 import { processingTokens } from '../processing/processingTokens';
 import { GoogleItLink } from '../../../components/objects/GoogleItLink';
+import { ProductCategoryLine } from '../../../components/objects/ProductCategoryLine';
 import { parseSearchTagsCsv } from '../processing/processingGoogleQuery';
 import { WorkbenchCopyableChip } from '../workbench/WorkbenchCopyableChip';
 import { IconAiAssist as AutoAwesome, IconCopy as ContentCopyOutlinedIcon, IconSave as SaveOutlinedIcon } from '../../../icons/ecoIcons';
@@ -971,6 +972,11 @@ export function ProductManagePanel({
           />
           </Box>
         </Box>
+        {isEditing && state.productId != null && (
+          <Box sx={{ px: 2.75, pb: 1.25, mt: -0.5 }}>
+            <ProductCategoryLine productId={state.productId} label />
+          </Box>
+        )}
 
         <Box
           sx={{

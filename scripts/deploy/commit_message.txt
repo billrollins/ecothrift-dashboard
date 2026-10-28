@@ -1,11 +1,8 @@
-v2.228.0 — Recovery estimate per item (owner switch)
+v2.229.0 — Edit a product's category
 
-User-facing theme: **Inventory Review phase 4: a recovery estimate for each item, behind an owner switch (Bill, 2026-10-28).**
+User-facing theme: **Edit a product's category (Bill, 2026-10-28).**
 
 ### Added
-- New owner switch, Recovery estimate (Settings → Inventory, off until you turn it on). It shows what similar items keep of retail, like "Similar items keep 31% of retail (n=212)", with a suggested price range at Processing check-in and in Preprocessing pricing.
-- It's worked out from the category, subcategory, vendor, price range, condition and the most similar products that sold, and it leans on the bigger groups when a small one has few sales.
-- With it on, check-in marks a price above or below the range, and Inventory review flags categories, vendors and price ranges priced high or low.
-- With it on, the price estimate uses it when there is no trained price model.
+- Edit category: the Product window and the Item window now show the product's category and subcategory with an Edit button. Pick from the store's category list; it stays as set and the cleanup passes won't change it back.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -6674,6 +6674,22 @@ class ProductViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+    @action(detail=True, methods=['get', 'post'], url_path='category')
+    def category(self, request, pk=None):
+        """Edit category: GET the product's category and subcategory; POST {category, subcategory} sets them by hand."""
+        from apps.inventory.services import product_category
+
+        product = self.get_object()
+        if request.method == 'GET':
+            return Response(product_category.current(product))
+        try:
+            return Response(product_category.set_category(
+                product, str(request.data.get('category') or ''), str(request.data.get('subcategory') or ''),
+                user=request.user,
+            ))
+        except product_category.CategoryError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['get'], url_path='usage')
     def usage(self, request, pk=None):
         """Blast radius for editing this catalog product: how many Items across how many POs share it."""

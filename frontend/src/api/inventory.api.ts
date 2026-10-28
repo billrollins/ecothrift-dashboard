@@ -1892,6 +1892,22 @@ export function getProductUsage(id: number): Promise<{ data: ProductUsage }> {
   return api.get<ProductUsage>(`/inventory/products/${id}/usage/`);
 }
 
+/** Edit category: a product's category and subcategory on its standard (the taxonomy's names; '' when none). */
+export interface ProductCategory {
+  product_id: number;
+  category: string;
+  subcategory: string;
+}
+
+export function getProductCategory(id: number): Promise<{ data: ProductCategory }> {
+  return api.get<ProductCategory>(`/inventory/products/${id}/category/`);
+}
+
+/** Sets both by hand (a human value no machine pass overwrites). 400 with `detail` when the pair isn't in the taxonomy. */
+export function setProductCategory(id: number, body: { category: string; subcategory: string }): Promise<{ data: ProductCategory }> {
+  return api.post<ProductCategory>(`/inventory/products/${id}/category/`, body);
+}
+
 export interface ProductCheckInOrderOption {
   id: number;
   order_number: string;

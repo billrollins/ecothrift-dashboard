@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.228.0] -->
-<!-- Last reviewed: 2026-10-28 (2.228.0) -->
+<!-- Line 1 release: ## [2.229.0] -->
+<!-- Last reviewed: 2026-10-28 (2.229.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.229.0] - 2026-10-28
+
+User-facing theme: **Edit a product's category (Bill, 2026-10-28).**
+
+### Added
+- Edit category: the Product window and the Item window now show the product's category and subcategory with an Edit button. Pick from the store's category list; it stays as set and the cleanup passes won't change it back.
 
 ## [2.228.0] - 2026-10-28
 
