@@ -923,6 +923,17 @@ def queue_add_restoration_item(identifier: str, user) -> QueueAddResult:
         raise ValueError(f'{item.sku} is salvage and cannot be sent to restoration.')
 
     check_in = _ensure_check_in_for_item(item, user)
+    if not RestorationJob.objects.filter(item_check_in=check_in).exists() and check_in.items.exclude(pk=item.pk).exists():
+        # A scan queues the scanned item only, never its check-in mates: one scan once sent all
+        # twelve spinners of a check-in to Restoration (2026-10-28).
+        from apps.inventory.processing_ops import _sync_item_check_in_quantity
+
+        source = check_in
+        check_in = _clone_check_in_from(source, user)
+        item.check_in = check_in
+        item.save(update_fields=['check_in', 'updated_at'])
+        _sync_item_check_in_quantity(check_in)
+        _sync_item_check_in_quantity(source)
     _apply_restoration_dispatch_to_check_in(check_in, user)
 
     existing = RestorationJob.objects.filter(item_check_in=check_in).first()

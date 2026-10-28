@@ -21,10 +21,10 @@ import {
 import { alpha } from '@mui/material/styles';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { CheckInUndoDialog, type CheckInUndoTarget } from './CheckInUndoDialog';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
-  useProcessingDeleteItemCheckIn,
   useProcessingUpdateItemCheckIn,
   useProcessingPatchItem,
   useProcessingSetRowProduct,
@@ -1393,7 +1393,7 @@ export function ProcessingActiveCard({
   const { hasRole } = useAuth();
   const isManager = hasRole('Manager') || hasRole('Admin');
   const setRowProduct = useProcessingSetRowProduct(orderId);
-  const deleteItemCheckIn = useProcessingDeleteItemCheckIn(orderId);
+  const [undoTarget, setUndoTarget] = useState<CheckInUndoTarget | null>(null);
   const updateItemCheckIn = useProcessingUpdateItemCheckIn(orderId);
   const remapItemCheckInProduct = useRemapItemCheckInProduct(orderId);
   const restartRow = useProcessingRestartRow(orderId);
@@ -1726,34 +1726,9 @@ export function ProcessingActiveCard({
     await onReprintItems(historyRow.items);
   }
 
-  async function handleDeleteItemCheckIn(historyRow: CheckedInHistoryRow) {
+  function handleUndoItemCheckIn(historyRow: CheckedInHistoryRow) {
     if (historyRow.itemCheckInId == null) return;
-    const n = historyRow.qty;
-    const productLabel = historyRow.item.product_number || product?.product_number || null;
-    const ok = await confirm({
-      title: 'Delete check-in?',
-      message: productLabel ?
-        `This removes ${n.toLocaleString()} item${n === 1 ? '' : 's'} (tag${n === 1 ? '' : 's'}) from inventory. Product ${productLabel} will also be deleted if no other items or rows reference it.`
-      : `This removes ${n.toLocaleString()} item${n === 1 ? '' : 's'} (tag${n === 1 ? '' : 's'}) from inventory. The check-in product will also be deleted if nothing else references it.`,
-      confirmLabel: 'Delete check-in',
-      severity: 'error',
-      confirmColor: 'error',
-    });
-    if (!ok) return;
-    try {
-      const data = await deleteItemCheckIn.mutateAsync(historyRow.itemCheckInId);
-      enqueueSnackbar(
-        data.product_deleted ?
-          `Deleted check-in - ${data.items_deleted} item(s) removed; orphaned product deleted.`
-        : `Deleted check-in - ${data.items_deleted} item(s) removed.`,
-        { variant: 'success' },
-      );
-      if (activeItem && historyRow.items.some((it) => it.id === activeItem.id)) {
-        onSelectItemId(historyRow.items[0]?.id ?? 0);
-      }
-    } catch (err) {
-      enqueueSnackbar(apiErrorDetail(err, 'Could not delete check-in'), { variant: 'error' });
-    }
+    setUndoTarget({ orderId, itemCheckInId: historyRow.itemCheckInId });
   }
 
   /** Edit mode of the detailed dialog: update the clicked ItemCheckIn in place. */
@@ -2410,7 +2385,7 @@ export function ProcessingActiveCard({
                 activeItemId={activeItem?.id ?? null}
                 onSelectItemId={handleSelectPriorCheckIn}
                 onReprintCheckIn={onReprintItems ? (historyRow) => void handleReprintCheckIn(historyRow) : undefined}
-                onDeleteItemCheckIn={isManager ? (historyRow) => void handleDeleteItemCheckIn(historyRow) : undefined}
+                onDeleteItemCheckIn={handleUndoItemCheckIn}
                 onSetCheckInProduct={
                   attachedProductOptions.length > 0 ?
                     (historyRow, productId) => void handleSetCheckInProduct(historyRow, productId)
@@ -2420,7 +2395,7 @@ export function ProcessingActiveCard({
                 onSetCheckInDispatch={(historyRow, value) => void handleSetCheckInField(historyRow, 'dispatch', value)}
                 onSetCheckInPrice={(historyRow, value) => void handleSetCheckInPrice(historyRow, value)}
                 onEditCheckInProduct={(productId) => openProductEditor(productId)}
-                showDeleteCheckInAction={isManager}
+                showDeleteCheckInAction
                 scrollable
               />
             </Paper>
@@ -2476,6 +2451,7 @@ export function ProcessingActiveCard({
         onClose={() => setRestartSummary(null)}
         onConfirm={handleRestartConfirm}
       />
+      <CheckInUndoDialog target={undoTarget} onClose={() => setUndoTarget(null)} />
       {ConfirmDialogHost}
     </Card>
   );

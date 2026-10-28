@@ -5,6 +5,7 @@
  * the queue still reads. Composer lives here; there is no second notes drawer.
  */
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Drawer from '@mui/material/Drawer';
 import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
@@ -22,7 +23,8 @@ import {
 import { JobNotesSlot } from '../../../components/notes/JobNotesSlot';
 import { studio } from '../tars/studio/tarsStudioTheme';
 import { JobHistoryList } from './JobHistoryList';
-import { IconClose as Close } from '../../../icons/ecoIcons';
+import { IconClose as Close, IconUndo } from '../../../icons/ecoIcons';
+import { CheckInUndoDialog, type CheckInUndoTarget } from '../../inventory/processing/CheckInUndoDialog';
 
 export const HISTORY_DRAWER_WIDTH = 560;
 
@@ -52,6 +54,10 @@ export function OverviewJobHistory({
   );
   const rows = useMemo(() => filterBenchHistory(merged, filter), [merged, filter]);
   const sku = job?.items[0]?.sku ?? job?.sku ?? '';
+  const [undoTarget, setUndoTarget] = useState<CheckInUndoTarget | null>(null);
+  // Untouched queue items can go back: a wrong check-in (or a whole one sent here) is undone from here too.
+  const canUndo =
+    job != null && job.purchase_order_id != null && (job.stage === 'queued' || job.stage === 'sent');
 
   useEffect(() => {
     setFilter(initialFilter);
@@ -105,6 +111,18 @@ export function OverviewJobHistory({
             {job ? [sku, job.name].filter(Boolean).join(' · ') : '\u00a0'}
           </Typography>
         </Box>
+        {canUndo ? (
+          <Button
+            size="small"
+            variant="outlined"
+            color="warning"
+            startIcon={<IconUndo sx={{ fontSize: 16 }} />}
+            onClick={() => setUndoTarget({ orderId: job.purchase_order_id as number, itemCheckInId: job.item_check_in_id })}
+            sx={{ flexShrink: 0, fontWeight: 800, textTransform: 'none' }}
+          >
+            Undo check-in
+          </Button>
+        ) : null}
         <IconButton
           size="small"
           aria-label="Close history"
@@ -141,6 +159,7 @@ export function OverviewJobHistory({
         )}
       </Box>
       </Box>
+      <CheckInUndoDialog target={undoTarget} onClose={() => setUndoTarget(null)} onDone={onClose} />
     </Drawer>
   );
 }

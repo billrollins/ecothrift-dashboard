@@ -6367,6 +6367,24 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
+        methods=['get', 'post'],
+        url_path=r'item-check-ins/(?P<item_check_in_id>[0-9]+)/undo',
+    )
+    def item_check_in_undo(self, request, pk=None, item_check_in_id=None):
+        """GET: what Undo check-in would do and what blocks it. POST: move or delete it."""
+        from apps.inventory.services.check_in_undo import check_in_undo_preview, undo_check_in
+
+        order = self.get_object()
+        check_in_pk = int(str(item_check_in_id).strip())
+        try:
+            if request.method == 'GET':
+                return Response(check_in_undo_preview(order, check_in_pk))
+            return Response(undo_check_in(request.user, order, check_in_pk, request.data))
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(
+        detail=True,
         methods=['post'],
         url_path=r'item-check-ins/(?P<item_check_in_id>[0-9]+)/update',
     )

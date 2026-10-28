@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.222.0] -->
-<!-- Last reviewed: 2026-10-28 (2.222.0) -->
+<!-- Line 1 release: ## [2.223.0] -->
+<!-- Last reviewed: 2026-10-28 (2.223.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.223.0] - 2026-10-28
+
+User-facing theme: **Undo a check-in; a Restoration scan takes only the scanned item (Ashley, 2026-10-28).** Fix-it lane P2.
+
+### Added
+- Processing can undo a check-in in one step: move every item somewhere else, or delete it. From Prior check-ins or from the Restoration queue. It's blocked once anything is sold or Restoration has started on it, and every undo is logged.
+
+### Fixed
+- Scanning an item into the Restoration queue now takes only that item, not its whole check-in. One scan had sent 12 wind spinners to Restoration.
 
 ## [2.222.0] - 2026-10-28
 

@@ -876,6 +876,52 @@ class ItemCheckIn(models.Model):
         return f'ItemCheckIn {self.pk} row={self.processing_row_id}'
 
 
+class CheckInUndo(models.Model):
+    """One Undo check-in: who moved or deleted a whole check-in, and when (owner, 2026-10-28).
+
+    Plain ids, not foreign keys: a delete removes the check-in and its items.
+    """
+
+    ACTION_MOVE = 'move'
+    ACTION_DELETE = 'delete'
+    ACTION_CHOICES = [
+        (ACTION_MOVE, 'Moved'),
+        (ACTION_DELETE, 'Deleted'),
+    ]
+
+    action = models.CharField(max_length=10, choices=ACTION_CHOICES)
+    item_check_in_id = models.PositiveIntegerField()
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='check_in_undos',
+    )
+    processing_row_id = models.PositiveIntegerField(null=True, blank=True)
+    product_id = models.PositiveIntegerField(null=True, blank=True)
+    product_title = models.CharField(max_length=300, blank=True, default='')
+    quantity = models.PositiveIntegerField(default=0)
+    skus = models.JSONField(default=list, blank=True)
+    from_dispatch = models.CharField(max_length=30, blank=True, default='')
+    to_dispatch = models.CharField(max_length=30, blank=True, default='')
+    restoration_job_ids = models.JSONField(default=list, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'CheckInUndo {self.action} check-in {self.item_check_in_id}'
+
+
 class RestorationJob(models.Model):
     """One restoration batch per ItemCheckIn - grade scale/values shared across qty."""
 

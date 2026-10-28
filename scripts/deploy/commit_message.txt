@@ -1,11 +1,11 @@
-v2.222.0 — Item hover card and the universal Item window
+v2.223.0 — Undo a check-in; Restoration scans take only the scanned item
 
-User-facing theme: **Item hover card and the universal Item window (Bill, 2026-10-28).** Fix-it lane P4.
+User-facing theme: **Undo a check-in; a Restoration scan takes only the scanned item (Ashley, 2026-10-28).** Fix-it lane P2.
 
 ### Added
-- Hover over an item name on Restoration Overview, Processing's checked-in list or any item SKU to see the full title, photo, price, retail, condition, specs and where it is. On a phone, tap the small (i) or press and hold the name.
-- Click an item number to open the new Item window: everything about the item in one place for Retail, Processing and Restoration: overview and specs, where it is, money, restoration work, and its whole journey from order to sale. Edit is one button away.
-- On a phone the Item window opens full screen.
-- SKUs on Shrink and Sold online now open the Item window too.
+- Processing can undo a check-in in one step: move every item somewhere else, or delete it. From Prior check-ins or from the Restoration queue. It's blocked once anything is sold or Restoration has started on it, and every undo is logged.
+
+### Fixed
+- Scanning an item into the Restoration queue now takes only that item, not its whole check-in. One scan had sent 12 wind spinners to Restoration.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

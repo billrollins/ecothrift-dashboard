@@ -57,7 +57,7 @@ import {
 } from './processingQueueLayout';
 import { processingHeaderGradient, processingTokens } from './processingTokens';
 import { ItemPeek } from '../../../components/objects/ItemPeek';
-import { IconDelete as DeleteOutline, IconPrint as LocalPrintshop } from '../../../icons/ecoIcons';
+import { IconPrint as LocalPrintshop, IconUndo } from '../../../icons/ecoIcons';
 
 const CHECKED_IN_AUTOSIZE_COL_SX = {
   whiteSpace: 'nowrap',
@@ -781,14 +781,14 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
             </Tooltip>
           : null}
           {showDeleteCheckInAction && itemCheckInId != null && onDeleteItemCheckIn ?
-            <Tooltip title="Delete this check-in" enterDelay={300} disableInteractive>
+            <Tooltip title="Undo this check-in (move or delete it)" enterDelay={300} disableInteractive>
               <IconButton
                 size="small"
-                aria-label={`Delete this check-in (${qty} item${qty === 1 ? '' : 's'})`}
+                aria-label={`Undo this check-in (${qty} item${qty === 1 ? '' : 's'})`}
                 onClick={() => onDeleteItemCheckIn(row)}
-                sx={actionIconSx('error.main')}
+                sx={actionIconSx('warning.main')}
               >
-                <DeleteOutline sx={{ fontSize: 16 }} />
+                <IconUndo sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
           : null}

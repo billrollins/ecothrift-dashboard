@@ -1653,6 +1653,53 @@ export function processingDeleteItemCheckIn(
   );
 }
 
+/** GET .../item-check-ins/<id>/undo/: what Undo check-in would do, and what blocks it. */
+export interface CheckInUndoPreview {
+  item_check_in_id: number;
+  purchase_order_id: number;
+  purchase_order_number: string;
+  product_id: number | null;
+  product_title: string;
+  quantity: number;
+  skus: string[];
+  dispatch: string;
+  /** Item count per location right now. */
+  where: Record<string, number>;
+  created_at: string;
+  created_by: string;
+  processing_row_id: number | null;
+  processing_row_number: number | null;
+  pending_now: number | null;
+  pending_after_delete: number | null;
+  restoration_job: { id: number; stage: string } | null;
+  destinations: string[];
+  /** Plain reasons the undo is refused; empty means it is safe. */
+  blocks: string[];
+}
+
+export type CheckInUndoPayload = { action: 'move'; dispatch: string } | { action: 'delete' };
+
+export interface CheckInUndoResponse {
+  row: ProcessingWorkspaceDTO['rows'][number] | null;
+  workspace_patch: ProcessingWorkspacePatchDTO;
+  undo: { id: number; action: 'move' | 'delete'; quantity: number; to: string };
+}
+
+export function getCheckInUndoPreview(
+  orderId: number,
+  itemCheckInId: number,
+): Promise<{ data: CheckInUndoPreview }> {
+  return api.get<CheckInUndoPreview>(`/inventory/orders/${orderId}/item-check-ins/${itemCheckInId}/undo/`);
+}
+
+export function undoItemCheckIn(
+  orderId: number,
+  itemCheckInId: number,
+  payload: CheckInUndoPayload,
+): Promise<{ data: CheckInUndoResponse }> {
+  return api.post<CheckInUndoResponse>(`/inventory/orders/${orderId}/item-check-ins/${itemCheckInId}/undo/`, payload);
+}
+
 export interface ProcessingRowPatchResponse {
   row: ProcessingWorkspaceDTO['rows'][number];
   workspace_patch: ProcessingWorkspacePatchDTO;

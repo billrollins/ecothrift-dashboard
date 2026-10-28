@@ -27,6 +27,8 @@ import {
   processingRemapItemCheckInProduct,
   processingSetRowProduct,
   processingDeleteItemCheckIn,
+  undoItemCheckIn,
+  type CheckInUndoPayload,
   processingRowPatch,
   processingAddItem,
   processingDeleteAddedRow,
@@ -410,6 +412,22 @@ export function useProcessingDeleteItemCheckIn(orderId: number) {
       return data;
     },
     onSuccess: (data) => applyRowProductMutationResult(qc, orderId, data),
+  });
+}
+
+/** Undo check-in (move it all or delete it). Takes the order per call: the Restoration queue spans orders. */
+export function useUndoItemCheckIn() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { orderId: number; itemCheckInId: number; payload: CheckInUndoPayload }) => {
+      const { data } = await undoItemCheckIn(vars.orderId, vars.itemCheckInId, vars.payload);
+      return data;
+    },
+    onSuccess: (data, vars) => {
+      applyRowProductMutationResult(qc, vars.orderId, { ...data, row: data.row ?? undefined });
+      qc.invalidateQueries({ queryKey: ['tars-bench-jobs'] });
+      qc.invalidateQueries({ queryKey: ['item-check-ins'] });
+    },
   });
 }
 

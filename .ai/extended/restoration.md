@@ -83,6 +83,8 @@ keeps its estimate. They are written to the job's `queue_note` ("Estimate: test,
 after", also on the notes trail) and `defaults_snapshot.restoration_estimate`; Add item then opens the same Grade for
 Restoration dialog. UI: `pages/inventory/restorationEstimate/`. Incomplete grade values → `needs_setup`. Dispatch away from restoration deletes a `queued` job.
 
+**Queue scan takes one item** (2026-10-28): scanning a SKU into the queue (`POST /restoration-jobs/ {sku}`) moves only that item into its own check-in and job; its check-in mates stay where they were. Before, one scan sent a whole check-in (12 spinners on PO 420, 2026-10-27). **Undo check-in** in the queue's history drawer (queued or sent items) moves the whole check-in elsewhere or deletes it; see `inventory-pipeline.md` (Undo check-in).
+
 ---
 
 ## Restoration list (E3, 2026-10-21)
