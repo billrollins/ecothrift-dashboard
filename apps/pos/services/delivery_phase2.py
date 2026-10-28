@@ -51,7 +51,9 @@ class ScanMismatchError(ValueError):
 
 def lookup_scanned_code(*, run: DeliveryRun, scanned_code: str) -> dict[str, Any]:
     """Identify a scanned SKU from this run's items, then inventory."""
-    code = (scanned_code or '').strip()
+    from apps.inventory.services.scan_code import sku_from_scan
+
+    code = sku_from_scan(scanned_code)
     empty = {
         'source': 'unknown',
         'sku': code,

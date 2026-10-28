@@ -1099,7 +1099,9 @@ class CartViewSet(viewsets.ModelViewSet):
         if refused is not None:
             return refused
         cover_service.touch(cover_service.active_cover(cart.drawer))
-        sku = (request.data.get('sku') or '').strip()
+        from apps.inventory.services.scan_code import sku_from_scan
+
+        sku = sku_from_scan(request.data.get('sku'))
         if not sku:
             return Response(
                 {'detail': 'SKU is required.', 'code': 'SKU_REQUIRED'},
@@ -1350,7 +1352,9 @@ class CartViewSet(viewsets.ModelViewSet):
             )
 
         raw_id = request.data.get('source_item_id')
-        sku = (request.data.get('sku') or '').strip()
+        from apps.inventory.services.scan_code import sku_from_scan
+
+        sku = sku_from_scan(request.data.get('sku'))
         if raw_id is not None and raw_id != '':
             try:
                 src = Item.objects.select_related('product').get(pk=int(raw_id))

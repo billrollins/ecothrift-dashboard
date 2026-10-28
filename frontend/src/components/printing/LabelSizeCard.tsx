@@ -34,8 +34,10 @@ import {
   type LabelDpi,
   type LabelSize,
 } from '../../printing/labelSize';
-import { lastPrintedTag, printTestLabel, reprintLastTag, SAMPLE_PRICE_TAG } from '../../printing/printTags';
+import type { PriceTagDesign } from '../../api/core.api';
+import { lastPrintedTag, printTestLabel, reprintLastTag, SAMPLE_PERKS_TAG, SAMPLE_PRICE_TAG } from '../../printing/printTags';
 import { renderTagPng } from '../../printing/tagCanvas';
+import { perksTag } from '../../printing/tags/perksTag';
 import { priceTag } from '../../printing/tags/priceTag';
 import { restorationTag } from '../../pages/restoration/tag/restorationTag';
 import { useLabelSize } from '../../printing/useLabelSize';
@@ -53,21 +55,23 @@ const SAMPLE_RESTORATION = {
 type Scope = 'store' | 'station';
 
 /** The sample tags drawn at a size, shown bigger than real (1.6 times; about real size in the mini window). */
-function TagPreview({ size, scale = 1.6 }: { size: LabelSize; scale?: number }) {
+function TagPreview({ size, scale = 1.6, design = 'classic' }: { size: LabelSize; scale?: number; design?: PriceTagDesign }) {
   const [pngs, setPngs] = useState<string[]>([]);
   useEffect(() => {
     let live = true;
-    Promise.all([renderTagPng(priceTag, SAMPLE_PRICE_TAG, size), renderTagPng(restorationTag, SAMPLE_RESTORATION, size)])
+    const price = design === 'perks' ? renderTagPng(perksTag, SAMPLE_PERKS_TAG, size) : renderTagPng(priceTag, SAMPLE_PRICE_TAG, size);
+    Promise.all([price, renderTagPng(restorationTag, SAMPLE_RESTORATION, size)])
       .then((list) => live && setPngs(list))
       .catch(() => live && setPngs([]));
     return () => {
       live = false;
     };
-  }, [size]);
+  }, [size, design]);
   if (!pngs.length) return null;
   const width = Math.round(size.w_in * 96 * scale);
   return (
-    <Stack direction="row" spacing={1.5} useFlexGap sx={{ flexWrap: 'wrap' }} aria-label="Sample tags at this size">
+    <Stack direction="row" spacing={1.5} useFlexGap alignItems="flex-start" sx={{ flexWrap: 'wrap' }}
+      aria-label="Sample tags at this size">
       {pngs.map((png, i) => (
         <Box
           key={i}
@@ -86,7 +90,8 @@ export function LabelSizeCard({ compact = false }: { compact?: boolean }) {
   const { enqueueSnackbar } = useSnackbar();
   const { hasRole } = useAuth();
   const canSetStore = hasRole('Manager');
-  const { store, station, effective, saveStore, saveStation, priceTagInDash, savePriceSwitch } = useLabelSize();
+  const { store, station, effective, saveStore, saveStation, priceTagInDash, savePriceSwitch, priceTagDesign, savePriceDesign } =
+    useLabelSize();
 
   const [scope, setScope] = useState<Scope>(station || !canSetStore ? 'station' : 'store');
   const current = scope === 'station' ? station ?? store : store;
@@ -244,8 +249,27 @@ export function LabelSizeCard({ compact = false }: { compact?: boolean }) {
                 print as before (the print server draws them at its own size); restoration tags always use the size above.
               </Typography>
             </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                Price tag design
+              </Typography>
+              <ToggleButtonGroup exclusive size="small" value={priceTagDesign} aria-label="Price tag design"
+                disabled={!canSetStore || savePriceDesign.isPending}
+                onChange={(_, v: PriceTagDesign | null) => v && v !== priceTagDesign && savePriceDesign.mutate(v, {
+                  onSuccess: (d) => enqueueSnackbar(d === 'perks' ? 'Price tags: Thrift+ Perks' : 'Price tags: Classic', { variant: 'success' }),
+                  onError: () => enqueueSnackbar('Could not change the price tag design', { variant: 'error' }),
+                })}>
+                <ToggleButton value="classic" sx={{ textTransform: 'none', px: 2 }}>Classic</ToggleButton>
+                <ToggleButton value="perks" sx={{ textTransform: 'none', px: 2 }}>Thrift+ Perks</ToggleButton>
+              </ToggleButtonGroup>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                Whole store{canSetStore ? '' : ' (managers change it)'}. Only used while the new price tag drawing is
+                {priceTagInDash ? ' on (it is).' : ' on (it is off now, so price tags print Classic).'} Thrift+ Perks
+                adds the QR link, the perks box and the 3-DAY RETURNS or AS IS strip; made for 2.25 x 1.25 labels.
+              </Typography>
+            </Box>
           </Stack>
-          {size && <TagPreview size={size} scale={compact ? 1 : 1.6} />}
+          {size && <TagPreview size={size} scale={compact ? 1 : 1.6} design={priceTagDesign} />}
         </Box>
       </CardContent>
     </Card>

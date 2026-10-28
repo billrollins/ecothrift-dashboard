@@ -87,7 +87,21 @@ Owner: "our standard tag size as of now is 1.5 x 1 ... we often need to change t
 - **Kit:** `printing/tagCanvas.ts` (ops, fit/wrap, whole-dot QR, logo, render), `printing/printTags.ts` (`printTags`,
   `printPriceTags`, `printTestLabel`, `reprintLastTag`; `TAG_DESIGNS` registry). **A new tag design is one file** in
   `printing/tags/` exporting a `TagDesign` (its `layout(data, box, measure)` places ops in proportion to `box`), plus one
-  line in `TAG_DESIGNS`. The coming member-price tag (2.25x1.25) goes there.
+  line in `TAG_DESIGNS`.
+- **Price tag design** (owner 2026-10-28): Settings → Printing → **Price tag design: Classic / Thrift+ Perks**, store-wide in
+  AppSetting `printing.price_tag_design` (`classic` default; `PUT /api/core/printing/price-tag-design/` `{"design": "perks"}`,
+  managers; it rides along on `GET label-size/` as `price_tag_design`). Only used while `price_tag_in_dash` is on. **Thrift+
+  Perks** (`printing/tags/perksTag.ts`, design G3 / G4, made for 2.25 x 1.25, laid out in proportion so 1.5 x 1 and 3 x 2 work):
+  retail struck, OUR PRICE, price, title (2 lines), SKU on the left; THRIFT+ PERKS header, QR, two promise lines on the right;
+  the full-width strip 3-DAY RETURNS WITH THRIFT+ or AS IS · NO RETURNS (rulebook A1). Short on room, the promise lines shrink,
+  then go; never the QR (whole 3-dot modules), price or strip. Before drawing, `POST /api/core/printing/tag-marks/`
+  (`{"items": [{"sku", "price"}]}`) says which items are AS IS (the scanner's rule, `thriftplus/services/scanner.py`
+  `tag_marks`, at the printed price); when Dash can't answer, the tag prints AS IS.
+- **The QR is a link** on the Perks tag: `HTTPS://ECOTHRIFT.US/I/<SKU>` (capitals: a smaller QR). `/i/<code>` (any case):
+  7 characters is the interview short link, anything else goes to `/scan?tag=<SKU>`. Every scan box strips it to the SKU:
+  `frontend/src/utils/scanCode.ts` `skuFromScan` and `apps/inventory/services/scan_code.py` `sku_from_scan` (register, Quick
+  reprice, Returns, Count, PR Fix-it, Bad tag, Restoration queue and bench, Processing, Add item, Inventory search, Sold
+  online, deliveries, the Thrift+ / Staff / Social scanners and the item lookups). Classic tags keep the plain SKU.
 - **Print a test label:** a frame on the edge, a 1/4 in ruler on the top and left, the size text; then a sample price
   tag in the **new** drawing (switch on or off, to compare). **Reprint last label:** the last tag this computer printed (`localStorage.last_label_printed`), at today's size.
 - **Print-server chip** (`components/printing/PrintServerChip.tsx`, on the Processing header): Online / Needs update

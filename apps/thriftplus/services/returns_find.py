@@ -133,6 +133,9 @@ def find(q: str = '', *, person=None, training: bool = False) -> dict:
     # 3. An item's tag SKU: the tickets it is on.
     from apps.inventory.models import Item
 
+    from apps.inventory.services.scan_code import sku_from_scan
+
+    q = sku_from_scan(q)
     item = Item.objects.filter(sku__iexact=q).first() if re.fullmatch(r'[A-Za-z0-9-]{3,20}', q) and re.search(r'[A-Za-z]', q) else None
     if item is not None:
         ids = list(_item_cart_ids(item, training))

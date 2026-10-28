@@ -618,7 +618,9 @@ def delete_restoration_job_if_removable(check_in: ItemCheckIn) -> None:
 
 
 def _normalize_scan_identifier(identifier: str) -> str:
-    raw = (identifier or '').strip()
+    from apps.inventory.services.scan_code import sku_from_scan
+
+    raw = sku_from_scan(identifier)
     while raw and raw[-1] in '.,;':
         raw = raw[:-1].strip()
     return raw

@@ -75,6 +75,7 @@ import {
 } from './processingRecentRows';
 import { useWorkbenchConfirmDialog } from '../workbench/useWorkbenchConfirmDialog';
 import { apiErrorDetail } from '../../../hooks/useProductSearch';
+import { skuFromScan } from '../../../utils/scanCode';
 
 export default function ProcessingWorkspacePage() {
   const { id: idParam } = useParams<{ id: string }>();
@@ -496,7 +497,7 @@ export default function ProcessingWorkspacePage() {
   }, [bumpSearchFocus, rememberRecentRow]);
 
   const handleSearchEnter = useCallback(async () => {
-    const q = search.trim();
+    const q = skuFromScan(search);
     if (!orderId || !q) return;
     const inDetail = detailProcessingRowId != null;
     if (isSingleScanToken(q)) {

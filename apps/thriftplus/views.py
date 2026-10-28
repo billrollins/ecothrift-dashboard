@@ -560,8 +560,9 @@ class RewardsViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def item(self, request):
         from apps.inventory.models import Item
+        from apps.inventory.services.scan_code import sku_from_scan
 
-        sku = (request.query_params.get('sku') or '').strip()
+        sku = sku_from_scan(request.query_params.get('sku'))
         found = Item.objects.select_related('product').filter(sku__iexact=sku).first() if sku else None
         if found is None:
             return Response({'detail': 'No item with that SKU.'}, status=status.HTTP_404_NOT_FOUND)
@@ -928,8 +929,9 @@ class RestrictedProductViewSet(viewsets.ViewSet):
 
     def create(self, request):
         from apps.inventory.models import Item
+        from apps.inventory.services.scan_code import sku_from_scan
 
-        sku = (request.data.get('sku') or '').strip()
+        sku = sku_from_scan(request.data.get('sku'))
         item = Item.objects.filter(sku__iexact=sku).first() if sku else None
         if item is None:
             return Response({'detail': 'No item with that SKU.'}, status=status.HTTP_404_NOT_FOUND)

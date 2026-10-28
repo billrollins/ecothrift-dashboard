@@ -1,9 +1,11 @@
 /** Pure helpers for the Thrift+ scanner: reading tag codes, price-feel choices, money text. */
 import { fromCents, readContact, toCents, type EmailSignIn, type Money, type ThriftPlusMember } from '../../../api/thriftPlusTypes';
+import { isTagLink, skuFromScan } from '../../../utils/scanCode';
 
 /**
  * What a code the camera read (or someone typed) is, so every one gets an answer (owner 2026-10-15, APP D14, D15).
- * - `tag`: a code to look up. `ours` when its shape is our tag's: ITM and 4+ digits, one of our links with ?sku=, or a
+ * - `tag`: a code to look up. `ours` when its shape is our tag's: ITM and 4+ digits, the Thrift+ Perks tag's link
+ *   (ECOTHRIFT.US/I/<SKU>), one of our links with ?sku=, or a
  *   Code 128 tag code. Not found, ours says "We can't find that item" (D14b); otherwise "That's not our price tag".
  *   A bare short code (an older tag, a typed number) is looked up too.
  * - `link`: a link on ecothrift.us with no ?sku=, like the terms QR on a poster (D15). `shown` is its host and path.
@@ -35,6 +37,7 @@ function webLink(text: string): URL | null {
 export function classifyCode(raw: string | null | undefined, format?: string): ScannedCode {
   const text = (raw || '').trim();
   if (!text || (format && PRODUCT_FORMATS.has(format))) return { kind: 'other' };
+  if (isTagLink(text)) return { kind: 'tag', sku: skuFromScan(text), ours: true };
   const itm = text.match(/ITM\d{4,}/i);
   if (itm) return { kind: 'tag', sku: itm[0].toUpperCase(), ours: true };
   const url = webLink(text);

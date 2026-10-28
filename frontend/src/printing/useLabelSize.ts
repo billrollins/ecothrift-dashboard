@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getLabelSizeSetting, saveLabelSizeSetting, savePriceTagInDash } from '../api/core.api';
+import { getLabelSizeSetting, saveLabelSizeSetting, savePriceTagDesign, savePriceTagInDash, type PriceTagDesign } from '../api/core.api';
 import {
   DEFAULT_LABEL_SIZE,
   effectiveLabelSize,
@@ -33,7 +33,17 @@ export function useLabelSize() {
   const savePriceSwitch = useMutation({
     mutationFn: (on: boolean) => savePriceTagInDash(on),
     onSuccess: (on) => {
-      const next = { value: settings?.value ?? store, price_tag_in_dash: on };
+      const next = { ...settings, value: settings?.value ?? store, price_tag_in_dash: on };
+      forgetStoreLabelSize(next);
+      qc.setQueryData(['label-size'], next);
+    },
+  });
+
+  const savePriceDesign = useMutation({
+    mutationFn: (design: PriceTagDesign) => savePriceTagDesign(design),
+    onSuccess: (design) => {
+      const next = { ...settings, value: settings?.value ?? store, price_tag_in_dash: settings?.price_tag_in_dash === true,
+        price_tag_design: design };
       forgetStoreLabelSize(next);
       qc.setQueryData(['label-size'], next);
     },
@@ -49,9 +59,11 @@ export function useLabelSize() {
     station,
     effective: effectiveLabelSize(store, station),
     priceTagInDash: settings?.price_tag_in_dash === true,
+    priceTagDesign: (settings?.price_tag_design === 'perks' ? 'perks' : 'classic') as PriceTagDesign,
     isLoading,
     saveStore,
     savePriceSwitch,
+    savePriceDesign,
     saveStation,
   };
 }

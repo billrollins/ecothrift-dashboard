@@ -33,9 +33,10 @@ def tag_card(item) -> dict:
 
 
 def lookup(sku: str) -> dict:
+    from apps.inventory.services.scan_code import sku_from_scan
     from apps.thriftplus.services.scanner import find_item
 
-    code = (sku or '').strip().upper()
+    code = sku_from_scan(sku).upper()
     item = find_item(code) if code else None
     if item is None:
         return {'status': 'not_found', 'sku': code}

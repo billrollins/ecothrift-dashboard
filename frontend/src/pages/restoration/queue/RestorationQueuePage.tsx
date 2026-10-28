@@ -63,6 +63,7 @@ import { dispatchJobSku, type DispatchTarget } from './queueDispatch';
 import type { TarsHistoryFilter } from '../tars/tarsBenchHistory';
 import { QUEUE_LISTS, isReadyForBench, queueListForStage, type QueueListId } from './restorationQueueModel';
 import { apiErrorMessage } from '../../../utils/apiError';
+import { skuFromScan } from '../../../utils/scanCode';
 
 type DispatchDialog = 'queue' | 'holding' | 'done' | 'receive' | 'fix' | 'reopen';
 
@@ -283,7 +284,7 @@ export default function RestorationQueuePage() {
   }
 
   async function submitScan() {
-    const v = scan.trim();
+    const v = skuFromScan(scan);
     if (!v) return;
     setScan('');
     const result = await resolveRestorationScan(v, jobs);

@@ -1,14 +1,13 @@
-v2.231.0 — Labels of any size, test label, print-server chip
+v2.232.0 — Thrift+ Perks price tag; QR opens on a phone
 
-User-facing theme: **Labels of any size, a test label, and a print-server chip (Bill, 2026-10-28).**
+User-facing theme: **The Thrift+ Perks price tag, and a QR that opens on a customer's phone (Bill, 2026-10-28).**
 
 ### Added
-- One label-size setting for the whole store: Settings > Printing > "What labels are you using?" Pick 1.5x1, 2.25x1.25, 3x2 or type your own, plus the printer's dpi. A computer can use its own size.
-- "Print a test label" prints a ruler and the size so you can check the setting, and "Reprint last label" reprints the last tag.
-- New print-server chip on Processing and PR Fix-it: Online, Needs update (click to download) or Offline. Click it to change the label size or printer without leaving the page.
+- New price tag design, Thrift+ Perks: pick it in Settings → Printing (Classic stays the default; works while the new price tag drawing is on).
+- Every Perks tag says 3-DAY RETURNS WITH THRIFT+ or AS IS · NO RETURNS along the bottom.
+- The tag's QR opens the item on a customer's phone: members see it in the Thrift+ app, anyone else sees it with Get Thrift+.
 
 ### Changed
-- Restoration tags now print at the exact size of the labels in the printer, laid out to fit. Price tags can do the same: turn on "Use the new price tag drawing" in Settings > Printing after a test label looks right. Until then they print as before.
-- Restoration tag redone for 1.5x1: big SKU, the work in big words, scannable QR, sent date and who sent it.
+- Every scanner in the store reads the new QR as the tag number; old tags still work.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

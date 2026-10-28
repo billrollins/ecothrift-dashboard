@@ -8167,8 +8167,10 @@ def manifest_field_metadata_view(request):
 @perm_classes([AllowAny])
 def item_lookup(request, sku):
     """Public item lookup by SKU (no auth required)."""
+    from apps.inventory.services.scan_code import sku_from_scan
+
     try:
-        item = Item.objects.select_related('manifest_row').get(sku=sku)
+        item = Item.objects.select_related('manifest_row').get(sku__iexact=sku_from_scan(sku))
     except Item.DoesNotExist:
         return Response(
             {'detail': 'Item not found.'},

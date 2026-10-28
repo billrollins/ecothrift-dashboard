@@ -40,6 +40,7 @@ import type { Item, ItemStatus } from '../../types/inventory.types';
 import { printPriceTags } from '../../printing/printTags';
 import { useAuth } from '../../contexts/AuthContext';
 import { ScanBar } from './count/ScanBar';
+import { skuFromScan } from '../../utils/scanCode';
 
 const QUICK_REPRICE_ALLOWED_STATUSES = new Set<ItemStatus>([
   'intake',
@@ -292,7 +293,7 @@ export default function QuickRepricePage({ embedded = false }: { embedded?: bool
   }, [blockedItem, closeSoldDialog, enqueueSnackbar, runQuickReprice]);
 
   const handleScan = useCallback(async () => {
-    const raw = skuInput.trim();
+    const raw = skuFromScan(skuInput);
     const sku = raw.toUpperCase();
     if (!raw) return;
     if (!discountValue || isNaN(Number(discountValue))) {

@@ -6,11 +6,14 @@
  *
  * Price tags take that path only when the store switch `printing.price_tag_in_dash` is on (default off until the new
  * drawing has printed on a real thermal printer); off, they go to the print server's own drawing exactly as before.
+ * While it is on, `printing.price_tag_design` picks the drawing: Classic (`tags/priceTag.ts`) or Thrift+ Perks
+ * (`tags/perksTag.ts`, owner 2026-10-28), whose strip asks Dash which items are AS IS first.
  */
-import { getLabelSizeSetting, type PrintingSettings } from '../api/core.api';
+import { getLabelSizeSetting, getTagMarks, type PriceTagDesign, type PrintingSettings } from '../api/core.api';
 import { localPrintService, type LocalPrintRequest } from '../services/localPrintService';
 import { effectiveLabelSize, readStationLabelSize, type LabelSize } from './labelSize';
 import { renderTagPng, type TagDesign } from './tagCanvas';
+import { perksTag, perksPrice, type PerksTagData } from './tags/perksTag';
 import { priceTag, type PriceTagData } from './tags/priceTag';
 import { testLabel, type TestLabelData } from './tags/testLabel';
 import { restorationTag, type RestorationTagInput } from '../pages/restoration/tag/restorationTag';
@@ -18,6 +21,7 @@ import { restorationTag, type RestorationTagInput } from '../pages/restoration/t
 /** Every tag design by name; a new tag is its own file plus one line here. */
 export const TAG_DESIGNS = {
   price: priceTag,
+  perks: perksTag,
   restoration: restorationTag,
   test: testLabel,
 } as const;
@@ -27,6 +31,7 @@ type DataOf<K extends TagKind> = (typeof TAG_DESIGNS)[K] extends TagDesign<infer
 
 export type TagJob =
   | { kind: 'price'; data: PriceTagData; docName?: string }
+  | { kind: 'perks'; data: PerksTagData; docName?: string }
   | { kind: 'restoration'; data: RestorationTagInput; docName?: string }
   | { kind: 'test'; data: TestLabelData; docName?: string };
 
@@ -53,6 +58,25 @@ export async function storeLabelSize(): Promise<unknown> {
 /** Whether price tags use the new drawing; off when Dash cannot say. */
 export async function priceTagInDash(): Promise<boolean> {
   return (await storeSettings())?.price_tag_in_dash === true;
+}
+
+/** The price tag drawing the store picked; Classic when Dash cannot say. */
+export async function priceTagDesign(): Promise<PriceTagDesign> {
+  return (await storeSettings())?.price_tag_design === 'perks' ? 'perks' : 'classic';
+}
+
+/**
+ * Price tags as Thrift+ Perks tags: each item's strip from Dash (rulebook A1, the scanner's rule at the printed price).
+ * When Dash cannot say, a tag prints AS IS: the tag never promises a return the register would refuse.
+ */
+export async function asPerksTags(labels: LocalPrintRequest[]): Promise<PerksTagData[]> {
+  let marks: Record<string, { as_is: boolean }> = {};
+  try {
+    marks = await getTagMarks(labels.map((l) => ({ sku: l.qr_data, price: perksPrice(l.text)?.replace(/[$,]/g, '') })));
+  } catch {
+    marks = {};
+  }
+  return labels.map((l) => ({ ...l, as_is: marks[l.qr_data.trim().toUpperCase()]?.as_is ?? true }));
 }
 
 /** After a save, so the next print reads the new settings. */
@@ -111,7 +135,7 @@ export async function printTags(jobs: TagJob[], size?: LabelSize): Promise<Print
       return { printed, failed: jobs.length - printed, error: err instanceof Error ? err.message : String(err) };
     }
     printed += 1;
-    if (job.kind !== 'test' && job.data !== SAMPLE_PRICE_TAG) remember(job);
+    if (job.kind !== 'test' && !SAMPLES.has(job.data)) remember(job);
   }
   return { printed, failed: 0 };
 }
@@ -133,18 +157,22 @@ export async function printPriceTags(labels: LocalPrintRequest[]): Promise<Print
     if (batch.printed > 0) remember({ kind: 'price', data: labels[batch.printed - 1] });
     return { printed: batch.printed, failed: batch.failed, error: batch.errors?.[0] };
   }
-  const result = await printTags(labels.map((data) => ({ kind: 'price' as const, data, docName: `Label-${data.qr_data}` })));
+  const jobs: TagJob[] = (await priceTagDesign()) === 'perks'
+    ? (await asPerksTags(labels)).map((data) => ({ kind: 'perks' as const, data, docName: `Label-${data.qr_data}` }))
+    : labels.map((data) => ({ kind: 'price' as const, data, docName: `Label-${data.qr_data}` }));
+  const result = await printTags(jobs);
   if (result.printed > 0 || !result.error?.includes('does not support custom labels')) return result;
   const batch = await localPrintService.printLabelBatch(labels);
   return { printed: batch.printed, failed: batch.failed, error: batch.errors[0] };
 }
 
-/** Settings → Printing: the test label, then a sample price tag in the new drawing (switch on or off). */
-export function printTestLabel(size: LabelSize): Promise<PrintTagsResult> {
-  return printTags([
-    { kind: 'test', data: { size }, docName: 'Test label' },
-    { kind: 'price', data: SAMPLE_PRICE_TAG, docName: 'Test price tag' },
-  ], size);
+/** Settings → Printing: the test label, then a sample price tag in the new drawing (switch on or off), in the design
+ * the store picked. */
+export async function printTestLabel(size: LabelSize): Promise<PrintTagsResult> {
+  const sample: TagJob = (await priceTagDesign()) === 'perks'
+    ? { kind: 'perks', data: SAMPLE_PERKS_TAG, docName: 'Test price tag' }
+    : { kind: 'price', data: SAMPLE_PRICE_TAG, docName: 'Test price tag' };
+  return printTags([{ kind: 'test', data: { size }, docName: 'Test label' }, sample], size);
 }
 
 export const SAMPLE_PRICE_TAG: PriceTagData = {
@@ -155,6 +183,10 @@ export const SAMPLE_PRICE_TAG: PriceTagData = {
   include_text: true,
   retail_text: 'Retail $449.99',
 };
+
+export const SAMPLE_PERKS_TAG: PerksTagData = { ...SAMPLE_PRICE_TAG, as_is: false };
+
+const SAMPLES = new Set<unknown>([SAMPLE_PRICE_TAG, SAMPLE_PERKS_TAG]);
 
 /** Reprint the last tag this computer printed, at the current size. */
 export async function reprintLastTag(): Promise<PrintTagsResult> {

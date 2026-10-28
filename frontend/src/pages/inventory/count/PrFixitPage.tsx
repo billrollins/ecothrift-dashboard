@@ -26,6 +26,7 @@ import { priceFromNote } from './countProblems';
 import { clockTime } from './countTimer';
 import { inventoryName } from './inventoryNames';
 import { ScanBar } from './ScanBar';
+import { skuFromScan } from '../../../utils/scanCode';
 
 type Tab = 'pr' | 'relocate' | 'fixed' | 'reprice';
 const TABS: Tab[] = ['pr', 'relocate', 'fixed', 'reprice'];
@@ -536,7 +537,7 @@ export default function PrFixitPage() {
 
   /** Scan on the To fix tab: the server fixes what is certain; the rest opens its card. */
   const onScan = async () => {
-    const code = filter.trim();
+    const code = skuFromScan(filter);
     if (tab !== 'pr' || !looksLikeCode(code)) {
       scanRef.current?.select();
       return;

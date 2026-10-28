@@ -26,6 +26,9 @@ describe('codeFromScan', () => {
     expect(codeFromScan('  itm0001234 ')).toBe('ITM0001234');
     expect(codeFromScan('https://shop.example/x?sku=itm0000077')).toBe('ITM0000077');
     expect(codeFromScan('abc123')).toBe('ABC123');
+    // The Thrift+ Perks tag's QR link (2026-10-28), any case, with or without https://.
+    expect(codeFromScan('HTTPS://ECOTHRIFT.US/I/ITM0226342')).toBe('ITM0226342');
+    expect(codeFromScan('ecothrift.us/i/abc-123')).toBe('ABC-123');
   });
 
   it('tells a code from words to search for', () => {

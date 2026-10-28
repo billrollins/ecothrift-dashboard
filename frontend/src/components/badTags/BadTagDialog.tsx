@@ -30,6 +30,7 @@ import {
 } from '../../api/badTags.api';
 import { useAuth } from '../../hooks/useAuth';
 import { apiErrorDetail } from '../../hooks/useProductSearch';
+import { skuFromScan } from '../../utils/scanCode';
 
 const COPY = {
   title: { en: 'Bad tag', es: 'Etiqueta mala' },
@@ -130,7 +131,7 @@ export default function BadTagDialog({
   }, [open, initialCode, initialReason]);
 
   async function look(raw: string) {
-    const value = raw.trim();
+    const value = skuFromScan(raw);
     if (!value) return;
     setLooking(true);
     try {

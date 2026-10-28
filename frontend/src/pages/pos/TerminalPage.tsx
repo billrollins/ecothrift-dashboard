@@ -148,6 +148,7 @@ import {
 } from '../../api/thriftplusRegister.api';
 import { thriftCardCode } from '../../utils/thriftPlusCard';
 import { IconConfirm as Check, IconDelete as Delete, IconEdit as Edit, IconRefresh as Refresh, IconSearch as Search } from '../../icons/ecoIcons';
+import { skuFromScan } from '../../utils/scanCode';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -557,7 +558,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   }, [takeoverMutation, enqueueSnackbar]);
 
   const handleScanInput = useCallback(async () => {
-    const input = skuInput.trim();
+    const input = skuFromScan(skuInput); // a Thrift+ Perks tag's QR link scans as its SKU
     if (!input) return;
     // The same scan again (Enter pressed twice, a re-scan) while the first is still on its way: the first one adds it.
     if (scanInFlightRef.current === input) return;

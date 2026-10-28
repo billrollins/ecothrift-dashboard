@@ -34,6 +34,7 @@ import { parseRichSearch, parseWorkbenchSelection } from '../../utils/richInvent
 import { ProcessedItemsView } from './ProcessedItemsView';
 import { IconAdd, IconSearch as Search } from '../../icons/ecoIcons';
 import { AddItemDialog } from './addItem/AddItemDialog';
+import { skuFromScan } from '../../utils/scanCode';
 
 const DEBOUNCE_MS = 200;
 
@@ -473,7 +474,7 @@ function SearchBody({ q, sold, misfit, page, sort, drill, setParam }: {
           size="small"
           placeholder={phone ? 'Name, brand, model, UPC, or scan a tag' : 'Search by name, brand, model, category, UPC, product number, or scan a tag'}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => setText(skuFromScan(e.target.value))}
           onKeyDown={(e) => {
             if (e.key === 'Enter') setParam({ q: text || null, page: null });
           }}

@@ -23,6 +23,7 @@ from django.utils import timezone
 
 from apps.inventory.models import Item, ItemHistory
 from apps.inventory.services import sale_facts
+from apps.inventory.services.scan_code import sku_from_scan
 from apps.webstore.models import Reservation, WebListing
 
 OFF_REGISTER_CHANNELS = (Item.SALE_CHANNEL_FACEBOOK, Item.SALE_CHANNEL_ONLINE_OTHER)
@@ -55,7 +56,7 @@ def _user_name(user) -> str:
 def record_online_sale(user, *, sku: str, sold_for, channel: str, note: str = '') -> Item:
     if channel not in OFF_REGISTER_CHANNELS:
         raise ValueError('Where it sold must be Facebook or another online place.')
-    item = Item.objects.select_for_update().filter(sku__iexact=(sku or '').strip()).first()
+    item = Item.objects.select_for_update().filter(sku__iexact=sku_from_scan(sku)).first()
     if item is None:
         raise LookupError('No item has that tag.')
     if item.status == 'sold':

@@ -115,6 +115,7 @@ import { evaluateWorkSession } from './tarsWorkRollup';
 
 import type { TarsWorkSession } from './tarsWorkTypes';
 import type { TarsHoldSubmit } from './TarsHoldDialog';
+import { skuFromScan } from '../../../utils/scanCode';
 
 export type TarsWorkstationNavState = {
   selectJobId?: number;
@@ -445,7 +446,7 @@ export function TarsWorkstation({ chrome = 'studio' }: { chrome?: 'studio' | 'da
   ]);
 
   const submitBenchScan = useCallback(async () => {
-    const v = benchScanInput.trim();
+    const v = skuFromScan(benchScanInput);
     if (!v) return;
     setBenchScanInput('');
 

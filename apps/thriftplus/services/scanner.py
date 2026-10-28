@@ -97,6 +97,47 @@ def _sale_factor() -> Decimal:
     return Decimal('1') - Decimal(str(mode.get('percent') or 0)) / Decimal('100')
 
 
+def reward_for(item, tag: Decimal, factor: Decimal = Decimal('1')) -> Decimal:
+    """The ThriftBucks one unit collects at a tag price (after the store sale ``factor``)."""
+    state = ItemReward.objects.filter(item_id=item.pk).exclude(
+        status__in=[ItemReward.STATUS_CLOSED, ItemReward.STATUS_EXCLUDED]).values_list('reward', flat=True).first()
+    if not state or item.source == 'consignment' or tag <= 0:
+        return ZERO
+    reward = min(state, max(ZERO, tag - floor_for(tag, rules().floor_share)))
+    return (reward * factor).quantize(CENT, rounding=ROUND_DOWN)
+
+
+def tag_marks(rows: list[dict]) -> dict[str, dict]:
+    """The Thrift+ Perks price tag's bottom strip (rulebook A1, owner 2026-10-28): per ``{sku, price}``, whether it
+    prints AS IS · NO RETURNS (``as_is``) or 3-DAY RETURNS WITH THRIFT+, by the scanner's own rule (W6, W10) at the
+    price the tag prints. A tag with no item (a typed SKU) is AS IS, as the register sells it (P11)."""
+    from apps.inventory.models import Item
+    from apps.inventory.services.scan_code import sku_from_scan
+    from apps.thriftplus.services.returns import guide, why_as_is
+
+    wanted: dict[str, Decimal | None] = {}
+    for row in rows[:500]:
+        sku = sku_from_scan((row or {}).get('sku')).upper()
+        if not sku:
+            continue
+        try:
+            wanted[sku] = Decimal(str(row.get('price'))).quantize(CENT) if row.get('price') not in (None, '') else None
+        except Exception:
+            wanted[sku] = None
+    items = {i.sku.upper(): i for i in Item.objects.select_related('product__profile').filter(sku__in=list(wanted))}
+    rules_ = guide()
+    out: dict[str, dict] = {}
+    for sku, price in wanted.items():
+        item = items.get(sku)
+        if item is None:
+            out[sku] = {'as_is': True, 'why': 'No item with that tag: sold AS IS.'}
+            continue
+        at = (item.price or ZERO) if price is None else price
+        why = why_as_is(item, price=at, reward=reward_for(item, at), rules=rules_)
+        out[sku] = {'as_is': bool(why), 'why': why}
+    return out
+
+
 def item_card(item, *, factor: Decimal | None = None, guide=None) -> dict:
     """``ThriftPlusItemCard`` for one item. ``guide`` (``returns.guide()``) saves reading the return settings per item
     in a list."""
@@ -113,12 +154,7 @@ def item_card(item, *, factor: Decimal | None = None, guide=None) -> dict:
     factor = _sale_factor() if factor is None else factor
     tag = item.price or ZERO
     price = (tag * factor).quantize(CENT, rounding=ROUND_HALF_UP)
-    reward = ZERO
-    state = ItemReward.objects.filter(item_id=item.pk).exclude(
-        status__in=[ItemReward.STATUS_CLOSED, ItemReward.STATUS_EXCLUDED]).values_list('reward', flat=True).first()
-    if state and item.source != 'consignment' and tag > 0:
-        reward = min(state, max(ZERO, tag - floor_for(tag, rules().floor_share)))
-        reward = (reward * factor).quantize(CENT, rounding=ROUND_DOWN)
+    reward = reward_for(item, tag, factor)
     brand = (profile.brand if profile is not None and profile.brand else '') or product.brand or ''
     details = [x for x in [
         f'Brand: {brand}' if brand else '',
@@ -143,7 +179,9 @@ def item_card(item, *, factor: Decimal | None = None, guide=None) -> dict:
 def find_item(sku: str):
     from apps.inventory.models import Item
 
-    code = (sku or '').strip()
+    from apps.inventory.services.scan_code import sku_from_scan
+
+    code = sku_from_scan(sku)
     return Item.objects.select_related('product__profile').filter(sku__iexact=code).first() if code else None
 
 

@@ -1,4 +1,5 @@
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
+import { isTagLink, skuFromScan } from '../../../../utils/scanCode';
 
 export type ScannerMode = 'live' | 'unavailable';
 
@@ -19,6 +20,7 @@ export function normalizeScannedCode(raw: string | null | undefined): string {
 export function extractSkuFromScannedPayload(raw: string | null | undefined): string {
   const trimmed = normalizeScannedCode(raw);
   if (!trimmed) return '';
+  if (isTagLink(trimmed)) return skuFromScan(trimmed); // the Thrift+ Perks tag's QR link
 
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
     try {

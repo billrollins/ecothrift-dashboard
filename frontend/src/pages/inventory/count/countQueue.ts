@@ -1,4 +1,5 @@
 import type { IssueAction, IssueKind, ScanPost, ScanResult, ScanResultKind } from '../../../api/stocktake.api';
+import { isTagLink, skuFromScan } from '../../../utils/scanCode';
 
 /** One scan on the phone. `queued` and `sent` are waiting for the server's answer. */
 export type ScanState = 'queued' | 'sent' | ScanResultKind;
@@ -33,6 +34,7 @@ const STORE_MAX = 3000;
 /** What a scanned code looks like: an Eco-Thrift tag (QR text or barcode) or a typed SKU. */
 export function codeFromScan(raw: string): string {
   const text = (raw || '').trim();
+  if (isTagLink(text)) return skuFromScan(text); // the Thrift+ Perks tag's QR link
   const itm = text.match(/ITM\d{4,}/i);
   if (itm) return itm[0].toUpperCase();
   try {

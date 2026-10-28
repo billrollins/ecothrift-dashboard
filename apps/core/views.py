@@ -235,6 +235,10 @@ def print_server_releases(request):
 LABEL_SIZE_KEY = 'printing.label_size'
 LABEL_SIZE_DEFAULT = {'w_in': 1.5, 'h_in': 1.0, 'dpi': 203}
 PRICE_TAG_IN_DASH_KEY = 'printing.price_tag_in_dash'
+# Settings > Printing, "Price tag design" (owner 2026-10-28): the green price tag Dash draws. Store-wide, default Classic
+# until the 2.25 x 1.25 labels arrive; it only matters while price_tag_in_dash is on.
+PRICE_TAG_DESIGN_KEY = 'printing.price_tag_design'
+PRICE_TAG_DESIGNS = ('classic', 'perks')
 
 
 def clean_label_size(raw):
@@ -270,6 +274,16 @@ def price_tag_in_dash() -> bool:
     return bool(row and row.value is True)
 
 
+def price_tag_design() -> str:
+    """``classic`` (the side-stripe tag) or ``perks`` (Thrift+ Perks: QR link, perks box, returns strip)."""
+    row = AppSetting.objects.filter(key=PRICE_TAG_DESIGN_KEY).first()
+    return row.value if row and row.value in PRICE_TAG_DESIGNS else 'classic'
+
+
+def _printing_payload(value) -> dict:
+    return {'value': value, 'price_tag_in_dash': price_tag_in_dash(), 'price_tag_design': price_tag_design()}
+
+
 @api_view(['GET', 'PUT'])
 @permission_classes([IsAuthenticated, IsTeamMember])
 def label_size(request):
@@ -284,10 +298,9 @@ def label_size(request):
             return Response({'detail': 'Sides from 0.75 to 4 inches, printer 203 or 300 dpi.'},
                             status=status.HTTP_400_BAD_REQUEST)
         _save_setting(LABEL_SIZE_KEY, value, 'Label size every tag prints at (Settings > Printing).', request.user)
-        return Response({'value': value, 'price_tag_in_dash': price_tag_in_dash()})
+        return Response(_printing_payload(value))
     row = AppSetting.objects.filter(key=LABEL_SIZE_KEY).first()
-    return Response({'value': (clean_label_size(row.value) if row else None) or LABEL_SIZE_DEFAULT,
-                     'price_tag_in_dash': price_tag_in_dash()})
+    return Response(_printing_payload((clean_label_size(row.value) if row else None) or LABEL_SIZE_DEFAULT))
 
 
 @api_view(['PUT'])
@@ -300,6 +313,45 @@ def price_tag_switch(request):
     _save_setting(PRICE_TAG_IN_DASH_KEY, on, 'Price tags drawn in Dash at the label size (off: the print server draws them).',
                   request.user)
     return Response({'price_tag_in_dash': on})
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated, IsManagerOrAdmin])
+def price_tag_design_switch(request):
+    """Pick the price tag design for the whole store (``{"design": "classic" | "perks"}``)."""
+    design = request.data.get('design')
+    if design not in PRICE_TAG_DESIGNS:
+        return Response({'detail': 'Send {"design": "classic"} or {"design": "perks"}.'}, status=status.HTTP_400_BAD_REQUEST)
+    _save_setting(PRICE_TAG_DESIGN_KEY, design, 'Price tag design Dash draws: classic or perks (Settings > Printing).',
+                  request.user)
+    return Response({'price_tag_design': design})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsTeamMember])
+def tag_marks(request):
+    """The Thrift+ Perks tag's strip per item (rulebook A1): ``{"items": [{"sku", "price"}]}`` gives
+    ``{"marks": {SKU: {"as_is": bool, "why": str}}}``, by the scanner's own rule at the price the tag prints."""
+    from apps.thriftplus.services.scanner import tag_marks as marks_for
+
+    rows = request.data.get('items')
+    if not isinstance(rows, list):
+        return Response({'detail': 'Send {"items": [{"sku": "ITM0000001", "price": "12.00"}]}.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    return Response({'marks': marks_for([r for r in rows if isinstance(r, dict)])})
+
+
+def i_link(request, code: str):
+    """ecothrift.us/i/<code> (any case): a 7-character code is an interview short link (texts, 2026-10-12); anything
+    else is a price tag's QR (``HTTPS://ECOTHRIFT.US/I/<SKU>``, 2026-10-28), which opens the item in the Thrift+ app."""
+    from django.http import HttpResponseRedirect
+
+    from apps.hiring.interviews import SHORT_LENGTH
+    from apps.hiring.public_views import short_link
+
+    if len(code) == SHORT_LENGTH:
+        return short_link(request, code)
+    return HttpResponseRedirect(f'/scan?tag={code.upper()}')
 
 
 @api_view(['GET'])

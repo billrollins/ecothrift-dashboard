@@ -348,7 +348,9 @@ def photos(request):
         category = str(request.data.get('category') or '').strip()
         note = str(request.data.get('note') or '').strip()
         item = None
-        sku = str(request.data.get('sku') or '').strip()
+        from apps.inventory.services.scan_code import sku_from_scan
+
+        sku = sku_from_scan(request.data.get('sku'))
         if sku:
             from apps.inventory.models import Item
 
@@ -400,7 +402,9 @@ def photo_detail(request, pk):
         photo.note = str(data.get('note') or '').strip()[:255]
         changed.append('note')
     if 'sku' in data:
-        sku = str(data.get('sku') or '').strip()
+        from apps.inventory.services.scan_code import sku_from_scan
+
+        sku = sku_from_scan(data.get('sku'))
         if sku:
             from apps.inventory.models import Item
 

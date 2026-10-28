@@ -58,7 +58,9 @@ class BadRequest(Exception):
 
 
 def normalize_code(raw) -> str:
-    return str(raw or '').strip().upper()
+    from apps.inventory.services.scan_code import sku_from_scan
+
+    return sku_from_scan(raw).upper()  # a Thrift+ Perks tag's link scans as its SKU
 
 
 def person(user) -> str:

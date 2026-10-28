@@ -39,6 +39,7 @@ import { formatCurrency } from '../../utils/format';
 import LateReturnsTable from './returns/LateReturnsTable';
 import ReturnsSummaryStep from './returns/ReturnsSummaryStep';
 import { dayOnly, dayTime } from './returns/returnsText';
+import { skuFromScan } from '../../utils/scanCode';
 
 type Step = 'find' | 'receipt' | 'summary';
 
@@ -161,7 +162,7 @@ export default function ReturnsPage() {
 
   /** Scanning an item tag while the receipt is open ticks that line. */
   function scanned(raw: string) {
-    const code = raw.trim().toLowerCase();
+    const code = skuFromScan(raw).toLowerCase();
     setScan('');
     if (!code) {
       if (ticked.length) setStep('summary');
@@ -169,7 +170,7 @@ export default function ReturnsPage() {
     }
     const line = receipt?.lines.find((l) => l.sku.toLowerCase() === code);
     if (!line) {
-      setScanNote(`${raw.trim()} is not on this ticket.`);
+      setScanNote(`${skuFromScan(raw)} is not on this ticket.`);
       return;
     }
     if (line.state !== 'returnable') {

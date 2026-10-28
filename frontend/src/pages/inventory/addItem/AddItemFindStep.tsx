@@ -7,6 +7,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { findAddItemProducts, type AddItemProduct } from '../../../api/addItem.api';
 import { IconAiAssist, IconCopy, IconSearch } from '../../../icons/ecoIcons';
 import { EXACT_MATCHES, formatMoney, MATCH_LABEL, productName } from './addItemModel';
+import { skuFromScan } from '../../../utils/scanCode';
 
 const DEBOUNCE_MS = 200;
 const MIN_CHARS = 3;
@@ -139,7 +140,7 @@ export function AddItemFindStep({
           fullWidth
           placeholder="Name, brand or model, or scan a tag or barcode"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => setText(skuFromScan(e.target.value))}
           onKeyDown={(e) => {
             if (e.key !== 'Enter') return;
             e.preventDefault();

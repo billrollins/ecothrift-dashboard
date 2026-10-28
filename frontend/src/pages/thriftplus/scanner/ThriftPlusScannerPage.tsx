@@ -7,6 +7,8 @@
  * Email sign-in (owner 2026-10-15, APP D9): the email's link opens /scan?signin=<token>; a join lands on the Member QR,
  * a sign-in on the scanner. ecothrift.us/join opens /scan?view=join: Join, or the Member QR when already signed in.
  * Members get a bottom bar (owner 2026-10-20): Scan, Bucks, My QR, Account (memberTabs.tsx, TripScanner.tsx).
+ * A Thrift+ Perks price tag's QR (ECOTHRIFT.US/I/<SKU>, 2026-10-28) lands on /scan?tag=<SKU>: the tag opens at once;
+ * a phone that isn't signed in sees it as a guest, with Get Thrift+.
  * Data: ../../../api/thriftPlusScanner.api.ts (the real API).
  */
 import { useEffect, useRef, useState } from 'react';
@@ -92,6 +94,10 @@ export default function ThriftPlusScannerPage() {
   // ecothrift.us/join: the Join screen when signed out or scanning without signing in; signed in, TripScanner opens
   // the Member QR instead.
   const joinShown = joinAsked && session.data?.status === 'guest';
+  // A tag's QR link: a phone that isn't signed in sees the item as a guest (not kept: the next visit is signed out again).
+  const linkGuest = useRef(false);
+  if (pageParams.get('tag') && session.data?.status === 'signed_out') linkGuest.current = true;
+  const asGuest = linkGuest.current && session.data?.status === 'signed_out' && !joinAsked;
 
   useEffect(() => {
     const prev = document.title;
@@ -106,7 +112,8 @@ export default function ThriftPlusScannerPage() {
     };
   }, []);
 
-  const tripShown = open.data !== false && !resetToken && !signinToken && !!session.data && session.data.status !== 'signed_out' && !joinShown;
+  const tripShown = open.data !== false && !resetToken && !signinToken && !!session.data
+    && (session.data.status !== 'signed_out' || asGuest) && !joinShown;
   // The members' bottom bar (owner 2026-10-20) is in TripScanner; the version in the corner sits above it.
   const barShown = tripShown && memberBarShown({ isMember: session.data?.status === 'member', view: pageParams.get('view'), sideways });
 
@@ -155,12 +162,12 @@ export default function ThriftPlusScannerPage() {
           <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
             <CircularProgress sx={{ color: sc.green }} />
           </Box>
-        ) : session.data.status === 'signed_out' || joinShown ? (
+        ) : (session.data.status === 'signed_out' && !asGuest) || joinShown ? (
           <Box sx={{ flex: 1, overflowY: 'auto' }}>
             <SignInScreen start={joinAsked ? 'join' : 'email'} notice={linkError} />
           </Box>
         ) : (
-          <TripScanner session={session.data} />
+          <TripScanner session={session.data.status === 'signed_out' ? { status: 'guest' } : session.data} />
         )}
       </Box>
       {/* The trip scanner has its own sideways screens (the camera keeps scanning); every other screen asks to turn upright. */}

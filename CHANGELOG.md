@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.231.0] -->
-<!-- Last reviewed: 2026-10-28 (2.231.0) -->
+<!-- Line 1 release: ## [2.232.0] -->
+<!-- Last reviewed: 2026-10-28 (2.232.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.232.0] - 2026-10-28
+
+User-facing theme: **The Thrift+ Perks price tag, and a QR that opens on a customer's phone (Bill, 2026-10-28).**
+
+### Added
+- New price tag design, Thrift+ Perks: pick it in Settings → Printing (Classic stays the default; works while the new price tag drawing is on).
+- Every Perks tag says 3-DAY RETURNS WITH THRIFT+ or AS IS · NO RETURNS along the bottom.
+- The tag's QR opens the item on a customer's phone: members see it in the Thrift+ app, anyone else sees it with Get Thrift+.
+
+### Changed
+- Every scanner in the store reads the new QR as the tag number; old tags still work.
 
 ## [2.231.0] - 2026-10-28
 

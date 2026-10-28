@@ -1044,3 +1044,37 @@ describe('Member bottom bar and Account (owner 2026-10-20)', () => {
     }
   });
 });
+
+describe('a Thrift+ Perks tag QR link (ECOTHRIFT.US/I/<SKU> lands on /scan?tag=<SKU>, 2026-10-28)', () => {
+  it('signed out: the item as a guest, with Get Thrift+ (to Join), and the SKU off the address', async () => {
+    const user = userEvent.setup();
+    renderPage('/scan?tag=TP0000001');
+    const card = await screen.findByTestId('scan-card');
+    expect(await within(card).findByText('Cordless Drill Kit')).toBeInTheDocument();
+    expect(within(card).getByText('Free to join')).toBeInTheDocument();
+    expect(screen.getByTestId('where')).not.toHaveTextContent('tag=');
+    await user.click(screen.getByTestId('get-thrift-plus'));
+    expect(await screen.findByRole('heading', { name: 'Join Thrift+' })).toBeInTheDocument();
+    expect(screen.getByTestId('where')).toHaveTextContent('?view=join');
+  });
+
+  it('a signed-in member: the item in the scanner, no Get Thrift+', async () => {
+    await mockApi.signIn('dana', 'secret');
+    renderPage('/scan?tag=TP0000001');
+    const card = await screen.findByTestId('scan-card');
+    expect(await within(card).findByText('Cordless Drill Kit')).toBeInTheDocument();
+    expect(within(card).queryByText('Free to join')).toBeNull();
+    expect(screen.queryByTestId('get-thrift-plus')).toBeNull();
+    expect(screen.getByTestId('add')).toBeInTheDocument();
+  });
+
+  it('a scanned tag link in the camera box opens that tag (any case, with or without https://)', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Scan without signing in' }));
+    await scan(user, 'ecothrift.us/i/tp0000002');
+    const card = await screen.findByTestId('scan-card');
+    expect(await within(card).findByText('KitchenAid stand mixer')).toBeInTheDocument();
+    expect(screen.queryByTestId('get-thrift-plus')).toBeNull(); // only on a card the link itself opened
+  });
+});

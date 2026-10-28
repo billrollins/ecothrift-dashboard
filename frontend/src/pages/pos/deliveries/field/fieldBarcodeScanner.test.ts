@@ -27,6 +27,7 @@ describe('fieldBarcodeScanner', () => {
     expect(extractSkuFromScannedPayload('https://ecothrift.example/items/SOF-210')).toBe('SOF-210');
     expect(extractSkuFromScannedPayload('{"sku":"TBL-88","qty":1}')).toBe('TBL-88');
     expect(extractSkuFromScannedPayload('Label\nFRI-RF-11')).toBe('FRI-RF-11');
+    expect(extractSkuFromScannedPayload('HTTPS://ECOTHRIFT.US/I/ITM0226342')).toBe('ITM0226342'); // Thrift+ Perks tag
   });
 
   it('configures QR-only decode hints', () => {

@@ -1800,7 +1800,9 @@ def resolved_delivery_item_count(job: DeliveryJob) -> int:
 
 def verify_stop_scan(stop: DeliveryRunStop, *, user, sku: str) -> dict[str, Any]:
     """Match a scanned SKU to a line item on this stop (optional load check)."""
-    raw = (sku or '').strip()
+    from apps.inventory.services.scan_code import sku_from_scan
+
+    raw = sku_from_scan(sku)
     if not raw:
         raise ValueError('SKU is required')
     needle = raw.upper()

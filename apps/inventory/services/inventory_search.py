@@ -191,7 +191,9 @@ def search(
     products with a unit in that category (taxonomy bucket) and subcategory, from that vendor, in that tag price band,
     or on the shelf longer than the stale days."""
     started = time.perf_counter()
-    q = (q or '').strip()[:200]
+    from apps.inventory.services.scan_code import sku_from_scan
+
+    q = sku_from_scan(q)[:200]  # a scanned Thrift+ Perks tag link searches its SKU
     page = max(1, page)
     items = Item.objects.filter(product=OuterRef('pk'))
     misfit_q = None

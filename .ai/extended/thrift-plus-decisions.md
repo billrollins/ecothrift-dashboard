@@ -263,8 +263,9 @@
 
 *How everyone learns that everything else is final.*
 
-- **A1. Tags** (Decided; changed 10-12). Items Processing or Restoration mark AS IS print **AS IS** on the tag. Other tags carry no stamp; the receipt line and the scanner say whether an item qualifies for 3-day returns.
-  - Source: 10-08; owner 10-12 (AS IS on the tag). Built: No.
+- **A1. Tags** (Decided; changed 10-28). **Every new tag carries one of two strips** along the bottom, white on black: **3-DAY RETURNS WITH THRIFT+**, or **AS IS · NO RETURNS** when the item is AS IS (Processing or Restoration mark it, and the scanner's rule in W6 / W10 at the printed price). The tag is the **Thrift+ Perks** design (owner pick G3 / G4): struck "Retail $X" (only when the tag prints retail), OUR PRICE, the price, the title, the SKU; a THRIFT+ PERKS box with the QR and "Lower price / + easy returns" ("Lower price / with Thrift+" on an AS IS tag: no returns promise). The QR is a link, `HTTPS://ECOTHRIFT.US/I/<SKU>`: a phone camera opens the item in the Thrift+ app (members see it in the scanner; anyone else sees it with Get Thrift+); every store scanner reads it as the SKU. A tag Dash can't check prints AS IS (P11).
+  - Customer words (strip): "3-DAY RETURNS WITH THRIFT+" · "AS IS · NO RETURNS". (Box): "THRIFT+ PERKS", "Lower price", "+ easy returns" / "with Thrift+".
+  - Source: 10-08; owner 10-12 (AS IS on the tag); owner 10-28 (design G3 / G4, the two strips, the QR link). Built: Perks tag release (Settings → Printing → Price tag design → Thrift+ Perks, store-wide, default Classic until the 2.25 x 1.25 labels arrive; only while "Use the new price tag drawing" is on). Classic tags carry no strip.
 - **A2. Items sold as-is on purpose** (Decided; changed 10-12). The AS IS on the tag (A1) replaces the NO THRIFT+ WARRANTY sticker, plus the Dash flag and the receipt line.
   - Source: Claude, at your word 10-08; owner 10-12. Built: No.
 - **A3. Receipts and the app** (Decided; changed 10-12). Member receipts mark each line "3-day return" or "AS IS"; non-member receipts say all AS IS; the scanner says it too.

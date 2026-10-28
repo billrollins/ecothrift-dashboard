@@ -26,6 +26,7 @@ import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { formatCurrency } from '../../utils/format';
 import { useOnlineSalesMobile } from './useOnlineSalesMobile';
 import { ItemSkuLink } from '../../components/objects/ItemPeek';
+import { skuFromScan } from '../../utils/scanCode';
 
 const KEY = ['online-sales-sold', 90] as const;
 
@@ -57,10 +58,10 @@ export function SoldOnlinePanel() {
   });
 
   const record = useMutation({
-    mutationFn: async () => (await recordOnlineSale({ sku: sku.trim(), sold_for: price.trim(), channel, note: note.trim() })).data,
+    mutationFn: async () => (await recordOnlineSale({ sku: skuFromScan(sku), sold_for: price.trim(), channel, note: note.trim() })).data,
     onSuccess: (fresh) => {
       qc.setQueryData(KEY, fresh.results);
-      enqueueSnackbar(`${sku.trim().toUpperCase()} recorded as sold online. It left inventory.`, { variant: 'success' });
+      enqueueSnackbar(`${skuFromScan(sku).toUpperCase()} recorded as sold online. It left inventory.`, { variant: 'success' });
       setSku('');
       setPrice('');
       setNote('');

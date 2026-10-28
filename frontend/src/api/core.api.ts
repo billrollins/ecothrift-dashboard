@@ -78,7 +78,11 @@ export interface PrintingSettings {
   value: unknown;
   /** Price tags drawn in Dash at the label size; off, the print server draws them as before. */
   price_tag_in_dash: boolean;
+  /** Which price tag Dash draws while `price_tag_in_dash` is on (owner 2026-10-28); Classic until switched. */
+  price_tag_design?: PriceTagDesign;
 }
+
+export type PriceTagDesign = 'classic' | 'perks';
 
 export async function getLabelSizeSetting(): Promise<PrintingSettings> {
   const { data } = await api.get<PrintingSettings>('/core/printing/label-size/');
@@ -93,6 +97,17 @@ export async function saveLabelSizeSetting(value: { w_in: number; h_in: number; 
 export async function savePriceTagInDash(on: boolean): Promise<boolean> {
   const { data } = await api.put<{ price_tag_in_dash: boolean }>('/core/printing/price-tag-in-dash/', { on });
   return data.price_tag_in_dash;
+}
+
+export async function savePriceTagDesign(design: PriceTagDesign): Promise<PriceTagDesign> {
+  const { data } = await api.put<{ price_tag_design: PriceTagDesign }>('/core/printing/price-tag-design/', { design });
+  return data.price_tag_design;
+}
+
+/** The Thrift+ Perks tag's strip per SKU (rulebook A1): AS IS · NO RETURNS, or 3-DAY RETURNS WITH THRIFT+. */
+export async function getTagMarks(items: Array<{ sku: string; price?: string }>): Promise<Record<string, { as_is: boolean; why: string }>> {
+  const { data } = await api.post<{ marks: Record<string, { as_is: boolean; why: string }> }>('/core/printing/tag-marks/', { items });
+  return data.marks;
 }
 
 // App version endpoint

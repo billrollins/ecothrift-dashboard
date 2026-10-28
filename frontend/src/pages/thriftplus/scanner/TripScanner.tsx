@@ -75,6 +75,8 @@ export interface Top {
   code?: ScannedCode;
   /** The gate's name for this code, ignored for 3 s after [Scan again]. */
   gateKey?: string;
+  /** Opened from a Thrift+ Perks tag's QR (/scan?tag=<SKU>): a guest sees Get Thrift+ under it. */
+  fromLink?: boolean;
 }
 
 /** The answer card a code gets instead of a tag (owner 2026-10-15, APP D14a, D14b, D15), or null for a tag. */
@@ -169,12 +171,13 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
     loadDetector().catch(() => undefined);
   }, []);
 
-  const handleCodeRef = useRef<(raw: string, from: 'camera' | 'typed', format?: string) => void>(() => undefined);
+  const handleCodeRef = useRef<(raw: string, from: 'camera' | 'typed' | 'link', format?: string) => void>(() => undefined);
   const typeOnly = typeOnlyMode();
   const camera = useQrCamera({
     // Finish joining's selfie needs the front camera: the scanner lets go of the back one (a paused stream still holds
     // it, and phones won't open two cameras at once).
-    enabled: !typeOnly && !finishOpen,
+    // A tag's QR link shows its item first: the camera (and its permission question) waits until that card closes.
+    enabled: !typeOnly && !finishOpen && !top?.fromLink,
     paused: mode !== 'scan' || sheet != null || info != null || feel != null || tab !== 'scan' || finishOpen,
     onDecode: (raw, format) => handleCodeRef.current(raw, 'camera', format),
   });
@@ -192,7 +195,7 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
     setFlash(true);
     window.setTimeout(() => setFlash(false), 260);
     const key = Date.now();
-    setTop({ key, sku: code.kind === 'tag' ? code.sku : text, lookup: null, code, gateKey });
+    setTop({ key, sku: code.kind === 'tag' ? code.sku : text, lookup: null, code, gateKey, fromLink: from === 'link' });
     setMode('card');
     if (code.kind !== 'tag') return;
     void lookupTag(code.sku).then((lookup) => {
@@ -200,6 +203,20 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
       void qc.invalidateQueries({ queryKey: thriftPlusKeys.history });
     });
   };
+
+  // A tag's QR link opens that tag, once; the SKU comes off the address so Back and a reload don't open it again.
+  const linkTag = useRef(params.get('tag'));
+  useEffect(() => {
+    const sku = linkTag.current;
+    if (!sku) return;
+    linkTag.current = null;
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('tag');
+      return next;
+    }, { replace: true });
+    handleCodeRef.current(sku, 'link');
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const found = top?.lookup?.status === 'found' ? top.lookup.item : null;
   const canAdd = !!found && found.available;
@@ -378,6 +395,13 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
           {undo.node}
         </Box>
 
+        {mode === 'card' && top?.fromLink && isGuest && !answer && (
+          <Box sx={{ flexShrink: 0, display: 'flex' }}>
+            <BigButton primary onClick={() => setParams({ view: 'join' })} testId="get-thrift-plus">
+              Get Thrift+
+            </BigButton>
+          </Box>
+        )}
         {/* Every action lives here (owner 2026-10-12). */}
         <Box data-testid="actions" sx={{ flexShrink: 0, display: 'flex', gap: u(16) }}>
           {mode === 'scan' && (

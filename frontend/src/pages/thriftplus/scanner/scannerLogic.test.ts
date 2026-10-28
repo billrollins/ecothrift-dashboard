@@ -24,6 +24,9 @@ describe('parseTagCode', () => {
 describe('classifyCode: every code gets an answer (owner 2026-10-15, APP D14, D15)', () => {
   it('our tag codes are looked up and, not found, say "We can\'t find that item"', () => {
     expect(classifyCode('ITM0051377')).toEqual({ kind: 'tag', sku: 'ITM0051377', ours: true });
+    // The Thrift+ Perks tag's QR link (2026-10-28): its SKU, any case; a short old SKU in the link too.
+    expect(classifyCode('HTTPS://ECOTHRIFT.US/I/ITM0051377')).toEqual({ kind: 'tag', sku: 'ITM0051377', ours: true });
+    expect(classifyCode('https://ecothrift.us/i/tp0000002')).toEqual({ kind: 'tag', sku: 'TP0000002', ours: true });
     expect(classifyCode(' itm0051377 ', 'qr_code')).toEqual({ kind: 'tag', sku: 'ITM0051377', ours: true });
     expect(classifyCode('https://ecothrift.us/i?sku=abc123')).toEqual({ kind: 'tag', sku: 'ABC123', ours: true });
     expect(classifyCode('https://www.ecothrift.us/tag?sku=X-42')).toEqual({ kind: 'tag', sku: 'X-42', ours: true });
