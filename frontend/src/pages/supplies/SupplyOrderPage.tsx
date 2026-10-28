@@ -8,13 +8,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert, Box, Button, Card, CardContent, Checkbox, Chip, FormControlLabel, LinearProgress, MenuItem, Paper, Stack,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography, useMediaQuery,
-  useTheme,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup,
+  Tooltip, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import {
-  buildSupplyOrder, getSupplyOrder, markSupplyOrdered, type OrderLine, type OrderVendor, type SupplyOrder,
+  buildSupplyOrder, getSupplyOrder, getSupplySpend, markSupplyOrdered, type OrderLine, type OrderVendor,
+  type SupplyOrder, type SupplySpend,
 } from '../../api/supplies.api';
 import { PageHeader } from '../../components/common/PageHeader';
 import { formatCurrency } from '../../utils/format';
@@ -23,6 +24,16 @@ import { apiError, dayText, deadlineText, OutLink, whenText } from './supplyBits
 function packsText(line: OrderLine): string {
   const u = line.unit || 'each';
   return line.pack_size > 1 ? `${line.packs} × ${line.pack_size} ${u}` : `${line.packs} ${u}`;
+}
+
+/** What has come in (staff tick it on Receive). */
+function InText({ line }: { line: OrderLine }) {
+  if (!line.ordered_at) return null;
+  const tip = line.received_at ? `${line.received_by}, ${whenText(line.received_at)}` : 'Nothing in yet';
+  const all = line.received_qty >= line.packs;
+  const label = all ? 'All in' : `${line.received_qty} of ${line.packs} in`;
+  const color = all ? 'success' : line.received_qty ? 'warning' : 'default';
+  return <Tooltip title={tip}><Chip size="small" variant="outlined" color={color} label={label} /></Tooltip>;
 }
 
 function LinkFlag({ line }: { line: OrderLine }) {
@@ -96,7 +107,10 @@ function VendorBlock({ vendor, order, phone }: { vendor: OrderVendor; order: Sup
                   {line.line_total && <> · <b>{formatCurrency(line.line_total)}</b></>}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{line.list_name}: {line.reason}</Typography>
-                <OrderedTick line={line} onTick={(on) => tick.mutate({ ids: [line.id], on })} />
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <OrderedTick line={line} onTick={(on) => tick.mutate({ ids: [line.id], on })} />
+                  <InText line={line} />
+                </Stack>
               </CardContent>
             </Card>
           ))}
@@ -112,6 +126,7 @@ function VendorBlock({ vendor, order, phone }: { vendor: OrderVendor; order: Sup
                 <TableCell align="right">Price</TableCell>
                 <TableCell align="right">Line total</TableCell>
                 <TableCell>Ordered</TableCell>
+                <TableCell>In</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -130,8 +145,90 @@ function VendorBlock({ vendor, order, phone }: { vendor: OrderVendor; order: Sup
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>
                     <OrderedTick line={line} onTick={(on) => tick.mutate({ ids: [line.id], on })} />
                   </TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}><InText line={line} /></TableCell>
                 </TableRow>
               ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+    </Paper>
+  );
+}
+
+function periodLabel(iso: string, by: SupplySpend['by']): string {
+  const d = new Date(`${iso}T12:00:00`);
+  return by === 'month' ? d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : dayText(iso);
+}
+
+/** Spend: what was ticked Ordered, per vendor or per list, by week (8) or month (6). */
+function SpendSection({ phone }: { phone: boolean }) {
+  const [by, setBy] = useState<SupplySpend['by']>('week');
+  const [per, setPer] = useState<'vendors' | 'lists'>('vendors');
+  const { data, isLoading } = useQuery({ queryKey: ['supplies', 'spend', by], queryFn: () => getSupplySpend(by) });
+  const rows = data ? data[per] : [];
+  const last = (list: string[]) => list[list.length - 1];
+  return (
+    <Paper variant="outlined" sx={{ p: { xs: 1.5, md: 2 }, mt: 3 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' }, mb: 1.5 }}>
+        <Box>
+          <Typography variant="h6" sx={{ fontSize: '1.1rem' }}>Spend</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Lines ticked Ordered, on the day they were ticked.
+            {data && data.unpriced > 0 && ` ${data.unpriced} ordered ${data.unpriced === 1 ? 'line has' : 'lines have'} no price.`}
+          </Typography>
+        </Box>
+        <Stack direction="row" spacing={1}>
+          <ToggleButtonGroup size="small" exclusive value={per} onChange={(_, v) => v && setPer(v)} aria-label="Spend per">
+            <ToggleButton value="vendors" sx={{ textTransform: 'none' }}>Vendor</ToggleButton>
+            <ToggleButton value="lists" sx={{ textTransform: 'none' }}>List</ToggleButton>
+          </ToggleButtonGroup>
+          <ToggleButtonGroup size="small" exclusive value={by} onChange={(_, v) => v && setBy(v)} aria-label="Spend by">
+            <ToggleButton value="week" sx={{ textTransform: 'none' }}>Week</ToggleButton>
+            <ToggleButton value="month" sx={{ textTransform: 'none' }}>Month</ToggleButton>
+          </ToggleButtonGroup>
+        </Stack>
+      </Stack>
+      {isLoading && <LinearProgress />}
+      {data && rows.length === 0 && <Typography color="text.secondary">Nothing ordered in this time yet.</Typography>}
+      {data && rows.length > 0 && phone && (
+        <Stack spacing={0.75}>
+          {rows.map((row) => (
+            <Stack key={row.name} direction="row" spacing={1} sx={{ justifyContent: 'space-between' }}>
+              <Typography variant="body2">{row.name}</Typography>
+              <Typography variant="body2" sx={{ textAlign: 'right' }}>
+                {formatCurrency(last(row.amounts))} this {by} · {formatCurrency(row.total)} in {data.periods.length} {by}s
+              </Typography>
+            </Stack>
+          ))}
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>Total this {by}: {formatCurrency(last(data.totals))}</Typography>
+        </Stack>
+      )}
+      {data && rows.length > 0 && !phone && (
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>{per === 'vendors' ? 'Vendor' : 'List'}</TableCell>
+                {data.periods.map((p) => <TableCell key={p} align="right">{periodLabel(p, by)}</TableCell>)}
+                <TableCell align="right">Total</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.name}>
+                  <TableCell>{row.name}</TableCell>
+                  {row.amounts.map((a, i) => <TableCell key={data.periods[i]} align="right">{Number(a) ? formatCurrency(a) : '-'}</TableCell>)}
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(row.total)}</TableCell>
+                </TableRow>
+              ))}
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700 }}>All</TableCell>
+                {data.totals.map((t, i) => <TableCell key={data.periods[i]} align="right" sx={{ fontWeight: 700 }}>{Number(t) ? formatCurrency(t) : '-'}</TableCell>)}
+                <TableCell align="right" sx={{ fontWeight: 700 }}>
+                  {formatCurrency(data.totals.reduce((sum, t) => sum + Number(t), 0))}
+                </TableCell>
+              </TableRow>
             </TableBody>
           </Table>
         </TableContainer>
@@ -196,12 +293,14 @@ export default function SupplyOrderPage() {
       {order && order.line_count > 0 && (
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {order.open_count ? `${order.open_count} of ${order.line_count} lines still to order.` : 'Everything is ordered.'}
+          {order.waiting_count ? ` ${order.waiting_count} ordered ${order.waiting_count === 1 ? 'line is' : 'lines are'} not all in yet.` : ''}
           {' '}Qty is in packs; each line says why.
         </Typography>
       )}
       <Stack spacing={2}>
         {order?.vendors.map((v) => <VendorBlock key={v.vendor} vendor={v} order={order} phone={phone} />)}
       </Stack>
+      <SpendSection phone={phone} />
     </Box>
   );
 }

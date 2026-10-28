@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-26 (first release: lists, weekly count, order by rule, owner order page) -->
+<!-- Last updated: 2026-10-28 (Received with partial packs, spend by vendor and list, We need requests) -->
 # Supplies
 
 The store's supply lists, the weekly count, and the week's order. Owner design, approved 2026-10-26. App:
@@ -8,9 +8,9 @@ The store's supply lists, the weekly count, and the week's order. Owner design, 
 
 | Who | Can |
 |-----|-----|
-| Every staff login | See every list, count any list |
-| Manager, Admin, owner | Make, rename and archive lists; add, edit, remove items; import a CSV; AI fill from a link |
-| Owner (superuser) | See the order, tick Ordered, Build now |
+| Every staff login | See every list, count any list, tick deliveries in (Receive), ask "We need ___" and see the answer |
+| Manager, Admin, owner | Make, rename and archive lists; add, edit, remove items; import a CSV; AI fill from a link; approve or decline requests |
+| Owner (superuser) | See the order and spend, tick Ordered, Build now |
 
 ## Models
 
@@ -19,7 +19,9 @@ The store's supply lists, the weekly count, and the week's order. Owner design, 
 | `SupplyList` | A department's list (`department`, optional) or a named list. `is_active` false = archived. |
 | `SupplyItem` | `name`, `description`, `vendor`, `vendor_url`, `url` (the item's page), `vendor_item_id` (Amazon ASIN), `unit` (what staff count), `pack_size` (units in one pack bought), `min_qty`, `max_qty` (in units), `price` (one pack). Remove = `is_active` false; past counts and orders keep it. |
 | `SupplyCount` + `SupplyCountLine` | One list's count for one cycle (`week_start`), every active item's `on_hand`. Counting again before the deadline replaces it. |
-| `SupplyOrder` + `SupplyOrderLine` | The cycle's order, built once. Lines copy the item's facts, the count, `packs`, `reason`, `link_status`, and `ordered_at` / `ordered_by`. `missed_lists` names lists not counted. |
+| `SupplyOrder` + `SupplyOrderLine` | The cycle's order, built once. Lines copy the item's facts, the count, `packs`, `reason`, `link_status`, `ordered_at` / `ordered_by`, and `received_qty` (packs in so far) / `received_at` / `received_by`. `missed_lists` names lists not counted. |
+| `SupplyReceipt` | One change to a line's packs in: `change` (negative = a correction), `received_qty` after it, `by`, `at`. |
+| `SupplyRequest` | A "We need ___": `name`, optional `url`, `photo` (2048 px JPEG), `note`, `supply_list` (optional), `requested_by`; `status` pending / approved / declined, `decided_by` / `decided_at`, `decline_reason`, and the `item` an approval made. |
 
 ## The count
 
@@ -43,12 +45,21 @@ The store's supply lists, the weekly count, and the week's order. Owner design, 
 
 Vendor by vendor, each line with its link (new tab), packs, price, line total; the vendor total. Amazon: **Add all to Amazon cart** opens `https://www.amazon.com/gp/aws/cart/add.html?ASIN.1=…&Quantity.1=…` with every ASIN and pack count; Bill checks out himself. Lines with no ASIN are named, not in the button. Tick Ordered per line or **All ordered** per vendor (who and when kept). **Build now** builds the order for the deadline that passed, if the hourly job has not.
 
+## Received (`/supplies/receive`, everyone)
+
+Lines the owner ticked Ordered in the last 8 weeks that are not all in, vendor by vendor, with no prices. **All here** takes the rest; the box takes the packs in so far (0 to the packs ordered), so a part delivery and a correction both work. Every change is a `SupplyReceipt`. The order page shows each ordered line as "All in" or "2 of 3 in" (who and when on hover). `services/receiving.py`.
+
+## Spend
+
+Spend is packs times price of each line ticked Ordered, on the store day it was ticked (`services/spend.py`). The order page's **Spend** table shows it per vendor or per list, by week (8 weeks) or month (6 months), with a total row; lines with no price are counted, not added. The Owner page shows the small number: this week and this month.
+
+## Requests: "We need ___"
+
+Anyone taps **We need…** on Supplies: what, which list (or Not sure), an optional link, note and photo (the phone camera opens). It lands on **Requests** (`/supplies/requests`) for managers and the owner, waiting first; the Supplies button shows the waiting count and the Owner page Needs you shows **Supply requests to answer**. **Approve** puts it on a list as an item (min and max needed; vendor, link, pack, unit and price optional, the link's ASIN is kept). **Decline** needs a reason. The requester sees the answer under **My requests** on Supplies (their last 10). `services/requests.py`.
+
 ## Making lists
 
 - By hand: Add item.
 - CSV: Import CSV on the list (template: `GET /api/supplies/import-template/`; columns `name, description, vendor, vendor_url, url, vendor_item_id, pack_size, unit, min, max, price`). All or nothing: any bad row saves nothing and the rows are named. A name already on the list updates that item. An Amazon link fills the ASIN.
 - From a link: paste it in Add item and **Fill with AI** (purpose `SUPPLY_FILL` in Settings → AI). The server never opens the page (Amazon's terms forbid scraping): the AI reads the link (its words, the ASIN) and, for the price, page text the person copies from their own browser. The person checks every field and saves.
 
-## Later (not built)
-
-Received ticks and spend tracking; staff "We need ___" requests.

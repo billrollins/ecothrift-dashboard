@@ -58,6 +58,12 @@ export interface SupplyListsResponse {
   can_edit: boolean;
   is_owner: boolean;
   lists: SupplyListSummary[];
+  /** Waiting requests (managers and the owner; null for others). */
+  pending_requests: number | null;
+  /** This person's last 10 requests. */
+  my_requests: SupplyRequest[];
+  /** Ordered lines still on their way. */
+  receive_waiting: number;
 }
 
 export interface CountItem extends SupplyItem {
@@ -116,6 +122,10 @@ export interface OrderLine {
   link_status: '' | 'ok' | 'broken';
   ordered_at: string | null;
   ordered_by: string;
+  /** Packs in so far. */
+  received_qty: number;
+  received_at: string | null;
+  received_by: string;
 }
 
 export interface OrderVendor {
@@ -142,6 +152,8 @@ export interface SupplyOrder {
   total: string;
   line_count: number;
   open_count: number;
+  /** Ordered lines not all in yet. */
+  waiting_count: number;
 }
 
 export interface OrderResponse {
@@ -188,3 +200,90 @@ export const getSupplyOrder = (week?: string) =>
 export const buildSupplyOrder = () => api.post<{ detail: string }>('/supplies/order/build/').then((r) => r.data);
 export const markSupplyOrdered = (orderId: number, lineIds: number[], ordered: boolean) =>
   api.post<SupplyOrder>(`/supplies/order/${orderId}/ordered/`, { line_ids: lineIds, ordered }).then((r) => r.data);
+
+// ── Received, spend and requests (owner, 2026-10-28) ────────────────────────────
+
+export interface ReceiveLine {
+  id: number;
+  week_start: string;
+  list_name: string;
+  name: string;
+  vendor: string;
+  url: string;
+  unit: string;
+  pack_size: number;
+  packs: number;
+  received_qty: number;
+  received_at: string | null;
+  received_by: string;
+  status: 'waiting' | 'partial' | 'in';
+}
+
+export const getReceiveLines = () =>
+  api.get<{ lines: ReceiveLine[] }>('/supplies/receive/').then((r) => r.data.lines);
+/** `received_qty`: the packs in so far (0 to the packs ordered). */
+export const setReceived = (lineId: number, receivedQty: number) =>
+  api.post<ReceiveLine>(`/supplies/lines/${lineId}/received/`, { received_qty: receivedQty }).then((r) => r.data);
+
+export interface SpendRow {
+  name: string;
+  /** One per period, oldest first. */
+  amounts: string[];
+  total: string;
+}
+
+export interface SupplySpend {
+  by: 'week' | 'month';
+  /** Week Mondays or month firsts, oldest first. */
+  periods: string[];
+  vendors: SpendRow[];
+  lists: SpendRow[];
+  totals: string[];
+  /** Ordered lines with no price, so not in the money. */
+  unpriced: number;
+}
+
+export const getSupplySpend = (by: 'week' | 'month') =>
+  api.get<SupplySpend>('/supplies/spend/', { params: { by } }).then((r) => r.data);
+export const getSupplySpendSummary = () =>
+  api.get<{ this_week: string; this_month: string }>('/supplies/spend/', { params: { summary: 1 } }).then((r) => r.data);
+
+export type SupplyRequestStatus = 'pending' | 'approved' | 'declined';
+
+export interface SupplyRequest {
+  id: number;
+  name: string;
+  url: string;
+  note: string;
+  photo_url: string | null;
+  list: number | null;
+  list_name: string;
+  requested_by: string;
+  requested_by_id: number | null;
+  created_at: string;
+  status: SupplyRequestStatus;
+  decided_by: string;
+  decided_at: string | null;
+  decline_reason: string;
+  item: number | null;
+}
+
+export const getSupplyRequests = (status?: SupplyRequestStatus) =>
+  api
+    .get<{ can_decide: boolean; requests: SupplyRequest[] }>('/supplies/requests/', { params: status ? { status } : {} })
+    .then((r) => r.data);
+export const createSupplyRequest = (body: { name: string; url?: string; note?: string; list?: number | null; photo?: File | null }) => {
+  const form = new FormData();
+  form.append('name', body.name);
+  if (body.url) form.append('url', body.url);
+  if (body.note) form.append('note', body.note);
+  if (body.list) form.append('list', String(body.list));
+  if (body.photo) form.append('photo', body.photo);
+  return api
+    .post<SupplyRequest>('/supplies/requests/', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+    .then((r) => r.data);
+};
+export const approveSupplyRequest = (id: number, body: SupplyItemInput & { list: number }) =>
+  api.post<SupplyRequest>(`/supplies/requests/${id}/approve/`, body).then((r) => r.data);
+export const declineSupplyRequest = (id: number, reason: string) =>
+  api.post<SupplyRequest>(`/supplies/requests/${id}/decline/`, { reason }).then((r) => r.data);

@@ -320,17 +320,20 @@ def needs_you(now: datetime | None = None) -> dict[str, Any]:
         ]
 
     def supplies():
-        from apps.supplies.models import SupplyOrder
+        from apps.supplies.models import SupplyOrder, SupplyRequest
         from apps.supplies.services.orders import missed_lists
 
         missed = missed_lists(now)
         order = SupplyOrder.objects.first()
         open_lines = order.lines.filter(ordered_at__isnull=True).count() if order else 0
+        waiting = list(SupplyRequest.objects.filter(status=SupplyRequest.STATUS_PENDING).values_list('name', flat=True))
         return [
             _item('supply_count_missed', 'Supply counts missed', len(missed), '/supplies',
                   detail='; '.join(missed[:5]), tone='error'),
             _item('supply_order', 'Supply order ready', open_lines, '/supplies/order',
                   detail=f'Week of {order.week_start:%b} {order.week_start.day}: lines not yet ordered' if open_lines else '', tone='info'),
+            _item('supply_requests', 'Supply requests to answer', len(waiting), '/supplies/requests',
+                  detail='; '.join(waiting[:5])),
         ]
 
     for build in (requests, time_changes, returns, offers, checkins, data_checks, site_errors, thrift_plus, supplies):

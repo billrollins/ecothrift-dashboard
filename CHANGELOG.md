@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.226.1] -->
-<!-- Last reviewed: 2026-10-28 (2.226.1) -->
+<!-- Line 1 release: ## [2.227.0] -->
+<!-- Last reviewed: 2026-10-28 (2.227.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.227.0] - 2026-10-28
+
+User-facing theme: **Supplies: receive deliveries, spend, and "We need…" requests (Bill, 2026-10-28).**
+
+### Added
+- Receive supplies: anyone can tick a delivery in when it arrives, all of it or part of it. Who and when are kept, and the order page shows "2 of 3 in".
+- Supply spend on the order page, per vendor or per list, by week or by month. The Owner page shows this week's and this month's spend.
+- "We need…": anyone on the team can ask for a supply, with a link or a photo and which list. Managers and the owner approve it onto a list with a min and max, or decline it with a reason. The person who asked sees the answer on Supplies.
+- The Owner page Needs you shows supply requests waiting for an answer.
 
 ## [2.226.1] - 2026-10-28
 

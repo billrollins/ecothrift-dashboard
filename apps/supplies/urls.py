@@ -14,4 +14,10 @@ urlpatterns = [
     path('order/', views.order_latest, name='supplies-order'),
     path('order/build/', views.order_build, name='supplies-order-build'),
     path('order/<int:pk>/ordered/', views.order_ordered, name='supplies-order-ordered'),
+    path('receive/', views.receive_list, name='supplies-receive'),
+    path('lines/<int:pk>/received/', views.line_received, name='supplies-line-received'),
+    path('spend/', views.spend_view, name='supplies-spend'),
+    path('requests/', views.requests_view, name='supplies-requests'),
+    path('requests/<int:pk>/approve/', views.request_approve, name='supplies-request-approve'),
+    path('requests/<int:pk>/decline/', views.request_decline, name='supplies-request-decline'),
 ]

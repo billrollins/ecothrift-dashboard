@@ -28,6 +28,9 @@ vi.mock('../../api/core.api', () => ({
   markAppErrorsSeen: vi.fn(async () => ({ data: { open_count: 0, last_24h: 1, last_7d: 3, latest: [] } })),
 }));
 
+vi.mock('../../api/supplies.api', () => ({
+  getSupplySpendSummary: vi.fn().mockResolvedValue({ this_week: '75.45', this_month: '327.45' }),
+}));
 vi.mock('../../api/owner.api', () => ({
   fetchScorecard: vi.fn(async () => ({
     today: '2026-10-21',
@@ -119,6 +122,11 @@ describe('Owner page (2026-10-21)', () => {
     expect(screen.getByText('-2.0%')).toBeInTheDocument();
     expect(screen.getByText('2 numbers due')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open Numbers' })).toBeInTheDocument();
+  });
+
+  it('shows the small supplies spend number', async () => {
+    renderPage();
+    expect(await screen.findByTestId('owner-supply-spend')).toHaveTextContent('$75.45 this week · $327.45 this month');
   });
 
   it('links every owner-only page but itself', () => {

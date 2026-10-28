@@ -15,8 +15,10 @@ from rest_framework.response import Response
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsSuperAdmin, IsTeamMember
 
-from .models import SupplyCount, SupplyCountLine, SupplyItem, SupplyList, SupplyOrder
-from .services import ai_fill, csv_import, orders, schedule
+from .models import SupplyCount, SupplyCountLine, SupplyItem, SupplyList, SupplyOrder, SupplyOrderLine, SupplyRequest
+from .services import ai_fill, csv_import, orders, receiving, schedule
+from .services import requests as supply_requests
+from .services import spend as supply_spend
 from .services.rules import order_packs
 from .settings import supplies_settings
 
@@ -118,6 +120,15 @@ def lists(request):
         'can_edit': _can_edit(request.user),
         'is_owner': bool(request.user.is_superuser),
         'lists': [list_payload(sl, ws) for sl in qs],
+        'pending_requests': (
+            SupplyRequest.objects.filter(status=SupplyRequest.STATUS_PENDING).count() if _can_edit(request.user) else None
+        ),
+        'my_requests': [
+            supply_requests.payload(r)
+            for r in SupplyRequest.objects.filter(requested_by=request.user)
+            .select_related('supply_list', 'requested_by', 'decided_by')[:10]
+        ],
+        'receive_waiting': len(receiving.open_lines()),
     })
 
 
@@ -364,3 +375,108 @@ def order_ordered(request, pk):
         return _err('Pick the lines.')
     orders.mark_ordered(order, ids, ordered=bool(request.data.get('ordered', True)), user=request.user)
     return Response(orders.order_payload(order))
+
+
+# ── Received (staff) ────────────────────────────────────────────────────────────
+
+
+def _receive_payload(line: SupplyOrderLine) -> dict:
+    """What staff need to check a delivery in: no prices."""
+    return {
+        'id': line.pk,
+        'week_start': line.order.week_start.isoformat(),
+        'list_name': line.list_name,
+        'name': line.name,
+        'vendor': line.vendor,
+        'url': line.url,
+        'unit': line.unit,
+        'pack_size': line.pack_size,
+        'packs': line.packs,
+        'received_qty': line.received_qty,
+        'received_at': line.received_at.isoformat() if line.received_at else None,
+        'received_by': _who(line.received_by),
+        'status': receiving.receive_status(line),
+    }
+
+
+@api_view(['GET'])
+@permission_classes(TEAM)
+def receive_list(request):
+    """Ordered lines still on their way, vendor by vendor."""
+    return Response({'lines': [_receive_payload(ln) for ln in receiving.open_lines()]})
+
+
+@api_view(['POST'])
+@permission_classes(TEAM)
+def line_received(request, pk):
+    """`received_qty`: the packs in so far (0 to the packs ordered)."""
+    line = SupplyOrderLine.objects.select_related('order').filter(pk=pk).first()
+    if not line:
+        return _err('No such line.', 404)
+    try:
+        line = receiving.set_received(line, request.data.get('received_qty'), user=request.user)
+    except receiving.ReceiveError as exc:
+        return _err(str(exc))
+    line = SupplyOrderLine.objects.select_related('order', 'received_by').get(pk=line.pk)
+    return Response(_receive_payload(line))
+
+
+@api_view(['GET'])
+@permission_classes(OWNER)
+def spend_view(request):
+    if request.query_params.get('summary') == '1':
+        return Response(supply_spend.summary())
+    return Response(supply_spend.spend(request.query_params.get('by') or 'week'))
+
+
+# ── Requests: "We need ___" ─────────────────────────────────────────────────────
+
+
+@api_view(['GET', 'POST'])
+@permission_classes(TEAM)
+@parser_classes([MultiPartParser, FormParser, JSONParser])
+def requests_view(request):
+    """GET: managers and the owner see every request (`?status=`), others their own. POST: anyone asks."""
+    if request.method == 'POST':
+        try:
+            req = supply_requests.create(
+                user=request.user, name=request.data.get('name'), url=request.data.get('url') or '',
+                note=request.data.get('note') or '', list_id=request.data.get('list') or None,
+                photo=request.FILES.get('photo'),
+            )
+        except supply_requests.RequestError as exc:
+            return _err(str(exc))
+        return Response(supply_requests.payload(req), status=201)
+    qs = SupplyRequest.objects.select_related('supply_list', 'requested_by', 'decided_by')
+    if not _can_edit(request.user):
+        qs = qs.filter(requested_by=request.user)
+    status = request.query_params.get('status')
+    if status in dict(SupplyRequest.STATUS_CHOICES):
+        qs = qs.filter(status=status)
+    return Response({
+        'can_decide': _can_edit(request.user),
+        'requests': [supply_requests.payload(r) for r in qs[:200]],
+    })
+
+
+def _decide(pk, action):
+    req = SupplyRequest.objects.select_related('supply_list', 'requested_by').filter(pk=pk).first()
+    if not req:
+        return _err('No such request.', 404)
+    try:
+        req = action(req)
+    except supply_requests.RequestError as exc:
+        return _err(str(exc))
+    return Response(supply_requests.payload(req))
+
+
+@api_view(['POST'])
+@permission_classes(MANAGER)
+def request_approve(request, pk):
+    return _decide(pk, lambda req: supply_requests.approve(req, user=request.user, data=request.data))
+
+
+@api_view(['POST'])
+@permission_classes(MANAGER)
+def request_decline(request, pk):
+    return _decide(pk, lambda req: supply_requests.decline(req, user=request.user, reason=request.data.get('reason')))

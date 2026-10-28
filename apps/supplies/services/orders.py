@@ -173,13 +173,16 @@ def line_payload(line: SupplyOrderLine) -> dict:
         'link_status': line.link_status,
         'ordered_at': line.ordered_at.isoformat() if line.ordered_at else None,
         'ordered_by': (line.ordered_by.full_name or line.ordered_by.email) if line.ordered_by else '',
+        'received_qty': line.received_qty,
+        'received_at': line.received_at.isoformat() if line.received_at else None,
+        'received_by': (line.received_by.full_name or line.received_by.email) if line.received_by else '',
     }
 
 
 def order_payload(order: SupplyOrder) -> dict:
     """The owner's order page: vendor by vendor, each with its total and (for Amazon) one add-to-cart link."""
     groups: OrderedDict[str, dict] = OrderedDict()
-    lines = list(order.lines.select_related('ordered_by').order_by('vendor', 'list_name', 'name'))
+    lines = list(order.lines.select_related('ordered_by', 'received_by').order_by('vendor', 'list_name', 'name'))
     for line in lines:
         key = line.vendor or 'No vendor'
         group = groups.setdefault(key, {
@@ -216,6 +219,7 @@ def order_payload(order: SupplyOrder) -> dict:
         'total': _money(grand),
         'line_count': len(lines),
         'open_count': sum(1 for ln in lines if not ln.ordered_at),
+        'waiting_count': sum(1 for ln in lines if ln.ordered_at and ln.received_qty < ln.packs),
     }
 
 

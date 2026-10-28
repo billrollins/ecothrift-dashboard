@@ -15,6 +15,8 @@ import { createSupplyList, getSupplyLists, type SupplyListSummary } from '../../
 import { getDepartments } from '../../api/hr.api';
 import { PageHeader } from '../../components/common/PageHeader';
 import { apiError, deadlineText, whenText } from './supplyBits';
+import { RequestCard } from './SupplyRequestsPage';
+import { WeNeedDialog } from './WeNeedDialog';
 
 function NewListDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [name, setName] = useState('');
@@ -103,6 +105,7 @@ function ListCard({ row, onOpen, onCount }: { row: SupplyListSummary; onOpen: ()
 export default function SuppliesPage() {
   const navigate = useNavigate();
   const [newOpen, setNewOpen] = useState(false);
+  const [needOpen, setNeedOpen] = useState(false);
   const { data, isLoading, error } = useQuery({ queryKey: ['supplies', 'lists'], queryFn: () => getSupplyLists() });
 
   const waiting = data?.lists.filter((l) => !l.count && l.item_count).length ?? 0;
@@ -112,9 +115,18 @@ export default function SuppliesPage() {
         title="Supplies"
         subtitle={data ? `Weekly count due ${deadlineText(data.cycle.deadline)}` : undefined}
         action={(
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
+            <Button variant="contained" onClick={() => setNeedOpen(true)}>We need…</Button>
+            <Button variant="outlined" onClick={() => navigate('/supplies/receive')}>
+              Receive{data?.receive_waiting ? ` (${data.receive_waiting})` : ''}
+            </Button>
+            {data?.can_edit && (
+              <Button variant="outlined" onClick={() => navigate('/supplies/requests')}>
+                Requests{data.pending_requests ? ` (${data.pending_requests})` : ''}
+              </Button>
+            )}
             {data?.is_owner && <Button variant="outlined" onClick={() => navigate('/supplies/order')}>Order</Button>}
-            {data?.can_edit && <Button variant="contained" onClick={() => setNewOpen(true)}>New list</Button>}
+            {data?.can_edit && <Button onClick={() => setNewOpen(true)}>New list</Button>}
           </Stack>
         )}
       />
@@ -140,7 +152,16 @@ export default function SuppliesPage() {
           />
         ))}
       </Box>
+      {data && data.my_requests.length > 0 && (
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="h6" sx={{ fontSize: '1.05rem', mb: 1 }}>My requests</Typography>
+          <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
+            {data.my_requests.map((req) => <RequestCard key={req.id} req={req} canDecide={false} />)}
+          </Box>
+        </Box>
+      )}
       <NewListDialog open={newOpen} onClose={() => setNewOpen(false)} />
+      {needOpen && data && <WeNeedDialog open lists={data.lists} onClose={() => setNeedOpen(false)} />}
     </Box>
   );
 }

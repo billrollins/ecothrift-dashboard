@@ -75,6 +75,8 @@ const SuppliesPage = lazy(() => import('./pages/supplies/SuppliesPage'));
 const SupplyListPage = lazy(() => import('./pages/supplies/SupplyListPage'));
 const SupplyCountPage = lazy(() => import('./pages/supplies/SupplyCountPage'));
 const SupplyOrderPage = lazy(() => import('./pages/supplies/SupplyOrderPage'));
+const SupplyReceivePage = lazy(() => import('./pages/supplies/SupplyReceivePage'));
+const SupplyRequestsPage = lazy(() => import('./pages/supplies/SupplyRequestsPage'));
 const LegacyWorkbenchRedirect = lazy(() =>
   import('./pages/inventory/InventorySearchPage').then((m) => ({ default: m.LegacyWorkbenchRedirect })),
 );
@@ -329,6 +331,9 @@ function AppRoutes() {
         <Route path="/supplies/lists/:id" element={<SupplyListPage />} />
         <Route path="/supplies/count/:id" element={<SupplyCountPage />} />
         <Route path="/supplies/order" element={<SuperAdminRoute><SupplyOrderPage /></SuperAdminRoute>} />
+        {/* Received and "We need ___" (owner, 2026-10-28): everyone; managers answer requests. */}
+        <Route path="/supplies/receive" element={<SupplyReceivePage />} />
+        <Route path="/supplies/requests" element={<SupplyRequestsPage />} />
         <Route path="/inventory/products/:id" element={<ProductPage />} />
         {/* The old Catalog page: its links land on Inventory search with the same thing open. */}
         <Route path="/inventory/workbench" element={<LegacyWorkbenchRedirect />} />

@@ -134,6 +134,12 @@ class SupplyOrderLine(models.Model):
     ordered_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
     )
+    # Packs in so far (owner, 2026-10-28: partial quantities allowed). Each change is a SupplyReceipt.
+    received_qty = models.PositiveIntegerField(default=0)
+    received_at = models.DateTimeField(null=True, blank=True)
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
 
     class Meta:
         ordering = ['vendor', 'list_name', 'name']
@@ -141,3 +147,49 @@ class SupplyOrderLine(models.Model):
     @property
     def line_total(self):
         return None if self.price is None else self.price * self.packs
+
+
+class SupplyReceipt(models.Model):
+    """One change to a line's packs in: who, when, by how much (a correction is a negative change)."""
+
+    line = models.ForeignKey(SupplyOrderLine, on_delete=models.CASCADE, related_name='receipts')
+    change = models.IntegerField()
+    received_qty = models.PositiveIntegerField(help_text='Packs in after this change.')
+    by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-at']
+
+
+class SupplyRequest(models.Model):
+    """A "We need ___" from anyone on the team (owner, 2026-10-28). A manager or the owner approves it onto a list
+    (it becomes an item) or declines it with a reason; the requester sees the answer."""
+
+    STATUS_PENDING = 'pending'
+    STATUS_APPROVED = 'approved'
+    STATUS_DECLINED = 'declined'
+    STATUS_CHOICES = [(STATUS_PENDING, 'Waiting'), (STATUS_APPROVED, 'Approved'), (STATUS_DECLINED, 'Declined')]
+
+    name = models.CharField(max_length=200)
+    url = models.URLField(max_length=1000, blank=True, default='')
+    photo = models.FileField(upload_to='supplies/requests/', blank=True, default='')
+    note = models.CharField(max_length=500, blank=True, default='')
+    supply_list = models.ForeignKey(SupplyList, on_delete=models.SET_NULL, null=True, blank=True, related_name='requests')
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decline_reason = models.CharField(max_length=500, blank=True, default='')
+    item = models.ForeignKey(SupplyItem, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.name

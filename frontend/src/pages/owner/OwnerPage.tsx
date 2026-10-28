@@ -44,6 +44,7 @@ import {
   type SpendRange,
 } from '../../api/owner.api';
 import { getAppErrors, markAppErrorsSeen } from '../../api/core.api';
+import { getSupplySpendSummary } from '../../api/supplies.api';
 import { NAV_ITEM_CATALOG } from '../../navigation/navItemCatalog';
 import { formatCurrency, formatCurrencyWhole } from '../../utils/format';
 
@@ -368,6 +369,7 @@ export default function OwnerPage() {
   const needs = useQuery({ queryKey: ['owner', 'needs-you'], queryFn: fetchNeedsYou });
   const spend = useQuery({ queryKey: ['owner', 'ai-spend', range], queryFn: () => fetchAiSpend(range) });
   const social = useQuery({ queryKey: ['owner', 'social'], queryFn: fetchSocialCard });
+  const supplies = useQuery({ queryKey: ['owner', 'supply-spend'], queryFn: getSupplySpendSummary });
   const owed = scorecard.data?.thrift_plus_owed;
   const theme = useTheme();
   const desktop = useMediaQuery(theme.breakpoints.up('md'));
@@ -391,6 +393,20 @@ export default function OwnerPage() {
           <Box><Button size="small" onClick={() => navigate(owed.link)}>Open Thrift+</Button></Box>
         </Stack>
       ) : scorecard.isLoading ? <LinearProgress /> : null}
+    </Section>
+  );
+  // Supplies spend (owner, 2026-10-28): the small number; the tables are on the order page.
+  const suppliesCard = (
+    <Section title="Supplies spend" hint="Supply lines ticked Ordered.">
+      {supplies.isError ? <Alert severity="error">Supplies spend did not load.</Alert> : null}
+      {supplies.data ? (
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography data-testid="owner-supply-spend">
+            <b>{formatCurrency(supplies.data.this_week)}</b> this week · <b>{formatCurrency(supplies.data.this_month)}</b> this month
+          </Typography>
+          <Button size="small" onClick={() => navigate('/supplies/order')}>Open</Button>
+        </Stack>
+      ) : supplies.isLoading ? <LinearProgress /> : null}
     </Section>
   );
   const needsCard = (
@@ -441,11 +457,11 @@ export default function OwnerPage() {
         // Desktop: the numbers on the left, the to-dos on the right, each column stacking on its own.
         <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 1.5, alignItems: 'start' }}>
           <Stack spacing={1.5} sx={{ minWidth: 0 }}>{scoreCard}{socialCard}{aiCard}</Stack>
-          <Stack spacing={1.5} sx={{ minWidth: 0 }}>{owedCard}{needsCard}<SiteErrors />{linksCard}</Stack>
+          <Stack spacing={1.5} sx={{ minWidth: 0 }}>{owedCard}{needsCard}{suppliesCard}<SiteErrors />{linksCard}</Stack>
         </Box>
       ) : (
         // Phone: one column, what needs you first.
-        <Stack spacing={1.5}>{needsCard}{owedCard}{scoreCard}{socialCard}{aiCard}<SiteErrors />{linksCard}</Stack>
+        <Stack spacing={1.5}>{needsCard}{owedCard}{suppliesCard}{scoreCard}{socialCard}{aiCard}<SiteErrors />{linksCard}</Stack>
       )}
     </Box>
   );

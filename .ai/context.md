@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-26 (keys.md row; extended table: supplies.md) -->
+<!-- Last updated: 2026-10-28 (extended table: supplies.md covers Received, spend, requests) -->
 # ecothrift-dashboard — AI Context
 
 ## Project summary
@@ -126,7 +126,7 @@ Load on demand. Do not read them all at session start. When you add, rename or r
 | [`product-standard.md`](extended/product-standard.md) | What every product must look like; standardize and dedupe |
 | [`product-taxonomy.md`](extended/product-taxonomy.md) | Category, subcategory, price-tag short name (TAX rulings) |
 | [`restoration.md`](extended/restoration.md) | TARS: RestorationJob, queue, bench, scoreboard |
-| [`supplies.md`](extended/supplies.md) | Supply lists, the weekly supply count and its deadline, the order rule, the hourly order build, the owner's order page and Amazon cart link |
+| [`supplies.md`](extended/supplies.md) | Supply lists, the weekly supply count and its deadline, the order rule, the hourly order build, the owner's order page and Amazon cart link, Received, spend, We need requests |
 | [`routines.md`](extended/routines.md) | Periodic / on-demand forms, pooled runs, nag, Retail QA grading |
 | [`ux-spec.md`](extended/ux-spec.md) | Colour, typography, spacing, house UI rules |
 | [`vpn-socks5.md`](extended/vpn-socks5.md) | PIA SOCKS5 setup and diagnostics |

@@ -1,8 +1,11 @@
-v2.226.1 — Phones & tablets subcategory (TAX-78)
+v2.227.0 — Supplies: receive, spend and We need requests
 
-User-facing theme: **Phones and tablets get their own subcategory (TAX-78, 2026-10-28).**
+User-facing theme: **Supplies: receive deliveries, spend, and "We need…" requests (Bill, 2026-10-28).**
 
-### Changed
-- Electronics has a new subcategory, Phones & tablets, for the devices themselves; cases, screen protectors and mounts stay in Phone & tablet cases (ruling TAX-78).
+### Added
+- Receive supplies: anyone can tick a delivery in when it arrives, all of it or part of it. Who and when are kept, and the order page shows "2 of 3 in".
+- Supply spend on the order page, per vendor or per list, by week or by month. The Owner page shows this week's and this month's spend.
+- "We need…": anyone on the team can ask for a supply, with a link or a photo and which list. Managers and the owner approve it onto a list with a min and max, or decline it with a reason. The person who asked sees the answer on Supplies.
+- The Owner page Needs you shows supply requests waiting for an answer.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
