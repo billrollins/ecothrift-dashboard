@@ -12,6 +12,8 @@ export interface CheckedInHistoryRow {
   checkInProductCategory?: string | null;
   /** Current catalog product snapshot for the check-in; preferred over item denorm labels. */
   checkInProduct?: ProcessingWorkspaceProductDTO | null;
+  /** Restoration sent it back to Processing and said why ("Given back to Processing: ..."). */
+  restorationNote?: string | null;
 }
 
 export interface ProductGroupedHistory {
@@ -59,6 +61,8 @@ export function buildCheckedInHistoryRows(
       checkedInAt: checkIn.created_at || primary.checked_in_at || primary.created_at || '',
       checkInProductCategory: checkIn.product?.category || null,
       checkInProduct: checkIn.product,
+      restorationNote:
+        checkIn.defaults?.dispatch === 'processing' ? checkIn.defaults?.restoration_return_notes?.trim() || null : null,
     });
   }
 

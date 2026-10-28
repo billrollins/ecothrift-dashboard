@@ -18,7 +18,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
-from django.db.models import Count, Sum
+from django.db.models import Sum
 from django.utils import timezone
 
 from apps.inventory.models import RestorationJob
@@ -55,7 +55,9 @@ def compute_value_added(
 ) -> Decimal | None:
     """What the work added, forward from where the item arrived.
 
-    `(price at final grade) - (price at starting grade) - parts spent`.
+    `units x ((price at final grade) - (price at starting grade)) - parts spent`.
+    Grade prices are per unit; a stack is worked as one item, so its parts are
+    spent once and its gain counts every unit.
 
     Returns None when either end of that subtraction is unknown. Guessing would
     be worse than admitting it: with no starting grade the whole final price
@@ -68,7 +70,8 @@ def compute_value_added(
     if end is None or start is None:
         return None
     spent = parts_cost if parts_cost is not None else job.spent_parts_cost
-    return end - start - (spent or Decimal('0'))
+    units = max(int(job.quantity or 1), 1)
+    return (end - start) * units - (spent or Decimal('0'))
 
 
 def lowest_grade(grade_values: Any) -> str:
@@ -155,7 +158,7 @@ def _finished_jobs(start: date, end: date):
 def _window(start: date, end: date) -> dict[str, Any]:
     """Value and items for one span of days."""
 
-    rows = _finished_jobs(start, end).values('value_added')
+    rows = _finished_jobs(start, end).values('value_added', 'quantity')
 
     value = Decimal('0')
     items = 0
@@ -163,12 +166,14 @@ def _window(start: date, end: date) -> dict[str, Any]:
     unmeasured = 0
 
     for row in rows:
-        items += 1
+        # A stack finishes every unit at once; count the units.
+        units = max(int(row['quantity'] or 1), 1)
+        items += units
         added = row['value_added']
         if added is None:
-            unmeasured += 1
+            unmeasured += units
             continue
-        measured += 1
+        measured += units
         value += Decimal(added)
 
     return {
@@ -185,7 +190,7 @@ def _by_day(start: date, end: date) -> list[dict[str, Any]]:
     rows = (
         _finished_jobs(start, end)
         .values('dispositioned_at__date')
-        .annotate(items=Count('id'), value=Sum('value_added'))
+        .annotate(items=Sum('quantity'), value=Sum('value_added'))
     )
     totals: dict[date, dict[str, Any]] = defaultdict(lambda: {'items': 0, 'value': None})
     for row in rows:

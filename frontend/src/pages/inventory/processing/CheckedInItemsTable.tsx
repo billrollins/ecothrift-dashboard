@@ -293,6 +293,19 @@ function ProductSectionFieldCell({
   );
 }
 
+/** Restoration's reason for sending a check-in back, under its dispatch. */
+function ReturnNote({ note }: { note: string }) {
+  return (
+    <Typography
+      noWrap
+      title={note}
+      sx={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, color: 'warning.dark', maxWidth: 220, mx: 'auto' }}
+    >
+      {note}
+    </Typography>
+  );
+}
+
 /** Inline click-to-edit enum cell (condition / dispatched-to / product id): text + caret, menu on click. */
 function EditableEnumCell({
   display,
@@ -304,7 +317,10 @@ function EditableEnumCell({
   menuVariant = 'default',
   onOpenProductEditor,
   align = 'left',
+  note,
 }: {
+  /** A second, quieter line under the value (Restoration's give-back reason). */
+  note?: string | null;
   display: string;
   value: string;
   options: ReadonlyArray<{ value: string; label: string; hint?: string }>;
@@ -346,6 +362,7 @@ function EditableEnumCell({
         <CellText title={`${display} - click to change`}>{display}</CellText>
         <ArrowDropDown sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0 }} />
       </Box>
+      {note ? <ReturnNote note={note} /> : null}
       <Menu
         anchorEl={anchor}
         open={anchor != null}
@@ -746,10 +763,12 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
           ariaLabel={`Change dispatch for this check-in (currently ${queueDispatchLabel(item.dispatch)})`}
           cellSx={CHECKED_IN_ITEM_ENUM_COL_SX}
           align="center"
+          note={row.restorationNote}
           onSave={(value) => onSetCheckInDispatch(row, value)}
         />
       : <TableCell align="center" sx={CHECKED_IN_ITEM_ENUM_COL_SX}>
           <CellText title={queueDispatchLabel(item.dispatch)}>{queueDispatchLabel(item.dispatch)}</CellText>
+          {row.restorationNote ? <ReturnNote note={row.restorationNote} /> : null}
         </TableCell>}
       <TableCell align="center" sx={{ ...CHECKED_IN_MONEY_COL_SX, fontVariantNumeric: 'tabular-nums' }}>
         <CellText fontWeight={600}>{formatQueueMoney(item.retail)}</CellText>

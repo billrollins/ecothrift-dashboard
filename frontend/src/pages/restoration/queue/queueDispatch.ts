@@ -125,9 +125,6 @@ function benchOption(
   }
 
   if (list === 'queue') {
-    if (job.quantity > 1) {
-      return { ...base, tone: 'blocked', explainer: stackExplainer(job, 'bench') };
-    }
     if (!isReadyForBench(job, ctx.scaleGrades)) {
       return { ...base, tone: 'blocked', explainer: pricesExplainer(job, ctx.scaleGrades, 'bench') };
     }
@@ -168,9 +165,6 @@ function finishOption(
   base: Pick<DispatchOption, 'target' | 'label' | 'dot'>,
 ): DispatchOption {
   if (list === 'queue') {
-    if (job.quantity > 1) {
-      return { ...base, tone: 'blocked', explainer: stackExplainer(job, 'finish') };
-    }
     return { ...base, tone: 'ready' };
   }
   if (!isReadyForBench(job, ctx.scaleGrades)) {
@@ -231,15 +225,6 @@ export function occupiedExplainer(occupying: RestorationJobDTO): DispatchExplain
     whyNot: `Your bench already has ${sku}. One person, one item.`,
     steps: [`Finish ${sku}, hold it, or send it back to the queue first.`, 'Then put this item on the bench.'],
     occupyingSku: sku,
-  };
-}
-
-function stackExplainer(job: RestorationJobDTO, kind: 'bench' | 'finish'): DispatchExplainer {
-  const verb = kind === 'bench' ? 'put it on the bench' : 'finish it';
-  return {
-    title: `Can't ${verb} yet`,
-    whyNot: `This is a stack of ${job.quantity} items. ${kind === 'bench' ? 'The bench' : 'Finish'} takes one item at a time.`,
-    steps: [`Tap ×${job.quantity} on the card to open the stack.`, `Pick Just this one, or Split it.`, `Then ${verb}.`],
   };
 }
 

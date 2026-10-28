@@ -185,8 +185,10 @@ export function evaluateGrade(
   const partsDollarsMax = partsRange?.max ?? partsDollars;
   const hasPartsRange = partsDollarsMax - partsDollars > 0.005;
 
-  const expected = price != null && floor != null ? price - partsDollars - floor : null;
-  const expectedMax = price != null && floor != null ? price - partsDollarsMax - floor : null;
+  // Prices are per unit; a stack's gain counts every unit, its parts once.
+  const units = Math.max(job.quantity ?? 0, job.items?.length ?? 0, 1);
+  const expected = price != null && floor != null ? (price - floor) * units - partsDollars : null;
+  const expectedMax = price != null && floor != null ? (price - floor) * units - partsDollarsMax : null;
 
   const minutes = estimate.minutes ?? 0;
   const hours = minutes / 60;

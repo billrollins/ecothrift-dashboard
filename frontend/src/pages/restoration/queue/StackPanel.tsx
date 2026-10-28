@@ -31,6 +31,7 @@ export function StackPanel({
   onSplit,
   onPullOut,
   onJustThisOne,
+  onBenchAll,
 }: {
   job: RestorationJobDTO;
   accent: string;
@@ -43,6 +44,8 @@ export function StackPanel({
   onSplit: (picked: number[]) => void;
   onPullOut: (itemIds: number[]) => void;
   onJustThisOne: (itemId: number) => void;
+  /** Queue stacks: put every unit on the bench as one item. */
+  onBenchAll?: () => void;
 }) {
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down('md'));
@@ -91,6 +94,17 @@ export function StackPanel({
         >
           Split…
         </Button>
+        {canBench && onBenchAll ? (
+          <Button
+            size="small"
+            variant="contained"
+            disabled={busy}
+            onClick={onBenchAll}
+            sx={{ fontWeight: 900, whiteSpace: 'nowrap' }}
+          >
+            Put the whole group on the Bench
+          </Button>
+        ) : null}
         <Button size="small" onClick={onClose} sx={{ fontWeight: 800, color: studio.inkMuted }}>
           Close
         </Button>

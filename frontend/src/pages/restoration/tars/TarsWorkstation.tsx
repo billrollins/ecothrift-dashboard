@@ -107,6 +107,7 @@ import {
 import { studio } from './studio/tarsStudioTheme';
 
 import { isForeignBench, myActiveBenchRestorationJob, restorationJobToTarsItem, tarsJobRowKey } from './tarsJobAdapter';
+import { jobUnits } from './tarsBenchValue';
 import { benchOwnerGivenName } from '../queue/restorationQueueModel';
 import { useWorkSessionDraft } from './useWorkSessionDraft';
 
@@ -386,7 +387,7 @@ export function TarsWorkstation({ chrome = 'studio' }: { chrome?: 'studio' | 'da
   const handleCheckIn = useCallback(
     async (job: RestorationJobDTO) => {
       try {
-        const itemId = job.items[0]?.id;
+        const itemId = jobUnits(job) > 1 ? undefined : job.items[0]?.id;
         const updated = await checkIn.mutateAsync({ id: job.id, itemId });
         setSelectedRowKey(tarsJobRowKey(updated));
         setStudioLocation('bench', updated.id);

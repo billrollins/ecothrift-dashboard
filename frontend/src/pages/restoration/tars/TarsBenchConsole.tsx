@@ -22,7 +22,7 @@ import { StudioNoticeButton, type StudioNotice } from './studio/StudioNotices';
 import { TarsDispositionBar } from './TarsDispositionBar';
 import { claimBenchGrade, type TarsBenchPlan } from './tarsBenchPlan';
 import { CURRENT_PAINT, GRADE_ROLE, ORIGINAL_PAINT } from './tarsGradeRoles';
-import { valueAdded, valueLeft } from './tarsBenchValue';
+import { jobUnits, valueAdded, valueLeft } from './tarsBenchValue';
 import { fmtUsd } from './tarsProfit';
 import { benchOwnerLine, destinationLabel, formatWaiting } from '../queue/restorationQueueModel';
 
@@ -79,7 +79,9 @@ export function TarsBenchConsole({
   remainingParts?: number;
   finishBlocked?: boolean;
 }) {
-  const sku = job.items[0]?.sku ?? job.sku ?? `Job ${job.id}`;
+  const units = jobUnits(job);
+  const firstSku = job.items[0]?.sku ?? job.sku ?? `Job ${job.id}`;
+  const sku = units > 1 ? `${firstSku} · stack of ${units}` : firstSku;
   const added = valueAdded(job, plan, spentParts);
   const left = valueLeft(job, plan, scaleGrades, remainingParts);
   const grades = scaleGrades.length > 0 ? scaleGrades : Object.keys(job.grade_values ?? {});

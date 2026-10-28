@@ -612,6 +612,8 @@ export interface ItemCheckInDefaultsDTO extends Record<string, unknown> {
   restoration_grade_values?: Record<string, number>;
   processing_handoff?: ProcessingHandoff;
   restoration_request?: Partial<RestorationRequestPayload> | null;
+  /** Set when Restoration sends the check-in back: what it said. */
+  restoration_return_notes?: string;
 }
 
 export interface ItemCheckInDTO {
@@ -1121,7 +1123,10 @@ export type RestorationPendingReason =
 
 export type RestorationReturnDispositionType = 'tars_completed' | 'untouched';
 
-export type RestorationUntouchedReason = 'recalled' | 'not_worth_it' | 'other';
+export type RestorationUntouchedReason = 'recalled' | 'not_worth_it' | 'other' | RestorationTakeOutMode;
+
+/** How a queued item left untouched: given back, or checked in here with no work. */
+export type RestorationTakeOutMode = 'given_back' | 'no_work';
 
 export type TarsSource = 'Target' | 'Amazon' | 'Walmart' | null;
 

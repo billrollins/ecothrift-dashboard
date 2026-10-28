@@ -23,7 +23,8 @@ import { RequestsDrawerHost } from '../../../components/enhancements/RequestsDra
 import { PageHeader } from '../../../components/common/PageHeader';
 import { useAuth } from '../../../hooks/useAuth';
 import { useGradeScales } from '../../../hooks/useGradeScales';
-import { useCreateRestorationJobFromSku } from '../../../hooks/useRestorationJobs';
+import { useCreateRestorationJobFromSku, useTakeRestorationJobOutOfQueue } from '../../../hooks/useRestorationJobs';
+import { TakeOutOfQueueDialog } from './TakeOutOfQueueDialog';
 import {
   useCompleteRestorationJob,
   useCreateRestorationOutputItem,
@@ -82,6 +83,8 @@ export default function RestorationQueuePage() {
   const mintPart = useCreateRestorationOutputItem();
   const remapProduct = useRemapRestorationItemProduct();
   const createFromSku = useCreateRestorationJobFromSku();
+  const takeOut = useTakeRestorationJobOutOfQueue();
+  const [takeOutJob, setTakeOutJob] = useState<RestorationJobDTO | null>(null);
   const [list, setList] = useState<QueueListId>('queue');
   const [scan, setScan] = useState('');
   const [scanMessage, setScanMessage] = useState<{ title: string; message: string } | null>(null);
@@ -470,7 +473,36 @@ export default function RestorationQueuePage() {
         </Box>
       </Box>
 
-      <OverviewJobHistory job={historyJob} initialFilter={historyFilter} onClose={clearSelection} />
+      <OverviewJobHistory
+        job={historyJob}
+        initialFilter={historyFilter}
+        onClose={clearSelection}
+        onTakeOut={setTakeOutJob}
+      />
+
+      <TakeOutOfQueueDialog
+        job={takeOutJob}
+        busy={takeOut.isPending}
+        onClose={() => setTakeOutJob(null)}
+        onTakeOut={(mode, reason) => {
+          if (!takeOutJob) return;
+          takeOut.mutate(
+            { id: takeOutJob.id, mode, reason },
+            {
+              onSuccess: (done) => {
+                setTakeOutJob(null);
+                clearSelection();
+                if (mode === 'no_work') {
+                  openDialog('receive', done);
+                  return;
+                }
+                enqueueSnackbar('Given back to Processing', { variant: 'success' });
+              },
+              onError: (err) => fail(err, 'Could not take it out of the queue'),
+            },
+          );
+        }}
+      />
 
       <TarsScanMessageDialog
         open={scanMessage != null}

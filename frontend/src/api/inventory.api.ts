@@ -3,6 +3,7 @@ import type {
   RestorationRequestPayload,
   RestorationRequestSettings,
   RestorationTagFacts,
+  RestorationTakeOutMode,
   Vendor,
   PurchaseOrder,
   PurchaseOrderDetailSurface,
@@ -2579,6 +2580,13 @@ export function completeRestorationJob(
   payload: RestorationJobDonePayload,
 ): Promise<{ data: RestorationJobDTO }> {
   return api.post(`/inventory/restoration-jobs/${id}/done/`, payload);
+}
+
+export function takeRestorationJobOutOfQueue(
+  id: number,
+  payload: { mode: RestorationTakeOutMode; reason?: string },
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/take-out/`, payload);
 }
 
 export function rejectRestorationJob(

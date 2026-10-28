@@ -11,6 +11,11 @@
 import type { RestorationJobDTO } from '../../../types/inventory.types';
 import { currentGradeOf, type TarsBenchPlan } from './tarsBenchPlan';
 
+/** Units on the job. A stack is worked as one item; its gain counts every unit. */
+export function jobUnits(job: Pick<RestorationJobDTO, 'quantity' | 'items'>): number {
+  return Math.max(job.quantity ?? 0, job.items?.length ?? 0, 1);
+}
+
 function priceOf(job: RestorationJobDTO, grade: string): number | null {
   if (!grade) return null;
   const value = job.grade_values?.[grade];
@@ -50,7 +55,7 @@ export function valueAdded(
   const original = priceOf(job, plan.startingGrade);
   const current = priceOf(job, currentGradeOf(plan));
   if (original == null || current == null) return null;
-  return current - original - spentParts;
+  return (current - original) * jobUnits(job) - spentParts;
 }
 
 export function valueLeft(
@@ -66,5 +71,5 @@ export function valueLeft(
   const remainingPrice = priceOf(job, remaining);
   if (remainingPrice == null || remainingPrice <= current) return 0;
   const parts = remainingParts ?? 0;
-  return remainingPrice - current - parts;
+  return (remainingPrice - current) * jobUnits(job) - parts;
 }

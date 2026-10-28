@@ -295,7 +295,7 @@ export function RestorationReceiveDialog({
             </Box>
           ) : (
             <Typography noWrap sx={{ ml: 'auto', fontSize: '0.78rem', fontWeight: 800, color: '#65748a' }}>
-              One item to receive
+              {job.quantity > 1 ? `A stack of ${job.quantity} to receive` : 'One item to receive'}
             </Typography>
           )}
         </Box>
@@ -396,7 +396,7 @@ export function RestorationReceiveDialog({
             ) : (
               <ReceiveCheckInForm
                 key="main"
-                title="Main item"
+                title={job.quantity > 1 ? `Main item · all ${job.quantity} units` : 'Main item'}
                 picker={{
                   kind: 'main',
                   scope: `restoration-receive-main-${job.id}`,

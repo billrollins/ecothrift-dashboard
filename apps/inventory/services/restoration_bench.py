@@ -249,9 +249,7 @@ def check_in_restoration_job(
         raise ValueError('Only queued, sent, or pending jobs can be checked in to the bench.')
     # Incomplete grade values no longer block check-in â€” cockpit shows amber MISSING
     # and Mike can request valuations from Processing while assessing.
-    if job.quantity > 1:
-        if item_id is None:
-            raise ValueError('Scan the item tag or select a single item from this stack to check in.')
+    if job.quantity > 1 and item_id is not None:
         item_pk = int(item_id)
         if not job.item_check_in.items.filter(pk=item_pk).exists():
             raise ValueError('Item is not part of this restoration stack.')
@@ -636,8 +634,11 @@ def complete_restoration_job(
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage not in FINISHABLE_STAGES:
         raise ValueError('Only queued, bench, or holding jobs can be finished.')
-    if job.quantity > 1:
-        raise ValueError('Scan one item tag to split it off the stack first. Finish takes one item at a time.')
+    if job.quantity > 1 and any(
+        isinstance(row, dict) and int(row.get('seq', 0) or 0) != 0 and str(row.get('label') or '').strip()
+        for row in (outputs or [])
+    ):
+        raise ValueError('Salvaged parts come from one unit. Pull that unit out of the stack first.')
     _assert_finish_payload(
         job,
         destination=destination,
@@ -842,6 +843,59 @@ def reject_restoration_job(job: RestorationJob, *, reason: str, user=None) -> Re
         author=user,
         source_key='reject',
     )
+    return job
+
+
+TAKE_OUT_GIVE_BACK = 'given_back'
+TAKE_OUT_NO_WORK = 'no_work'
+TAKE_OUT_LABELS = {
+    TAKE_OUT_GIVE_BACK: 'Given back to Processing',
+    TAKE_OUT_NO_WORK: 'Checked in, no work',
+}
+
+
+@transaction.atomic
+def take_restoration_job_out_of_queue(
+    job: RestorationJob,
+    *,
+    mode: str,
+    reason: str = '',
+    user=None,
+) -> RestorationJob:
+    """Take a queued item, or a whole stack, out of Restoration with nothing done to it.
+
+    `given_back`: Restoration gives it back (reason required). `no_work`: Processing
+    changed its mind and checks it in here. Either way the job closes to Done as
+    untouched with that reason; the items stay on their check-in and go back to
+    Processing, which prices and tags them. Never once bench work has started:
+    that item is finished from the Bench.
+    """
+
+    if mode not in TAKE_OUT_LABELS:
+        raise ValueError('Choose how it leaves the queue.')
+    reason = (reason or '').strip()
+    if mode == TAKE_OUT_GIVE_BACK and not reason:
+        raise ValueError('Say why Restoration is giving it back.')
+    job = RestorationJob.objects.select_for_update().get(pk=job.pk)
+    if job.stage not in (RestorationJob.STAGE_QUEUED, RestorationJob.STAGE_SENT):
+        raise ValueError('Only items waiting in the queue can be taken out of it.')
+    if job.bench_started_at or job.actions.exists():
+        raise ValueError('Bench work has started on this. Finish it from the Bench instead.')
+    said = TAKE_OUT_LABELS[mode]
+    note = f'{said}: {reason}' if reason else f'{said}.'
+    job = complete_restoration_job(
+        job,
+        destination=RestorationJob.BENCH_DISPOSITION_PROCESSING,
+        final_grade=job.starting_grade or '',
+        starting_grade=job.starting_grade,
+        notes=note,
+        skip_grade_gates=True,
+        user=user,
+    )
+    job.return_disposition_type = RestorationJob.RETURN_DISPOSITION_UNTOUCHED
+    job.return_reason = mode
+    job.return_notes = reason
+    job.save(update_fields=['return_disposition_type', 'return_reason', 'return_notes', 'updated_at'])
     return job
 
 

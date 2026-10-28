@@ -9096,6 +9096,24 @@ class RestorationJobViewSet(
         job = self.get_queryset().get(pk=job.pk)
         return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
 
+    @action(detail=True, methods=['post'], url_path='take-out')
+    def take_out(self, request, pk=None):
+        """Take out of queue: give back to Processing, or check in here with no work."""
+        from apps.inventory.services.restoration_bench import take_restoration_job_out_of_queue
+
+        job = self.get_object()
+        try:
+            job = take_restoration_job_out_of_queue(
+                job,
+                mode=str(request.data.get('mode') or ''),
+                reason=str(request.data.get('reason') or ''),
+                user=request.user,
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        job = self.get_queryset().get(pk=job.pk)
+        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
+
     @action(detail=True, methods=['post'])
     def reopen(self, request, pk=None):
         from apps.inventory.services.restoration_bench import reopen_restoration_job

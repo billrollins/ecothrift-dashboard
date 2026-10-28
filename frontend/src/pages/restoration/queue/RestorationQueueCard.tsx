@@ -30,6 +30,7 @@ import { FIELD_HEIGHT, FieldLabel, MoneyCell, NoteCell, NOTE_HEIGHT_PX } from '.
 import { DispatchButtons } from './DispatchButtons';
 import { dispatchOptions, type DispatchOption } from './queueDispatch';
 import { isStack, stackStake, unitCount } from './stackModel';
+import { TAKE_OUT_LABELS } from './TakeOutOfQueueDialog';
 import type { TarsHistoryFilter } from '../tars/tarsBenchHistory';
 import { ItemPeek, ItemSkuLink } from '../../../components/objects/ItemPeek';
 import {
@@ -49,6 +50,13 @@ import {
   jobPerMinute,
   jobStake,
 } from './restorationQueueModel';
+
+/** "Given back to Processing · reason" or "Checked in, no work" on the Done tab. */
+function takeOutLine(job: RestorationJobDTO): string {
+  const mode = job.return_reason;
+  if (mode !== 'given_back' && mode !== 'no_work') return '';
+  return [TAKE_OUT_LABELS[mode], job.return_notes].filter(Boolean).join(' · ');
+}
 
 export interface QueueEdit {
   scale?: string;
@@ -312,7 +320,8 @@ export function RestorationQueueCard({
           </Stack>
           <Typography noWrap sx={{ fontSize: '0.71rem', color: studio.inkMuted }}>
             {finished
-              ? [job.final_grade, benchDispositionLabel(job.bench_disposition)].filter(Boolean).join(' · ') ||
+              ? takeOutLine(job) ||
+                [job.final_grade, benchDispositionLabel(job.bench_disposition)].filter(Boolean).join(' · ') ||
                 'Waiting for Processing'
               : itemKindLine(job)}
           </Typography>

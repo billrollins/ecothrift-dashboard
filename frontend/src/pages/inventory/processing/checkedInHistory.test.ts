@@ -56,6 +56,17 @@ describe('checkedInHistory', () => {
     expect(rows[1]?.itemCheckInId).toBeNull();
   });
 
+  it('carries what Restoration said when it sent the check-in back', () => {
+    const items = [item({ id: 1, sku: 'A', dispatch: 'processing', location: 'processing', status: 'on_shelf' })];
+    const base = { quantity: 1, items, product: null, created_at: '2026-06-01T10:00:00Z', created_by: null, dispute_count: 0 };
+    const back = { ...base, id: 5, defaults: { dispatch: 'processing', restoration_return_notes: 'Given back to Processing: wrong line' } };
+    expect(buildCheckedInHistoryRows(items, [back as ItemCheckInDTO])[0].restorationNote).toBe(
+      'Given back to Processing: wrong line',
+    );
+    const shelved = { ...back, defaults: { dispatch: 'on_shelf', restoration_return_notes: 'old' } };
+    expect(buildCheckedInHistoryRows(items, [shelved as ItemCheckInDTO])[0].restorationNote).toBeNull();
+  });
+
   it('counts distinct products and disputes', () => {
     const items = [
       item({ id: 1, sku: 'A', product: 10, product_number: 'PRD-1' }),

@@ -10,6 +10,7 @@ import RestorationQueuePage from './RestorationQueuePage';
 const navigate = vi.fn();
 const createFromSku = vi.fn();
 const splitJob = vi.fn();
+const takeOut = vi.fn();
 const jobsState = vi.hoisted(() => ({ jobs: [] as RestorationJobDTO[] }));
 const lookupState = vi.hoisted(() => ({
   result: { found: 'none' as const } as
@@ -35,6 +36,7 @@ vi.mock('../../../hooks/useRestorationJobs', () => ({
   useCreateRestorationJobFromSku: () => ({ mutate: createFromSku, isPending: false }),
   useSplitRestorationJob: () => ({ mutate: splitJob, isPending: false }),
   useCombineRestorationJobs: () => ({ mutate: vi.fn(), isPending: false }),
+  useTakeRestorationJobOutOfQueue: () => ({ mutate: takeOut, isPending: false }),
 }));
 
 vi.mock('../../../hooks/useRestorationBench', () => ({
@@ -159,6 +161,20 @@ describe('RestorationQueuePage scan', () => {
     expect(screen.getByRole('button', { name: 'Actions' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Inspect' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Non-actions' })).toBeInTheDocument();
+  });
+
+  it('takes a queued item out with a reason, from its history drawer', async () => {
+    const user = userEvent.setup();
+    takeOut.mockReset();
+    jobsState.jobs = [queuedJob(), occupyingBenchJob()];
+    renderPage();
+    await user.type(screen.getByLabelText('Scan SKU'), 'ET-11{Enter}');
+    await user.click(await screen.findByRole('button', { name: 'Take out of queue…' }));
+    const give = screen.getByRole('button', { name: 'Give back' });
+    expect(give).toBeDisabled();
+    await user.type(screen.getByLabelText(/Why is Restoration giving it back/), 'Wrong line');
+    await user.click(give);
+    expect(takeOut).toHaveBeenCalledWith({ id: 11, mode: 'given_back', reason: 'Wrong line' }, expect.anything());
   });
 
   it('closes history and focuses scan when the click is outside the drawer', async () => {

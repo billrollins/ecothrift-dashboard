@@ -1848,7 +1848,7 @@ class RestorationDispatchPathTests(RestorationQueueTestBase):
         self.assertEqual(resp.data['action_count'], 0)
         self.assertIsNone(resp.data['value_added'])
 
-    def test_finish_rejects_a_stack(self):
+    def test_finish_from_the_queue_sends_the_whole_stack(self):
         order, pr, product = self._restoration_order(order_number='PO-REST-STACK')
         job = self._legacy_multitem_restoration_job(order, pr, product, 3)
         resp = self.client.post(
@@ -1856,8 +1856,9 @@ class RestorationDispatchPathTests(RestorationQueueTestBase):
             {'destination': 'processing', 'notes': 'Leave the stack'},
             format='json',
         )
-        self.assertEqual(resp.status_code, 400, resp.data)
-        self.assertIn('stack', resp.data['detail'].lower())
+        self.assertEqual(resp.status_code, 200, resp.data)
+        locations = set(Item.objects.filter(check_in_id=job.item_check_in_id).values_list('location', flat=True))
+        self.assertEqual(locations, {'processing'})
 
     def test_reopen_clears_value_added_and_is_blocked_once_handled(self):
         job = self._sent_job()

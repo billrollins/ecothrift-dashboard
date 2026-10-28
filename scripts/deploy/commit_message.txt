@@ -1,12 +1,11 @@
-v2.225.1 — Hover card follows the mouse; errors say why; Google it
+v2.226.0 — Whole stacks on the Bench; Take out of queue
 
-User-facing theme: **Hover card follows the mouse; clearer error messages; Google it (Bill, 2026-10-28).** Fix-it lane P4 follow-up.
+User-facing theme: **Whole stacks on the Bench, and Take out of queue (Bill, 2026-10-28).** Fix-it lane P3, phase B.
 
 ### Added
-- New "Google it" link in the Item and Product windows, next to the copy button: searches Google for the brand, title and model in a new tab.
-
-### Changed
-- The item hover card now follows your mouse and never gets in its way; it goes away when you move off the name.
-- When something can't be saved, the message now says why in plain words instead of "Request failed with status code…". While viewing as someone, it says "View as is read-only. Use Back to make changes."
+- A whole stack can go on the Bench as one item: "Put the whole group on the Bench". The bench, Finish and the scoreboard count every unit (value added = units × the grade gain, minus parts).
+- Finishing a stack sends every unit to Processing, and Receive checks them all in at once with one price. Salvaged parts still need the unit pulled out first.
+- New "Take out of queue…" for a unit or a stack: give it back to Processing with a reason, or check it in here without Restoration (set the price and print the tags). Both show on the Done tab. Neither is allowed once Bench work has started.
+- Processing's Prior check-ins show what Restoration said when it gave a check-in back.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

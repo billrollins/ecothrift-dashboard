@@ -21,6 +21,12 @@ describe('valueAdded', () => {
   it('is null when a price is missing', () => {
     expect(valueAdded(job({ Working: 100 }), plan())).toBeNull();
   });
+
+  it('counts every unit of a stack and its parts once', () => {
+    const stack = { ...job(), quantity: 3 } as RestorationJobDTO;
+    expect(valueAdded(stack, plan({ currentGrade: 'Working' }), 6)).toBe(174);
+    expect(valueLeft(stack, plan(), SCALE, 10)).toBe(170);
+  });
 });
 
 describe('valueLeft', () => {

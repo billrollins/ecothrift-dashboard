@@ -182,6 +182,15 @@ export function RestorationQueue({
     });
   }
 
+  /** The whole stack to the bench: the same checks as the card's bench button. */
+  function benchAll(job: RestorationJobDTO) {
+    const bench = dispatchOptions(job, {
+      scaleGrades: scales[job.scale] ?? [],
+      occupyingBenchJob: occupyingBenchJob ?? null,
+    }).find((o) => o.target === 'bench');
+    if (bench) handleDispatch(job, bench);
+  }
+
   function renderCard(job: RestorationJobDTO) {
     const open = openStack?.jobId === job.id && isStack(job);
     return (
@@ -222,6 +231,7 @@ export function RestorationQueue({
               runSplit(job, [ids]);
             }}
             onJustThisOne={(id) => justThisOne(job, id)}
+            onBenchAll={() => benchAll(job)}
           />
         ) : null}
       </Box>

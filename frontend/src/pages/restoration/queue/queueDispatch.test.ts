@@ -123,15 +123,11 @@ describe('Queue', () => {
     expect(option?.explainer?.whyNot).toMatch(/scale/i);
   });
 
-  it('blocks Put on Bench for a stack before it mentions prices', () => {
-    const stacked = job({
-      stage: 'queued',
-      quantity: 3,
-      grade_values: { Working: 20 },
-    });
-    const option = dispatchOption(stacked, ctx(), 'bench');
-    expect(option?.tone).toBe('blocked');
-    expect(option?.explainer?.whyNot).toContain('stack of 3');
+  it('puts a whole priced stack on the bench, and asks for prices like a single item', () => {
+    const priced = job({ stage: 'queued', quantity: 3 });
+    expect(dispatchOption(priced, ctx(), 'bench')?.tone).toBe(toneOf(queued, 'bench'));
+    const unpriced = dispatchOption(job({ stage: 'queued', quantity: 3, grade_values: { Working: 20 } }), ctx(), 'bench');
+    expect(unpriced?.explainer?.whyNot ?? '').not.toContain('stack of');
   });
 
   it('blocks Hold - work has to start on the bench first', () => {
@@ -148,10 +144,8 @@ describe('Queue', () => {
     expect(toneOf(job({ stage: 'queued', grade_values: {}, scale: '' }), 'done')).toBe('ready');
   });
 
-  it('blocks Finish for a stack', () => {
-    const option = dispatchOption(job({ stage: 'queued', quantity: 3 }), ctx(), 'done');
-    expect(option?.tone).toBe('blocked');
-    expect(option?.explainer?.whyNot).toContain('stack of 3');
+  it('finishes a stack whole', () => {
+    expect(dispatchOption(job({ stage: 'queued', quantity: 3 }), ctx(), 'done')?.tone).toBe('ready');
   });
 });
 

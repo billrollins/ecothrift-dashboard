@@ -32,6 +32,7 @@ import { HistoryFilterRows } from './tarsHistoryFilters';
 import { FoundNeedsChips, initialFoundNeeds } from './FoundNeeds';
 import { GRADE_ROLE } from './tarsGradeRoles';
 import { studio } from './studio/tarsStudioTheme';
+import { jobUnits } from './tarsBenchValue';
 import type { TarsWorkEvaluation, TarsWorkSession } from './tarsWorkTypes';
 import {
   emptyMainOutput,
@@ -134,8 +135,9 @@ export function TarsDoneDialog({
   );
   const startMoney = job ? gradeMoney(job, startingGrade) : null;
   const endMoney = job ? gradeMoney(job, finalGrade) : null;
+  const units = job ? jobUnits(job) : 1;
   const valueAdded =
-    startMoney != null && endMoney != null ? endMoney - startMoney - costTotal : null;
+    startMoney != null && endMoney != null ? (endMoney - startMoney) * units - costTotal : null;
 
   useEffect(() => {
     if (!open || !job) return;
@@ -221,7 +223,11 @@ export function TarsDoneDialog({
                   gap: 1,
                 }}
               >
-                <StatCard label="Item" value={itemLabel} detail={job.name || '-'} />
+                <StatCard
+                  label="Item"
+                  value={units > 1 ? `${itemLabel} +${units - 1}` : itemLabel}
+                  detail={units > 1 ? `${units} units · ${job.name || '-'}` : job.name || '-'}
+                />
                 <Box
                   sx={{
                     minHeight: STAT_HEIGHT,
@@ -347,18 +353,24 @@ export function TarsDoneDialog({
                       <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, color: studio.inkLabel, letterSpacing: 0.4 }}>
                         Additionals
                       </Typography>
-                      <Button
-                        size="small"
-                        onClick={() =>
-                          setOutputs((prev) => [
-                            ...prev,
-                            emptyPartOutput((prev.at(-1)?.seq ?? 0) + 1, main.destination),
-                          ])
-                        }
-                        sx={{ textTransform: 'none', fontWeight: 800 }}
-                      >
-                        Add
-                      </Button>
+                      {units > 1 ? (
+                        <Typography sx={{ fontSize: '0.72rem', color: studio.inkMuted }}>
+                          Parts come from one unit: pull it out of the stack first.
+                        </Typography>
+                      ) : (
+                        <Button
+                          size="small"
+                          onClick={() =>
+                            setOutputs((prev) => [
+                              ...prev,
+                              emptyPartOutput((prev.at(-1)?.seq ?? 0) + 1, main.destination),
+                            ])
+                          }
+                          sx={{ textTransform: 'none', fontWeight: 800 }}
+                        >
+                          Add
+                        </Button>
+                      )}
                     </Stack>
                   </Box>
                   {parts.map((row) => (

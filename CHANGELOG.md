@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.225.1] -->
-<!-- Last reviewed: 2026-10-28 (2.225.1) -->
+<!-- Line 1 release: ## [2.226.0] -->
+<!-- Last reviewed: 2026-10-28 (2.226.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.226.0] - 2026-10-28
+
+User-facing theme: **Whole stacks on the Bench, and Take out of queue (Bill, 2026-10-28).** Fix-it lane P3, phase B.
+
+### Added
+- A whole stack can go on the Bench as one item: "Put the whole group on the Bench". The bench, Finish and the scoreboard count every unit (value added = units × the grade gain, minus parts).
+- Finishing a stack sends every unit to Processing, and Receive checks them all in at once with one price. Salvaged parts still need the unit pulled out first.
+- New "Take out of queue…" for a unit or a stack: give it back to Processing with a reason, or check it in here without Restoration (set the price and print the tags). Both show on the Done tab. Neither is allowed once Bench work has started.
+- Processing's Prior check-ins show what Restoration said when it gave a check-in back.
 
 ## [2.225.1] - 2026-10-28
 

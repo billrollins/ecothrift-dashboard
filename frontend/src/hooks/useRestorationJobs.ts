@@ -5,6 +5,7 @@ import {
   patchRestorationJob,
   returnRestorationJobToProcessing,
   splitRestorationJob,
+  takeRestorationJobOutOfQueue,
 } from '../api/inventory.api';
 import type {
   RestorationJobDTO,
@@ -12,6 +13,7 @@ import type {
   RestorationJobPatchPayload,
   RestorationJobReturnPayload,
   RestorationJobSplitPayload,
+  RestorationTakeOutMode,
 } from '../types/inventory.types';
 import { invalidateBenchJobs, restorationReturnsQueryKey } from './useRestorationBench';
 
@@ -59,6 +61,21 @@ export function useReturnRestorationJobToProcessing() {
   return useMutation({
     mutationFn: async ({ id, payload }: { id: number; payload: RestorationJobReturnPayload }) => {
       const { data } = await returnRestorationJobToProcessing(id, payload);
+      return data;
+    },
+    onSuccess: () => {
+      invalidateBenchJobs(queryClient);
+      queryClient.invalidateQueries({ queryKey: restorationReturnsQueryKey });
+    },
+  });
+}
+
+export function useTakeRestorationJobOutOfQueue() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, mode, reason }: { id: number; mode: RestorationTakeOutMode; reason?: string }) => {
+      const { data } = await takeRestorationJobOutOfQueue(id, { mode, reason });
       return data;
     },
     onSuccess: () => {

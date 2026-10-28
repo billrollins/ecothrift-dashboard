@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-28 (stacks phase A; the Restoration request replaced the estimate; queue $/min; holdout; tag) -->
+<!-- Last updated: 2026-10-28 (stacks phase B: whole stack on the bench, take out of queue; P5 request and tag) -->
 # Restoration / TARS
 
 Staff restoration: Ashley prices grades, Mike runs the bench, Bill sees what it earned. Initiative: [`finalize_tars_app`](../initiatives/_archived/finalize_tars_app.md). Shipped **v2.71.0** (GitHub; not Heroku).
@@ -169,7 +169,7 @@ Main item SKU stays; a destroyed item can be remapped (`POST …/items/{id}/rema
 
 ---
 
-## Stacks (Bill OK'd 2026-10-28; phase A built, phase B next)
+## Stacks (Bill OK'd 2026-10-28; phases A and B built)
 
 Bill: products with several units show as one stack with a number; decisions are made once for the group; a stack
 can be split; scanning a unit opens its stack so the whole group can go on the Bench.
@@ -221,6 +221,22 @@ per job (the old one-row-per-unit expansion is gone). Front end: `queue/stackMod
 `StackPanel.tsx`, `SplitStackDialog.tsx`, the `StackCluster` line in `RestorationQueue.tsx`. Stake on a stack =
 per-unit stake × units. A scan of a stack unit (Overview or Bench) opens `/restoration/overview?job=…&unit=…`. Splits
 happen on the Queue tab only; other tabs open the list read-only. Families sit together but do not fold into one card.
+
+**Built in phase B.** `check-in/` without `item_id` puts the whole stack on the bench (with `item_id` it still splits
+that unit off). `done/` takes a stack and moves every unit; it refuses salvaged-part lines on a stack ("Pull that unit
+out of the stack first"). `compute_value_added` = units × (final − original) − parts; the bench header, grade-table
+WORTH, and Finish use the same rule (`jobUnits` in `tars/tarsBenchValue.ts`). The scoreboard counts units, not jobs.
+Receive already remaps and checks in every unit; the dialog says "A stack of N to receive". Overview's open stack has
+**Put the whole group on the Bench**.
+
+**Take out of queue** (Bill, 2026-10-28): the Overview history drawer's button for a queued unit or stack (P2's Undo
+check-in now lives only in Processing → Prior check-ins). Two choices, `POST …/take-out/` `mode`:
+`given_back` (reason required) or `no_work` (then the Receive dialog opens: destination, price, tags). Both close the
+job to Done as untouched (`return_reason` = the mode, `return_notes` = the reason); the items stay on their check-in and
+go back to Processing. Done cards say "Given back to Processing · reason" or "Checked in, no work"; Prior check-ins shows
+Restoration's note under Dispatch while the check-in is back with Processing. Refused once Bench work has started.
+Logged by the finish timeline event and the notes trail (`services/restoration_bench.py`
+`take_restoration_job_out_of_queue`, `queue/TakeOutOfQueueDialog.tsx`).
 
 **Build order (each ships alone).** A: stack card, open, three splits, pull out, scan opens the stack, stack back
 together, intake allows N, Stack these. B: whole stack on the Bench, Finish and Receive for N units.
