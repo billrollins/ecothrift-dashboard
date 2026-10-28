@@ -50,6 +50,7 @@ import {
   type QueueSort,
   type QueueSortField,
 } from './restorationQueueModel';
+import { apiErrorMessage } from '../../../utils/apiError';
 
 export function RestorationQueue({
   jobs,
@@ -104,8 +105,7 @@ export function RestorationQueue({
   }, [focus]);
 
   function failStack(err: unknown, fallback: string) {
-    const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-    enqueueSnackbar(detail || (err instanceof Error ? err.message : fallback), { variant: 'error' });
+    enqueueSnackbar(apiErrorMessage(err, fallback), { variant: 'error' });
   }
 
   function stackBack(ids: number[], replaceValues = false) {
@@ -254,7 +254,7 @@ export function RestorationQueue({
   }
 
   function fail(err: unknown) {
-    enqueueSnackbar(err instanceof Error ? err.message : 'Could not save that change', {
+    enqueueSnackbar(apiErrorMessage(err, 'Could not save that change'), {
       variant: 'error',
     });
   }

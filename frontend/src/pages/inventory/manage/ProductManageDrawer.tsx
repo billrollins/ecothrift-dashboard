@@ -60,7 +60,7 @@ import {
   IDENTIFIER_PRESET_KEYS,
 } from '../processing/processingIdentifiers';
 import { processingTokens } from '../processing/processingTokens';
-import { ProcessingGoogleSearchButton } from '../processing/ProcessingGoogleSearchButton';
+import { GoogleItLink } from '../../../components/objects/GoogleItLink';
 import { parseSearchTagsCsv } from '../processing/processingGoogleQuery';
 import { WorkbenchCopyableChip } from '../workbench/WorkbenchCopyableChip';
 import { IconAiAssist as AutoAwesome, IconCopy as ContentCopyOutlinedIcon, IconSave as SaveOutlinedIcon } from '../../../icons/ecoIcons';
@@ -940,11 +940,11 @@ export function ProductManagePanel({
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.35, flexShrink: 0 }}>
-            <ProcessingGoogleSearchButton
+            <GoogleItLink
               brand={brandVal}
               title={titleVal}
               model={modelVal}
-              searchTags={parseSearchTagsCsv(tagsVal)}
+              extra={parseSearchTagsCsv(tagsVal)}
             />
             <WorkbenchCopyableChip
             size="small"

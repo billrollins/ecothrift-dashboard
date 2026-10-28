@@ -18,6 +18,7 @@ import {
   itemCardDay, itemCardMoney, itemCardSpecs, itemCardWhen, itemCardWhere, useItemCard,
   type ItemCardFull, type ItemJourneyEvent,
 } from './itemCardData';
+import { GoogleItLink } from './GoogleItLink';
 import { useObjectModal } from './ObjectModal';
 
 const STATUS_TONE: Record<string, 'success' | 'info' | 'warning' | 'default' | 'error'> = {
@@ -139,6 +140,7 @@ function Header({ card }: { card: ItemCardFull }) {
               <IconCopy fontSize="small" />
             </IconButton>
           </Tooltip>
+          <GoogleItLink brand={card.brand} title={card.title} model={card.model} />
           <Chip size="small" label={card.status_label} color={STATUS_TONE[card.status] ?? 'default'} variant="outlined" sx={{ fontWeight: 700 }} />
           <Chip size="small" label={card.condition_label} variant="outlined" />
         </Stack>

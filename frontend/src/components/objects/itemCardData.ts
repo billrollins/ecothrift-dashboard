@@ -129,9 +129,9 @@ export function useItemCardLite(id: number, enabled: boolean, qc: QueryClient) {
 }
 
 export function itemCardMoney(value: string | null | undefined): string {
-  if (value == null || value === '') return '—';
+  if (value == null || value === '') return '-';
   const n = Number(value);
-  return Number.isFinite(n) ? `$${n.toFixed(2)}` : '—';
+  return Number.isFinite(n) ? `$${n.toFixed(2)}` : '-';
 }
 
 export function itemCardSpecs(specs: Record<string, unknown> | undefined, max?: number): [string, string][] {
@@ -145,14 +145,14 @@ export function itemCardSpecs(specs: Record<string, unknown> | undefined, max?: 
 }
 
 export function itemCardWhen(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 export function itemCardDay(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });

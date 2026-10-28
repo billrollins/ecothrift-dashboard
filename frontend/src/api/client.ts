@@ -1,4 +1,5 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import { serverErrorText } from '../utils/apiError';
 
 // ── In-memory access token store ─────────────────────────────────────────────
 let accessToken: string | null = null;
@@ -193,8 +194,24 @@ api.interceptors.response.use(
       }
     }
 
+    applyServerWords(error);
     return Promise.reject(error);
   }
 );
+
+/**
+ * Every failed request carries the server's own words on `message` (and View as's sentence for its 403), so the
+ * many toasts that show `err.message` never say "Request failed with status code 403" (utils/apiError.ts).
+ */
+function applyServerWords(error: AxiosError): void {
+  const data = error.response?.data;
+  const text = serverErrorText(data);
+  if (!text) return;
+  error.message = text;
+  if (data && typeof data === 'object' && (data as { code?: unknown }).code === 'VIEW_AS_READ_ONLY') {
+    // Helpers that read `detail` first say the same sentence.
+    (data as { detail?: unknown }).detail = text;
+  }
+}
 
 export default api;

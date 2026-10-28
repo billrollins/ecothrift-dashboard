@@ -5,7 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ObjectLink, ObjectModalProvider } from './ObjectModal';
-import { ItemPeek } from './ItemPeek';
+import { followCardPosition, ItemPeek } from './ItemPeek';
+import { googleItUrl } from './GoogleItLink';
 import { itemCardSpecs, itemCardWhere } from './itemCardData';
 
 const client = vi.hoisted(() => ({ get: vi.fn() }));
@@ -67,9 +68,12 @@ describe('universal Item modal', () => {
     expect(screen.getByText('$18.00')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Order PO-12' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    const google = screen.getByRole('link', { name: 'Google it' });
+    expect(google).toHaveAttribute('href', 'https://www.google.com/search?q=KitchenAid%20Stand%20Mixer%205qt%20KSM150');
+    expect(google).toHaveAttribute('target', '_blank');
   });
 
-  it('hover card loads the lite card and shows the full title and key facts', async () => {
+  it('hover card follows the mouse, never catches it, and hides on leave', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     window.matchMedia = vi.fn().mockImplementation((q: string) => ({
       matches: q.includes('hover: hover'), media: q, addEventListener: vi.fn(), removeEventListener: vi.fn(),
@@ -77,14 +81,40 @@ describe('universal Item modal', () => {
     }));
     client.get.mockResolvedValue({ data: LITE });
     wrap(<ItemPeek itemId={9}><span>Mixer</span></ItemPeek>);
-    fireEvent.mouseEnter(screen.getByText('Mixer').parentElement!);
+    const name = screen.getByText('Mixer').parentElement!;
+    fireEvent.mouseEnter(name, { clientX: 100, clientY: 120 });
     expect(client.get).toHaveBeenCalledWith('/inventory/items/9/card/', { params: { lite: 1 } });
     await act(async () => { vi.advanceTimersByTime(400); });
-    const card = await screen.findByRole('dialog', { name: 'Item details' });
+    const card = await screen.findByRole('tooltip', { name: 'Item details' });
     expect(card).toHaveTextContent('KitchenAid Stand Mixer 5qt');
     expect(card).toHaveTextContent('Aisle 4');
     expect(card).toHaveTextContent('Red');
     expect(card).toHaveTextContent('$89.00');
+    expect(card).not.toHaveTextContent('Open the full item');
+    expect(getComputedStyle(card).pointerEvents).toBe('none');
+    expect(card.style.transform).toBe('translate3d(116px, 136px, 0)');
+    fireEvent.mouseMove(name, { clientX: 200, clientY: 150 });
+    expect(card.style.transform).toBe('translate3d(216px, 166px, 0)');
+    fireEvent.mouseLeave(name);
+    expect(screen.queryByRole('tooltip', { name: 'Item details' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the follow card inside the window', () => {
+    expect(followCardPosition(100, 100, 360, 240, 1440, 900)).toEqual({ left: 116, top: 116 });
+    // Near the right and bottom edges it flips to the other side of the pointer.
+    expect(followCardPosition(1300, 800, 360, 240, 1440, 900)).toEqual({ left: 924, top: 544 });
+    // A window narrower than the card: pinned to the edge, never off screen.
+    expect(followCardPosition(50, 20, 360, 240, 375, 812)).toEqual({ left: 8, top: 36 });
+  });
+});
+
+describe('Google it', () => {
+  it('searches brand + title + model, without saying a word twice or "Generic"', () => {
+    expect(googleItUrl({ brand: 'Dyson', title: 'Pure Cool Tower Fan', model: 'TP02' }))
+      .toBe('https://www.google.com/search?q=Dyson%20Pure%20Cool%20Tower%20Fan%20TP02');
+    expect(googleItUrl({ brand: 'Generic', title: 'Desk lamp TP02', model: 'TP02' }))
+      .toBe('https://www.google.com/search?q=Desk%20lamp%20TP02');
+    expect(googleItUrl({ title: '' })).toBe('');
   });
 });
 

@@ -61,6 +61,7 @@ import { runRestorationReceive } from './restorationReceive';
 import { dispatchJobSku, type DispatchTarget } from './queueDispatch';
 import type { TarsHistoryFilter } from '../tars/tarsBenchHistory';
 import { QUEUE_LISTS, isReadyForBench, queueListForStage, type QueueListId } from './restorationQueueModel';
+import { apiErrorMessage } from '../../../utils/apiError';
 
 type DispatchDialog = 'queue' | 'holding' | 'done' | 'receive' | 'fix' | 'reopen';
 
@@ -275,7 +276,7 @@ export default function RestorationQueuePage() {
   }
 
   function fail(err: unknown, fallback: string) {
-    enqueueSnackbar(err instanceof Error ? err.message : fallback, { variant: 'error' });
+    enqueueSnackbar(apiErrorMessage(err, fallback), { variant: 'error' });
   }
 
   async function submitScan() {

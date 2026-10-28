@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.225.0] -->
-<!-- Last reviewed: 2026-10-28 (2.225.0) -->
+<!-- Line 1 release: ## [2.225.1] -->
+<!-- Last reviewed: 2026-10-28 (2.225.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.225.1] - 2026-10-28
+
+User-facing theme: **Hover card follows the mouse; clearer error messages; Google it (Bill, 2026-10-28).** Fix-it lane P4 follow-up.
+
+### Added
+- New "Google it" link in the Item and Product windows, next to the copy button: searches Google for the brand, title and model in a new tab.
+
+### Changed
+- The item hover card now follows your mouse and never gets in its way; it goes away when you move off the name.
+- When something can't be saved, the message now says why in plain words instead of "Request failed with status code…". While viewing as someone, it says "View as is read-only. Use Back to make changes."
 
 ## [2.225.0] - 2026-10-28
 

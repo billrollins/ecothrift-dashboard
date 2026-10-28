@@ -1,15 +1,12 @@
-v2.225.0 — Restoration request by need and a restoration tag
+v2.225.1 — Hover card follows the mouse; errors say why; Google it
 
-User-facing theme: **The new Processing → Restoration request and the restoration tag (Bill, 2026-10-28).** Fix-it lane P5.
-
-### Changed
-- Sending an item to Restoration now asks what it needs (Test, Clean, Assemble, Repair, Check parts) and one price: what it sells for when done. The as-is prices fill in from settings, and you can change any of them. No more hours, parts or value-after guesses from Processing.
-- The Restoration queue now lists the best use of a minute first ($/min under At stake). Click any header to sort another way.
-- One in ten Assemble items (a setting) is picked at random to sell flat-packed, as is. The queue marks it HOLDOUT, so we can compare price and days to sell later.
+User-facing theme: **Hover card follows the mouse; clearer error messages; Google it (Bill, 2026-10-28).** Fix-it lane P4 follow-up.
 
 ### Added
-- Items sent to Restoration now print a restoration tag instead of the green price tag: a black RESTORATION band, the scannable SKU, the work in big words, and the date sent and who sent it. No price.
-- Reprint a restoration tag from the print icon on the Restoration queue row.
-- On the Bench, a quick "What did you find?" pick (starting from what Processing asked) records what each item really needed; you can change it at Finish.
+- New "Google it" link in the Item and Product windows, next to the copy button: searches Google for the brand, title and model in a new tab.
+
+### Changed
+- The item hover card now follows your mouse and never gets in its way; it goes away when you move off the name.
+- When something can't be saved, the message now says why in plain words instead of "Request failed with status code…". While viewing as someone, it says "View as is read-only. Use Back to make changes."
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

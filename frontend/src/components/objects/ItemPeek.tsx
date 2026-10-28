@@ -2,14 +2,15 @@
  * The item hover card (Bill, 2026-10-28: "staff HATES having to click into it to see item full description").
  *
  * - `<ItemPeek itemId={5}>{name}</ItemPeek>` wraps an item's name in any list.
- * - Desktop: hover the name; the card shows after a short pause and stays while the mouse is on it.
+ * - Desktop: hover the name; after a short pause the card follows the mouse at an offset (like the Dashboard
+ *   Sales chart tooltip), stays inside the window, never catches the mouse, and hides when the mouse leaves.
  *   The data starts loading the moment the mouse arrives, so it is usually there before the card opens.
  * - Phone (no hover): a small (i) after the name opens it; a long press on the name does too.
  * - `<ItemSkuLink itemId={5} sku="ITM0001" />` is the clickable SKU: hover card + click opens the universal Item modal.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  Box, Chip, ClickAwayListener, IconButton, Link, Paper, Popper, Stack, Typography, useMediaQuery,
+  Box, Chip, ClickAwayListener, IconButton, Link, Paper, Popper, Portal, Stack, Typography, useMediaQuery,
 } from '@mui/material';
 import InfoOutlined from '@mui/icons-material/InfoOutlined';
 import { useQueryClient } from '@tanstack/react-query';
@@ -19,8 +20,24 @@ import {
 import { useOptionalObjectModal } from './ObjectModal';
 
 const OPEN_DELAY_MS = 280;
-const CLOSE_DELAY_MS = 140;
 const LONG_PRESS_MS = 450;
+/** The card sits this far right of and below the pointer (flips left / up near the window edge). */
+const CURSOR_OFFSET = 16;
+const EDGE = 8;
+
+/** Where the follow card goes for a pointer at (x, y): offset from it, flipped and clamped to stay in the window. */
+export function followCardPosition(
+  x: number, y: number, w: number, h: number, vw: number, vh: number,
+): { left: number; top: number } {
+  let left = x + CURSOR_OFFSET;
+  if (left + w > vw - EDGE) left = x - CURSOR_OFFSET - w;
+  let top = y + CURSOR_OFFSET;
+  if (top + h > vh - EDGE) top = y - CURSOR_OFFSET - h;
+  return {
+    left: Math.max(EDGE, Math.min(left, vw - EDGE - w)),
+    top: Math.max(EDGE, Math.min(top, vh - EDGE - h)),
+  };
+}
 
 export function useCanHover(): boolean {
   return useMediaQuery('(hover: hover) and (pointer: fine)', { noSsr: true });
@@ -129,12 +146,36 @@ export function ItemPeek({
   const anchorRef = useRef<HTMLSpanElement | null>(null);
   const [open, setOpen] = useState(false);
   const openTimer = useRef<number | null>(null);
-  const closeTimer = useRef<number | null>(null);
   const pressTimer = useRef<number | null>(null);
   const pressed = useRef(false);
+  const pointer = useRef({ x: 0, y: 0 });
+  const followRef = useRef<HTMLDivElement | null>(null);
+
+  // Move the card straight in the DOM: following the mouse never re-renders the list.
+  const place = useCallback(() => {
+    const el = followRef.current;
+    if (!el) return;
+    const { left, top } = followCardPosition(
+      pointer.current.x, pointer.current.y, el.offsetWidth, el.offsetHeight, window.innerWidth, window.innerHeight,
+    );
+    el.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+  }, []);
+  const resizeObs = useRef<ResizeObserver | null>(null);
+  const followMounted = useCallback((el: HTMLDivElement | null) => {
+    followRef.current = el;
+    resizeObs.current?.disconnect();
+    resizeObs.current = null;
+    if (!el) return;
+    place();
+    // The card grows when its data arrives: keep it inside the window.
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObs.current = new ResizeObserver(place);
+      resizeObs.current.observe(el);
+    }
+  }, [place]);
 
   const clear = useCallback(() => {
-    for (const t of [openTimer, closeTimer, pressTimer]) {
+    for (const t of [openTimer, pressTimer]) {
       if (t.current != null) window.clearTimeout(t.current);
       t.current = null;
     }
@@ -144,11 +185,10 @@ export function ItemPeek({
   if (itemId == null) return <>{children}</>;
   const id = itemId;
 
-  const enter = () => {
+  const enter = (e: React.MouseEvent) => {
     if (!canHover) return;
+    pointer.current = { x: e.clientX, y: e.clientY };
     prefetchItemCardLite(qc, id);
-    if (closeTimer.current != null) window.clearTimeout(closeTimer.current);
-    closeTimer.current = null;
     if (!open && openTimer.current == null) {
       openTimer.current = window.setTimeout(() => {
         openTimer.current = null;
@@ -156,11 +196,16 @@ export function ItemPeek({
       }, OPEN_DELAY_MS);
     }
   };
+  const move = (e: React.MouseEvent) => {
+    if (!canHover) return;
+    pointer.current = { x: e.clientX, y: e.clientY };
+    place();
+  };
   const leave = () => {
     if (!canHover) return;
     if (openTimer.current != null) window.clearTimeout(openTimer.current);
     openTimer.current = null;
-    closeTimer.current = window.setTimeout(() => setOpen(false), CLOSE_DELAY_MS);
+    setOpen(false);
   };
   const touchStart = () => {
     if (canHover) return;
@@ -183,6 +228,7 @@ export function ItemPeek({
         ref={anchorRef}
         data-item-peek={id}
         onMouseEnter={enter}
+        onMouseMove={move}
         onMouseLeave={leave}
         onTouchStart={touchStart}
         onTouchEnd={touchEnd}
@@ -217,20 +263,34 @@ export function ItemPeek({
           </IconButton>
         )}
       </Box>
+      {canHover && open && (
+        <Portal>
+          <Paper
+            ref={followMounted}
+            elevation={8}
+            role="tooltip"
+            aria-label="Item details"
+            sx={{
+              position: 'fixed', left: 0, top: 0, zIndex: (t) => t.zIndex.modal + 1,
+              width: 360, maxWidth: 'calc(100vw - 16px)', borderRadius: 2, pointerEvents: 'none',
+            }}
+          >
+            <PeekBody itemId={id} />
+          </Paper>
+        </Portal>
+      )}
       <Popper
-        open={open}
+        open={open && !canHover}
         anchorEl={anchorRef.current}
         placement="bottom-start"
         sx={{ zIndex: (t) => t.zIndex.modal + 1 }}
         modifiers={[{ name: 'preventOverflow', options: { padding: 8 } }, { name: 'flip', options: { padding: 8 } }]}
       >
-        <ClickAwayListener onClickAway={() => { if (!canHover) setOpen(false); }}>
+        <ClickAwayListener onClickAway={() => setOpen(false)}>
           <Paper
             elevation={8}
             role="dialog"
             aria-label="Item details"
-            onMouseEnter={enter}
-            onMouseLeave={leave}
             onClick={(e) => e.stopPropagation()}
             sx={{ width: { xs: 'calc(100vw - 16px)', sm: 360 }, maxWidth: 360, borderRadius: 2 }}
           >
