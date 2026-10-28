@@ -72,6 +72,29 @@ export function createSetting(data: { key: string; value: unknown; description?:
   return api.post<Setting>('/core/settings/', data);
 }
 
+/** The store's printing settings (Settings → Printing, 2026-10-28): any team member reads them, managers set them. */
+export interface PrintingSettings {
+  /** The label size, `{w_in, h_in, dpi}`. */
+  value: unknown;
+  /** Price tags drawn in Dash at the label size; off, the print server draws them as before. */
+  price_tag_in_dash: boolean;
+}
+
+export async function getLabelSizeSetting(): Promise<PrintingSettings> {
+  const { data } = await api.get<PrintingSettings>('/core/printing/label-size/');
+  return data;
+}
+
+export async function saveLabelSizeSetting(value: { w_in: number; h_in: number; dpi: number }): Promise<PrintingSettings> {
+  const { data } = await api.put<PrintingSettings>('/core/printing/label-size/', value);
+  return data;
+}
+
+export async function savePriceTagInDash(on: boolean): Promise<boolean> {
+  const { data } = await api.put<{ price_tag_in_dash: boolean }>('/core/printing/price-tag-in-dash/', { on });
+  return data.price_tag_in_dash;
+}
+
 // App version endpoint
 export interface AppVersion {
   version: string;

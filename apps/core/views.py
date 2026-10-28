@@ -232,6 +232,76 @@ def print_server_releases(request):
     return Response(serializer.data)
 
 
+LABEL_SIZE_KEY = 'printing.label_size'
+LABEL_SIZE_DEFAULT = {'w_in': 1.5, 'h_in': 1.0, 'dpi': 203}
+PRICE_TAG_IN_DASH_KEY = 'printing.price_tag_in_dash'
+
+
+def clean_label_size(raw):
+    """A label size Dash can print, or None: sides 0.75 to 4 in, the printer at 203 or 300 dpi."""
+    if not isinstance(raw, dict):
+        return None
+    try:
+        w = round(float(raw.get('w_in')), 2)
+        h = round(float(raw.get('h_in')), 2)
+        dpi = int(raw.get('dpi', 203))
+    except (TypeError, ValueError):
+        return None
+    if not (0.75 <= w <= 4 and 0.75 <= h <= 4) or dpi not in (203, 300):
+        return None
+    return {'w_in': w, 'h_in': h, 'dpi': dpi}
+
+
+def _save_setting(key, value, description, user):
+    """Create or change one AppSetting, keeping the change in AppSettingHistory."""
+    row, created = AppSetting.objects.get_or_create(
+        key=key, defaults={'value': value, 'description': description, 'updated_by': user},
+    )
+    if not created and row.value != value:
+        AppSettingHistory.objects.create(key=row.key, old_value=row.value, new_value=value, changed_by=user)
+        row.value = value
+        row.updated_by = user
+        row.save(update_fields=['value', 'updated_by', 'updated_at'])
+
+
+def price_tag_in_dash() -> bool:
+    """The safety switch (Mainline, 2026-10-28): price tags drawn in Dash only once the owner turns it on."""
+    row = AppSetting.objects.filter(key=PRICE_TAG_IN_DASH_KEY).first()
+    return bool(row and row.value is True)
+
+
+@api_view(['GET', 'PUT'])
+@permission_classes([IsAuthenticated, IsTeamMember])
+def label_size(request):
+    """The store-wide label size (Settings > Printing, owner 2026-10-28): every tag Dash draws uses it, unless a
+    station overrides it in its own browser. Anyone who prints reads it; managers and the owner change it.
+    ``price_tag_in_dash`` rides along: off (the default), price tags still come from the print server's own drawing."""
+    if request.method == 'PUT':
+        if not IsManagerOrAdmin().has_permission(request, None):
+            raise PermissionDenied('Only a manager changes the store label size.')
+        value = clean_label_size(request.data)
+        if value is None:
+            return Response({'detail': 'Sides from 0.75 to 4 inches, printer 203 or 300 dpi.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        _save_setting(LABEL_SIZE_KEY, value, 'Label size every tag prints at (Settings > Printing).', request.user)
+        return Response({'value': value, 'price_tag_in_dash': price_tag_in_dash()})
+    row = AppSetting.objects.filter(key=LABEL_SIZE_KEY).first()
+    return Response({'value': (clean_label_size(row.value) if row else None) or LABEL_SIZE_DEFAULT,
+                     'price_tag_in_dash': price_tag_in_dash()})
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated, IsManagerOrAdmin])
+def price_tag_switch(request):
+    """Turn the new price tag drawing on or off for the whole store (``{"on": true}``)."""
+    on = request.data.get('on')
+    if not isinstance(on, bool):
+        return Response({'detail': 'Send {"on": true} or {"on": false}.'}, status=status.HTTP_400_BAD_REQUEST)
+    _save_setting(PRICE_TAG_IN_DASH_KEY, on, 'Price tags drawn in Dash at the label size (off: the print server draws them).',
+                  request.user)
+    return Response({'price_tag_in_dash': on})
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def print_server_version_public(request):

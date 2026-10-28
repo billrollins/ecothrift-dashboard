@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-28 (stacks phase B: whole stack on the bench, take out of queue; P5 request and tag) -->
+<!-- Last updated: 2026-10-28 (restoration tag follows the label-size setting) -->
 # Restoration / TARS
 
 Staff restoration: Ashley prices grades, Mike runs the bench, Bill sees what it earned. Initiative: [`finalize_tars_app`](../initiatives/_archived/finalize_tars_app.md). Shipped **v2.71.0** (GitHub; not Heroku).
@@ -109,14 +109,16 @@ requests are picked at random to sell flat-packed, as is. The job gets `holdout`
 log a line. The queue row shows HOLDOUT · SELL FLAT-PACKED.
 
 **Restoration tag** (owner, 2026-10-28; layout A): when a check-in sends items to Restoration, each one gets the
-restoration tag instead of the green price tag (it goes over blue painter's tape). Same 3x2 green stock and printer. A
+restoration tag instead of the green price tag (it goes over blue painter's tape). Same stock and printer. A
 black RESTORATION band; the QR of the plain SKU (what the scanners read now) and the SKU in big type; a short title; the
 work in big words (TEST · ASSEMBLE, two lines when there are many, or HOLDOUT · SELL AS IS); SENT date and SENT BY. No
 prices. `printed_items_preview` rows carry `restoration_tag` (needs, holdout, sent_on, sent_by) for items in
 Restoration whose job is queued or sent, so every check-in path prints it through `printProcessingLabelsStaggered`; the
 job API has the same `restoration_tag` for **Reprint** (the print icon by the SKU on the queue row, one tag per unit,
 until Done). Drawn in the browser (`pages/restoration/tag/restorationTag.ts`) and printed through the print server's
-`/print/image-copies` (1.4.1+), so no new print server. A 1.5x1 station gets the same picture at 406 dpi.
+`/print/image-copies` (1.4.1+), so no new print server. Since 10-28 it is laid out in proportion to the label-size
+setting (see `print-server.md` § Label size): on 1.5x1 the band, QR, SKU, work and SENT/BY strip keep their room and the
+title gets one line (two on 3x2) or goes.
 
 **Queue scan takes one item** (2026-10-28): scanning a SKU into the queue (`POST /restoration-jobs/ {sku}`) moves only that item into its own check-in and job; its check-in mates stay where they were. Before, one scan sent a whole check-in (12 spinners on PO 420, 2026-10-27). **Undo check-in** in the queue's history drawer (queued or sent items) moves the whole check-in elsewhere or deletes it; see `inventory-pipeline.md` (Undo check-in).
 

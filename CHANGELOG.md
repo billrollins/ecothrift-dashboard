@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.230.0] -->
-<!-- Last reviewed: 2026-10-28 (2.230.0) -->
+<!-- Line 1 release: ## [2.231.0] -->
+<!-- Last reviewed: 2026-10-28 (2.231.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.231.0] - 2026-10-28
+
+User-facing theme: **Labels of any size, a test label, and a print-server chip (Bill, 2026-10-28).**
+
+### Added
+- One label-size setting for the whole store: Settings > Printing > "What labels are you using?" Pick 1.5x1, 2.25x1.25, 3x2 or type your own, plus the printer's dpi. A computer can use its own size.
+- "Print a test label" prints a ruler and the size so you can check the setting, and "Reprint last label" reprints the last tag.
+- New print-server chip on Processing and PR Fix-it: Online, Needs update (click to download) or Offline. Click it to change the label size or printer without leaving the page.
+
+### Changed
+- Restoration tags now print at the exact size of the labels in the printer, laid out to fit. Price tags can do the same: turn on "Use the new price tag drawing" in Settings > Printing after a test label looks right. Until then they print as before.
+- Restoration tag redone for 1.5x1: big SKU, the work in big words, scannable QR, sent date and who sent it.
 
 ## [2.230.0] - 2026-10-28
 

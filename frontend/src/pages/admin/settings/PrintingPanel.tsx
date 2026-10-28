@@ -26,10 +26,11 @@ import { localPrintService } from '../../../services/localPrintService';
 import type {
   DrawerPin,
   HealthResponse,
-  LabelSizePreset,
   PrinterInfo,
   PrinterSettings,
 } from '../../../services/localPrintService';
+import { LabelPrinterSelect, drawerPinValue, withSetting } from '../../../components/printing/LabelPrinterSelect';
+import { LabelSizeCard } from '../../../components/printing/LabelSizeCard';
 import { IconDownload as Download, IconPrint as Print, IconRefresh as Refresh } from '../../../icons/ecoIcons';
 
 interface PrintServerReleaseData {
@@ -54,16 +55,6 @@ const BG_SERVER = '#F7F5F1';
 const BG_CLIENT = '#E8F0F6';
 const BG_SPECS = '#F4F1E8';
 const FIELD_FILL = '#fff';
-
-const assignmentRowSx = {
-  display: 'grid',
-  gridTemplateColumns: {
-    xs: '1fr',
-    sm: 'minmax(0, 1fr) minmax(160px, 220px) minmax(160px, 220px)',
-  },
-  gap: 2,
-  alignItems: 'stretch',
-} as const;
 
 const solidFieldSx = {
   '& .MuiInputBase-root': {
@@ -92,12 +83,6 @@ const actionSx = {
     borderColor: 'grey.300',
   },
 } as const;
-
-function drawerPinValue(settings?: PrinterSettings): DrawerPin {
-  const pin = settings?.drawer_pin;
-  if (pin === 0 || pin === 1 || pin === 'both') return pin;
-  return 'both';
-}
 
 function formatFileSize(bytes?: number): string {
   if (!bytes) return '-';
@@ -200,56 +185,13 @@ export function PrintingPanel() {
     retry: false,
   });
 
-  const saveLabelPrinter = useMutation({
-    mutationFn: (name: string) =>
-      localPrintService.updateSettings({
-        label_printer: name || null,
-        receipt_printer: psSettings?.receipt_printer ?? null,
-        label_size_preset: psSettings?.label_size_preset ?? '3x2',
-        drawer_pin: drawerPinValue(psSettings),
-      }),
-    onSuccess: () => {
-      refetchPsSettings();
-      enqueueSnackbar('Label printer saved', { variant: 'success' });
-    },
-  });
-
   const saveReceiptPrinter = useMutation({
     mutationFn: (name: string) =>
-      localPrintService.updateSettings({
-        label_printer: psSettings?.label_printer ?? null,
-        receipt_printer: name || null,
-        label_size_preset: psSettings?.label_size_preset ?? '3x2',
-        drawer_pin: drawerPinValue(psSettings),
-      }),
+      localPrintService.updateSettings(withSetting(psSettings, { receipt_printer: name || null })),
     onSuccess: () => {
       refetchPsSettings();
       enqueueSnackbar('Receipt printer saved', { variant: 'success' });
     },
-  });
-
-  const saveLabelSizePreset = useMutation({
-    mutationFn: (preset: LabelSizePreset) =>
-      localPrintService.updateSettings({
-        label_printer: psSettings?.label_printer ?? null,
-        receipt_printer: psSettings?.receipt_printer ?? null,
-        label_size_preset: preset,
-        drawer_pin: drawerPinValue(psSettings),
-      }),
-    onSuccess: () => {
-      refetchPsSettings();
-      enqueueSnackbar('Label paper size saved', { variant: 'success' });
-    },
-    onError: () => enqueueSnackbar('Failed to save label size', { variant: 'error' }),
-  });
-
-  const testLabel = useMutation({
-    mutationFn: () => localPrintService.printTest(),
-    onSuccess: (r) =>
-      enqueueSnackbar(r.success ? 'Test label sent' : r.error ?? r.message, {
-        variant: r.success ? 'success' : 'error',
-      }),
-    onError: () => enqueueSnackbar('Test label failed', { variant: 'error' }),
   });
 
   // Thrift+ test receipts (owner 2026-10-16): the print server's own samples, sent the way the register sends a sale.
@@ -265,12 +207,7 @@ export function PrintingPanel() {
 
   const saveDrawerPin = useMutation({
     mutationFn: (pin: DrawerPin) =>
-      localPrintService.updateSettings({
-        label_printer: psSettings?.label_printer ?? null,
-        receipt_printer: psSettings?.receipt_printer ?? null,
-        label_size_preset: psSettings?.label_size_preset ?? '3x2',
-        drawer_pin: pin,
-      }),
+      localPrintService.updateSettings(withSetting(psSettings, { drawer_pin: pin })),
     onSuccess: () => {
       refetchPsSettings();
       enqueueSnackbar('Drawer pin saved', { variant: 'success' });
@@ -327,48 +264,8 @@ export function PrintingPanel() {
           <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
             Printer Assignment
           </Typography>
-          <Box sx={{ ...assignmentRowSx, mb: 2 }}>
-            <FormControl fullWidth disabled={!isServerOnline} sx={solidFieldSx}>
-              <InputLabel>Label printer</InputLabel>
-              <Select
-                value={psSettings?.label_printer ?? ''}
-                label="Label printer"
-                onChange={(e: SelectChangeEvent) => saveLabelPrinter.mutate(e.target.value)}
-              >
-                <MenuItem value="">
-                  <em>(not set - uses system default)</em>
-                </MenuItem>
-                {printers.map((p) => (
-                  <MenuItem key={p.name} value={p.name}>
-                    {p.name}
-                    {p.is_default ? ' (System Default)' : ''}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl fullWidth disabled={!isServerOnline} sx={solidFieldSx}>
-              <InputLabel>Paper size</InputLabel>
-              <Select
-                value={psSettings?.label_size_preset ?? '3x2'}
-                label="Paper size"
-                onChange={(e: SelectChangeEvent<LabelSizePreset>) =>
-                  saveLabelSizePreset.mutate(e.target.value as LabelSizePreset)
-                }
-              >
-                <MenuItem value="3x2">3″ × 2″ (testing / large)</MenuItem>
-                <MenuItem value="1.5x1">1.5″ × 1″ (production)</MenuItem>
-                <MenuItem value="1.25x1.25">1.25″ × 1.25″ (square)</MenuItem>
-              </Select>
-            </FormControl>
-            <Button
-              variant="outlined"
-              sx={actionSx}
-              startIcon={testLabel.isPending ? <CircularProgress size={16} /> : <Print />}
-              onClick={() => testLabel.mutate()}
-              disabled={!isServerOnline || testLabel.isPending}
-            >
-              Test
-            </Button>
+          <Box sx={{ mb: 2 }}>
+            <LabelPrinterSelect online={isServerOnline} sx={solidFieldSx} />
           </Box>
           <Box
             sx={{
@@ -441,6 +338,8 @@ export function PrintingPanel() {
           </Typography>
         </CardContent>
       </Card>
+
+      <LabelSizeCard />
 
       <Card sx={{ bgcolor: BG_SERVER }}>
         <CardContent>

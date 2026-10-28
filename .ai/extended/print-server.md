@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-28 (restoration tag via /print/image-copies) -->
+<!-- Last updated: 2026-10-28 (one label-size setting; tags drawn in Dash) -->
 
 # Print Server — Extended Context
 
@@ -65,8 +65,34 @@ Labels (GDI + Pillow), receipts (GDI text), cash drawer (ESC/POS). Built-in UI: 
 **Retail line (2026-10-21, needs a print-server release):** `LabelPrintRequest.retail_text` ("Retail $49.99") prints one line right above the logo band; title and brand stop above it. Dash sends it only when the retail passed its check (`tags.retail_on_tag`). An older print server ignores the field, so tags simply show no retail until stores update.
 
 **Restoration tag (2026-10-28, no print-server release):** items a check-in sends to Restoration print a tag Dash draws
-in the browser (`pages/restoration/tag/restorationTag.ts`, 609 x 406 at 203 dpi; 406 dpi on 1.5x1 stock) and sends to
-`/print/image-copies`, one call per item. See [`restoration.md`](restoration.md).
+in the browser (`pages/restoration/tag/restorationTag.ts`). See [`restoration.md`](restoration.md).
+
+## Label size (2026-10-28, no print-server release)
+
+Owner: "our standard tag size as of now is 1.5 x 1 ... we often need to change tag sizes ... SUPER easy to adjust."
+
+- **One setting:** Settings → Printing → **What labels are you using?** Presets 1.5x1 (standard), 2.25x1.25, 3x2, or
+  Custom W x H inches (0.75 to 4), plus the printer's dpi (203 or 300). Store-wide in AppSetting `printing.label_size`
+  (`{w_in, h_in, dpi}`, default 1.5 x 1 at 203; `GET/PUT /api/core/printing/label-size/`, any team member reads,
+  managers set; changes go to AppSettingHistory). **Only this computer** saves an override in the browser
+  (`localStorage.label_size_station`); it wins over the store size. Code: `frontend/src/printing/labelSize.ts`.
+- **Tags drawn in Dash** at exactly W x H x dpi (one pixel per printer dot, snapped to black and white) and sent to
+  `/print/image-copies` with that dpi, which prints at physical size (`fit_to_printable=False`): the restoration tag and
+  the test label always. **Price tag behind a switch:** AppSetting `printing.price_tag_in_dash` (default **off**; owner
+  and managers flip it on the label-size card, "Use the new price tag drawing"; `PUT /api/core/printing/price-tag-in-dash/`
+  `{"on": true}`). Off: price tags print exactly as before (one label `/print/label`, more `/print/labels`, the print
+  server's own drawing at its own **Paper size**, `label_size_preset`, no longer shown in Dash). On: drawn in Dash
+  (`printing/tags/priceTag.ts`, a port of `label_printer.generate_label` scaled from the 305 x 203 reference); a print
+  server older than 1.4.1 falls back to `/print/labels`. Turn it on once Print a test label looks right on real stock.
+- **Kit:** `printing/tagCanvas.ts` (ops, fit/wrap, whole-dot QR, logo, render), `printing/printTags.ts` (`printTags`,
+  `printPriceTags`, `printTestLabel`, `reprintLastTag`; `TAG_DESIGNS` registry). **A new tag design is one file** in
+  `printing/tags/` exporting a `TagDesign` (its `layout(data, box, measure)` places ops in proportion to `box`), plus one
+  line in `TAG_DESIGNS`. The coming member-price tag (2.25x1.25) goes there.
+- **Print a test label:** a frame on the edge, a 1/4 in ruler on the top and left, the size text; then a sample price
+  tag in the **new** drawing (switch on or off, to compare). **Reprint last label:** the last tag this computer printed (`localStorage.last_label_printed`), at today's size.
+- **Print-server chip** (`components/printing/PrintServerChip.tsx`, on the Processing header): Online / Needs update
+  (installed below the published release; click downloads) / Offline. Online opens a mini window with the label
+  printer pick (`LabelPrinterSelect`) and the label-size card (`LabelSizeCard`), the same components as the tab.
 
 ## Custom labels (Label Studio, v1.4.1)
 

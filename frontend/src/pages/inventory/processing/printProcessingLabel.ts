@@ -1,11 +1,8 @@
-import { localPrintService, type LocalPrintRequest } from '../../../services/localPrintService';
+import type { LocalPrintRequest } from '../../../services/localPrintService';
 import { markItemsLabelsPrinted } from '../../../api/inventory.api';
 import type { Item } from '../../../types/inventory.types';
-import {
-  renderRestorationTagPng,
-  tagDpiForStock,
-  type RestorationTagFacts,
-} from '../../restoration/tag/restorationTag';
+import type { RestorationTagFacts } from '../../restoration/tag/restorationTag';
+import { printPriceTags, printTags } from '../../../printing/printTags';
 
 type LabelInput = Pick<Item, 'sku' | 'price'> &
   Partial<Pick<Item, 'product_title' | 'product_brand' | 'product_number'>> & {
@@ -47,7 +44,7 @@ export function toLabelRequest(item: LabelInput, priceOverride?: string): LocalP
   };
 }
 
-function collectItemIds(items: LabelInput[], count: number): number[] {
+function collectItemIds(items: Array<{ id?: number }>, count: number): number[] {
   return items
     .slice(0, count)
     .map((item) => item.id)
@@ -57,55 +54,34 @@ function collectItemIds(items: LabelInput[], count: number): number[] {
 /** After Django persists check-in; mirrors legacy ProcessingPage helper (V-22 toast on failure). */
 export async function printProcessingLabel(item: LabelInput, priceOverride?: string): Promise<boolean> {
   try {
-    await localPrintService.printLabel(toLabelRequest(item, priceOverride));
-    return true;
+    return (await printPriceTags([toLabelRequest(item, priceOverride)])).printed === 1;
   } catch {
     return false;
   }
 }
 
-/** The label stock this station prints on; 3x2 when the print server cannot say. */
-async function stockPreset(): Promise<string> {
-  try {
-    return (await localPrintService.getSettings()).label_size_preset ?? '3x2';
-  } catch {
-    return '3x2';
-  }
-}
-
 /**
- * Restoration tags (owner, 2026-10-28): drawn here and printed through `/print/image-copies`, one per item, in order.
+ * Restoration tags (owner, 2026-10-28): drawn here at the label-size setting and printed one per item, in order.
  * Stops at the first failure, like the price tags' health probe.
  */
 export async function printRestorationTags(
   items: Array<Pick<LabelInput, 'sku' | 'id' | 'product_title' | 'title'> & { restoration_tag: RestorationTagFacts }>,
 ): Promise<{ succeeded: number; failed: number; succeededItemIds: number[] }> {
-  const succeededItemIds: number[] = [];
-  if (!items.length) return { succeeded: 0, failed: 0, succeededItemIds };
-  const dpi = tagDpiForStock(await stockPreset());
-  let succeeded = 0;
-  for (const item of items) {
-    try {
-      const image = renderRestorationTagPng({
-        ...item.restoration_tag,
-        sku: item.sku,
-        title: item.product_title || item.title || item.sku,
-      });
-      await localPrintService.printImageCopies({ image_base64: image, copies: 1, dpi, doc_name: `Restoration ${item.sku}` });
-    } catch {
-      break;
-    }
-    succeeded += 1;
-    if (item.id != null) succeededItemIds.push(item.id);
-  }
+  if (!items.length) return { succeeded: 0, failed: 0, succeededItemIds: [] };
+  const result = await printTags(items.map((item) => ({
+    kind: 'restoration' as const,
+    data: { ...item.restoration_tag, sku: item.sku, title: item.product_title || item.title || item.sku },
+    docName: `Restoration ${item.sku}`,
+  })));
+  const succeeded = result.printed;
+  const succeededItemIds = collectItemIds(items, succeeded);
   return { succeeded, failed: items.length - succeeded, succeededItemIds };
 }
 
 /**
- * Batch labels: ONE `/print/labels` call for the whole check-in (the server
- * resolves the printer once and spools every label). Falls back to the legacy
- * staggered per-label loop when the installed print server predates the
- * batch endpoint. Items going to Restoration get the restoration tag instead.
+ * Batch labels: price tags drawn here at the label-size setting, one print call each, in order (a print server
+ * without `/print/image-copies` gets one `/print/labels` call instead). Items going to Restoration get the
+ * restoration tag instead.
  */
 export async function printProcessingLabelsStaggered(
   items: LabelInput[],
@@ -131,7 +107,8 @@ async function printPriceLabels(
   priceOverride?: string,
 ): Promise<{ succeeded: number; failed: number; succeededItemIds: number[] }> {
   try {
-    const result = await localPrintService.printLabelBatch(items.map((it) => toLabelRequest(it, priceOverride)));
+    // Drawn here at the label-size setting (2026-10-28); a print server without `/print/image-copies` draws its own.
+    const result = await printPriceTags(items.map((it) => toLabelRequest(it, priceOverride)));
     if (result.failed === 0) {
       return {
         succeeded: result.printed,

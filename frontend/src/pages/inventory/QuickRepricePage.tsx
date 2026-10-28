@@ -37,7 +37,7 @@ import {
   markSoldItemOnShelf,
 } from '../../api/inventory.api';
 import type { Item, ItemStatus } from '../../types/inventory.types';
-import { localPrintService } from '../../services/localPrintService';
+import { printPriceTags } from '../../printing/printTags';
 import { useAuth } from '../../contexts/AuthContext';
 import { ScanBar } from './count/ScanBar';
 
@@ -216,16 +216,15 @@ export default function QuickRepricePage({ embedded = false }: { embedded?: bool
       ]);
       setSessionSavings(s => s + Number(result.discount_amount));
 
-      const printOk = await localPrintService
-        .printLabel({
-          qr_data: result.sku,
-          text: `$${Number(result.new_price).toFixed(2)}`,
-          product_title: result.title,
-          product_brand: result.brand?.trim() || undefined,
-          product_model: result.product_number?.trim() || undefined,
-          include_text: true,
-        })
-        .then(() => true)
+      const printOk = await printPriceTags([{
+        qr_data: result.sku,
+        text: `$${Number(result.new_price).toFixed(2)}`,
+        product_title: result.title,
+        product_brand: result.brand?.trim() || undefined,
+        product_model: result.product_number?.trim() || undefined,
+        include_text: true,
+      }])
+        .then((r) => r.printed === 1)
         .catch(() => false);
 
       if (!printOk) {

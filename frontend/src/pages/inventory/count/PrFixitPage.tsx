@@ -19,7 +19,8 @@ import {
   type TagLabel,
 } from '../../../api/stocktake.api';
 import { fetchBadTagPhoto, type BadTag } from '../../../api/badTags.api';
-import { localPrintService } from '../../../services/localPrintService';
+import { PrintServerChip } from '../../../components/printing/PrintServerChip';
+import { printPriceTags } from '../../../printing/printTags';
 import QuickRepricePage from '../QuickRepricePage';
 import { priceFromNote } from './countProblems';
 import { clockTime } from './countTimer';
@@ -42,7 +43,7 @@ function priceLine(item: ItemBrief): string {
 async function printTag(label: TagLabel | null | undefined): Promise<boolean> {
   if (!label) return false;
   try {
-    await localPrintService.printLabel({
+    const res = await printPriceTags([{
       qr_data: label.qr_data,
       text: label.text,
       product_title: label.product_title,
@@ -50,7 +51,8 @@ async function printTag(label: TagLabel | null | undefined): Promise<boolean> {
       product_model: label.product_model || undefined,
       include_text: true,
       retail_text: label.retail_text || undefined,
-    });
+    }]);
+    if (res.printed !== 1) return false;
     return true;
   } catch {
     return false;
@@ -484,7 +486,6 @@ export default function PrFixitPage() {
   const tab: Tab = TABS.find((x) => x === params.get('tab')) ?? 'pr';
   const [filter, setFilter] = useState('');
   const [error, setError] = useState('');
-  const [printer, setPrinter] = useState<boolean | null>(null);
   const [scanNote, setScanNote] = useState<ScanNote | null>(null);
   const [focusId, setFocusId] = useState<number | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -521,7 +522,6 @@ export default function PrFixitPage() {
       .then((list) => setFixed(list.slice(0, 200)))
       .catch(() => setFixed([]));
     listFixitInventories().then(setInventories).catch(() => setInventories([]));
-    void localPrintService.isAvailable().then(setPrinter);
   }, [count]);
   useEffect(reload, [reload]);
   useEffect(() => {
@@ -635,7 +635,7 @@ export default function PrFixitPage() {
             </TextField>
           )}
           {fixedToday > 0 && <Chip size="small" color="success" variant="outlined" label={`${fixedToday} fixed today`} />}
-          {printer != null && <Chip size="small" color={printer ? 'success' : 'warning'} label={printer ? 'Tag printer ready' : 'No print server on this device'} />}
+          <PrintServerChip />
           <Button size="small" onClick={reload} sx={{ textTransform: 'none' }}>
             Refresh
           </Button>
