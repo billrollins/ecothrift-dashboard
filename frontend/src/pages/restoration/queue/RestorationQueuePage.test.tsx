@@ -5,6 +5,7 @@ import { SnackbarProvider } from 'notistack';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RestorationJobDTO } from '../../../types/inventory.types';
+import { expandRestorationJobsForTars } from '../tars/tarsJobAdapter';
 import RestorationQueuePage from './RestorationQueuePage';
 
 const navigate = vi.fn();
@@ -168,5 +169,60 @@ describe('RestorationQueuePage scan', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(createFromSku).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe('RestorationQueuePage tabs', () => {
+  function multiItemJob(): RestorationJobDTO {
+    return {
+      ...queuedJob(),
+      id: 20,
+      name: 'Wind Spinner',
+      quantity: 3,
+      items: [21, 22, 23].map((id) => ({ id, sku: `ET-${id}`, status: 'in_stock', condition: '', location: '' })),
+    } as RestorationJobDTO;
+  }
+
+  function doneJob(): RestorationJobDTO {
+    return { ...queuedJob(), id: 30, stage: 'done', name: 'Air Fryer', sku: 'ET-30', items: [] } as RestorationJobDTO;
+  }
+
+  function rowNames(container: HTMLElement): string[] {
+    return Array.from(container.querySelectorAll('[data-restoration-job]')).map(
+      (row) => row.getAttribute('data-restoration-job') ?? '',
+    );
+  }
+
+  beforeEach(() => {
+    navigate.mockReset();
+    // The page gets one row per item for a multi-item job, all with the same job id.
+    jobsState.jobs = expandRestorationJobsForTars([queuedJob(), multiItemJob(), doneJob()]);
+  });
+
+  it('shows only the chosen tab\'s rows, even after fast switches', async () => {
+    const user = userEvent.setup();
+    const { container } = renderPage();
+    expect(rowNames(container).sort()).toEqual(['11', '20', '20', '20']);
+
+    for (let i = 0; i < 3; i += 1) {
+      await user.click(screen.getByRole('tab', { name: /Done/ }));
+      expect(rowNames(container)).toEqual(['30']);
+      await user.click(screen.getByRole('tab', { name: /Holding/ }));
+      expect(rowNames(container)).toEqual([]);
+      await user.click(screen.getByRole('tab', { name: /Queue/ }));
+      expect(rowNames(container).sort()).toEqual(['11', '20', '20', '20']);
+    }
+  });
+
+  it('keeps every row\'s destination picker live after switching back', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('tab', { name: /Done/ }));
+    await user.click(screen.getByRole('tab', { name: /Queue/ }));
+
+    const pickers = screen.getAllByRole('button', { name: 'Destination for Wind Spinner' });
+    expect(pickers).toHaveLength(3);
+    await user.pointer({ keys: '[MouseLeft>]', target: pickers[2] });
+    expect(pickers[2]).toHaveAttribute('aria-expanded', 'true');
   });
 });

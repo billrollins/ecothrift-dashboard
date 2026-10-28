@@ -78,6 +78,15 @@ export const QUEUE_LISTS = [
 
 export type QueueListId = (typeof QUEUE_LISTS)[number]['id'];
 
+/**
+ * A row's React key. A job with several items shows one row per item, all with
+ * the same job id, so the id alone repeats - and React then leaves stale rows
+ * behind when the list changes. The item id makes each row its own.
+ */
+export function queueRowKey(job: RestorationJobDTO): string {
+  return `${job.id}:${job.items[0]?.id ?? ''}`;
+}
+
 export function queueListAccent(id: QueueListId): string {
   return QUEUE_LISTS.find((l) => l.id === id)?.accent ?? '#2e7d32';
 }

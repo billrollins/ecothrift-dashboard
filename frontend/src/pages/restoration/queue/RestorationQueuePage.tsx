@@ -348,7 +348,7 @@ export default function RestorationQueuePage() {
           spacing={0.25}
           sx={{
             flexShrink: 0,
-            px: 1.5,
+            px: { xs: 0.75, sm: 1.5 },
             pt: 0.85,
             bgcolor: studio.panel,
             borderBottom: `1px solid ${studio.panelBorder}`,
@@ -368,8 +368,12 @@ export default function RestorationQueuePage() {
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 0.75,
-                  px: 1.6,
+                  justifyContent: 'center',
+                  // Phones: the four tabs share the strip so Done is never off-screen.
+                  flex: { xs: '1 1 0', sm: 'none' },
+                  minWidth: 0,
+                  gap: { xs: 0.4, sm: 0.75 },
+                  px: { xs: 0.25, sm: 1.6 },
                   pt: 0.7,
                   pb: 0.8,
                   mb: '-1px',
@@ -386,6 +390,7 @@ export default function RestorationQueuePage() {
               >
                 <Box
                   sx={{
+                    display: { xs: 'none', sm: 'block' },
                     width: 8,
                     height: 8,
                     borderRadius: '50%',
@@ -394,12 +399,14 @@ export default function RestorationQueuePage() {
                     flexShrink: 0,
                   }}
                 />
-                <Typography sx={{ fontSize: '0.82rem', fontWeight: 900 }}>{entry.label}</Typography>
+                <Typography noWrap sx={{ fontSize: { xs: '0.78rem', sm: '0.82rem' }, fontWeight: 900 }}>
+                  {entry.label}
+                </Typography>
                 <Box
                   component="span"
                   sx={{
-                    minWidth: 20,
-                    px: 0.55,
+                    minWidth: { xs: 16, sm: 20 },
+                    px: { xs: 0.4, sm: 0.55 },
                     borderRadius: '999px',
                     fontFamily: 'monospace',
                     fontSize: '0.72rem',

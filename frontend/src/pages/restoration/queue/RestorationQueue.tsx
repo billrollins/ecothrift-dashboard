@@ -28,6 +28,7 @@ import {
   DEFAULT_QUEUE_SORT,
   defaultDirForQueueField,
   nextQueueSort,
+  queueRowKey,
   sortQueue,
   type QueueSort,
   type QueueSortField,
@@ -123,7 +124,7 @@ export function RestorationQueue({
         ) : (
           ordered.map((job) => (
             <RestorationQueueCard
-              key={job.id}
+              key={queueRowKey(job)}
               job={job}
               scales={scales}
               accent={accent}

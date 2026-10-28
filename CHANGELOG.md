@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.221.0] -->
-<!-- Last reviewed: 2026-10-26 (2.221.0) -->
+<!-- Line 1 release: ## [2.221.1] -->
+<!-- Last reviewed: 2026-10-28 (2.221.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.221.1] - 2026-10-28
+
+User-facing theme: **Restoration overview tabs and pickers work again (Ashley, 2026-10-28).** Fix-it lane P1.
+
+### Fixed
+- Restoration Overview: switching between Queue, Bench, Holding and Done now always shows that tab's own items. Before, items with several units could leave the old tab's rows on screen.
+- Restoration Overview: Destination and Scale can be picked on every row again. The rows that wouldn't respond were those leftover copies.
+- Restoration Overview on phones: all four tabs fit on screen, so Done is reachable.
 
 ## [2.221.0] - 2026-10-26
 

@@ -9,7 +9,7 @@ import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import type { RestorationJobDTO } from '../../../types/inventory.types';
-import { formatWaiting } from '../queue/restorationQueueModel';
+import { formatWaiting, queueRowKey } from '../queue/restorationQueueModel';
 import { studio } from './studio/tarsStudioTheme';
 import { holdDisplayLabel, normalizePending, purchaseHoldReady } from './tarsHold';
 
@@ -58,7 +58,7 @@ export function TarsHoldingRail({
           const ready = partsAreIn(job);
           return (
             <Box
-              key={job.id}
+              key={queueRowKey(job)}
               role="button"
               tabIndex={busy ? -1 : 0}
               onClick={() => !busy && onResume(job)}

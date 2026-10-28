@@ -1,12 +1,10 @@
-v2.221.0 — Supplies: lists, Monday count and the week's order
+v2.221.1 — Restoration overview tabs and pickers work again
 
-User-facing theme: **Supplies: department lists, a Monday count and the week's order (Bill, 2026-10-26).** New app apps/supplies.
+User-facing theme: **Restoration overview tabs and pickers work again (Ashley, 2026-10-28).** Fix-it lane P1.
 
-### Added
-- New Supplies page for everyone: one supply list per department or by name, with vendor, link, Amazon ID, pack size, min, max and price. Links open in a new tab.
-- Managers build lists by hand, from a CSV (template to download), or by pasting a link: the AI fills the name and pack (and the price if you paste the page text); you check it before saving.
-- Weekly supply count, due Monday 3 pm (change it in Settings → Store → Supplies). Phone-first: a number for every item, last week's count shown grey for reference.
-- After the deadline the week's order builds itself by rule: at or under min, order back up to max in whole packs. Every line says why.
-- Owner order page: vendor by vendor with totals, one button that puts every Amazon item in the cart, and Ordered ticks with who and when. The Owner page shows missed counts and "Supply order ready".
+### Fixed
+- Restoration Overview: switching between Queue, Bench, Holding and Done now always shows that tab's own items. Before, items with several units could leave the old tab's rows on screen.
+- Restoration Overview: Destination and Scale can be picked on every row again. The rows that wouldn't respond were those leftover copies.
+- Restoration Overview on phones: all four tabs fit on screen, so Done is reachable.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
