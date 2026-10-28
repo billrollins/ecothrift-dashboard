@@ -10,7 +10,7 @@ import { CheckInQtyStepper, CompactMoneyField, SegmentedOptionButtons } from '..
 import { PROCESSING_ITEM_CONDITION_OPTIONS } from '../processing/processingItemFormOptions';
 import { MAX_CHECK_IN_QUANTITY } from '../processing/largeCheckIn';
 import { ProductPhoto } from './AddItemFindStep';
-import { RestorationEstimateFields } from '../restorationEstimate/RestorationEstimateFields';
+import { RestorationRequestFields } from '../restorationRequest/RestorationRequestFields';
 import {
   checkInProblems, DESTINATION_OPTIONS, formatMoney, money, pctOfRetail, productName, quantityOf,
   type CheckInForm, type PickedProduct,
@@ -111,7 +111,7 @@ export function AddItemCheckInStep({
                 label=""
                 value={form.destination}
                 options={DESTINATION_OPTIONS}
-                onChange={(v) => set({ destination: v as CheckInForm['destination'], ...(v === 'restoration' ? { quantity: '1' } : {}) })}
+                onChange={(v) => set({ destination: v as CheckInForm['destination'] })}
                 disabled={busy}
                 fill
               />
@@ -121,13 +121,12 @@ export function AddItemCheckInStep({
                 <Label>Quantity</Label>
                 <CheckInQtyStepper
                   quantity={form.quantity}
-                  disabled={busy || restoration}
+                  disabled={busy}
                   onChange={(v) => set({ quantity: v })}
                   onBlur={() => set({ quantity: String(Math.min(MAX_CHECK_IN_QUANTITY, qty)) })}
                   onBump={(d) => set({ quantity: String(Math.max(1, Math.min(MAX_CHECK_IN_QUANTITY, qty + d))) })}
                 />
               </Box>
-              {restoration && <Typography variant="caption" color="text.secondary" sx={{ pb: 0.75 }}>Restoration is one at a time.</Typography>}
             </Stack>
             <Box>
               <Label>Condition</Label>
@@ -177,7 +176,7 @@ export function AddItemCheckInStep({
             </Box>
 
             {restoration && (
-              <RestorationEstimateFields value={form} onChange={(next) => set(next)} disabled={busy} />
+              <RestorationRequestFields value={form} onChange={(next) => set(next)} disabled={busy} />
             )}
 
             <TextField size="small" label="Notes" placeholder="Optional"

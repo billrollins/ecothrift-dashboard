@@ -9,20 +9,21 @@ import type {
   AddItemProduct,
   AiDraft,
   NewProductSpec,
-  RestorationWork,
   TaxonomyCategory,
 } from '../../../api/addItem.api';
 import type { ItemCondition } from '../../../types/inventory.types';
-import { estimatePayload, estimateProblems, WORK_OPTIONS } from '../restorationEstimate/restorationEstimate';
+import {
+  EMPTY_REQUEST,
+  requestPayload,
+  requestProblems,
+  type RestorationRequestForm,
+} from '../restorationRequest/restorationRequest';
 
 export const DESTINATION_OPTIONS: Array<{ value: AddItemDestination; label: string }> = [
   { value: 'floor', label: 'Floor' },
   { value: 'back_stock', label: 'Back stock' },
   { value: 'restoration', label: 'Restoration' },
 ];
-
-// The Restoration estimate rules are shared with every Processing check-in (owner, 2026-10-26).
-export { WORK_OPTIONS };
 
 /** Matches that are the answer by themselves: Enter picks them. */
 export const EXACT_MATCHES: AddItemMatch[] = ['tag', 'barcode', 'product_number', 'model', 'part_number'];
@@ -40,7 +41,8 @@ export type PickedProduct =
   | { kind: 'existing'; product: AddItemProduct }
   | { kind: 'new'; spec: NewProductSpec; photo: File | null };
 
-export interface CheckInForm {
+/** The Restoration request rules are shared with every Processing check-in (owner, 2026-10-28). */
+export interface CheckInForm extends RestorationRequestForm {
   quantity: string;
   condition: ItemCondition;
   destination: AddItemDestination;
@@ -49,10 +51,6 @@ export interface CheckInForm {
   /** Where the retail came from: the product's own usual retail, an estimate (AI or a similar product), or typed. */
   retailFrom: 'product' | 'estimate' | 'typed' | '';
   notes: string;
-  work: RestorationWork[];
-  hours: string;
-  partsCost: string;
-  valueAfter: string;
 }
 
 export function money(value: string | null | undefined): number | null {
@@ -85,10 +83,7 @@ export function initialCheckIn(picked: PickedProduct): CheckInForm {
     retail: usual ? String(Number(usual).toFixed(2)) : '',
     retailFrom: usual ? (picked.kind === 'existing' ? 'product' : 'estimate') : '',
     notes: '',
-    work: [],
-    hours: '',
-    partsCost: '',
-    valueAfter: '',
+    ...EMPTY_REQUEST,
   };
 }
 
@@ -103,8 +98,7 @@ export function checkInProblems(form: CheckInForm): string[] {
   if (money(form.price) == null) out.push('Enter the price.');
   if (form.retail.trim() && money(form.retail) == null) out.push('The retail must be a dollar amount.');
   if (form.destination === 'restoration') {
-    if (quantityOf(form) !== 1) out.push('Restoration takes one item at a time.');
-    out.push(...estimateProblems(form));
+    out.push(...requestProblems(form));
   }
   return out;
 }
@@ -113,7 +107,7 @@ export function buildCheckInPayload(picked: PickedProduct, form: CheckInForm): A
   const retail = form.retail.trim();
   const payload: AddItemCheckInPayload = {
     ...(picked.kind === 'existing' ? { product_id: picked.product.product_id } : { new_product: picked.spec }),
-    quantity: form.destination === 'restoration' ? 1 : quantityOf(form),
+    quantity: quantityOf(form),
     condition: form.condition,
     destination: form.destination,
     price: form.price.trim(),
@@ -124,7 +118,7 @@ export function buildCheckInPayload(picked: PickedProduct, form: CheckInForm): A
     payload.retail_source = form.retailFrom === 'estimate' ? 'estimate' : 'typed';
   }
   if (form.destination === 'restoration') {
-    payload.restoration = estimatePayload(form);
+    payload.restoration = requestPayload(form);
   }
   return payload;
 }

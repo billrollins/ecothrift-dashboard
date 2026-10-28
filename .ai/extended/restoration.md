@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-28 (stacks phase A built) -->
+<!-- Last updated: 2026-10-28 (stacks phase A; the Restoration request replaced the estimate; queue $/min; holdout; tag) -->
 # Restoration / TARS
 
 Staff restoration: Ashley prices grades, Mike runs the bench, Bill sees what it earned. Initiative: [`finalize_tars_app`](../initiatives/_archived/finalize_tars_app.md). Shipped **v2.71.0** (GitHub; not Heroku).
@@ -72,16 +72,51 @@ Rates are judged against a **floor** (what an hour costs, default `$19.80`) and 
 | `GET /api/inventory/restoration-jobs/{id}/notes/` | Union of notes on the check-in's items. |
 | `PATCH /api/inventory/item-notes/{id}/` · `POST …/void/` | Author's own manual notes only. |
 
-Processing check-in with `dispatch=restoration` creates a `queued` job. **Every path into Restoration requires
-estimates** (owner, 2026-10-26; Add item since 10-22): the work (test / assemble / repair / salvage), hours or parts
-cost, and the value after. The API refuses without them (`services/restoration_estimate.py`, sent as `restoration`).
-Paths: Processing check-in and Edit check-in, Check in together, the product "+" check-in, the check-in panel
-(create / duplicate / edit), Add item, and the Goes-to dropdown in Prior check-ins (asks for them in a small dialog,
-then moves the whole check-in). Item-level edits (processing-patch, print-and-check-in, print-multiple,
-bulk-disposition) can no longer send to Restoration: they make no job. An edit of a check-in already in Restoration
-keeps its estimate. They are written to the job's `queue_note` ("Estimate: test, repair · about 1.5 h · worth $80.00
-after", also on the notes trail) and `defaults_snapshot.restoration_estimate`; Add item then opens the same Grade for
-Restoration dialog. UI: `pages/inventory/restorationEstimate/`. Incomplete grade values → `needs_setup`. Dispatch away from restoration deletes a `queued` job.
+Processing check-in with `dispatch=restoration` creates a `queued` job. **Every path into Restoration sends the
+request** (owner, 2026-10-28; replaced the 10-26 hours / parts / value-after estimate): what it needs, which is also how
+it is now (test = untested, clean = dirty, assemble = flat-packed, repair = broken, check parts = parts not checked),
+and ONE typed price, the **done price** (per unit). Each other ending gets an as-is price that Dash fills in from
+settings and Processing may change: untested `restoration.as_is_untested_pct` (50% of done), dirty
+`restoration.as_is_dirty_pct` (70%), flat-packed done / (1 + `restoration.flat_pack_markup_pct` 10%), can't repair
+`restoration.as_is_broken_pct` (30%) or scrap / parts $0, parts not checked `restoration.as_is_parts_unchecked_pct`
+(60%). The API refuses without a need and the done price (`services/restoration_request.py`, sent as `restoration`;
+settings for the dialogs at `GET /api/inventory/restoration-request/settings/`). Paths: Processing check-in and Edit
+check-in, Check in together, the product "+" check-in, the check-in panel (create / duplicate / edit), Add item, and
+the Goes-to dropdown in Prior check-ins (a small dialog, then the whole check-in moves). Item-level edits
+(processing-patch, print-and-check-in, print-multiple, bulk-disposition) can no longer send to Restoration: they make no
+job. An edit of a check-in already in Restoration keeps what it has, including an old estimate (old jobs keep theirs;
+nothing was migrated). The request is stored on the job (`requested_needs`, `done_price`, `as_is_prices`,
+`value_at_stake` = done minus the lowest as-is) and in `defaults_snapshot.restoration_request`; the `queue_note` says it
+("Asked: test, repair · done $80.00 · as is $24.00 · at stake $56.00", also on the notes trail). Restoration fills in its
+side: `found_needs`, asked as "What did you find?" (chips prefilled from the request) the first time a requested job is
+worked on the Bench (Later skips it for the visit; `FoundNeeds.tsx`), editable on Finish's Dispatch tab (sent with `done`; also
+queue-details PATCH), and the existing hours, parts and outcome fields. Stacks: `STACK_GROUP_FIELDS` copies the six
+request fields to split groups as they are (money is per unit); the stack card's stake is `value_at_stake` x units. UI:
+`pages/inventory/restorationRequest/`. Incomplete grade values → `needs_setup`. Dispatch away from restoration deletes
+a `queued` job.
+
+**Queue order** (owner, 2026-10-28): the queue sorts by expected gain per minute by default (any header still sorts).
+`priority.per_minute` on queued jobs = value at stake x success odds / typical minutes. Odds and minutes come per need
+from finished jobs of that need and category (then all categories) once there are `restoration.priority_min_jobs` (5);
+until then `restoration.default_success_pct` (test 85, clean 95, assemble 90, repair 60, check parts 85) and
+`restoration.default_minutes` (15 / 20 / 30 / 60 / 15). Several needs: odds multiply, minutes add. Success = Done and
+not salvaged; a fail = salvaged, or sent back untouched. A job's minutes split evenly over its needs. Old jobs use
+their old estimate's work and the grade spread. The row shows `$x/min` under At stake.
+
+**Assembly holdout** (owner, 2026-10-28): `restoration.assembly_holdout_pct` (10; 0 turns it off) of new Assemble
+requests are picked at random to sell flat-packed, as is. The job gets `holdout`, every unit `Item.restoration_holdout`
+(for Inventory Review / analysis: price and days to sell against assembled ones), the items a notes-trail line, and the
+log a line. The queue row shows HOLDOUT · SELL FLAT-PACKED.
+
+**Restoration tag** (owner, 2026-10-28; layout A): when a check-in sends items to Restoration, each one gets the
+restoration tag instead of the green price tag (it goes over blue painter's tape). Same 3x2 green stock and printer. A
+black RESTORATION band; the QR of the plain SKU (what the scanners read now) and the SKU in big type; a short title; the
+work in big words (TEST · ASSEMBLE, two lines when there are many, or HOLDOUT · SELL AS IS); SENT date and SENT BY. No
+prices. `printed_items_preview` rows carry `restoration_tag` (needs, holdout, sent_on, sent_by) for items in
+Restoration whose job is queued or sent, so every check-in path prints it through `printProcessingLabelsStaggered`; the
+job API has the same `restoration_tag` for **Reprint** (the print icon by the SKU on the queue row, one tag per unit,
+until Done). Drawn in the browser (`pages/restoration/tag/restorationTag.ts`) and printed through the print server's
+`/print/image-copies` (1.4.1+), so no new print server. A 1.5x1 station gets the same picture at 406 dpi.
 
 **Queue scan takes one item** (2026-10-28): scanning a SKU into the queue (`POST /restoration-jobs/ {sku}`) moves only that item into its own check-in and job; its check-in mates stay where they were. Before, one scan sent a whole check-in (12 spinners on PO 420, 2026-10-27). **Undo check-in** in the queue's history drawer (queued or sent items) moves the whole check-in elsewhere or deletes it; see `inventory-pipeline.md` (Undo check-in).
 

@@ -49,6 +49,7 @@ import {
   useRestorationJobTimeline,
   useForgetRestorationTimelineWords,
   useResetRestorationQueueNote,
+  usePatchRestorationQueueDetails,
 } from '../../../hooks/useRestorationBench';
 import { useGradeScales } from '../../../hooks/useGradeScales';
 import type {
@@ -63,6 +64,7 @@ import { TarsSendBackDialog } from './TarsSendBackDialog';
 import { categoryChangeStartsNewSitting, fileCurrentActionPlan } from './tarsActions';
 import { TARS_DEFAULT_HOURLY_RATE, TARS_DEFAULT_TIME_PREMIUM } from './tarsConstants';
 import { TarsDoneDialog } from './TarsDoneDialog';
+import { FoundNeedsDialog, shouldAskFoundNeeds } from './FoundNeeds';
 import { TarsRejectDialog } from './TarsRejectDialog';
 import { TarsScanMessageDialog } from './TarsScanMessageDialog';
 import { TarsHoldDialog } from './TarsHoldDialog';
@@ -187,6 +189,9 @@ export function TarsWorkstation({ chrome = 'studio' }: { chrome?: 'studio' | 'da
   );
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [holdSuggest, setHoldSuggest] = useState<string | null>(null);
+  // What did you find? asked once per job on the bench (owner, 2026-10-28); Later skips it for this visit.
+  const [foundLater, setFoundLater] = useState<ReadonlySet<number>>(() => new Set());
+  const patchQueueDetails = usePatchRestorationQueueDetails();
 
   const scanInputRef = useRef<HTMLInputElement>(null);
   const appliedInitialSelectionRef = useRef(false);
@@ -1228,6 +1233,24 @@ export function TarsWorkstation({ chrome = 'studio' }: { chrome?: 'studio' | 'da
         busy={rejectJob.isPending}
         onCancel={() => setRejectOpen(false)}
         onSubmit={(reason) => void handleRejectSubmit(reason)}
+      />
+
+      <FoundNeedsDialog
+        open={!doneOpen && shouldAskFoundNeeds(selectedJob, foundLater)}
+        job={selectedJob}
+        busy={patchQueueDetails.isPending}
+        onLater={() => selectedJob && setFoundLater((prev) => new Set(prev).add(selectedJob.id))}
+        onSave={(found) => {
+          if (!selectedJob) return;
+          const id = selectedJob.id;
+          patchQueueDetails.mutate(
+            { id, payload: { found_needs: found } },
+            {
+              onSuccess: () => setFoundLater((prev) => new Set(prev).add(id)),
+              onError: (err) => enqueueSnackbar(err instanceof Error ? err.message : 'Could not save that', { variant: 'error' }),
+            },
+          );
+        }}
       />
 
       <TarsDoneDialog

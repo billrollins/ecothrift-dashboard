@@ -22,6 +22,8 @@ import {
   queueListForStage,
   sortQueue,
   valuePotential,
+  formatPerMinute,
+  jobStake,
   benchDispositionLabel,
   type QueueListId,
 } from './restorationQueueModel';
@@ -220,8 +222,28 @@ describe('nextQueueSort', () => {
   });
 
   it('flips the active column', () => {
-    expect(nextQueueSort(DEFAULT_QUEUE_SORT, 'waiting')).toEqual({ field: 'waiting', dir: 'asc' });
-    expect(nextQueueSort({ field: 'waiting', dir: 'asc' }, 'waiting')).toEqual(DEFAULT_QUEUE_SORT);
+    expect(nextQueueSort(DEFAULT_QUEUE_SORT, 'priority')).toEqual({ field: 'priority', dir: 'asc' });
+    expect(nextQueueSort({ field: 'waiting', dir: 'desc' }, 'waiting')).toEqual({ field: 'waiting', dir: 'asc' });
+  });
+});
+
+describe('the request on the row (owner, 2026-10-28)', () => {
+  const scales = { Functional: ['Working', 'Repairable', 'Parts-only'] };
+  const pm = (per_minute: number) => ({ per_minute, odds: 0.6, minutes: 60, stake: 0, from_history: false });
+
+  it('stake is done minus as-is, else the grade spread', () => {
+    expect(jobStake(job({ value_at_stake: '42.00' }))).toBe(42);
+    expect(jobStake(job())).toBe(valuePotential(job()));
+  });
+
+  it('sorts by $/min by default, rows with none last in age order', () => {
+    const slow = job({ id: 1, priority: pm(0.2) });
+    const fast = job({ id: 2, priority: pm(1.5) });
+    const none = job({ id: 3, priority: null });
+    expect(DEFAULT_QUEUE_SORT).toEqual({ field: 'priority', dir: 'desc' });
+    expect(sortQueue([slow, none, fast], scales).map((j) => j.id)).toEqual([2, 1, 3]);
+    expect(formatPerMinute(0.774)).toBe('$0.77/min');
+    expect(formatPerMinute(null)).toBe('-');
   });
 });
 

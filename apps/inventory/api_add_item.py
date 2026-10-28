@@ -86,3 +86,12 @@ def add_item_check_in_view(request):
     except ValueError as e:
         return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     return Response(result, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsStaff])
+def restoration_request_settings_view(request):
+    """The settings the Send-to-Restoration fields fill the as-is prices from (services/restoration_request.py)."""
+    from apps.inventory.services.restoration_request import public_settings
+
+    return Response(public_settings())

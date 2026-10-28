@@ -182,27 +182,24 @@ class CheckInTests(AddItemBase):
         typed = self.post({**payload, 'retail_source': 'typed'})
         self.assertEqual(Item.objects.get(pk=typed.data['created_item_ids'][0]).retail_source, 'typed')
 
-    def test_restoration_needs_its_estimates_and_lands_in_the_queue(self):
+    def test_restoration_needs_its_request_and_lands_in_the_queue(self):
         base = {'product_id': self.blender.pk, 'destination': 'restoration', 'price': '30.00', 'retail': '99.99'}
-        self.assertIn('work', self.post(base).data['detail'])
-        self.assertIn('hours', self.post({**base, 'restoration': {'work': ['repair']}}).data['detail'])
-        self.assertIn('worth', self.post({**base, 'restoration': {'work': ['repair'], 'hours': '2'}}).data['detail'])
+        self.assertIn('what it needs', self.post(base).data['detail'])
+        self.assertIn('done price', self.post({**base, 'restoration': {'needs': ['repair']}}).data['detail'])
         self.assertFalse(RestorationJob.objects.exists())
-        r = self.post({**base, 'restoration': {'work': ['test', 'repair', 'paint'], 'parts_cost': '15',
-                                               'value_after': '60'}})
+        r = self.post({**base, 'restoration': {'needs': ['test', 'repair', 'paint'], 'done_price': '60',
+                                               'as_is': {'untested': '25'}}})
         self.assertEqual(r.status_code, 201, r.data)
         job = RestorationJob.objects.get(pk=r.data['restoration_job_id'])
         self.assertEqual(job.stage, RestorationJob.STAGE_QUEUED)
-        self.assertEqual(job.queue_note, 'Estimate: test, repair · parts $15.00 · worth $60.00 after')
-        snap = job.item_check_in.defaults_snapshot['restoration_estimate']
-        self.assertEqual((snap['work'], snap['hours'], snap['parts_cost'], snap['value_after']),
-                         (['test', 'repair'], None, '15.00', '60.00'))
+        self.assertEqual(job.queue_note, 'Asked: test, repair · done $60.00 · as is $18.00 · at stake $42.00')
+        self.assertEqual((job.requested_needs, job.as_is_prices), (['test', 'repair'],
+                                                                   {'untested': '25.00', 'broken': '18.00'}))
+        snap = job.item_check_in.defaults_snapshot['restoration_request']
+        self.assertEqual((snap['needs'], snap['done_price']), (['test', 'repair'], '60.00'))
         item = Item.objects.get(pk=r.data['created_item_ids'][0])
         self.assertEqual((item.source, item.location), ('misfit', 'restoration'))
         self.assertTrue(ItemNote.objects.filter(item=item, surface='queue', body=job.queue_note).exists())
-        hours = self.post({**base, 'restoration': {'work': ['assemble'], 'hours': '1.5', 'value_after': '80'}})
-        self.assertEqual(RestorationJob.objects.get(pk=hours.data['restoration_job_id']).queue_note,
-                         'Estimate: assemble · about 1.5 h · worth $80.00 after')
 
 
 class NewProductTests(AddItemBase):

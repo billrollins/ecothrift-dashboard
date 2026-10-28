@@ -17,6 +17,7 @@ import type {
   RestorationJobDTO,
   RestorationJobDonePayload,
   RestorationBenchDisposition,
+  RestorationNeed,
 } from '../../../types/inventory.types';
 import { JobNotesSlot } from '../../../components/notes/JobNotesSlot';
 import { useAuth } from '../../../hooks/useAuth';
@@ -28,6 +29,7 @@ import {
   type TarsHistoryFilter,
 } from './tarsBenchHistory';
 import { HistoryFilterRows } from './tarsHistoryFilters';
+import { FoundNeedsChips, initialFoundNeeds } from './FoundNeeds';
 import { GRADE_ROLE } from './tarsGradeRoles';
 import { studio } from './studio/tarsStudioTheme';
 import type { TarsWorkEvaluation, TarsWorkSession } from './tarsWorkTypes';
@@ -98,6 +100,7 @@ export function TarsDoneDialog({
   const [outputs, setOutputs] = useState<FinishOutputLine[]>([emptyMainOutput()]);
   const [editingGrades, setEditingGrades] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<TarsHistoryFilter>('all');
+  const [foundNeeds, setFoundNeeds] = useState<RestorationNeed[]>([]);
   const { user } = useAuth();
 
   const actions = useRestorationActions(open ? job?.id : null);
@@ -139,6 +142,7 @@ export function TarsDoneDialog({
     const dest = defaultDestination(job, mode);
     setTab('dispatch');
     setHistoryFilter('all');
+    setFoundNeeds(initialFoundNeeds(job));
     setStartingGrade(
       job.starting_grade ||
         session?.benchPlan?.startingGrade ||
@@ -178,6 +182,7 @@ export function TarsDoneDialog({
           notes: row.seq === 0 ? '' : row.notes.trim(),
           destination: row.destination,
         })),
+      ...(foundNeeds.length ? { found_needs: foundNeeds } : {}),
     });
     onClose();
   };
@@ -294,6 +299,15 @@ export function TarsDoneDialog({
                   detail={`Parts ${usd(knownBySection.parts)} · Supplies ${usd(knownBySection.supplies)} · FFE ${usd(knownBySection.ffe)}`}
                 />
               </Box>
+
+              {mode === 'finish' && (job.requested_needs?.length || job.found_needs?.length) ? (
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', sm: 'center' }}>
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 800, color: studio.inkLabel, minWidth: 128 }}>
+                    WHAT DID YOU FIND?
+                  </Typography>
+                  <FoundNeedsChips value={foundNeeds} onChange={setFoundNeeds} />
+                </Stack>
+              ) : null}
 
               <Box
                 sx={{

@@ -455,7 +455,14 @@ function QueueColumnHeaders({
     >
       {QUEUE_COLUMNS.map((col, i) => (
         <QueueSection key={col.id} first={i === 0}>
-          <QueueSortHeader field={col.id} label={col.label} sort={sort} onSort={onSort} center={col.center} />
+          {col.id === 'stake' ? (
+            <Stack direction="row" spacing={0.25} sx={{ width: '100%', justifyContent: 'center' }}>
+              <QueueSortHeader field="stake" label="Stake" sort={sort} onSort={onSort} center />
+              <QueueSortHeader field="priority" label="$/min" sort={sort} onSort={onSort} center />
+            </Stack>
+          ) : (
+            <QueueSortHeader field={col.id} label={col.label} sort={sort} onSort={onSort} center={col.center} />
+          )}
         </QueueSection>
       ))}
       <QueueSection>

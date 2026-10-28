@@ -437,16 +437,16 @@ def _check_in_processing_row(
     restoration_scale = ''
     restoration_grade_values: dict[str, float] = {}
     processing_handoff = None
-    restoration_estimate = None
+    restoration_request = None
     if dispatch == 'restoration':
         from apps.inventory.services.restoration import (
             normalize_processing_handoff,
             validate_restoration_check_in_payload,
         )
-        from apps.inventory.services.restoration_estimate import restoration_estimate as checked_estimate
+        from apps.inventory.services.restoration_request import restoration_request as checked_request
 
-        # Every item Processing sends to Restoration carries estimates (owner, 2026-10-26).
-        restoration_estimate = checked_estimate(data.get('restoration'))
+        # Every item Processing sends to Restoration carries the request: needs + done price (owner, 2026-10-28).
+        restoration_request = checked_request(data.get('restoration'))
         restoration_scale, restoration_grade_values = validate_restoration_check_in_payload(data)
         if 'processing_handoff' in data:
             processing_handoff = normalize_processing_handoff(
@@ -562,7 +562,7 @@ def _check_in_processing_row(
     }
     if dispatch == 'restoration':
         from apps.inventory.services.restoration import merge_restoration_into_defaults_snapshot
-        from apps.inventory.services.restoration_estimate import SNAPSHOT_KEY, stamped
+        from apps.inventory.services.restoration_request import SNAPSHOT_KEY, stamped
 
         defaults_snapshot = merge_restoration_into_defaults_snapshot(
             defaults_snapshot,
@@ -570,7 +570,7 @@ def _check_in_processing_row(
             restoration_grade_values,
             processing_handoff,
         )
-        defaults_snapshot[SNAPSHOT_KEY] = stamped(restoration_estimate, user)
+        defaults_snapshot[SNAPSHOT_KEY] = stamped(restoration_request, user)
     from apps.inventory.services.truck_pallets import resolve_check_in_pallet
 
     pallet = resolve_check_in_pallet(user, order, data, manifest_row)
@@ -629,7 +629,7 @@ def _check_in_processing_row(
     if dispatch == 'restoration':
         from apps.inventory.services.restoration import create_restoration_job_from_check_in
 
-        from apps.inventory.services.restoration_estimate import note_on_job
+        from apps.inventory.services.restoration_request import apply_to_job
 
         job = create_restoration_job_from_check_in(
             batch,
@@ -637,7 +637,7 @@ def _check_in_processing_row(
             grade_values=restoration_grade_values,
             user=user,
         )
-        note_on_job(job, restoration_estimate, user)
+        apply_to_job(job, restoration_request, user, new_job=True)
     else:
         job = None
     from apps.inventory.services.item_notes import append_item_note, handoff_note_body
@@ -1760,21 +1760,25 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
                 restoration_grade_values,
             )
 
-        # Sending a check-in to Restoration needs the estimates (owner, 2026-10-26); one already on it counts.
-        restoration_estimate = None
+        # Sending a check-in to Restoration needs the request (owner, 2026-10-28); one already on it counts, and so
+        # does an old estimate (v2.217.0), which stays as it was.
+        restoration_request = None
         if effective_dispatch == 'restoration' and ('restoration' in data or prior_dispatch != 'restoration'):
-            from apps.inventory.services.restoration_estimate import (
+            from apps.inventory.services.restoration_request import (
                 SNAPSHOT_KEY,
-                restoration_estimate as checked_estimate,
-                saved_estimate,
+                has_legacy_estimate,
+                restoration_request as checked_request,
+                saved_request,
                 stamped,
             )
 
             if 'restoration' in data:
-                restoration_estimate = checked_estimate(data.get('restoration'))
-                snapshot[SNAPSHOT_KEY] = stamped(restoration_estimate, user)
+                restoration_request = checked_request(data.get('restoration'))
+                snapshot[SNAPSHOT_KEY] = stamped(restoration_request, user)
             else:
-                restoration_estimate = saved_estimate(snapshot) or checked_estimate(None)
+                restoration_request = saved_request(snapshot)
+                if restoration_request is None and not has_legacy_estimate(snapshot):
+                    checked_request(None)
 
         if dispatch:
             snapshot['dispatch'] = dispatch
@@ -1793,6 +1797,7 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
             if restoration_config_present and existing_job is not None:
                 if existing_job.stage != RestorationJob.STAGE_QUEUED:
                     raise ValueError('Restoration values cannot be edited after the job leaves the queue.')
+            had_job = existing_job is not None
             if prior_dispatch != 'restoration' or restoration_config_present:
                 existing_job = create_restoration_job_from_check_in(
                     check_in,
@@ -1800,11 +1805,11 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
                     grade_values=restoration_grade_values,
                     user=user,
                 )
-            if restoration_estimate is not None and existing_job is not None:
+            if restoration_request is not None and existing_job is not None:
                 if existing_job.stage == RestorationJob.STAGE_QUEUED:
-                    from apps.inventory.services.restoration_estimate import note_on_job
+                    from apps.inventory.services.restoration_request import apply_to_job
 
-                    note_on_job(existing_job, restoration_estimate, user)
+                    apply_to_job(existing_job, restoration_request, user, new_job=not had_job)
 
         if histories:
             ItemHistory.objects.bulk_create(histories)

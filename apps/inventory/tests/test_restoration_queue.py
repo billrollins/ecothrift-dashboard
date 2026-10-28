@@ -32,7 +32,7 @@ from apps.inventory.services.restoration import (
     restoration_job_needs_setup,
 )
 
-RESTORATION_ESTIMATE = {'work': ['repair'], 'hours': '1.5', 'value_after': '60'}
+RESTORATION_REQUEST = {'needs': ['repair'], 'done_price': '60'}
 
 FUNCTIONAL_GRADES = {
     'Working': 19.99,
@@ -121,7 +121,7 @@ class RestorationQueueTestBase(TestCase):
                 'quantity': quantity,
                 'condition': 'good',
                 'dispatch': 'restoration',
-                'restoration': RESTORATION_ESTIMATE,
+                'restoration': RESTORATION_REQUEST,
                 'price': price,
                 'retail': retail,
                 'product_mode': 'existing',
@@ -253,7 +253,7 @@ class ProcessingHandoffTests(RestorationQueueTestBase):
                 'quantity': 1,
                 'condition': 'good',
                 'dispatch': 'restoration',
-                'restoration': RESTORATION_ESTIMATE,
+                'restoration': RESTORATION_REQUEST,
                 'price': '19.99',
                 'product_mode': 'existing',
                 'product_id': product.id,
@@ -304,7 +304,7 @@ class RestorationJobApiTests(RestorationQueueTestBase):
                 'quantity': 1,
                 'condition': 'good',
                 'dispatch': 'restoration',
-                'restoration': RESTORATION_ESTIMATE,
+                'restoration': RESTORATION_REQUEST,
                 'price': '19.99',
                 'product_mode': 'existing',
                 'product_id': product.id,
@@ -2015,7 +2015,7 @@ class RestorationDispatchPathTests(RestorationQueueTestBase):
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertTrue(resp.data['valuation_pending'])
         # The check-in's estimate stays first; the question follows it.
-        self.assertTrue(resp.data['queue_note'].startswith('Estimate: repair'), resp.data['queue_note'])
+        self.assertTrue(resp.data['queue_note'].startswith('Asked: repair'), resp.data['queue_note'])
         self.assertTrue(resp.data['queue_note'].endswith('{Sent Back to Queue}: Does this power on at all?'))
         self.assertEqual(resp.data['valuation_request_notes'], 'Does this power on at all?')
         self.assertEqual(resp.data['valuation_requested_grades'], [])

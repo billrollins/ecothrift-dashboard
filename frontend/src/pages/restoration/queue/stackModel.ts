@@ -6,7 +6,7 @@
  * helpers plan splits and decide which cards sit together on a list.
  */
 import type { RestorationJobDTO } from '../../../types/inventory.types';
-import { valuePotential } from './restorationQueueModel';
+import { jobStake } from './restorationQueueModel';
 
 export function isStack(job: Pick<RestorationJobDTO, 'quantity' | 'items'>): boolean {
   return Math.max(job.quantity ?? 0, job.items?.length ?? 0) > 1;
@@ -16,9 +16,9 @@ export function unitCount(job: Pick<RestorationJobDTO, 'quantity' | 'items'>): n
   return Math.max(job.quantity ?? 0, job.items?.length ?? 0, 1);
 }
 
-/** What is riding on the whole stack: per-unit stake times the units. */
+/** What is riding on the whole stack: per-unit stake (done minus as-is, else the grade spread) times the units. */
 export function stackStake(job: RestorationJobDTO): number | null {
-  const each = valuePotential(job);
+  const each = jobStake(job);
   return each == null ? null : each * unitCount(job);
 }
 

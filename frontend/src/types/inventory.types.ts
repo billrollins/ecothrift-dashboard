@@ -558,15 +558,47 @@ export interface ProcessingWorkspaceItemDTO {
   dispute_description: string;
 }
 
-/** The work a Restoration item needs (owner, 2026-10-22). */
-export type RestorationWork = 'test' | 'assemble' | 'repair' | 'salvage';
+/** What a Restoration item needs, which is also the state it is in now (owner, 2026-10-28). */
+export type RestorationNeed = 'test' | 'clean' | 'assemble' | 'repair' | 'check_parts';
 
-/** Every item sent to Restoration carries these (owner, 2026-10-26). Server: `services/restoration_estimate.py`. */
-export interface RestorationEstimatePayload {
-  work: RestorationWork[];
-  hours?: string;
-  parts_cost?: string;
-  value_after: string;
+/** How it sells without that work: untested, dirty, flat-packed, broken (can't repair), parts not checked. */
+export type RestorationEnding = 'untested' | 'dirty' | 'flat_packed' | 'broken' | 'parts_unchecked';
+
+/** Every item sent to Restoration carries this (owner, 2026-10-28). Server: `services/restoration_request.py`. */
+export interface RestorationRequestPayload {
+  needs: RestorationNeed[];
+  /** What it sells for when the work is done (per unit). */
+  done_price: string;
+  /** Typed as-is prices; the server fills the rest from settings. */
+  as_is?: Partial<Record<RestorationEnding, string>>;
+  /** Can't repair: scrap / parts at $0. */
+  broken_scrap?: boolean;
+}
+
+/** `GET /inventory/restoration-request/settings/`: what the as-is prices fill in from. */
+export interface RestorationRequestSettings {
+  as_is_pct: Partial<Record<Exclude<RestorationEnding, 'flat_packed'>, number>>;
+  flat_pack_markup_pct: number;
+  assembly_holdout_pct: number;
+}
+
+/** What the restoration tag says besides the SKU and title (owner, 2026-10-28). No prices. */
+export interface RestorationTagFacts {
+  /** The work in words: Test, Assemble, ... */
+  needs: string[];
+  holdout: boolean;
+  /** ISO date (yyyy-mm-dd) Processing sent it. */
+  sent_on: string;
+  sent_by: string;
+}
+
+/** Queue order (owner, 2026-10-28): expected gain per minute, on jobs still waiting. */
+export interface RestorationPriority {
+  per_minute: number;
+  odds: number;
+  minutes: number;
+  stake: number;
+  from_history: boolean;
 }
 
 export interface ItemCheckInDefaultsDTO extends Record<string, unknown> {
@@ -579,7 +611,7 @@ export interface ItemCheckInDefaultsDTO extends Record<string, unknown> {
   restoration_scale?: string;
   restoration_grade_values?: Record<string, number>;
   processing_handoff?: ProcessingHandoff;
-  restoration_estimate?: Partial<RestorationEstimatePayload> | null;
+  restoration_request?: Partial<RestorationRequestPayload> | null;
 }
 
 export interface ItemCheckInDTO {
@@ -1256,6 +1288,19 @@ export interface RestorationJobDTO {
   value_added: string | null;
   dispositioned_at: string | null;
   processing_handled_at: string | null;
+  /** Processing's request (owner, 2026-10-28). Money is per unit; old jobs have none. */
+  requested_needs?: RestorationNeed[];
+  done_price?: string | null;
+  as_is_prices?: Partial<Record<RestorationEnding, string>>;
+  value_at_stake?: string | null;
+  /** Assembly holdout: sell flat-packed, as is. */
+  holdout?: boolean;
+  /** Restoration's side: what it really needed. */
+  found_needs?: RestorationNeed[];
+  /** Expected gain per minute; null once it leaves the queue, or with no need to go on. */
+  priority?: RestorationPriority | null;
+  /** For Reprint tag on the queue row. */
+  restoration_tag?: RestorationTagFacts;
 }
 
 /** The kinds of work an action can be. */
@@ -1319,6 +1364,8 @@ export interface RestorationJobQueueDetailsPayload {
   intended_destination?: string;
   queue_note?: string;
   starting_grade?: string;
+  /** What Restoration really found (owner, 2026-10-28). */
+  found_needs?: RestorationNeed[];
 }
 
 /** One span of finished work: what it added, over how many hours. */
@@ -1458,6 +1505,8 @@ export interface RestorationJobDonePayload {
   notes?: string;
   spent_parts_cost?: string | number;
   outputs?: RestorationOutputWritePayload[];
+  /** What Restoration really found (owner, 2026-10-28). */
+  found_needs?: RestorationNeed[];
 }
 
 export type RestorationQueueReturnReason = 'not_ready' | 'question' | 'grades';

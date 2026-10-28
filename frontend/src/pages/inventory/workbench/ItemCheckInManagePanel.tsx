@@ -50,14 +50,14 @@ import { WorkbenchCopyableChip } from './WorkbenchCopyableChip';
 import { useWorkbenchConfirmDialog } from './useWorkbenchConfirmDialog';
 import { useWorkbenchSavePrintDialog } from './WorkbenchSavePrintDialog';
 import { normalizeItemSpecObject } from './ItemSpecificationsEditor';
-import { RestorationEstimateFields } from '../restorationEstimate/RestorationEstimateFields';
+import { RestorationRequestFields } from '../restorationRequest/RestorationRequestFields';
 import {
-  EMPTY_ESTIMATE,
-  estimateFromSaved,
-  estimatePayload,
-  estimateProblems,
-  type RestorationEstimateForm,
-} from '../restorationEstimate/restorationEstimate';
+  EMPTY_REQUEST,
+  requestFromSaved,
+  requestPayload,
+  requestProblems,
+  type RestorationRequestForm,
+} from '../restorationRequest/restorationRequest';
 import { IconCopy as ContentCopyOutlinedIcon, IconPrint as LocalPrintshop, IconPrint as LocalPrintshopOutlinedIcon, IconSave as SaveOutlinedIcon } from '../../../icons/ecoIcons';
 
 export interface ItemCheckInManagePanelProps {
@@ -190,24 +190,21 @@ function checkInFormBaseline(checkIn: ItemCheckInCatalog) {
     specifications: normalizeItemSpecObject(
       checkIn.specifications ?? (defaults.specifications as Record<string, unknown> | undefined),
     ),
-    estimate: estimateFromSaved(defaults.restoration_estimate as Parameters<typeof estimateFromSaved>[0]),
+    estimate: requestFromSaved(defaults.restoration_request as Parameters<typeof requestFromSaved>[0]),
   };
 }
 
 /**
- * Every item sent to Restoration carries estimates (owner, 2026-10-26): what still stops a check-in going there.
- * `required` is false for an edit of a check-in already in Restoration (it keeps the estimate it has).
+ * Every item sent to Restoration carries the request (owner, 2026-10-28): what still stops a check-in going there.
+ * `required` is false for an edit of a check-in already in Restoration (it keeps the request or old estimate it has).
  */
 function restorationIssues(
   toRestoration: boolean,
-  estimate: RestorationEstimateForm,
-  { required, quantity }: { required: boolean; quantity?: number },
+  estimate: RestorationRequestForm,
+  { required }: { required: boolean },
 ): string[] {
   if (!toRestoration) return [];
-  return [
-    ...(quantity != null && quantity !== 1 ? ['Restoration takes one item at a time. Set the quantity to 1.'] : []),
-    ...(required ? estimateProblems(estimate) : []),
-  ];
+  return required ? requestProblems(estimate) : [];
 }
 
 function duplicateDraftDefaults() {
@@ -263,7 +260,7 @@ function ItemCheckInEditPanel({
   const [retail, setRetail] = useState('');
   const [notes, setNotes] = useState('');
   const [specifications, setSpecifications] = useState<Record<string, string>>({});
-  const [estimate, setEstimate] = useState<RestorationEstimateForm>(EMPTY_ESTIMATE);
+  const [estimate, setEstimate] = useState<RestorationRequestForm>(EMPTY_REQUEST);
   const [selectedOrder, setSelectedOrder] = useState<ProductCheckInOrderOption | null>(null);
   const [isDuplicateDraft, setIsDuplicateDraft] = useState(false);
   const [duplicateVolumeConfirm, setDuplicateVolumeConfirm] = useState<boolean | null>(null);
@@ -337,9 +334,9 @@ function ItemCheckInEditPanel({
   }, [baseline, quantity, selectedOrder, condition, dispatch, price, retail, notes, specifications, estimate]);
 
   const toRestoration = !salvageLocked && dispatch === 'restoration';
-  const estimateReady = estimateProblems(estimate).length === 0;
+  const estimateReady = requestProblems(estimate).length === 0;
   const saveIssues = restorationIssues(toRestoration, estimate, { required: baseline?.dispatch !== 'restoration' });
-  const duplicateIssues = restorationIssues(toRestoration, estimate, { required: true, quantity: qtyValue });
+  const duplicateIssues = restorationIssues(toRestoration, estimate, { required: true });
 
   const saveMutation = useMutation({
     mutationFn: async ({ printAfterSave }: { printAfterSave: boolean }) => {
@@ -355,7 +352,7 @@ function ItemCheckInEditPanel({
         retail: retail.trim() || null,
         notes,
         specifications,
-        ...(toRestoration && estimateReady ? { restoration: estimatePayload(estimate) } : {}),
+        ...(toRestoration && estimateReady ? { restoration: requestPayload(estimate) } : {}),
       };
       const { data } = await processingUpdateItemCheckIn(checkIn.purchase_order, checkIn.id, payload);
       return { data, printAfterSave, savedPrice: price.trim() || undefined };
@@ -443,7 +440,7 @@ function ItemCheckInEditPanel({
           retail: retail.trim() || undefined,
           notes: notes.trim() || undefined,
           specifications,
-          ...(toRestoration ? { restoration: estimatePayload(estimate) } : {}),
+          ...(toRestoration ? { restoration: requestPayload(estimate) } : {}),
         },
         async (body) => (await productCheckIn(productId, body)).data,
         retailCheck.ask,
@@ -816,7 +813,7 @@ function ItemCheckInEditPanel({
         />
         {toRestoration ?
           <Box sx={{ mt: 1 }}>
-            <RestorationEstimateFields
+            <RestorationRequestFields
               value={estimate}
               onChange={setEstimate}
               disabled={saveMutation.isPending || duplicateMutation.isPending}
@@ -965,7 +962,7 @@ function ItemCheckInCreatePanel({
   const [retail, setRetail] = useState('');
   const [notes, setNotes] = useState('');
   const [specifications, setSpecifications] = useState<Record<string, string>>({});
-  const [estimate, setEstimate] = useState<RestorationEstimateForm>(EMPTY_ESTIMATE);
+  const [estimate, setEstimate] = useState<RestorationRequestForm>(EMPTY_REQUEST);
   const [createVolumeConfirm, setCreateVolumeConfirm] = useState<boolean | null>(null);
   const [createRetailConfirmOpen, setCreateRetailConfirmOpen] = useState(false);
   const [createPendingPrint, setCreatePendingPrint] = useState(false);
@@ -981,7 +978,7 @@ function ItemCheckInCreatePanel({
     setRetail(cleared.retail);
     setNotes(cleared.notes);
     setSpecifications(cleared.specifications);
-    setEstimate(EMPTY_ESTIMATE);
+    setEstimate(EMPTY_REQUEST);
   }, [productId]);
 
   const productQuery = useQuery({
@@ -999,7 +996,7 @@ function ItemCheckInCreatePanel({
   const qtyValue = useMemo(() => parseCheckInQty(quantity), [quantity]);
   const salvageLocked = condition === 'salvage';
   const toRestoration = !salvageLocked && dispatch === 'restoration';
-  const createIssues = restorationIssues(toRestoration, estimate, { required: true, quantity: qtyValue });
+  const createIssues = restorationIssues(toRestoration, estimate, { required: true });
   const canCreate = showForm && isValidCheckInPrice(price) && createIssues.length === 0;
 
   const createMutation = useMutation({
@@ -1017,7 +1014,7 @@ function ItemCheckInCreatePanel({
           retail: retail.trim() || undefined,
           notes: notes.trim() || undefined,
           specifications,
-          ...(toRestoration ? { restoration: estimatePayload(estimate) } : {}),
+          ...(toRestoration ? { restoration: requestPayload(estimate) } : {}),
         },
         async (body) => (await productCheckIn(product.id, body)).data,
         retailCheck.ask,
@@ -1304,7 +1301,7 @@ function ItemCheckInCreatePanel({
             />
             {toRestoration ?
               <Box sx={{ mt: 1 }}>
-                <RestorationEstimateFields value={estimate} onChange={setEstimate} disabled={createMutation.isPending} showProblem />
+                <RestorationRequestFields value={estimate} onChange={setEstimate} disabled={createMutation.isPending} showProblem />
                 {createIssues.filter((m) => m.startsWith('Restoration takes')).map((m) => (
                   <Typography key={m} variant="caption" color="warning.main" component="div" sx={{ mt: 0.5 }}>{m}</Typography>
                 ))}

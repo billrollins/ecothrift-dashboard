@@ -8591,6 +8591,16 @@ def store_report_view(request):
     })
 
 
+def _save_found_needs(job, data) -> None:
+    """What Restoration really found (owner, 2026-10-28), when the Finish sends it."""
+    if 'found_needs' not in data:
+        return
+    from apps.inventory.services.restoration_request import NEEDS
+
+    job.found_needs = [n for n in NEEDS if n in set(data['found_needs'])]
+    job.save(update_fields=['found_needs', 'updated_at'])
+
+
 class RestorationJobViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
@@ -9052,6 +9062,7 @@ class RestorationJobViewSet(
         ser = RestorationJobDoneSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         try:
+            _save_found_needs(job, ser.validated_data)
             job = complete_restoration_job(
                 job,
                 destination=ser.validated_data['destination'],
@@ -9109,6 +9120,7 @@ class RestorationJobViewSet(
         ser = RestorationJobDoneSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         try:
+            _save_found_needs(job, ser.validated_data)
             job = fix_restoration_finish(
                 job,
                 destination=ser.validated_data['destination'],
@@ -9354,10 +9366,10 @@ class RestorationJobViewSet(
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             if job.stage == RestorationJob.STAGE_DONE:
-                extra = set(request.data) - {'queue_note'}
+                extra = set(request.data) - {'queue_note', 'found_needs'}
                 if extra:
                     return Response(
-                        {'detail': 'Only the note can still change on a finished item.'},
+                        {'detail': 'Only the note and what it really needed can still change on a finished item.'},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
             ser = RestorationJobQueueDetailsSerializer(
@@ -9381,6 +9393,11 @@ class RestorationJobViewSet(
             if 'queue_note' in data:
                 job.queue_note = data['queue_note']
                 update_fields.append('queue_note')
+            if 'found_needs' in data:
+                from apps.inventory.services.restoration_request import NEEDS
+
+                job.found_needs = [n for n in NEEDS if n in set(data['found_needs'])]
+                update_fields.append('found_needs')
             if 'starting_grade' in data:
                 job.starting_grade = str(data['starting_grade'] or '').strip()[:64]
                 update_fields.append('starting_grade')

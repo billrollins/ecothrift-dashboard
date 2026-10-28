@@ -40,14 +40,14 @@ import { isLargeCheckIn, MAX_CHECK_IN_QUANTITY } from './largeCheckIn';
 import { processingTokens } from './processingTokens';
 import { ProcessingCheckInEditStats, ProductSummaryCard } from './ProcessingCheckInEditStats';
 import { useWorkbenchConfirmDialog } from '../workbench/useWorkbenchConfirmDialog';
-import { RestorationEstimateFields } from '../restorationEstimate/RestorationEstimateFields';
+import { RestorationRequestFields } from '../restorationRequest/RestorationRequestFields';
 import {
-  EMPTY_ESTIMATE,
-  estimateFromSaved,
-  estimatePayload,
-  estimateProblems,
-  type RestorationEstimateForm,
-} from '../restorationEstimate/restorationEstimate';
+  EMPTY_REQUEST,
+  requestFromSaved,
+  requestPayload,
+  requestProblems,
+  type RestorationRequestForm,
+} from '../restorationRequest/restorationRequest';
 import { IconAdd as Add, IconClose as Close, IconPrint as LocalPrintshop, IconRemove as Remove } from '../../../icons/ecoIcons';
 
 const MAX_CHECK_IN_QTY = MAX_CHECK_IN_QUANTITY;
@@ -201,7 +201,7 @@ export function ProcessingCheckInDialog({
   const [price, setPrice] = useState(row.price ?? '');
   const [notes, setNotes] = useState('');
   const [specifications, setSpecifications] = useState<Record<string, string>>({});
-  const [estimate, setEstimate] = useState<RestorationEstimateForm>(EMPTY_ESTIMATE);
+  const [estimate, setEstimate] = useState<RestorationRequestForm>(EMPTY_REQUEST);
   const [volumeConfirm, setVolumeConfirm] = useState<boolean | null>(null);
   const { confirm, ConfirmDialogHost } = useWorkbenchConfirmDialog();
 
@@ -219,13 +219,12 @@ export function ProcessingCheckInDialog({
   );
   const salvageLocked = condition === 'salvage';
   const busy = loading || productQuery.isFetching;
-  // Every item sent to Restoration carries estimates (owner, 2026-10-26). An edit of a check-in already in
-  // Restoration keeps the estimate it has, so it is only required when the check-in goes there now.
+  // Every item sent to Restoration carries the request (owner, 2026-10-28). An edit of a check-in already in
+  // Restoration keeps the request (or old estimate) it has, so it is only required when the check-in goes there now.
   const toRestoration = !salvageLocked && dispatch === 'restoration';
   const alreadyRestoration = isEditMode && strDefault(editCheckIn?.defaults?.dispatch) === 'restoration';
-  const estimateIssues = toRestoration ? estimateProblems(estimate) : [];
+  const estimateIssues = toRestoration ? requestProblems(estimate) : [];
   const restorationIssues = [
-    ...(toRestoration && !isEditMode && qtyValue !== 1 ? ['Restoration takes one item at a time. Set the quantity to 1.'] : []),
     ...(alreadyRestoration ? [] : estimateIssues),
   ];
 
@@ -239,7 +238,7 @@ export function ProcessingCheckInDialog({
     setPrice(seed?.item.price ?? (strDefault(defaults.price) || scaledRowPrice || ''));
     setNotes(strDefault(defaults.notes) || seed?.item.notes || row.manifestNotes || '');
     setSpecifications(defaults.specifications ?? {});
-    setEstimate(estimateFromSaved(defaults.restoration_estimate));
+    setEstimate(requestFromSaved(defaults.restoration_request));
     setVolumeConfirm(null);
   }, [open, seed, editCheckIn, row, scaledRowRetail, scaledRowPrice]);
 
@@ -274,7 +273,7 @@ export function ProcessingCheckInDialog({
       price: price || undefined,
       notes,
       specifications,
-      ...(toRestoration && !estimateIssues.length ? { restoration: estimatePayload(estimate) } : {}),
+      ...(toRestoration && !estimateIssues.length ? { restoration: requestPayload(estimate) } : {}),
     };
   }
 
@@ -432,7 +431,7 @@ export function ProcessingCheckInDialog({
               highlightRequired={!isEditMode}
             />
             {toRestoration ?
-              <RestorationEstimateFields value={estimate} onChange={setEstimate} disabled={busy} />
+              <RestorationRequestFields value={estimate} onChange={setEstimate} disabled={busy} />
             : null}
           </Stack>
         )}

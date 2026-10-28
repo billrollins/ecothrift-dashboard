@@ -1,6 +1,8 @@
 import type { PaginatedResponse } from '../types/index';
 import type {
-  RestorationEstimatePayload,
+  RestorationRequestPayload,
+  RestorationRequestSettings,
+  RestorationTagFacts,
   Vendor,
   PurchaseOrder,
   PurchaseOrderDetailSurface,
@@ -1293,6 +1295,8 @@ export interface PrintedItemPreview {
   product_number: string | null;
   /** Retail the tag may show; null prints none (tags.retail_on_tag). */
   tag_retail?: string | null;
+  /** Going to Restoration: it gets the restoration tag instead of the price tag (owner, 2026-10-28). */
+  restoration_tag?: RestorationTagFacts;
 }
 
 export interface ProcessingPrintAndCheckInResponse {
@@ -1362,7 +1366,7 @@ export interface ProcessingCheckInPayload {
   restoration_grade_values?: Record<string, number>;
   processing_handoff?: ProcessingHandoff;
   /** Required when dispatch is restoration (owner, 2026-10-26). */
-  restoration?: RestorationEstimatePayload;
+  restoration?: RestorationRequestPayload;
 }
 
 export interface ProcessingRowCheckInPayload extends ProcessingCheckInPayload {
@@ -1402,7 +1406,7 @@ export interface ProcessingCheckInTogetherPayload {
   dispatch?: string;
   price?: string;
   notes?: string;
-  restoration?: RestorationEstimatePayload;
+  restoration?: RestorationRequestPayload;
 }
 
 export interface ProcessingCheckInTogetherResponse {
@@ -1920,7 +1924,7 @@ export interface ProductCheckInPayload {
   /** The answer to a 409 retail check (RetailCheckDialog). */
   retail_check?: 'confirm' | 'fix' | 'none';
   /** Required when dispatch is restoration (owner, 2026-10-26). */
-  restoration?: RestorationEstimatePayload;
+  restoration?: RestorationRequestPayload;
 }
 
 export interface ProductCheckInResponse {
@@ -2363,6 +2367,11 @@ export function listRestorationJobs(params?: {
 
 export function getRestorationJob(id: number): Promise<{ data: RestorationJobDTO }> {
   return api.get(`/inventory/restoration-jobs/${id}/`);
+}
+
+/** What the Send-to-Restoration as-is prices fill in from (owner settings). */
+export function getRestorationRequestSettings(): Promise<{ data: RestorationRequestSettings }> {
+  return api.get('/inventory/restoration-request/settings/');
 }
 
 export function lookupRestorationScan(q: string): Promise<{ data: RestorationScanLookupDTO }> {

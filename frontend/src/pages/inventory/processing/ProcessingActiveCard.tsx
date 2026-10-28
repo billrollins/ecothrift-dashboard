@@ -60,7 +60,7 @@ import { isTaxonomyV1CategoryName, TAXONOMY_V1_CATEGORY_NAMES } from '../../../c
 import { ProcessingGoogleSearchButton } from './ProcessingGoogleSearchButton';
 import { parseSearchTagsCsv } from './processingGoogleQuery';
 import { ProcessingCheckInDialog, type ProcessingCheckInSeed } from './ProcessingCheckInDialog';
-import { RestorationEstimateDialog } from '../restorationEstimate/RestorationEstimateDialog';
+import { RestorationRequestDialog } from '../restorationRequest/RestorationRequestDialog';
 import { ProcessingRowSection } from './ProcessingRowSection';
 import { processingTokens } from './processingTokens';
 import { ManifestFieldNavContext, ManifestFieldNavProvider, type ManifestFieldId } from './manifestFieldNav';
@@ -1400,7 +1400,7 @@ export function ProcessingActiveCard({
   const [restartSummary, setRestartSummary] = useState<ProcessingRestartSummary | null>(null);
   const patchItem = useProcessingPatchItem(orderId);
   const [checkInOpen, setCheckInOpen] = useState(false);
-  /** A check-in the Goes-to dropdown is sending to Restoration: it waits for the estimates. */
+  /** A check-in the Goes-to dropdown is sending to Restoration: it waits for the request. */
   const [restorationTarget, setRestorationTarget] = useState<CheckedInHistoryRow | null>(null);
   const [checkInSeed, setCheckInSeed] = useState<ProcessingCheckInSeed | null>(null);
   const [checkInProductId, setCheckInProductId] = useState<number | null>(null);
@@ -1770,7 +1770,7 @@ export function ProcessingActiveCard({
     value: string,
   ) {
     if (field === 'dispatch' && value === 'restoration') {
-      // Restoration needs the estimates and a job, so the whole check-in goes (owner, 2026-10-26).
+      // Restoration needs the request and a job, so the whole check-in goes (owner, 2026-10-28).
       if (target.itemCheckInId == null) {
         enqueueSnackbar('Open this check-in to send it to Restoration.', { variant: 'warning' });
         return;
@@ -2404,7 +2404,7 @@ export function ProcessingActiveCard({
 
       </Box>
 
-      <RestorationEstimateDialog
+      <RestorationRequestDialog
         open={restorationTarget != null}
         busy={updateItemCheckIn.isPending}
         onCancel={() => setRestorationTarget(null)}

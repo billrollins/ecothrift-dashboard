@@ -24,13 +24,13 @@ import {
   PROCESSING_ITEM_DISPATCH_OPTIONS,
 } from './processingItemFormOptions';
 import { queueTitleText } from './processingQueueCellText';
-import { RestorationEstimateFields } from '../restorationEstimate/RestorationEstimateFields';
+import { RestorationRequestFields } from '../restorationRequest/RestorationRequestFields';
 import {
-  EMPTY_ESTIMATE,
-  estimatePayload,
-  estimateProblems,
-  type RestorationEstimateForm,
-} from '../restorationEstimate/restorationEstimate';
+  EMPTY_REQUEST,
+  requestPayload,
+  requestProblems,
+  type RestorationRequestForm,
+} from '../restorationRequest/restorationRequest';
 
 export interface CheckInTogetherDialogProps {
   open: boolean;
@@ -51,7 +51,7 @@ export function CheckInTogetherDialog({ open, rows, loading, onClose, onSubmit }
   const [price, setPrice] = useState('');
   const [notes, setNotes] = useState('');
   const [qtyByRowId, setQtyByRowId] = useState<Record<number, string>>({});
-  const [estimate, setEstimate] = useState<RestorationEstimateForm>(EMPTY_ESTIMATE);
+  const [estimate, setEstimate] = useState<RestorationRequestForm>(EMPTY_REQUEST);
 
   useEffect(() => {
     if (!open) return;
@@ -65,7 +65,7 @@ export function CheckInTogetherDialog({ open, rows, loading, onClose, onSubmit }
     setDispatch(first?.dispatch || 'on_shelf');
     setPrice(first?.price ?? '');
     setNotes('');
-    setEstimate(EMPTY_ESTIMATE);
+    setEstimate(EMPTY_REQUEST);
   }, [open, rows]);
 
   const totalUnits = useMemo(
@@ -78,14 +78,9 @@ export function CheckInTogetherDialog({ open, rows, loading, onClose, onSubmit }
     [rows, qtyByRowId],
   );
 
-  // Every item sent to Restoration carries estimates, one item per row (owner, 2026-10-26).
+  // Every item sent to Restoration carries the request (owner, 2026-10-28); a stack is one job.
   const toRestoration = dispatch === 'restoration';
-  const problems = toRestoration
-    ? [
-      ...(totalUnits !== rows.length ? ['Restoration takes one item at a time. Set each quantity to 1.'] : []),
-      ...estimateProblems(estimate),
-    ]
-    : [];
+  const problems = toRestoration ? requestProblems(estimate) : [];
 
   const buildPayload = (): Record<string, unknown> | null => {
     if (productId == null) return null;
@@ -103,7 +98,7 @@ export function CheckInTogetherDialog({ open, rows, loading, onClose, onSubmit }
       dispatch,
       price: price.trim() || undefined,
       notes: notes.trim() || undefined,
-      ...(toRestoration ? { restoration: estimatePayload(estimate) } : {}),
+      ...(toRestoration ? { restoration: requestPayload(estimate) } : {}),
     };
   };
 
@@ -175,7 +170,7 @@ export function CheckInTogetherDialog({ open, rows, loading, onClose, onSubmit }
         </Box>
         {toRestoration ?
           <Box sx={{ mb: 2 }}>
-            <RestorationEstimateFields value={estimate} onChange={setEstimate} disabled={loading} />
+            <RestorationRequestFields value={estimate} onChange={setEstimate} disabled={loading} />
           </Box>
         : null}
         <Table size="small">

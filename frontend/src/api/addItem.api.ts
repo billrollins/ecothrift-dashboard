@@ -1,6 +1,6 @@
 import api from './client';
 import type { PrintedItemPreview } from './inventory.api';
-import type { ItemCondition, RestorationEstimatePayload } from '../types/inventory.types';
+import type { ItemCondition, RestorationRequestPayload } from '../types/inventory.types';
 
 /**
  * Add item (Find item > Add item, 2026-10-22): Misfit items, added with no purchase order.
@@ -90,7 +90,7 @@ export interface NewProductSpec {
 }
 
 export type AddItemDestination = 'floor' | 'back_stock' | 'restoration';
-export type { RestorationWork } from '../types/inventory.types';
+export type { RestorationNeed } from '../types/inventory.types';
 
 export interface AddItemCheckInPayload {
   product_id?: number;
@@ -104,7 +104,7 @@ export interface AddItemCheckInPayload {
   retail_source?: 'typed' | 'estimate';
   retail_check?: 'confirm' | 'fix' | 'none';
   notes?: string;
-  restoration?: RestorationEstimatePayload;
+  restoration?: RestorationRequestPayload;
 }
 
 export interface AddItemCheckInResult {

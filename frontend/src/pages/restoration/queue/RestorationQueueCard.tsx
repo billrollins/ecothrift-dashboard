@@ -9,11 +9,15 @@
  * The left edge is coloured by which list the item is in, so a glance tells you
  * where you are without reading the tab.
  */
+import PrintOutlined from '@mui/icons-material/PrintOutlined';
 import Box from '@mui/material/Box';
+import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { useMemo, useState, type ReactNode } from 'react';
+import { useSnackbar } from 'notistack';
+import { printRestorationTags } from '../../inventory/processing/printProcessingLabel';
 import { ItemNotesDrawer } from '../../../components/notes/ItemNotesDrawer';
 import { JobNotesSlot } from '../../../components/notes/JobNotesSlot';
 import { NotesBadge } from '../../../components/notes/NotesBadge';
@@ -41,7 +45,9 @@ import {
   benchOwnerLine,
   jobRetail,
   retailPercentToDollars,
-  valuePotential,
+  formatPerMinute,
+  jobPerMinute,
+  jobStake,
 } from './restorationQueueModel';
 
 export interface QueueEdit {
@@ -66,6 +72,45 @@ const SECTION_RULE = studio.rule;
 const CARD_HOVER_SHADOW = '0 4px 10px rgba(0,0,0,0.14), 0 2px 4px rgba(0,0,0,0.10)';
 /** Two card edges peeking out behind a stack. Shadows, so the card keeps its size. */
 const STACK_EDGES = `4px 4px 0 -1.5px ${studio.panel}, 4px 4px 0 0 ${studio.panelBorder}, 8px 8px 0 -1.5px ${studio.panel}, 8px 8px 0 0 ${studio.panelBorder}`;
+
+/**
+ * Reprint the restoration tag (owner, 2026-10-28): one per unit, while the item is still in Restoration.
+ * A button, so a click never opens the row's history.
+ */
+function ReprintTagButton({ job }: { job: RestorationJobDTO }) {
+  const { enqueueSnackbar } = useSnackbar();
+  const [printing, setPrinting] = useState(false);
+  const facts = job.restoration_tag;
+  if (!facts || job.stage === 'done' || job.stage === 'returned') return null;
+  const units = job.items.length > 0 ? job.items : [{ id: undefined, sku: job.sku }];
+  return (
+    <Tooltip arrow title={units.length > 1 ? `Reprint the restoration tags (${units.length})` : 'Reprint the restoration tag'}>
+      <span>
+        <IconButton
+          size="small"
+          aria-label="Reprint restoration tag"
+          disabled={printing}
+          sx={{ p: 0.25, ml: -0.25, color: studio.inkMuted }}
+          onClick={async () => {
+            setPrinting(true);
+            const res = await printRestorationTags(
+              units.map((u) => ({ id: u.id, sku: u.sku ?? '', title: job.name, restoration_tag: facts })),
+            );
+            setPrinting(false);
+            enqueueSnackbar(
+              res.failed === 0
+                ? `Restoration tag printed${res.succeeded > 1 ? ` (${res.succeeded})` : ''}.`
+                : 'The restoration tag did not print. Check the print server (it needs 1.4.1 or newer), then try again.',
+              { variant: res.failed === 0 ? 'success' : 'warning' },
+            );
+          }}
+        >
+          <PrintOutlined sx={{ fontSize: 16 }} />
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
+}
 
 /** Row background opens history. Edits and Dispatch stay edits. */
 export function isQueueHistorySelectTarget(target: EventTarget | null): boolean {
@@ -118,8 +163,9 @@ export function RestorationQueueCard({
   const noteLocked = Boolean(busy);
   const stacked = isStack(job);
   const units = unitCount(job);
-  const potential = stacked ? stackStake(job) : valuePotential(job);
-  const eachPotential = valuePotential(job);
+  const potential = stacked ? stackStake(job) : jobStake(job);
+  const eachPotential = jobStake(job);
+  const perMinute = jobPerMinute(job);
   const stale = isStale(job);
   const firstSku = job.items[0]?.sku ?? job.sku ?? `Job ${job.id}`;
   const sku = stacked ? `${firstSku} +${units - 1}` : firstSku;
@@ -241,6 +287,7 @@ export function RestorationQueueCard({
             alignItems="baseline"
             sx={{ minWidth: 0 }}
           >
+            <ReprintTagButton job={job} />
             <Typography
               component="span"
               sx={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '0.74rem', color: accent }}
@@ -295,6 +342,16 @@ export function RestorationQueueCard({
             }}
           >
             retail {job.retail ? fmtUsd(Number(job.retail)) : '-'}
+            {job.holdout ? (
+              <Box
+                component="span"
+                title="Assembly holdout: picked at random to sell flat-packed, as is. Send it to the floor without assembling."
+                sx={{ ml: 0.75, px: 0.6, borderRadius: 0.75, bgcolor: '#fff3e0', color: '#b45309',
+                  border: '1px solid #f59e0b', fontWeight: 900, fontSize: '0.62rem', letterSpacing: 0.4 }}
+              >
+                HOLDOUT · SELL FLAT-PACKED
+              </Box>
+            ) : null}
           </Typography>
         </Stack>
       </QueueSection>
@@ -404,11 +461,11 @@ export function RestorationQueueCard({
       <QueueSection>
         <Tooltip
           arrow
-          title={
-            stacked
-              ? `Best grade minus worst, times ${units} units. What is on the table for the whole stack.`
-              : 'Best grade minus worst. What is on the table if the work goes well, against doing nothing.'
-          }
+          title={`${job.value_at_stake != null
+            ? 'Done price minus the as-is price'
+            : 'Best grade minus worst'}${stacked ? `, times ${units} units` : ''}. ${perMinute != null
+            ? `${formatPerMinute(perMinute)} (per unit): that x ${Math.round((job.priority?.odds ?? 0) * 100)}% odds over about ${job.priority?.minutes ?? 0} min${job.priority?.from_history ? ' (from past jobs)' : ' (starting numbers)'}.`
+            : ''}`}
         >
           <Stack spacing={0} sx={{ alignItems: { xs: 'flex-start', lg: 'center' }, cursor: 'help' }}>
             <Typography
@@ -424,6 +481,13 @@ export function RestorationQueueCard({
             </Typography>
             <Typography sx={{ fontSize: '0.62rem', color: studio.inkLabel, fontWeight: 800, letterSpacing: 0.4 }}>
               {stacked && eachPotential != null ? `AT STAKE · ${fmtUsd(eachPotential)} EA` : 'AT STAKE'}
+            </Typography>
+            <Typography
+              aria-label="Expected gain per minute"
+              sx={{ fontFamily: 'monospace', fontSize: '0.7rem', fontWeight: 800, lineHeight: '16px',
+                color: perMinute == null ? studio.inkFaint : studio.accentDark }}
+            >
+              {perMinute == null ? ' ' : formatPerMinute(perMinute)}
             </Typography>
           </Stack>
         </Tooltip>

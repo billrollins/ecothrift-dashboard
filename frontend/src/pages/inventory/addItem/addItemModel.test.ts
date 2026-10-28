@@ -34,20 +34,15 @@ describe('check-in form', () => {
     expect(buildCheckInPayload(copied, { ...form, price: '30', retail: '80', retailFrom: 'typed' }).retail_source).toBe('typed');
   });
 
-  it('needs a price, and restoration needs its estimates and one item', () => {
+  it('needs a price, and restoration needs its request (a stack is fine)', () => {
     const form = { ...initialCheckIn(existing), price: '' };
     expect(checkInProblems(form)).toEqual(['Enter the price.']);
     const resto = { ...form, price: '30', destination: 'restoration' as const, quantity: '2' };
-    expect(checkInProblems(resto)).toEqual([
-      'Restoration takes one item at a time.', 'Pick the work it needs.', 'Give the hours or the parts cost.',
-      'Give what it is worth after the work.',
-    ]);
-    const ready = { ...resto, quantity: '1', work: ['repair' as const], partsCost: '15', valueAfter: '60' };
+    expect(checkInProblems(resto)).toEqual(['Pick what it needs.', 'Give the done price.']);
+    const ready = { ...resto, needs: ['repair' as const], donePrice: '60' };
     expect(checkInProblems(ready)).toEqual([]);
-    expect(buildCheckInPayload(existing, ready).restoration).toEqual({
-      work: ['repair'], hours: undefined, parts_cost: '15', value_after: '60',
-    });
-    expect(buildCheckInPayload(existing, { ...ready, quantity: '5' }).quantity).toBe(1);
+    expect(buildCheckInPayload(existing, ready).restoration).toEqual({ needs: ['repair'], done_price: '60' });
+    expect(buildCheckInPayload(existing, ready).quantity).toBe(2);
   });
 
   it('shows the price as a share of retail', () => {

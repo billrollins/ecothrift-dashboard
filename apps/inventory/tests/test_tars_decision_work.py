@@ -6,7 +6,7 @@ from apps.inventory.models import Item, ItemCheckIn, RestorationJob
 from apps.inventory.services.restoration import queue_add_restoration_item
 from apps.inventory.tests.test_restoration_queue import (
     FUNCTIONAL_GRADES,
-    RESTORATION_ESTIMATE,
+    RESTORATION_REQUEST,
     RestorationQueueTestBase,
 )
 
@@ -129,7 +129,7 @@ class TarsProcessingHandoffTests(RestorationQueueTestBase):
                 'quantity': 1,
                 'condition': 'good',
                 'dispatch': 'restoration',
-                'restoration': RESTORATION_ESTIMATE,
+                'restoration': RESTORATION_REQUEST,
                 'price': '19.99',
                 'retail': '49.99',
                 'product_mode': 'existing',
@@ -184,7 +184,7 @@ class TarsProcessingHandoffTests(RestorationQueueTestBase):
                 'quantity': 1,
                 'condition': 'good',
                 'dispatch': 'restoration',
-                'restoration': RESTORATION_ESTIMATE,
+                'restoration': RESTORATION_REQUEST,
                 'product_mode': 'existing',
                 'product_id': product.id,
                 'restoration_scale': 'Functional',

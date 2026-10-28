@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .api_add_item import (
     add_item_ai_fill_view, add_item_check_in_view, add_item_find_view, add_item_price_view, add_item_taxonomy_view,
+    restoration_request_settings_view,
 )
 from .api_bulk_price import (
     bulk_labels_view, bulk_price_apply_view, bulk_price_detail_view, bulk_price_list_view, bulk_price_preview_view,
@@ -56,6 +57,7 @@ urlpatterns = [
     path('add-item/taxonomy/', add_item_taxonomy_view, name='add-item-taxonomy'),
     path('add-item/ai-fill/', add_item_ai_fill_view, name='add-item-ai-fill'),
     path('add-item/check-in/', add_item_check_in_view, name='add-item-check-in'),
+    path('restoration-request/settings/', restoration_request_settings_view, name='restoration-request-settings'),
     path('bulk-price/', bulk_price_list_view, name='bulk-price-list'),
     path('bulk-price/preview/', bulk_price_preview_view, name='bulk-price-preview'),
     path('bulk-price/apply/', bulk_price_apply_view, name='bulk-price-apply'),

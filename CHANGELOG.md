@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.224.0] -->
-<!-- Last reviewed: 2026-10-28 (2.224.0) -->
+<!-- Line 1 release: ## [2.225.0] -->
+<!-- Last reviewed: 2026-10-28 (2.225.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.225.0] - 2026-10-28
+
+User-facing theme: **The new Processing → Restoration request and the restoration tag (Bill, 2026-10-28).** Fix-it lane P5.
+
+### Changed
+- Sending an item to Restoration now asks what it needs (Test, Clean, Assemble, Repair, Check parts) and one price: what it sells for when done. The as-is prices fill in from settings, and you can change any of them. No more hours, parts or value-after guesses from Processing.
+- The Restoration queue now lists the best use of a minute first ($/min under At stake). Click any header to sort another way.
+- One in ten Assemble items (a setting) is picked at random to sell flat-packed, as is. The queue marks it HOLDOUT, so we can compare price and days to sell later.
+
+### Added
+- Items sent to Restoration now print a restoration tag instead of the green price tag: a black RESTORATION band, the scannable SKU, the work in big words, and the date sent and who sent it. No price.
+- Reprint a restoration tag from the print icon on the Restoration queue row.
+- On the Bench, a quick "What did you find?" pick (starting from what Processing asked) records what each item really needed; you can change it at Finish.
 
 ## [2.224.0] - 2026-10-28
 

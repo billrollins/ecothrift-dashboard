@@ -534,13 +534,13 @@ def _money(value, label: str, *, required: bool = False) -> Decimal | None:
 
 
 def restoration_estimate(raw: Any) -> dict[str, Any]:
-    """Restoration needs estimates (owner, 2026-10-22): the work, hours or parts cost, and the value after.
-    The rule is Processing's (`services/restoration_estimate.py`); here it answers as an AddItemError."""
-    from apps.inventory.services.restoration_estimate import RestorationEstimateError, restoration_estimate as checked
+    """Restoration needs the request (owner, 2026-10-28): what it needs and the done price; as-is prices fill in.
+    The rule is Processing's (`services/restoration_request.py`); here it answers as an AddItemError."""
+    from apps.inventory.services.restoration_request import RestorationRequestError, restoration_request as checked
 
     try:
         return checked(raw)
-    except RestorationEstimateError as e:
+    except RestorationRequestError as e:
         raise AddItemError(str(e)) from e
 
 

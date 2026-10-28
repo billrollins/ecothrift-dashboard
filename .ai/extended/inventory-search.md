@@ -56,9 +56,8 @@ item list's Add item (removed in v2.202.0). A modal (full screen on a phone), bu
    `back_storage`, `restoration`), the price (`suggest_price`: the median this product sold for once it has 2 sales,
    else what similar products sold for, by stored vector when the product has one, else by title), the retail
    through the same retail check as Processing (an AI or copied retail is an estimate, so it is asked about).
-   **Restoration needs estimates**: the work (test / assemble / repair / salvage), hours or parts cost, and the
-   value after; they go on the job's queue note and `defaults_snapshot.restoration_estimate`, then the usual Grade
-   for Restoration dialog opens.
+   **Restoration needs the request** (2026-10-28): what it needs and the done price; the as-is prices fill in
+   (`restoration.md`). It goes on the job and its queue note, then the usual Grade for Restoration dialog opens.
 4. **Tags print** the Processing way. Items are on the year's Misfit order (`MISFIT-<year>`, vendor MIS, made on
    first use, no cost: item cost stays unknown), source `misfit`, with who and when.
 

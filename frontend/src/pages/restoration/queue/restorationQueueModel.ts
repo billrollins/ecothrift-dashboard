@@ -112,6 +112,26 @@ export function valuePotential(job: RestorationJobDTO): number | null {
   return Math.max(...values) - Math.min(...values);
 }
 
+/**
+ * What is at stake on the row: Processing's done price minus the as-is price (owner, 2026-10-28), else the grade
+ * spread for older jobs.
+ */
+export function jobStake(job: RestorationJobDTO): number | null {
+  const stored = job.value_at_stake == null ? Number.NaN : Number(job.value_at_stake);
+  return Number.isFinite(stored) ? stored : valuePotential(job);
+}
+
+/** Expected gain per minute (stake x success odds / typical minutes), from the server. Null when it has none. */
+export function jobPerMinute(job: RestorationJobDTO): number | null {
+  const n = job.priority?.per_minute;
+  return typeof n === 'number' && Number.isFinite(n) ? n : null;
+}
+
+export function formatPerMinute(n: number | null): string {
+  if (n == null) return '-';
+  return n >= 10 ? `$${n.toFixed(0)}/min` : `$${n.toFixed(2)}/min`;
+}
+
 /** Vendor retail on the job, when it is a real positive amount. */
 export function jobRetail(job: Pick<RestorationJobDTO, 'retail'>): number | null {
   const n = Number(job.retail);
@@ -195,6 +215,7 @@ export const QUEUE_SORT_FIELDS = [
   'scale',
   'prices',
   'stake',
+  'priority',
   'waiting',
 ] as const;
 
@@ -202,11 +223,11 @@ export type QueueSortField = (typeof QUEUE_SORT_FIELDS)[number];
 export type QueueSortDir = 'asc' | 'desc';
 export type QueueSort = { field: QueueSortField; dir: QueueSortDir };
 
-/** Oldest at the top. Clicking Waiting again flips to newest first. */
-export const DEFAULT_QUEUE_SORT: QueueSort = { field: 'waiting', dir: 'desc' };
+/** Most gain per minute at the top (owner, 2026-10-28). Any header still sorts. */
+export const DEFAULT_QUEUE_SORT: QueueSort = { field: 'priority', dir: 'desc' };
 
 export function defaultDirForQueueField(field: QueueSortField): QueueSortDir {
-  return field === 'waiting' || field === 'stake' ? 'desc' : 'asc';
+  return field === 'waiting' || field === 'stake' || field === 'priority' ? 'desc' : 'asc';
 }
 
 /** Click a header: that column if it was not active, otherwise flip direction. */
@@ -238,7 +259,9 @@ function vacancy(a: RestorationJobDTO, b: RestorationJobDTO, field: QueueSortFie
       case 'scale':
         return !(job.scale ?? '').trim();
       case 'stake':
-        return valuePotential(job) == null;
+        return jobStake(job) == null;
+      case 'priority':
+        return jobPerMinute(job) == null;
       case 'waiting':
         return queuedSince(job) == null;
       default:
@@ -293,7 +316,10 @@ function compareQueueField(
       return aP.sum - bP.sum;
     }
     case 'stake':
-      return (valuePotential(a) ?? 0) * unitsOf(a) - (valuePotential(b) ?? 0) * unitsOf(b);
+      return (jobStake(a) ?? 0) * unitsOf(a) - (jobStake(b) ?? 0) * unitsOf(b);
+    case 'priority':
+      // Per unit: a stack's stake and its minutes both grow with its size.
+      return (jobPerMinute(a) ?? 0) - (jobPerMinute(b) ?? 0);
     case 'waiting': {
       const aT = queuedSince(a)?.getTime() ?? 0;
       const bT = queuedSince(b)?.getTime() ?? 0;
@@ -314,11 +340,11 @@ function ageThenId(a: RestorationJobDTO, b: RestorationJobDTO): number {
 }
 
 /**
- * Oldest at the top unless a header has been clicked.
+ * Most gain per minute at the top unless a header has been clicked (owner, 2026-10-28).
  *
- * Age is the standing order of the queue so nothing is buried by a newer item
- * that happens to be worth more. Clicking a column sorts by what that column
- * shows; equal values fall back to oldest-first.
+ * Rows with no $/min (on the bench, holding, done) fall to the end in age
+ * order. Clicking a column sorts by what that column shows; equal values fall
+ * back to oldest-first.
  */
 export function sortQueue(
   jobs: RestorationJobDTO[],

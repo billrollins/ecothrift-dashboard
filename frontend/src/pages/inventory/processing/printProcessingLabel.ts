@@ -1,6 +1,11 @@
 import { localPrintService, type LocalPrintRequest } from '../../../services/localPrintService';
 import { markItemsLabelsPrinted } from '../../../api/inventory.api';
 import type { Item } from '../../../types/inventory.types';
+import {
+  renderRestorationTagPng,
+  tagDpiForStock,
+  type RestorationTagFacts,
+} from '../../restoration/tag/restorationTag';
 
 type LabelInput = Pick<Item, 'sku' | 'price'> &
   Partial<Pick<Item, 'product_title' | 'product_brand' | 'product_number'>> & {
@@ -10,6 +15,8 @@ type LabelInput = Pick<Item, 'sku' | 'price'> &
     id?: number;
     /** The retail the tag may show (server decides per `tags.retail_on_tag`); null prints none. */
     tag_retail?: string | null;
+    /** Going to Restoration: print the restoration tag, not the price tag (owner, 2026-10-28). */
+    restoration_tag?: RestorationTagFacts;
   };
 
 /** "Retail $49.99", or undefined when the tag shows no retail. */
@@ -57,17 +64,72 @@ export async function printProcessingLabel(item: LabelInput, priceOverride?: str
   }
 }
 
+/** The label stock this station prints on; 3x2 when the print server cannot say. */
+async function stockPreset(): Promise<string> {
+  try {
+    return (await localPrintService.getSettings()).label_size_preset ?? '3x2';
+  } catch {
+    return '3x2';
+  }
+}
+
+/**
+ * Restoration tags (owner, 2026-10-28): drawn here and printed through `/print/image-copies`, one per item, in order.
+ * Stops at the first failure, like the price tags' health probe.
+ */
+export async function printRestorationTags(
+  items: Array<Pick<LabelInput, 'sku' | 'id' | 'product_title' | 'title'> & { restoration_tag: RestorationTagFacts }>,
+): Promise<{ succeeded: number; failed: number; succeededItemIds: number[] }> {
+  const succeededItemIds: number[] = [];
+  if (!items.length) return { succeeded: 0, failed: 0, succeededItemIds };
+  const dpi = tagDpiForStock(await stockPreset());
+  let succeeded = 0;
+  for (const item of items) {
+    try {
+      const image = renderRestorationTagPng({
+        ...item.restoration_tag,
+        sku: item.sku,
+        title: item.product_title || item.title || item.sku,
+      });
+      await localPrintService.printImageCopies({ image_base64: image, copies: 1, dpi, doc_name: `Restoration ${item.sku}` });
+    } catch {
+      break;
+    }
+    succeeded += 1;
+    if (item.id != null) succeededItemIds.push(item.id);
+  }
+  return { succeeded, failed: items.length - succeeded, succeededItemIds };
+}
+
 /**
  * Batch labels: ONE `/print/labels` call for the whole check-in (the server
  * resolves the printer once and spools every label). Falls back to the legacy
  * staggered per-label loop when the installed print server predates the
- * batch endpoint.
+ * batch endpoint. Items going to Restoration get the restoration tag instead.
  */
 export async function printProcessingLabelsStaggered(
   items: LabelInput[],
   priceOverride?: string,
 ): Promise<{ succeeded: number; failed: number; succeededItemIds: number[] }> {
   if (!items.length) return { succeeded: 0, failed: 0, succeededItemIds: [] };
+  const resto = items.filter((it): it is LabelInput & { restoration_tag: RestorationTagFacts } => it.restoration_tag != null);
+  if (resto.length) {
+    const rest = items.filter((it) => it.restoration_tag == null);
+    const tags = await printRestorationTags(resto);
+    const prices = rest.length ? await printPriceLabels(rest, priceOverride) : { succeeded: 0, failed: 0, succeededItemIds: [] };
+    return {
+      succeeded: tags.succeeded + prices.succeeded,
+      failed: tags.failed + prices.failed,
+      succeededItemIds: [...tags.succeededItemIds, ...prices.succeededItemIds],
+    };
+  }
+  return printPriceLabels(items, priceOverride);
+}
+
+async function printPriceLabels(
+  items: LabelInput[],
+  priceOverride?: string,
+): Promise<{ succeeded: number; failed: number; succeededItemIds: number[] }> {
   try {
     const result = await localPrintService.printLabelBatch(items.map((it) => toLabelRequest(it, priceOverride)));
     if (result.failed === 0) {

@@ -1678,6 +1678,10 @@ def printed_items_preview(item_ids: list[int]) -> list[dict[str, Any]]:
         Item.objects.filter(pk__in=item_ids).select_related('product'),
     )
     by_id = {i.id: i for i in items}
+    from apps.inventory.services.restoration_request import restoration_tags_for_items
+
+    # Items going to Restoration get the restoration tag instead of the price tag (owner, 2026-10-28).
+    resto_tags = restoration_tags_for_items(items)
     out: list[dict[str, Any]] = []
     for iid in item_ids:
         it = by_id.get(iid)
@@ -1693,6 +1697,7 @@ def printed_items_preview(item_ids: list[int]) -> list[dict[str, Any]]:
                 'tag_retail': _money(tag_retail(it)),
                 'brand': (prod.brand if prod else '') or '',
                 'product_number': prod.product_number if prod else None,
+                **({'restoration_tag': resto_tags[it.id]} if it.id in resto_tags else {}),
             },
         )
     return out

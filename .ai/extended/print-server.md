@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (success:false throws; copy: true prints a COPY band, 1.9.8 to ship; label retail_text line) -->
+<!-- Last updated: 2026-10-28 (restoration tag via /print/image-copies) -->
 
 # Print Server — Extended Context
 
@@ -63,6 +63,10 @@ Labels (GDI + Pillow), receipts (GDI text), cash drawer (ESC/POS). Built-in UI: 
 **Labels (shipped in source, v1.2.x):** “Concept C” side stripe — raster in [`printserver/services/label_printer.py`](../../printserver/services/label_printer.py); 203 DPI presets `3x2` / `1.5x1`. Price band: smaller `$` top-left; larger dollar digits and cents; dollar digits left-aligned with extra inset from the stripe edge when whole dollars > 0 (see `_draw_price_block`). **Sub-dollar** prices (e.g. `$0.75`): **`$` + cents only** — no large middle `0`. Fit loop tries scales **1.0 → 0.5** step **0.01** (integer font sizes may repeat across steps). Optional `price_fit_stats` on `generate_label` fills `first_fit_scale` and `used_fallback` for tooling. **Fringe harness:** [`printserver/scripts/label_price_fringe_grid.py`](../../printserver/scripts/label_price_fringe_grid.py) writes PNGs + a console summary under `printserver/output_label_fringe_review/` (gitignored). **GDI:** `printer_manager.send_image` fits the bitmap to `HORZRES`×`VERTRES`, centers horizontally, top-aligns vertically (thermal drivers). Quick local print: [`printserver/dev_print_e2e_3_labels.bat`](../../printserver/dev_print_e2e_3_labels.bat).
 
 **Retail line (2026-10-21, needs a print-server release):** `LabelPrintRequest.retail_text` ("Retail $49.99") prints one line right above the logo band; title and brand stop above it. Dash sends it only when the retail passed its check (`tags.retail_on_tag`). An older print server ignores the field, so tags simply show no retail until stores update.
+
+**Restoration tag (2026-10-28, no print-server release):** items a check-in sends to Restoration print a tag Dash draws
+in the browser (`pages/restoration/tag/restorationTag.ts`, 609 x 406 at 203 dpi; 406 dpi on 1.5x1 stock) and sends to
+`/print/image-copies`, one call per item. See [`restoration.md`](restoration.md).
 
 ## Custom labels (Label Studio, v1.4.1)
 

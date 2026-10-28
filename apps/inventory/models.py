@@ -1138,6 +1138,13 @@ class RestorationJob(models.Model):
     valuation_request_notes = models.TextField(blank=True, default='')
     valuation_requested_grades = models.JSONField(default=list, blank=True)
     valuation_fulfilled_at = models.DateTimeField(null=True, blank=True)
+    # Processing's request (owner, 2026-10-28; services/restoration_request.py). Money is per unit.
+    requested_needs = models.JSONField(default=list, blank=True)  # test / clean / assemble / repair / check_parts
+    done_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    as_is_prices = models.JSONField(default=dict, blank=True)  # ending -> "12.34"
+    value_at_stake = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    holdout = models.BooleanField(default=False)  # assembly holdout: sell flat-packed, as is
+    found_needs = models.JSONField(default=list, blank=True)  # Restoration's side: what it really needed
 
     class Meta:
         ordering = ['-updated_at', '-id']
@@ -1914,6 +1921,8 @@ class Item(models.Model):
     # The retail check at check-in (services/tag_retail.py): '' never checked, passed, confirmed, fixed,
     # no_retail, missing. The tag prints retail only when it passed, was confirmed or fixed (owner call F1).
     retail_check = models.CharField(max_length=12, blank=True, default='')
+    # Assembly holdout (owner, 2026-10-28): picked at random to sell flat-packed, to compare price and days to sell.
+    restoration_holdout = models.BooleanField(default=False)
     # Where the retail came from: '' unknown, manifest, typed (by a person), estimate (neither).
     retail_source = models.CharField(max_length=10, blank=True, default='')
     cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)

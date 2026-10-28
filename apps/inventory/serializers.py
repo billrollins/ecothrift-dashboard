@@ -1472,6 +1472,8 @@ class RestorationJobSerializer(serializers.ModelSerializer):
     unit_kind = serializers.SerializerMethodField()
     sale_state = serializers.SerializerMethodField()
     decision_reason = serializers.SerializerMethodField()
+    priority = serializers.SerializerMethodField()
+    restoration_tag = serializers.SerializerMethodField()
     purchase_order_number = serializers.CharField(
         source='purchase_order.order_number',
         read_only=True,
@@ -1549,8 +1551,30 @@ class RestorationJobSerializer(serializers.ModelSerializer):
             'value_added',
             'dispositioned_at',
             'processing_handled_at',
+            'requested_needs',
+            'done_price',
+            'as_is_prices',
+            'value_at_stake',
+            'holdout',
+            'found_needs',
+            'priority',
+            'restoration_tag',
         ]
         read_only_fields = fields
+
+    def get_restoration_tag(self, obj):
+        """What the restoration tag says (Reprint on the queue row): the work, HOLDOUT, sent date and by."""
+        from apps.inventory.services.restoration_request import tag_facts
+
+        return tag_facts(obj)
+
+    def get_priority(self, obj):
+        """Queue order (owner, 2026-10-28): expected gain per minute. Only for jobs still waiting."""
+        if obj.stage not in (RestorationJob.STAGE_QUEUED, RestorationJob.STAGE_SENT):
+            return None
+        from apps.inventory.services.restoration_request import priority_for_job
+
+        return priority_for_job(obj)
 
     def get_bench_ownership_ambiguous(self, obj):
         return obj.stage == RestorationJob.STAGE_BENCH and obj.bench_owner_id is None
@@ -1886,6 +1910,11 @@ class RestorationJobQueueDetailsSerializer(serializers.Serializer):
     intended_destination = serializers.CharField(required=False, allow_blank=True)
     queue_note = serializers.CharField(required=False, allow_blank=True, max_length=2000)
     starting_grade = serializers.CharField(required=False, allow_blank=True, max_length=64)
+    # Restoration's side of the request (owner, 2026-10-28): what it really needed.
+    found_needs = serializers.ListField(
+        child=serializers.ChoiceField(choices=['test', 'clean', 'assemble', 'repair', 'check_parts']),
+        required=False,
+    )
 
     def validate_scale(self, value):
         from apps.inventory.services.restoration import is_known_active_scale
@@ -2008,6 +2037,11 @@ class RestorationJobDoneSerializer(serializers.Serializer):
     notes = serializers.CharField(required=False, allow_blank=True, default='')
     spent_parts_cost = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     outputs = RestorationOutputWriteSerializer(many=True, required=False)
+    # What Restoration really found (owner, 2026-10-28); picked on the bench, editable here.
+    found_needs = serializers.ListField(
+        child=serializers.ChoiceField(choices=['test', 'clean', 'assemble', 'repair', 'check_parts']),
+        required=False,
+    )
 
 
 class RestorationJobRejectSerializer(serializers.Serializer):
