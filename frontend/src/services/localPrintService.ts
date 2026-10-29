@@ -217,6 +217,20 @@ class LocalPrintService {
     return this.requireEndpoint<LocalPrintResponse>('/print/image-copies', request);
   }
 
+  /**
+   * Restoration tags and test labels, drawn by the print server itself at the label size (1.9.10, owner 2026-10-29:
+   * tags are drawn there, never sent as a picture). Throws on older print servers.
+   */
+  async printTags(request: {
+    tags: Array<{ kind: 'restoration' | 'test'; data?: Record<string, unknown>; doc_name?: string }>;
+    w_in: number;
+    h_in: number;
+    dpi: number;
+    printer_name?: string;
+  }): Promise<LocalPrintResponse> {
+    return this.requireEndpoint<LocalPrintResponse>('/print/tags', request);
+  }
+
   /** Print a PDF N times (Label Studio PDF labels). Throws on old print servers. */
   async printPdfCopies(request: PdfCopiesRequest): Promise<LocalPrintResponse> {
     return this.requireEndpoint<LocalPrintResponse>('/print/pdf-copies', request);

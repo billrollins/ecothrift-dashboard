@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.232.1] -->
-<!-- Last reviewed: 2026-10-28 (2.232.1) -->
+<!-- Line 1 release: ## [2.232.3] -->
+<!-- Last reviewed: 2026-10-29 (2.232.3) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.232.3] - 2026-10-29
+
+User-facing theme: **Restoration tags and the test label are drawn by the print server (print server 1.9.10) (Bill, 2026-10-29).**
+
+### Fixed
+- Restoration tags and the test label printed shrunk and cut off on the left. The print server now draws them itself and fits them to the label, like price tags. Update the print server to 1.9.10 on each PC (the Print server chip says Needs update; click it).
+- Settings → Printing (and the Print server chip window): "Test price tag" and "Test restoration tag" buttons, each printing one sample through its real path.
 
 ## [2.232.1] - 2026-10-28
 

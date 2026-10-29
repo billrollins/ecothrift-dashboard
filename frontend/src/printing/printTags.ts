@@ -117,6 +117,23 @@ export interface PrintTagsResult {
 }
 
 async function sendOne<K extends TagKind>(kind: K, data: DataOf<K>, size: LabelSize, docName: string): Promise<void> {
+  // Restoration tags and the test label are drawn by the print server (1.9.10), never sent as a picture.
+  if (kind === 'restoration' || kind === 'test') {
+    const res = await localPrintService
+      .printTags({
+        tags: [{ kind, data: kind === 'restoration' ? (data as unknown as Record<string, unknown>) : {}, doc_name: docName }],
+        w_in: size.w_in,
+        h_in: size.h_in,
+        dpi: size.dpi,
+      })
+      .catch((err: unknown) => {
+        throw new Error(
+          `Update the print server to 1.9.10 or later to print this tag (${err instanceof Error ? err.message : err}).`,
+        );
+      });
+    if (res && res.success === false) throw new Error([res.message, res.error].filter(Boolean).join(': '));
+    return;
+  }
   const design = TAG_DESIGNS[kind] as unknown as TagDesign<DataOf<K>>;
   const image = await renderTagPng(design, data, size);
   const res = await localPrintService.printImageCopies({ image_base64: image, copies: 1, dpi: size.dpi, doc_name: docName });
@@ -166,13 +183,20 @@ export async function printPriceTags(labels: LocalPrintRequest[]): Promise<Print
   return { printed: batch.printed, failed: batch.failed, error: batch.errors[0] };
 }
 
-/** Settings → Printing: the test label, then a sample price tag in the new drawing (switch on or off), in the design
- * the store picked. */
+/** Settings → Printing: the test label (frame and ruler), drawn by the print server (1.9.10). */
 export async function printTestLabel(size: LabelSize): Promise<PrintTagsResult> {
-  const sample: TagJob = (await priceTagDesign()) === 'perks'
-    ? { kind: 'perks', data: SAMPLE_PERKS_TAG, docName: 'Test price tag' }
-    : { kind: 'price', data: SAMPLE_PRICE_TAG, docName: 'Test price tag' };
-  return printTags([{ kind: 'test', data: { size }, docName: 'Test label' }, sample], size);
+  return printTags([{ kind: 'test', data: { size }, docName: 'Test label' }], size);
+}
+
+/** Settings → Printing "Test price tag": a sample through the real price-tag path (the print server's own drawing
+ * while the new drawing is off). */
+export async function printTestPriceTag(): Promise<PrintTagsResult> {
+  return printPriceTags([SAMPLE_PRICE_TAG as unknown as LocalPrintRequest]);
+}
+
+/** Settings → Printing "Test restoration tag": a sample drawn by the print server (1.9.10). */
+export async function printTestRestorationTag(size: LabelSize, data: RestorationTagInput): Promise<PrintTagsResult> {
+  return printTags([{ kind: 'restoration', data, docName: 'Test restoration tag' }], size);
 }
 
 export const SAMPLE_PRICE_TAG: PriceTagData = {

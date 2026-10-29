@@ -1,6 +1,6 @@
-VERSION = "1.9.9"
+VERSION = "1.9.10"
 RELEASE_NOTES = (
-    'Price tags print "Retail $x" above the logo when Dash sends a checked retail (tag truth).'
+    'Restoration tags and the test label are drawn by the print server and fit the label.'
 )
 
 # Default URL for the public version-check endpoint on the dashboard backend.
@@ -8,6 +8,15 @@ RELEASE_NOTES = (
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.9.10] — 2026-10-29 (install on the processing label PCs and every PC that prints restoration tags)
+
+Owner 2026-10-29: restoration tags and the test label printed shrunk and cut off the left edge (they were pictures
+drawn in Dash and printed at exact size from the paper edge). The print server now draws them itself.
+
+- New `POST /print/tags`: restoration tags and the test label, drawn here at the label size Dash sends (width,
+  height, dpi), printed one job per tag and fitted to the label like the price tag.
+- Price tags are unchanged.
+
 ## [1.9.9] — 2026-10-22 (install on every register and the processing label PCs)
 
 Owner 2026-10-21 (retail_tags_and_social Phase 1): retail on the tag only when it passed the check at check-in.

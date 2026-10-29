@@ -81,6 +81,25 @@ class ImageCopiesPrintRequest(BaseModel):
     doc_name: str | None = None
 
 
+class TagJob(BaseModel):
+    """One tag the print server draws itself: ``kind`` restoration (data: sku, title, needs, holdout, sent_on,
+    sent_by) or test (no data)."""
+
+    kind: str
+    data: dict = Field(default_factory=dict)
+    doc_name: str | None = None
+
+
+class TagsPrintRequest(BaseModel):
+    """Tags drawn here at the label size Dash sends (1.9.10, owner 2026-10-29), printed fitted like the price tag."""
+
+    tags: list[TagJob] = Field(..., min_length=1, max_length=200)
+    w_in: float = Field(1.5, gt=0.3, le=8)
+    h_in: float = Field(1.0, gt=0.3, le=8)
+    dpi: int = Field(203, ge=100, le=600)
+    printer_name: str | None = None
+
+
 class PdfCopiesPrintRequest(BaseModel):
     """A PDF printed N times (rasterized per page on the print server)."""
 

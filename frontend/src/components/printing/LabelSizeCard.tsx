@@ -35,7 +35,15 @@ import {
   type LabelSize,
 } from '../../printing/labelSize';
 import type { PriceTagDesign } from '../../api/core.api';
-import { lastPrintedTag, printTestLabel, reprintLastTag, SAMPLE_PERKS_TAG, SAMPLE_PRICE_TAG } from '../../printing/printTags';
+import {
+  lastPrintedTag,
+  printTestLabel,
+  printTestPriceTag,
+  printTestRestorationTag,
+  reprintLastTag,
+  SAMPLE_PERKS_TAG,
+  SAMPLE_PRICE_TAG,
+} from '../../printing/printTags';
 import { renderTagPng } from '../../printing/tagCanvas';
 import { perksTag } from '../../printing/tags/perksTag';
 import { priceTag } from '../../printing/tags/priceTag';
@@ -140,6 +148,16 @@ export function LabelSizeCard({ compact = false }: { compact?: boolean }) {
       { variant: r.failed ? 'error' : 'success' });
   };
 
+  const testOne = async (which: 'price' | 'restoration') => {
+    if (!size) return;
+    setTesting(true);
+    const r = which === 'price' ? await printTestPriceTag() : await printTestRestorationTag(size, SAMPLE_RESTORATION);
+    setTesting(false);
+    const name = which === 'price' ? 'Test price tag' : 'Test restoration tag';
+    enqueueSnackbar(r.failed ? `${name} did not print: ${r.error ?? 'is the print server running?'}` : `${name} sent`,
+      { variant: r.failed ? 'error' : 'success' });
+  };
+
   const reprint = async () => {
     setReprinting(true);
     const r = await reprintLastTag();
@@ -215,6 +233,12 @@ export function LabelSizeCard({ compact = false }: { compact?: boolean }) {
                 startIcon={testing ? <CircularProgress size={16} /> : <Print />}>
                 Print a test label
               </Button>
+              <Button variant="outlined" onClick={() => testOne('price')} disabled={!size || testing}>
+                Test price tag
+              </Button>
+              <Button variant="outlined" onClick={() => testOne('restoration')} disabled={!size || testing}>
+                Test restoration tag
+              </Button>
               <Button variant="outlined" onClick={reprint} disabled={!last || reprinting}
                 startIcon={reprinting ? <CircularProgress size={16} /> : undefined}>
                 Reprint last label
@@ -245,7 +269,7 @@ export function LabelSizeCard({ compact = false }: { compact?: boolean }) {
                 label={canSetStore ? 'Use the new price tag drawing' : 'Use the new price tag drawing (managers)'}
               />
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', ml: 5.5 }}>
-                Whole store. Try Print a test label first: its sample price tag is the new drawing. Off, price tags
+                Whole store. Turn it on, then press Test price tag to see the new drawing. Off, price tags
                 print as before (the print server draws them at its own size); restoration tags always use the size above.
               </Typography>
             </Box>

@@ -30,7 +30,7 @@ Printer assignment is **on the print server**, shared by all browsers on the PC.
 - Authenticated: `/api/core/system/print-server-version/`, `print-server-releases/`
 - Public (no auth): `/api/core/system/print-server-version-public/` — `@permission_classes([AllowAny])` so `/manage` can check without a JWT. Default `UPDATE_CHECK_URL` in [`printserver/config.py`](../../printserver/config.py); `/manage/check-update` proxies this (no browser CORS).
 
-Upload path pattern: `print-server/ecothrift-printserver-setup-v{VERSION}.exe`. **Ship:** [`.ai/protocols/ship-print-server.md`](../protocols/ship-print-server.md) — skip-if-done build, S3, local + Heroku `PrintServerRelease`, and this-PC install. Script: [`printserver/distribute.py`](../../printserver/distribute.py) `--install-local`. Register: `manage.py publish_printserver` (idempotent). Silent install: `python printserver/installer/setup.py --install`. **Current release:** **1.9.9**.
+Upload path pattern: `print-server/ecothrift-printserver-setup-v{VERSION}.exe`. **Ship:** [`.ai/protocols/ship-print-server.md`](../protocols/ship-print-server.md) — skip-if-done build, S3, local + Heroku `PrintServerRelease`, and this-PC install. Script: [`printserver/distribute.py`](../../printserver/distribute.py) `--install-local`. Register: `manage.py publish_printserver` (idempotent). Silent install: `python printserver/installer/setup.py --install`. **Current release:** **1.9.10** (2026-10-29: `/print/tags` draws restoration tags and the test label on the print server; tags are drawn here, never sent as pictures).
 
 ## V2 vs V3 (migration)
 

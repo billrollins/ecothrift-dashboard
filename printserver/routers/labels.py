@@ -8,10 +8,12 @@ from models import (
     LabelBatchPrintResponse,
     LabelPrintRequest,
     PrintResponse,
+    TagsPrintRequest,
     TestPrintRequest,
 )
 from services.label_printer import generate_label, generate_test_label
 from services.printer_manager import resolve_printer, send_image
+from services.tag_designs import draw_restoration_tag, draw_test_label
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/print", tags=["labels"])
@@ -86,3 +88,25 @@ async def print_test(req: TestPrintRequest | None = None):
     except Exception as exc:
         logger.exception("Test label print failed")
         return PrintResponse(success=False, message="Test label failed", error=str(exc))
+
+
+@router.post("/tags", response_model=PrintResponse)
+async def print_tags(req: TagsPrintRequest):
+    """Restoration tags and test labels, drawn here at the label size Dash sends, printed one job per tag in order
+    and fitted to the label like the price tag (1.9.10)."""
+    printed = 0
+    try:
+        printer = resolve_printer(req.printer_name, role="label")
+        for job in req.tags:
+            if job.kind == "restoration":
+                image = draw_restoration_tag(job.data, req.w_in, req.h_in, req.dpi)
+            elif job.kind == "test":
+                image = draw_test_label(req.w_in, req.h_in, req.dpi)
+            else:
+                return PrintResponse(success=False, message=f"Unknown tag kind: {job.kind}", output=f"printed={printed}")
+            send_image(printer, image, req.dpi, doc_name=job.doc_name or f"Tag-{job.kind}")
+            printed += 1
+        return PrintResponse(success=True, message=f"{printed} tag(s) sent to {printer}", output=f"printed={printed}")
+    except Exception as exc:  # noqa: BLE001 - the dashboard shows the message
+        logger.exception("tag print failed")
+        return PrintResponse(success=False, message="Tag print failed", error=str(exc), output=f"printed={printed}")

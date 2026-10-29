@@ -1,8 +1,9 @@
-v2.232.1 — Steadier Thrift+ scanner test
+v2.232.3 — Restoration tags and test label drawn by the print server (1.9.10)
 
-User-facing theme: **Test fix only (2026-10-28).**
+User-facing theme: **Restoration tags and the test label are drawn by the print server (print server 1.9.10) (Bill, 2026-10-29).**
 
 ### Fixed
-- A Thrift+ scanner test that could fail under load now waits properly. No change in the app.
+- Restoration tags and the test label printed shrunk and cut off on the left. The print server now draws them itself and fits them to the label, like price tags. Update the print server to 1.9.10 on each PC (the Print server chip says Needs update; click it).
+- Settings → Printing (and the Print server chip window): "Test price tag" and "Test restoration tag" buttons, each printing one sample through its real path.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
