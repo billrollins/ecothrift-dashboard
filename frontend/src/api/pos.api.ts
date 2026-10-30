@@ -856,6 +856,10 @@ export interface SalesNumbers {
     earlier_thriftbucks: string;
   };
   thriftbucks_owed_new: string;
+  subtotal?: string;
+  thriftbucks_earned?: string;
+  instant_off?: string;
+  cash_and_card?: string;
   sales_count: number;
   reconciles: { money_in: string; accounted_for: string; difference: string };
 }

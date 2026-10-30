@@ -50,7 +50,7 @@ KEYS = (
     'tax_collected', 'tax_refunded', 'fees_surcharge', 'fees_delivery', 'fees_debit',
     'debit_charged', 'card_unset',
     'paid_cash', 'paid_card_debit', 'paid_card_credit', 'paid_card_unset', 'paid_payroll', 'paid_credit',
-    'paid_earlier_bucks', 'count',
+    'paid_earlier_bucks', 'count', 'instant_off', 'bucks_earned',
 )
 
 
@@ -140,6 +140,8 @@ def _fold_lines(into: dict[str, Decimal], row: dict) -> None:
     into['paid_earlier_bucks'] += -bucks_line
     into['fees_delivery'] += _d(row['a_delivery'])
     instant_off = _d(row['a_instant_off'])
+    into['instant_off'] += instant_off
+    into['bucks_earned'] += _d(row['a_collected'])
     into['thriftplus_revenue_instant'] += _d(row['a_instant_bucks']) - instant_off
     into['bucks_kept'] += _d(row['a_collected']) - _d(row['a_instant_bucks'])
 
@@ -238,6 +240,10 @@ def _finish(raw: dict[str, Decimal], rate: Decimal) -> dict[str, Any]:
             'earlier_thriftbucks': s(r['paid_earlier_bucks']),
         },
         'thriftbucks_owed_new': s(r['bucks_kept']),
+        'subtotal': s(item_sales + r['bucks_earned']),
+        'thriftbucks_earned': s(r['bucks_earned']),
+        'instant_off': s(r['instant_off']),
+        'cash_and_card': s(r['paid_cash'] + card),
         'sales_count': int(r['count']),
         'reconciles': {'money_in': s(money_in), 'accounted_for': s(accounted), 'difference': s(money_in - accounted)},
     }

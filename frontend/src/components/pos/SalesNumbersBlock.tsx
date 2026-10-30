@@ -71,9 +71,15 @@ export function SalesNumbersBlock({ summary }: { summary: CartSummary }) {
   const paid = n.paid_with;
 
   const sales: Row[] = [
+    { label: 'Subtotal', value: money(n.subtotal) },
+    { label: 'Earned', value: `−${money(n.thriftbucks_earned)}` },
     { label: 'Item sales', value: money(n.item_sales) },
     { label: 'Returns', value: money(n.returns) },
     { label: 'Net item sales', value: money(n.net_item_sales), bold: true },
+    { label: 'Saved', value: money(n.thriftbucks_owed_new), sub: true },
+    { label: 'Instant off', value: money(n.instant_off), sub: true },
+    { label: 'Instant revenue', value: money(n.thriftplus_revenue_instant), sub: true },
+    { label: 'Expired', value: money(n.thriftplus_revenue_expired), sub: true },
     { label: 'Thrift+ revenue', value: money(n.thriftplus_revenue) },
   ];
 
@@ -103,6 +109,7 @@ export function SalesNumbersBlock({ summary }: { summary: CartSummary }) {
   paidWith.push(
     { label: 'Thrift+ credit', value: money(paid.thriftplus_credit) },
     { label: 'ThriftBucks from earlier visits', value: money(paid.earlier_thriftbucks) },
+    { label: 'Cash + card', value: money(n.cash_and_card), bold: true },
   );
 
   const counts = [
