@@ -166,3 +166,46 @@ def _names_apply(request: ApprovalRequest, progress: Progress) -> dict:
 
 register(Kind(kind='members.names_cleanup', label='Members: fix names, delete unverified old logins',
               preview=_names_preview, apply=_names_apply))
+
+
+# ── Late re-ring (owner 2026-10-31): a member left off a sale, found after the 30-minute re-ring window ───────────
+
+
+def _late_rering_find(params: dict):
+    from apps.pos.models import Receipt
+    from apps.thriftplus.models import Person
+
+    receipt = Receipt.objects.select_related('cart').filter(receipt_number=str(params.get('receipt') or '')).first()
+    if receipt is None:
+        raise RequestError('No sale with that receipt number.')
+    person = Person.objects.filter(pk=params.get('person_id')).first()
+    if person is None or not (person.phone or '').endswith(str(params.get('phone_last4') or '-')):
+        raise RequestError('No Thrift+ person with that id and phone ending.')
+    return receipt, person
+
+
+def _late_rering_preview(params: dict) -> dict:
+    from apps.thriftplus.services.register import member_of
+
+    receipt, person = _late_rering_find(params)
+    if member_of(receipt.cart) is not None:
+        raise RequestError('This sale already has a Thrift+ member.')
+    return {'counts': {'Sales': 1}, 'changes': [
+        f'Puts {person.first_name} {person.last_name} on {receipt.receipt_number} (${receipt.cart.total}) as a re-ring.',
+        'The sale takes its ThriftBucks as kept, and it can be returned as a Thrift+ sale.',
+    ], 'sample': []}
+
+
+def _late_rering_apply(request: ApprovalRequest, progress: Progress) -> dict:
+    from datetime import timedelta
+
+    from apps.thriftplus.services.register import member_of, rering
+
+    receipt, person = _late_rering_find(request.params)
+    if member_of(receipt.cart) is None:  # safe to run twice
+        rering(receipt.cart, person=person, user=request.decided_by, window=timedelta(days=30))
+    return {'receipt': receipt.receipt_number, 'person': person.pk}
+
+
+register(Kind(kind='thriftplus.late_rering', label='Put a Thrift+ member on a past sale (late re-ring)',
+              preview=_late_rering_preview, apply=_late_rering_apply))

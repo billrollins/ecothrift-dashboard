@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.232.3] -->
-<!-- Last reviewed: 2026-10-29 (2.232.3) -->
+<!-- Line 1 release: ## [2.232.4] -->
+<!-- Last reviewed: 2026-10-31 (2.232.4) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.232.4] - 2026-10-31
+
+User-facing theme: **A Thrift+ member can be put on a past sale through a Request; fuller Transactions numbers (Bill, 2026-10-31).**
+
+### Added
+- New Request: put a Thrift+ member on a past sale (a late re-ring), for someone left off a sale after the 30-minute window. The owner approves it in Dash → Requests; the sale can then be returned as a Thrift+ sale.
+- Transactions: subtotal, earned, saved, instant and cash + card lines (pushed earlier without a version; recorded here).
 
 ## [2.232.3] - 2026-10-29
 

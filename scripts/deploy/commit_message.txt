@@ -1,9 +1,9 @@
-v2.232.3 — Restoration tags and test label drawn by the print server (1.9.10)
+v2.232.4 — Late re-ring Request; Transactions lines
 
-User-facing theme: **Restoration tags and the test label are drawn by the print server (print server 1.9.10) (Bill, 2026-10-29).**
+User-facing theme: **A Thrift+ member can be put on a past sale through a Request; fuller Transactions numbers (Bill, 2026-10-31).**
 
-### Fixed
-- Restoration tags and the test label printed shrunk and cut off on the left. The print server now draws them itself and fits them to the label, like price tags. Update the print server to 1.9.10 on each PC (the Print server chip says Needs update; click it).
-- Settings → Printing (and the Print server chip window): "Test price tag" and "Test restoration tag" buttons, each printing one sample through its real path.
+### Added
+- New Request: put a Thrift+ member on a past sale (a late re-ring), for someone left off a sale after the 30-minute window. The owner approves it in Dash → Requests; the sale can then be returned as a Thrift+ sale.
+- Transactions: subtotal, earned, saved, instant and cash + card lines (pushed earlier without a version; recorded here).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

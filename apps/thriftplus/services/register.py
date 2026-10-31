@@ -1125,7 +1125,7 @@ def finish_join(person_id, *, phone: str = '', id_checked: bool = False, verifie
 
 # ── Re-ring ────────────────────────────────────────────────────────────────────
 
-def rering(cart, code: str = '', *, person=None, user=None) -> CartMember:
+def rering(cart, code: str = '', *, person=None, user=None, window=None) -> CartMember:
     """Sign-up before leaving: put a member (their QR scanned, or found by phone) on a sale completed in the last 30
     minutes. The trip's ThriftBucks are kept, usable from tomorrow; no instant redemption and no Thrift+ credit (owner
     10-14)."""
@@ -1133,7 +1133,7 @@ def rering(cart, code: str = '', *, person=None, user=None) -> CartMember:
 
     if cart.status != 'completed' or not cart.completed_at:
         raise RegisterError('NOT_COMPLETED', 'Only a completed sale can be re-rung.')
-    if timezone.now() - cart.completed_at > RERING_WINDOW:
+    if timezone.now() - cart.completed_at > (window or RERING_WINDOW):
         raise RegisterError('TOO_LATE', 'Re-ring works for 30 minutes after the sale.')
     if not is_live(cart):
         raise RegisterError('NOT_LIVE', 'Thrift+ is not on at this register yet.')
