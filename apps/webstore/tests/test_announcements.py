@@ -86,7 +86,7 @@ class TokenTests(TestCase):
 
     def test_regular_hours_token(self):
         text = resolve_tokens('Hours: {{regular_hours}}')
-        self.assertIn('Tuesday', text)
+        self.assertIn('Monday - Saturday', text)
 
 
 class AnnouncementApiTests(TestCase):

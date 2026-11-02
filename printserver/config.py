@@ -1,6 +1,6 @@
-VERSION = "1.9.10"
+VERSION = "1.9.11"
 RELEASE_NOTES = (
-    'Restoration tags and the test label are drawn by the print server and fit the label.'
+    'Receipts show the new hours: Mon - Sat 9 AM - 6 PM, Sun Closed.'
 )
 
 # Default URL for the public version-check endpoint on the dashboard backend.
@@ -8,6 +8,12 @@ RELEASE_NOTES = (
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.9.11] — 2026-11-02 (install on every register)
+
+Owner 2026-11-02: the store is open Mondays again.
+
+- Receipts print "Mon - Sat 9 AM - 6 PM" and "Sun Closed" (they said Tue - Sat and Sun & Mon Closed).
+
 ## [1.9.10] — 2026-10-29 (install on the processing label PCs and every PC that prints restoration tags)
 
 Owner 2026-10-29: restoration tags and the test label printed shrunk and cut off the left edge (they were pictures

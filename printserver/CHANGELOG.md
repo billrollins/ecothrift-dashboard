@@ -5,6 +5,12 @@ Ship: `.ai/protocols/ship-print-server.md`. Script: `python printserver/distribu
 
 ---
 
+## [1.9.11] — 2026-11-02 (install on every register)
+
+Owner 2026-11-02: the store is open Mondays again.
+
+- Receipts print "Mon - Sat 9 AM - 6 PM" and "Sun Closed" (they said Tue - Sat and Sun & Mon Closed).
+
 ## [1.9.10] — 2026-10-29 (install on the processing label PCs and every PC that prints restoration tags)
 
 Owner 2026-10-29: restoration tags and the test label printed shrunk and cut off the left edge (they were pictures

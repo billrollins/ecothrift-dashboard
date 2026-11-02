@@ -16,8 +16,8 @@ DEFAULT_HOURS = {
     'timezone': 'America/Chicago',
     'open': '09:00',
     'close': '18:00',
-    # 0=Mon … 6=Sun  (Canfield is closed Sunday and Monday)
-    'closed_weekdays': [0, 6],
+    # 0=Mon … 6=Sun  (Canfield is open Monday - Saturday, closed Sunday; Monday reopened 2026-11-02)
+    'closed_weekdays': [6],
 }
 
 _DAY_NAMES = (
@@ -186,7 +186,7 @@ def _phrase_range(first: int, last: int) -> str:
 
 
 def _day_phrase(ids: list[int]) -> str:
-    """Turn weekday ids into 'Tuesday - Saturday' / 'Sunday & Monday'."""
+    """Turn weekday ids into 'Monday - Saturday' / 'Sunday'."""
     if not ids:
         return ''
     ranges: list[tuple[int, int]] = []
@@ -212,7 +212,7 @@ def _closed_display_order(closed: list[int]) -> list[int]:
 
 
 def format_hours_label(cfg: dict | None = None) -> str:
-    """Public schedule line, e.g. 9 AM - 6 PM, Tuesday - Saturday · Closed Sunday & Monday."""
+    """Public schedule line, e.g. 9 AM - 6 PM, Monday - Saturday · Closed Sunday."""
     cfg = {**DEFAULT_HOURS, **(cfg or {})}
     closed = sorted(
         {

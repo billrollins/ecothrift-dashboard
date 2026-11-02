@@ -9,7 +9,7 @@ export const DEFAULT_STORE_HOURS: StoreHours = {
   timezone: 'America/Chicago',
   open: '09:00',
   close: '18:00',
-  closed_weekdays: [0, 6],
+  closed_weekdays: [6],
 };
 
 export const WEEKDAYS: { id: number; label: string }[] = [

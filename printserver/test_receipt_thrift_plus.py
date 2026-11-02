@@ -440,5 +440,12 @@ class PictureTests(unittest.TestCase):
             self.assertEqual(rr.render_thermal_receipt(data).width, 576)
 
 
+class StoreHoursTests(unittest.TestCase):
+    def test_receipt_hours_say_monday_is_open(self):
+        # Eco-Thrift reopened Mondays on 2026-11-02 (Monday has the Tuesday hours; Sunday stays closed).
+        self.assertEqual(rp.RECEIPT_STORE_HOURS, ("Mon - Sat 9 AM - 6 PM", "Sun Closed"))
+        self.assertEqual(rp._TEST_DATA["store_hours"], "Mon - Sat 9 AM - 6 PM\nSun Closed")
+
+
 if __name__ == "__main__":
     unittest.main()

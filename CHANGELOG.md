@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.233.0] -->
-<!-- Last reviewed: 2026-11-02 (2.233.0) -->
+<!-- Line 1 release: ## [2.233.1] -->
+<!-- Last reviewed: 2026-11-02 (2.233.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.233.1] - 2026-11-02
+
+User-facing theme: **Eco-Thrift is open Mondays again: Monday - Saturday 9 AM - 6 PM, closed Sunday (Bill, 2026-11-02).**
+
+### Changed
+- Store hours everywhere Dash and the website show them: Monday - Saturday 9 AM - 6 PM, closed Sunday (website, store hours in Settings, the "we're closed" holding page, Online Sales hold times). The saved hours setting is switched over only if it still had the old Sunday + Monday closure.
+- Receipts print "Mon - Sat 9 AM - 6 PM / Sun Closed" from print server 1.9.11 (update the print server on each register; the Print server chip says Needs update).
 
 ## [2.233.0] - 2026-11-02
 

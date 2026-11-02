@@ -2,7 +2,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from apps.core.models import AppSetting
-from apps.webstore.services.hours import format_hours_label, public_hours_payload
+from apps.webstore.services.hours import DEFAULT_HOURS, format_hours_label, public_hours_payload
 
 
 class HoursLabelTests(TestCase):
@@ -12,9 +12,20 @@ class HoursLabelTests(TestCase):
                 {
                     'open': '09:00',
                     'close': '18:00',
-                    'closed_weekdays': [0, 6],
+                    'closed_weekdays': [6],
                 }
             ),
+            '9 AM - 6 PM, Monday - Saturday · Closed Sunday',
+        )
+
+    def test_default_hours_open_monday_closed_sunday(self):
+        # Eco-Thrift reopened Mondays on 2026-11-02: Monday has the same hours as Tuesday.
+        self.assertEqual(DEFAULT_HOURS['closed_weekdays'], [6])
+        self.assertEqual(format_hours_label(), '9 AM - 6 PM, Monday - Saturday · Closed Sunday')
+
+    def test_old_sunday_and_monday_closure_still_renders(self):
+        self.assertEqual(
+            format_hours_label({'closed_weekdays': [0, 6]}),
             '9 AM - 6 PM, Tuesday - Saturday · Closed Sunday & Monday',
         )
 
@@ -70,7 +81,7 @@ class HoursLabelTests(TestCase):
                     'timezone': 'America/Chicago',
                     'open': '09:00',
                     'close': '18:00',
-                    'closed_weekdays': [0, 6],
+                    'closed_weekdays': [6],
                 }
             },
         )
@@ -78,8 +89,8 @@ class HoursLabelTests(TestCase):
         self.assertEqual(r.status_code, 200)
         hours = r.json().get('hours')
         self.assertIsInstance(hours, dict)
-        self.assertEqual(hours['closed_weekdays'], [0, 6])
+        self.assertEqual(hours['closed_weekdays'], [6])
         self.assertEqual(
             hours['label'],
-            '9 AM - 6 PM, Tuesday - Saturday · Closed Sunday & Monday',
+            '9 AM - 6 PM, Monday - Saturday · Closed Sunday',
         )

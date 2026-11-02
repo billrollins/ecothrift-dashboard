@@ -7,11 +7,11 @@ describe('parseStoreHours', () => {
       timezone: 'America/Chicago',
       open: '09:00',
       close: '18:00',
-      closed_weekdays: [0, 6],
+      closed_weekdays: [6],
     });
   });
 
-  it('keeps a stored Tuesday-Saturday clock', () => {
+  it('keeps a stored Sunday + Monday closure (older saved hours)', () => {
     expect(
       parseStoreHours({
         timezone: 'America/Chicago',
@@ -31,7 +31,7 @@ describe('parseStoreHours', () => {
 describe('formatHoursLabel', () => {
   it('writes the Canfield public sentence', () => {
     expect(formatHoursLabel(parseStoreHours(null))).toBe(
-      '9 AM - 6 PM, Tuesday - Saturday · Closed Sunday & Monday',
+      '9 AM - 6 PM, Monday - Saturday · Closed Sunday',
     );
   });
 
@@ -55,7 +55,7 @@ describe('setDayOpen', () => {
 
   it('closes Wednesday without changing row count of the week', () => {
     const next = setDayOpen(parseStoreHours(null), 2, false);
-    expect(next.closed_weekdays).toEqual([0, 2, 6]);
+    expect(next.closed_weekdays).toEqual([2, 6]);
   });
 });
 

@@ -29,7 +29,7 @@ export const STORE = {
     name: 'Eco-Thrift - Canfield',
     address: '8425 W Center Rd, Omaha, NE 68124',
     /** Default schedule copy. Live pages build this from `/api/webstore/config/` hours. */
-    hours: '9 AM - 6 PM, Tuesday - Saturday · Closed Sunday & Monday',
+    hours: '9 AM - 6 PM, Monday - Saturday · Closed Sunday',
     /**
      * Offline fallback for live open status.
      * Live copy comes from AppSetting `online_sales.hours` via /api/webstore/config/.
@@ -39,7 +39,7 @@ export const STORE = {
       timezone: 'America/Chicago',
       openMinutes: 9 * 60,
       closeMinutes: 18 * 60,
-      closedWeekdays: [0, 1],
+      closedWeekdays: [0],
     },
     phone: '(402) 881-9861',
     phoneHref: '+14028819861',
@@ -87,7 +87,7 @@ export function storeJsonLd(hours?: {
 } | null) {
   const open = hours?.open ?? '09:00'
   const close = hours?.close ?? '18:00'
-  const closed = new Set(hours?.closed_weekdays ?? [0, 6])
+  const closed = new Set(hours?.closed_weekdays ?? [6])
   const dayOfWeek = SCHEMA_WEEKDAYS.filter((_, i) => !closed.has(i))
   return {
     '@context': 'https://schema.org',

@@ -1,6 +1,6 @@
 /** Build the public schedule line from AppSetting `online_sales.hours`.
  * Weekdays are Python `date.weekday()`: 0=Mon … 6=Sun.
- * Example: 9 AM - 6 PM, Tuesday - Saturday · Closed Sunday & Monday
+ * Example: 9 AM - 6 PM, Monday - Saturday · Closed Sunday
  */
 const DAY_NAMES = [
   'Monday',
@@ -91,7 +91,7 @@ export function formatHoursLabel(hours: {
 export const DEFAULT_HOURS_LABEL = formatHoursLabel({
   open: '09:00',
   close: '18:00',
-  closed_weekdays: [0, 6],
+  closed_weekdays: [6],
 })
 
 function parseIsoDate(iso: string): Date {

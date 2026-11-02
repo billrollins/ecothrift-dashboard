@@ -581,8 +581,8 @@ RECEIPT_STORE_ADDRESS: tuple[str, ...] = (
 )
 RECEIPT_STORE_PHONE = "(402) 881-9861"
 RECEIPT_STORE_HOURS: tuple[str, ...] = (
-    "Tue - Sat 9 AM - 6 PM",
-    "Sun & Mon Closed",
+    "Mon - Sat 9 AM - 6 PM",
+    "Sun Closed",
 )
 RECEIPT_FOOTER = "Thank you for shopping Eco-Thrift Canfield"
 RECEIPT_WEBSITE = "ecothrift.us"
@@ -760,7 +760,7 @@ def format_receipt_tape(data: dict[str, Any]) -> bytes:
 _TEST_DATA: dict[str, Any] = {
     "store_name": "Eco-Thrift - Canfield",
     "store_address": "8425 W Center Rd\nOmaha, NE 68124",
-    "store_hours": "Tue - Sat 9 AM - 6 PM\nSun & Mon Closed",
+    "store_hours": "Mon - Sat 9 AM - 6 PM\nSun Closed",
     "store_phone": "(402) 881-9861",
     "receipt_number": "R-TEST-001",
     "date": "2026-01-01",

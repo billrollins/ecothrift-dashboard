@@ -15,7 +15,7 @@ export const DEFAULT_STORE_HOURS_PUBLIC: StoreHoursPublic = {
   timezone: STORE.retail.hoursConfig.timezone,
   open: '09:00',
   close: '18:00',
-  closed_weekdays: [0, 6],
+  closed_weekdays: [6],
   label: DEFAULT_HOURS_LABEL,
   overrides: [],
 }
