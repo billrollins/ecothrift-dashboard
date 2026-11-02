@@ -1,6 +1,7 @@
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PhoneTabBar } from './PhoneTabBar';
 
@@ -27,11 +28,17 @@ vi.mock('../../hooks/useNavBadgeCounts', () => ({
 
 const theme = createTheme();
 
-function renderBar(path = '/dashboard') {
+function Probe() {
+  const location = useLocation();
+  return <div data-testid="where">{location.pathname}{location.search}</div>;
+}
+
+function renderBar(path = '/dashboard?tab=store') {
   return render(
     <ThemeProvider theme={theme}>
       <MemoryRouter initialEntries={[path]}>
         <PhoneTabBar />
+        <Probe />
       </MemoryRouter>
     </ThemeProvider>,
   );
@@ -41,29 +48,42 @@ describe('PhoneTabBar', () => {
   beforeEach(() => {
     authState.role = 'Employee';
     authState.language = 'en';
+    localStorage.clear();
   });
 
-  it('renders Dashboard and Today (routines, hours and pay live in Today)', () => {
+  it('renders Store and My day, nothing else', () => {
     renderBar();
-    expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /today/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^pay$/i })).not.toBeInTheDocument();
+    const labels = screen.getAllByRole('button').map((node) => node.textContent?.replace(/^\d+/, '').trim());
+    expect(labels).toEqual(['Store', 'My day']);
+    expect(screen.queryByRole('button', { name: /settings/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /routines/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /more/i })).not.toBeInTheDocument();
   });
 
-  it('marks the active tab from the path', () => {
+  it('marks the tab from the URL', () => {
+    renderBar('/dashboard?tab=myday');
+    expect(screen.getByRole('button', { name: /my day/i })).toHaveClass('Mui-selected');
+    expect(screen.getByRole('button', { name: /store/i })).not.toHaveClass('Mui-selected');
+  });
+
+  it('keeps My day selected for old Today and routine links', () => {
     renderBar('/today?hours=1');
-    expect(screen.getByRole('button', { name: /today/i })).toHaveClass('Mui-selected');
-    expect(screen.getByRole('button', { name: /dashboard/i })).not.toHaveClass('Mui-selected');
+    expect(screen.getByRole('button', { name: /my day/i })).toHaveClass('Mui-selected');
   });
 
-  it('keeps Today selected for an old routine link', () => {
-    renderBar('/routines/run/5');
-    expect(screen.getByRole('button', { name: /today/i })).toHaveClass('Mui-selected');
+  it('uses the role default with nothing remembered: My day for an Employee, Store for an Admin', () => {
+    renderBar('/dashboard');
+    expect(screen.getByRole('button', { name: /my day/i })).toHaveClass('Mui-selected');
   });
 
-  it('shows the due-today count on Today', () => {
+  it('opens the other tab and remembers the choice per user', async () => {
+    const user = userEvent.setup();
+    renderBar('/dashboard?tab=store');
+    await user.click(screen.getByRole('button', { name: /my day/i }));
+    expect(screen.getByTestId('where')).toHaveTextContent('/dashboard?tab=myday');
+    expect(localStorage.getItem('ecothrift.dashboard.tab.v1.1')).toBe('myday');
+  });
+
+  it('shows the due-today count on My day', () => {
     renderBar();
     expect(screen.getByLabelText('2 waiting')).toBeInTheDocument();
   });
@@ -71,9 +91,7 @@ describe('PhoneTabBar', () => {
   it('labels the tabs in Spanish when the user language is es', () => {
     authState.language = 'es';
     renderBar();
-    expect(screen.getByRole('button', { name: /tablero/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /hoy/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /pago/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /rutinas/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /tienda/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /mi dia/i })).toBeInTheDocument();
   });
 });

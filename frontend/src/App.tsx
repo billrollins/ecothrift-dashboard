@@ -49,7 +49,6 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const RoutinesPage = lazy(() => import('./pages/routines/RoutinesPage'));
 import { PendingBstockLoginNotice } from './pages/routines/runners/PendingBstockLoginNotice';
-const TodayPage = lazy(() => import('./pages/routines/TodayPage'));
 const TimePayrollPage = lazy(() => import('./pages/admin/TimePayrollPage'));
 const EnhancementRequestsPage = lazy(() => import('./pages/admin/EnhancementRequestsPage'));
 const IconsPage = lazy(() => import('./pages/admin/IconsPage'));
@@ -178,6 +177,14 @@ function SocialAppGate() {
   );
 }
 
+/** `/today` is the Dashboard's My day tab now; every query (a routine to run, the hours panel) comes along. */
+function TodayRedirect() {
+  const [params] = useSearchParams();
+  const next = new URLSearchParams(params);
+  next.set('tab', 'myday');
+  return <Navigate to={`/dashboard?${next.toString()}`} replace />;
+}
+
 /** `/` and unknown URLs: a cashier on a register goes to the Terminal, everyone else to the Dashboard. */
 function HomeRedirect() {
   const { user } = useAuth();
@@ -256,7 +263,7 @@ function AppRoutes() {
         }
       >
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/today" element={<TodayPage />} />
+        <Route path="/today" element={<TodayRedirect />} />
         {/* Staff messages (owner 2026-10-21): the envelope in the top bar opens these. */}
         {['/messages', '/messages/:id'].map((path) => (
           <Route
@@ -308,7 +315,7 @@ function AppRoutes() {
           }
         />
         {/* Hours & pay live on Today; /pay opens it expanded. */}
-        <Route path="/pay" element={<Navigate to="/today?hours=1" replace />} />
+        <Route path="/pay" element={<Navigate to="/dashboard?tab=myday&hours=1" replace />} />
         <Route path="/hr/sick-leave" element={<Navigate to="/dashboard" replace />} />
         <Route path="/inventory/vendors" element={<VendorListPage />} />
         <Route path="/inventory/vendors/:id" element={<VendorDetailPage />} />

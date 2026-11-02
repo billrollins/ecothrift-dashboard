@@ -1,8 +1,8 @@
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DashboardMetrics, DepartmentDailyMetric } from '../types/pos.types';
 import DashboardPage from './DashboardPage';
 
@@ -10,6 +10,7 @@ vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 2, role: 'Employee', is_superuser: false, language: 'en' } }),
 }));
 vi.mock('../components/layout/FloorNav', () => ({ FloorNav: () => null }));
+vi.mock('./routines/TodayPage', () => ({ default: () => <div>my day content</div> }));
 vi.mock('../components/dashboard/useDashboardLayout', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../components/dashboard/useDashboardLayout')>()),
   useDashboardLayout: () => ({ isMobile: false, isCompact: false }),
@@ -76,12 +77,12 @@ vi.mock('../hooks/useDashboard', () => ({
   useDashboardMetrics: () => ({ data: metrics, isLoading: false, error: null }),
 }));
 
-function renderPage() {
+function renderPage(entry = '/dashboard?tab=store') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <ThemeProvider theme={createTheme()}>
-        <MemoryRouter>
+        <MemoryRouter initialEntries={[entry]}>
           <DashboardPage />
         </MemoryRouter>
       </ThemeProvider>
@@ -106,5 +107,32 @@ describe('DashboardPage (desk)', () => {
     for (const name of ['Sales', 'Buying', 'Processing', 'Restoration', 'Retail']) {
       expect(screen.getByRole('button', { name: `Show past weeks: ${name}` })).toBeInTheDocument();
     }
+  });
+});
+
+describe('DashboardPage tabs (Store | My day)', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('shows the store numbers on ?tab=store and not My day', () => {
+    renderPage('/dashboard?tab=store');
+    expect(screen.getAllByRole('region').map((s) => s.getAttribute('aria-label'))).toEqual(['Sales', 'Departments']);
+    expect(screen.queryByText('my day content')).not.toBeInTheDocument();
+  });
+
+  it('shows the My day page (what /today was) inside the tab', async () => {
+    renderPage('/dashboard?tab=myday');
+    await waitFor(() => expect(screen.getByText('my day content')).toBeInTheDocument());
+    expect(screen.queryByRole('region', { name: 'Sales' })).not.toBeInTheDocument();
+  });
+
+  it('opens My day for an Employee with no tab chosen, then follows the remembered tab', async () => {
+    renderPage('/dashboard');
+    await waitFor(() => expect(screen.getByText('my day content')).toBeInTheDocument());
+  });
+
+  it('follows the tab remembered for this user', () => {
+    localStorage.setItem('ecothrift.dashboard.tab.v1.2', 'store');
+    renderPage('/dashboard');
+    expect(screen.getByRole('region', { name: 'Sales' })).toBeInTheDocument();
   });
 });

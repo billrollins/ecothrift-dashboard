@@ -31,7 +31,7 @@ export function PendingBstockLoginNotice() {
 
   const onOwnPage = location.pathname === BSTOCK_HANDOFF_PATH
     || location.pathname.startsWith('/routines/run/')
-    || (location.pathname === '/today' && hasRunner(new URLSearchParams(location.search)));
+    || ((location.pathname === '/today' || location.pathname === '/dashboard') && hasRunner(new URLSearchParams(location.search)));
   if (!pending || !user?.is_superuser || onOwnPage) return null;
 
   return (

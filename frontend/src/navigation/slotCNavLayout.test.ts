@@ -145,7 +145,7 @@ describe('Processing workspace pages', () => {
       { role: 'Admin', is_superuser: true },
       SLOT_C_NAV_GROUPS,
     );
-    const workspaces = groups.filter((g) => g.id !== 'essentials');
+    const workspaces = groups;
     const isActive = (item: { path: string; pathAliases?: string[] }) =>
       navItemIsActive('/floor-ops/floorplans', '', '', item);
     expect(resolveWorkspaceForRoute(workspaces, SLOT_C_WORKSPACES, isActive)).toBe('studios');
@@ -156,7 +156,7 @@ describe('Processing workspace pages', () => {
       { role: 'Admin', is_superuser: true },
       SLOT_C_NAV_GROUPS,
     );
-    const workspaces = groups.filter((g) => g.id !== 'essentials');
+    const workspaces = groups;
     const isActive = (item: { path: string; pathAliases?: string[] }) =>
       navItemIsActive('/restoration/overview', '', '', item);
     expect(resolveWorkspaceForRoute(workspaces, SLOT_C_WORKSPACES, isActive)).toBe('restoration');
@@ -171,7 +171,7 @@ describe('Studios and Admin placement', () => {
 
   it('keeps Admin as Departments, Shifts, Routines, Command Center, Time & payroll, Requests, Keys, and Settings', () => {
     expect(admin?.itemIds).toEqual([
-      'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'keys', 'settings',
+      'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'supplies', 'keys', 'settings',
     ]);
     expect(NAV_ITEM_CATALOG.superRequests?.superuserOnly).toBe(true);
     expect(NAV_ITEM_CATALOG.adminRoutines?.superuserOnly).toBe(true);
@@ -208,7 +208,11 @@ describe('Studios and Admin placement', () => {
     expect(NAV_ITEM_CATALOG.tagErrors?.roles).toBeUndefined();
     expect(retailFloor?.label).toBe('Inventory');
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'studios')?.itemIds).toContain('floorplans');
-    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'essentials')?.itemIds).toEqual(['dashboard', 'owner', 'reports', 'supplies']);
+    // Phase 1 redesign: no Essentials group. Dashboard is the logo; Owner and Reports live in the avatar menu.
+    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'essentials')).toBeUndefined();
+    for (const id of ['dashboard', 'owner', 'reports']) {
+      expect(SLOT_C_NAV_GROUPS.some((g) => g.itemIds.includes(id) || g.guestItemIds?.includes(id))).toBe(false);
+    }
     expect(NAV_ITEM_CATALOG.reports?.superuserOnly).toBe(true);
     expect(NAV_ITEM_CATALOG.owner).toMatchObject({ path: '/owner', superuserOnly: true, pathAliases: ['/brief'] });
     expect(onlineSales?.itemIds).toContain('onlineSalesCustomers');
@@ -235,7 +239,7 @@ describe('Command Center placement', () => {
     expect(storeSales?.guestItemIds).toEqual(['retailQa']);
     expect(storeSales?.itemIds).not.toContain('retailQa');
     expect(admin?.itemIds).toEqual([
-      'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'keys', 'settings',
+      'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'supplies', 'keys', 'settings',
     ]);
     expect(NAV_ITEM_CATALOG.retailQa?.label).toBe('Command Center');
     expect(NAV_ITEM_CATALOG.retailQa?.roles).toEqual(['Manager', 'Admin']);
@@ -260,7 +264,7 @@ describe('Command Center placement', () => {
       { role: 'Admin', is_superuser: true },
       SLOT_C_NAV_GROUPS,
     );
-    const workspaces = groups.filter((g) => g.id !== 'essentials');
+    const workspaces = groups;
     const isActive = (item: { path: string; pathAliases?: string[] }) =>
       navItemIsActive('/admin/retail-qa', '', '', item);
     expect(resolveWorkspaceForRoute(workspaces, SLOT_C_WORKSPACES, isActive)).toBe('admin');
@@ -320,10 +324,42 @@ describe('glowColorForNavItem', () => {
     expect(glowColorForNavItem('enhancementRequests')).toBe(restoration);
   });
 
-  it('gives Essentials no letter colour', () => {
+  it('gives pages in no workspace no letter colour', () => {
     expect(glowColorForNavItem('dashboard')).toBeUndefined();
+    expect(glowColorForNavItem('owner')).toBeUndefined();
     expect(glowColorForNavItem('pay')).toBeUndefined();
     expect(glowColorForNavItem('routines')).toBeUndefined();
     expect(glowColorForNavItem('documents')).toBeUndefined();
+  });
+
+  it('glows Supplies in the Admin colour now that it lives there', () => {
+    expect(glowColorForNavItem('supplies')).toBe('#1E293B');
+  });
+});
+
+describe('Sidebar = the workspace you are in (phase 1 redesign)', () => {
+  const admin = SLOT_C_NAV_GROUPS.find((g) => g.id === 'admin');
+
+  it('has exactly the ten workspaces with the same digits, 0 = Admin', () => {
+    expect(SLOT_C_NAV_GROUPS.map((g) => g.id)).toEqual(SLOT_C_WORKSPACES.map((w) => w.id));
+    expect(SLOT_C_WORKSPACES.map((w) => w.shortcutDigit)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
+  });
+
+  it('moves Supplies into Admin, with no role gate of its own', () => {
+    expect(admin?.itemIds).toContain('supplies');
+    expect(NAV_ITEM_CATALOG.supplies?.roles).toBeUndefined();
+    expect(NAV_ITEM_CATALOG.supplies?.superuserOnly).toBeUndefined();
+  });
+
+  it('shows Supplies to a Manager in Admin and to an Employee nowhere in the sidebar', () => {
+    const manager = resolveNavGroups({ role: 'Manager', is_superuser: false }, SLOT_C_NAV_GROUPS);
+    expect(manager.find((g) => g.id === 'admin')?.items.map((i) => i.id)).toContain('supplies');
+    const employee = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS);
+    expect(employee.flatMap((g) => g.items).map((i) => i.id)).not.toContain('supplies');
+  });
+
+  it('keeps Owner and Reports owner-only in the catalog (reached from the avatar menu)', () => {
+    expect(NAV_ITEM_CATALOG.owner?.superuserOnly).toBe(true);
+    expect(NAV_ITEM_CATALOG.reports?.superuserOnly).toBe(true);
   });
 });

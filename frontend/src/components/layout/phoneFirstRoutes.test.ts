@@ -50,6 +50,9 @@ describe('showsPhoneTabBar', () => {
   });
 
   it('hides the tab bar while filling, demoing, or editing a routine', () => {
+    expect(showsPhoneTabBar('/dashboard', '?tab=myday&hours=1')).toBe(true);
+    expect(showsPhoneTabBar('/dashboard', '?tab=myday&run=12')).toBe(false);
+    expect(showsPhoneTabBar('/dashboard', '?tab=store')).toBe(true);
     expect(showsPhoneTabBar('/today', '?run=12')).toBe(false);
     expect(showsPhoneTabBar('/today', 'routine=3&draft=9')).toBe(false);
     expect(showsPhoneTabBar('/routines/run/12')).toBe(false);
@@ -73,13 +76,16 @@ describe('showsPhoneTabBar', () => {
 describe('phoneShellTitle', () => {
   it('labels the slim top bar from the route', () => {
     expect(phoneShellTitle('/dashboard')).toBe('Dashboard');
-    expect(phoneShellTitle('/today')).toBe('Today');
+    expect(phoneShellTitle('/dashboard', 'en', 'store')).toBe('Dashboard');
+    expect(phoneShellTitle('/dashboard', 'en', 'myday')).toBe('My day');
+    expect(phoneShellTitle('/today')).toBe('My day');
     expect(phoneShellTitle('/routines')).toBe('Routines');
   });
 
   it('translates titles when the language is Spanish', () => {
     expect(phoneShellTitle('/dashboard', 'es')).toBe('Tablero');
-    expect(phoneShellTitle('/today', 'es')).toBe('Hoy');
+    expect(phoneShellTitle('/dashboard', 'es', 'myday')).toBe('Mi dia');
+    expect(phoneShellTitle('/today', 'es')).toBe('Mi dia');
     expect(phoneShellTitle('/routines', 'es')).toBe('Rutinas');
   });
 });

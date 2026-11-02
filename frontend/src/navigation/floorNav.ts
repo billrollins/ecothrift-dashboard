@@ -1,16 +1,10 @@
-// Two floor tabs: Dashboard (the store's numbers) and Today (shift, routines, hours and pay).
-// Routines and Pay live inside Today; their old tabs are gone.
-export const FLOOR_NAV_IDS = ['dashboard', 'today'] as const;
+import type { DashboardTab } from './dashboardTabs';
 
-export type FloorNavId = (typeof FLOOR_NAV_IDS)[number];
-
-export const FLOOR_NAV_LABEL_KEYS: Record<FloorNavId, string> = {
-  dashboard: 'dashboard',
-  today: 'today',
-};
-
-export const FLOOR_NAV_EXTRA_IDS = ['settings'] as const;
-
-export function isFloorNavId(id: string): id is FloorNavId {
-  return (FLOOR_NAV_IDS as readonly string[]).includes(id);
-}
+/**
+ * The Dashboard's two tabs (desk FloorNav and the phone tab bar): Store, then My day.
+ * `navId` is the catalog item whose icon and waiting badge each tab borrows.
+ */
+export const FLOOR_TABS: ReadonlyArray<{ id: DashboardTab; labelKey: string; navId: string }> = [
+  { id: 'store', labelKey: 'store', navId: 'dashboard' },
+  { id: 'myday', labelKey: 'myDay', navId: 'today' },
+];

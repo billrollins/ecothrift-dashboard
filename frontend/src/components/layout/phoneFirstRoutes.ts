@@ -57,14 +57,23 @@ function isRoutinePhoneList(path: string, search: string): boolean {
 export function showsPhoneTabBar(pathname: string, search = ''): boolean {
   const path = normalizePath(pathname);
   if (isRoutinePhoneList(path, search)) return true;
-  // A routine open on Today has its own Save / Cancel bar.
-  if (matchesPrefix(path, '/today') && hasRunner(new URLSearchParams(search.replace(/^\?/, '')))) return false;
+  // A routine open in My day has its own Save / Cancel bar.
+  if (
+    (matchesPrefix(path, '/today') || matchesPrefix(path, '/dashboard'))
+    && hasRunner(new URLSearchParams(search.replace(/^\?/, '')))
+  ) return false;
   return PHONE_TAB_BAR_PATHS.some((prefix) => matchesPrefix(path, prefix));
 }
 
-export function phoneShellTitle(pathname: string, language?: string | null): string {
+/** `tab` is the resolved Dashboard tab (the URL alone cannot say: the last choice is remembered). */
+export function phoneShellTitle(
+  pathname: string,
+  language?: string | null,
+  tab?: 'store' | 'myday',
+): string {
   const path = normalizePath(pathname);
-  if (matchesPrefix(path, '/today')) return t('today', language);
+  if (matchesPrefix(path, '/today')) return t('myDay', language);
+  if (matchesPrefix(path, '/dashboard') && tab === 'myday') return t('myDay', language);
   if (matchesPrefix(path, '/routines')) return t('routines', language);
   return t('dashboard', language);
 }

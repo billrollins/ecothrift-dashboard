@@ -1,35 +1,29 @@
 import { Box, BottomNavigation, BottomNavigationAction } from '@mui/material';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavBadgeCounts, useNavBadgeTones } from '../../hooks/useNavBadgeCounts';
 import { t } from '../../i18n/routines';
-import { FLOOR_NAV_IDS, FLOOR_NAV_LABEL_KEYS, isFloorNavId } from '../../navigation/floorNav';
-import { resolveNavItems } from '../../navigation/navResolve';
-import { navItemIsActive, navigateForNavItem } from '../../navigation/navUtils';
+import { FLOOR_TABS } from '../../navigation/floorNav';
+import { dashboardTabHref, saveDashboardTab, useDashboardTab } from '../../navigation/dashboardTabs';
+import { resolveNavItem } from '../../navigation/navResolve';
 import { NavWaitingBadge, type NavBadgeTone } from '../../navigation/NavWaitingBadge';
 import type { ResolvedNavItem } from '../../navigation/navTypes';
 
 export const PHONE_TAB_BAR_HEIGHT = 56;
 
-export const PHONE_TAB_IDS = FLOOR_NAV_IDS;
-
+/** The phone twin of FloorNav: Store | My day. */
 export function PhoneTabBar() {
   const { user } = useAuth();
   const lang = user?.language === 'es' ? 'es' : 'en';
   const navigate = useNavigate();
-  const location = useLocation();
-  const items = resolveNavItems(user, [...FLOOR_NAV_IDS]);
+  const activeTab = useDashboardTab();
   const badges = useNavBadgeCounts({ onlineSales: false });
   const tones = useNavBadgeTones();
-
-  const activeId = items.find((item) =>
-    navItemIsActive(location.pathname, location.search, location.hash || '', item),
-  )?.id ?? false;
 
   return (
     <BottomNavigation
       showLabels
-      value={activeId}
+      value={activeTab}
       sx={{
         flexShrink: 0,
         width: '100%',
@@ -48,24 +42,23 @@ export function PhoneTabBar() {
         },
       }}
     >
-      {items.map((item) => (
-        <BottomNavigationAction
-          key={item.id}
-          value={item.id}
-          label={isFloorNavId(item.id) ? t(FLOOR_NAV_LABEL_KEYS[item.id], lang) : item.label}
-          icon={<TabIcon item={item} count={badges[item.id] ?? 0} tone={tones[item.id]} />}
-          onClick={() => {
-            if (item.id === 'today') {
-              if (location.pathname !== item.path) navigate(item.path);
-              return;
-            }
-            if (navItemIsActive(location.pathname, location.search, location.hash || '', item)) {
-              return;
-            }
-            navigateForNavItem(navigate, item);
-          }}
-        />
-      ))}
+      {FLOOR_TABS.map((tab) => {
+        const item = resolveNavItem(tab.navId);
+        if (!item) return null;
+        return (
+          <BottomNavigationAction
+            key={tab.id}
+            value={tab.id}
+            label={t(tab.labelKey, lang)}
+            icon={<TabIcon item={item} count={badges[tab.navId] ?? 0} tone={tones[tab.navId]} />}
+            onClick={() => {
+              saveDashboardTab(user?.id, tab.id);
+              if (tab.id === activeTab) return;
+              navigate(dashboardTabHref(tab.id));
+            }}
+          />
+        );
+      })}
     </BottomNavigation>
   );
 }

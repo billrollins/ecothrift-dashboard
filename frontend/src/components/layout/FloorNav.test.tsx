@@ -29,10 +29,10 @@ const theme = createTheme();
 
 function PathProbe() {
   const location = useLocation();
-  return <div data-testid="path">{location.pathname}</div>;
+  return <div data-testid="path">{location.pathname}{location.search}</div>;
 }
 
-function renderNav(path = '/dashboard') {
+function renderNav(path = '/dashboard?tab=store') {
   return render(
     <ThemeProvider theme={theme}>
       <MemoryRouter initialEntries={[path]}>
@@ -46,50 +46,67 @@ function renderNav(path = '/dashboard') {
   );
 }
 
-describe('FloorNav', () => {
+describe('FloorNav (Store | My day)', () => {
   beforeEach(() => {
     authState.role = 'Employee';
+    localStorage.clear();
   });
 
-  it('renders Dashboard and Today in that order (routines, hours and pay live in Today)', () => {
+  it('renders Store then My day, and no Settings tab for anyone', () => {
     renderNav();
-    const labels = screen.getAllByRole('button').map((node) => node.getAttribute('aria-label'));
-    expect(labels).toEqual(['Dashboard', 'Today']);
+    expect(screen.getAllByRole('tab').map((node) => node.getAttribute('aria-label'))).toEqual(['Store', 'My day']);
+    authState.role = 'Manager';
+    renderNav();
+    expect(screen.queryByRole('tab', { name: 'Settings' })).not.toBeInTheDocument();
   });
 
-  it('marks Dashboard as the current page on /dashboard', () => {
+  it('marks Store as selected on ?tab=store', () => {
+    renderNav('/dashboard?tab=store');
+    expect(screen.getByRole('tab', { name: 'Store' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'My day' })).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('defaults to My day for an Employee and Store for a Manager when nothing is remembered', () => {
     renderNav('/dashboard');
-    expect(screen.getByRole('button', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('button', { name: 'Today' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('tab', { name: 'My day' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('shows the due-today count on Today', () => {
+  it('defaults to Store for a Manager', () => {
+    authState.role = 'Manager';
+    renderNav('/dashboard');
+    expect(screen.getByRole('tab', { name: 'Store' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('prefers the remembered tab over the role default', () => {
+    authState.role = 'Manager';
+    localStorage.setItem('ecothrift.dashboard.tab.v1.1', 'myday');
+    renderNav('/dashboard');
+    expect(screen.getByRole('tab', { name: 'My day' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('treats a routine or the hours panel in the URL as My day', () => {
+    authState.role = 'Manager';
+    renderNav('/dashboard?run=12');
+    expect(screen.getByRole('tab', { name: 'My day' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('shows the due-today count on My day', () => {
     renderNav();
     expect(screen.getByLabelText('2 waiting')).toBeInTheDocument();
   });
 
-  it('hides Settings for an employee', () => {
-    renderNav();
-    expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument();
-  });
-
-  it('shows Settings after a divider for a Manager', () => {
-    authState.role = 'Manager';
-    renderNav();
-    expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
-  });
-
-  it('navigates when a different item is clicked', async () => {
+  it('opens the other tab and remembers it for this user', async () => {
     const user = userEvent.setup();
-    renderNav('/dashboard');
-    await user.click(screen.getByRole('button', { name: 'Today' }));
-    expect(screen.getByTestId('path')).toHaveTextContent('/today');
+    renderNav('/dashboard?tab=store');
+    await user.click(screen.getByRole('tab', { name: 'My day' }));
+    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=myday');
+    expect(localStorage.getItem('ecothrift.dashboard.tab.v1.1')).toBe('myday');
   });
 
-  it('does nothing when the active item is clicked', async () => {
+  it('does not navigate when the active tab is clicked', async () => {
     const user = userEvent.setup();
-    renderNav('/dashboard');
-    await user.click(screen.getByRole('button', { name: 'Dashboard' }));
-    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard');
+    renderNav('/dashboard?tab=store');
+    await user.click(screen.getByRole('tab', { name: 'Store' }));
+    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=store');
   });
 });

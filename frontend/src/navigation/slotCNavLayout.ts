@@ -24,11 +24,6 @@ export const SLOT_C_REGISTER_WORKSPACE_ID = 'storeSales';
 /** Workspace-first groups for staff sidebar (presentation only). */
 export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
-    id: 'essentials',
-    label: null,
-    itemIds: ['dashboard', 'owner', 'reports', 'supplies'],
-  },
-  {
     id: 'buying',
     label: 'Buying',
     itemIds: ['wishlist', 'auctions', 'watchlist', 'reportCards', 'vendors', 'orders', 'preprocessing'],
@@ -92,12 +87,10 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'admin',
     label: 'Admin',
     roles: ['Manager', 'Admin'],
-    itemIds: ['departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'keys', 'settings'],
+    itemIds: ['departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'supplies', 'keys', 'settings'],
     guestItemIds: ['icons'],
   },
 ];
-
-export const SLOT_C_ESSENTIALS_GROUP_ID = 'essentials';
 
 /** Stale bake-off / renamed workspace ids → lifecycle ids. */
 export const SLOT_C_WORKSPACE_ID_MIGRATION: Record<string, string> = {
@@ -206,7 +199,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
 
 /**
  * For external URL entry: pick the lowest lifecycle-order workspace containing the active route.
- * Returns null when the route matches only Essentials or no nav item.
+ * Returns null when the route matches no workspace item.
  */
 export function resolveWorkspaceForRoute(
   workspaceGroups: ResolvedNavGroup[],
@@ -282,17 +275,12 @@ function pathsOverlap(a: NavItemDef, b: NavItemDef): boolean {
 
 /**
  * Hover glow for a sidebar page link: the jump-letter colour of the workspace
- * that owns the page. Essentials have no letter, so they return undefined.
+ * that owns the page. Pages in no workspace (Dashboard, Owner, Reports) have no letter, so they return undefined.
  * Guest shortcuts (Restoration under Processing) use the home workspace, not
  * the workspace they are visiting.
  */
 export function glowColorForNavItem(itemId: string): string | undefined {
-  const essentialsIds =
-    SLOT_C_NAV_GROUPS.find((g) => g.id === SLOT_C_ESSENTIALS_GROUP_ID)?.itemIds ?? [];
-  if (essentialsIds.includes(itemId)) return undefined;
-
   for (const group of SLOT_C_NAV_GROUPS) {
-    if (group.id === SLOT_C_ESSENTIALS_GROUP_ID) continue;
     if (group.itemIds.includes(itemId) || group.setupItemIds?.includes(itemId)) {
       return shortcutColorForWorkspace(group.id);
     }
@@ -300,7 +288,6 @@ export function glowColorForNavItem(itemId: string): string | undefined {
   const def = NAV_ITEM_CATALOG[itemId];
   if (!def) return undefined;
   for (const group of SLOT_C_NAV_GROUPS) {
-    if (group.id === SLOT_C_ESSENTIALS_GROUP_ID) continue;
     const nativeHome = [...group.itemIds, ...(group.setupItemIds ?? [])].some((id) => {
       const native = NAV_ITEM_CATALOG[id];
       return native != null && pathsOverlap(def, native);

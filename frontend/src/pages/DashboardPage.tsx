@@ -1,4 +1,6 @@
+import { lazy, Suspense } from 'react';
 import { Box, Alert } from '@mui/material';
+import { useDashboardTab } from '../navigation/dashboardTabs';
 import { LoadingScreen } from '../components/feedback/LoadingScreen';
 import { DepartmentMetricCards } from '../components/dashboard/DepartmentMetricCards';
 import { SalesFlipCard } from '../components/dashboard/SalesFlipCard';
@@ -16,7 +18,25 @@ import { useAuth } from '../hooks/useAuth';
 import { useDashboardMetrics } from '../hooks/useDashboard';
 import { t } from '../i18n/routines';
 
+const TodayPage = lazy(() => import('./routines/TodayPage'));
+
+/**
+ * The Dashboard: two tabs and nothing else. Store is today's numbers; My day is what /today shows
+ * (shift, routines, hours and pay). Each tab draws its own band with the same Store | My day switch.
+ */
 export default function DashboardPage() {
+  const tab = useDashboardTab();
+  if (tab === 'myday') {
+    return (
+      <Suspense fallback={<LoadingScreen message="Loading…" />}>
+        <TodayPage />
+      </Suspense>
+    );
+  }
+  return <StoreDashboard />;
+}
+
+function StoreDashboard() {
   const { user } = useAuth();
   const lang = user?.language === 'es' ? 'es' : 'en';
   const { data: metrics, isLoading, error } = useDashboardMetrics();

@@ -8,7 +8,6 @@ import {
   rollupWorkspaceBadgeCounts,
   SLOT_C_DEFAULT_WORKSPACE_ID,
   SLOT_C_REGISTER_WORKSPACE_ID,
-  SLOT_C_ESSENTIALS_GROUP_ID,
   SLOT_C_NAV_GROUPS,
   SLOT_C_WORKSPACES,
   SLOT_C_WORKSPACE_ID_MIGRATION,
@@ -69,15 +68,8 @@ export function Sidebar() {
   const panelRef = useRef<HTMLDivElement>(null);
   const { user, pathname, search, hash, locationState, isActive, navigateToItem } = useStaffNav();
 
-  const groups = useMemo(() => resolveNavGroups(user, SLOT_C_NAV_GROUPS), [user]);
-  const essentials = useMemo(
-    () => groups.find((g) => g.id === SLOT_C_ESSENTIALS_GROUP_ID) ?? null,
-    [groups],
-  );
-  const workspaceGroups = useMemo(
-    () => groups.filter((g) => g.id !== SLOT_C_ESSENTIALS_GROUP_ID),
-    [groups],
-  );
+  // The sidebar is the workspace you are in: no pinned group above the switcher.
+  const workspaceGroups = useMemo(() => resolveNavGroups(user, SLOT_C_NAV_GROUPS), [user]);
   const visibleWorkspaces = useMemo(
     () => SLOT_C_WORKSPACES.filter((meta) => workspaceGroups.some((g) => g.id === meta.id)),
     [workspaceGroups],
@@ -163,11 +155,6 @@ export function Sidebar() {
       }}
     >
       <Box sx={{ flexShrink: 0 }}>
-        {essentials && (
-          <List component="div" disablePadding sx={{ mb: 1 }}>
-            {essentials.items.map(renderRow)}
-          </List>
-        )}
         <WorkspaceSwitcher
           workspaces={visibleWorkspaces}
           selectedId={selectedWorkspace?.id ?? null}

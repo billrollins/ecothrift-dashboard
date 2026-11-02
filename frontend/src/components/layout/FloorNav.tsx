@@ -1,45 +1,41 @@
 import { Box, ButtonBase } from '@mui/material';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { dutyColors } from '../duty/tokens';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavBadgeCounts, useNavBadgeTones } from '../../hooks/useNavBadgeCounts';
 import { t } from '../../i18n/routines';
+import { FLOOR_TABS } from '../../navigation/floorNav';
 import {
-  FLOOR_NAV_EXTRA_IDS,
-  FLOOR_NAV_IDS,
-  FLOOR_NAV_LABEL_KEYS,
-  isFloorNavId,
-} from '../../navigation/floorNav';
-import { resolveNavItems } from '../../navigation/navResolve';
+  dashboardTabHref,
+  saveDashboardTab,
+  useDashboardTab,
+  type DashboardTab,
+} from '../../navigation/dashboardTabs';
+import { resolveNavItem } from '../../navigation/navResolve';
 import type { ResolvedNavItem } from '../../navigation/navTypes';
-import { navItemIsActive, navigateForNavItem } from '../../navigation/navUtils';
 import { NavWaitingBadge, type NavBadgeTone } from '../../navigation/NavWaitingBadge';
 
 /**
- * The desk twin of PhoneTabBar: Dashboard / Today, plus Settings
- * behind a divider for Manager+. Identical on every floor page; only the
- * active item changes.
+ * The desk twin of PhoneTabBar: the Dashboard's two tabs, Store and My day. Identical on
+ * every Dashboard tab; only the active one changes. The choice is remembered per person.
  */
 export function FloorNav() {
   const { user } = useAuth();
   const lang = user?.language === 'es' ? 'es' : 'en';
   const navigate = useNavigate();
-  const location = useLocation();
-  const items = resolveNavItems(user, [...FLOOR_NAV_IDS]);
-  const extras = resolveNavItems(user, [...FLOOR_NAV_EXTRA_IDS]);
+  const activeTab = useDashboardTab();
   const badges = useNavBadgeCounts({ onlineSales: false });
   const tones = useNavBadgeTones();
 
-  const isActive = (item: ResolvedNavItem) =>
-    navItemIsActive(location.pathname, location.search, location.hash || '', item);
-
-  const pick = (item: ResolvedNavItem) => {
-    if (isActive(item)) return;
-    navigateForNavItem(navigate, item);
+  const pick = (tab: DashboardTab) => {
+    saveDashboardTab(user?.id, tab);
+    if (tab === activeTab) return;
+    navigate(dashboardTabHref(tab));
   };
 
   return (
     <Box
+      role="tablist"
       sx={{
         display: 'flex',
         alignItems: 'center',
@@ -50,35 +46,21 @@ export function FloorNav() {
         flexShrink: 0,
       }}
     >
-      {items.map((item) => (
-        <FloorNavItem
-          key={item.id}
-          item={item}
-          label={isFloorNavId(item.id) ? t(FLOOR_NAV_LABEL_KEYS[item.id], lang) : item.label}
-          count={badges[item.id] ?? 0}
-          tone={tones[item.id]}
-          active={isActive(item)}
-          onPick={() => pick(item)}
-        />
-      ))}
-      {extras.length > 0 ? (
-        <>
-          <Box
-            aria-hidden
-            sx={{ width: '1px', height: 22, mx: '3px', bgcolor: 'rgba(255,255,255,0.32)', flexShrink: 0 }}
+      {FLOOR_TABS.map((tab) => {
+        const item = resolveNavItem(tab.navId);
+        if (!item) return null;
+        return (
+          <FloorNavItem
+            key={tab.id}
+            item={item}
+            label={t(tab.labelKey, lang)}
+            count={badges[tab.navId] ?? 0}
+            tone={tones[tab.navId]}
+            active={tab.id === activeTab}
+            onPick={() => pick(tab.id)}
           />
-          {extras.map((item) => (
-            <FloorNavItem
-              key={item.id}
-              item={item}
-              label={item.id === 'settings' ? t('settings', lang) : item.label}
-              count={badges[item.id] ?? 0}
-              active={isActive(item)}
-              onPick={() => pick(item)}
-            />
-          ))}
-        </>
-      ) : null}
+        );
+      })}
     </Box>
   );
 }
@@ -102,7 +84,9 @@ function FloorNavItem({
   return (
     <ButtonBase
       onClick={onPick}
+      role="tab"
       aria-label={label}
+      aria-selected={active}
       aria-current={active ? 'page' : undefined}
       sx={{
         height: 34,

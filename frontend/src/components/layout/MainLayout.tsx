@@ -2,37 +2,23 @@ import { Suspense, useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   AppBar,
-  Avatar,
-  Badge,
   Box,
+  ButtonBase,
   Drawer as MuiDrawer,
   IconButton,
-  Menu,
-  MenuItem,
   Toolbar,
   Typography,
   useMediaQuery,
   useTheme,
   Divider,
-  ListItemIcon,
-  ListItemText,
-  ToggleButton,
-  ToggleButtonGroup,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import Logout from '@mui/icons-material/Logout';
-import Person from '@mui/icons-material/Person';
-import LockReset from '@mui/icons-material/LockReset';
-import TranslateOutlined from '@mui/icons-material/TranslateOutlined';
-import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoadingScreen } from '../feedback/LoadingScreen';
 import { AppErrorBoundary } from '../feedback/AppErrorBoundary';
 import { ObjectModalProvider } from '../objects/ObjectModal';
-import ChangePasswordDialog from '../users/ChangePasswordDialog';
-import ViewAsDialog from '../viewAs/ViewAsDialog';
-import { VIEW_AS_BAND_VAR, VIEW_AS_BRIGHT, VIEW_AS_INK } from '../viewAs/ViewAsBanner';
+import { VIEW_AS_BAND_VAR } from '../viewAs/ViewAsBanner';
 import { Sidebar, SIDEBAR_WIDTH } from './Sidebar';
 import { PhoneTabBar } from './PhoneTabBar';
 import { phoneShellTitle, showsPhoneTabBar } from './phoneFirstRoutes';
@@ -42,17 +28,11 @@ import logoIcon from '../../assets/logo-icon-32x32.png';
 import { dashboardPalette } from '../dashboard/dashboardCardStyles';
 import { dutyColors } from '../duty/tokens';
 import { RESTORATION_BENCH_PATH } from '../../pages/restoration/restorationRoutes';
-import { t } from '../../i18n/routines';
-import { RoutinesNag } from '../routines/RoutinesNag';
-import { MessagesEnvelope } from '../messages/MessagesEnvelope';
-import { useNavBadgeCounts, useNavBadgeTones } from '../../hooks/useNavBadgeCounts';
-import { resolveNavItem } from '../../navigation/navResolve';
-import { navigateForNavItem } from '../../navigation/navUtils';
-import { NavWaitingBadge } from '../../navigation/NavWaitingBadge';
+import { ClockPill } from './ClockPill';
+import { NotificationBell } from './NotificationBell';
+import { AccountMenu } from './AccountMenu';
+import { useDashboardTab } from '../../navigation/dashboardTabs';
 import { hasRunner } from '../../pages/routines/todayRunner';
-
-// Hours & pay live on Today now; the menu has one way in.
-const PROFILE_NAV_IDS = ['today'] as const;
 
 const DASHBOARD_BACKDROP = dashboardPalette.backdrop;
 
@@ -63,15 +43,16 @@ export default function MainLayout() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [passwordOpen, setPasswordOpen] = useState(false);
-  const [viewAsOpen, setViewAsOpen] = useState(false);
-  const { user, logout, setLanguage, viewAs, stopViewAs } = useAuth();
+  const { user } = useAuth();
   const lang = user?.language === 'es' ? 'es' : 'en';
   const navigate = useNavigate();
   const location = useLocation();
-  const isDashboard = location.pathname === '/dashboard';
-  const isToday = location.pathname === '/today' || location.pathname.startsWith('/today/');
+  // The Dashboard is two tabs: Store (the olive numbers page) and My day (what /today was).
+  const dashboardTab = useDashboardTab();
+  const isDashboardPath = location.pathname === '/dashboard';
+  const isDashboard = isDashboardPath && dashboardTab === 'store';
+  const isToday = (isDashboardPath && dashboardTab === 'myday')
+    || location.pathname === '/today' || location.pathname.startsWith('/today/');
   // A routine open on Today draws its own pane edge to edge, like the runner always did.
   const isTodayRunner = isToday && hasRunner(new URLSearchParams(location.search));
   const isRestoration = location.pathname.startsWith('/restoration');
@@ -83,21 +64,8 @@ export default function MainLayout() {
   const isStaffRoutines = location.pathname.startsWith('/routines');
   const isFloorDesk = !isMobile && (isDashboard || isToday || isStaffRoutines);
   const isPhoneShell = isMobile && showsPhoneTabBar(location.pathname, location.search);
-  const profileBadges = useNavBadgeCounts({ onlineSales: false });
-  const profileTones = useNavBadgeTones();
-  const profileNavItems = PROFILE_NAV_IDS
-    .map((id) => resolveNavItem(id))
-    .filter((item): item is NonNullable<typeof item> => item != null);
 
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
-  const handleMenuOpen = (e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget);
-  const handleMenuClose = () => setAnchorEl(null);
-
-  const handleLogout = async () => {
-    handleMenuClose();
-    await logout();
-    navigate('/login');
-  };
 
   const { data: appVersion } = useQuery({
     queryKey: ['appVersion'],
@@ -124,8 +92,19 @@ export default function MainLayout() {
         overflowX: 'hidden',
       }}
     >
+      {/* The logo is home: it opens the Dashboard (its last tab). */}
       <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'center', minWidth: 0 }}>
-        <img src={logo} alt="Eco-Thrift" style={{ maxWidth: '100%', width: 180, height: 'auto' }} />
+        <ButtonBase
+          aria-label="Dashboard"
+          data-testid="sidebar-logo"
+          onClick={() => {
+            setMobileOpen(false);
+            navigate('/dashboard');
+          }}
+          sx={{ maxWidth: '100%', borderRadius: 1 }}
+        >
+          <img src={logo} alt="Eco-Thrift" style={{ maxWidth: '100%', width: 180, height: 'auto' }} />
+        </ButtonBase>
       </Box>
       <Divider />
       <Box sx={{ flexGrow: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
@@ -216,170 +195,19 @@ export default function MainLayout() {
                     sx={{ width: 32, height: 32, display: 'block' }}
                   />
                   <Typography variant="body2" fontWeight={800} noWrap>
-                    {phoneShellTitle(location.pathname, lang)}
+                    {phoneShellTitle(location.pathname, lang, dashboardTab)}
                   </Typography>
                 </Box>
               ) : null}
               <Box sx={{ flexGrow: 1 }} />
+              {/* Top bar = right now: the clock, the one bell, me. */}
               {user ? (
-                <Box sx={{ width: 44, height: 44, mr: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <RoutinesNag />
-                </Box>
-              ) : null}
-              {user ? <MessagesEnvelope /> : null}
-              {user && (
                 <>
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{ mr: 1, display: { xs: 'none', sm: isPhoneShell ? 'none' : 'block' } }}
-                  >
-                    {user.full_name}
-                  </Typography>
-                  <IconButton
-                    onClick={handleMenuOpen}
-                    aria-label="Account menu"
-                    sx={{ width: 44, height: 44 }}
-                  >
-                    {/* View as: the employee's initials with a small eye badge. */}
-                    <Badge
-                      overlap="circular"
-                      anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                      invisible={!viewAs}
-                      badgeContent={<VisibilityRounded sx={{ fontSize: 12 }} />}
-                      data-testid={viewAs ? 'avatar-viewing-badge' : undefined}
-                      sx={{
-                        '& .MuiBadge-badge': {
-                          bgcolor: VIEW_AS_BRIGHT, color: VIEW_AS_INK, border: `2px solid ${VIEW_AS_INK}`,
-                          minWidth: 20, width: 20, height: 20, p: 0, borderRadius: '50%',
-                        },
-                      }}
-                    >
-                      <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontSize: 14 }}>
-                        {user.first_name?.[0]}{user.last_name?.[0]}
-                      </Avatar>
-                    </Badge>
-                  </IconButton>
-                  <Menu
-                    anchorEl={anchorEl}
-                    open={Boolean(anchorEl)}
-                    onClose={handleMenuClose}
-                    transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-                    anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-                  >
-                    {viewAs ? (
-                      <MenuItem
-                        data-testid="account-menu-view-as-back"
-                        onClick={() => {
-                          handleMenuClose();
-                          void stopViewAs();
-                        }}
-                        sx={{ bgcolor: VIEW_AS_BRIGHT, '&:hover': { bgcolor: '#ffd54f' } }}
-                      >
-                        <ListItemIcon><VisibilityRounded fontSize="small" sx={{ color: VIEW_AS_INK }} /></ListItemIcon>
-                        <ListItemText
-                          primary={`Back to ${viewAs.real_user.name.split(' ')[0]}`}
-                          secondary={`Viewing as ${viewAs.target.name} · read only`}
-                        />
-                      </MenuItem>
-                    ) : null}
-                    {/* Me: my details, password and register PIN, hours, shifts, sign out everywhere. */}
-                    <MenuItem
-                      data-testid="account-menu-me"
-                      onClick={() => {
-                        handleMenuClose();
-                        navigate('/me');
-                      }}
-                    >
-                      <ListItemIcon><Person fontSize="small" /></ListItemIcon>
-                      <ListItemText
-                        primary={user.full_name}
-                        secondary={user.role ? `${user.role} · Me` : 'Me'}
-                      />
-                    </MenuItem>
-                    <Divider />
-                    {profileNavItems.map((item) => (
-                      <MenuItem
-                        key={item.id}
-                        onClick={() => {
-                          handleMenuClose();
-                          navigateForNavItem(navigate, item);
-                        }}
-                      >
-                        <ListItemIcon><item.Icon fontSize="small" /></ListItemIcon>
-                        <ListItemText primary={item.label} />
-                        <Box sx={{ width: 28, display: 'flex', justifyContent: 'flex-end' }}>
-                          <NavWaitingBadge count={profileBadges[item.id] ?? 0} tone={profileTones[item.id]} />
-                        </Box>
-                      </MenuItem>
-                    ))}
-                    <Divider />
-                    <MenuItem
-                      disableRipple
-                      sx={{ cursor: 'default', py: 1.25, pr: 2, alignItems: 'center' }}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <ListItemIcon><TranslateOutlined fontSize="small" /></ListItemIcon>
-                      <ListItemText primary={t('language', lang)} />
-                      <ToggleButtonGroup
-                        size="small"
-                        exclusive
-                        value={lang}
-                        onClick={(event) => event.stopPropagation()}
-                        onChange={(_, value) => {
-                          if (value === 'en' || value === 'es') void setLanguage(value);
-                        }}
-                        sx={{
-                          ml: 2,
-                          '& .MuiToggleButton-root': {
-                            px: 1.5,
-                            py: 0.5,
-                            minWidth: 44,
-                            lineHeight: 1.2,
-                          },
-                        }}
-                      >
-                        <ToggleButton value="en">
-                          {t('english', lang)}
-                        </ToggleButton>
-                        <ToggleButton value="es">
-                          {t('spanish', lang)}
-                        </ToggleButton>
-                      </ToggleButtonGroup>
-                    </MenuItem>
-                    {user.is_superuser && !viewAs ? (
-                      <MenuItem
-                        data-testid="account-menu-view-as"
-                        onClick={() => {
-                          handleMenuClose();
-                          setViewAsOpen(true);
-                        }}
-                      >
-                        <ListItemIcon><VisibilityRounded fontSize="small" /></ListItemIcon>
-                        <ListItemText primary="View as…" secondary="See Dash as an employee" />
-                      </MenuItem>
-                    ) : null}
-                    <MenuItem
-                      onClick={() => {
-                        handleMenuClose();
-                        setPasswordOpen(true);
-                      }}
-                    >
-                      <ListItemIcon><LockReset fontSize="small" /></ListItemIcon>
-                      <ListItemText primary="Change password" />
-                    </MenuItem>
-                    <MenuItem onClick={handleLogout}>
-                      <ListItemIcon><Logout fontSize="small" /></ListItemIcon>
-                      <ListItemText primary="Logout" />
-                    </MenuItem>
-                  </Menu>
-                  <ChangePasswordDialog
-                    open={passwordOpen}
-                    onClose={() => setPasswordOpen(false)}
-                  />
-                  {user.is_superuser ? <ViewAsDialog open={viewAsOpen} onClose={() => setViewAsOpen(false)} /> : null}
+                  <ClockPill />
+                  <NotificationBell />
+                  <AccountMenu />
                 </>
-              )}
+              ) : null}
             </Toolbar>
           </AppBar>
         )}
