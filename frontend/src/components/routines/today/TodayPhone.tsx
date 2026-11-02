@@ -1,6 +1,8 @@
 import { Box } from '@mui/material';
 import { dutyColors } from '../../duty/tokens';
+import { useState } from 'react';
 import { ClockInLimitDialog } from '../../hr/ClockInLimitDialog';
+import { PunchConfirmDialog, type PunchAsk } from '../../layout/ClockPill';
 import { HoursPayPanel } from '../../hr/HoursPayPanel';
 import { ShiftHeroCard } from '../../hr/ShiftHeroCard';
 import { PhoneFrame } from '../../layout/PhoneFrame';
@@ -14,6 +16,8 @@ import { useTodayModel } from './useTodayModel';
 export function TodayPhone() {
   const model = useTodayModel();
   const { lang, weekly, clock, runner, hours, nag, now, work, clockedIn, loadingLists, greeting } = model;
+  // Clocking is never one tap: every punch from this card asks again first (owner, 2026-11-02).
+  const [ask, setAsk] = useState<PunchAsk>(null);
 
   // A routine takes the whole screen on a phone; Back (or Save / Cancel) returns to Today.
   if (runner.open) {
@@ -56,7 +60,7 @@ export function TodayPhone() {
         weekly={weekly.data}
         hoursNag={hours}
         lang={lang}
-        onClockIn={(shift) => { void clock.clockIn(shift); }}
+        onClockIn={(shift, label) => setAsk({ kind: 'in', shift, label })}
         pendingClockIn={clock.pending.clockIn}
         onSetShift={clock.setShift}
         onFixForgotten={(at) => { void clock.fixForgotten(at); }}
@@ -67,7 +71,7 @@ export function TodayPhone() {
             pendingBreak={clock.pending.break}
             pendingClockOut={clock.pending.clockOut}
             onToggleBreak={() => { void clock.toggleBreak(); }}
-            onClockOut={() => { void clock.clockOut(); }}
+            onClockOut={() => setAsk({ kind: 'out' })}
             lang={lang}
           />
         ) : undefined}
@@ -77,6 +81,16 @@ export function TodayPhone() {
 
       <HoursPayPanel />
 
+      <PunchConfirmDialog
+        ask={ask}
+        busy={clock.pending.clockIn || clock.pending.clockOut}
+        onCancel={() => setAsk(null)}
+        onConfirm={(confirmed) => {
+          setAsk(null);
+          if (confirmed.kind === 'out') void clock.clockOut();
+          else void clock.clockIn(confirmed.shift);
+        }}
+      />
       <ClockInLimitDialog
         open={clock.limitOpen}
         lang={lang}

@@ -38,7 +38,7 @@ export function ShiftHeroCard({
   hoursNag?: HoursNag;
   lang: string;
   actions?: ReactNode;
-  onClockIn: (shift: string) => void;
+  onClockIn: (shift: string, label: string) => void;
   pendingClockIn?: boolean;
   onSetShift: (shift: string) => void;
   /** Close a forgotten punch at the time they left (ISO). */

@@ -3,7 +3,9 @@ import { format } from 'date-fns';
 import { t } from '../../../i18n/routines';
 import { RoutineRunnerPage } from '../../../pages/routines/RoutineRunnerPage';
 import { dutyColors } from '../../duty/tokens';
+import { useState } from 'react';
 import { ClockInLimitDialog } from '../../hr/ClockInLimitDialog';
+import { PunchConfirmDialog, type PunchAsk } from '../../layout/ClockPill';
 import { HoursPayPanel } from '../../hr/HoursPayPanel';
 import { ShiftHeroCard } from '../../hr/ShiftHeroCard';
 import { FloorPage } from '../../layout/FloorPage';
@@ -33,6 +35,8 @@ const PHONE = 'clamp(340px, 36%, 440px)';
 export function TodayDesk() {
   const model = useTodayModel();
   const { lang, weekly, clock, runner, hours, nag, now, work, clockedIn, loadingLists, greeting } = model;
+  // Clocking is never one tap: every punch from this card asks again first (owner, 2026-11-02).
+  const [ask, setAsk] = useState<PunchAsk>(null);
   const open = runner.open;
 
   return (
@@ -94,7 +98,7 @@ export function TodayDesk() {
                 weekly={weekly.data}
                 hoursNag={hours}
                 lang={lang}
-                onClockIn={(shift) => { void clock.clockIn(shift); }}
+                onClockIn={(shift, label) => setAsk({ kind: 'in', shift, label })}
                 pendingClockIn={clock.pending.clockIn}
                 onSetShift={clock.setShift}
                 onFixForgotten={(at) => { void clock.fixForgotten(at); }}
@@ -105,7 +109,7 @@ export function TodayDesk() {
                     pendingBreak={clock.pending.break}
                     pendingClockOut={clock.pending.clockOut}
                     onToggleBreak={() => { void clock.toggleBreak(); }}
-                    onClockOut={() => { void clock.clockOut(); }}
+                    onClockOut={() => setAsk({ kind: 'out' })}
                     lang={lang}
                     row
                   />
@@ -149,6 +153,16 @@ export function TodayDesk() {
         </Box>
       </Box>
 
+      <PunchConfirmDialog
+        ask={ask}
+        busy={clock.pending.clockIn || clock.pending.clockOut}
+        onCancel={() => setAsk(null)}
+        onConfirm={(confirmed) => {
+          setAsk(null);
+          if (confirmed.kind === 'out') void clock.clockOut();
+          else void clock.clockIn(confirmed.shift);
+        }}
+      />
       <ClockInLimitDialog
         open={clock.limitOpen}
         lang={lang}

@@ -81,7 +81,7 @@ export function ClockPill() {
   );
 }
 
-type Confirming = { kind: 'out' } | { kind: 'in'; shift: string } | null;
+type Confirming = { kind: 'out' } | { kind: 'in'; shift: string; label: string } | null;
 
 /** Today's shift and clock state, one primary button, and an explicit confirm step before any punch. */
 export function ClockDialog({ onClose }: { onClose: () => void }) {
@@ -115,7 +115,7 @@ export function ClockDialog({ onClose }: { onClose: () => void }) {
     const question = confirming.kind === 'out'
       ? t('clockOutConfirm', lang).replace('{time}', nowText)
       : t('clockInConfirm', lang)
-        .replace('{shift}', shiftName(confirming.shift, lang))
+        .replace('{shift}', confirming.label || shiftName(confirming.shift, lang))
         .replace('{time}', nowText);
     const busy = confirming.kind === 'out' ? clock.pending.clockOut : clock.pending.clockIn;
     body = (
@@ -147,7 +147,7 @@ export function ClockDialog({ onClose }: { onClose: () => void }) {
       <>
         <Typography sx={{ fontWeight: 800, mb: 0.5 }}>{t('notClockedIn', lang)}</Typography>
         <Typography sx={{ fontSize: 13, color: dutyColors.ink60, mb: 1.5 }}>{t('readyToStart', lang)}</Typography>
-        <ShiftPicker lang={lang} onPick={(shift) => setConfirming({ kind: 'in', shift })} />
+        <ShiftPicker lang={lang} onPick={(shift, label) => setConfirming({ kind: 'in', shift, label })} />
       </>
     );
     actions = <Button onClick={onClose} sx={{ minHeight: 44 }}>{t('close', lang)}</Button>;
@@ -232,5 +232,49 @@ export function ClockDialog({ onClose }: { onClose: () => void }) {
         onClockOut={() => { void clock.clockOut(); }}
       />
     </>
+  );
+}
+
+export type PunchAsk = { kind: 'out' } | { kind: 'in'; shift: string; label: string } | null;
+
+/** The same "Clock in to X now, 8:58 AM?" / "Clock out now, 3:42 PM?" step for the My day clock card. */
+export function PunchConfirmDialog({
+  ask,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  ask: PunchAsk;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: (ask: NonNullable<PunchAsk>) => void;
+}) {
+  const { user } = useAuth();
+  const lang = user?.language === 'es' ? 'es' : 'en';
+  const now = useNowTick(Boolean(ask));
+  if (!ask) return null;
+  const nowText = format(new Date(now), 'h:mm a');
+  const question = ask.kind === 'out'
+    ? t('clockOutConfirm', lang).replace('{time}', nowText)
+    : t('clockInConfirm', lang).replace('{shift}', ask.label || shiftName(ask.shift, lang)).replace('{time}', nowText);
+  return (
+    <Dialog open onClose={busy ? undefined : onCancel} maxWidth="xs" fullWidth aria-labelledby="punch-confirm-title">
+      <DialogTitle id="punch-confirm-title" sx={{ fontWeight: 800 }}>{t('timeClock', lang)}</DialogTitle>
+      <DialogContent>
+        <Typography data-testid="punch-confirm" sx={{ fontSize: 18, fontWeight: 800, color: dutyColors.ink }}>{question}</Typography>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onCancel} disabled={busy} sx={{ minHeight: 44 }}>{t('cancel', lang)}</Button>
+        <Button
+          variant="contained"
+          color={ask.kind === 'out' ? 'error' : 'primary'}
+          disabled={busy}
+          sx={{ minHeight: 44, fontWeight: 800 }}
+          onClick={() => onConfirm(ask)}
+        >
+          {t(ask.kind === 'out' ? 'clockOut' : 'clockIn', lang)}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }

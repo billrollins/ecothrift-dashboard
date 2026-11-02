@@ -83,7 +83,7 @@ export function ShiftPicker({
 }: {
   value?: string;
   pending?: boolean;
-  onPick: (shift: string) => void;
+  onPick: (shift: string, label: string) => void;
   lang: string;
   /** Supply tiles to skip the staff endpoint (public clock). */
   tiles?: ClockTile[];
@@ -115,7 +115,7 @@ export function ShiftPicker({
                   disabled={pending}
                   onClick={() => {
                     setPicking(shift.key);
-                    onPick(shift.key);
+                    onPick(shift.key, lang === 'es' ? shift.es : shift.en);
                   }}
                   sx={{
                     height: 48,

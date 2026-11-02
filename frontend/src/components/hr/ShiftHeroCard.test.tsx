@@ -73,7 +73,7 @@ describe('ShiftHeroCard', () => {
     );
     expect(screen.getByText('Clock in')).toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: 'Retail Open' }));
-    expect(onClockIn).toHaveBeenCalledWith('retail_open');
+    expect(onClockIn).toHaveBeenCalledWith('retail_open', expect.any(String));
   });
 
   it('shows the timer and Change when clocked in; weekly hours live in Hours & pay', () => {
