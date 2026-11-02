@@ -430,8 +430,8 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   // Everything planned for Dash (replaces Enhancements). Reached from the avatar menu and the bell; in no workspace sidebar.
   dashFixes: {
     id: 'dashFixes',
-    path: '/dash-fixes',
-    label: 'Dash Fixes',
+    path: '/dash-updates',
+    label: 'Dash Updates',
     icon: 'enhancement',
   },
   /** Routine Control: every routine with its history, quick edits, retire / restore / delete. */

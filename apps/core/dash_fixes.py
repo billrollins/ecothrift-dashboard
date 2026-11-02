@@ -1,4 +1,4 @@
-"""Dash Fixes: one list of everything planned for Dash.
+"""Dash Updates (model and API still say Dash Fixes): one list of everything planned for Dash.
 
 Staff report an issue and watch the line. The owner (superuser) accepts, orders and finishes items.
 Visibility is enforced here, in the queryset, never only in the UI:
@@ -6,16 +6,25 @@ Visibility is enforced here, in the queryset, never only in the UI:
   * everyone else sees their own items (any status) plus every non-private item that is
     accepted, working, done or declined. Other people's "new" items stay hidden until accepted;
   * private items are superuser-only.
+
+The coder API (``DashFixCoderView``) lets a coding session keep its update's status, waiting_on and
+session current and read and add notes. Auth: a superuser sign-in, or the ``X-Coder-Token`` header
+matching settings.DASH_CODER_TOKEN. Calls: .ai/protocols/mainline_updates.md.
 """
+import hmac
+
+from django.conf import settings
 from django.db import transaction
 from django.db.models import F, Max, Q
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsStaff
 
@@ -87,7 +96,7 @@ class DashFixNoteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DashFixNote
-        fields = ['id', 'body', 'author', 'author_name', 'created_at']
+        fields = ['id', 'body', 'author', 'author_name', 'session', 'created_at']
         read_only_fields = fields
 
 
@@ -106,7 +115,7 @@ class DashFixSerializer(serializers.ModelSerializer):
             'decline_reason', 'done_version', 'done_at', 'accepted_at', 'status_changed_at',
             'created_at', 'submitted_by', 'submitted_by_name', 'photos', 'is_mine', 'unseen', 'notes',
             'size', 'depends_on', 'coder_notes', 'parent', 'project', 'step', 'waiting_on',
-            'question_for_owner', 'owner_answer', 'answered_at',
+            'question_for_owner', 'owner_answer', 'answered_at', 'session', 'updated_at',
         ]
         read_only_fields = fields
 
@@ -420,3 +429,143 @@ class DashFixViewSet(viewsets.GenericViewSet):
                             status=status.HTTP_400_BAD_REQUEST)
         dash_fix_json.apply_plan(result['plan'], user=request.user)
         return Response({'ok': True, 'changes': result['changes'], 'warnings': result['warnings']})
+
+
+# -- coder API (coding sessions) ----------------------------------------------
+CODER_STATUSES = (
+    DashFix.STATUS_ACCEPTED, DashFix.STATUS_WORKING, DashFix.STATUS_ALMOST, DashFix.STATUS_HOLD,
+    DashFix.STATUS_DONE,
+)
+
+
+def coder_token_ok(request) -> bool:
+    expected = getattr(settings, 'DASH_CODER_TOKEN', '') or ''
+    given = request.META.get('HTTP_X_CODER_TOKEN') or ''
+    return bool(expected) and hmac.compare_digest(given.encode(), expected.encode())
+
+
+class IsOwnerOrCoder(BasePermission):
+    def has_permission(self, request, view):
+        return _is_owner(request.user) or coder_token_ok(request)
+
+
+def set_coder_status(row: DashFix, new_status: str, *, version: str = '') -> None:
+    """Moves one update to a new status the way the owner buttons do (line ranks kept 1..n)."""
+    now = timezone.now()
+    was_in_line = row.status in DashFix.LINE_STATUSES
+    if new_status != row.status:
+        row.status = new_status
+        row.status_changed_at = now
+    if new_status in DashFix.LINE_STATUSES:
+        if not was_in_line:
+            row.rank = _next_rank()
+            row.accepted_at = row.accepted_at or now
+            row.decline_reason = ''
+            row.done_at = None
+            row.done_version = ''
+    else:
+        row.rank = 0
+    if new_status == DashFix.STATUS_DONE:
+        row.done_at = row.done_at or now
+        row.done_version = version or row.done_version
+        row.accepted_at = row.accepted_at or now
+    if new_status != DashFix.STATUS_ALMOST:
+        row.waiting_on = ''
+
+
+class CoderUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=CODER_STATUSES, required=False)
+    waiting_on = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    session = serializers.CharField(max_length=300, required=False, allow_blank=True)
+    note = serializers.CharField(max_length=4000, required=False, allow_blank=True)
+    version = serializers.CharField(max_length=40, required=False, allow_blank=True)
+
+
+def _coder_out(row: DashFix, since=None) -> dict:
+    notes = row.notes.select_related('author').all()
+    if since is not None:
+        notes = notes.filter(created_at__gt=since)
+    return {
+        'id': row.id, 'title': row.title, 'status': row.status, 'rank': row.rank,
+        'waiting_on': row.waiting_on, 'session': row.session, 'done_version': row.done_version,
+        'updated_at': row.updated_at, 'notes': DashFixNoteSerializer(notes, many=True).data,
+    }
+
+
+class DashFixCoderListView(APIView):
+    """GET /api/core/dash-updates/coder/  every update not done or declined, line first, so Mainline can pick."""
+
+    permission_classes = [IsOwnerOrCoder]
+
+    def get(self, request):
+        rows = (
+            DashFix.objects.exclude(status__in=(DashFix.STATUS_DONE, DashFix.STATUS_DECLINED))
+            .prefetch_related('depends_on')
+            .order_by('rank', 'id')
+        )
+        out = [
+            {
+                'id': row.id, 'rank': row.rank, 'title': row.title, 'status': row.status, 'size': row.size,
+                'project': row.project, 'step': row.step, 'waiting_on': row.waiting_on, 'session': row.session,
+                'depends_on': sorted(dep.id for dep in row.depends_on.all()),
+                'blocked_by': sorted(dep.id for dep in row.depends_on.all() if dep.status != DashFix.STATUS_DONE),
+                'open_question': bool(row.question_for_owner and not row.owner_answer),
+            }
+            for row in rows
+        ]
+        out.sort(key=lambda item: (item['rank'] == 0, item['rank'], item['id']))
+        return Response(out)
+
+
+class DashFixCoderView(APIView):
+    """GET  /api/core/dash-updates/<id>/coder/?since=<iso>  status + notes (all, or newer than since).
+    POST /api/core/dash-updates/<id>/coder/  {status?, waiting_on?, session?, note?, version?}.
+    """
+
+    permission_classes = [IsOwnerOrCoder]
+
+    @staticmethod
+    def _row(pk, *, lock=False):
+        qs = DashFix.objects.select_for_update() if lock else DashFix.objects
+        row = qs.filter(pk=pk).first()
+        if row is None:
+            raise NotFound('No update with that id.')
+        return row
+
+    def get(self, request, pk):
+        since = None
+        raw = (request.query_params.get('since') or '').strip()
+        if raw:
+            since = parse_datetime(raw.replace(' ', '+'))
+            if since is None:
+                return Response({'since': 'Use an ISO time, e.g. 2026-11-02T14:00:00Z.'}, status=status.HTTP_400_BAD_REQUEST)
+            if timezone.is_naive(since):
+                since = timezone.make_aware(since)
+        return Response(_coder_out(self._row(pk), since))
+
+    def post(self, request, pk):
+        serializer = CoderUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        session = (data.get('session') or '').strip()
+        with transaction.atomic():
+            row = self._row(pk, lock=True)
+            if 'status' in data:
+                set_coder_status(row, data['status'], version=(data.get('version') or '').strip())
+            elif data.get('version'):
+                row.done_version = data['version'].strip()
+            if 'waiting_on' in data:
+                row.waiting_on = data['waiting_on'].strip()
+            if 'session' in data:
+                row.session = session
+            row.save()
+            _repack_line()
+            note = (data.get('note') or '').strip()
+            if note:
+                DashFixNote.objects.create(
+                    fix=row, body=note,
+                    author=request.user if _is_owner(request.user) else None,
+                    session=session or row.session,
+                )
+        row.refresh_from_db()
+        return Response(_coder_out(row))

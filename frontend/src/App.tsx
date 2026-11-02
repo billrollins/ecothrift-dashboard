@@ -552,8 +552,9 @@ function AppRoutes() {
             </SuperAdminRoute>
           }
         />
-        <Route path="/dash-fixes" element={<DashFixesPage />} />
-        <Route path="/admin/enhancement-requests" element={<Navigate to="/dash-fixes" replace />} />
+        <Route path="/dash-updates" element={<DashFixesPage />} />
+        <Route path="/dash-fixes" element={<Navigate to="/dash-updates" replace />} />
+        <Route path="/admin/enhancement-requests" element={<Navigate to="/dash-updates" replace />} />
         <Route
           path="/admin/routines"
           element={

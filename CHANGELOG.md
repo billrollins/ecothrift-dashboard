@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.233.1] -->
-<!-- Last reviewed: 2026-11-02 (2.233.1) -->
+<!-- Line 1 release: ## [2.234.0] -->
+<!-- Last reviewed: 2026-11-02 (2.234.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.234.0] - 2026-11-02
+
+User-facing theme: **Dash Fixes is now Dash Updates, with a desktop table that refreshes itself and shows which session is working on each update (Bill, 2026-11-02).**
+
+### Changed
+- Dash Fixes is renamed **Dash Updates** (page, your menu, the bell). "Report a fix" is now **Ask for an update**. Old links open the new page.
+- On a desktop the list is a full-width table, one row per update: #, update and description, project and step, who asked and when, size, status (with what it waits on and the session working on it), dependencies, last updated. Phones keep the cards.
+- The list refreshes every 15 seconds, so statuses change while work happens.
+
+### Added
+- Coding sessions can set an update's status, add a note and read new notes through a protected coder link, so the list stays current while work is under way. The way Mainline runs updates (one session per update, status kept current, notes read before every ship) is written in `.ai/protocols/mainline_updates.md`.
 
 ## [2.233.1] - 2026-11-02
 

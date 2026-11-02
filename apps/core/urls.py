@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .dash_fixes import DashFixViewSet
+from .dash_fixes import DashFixCoderListView, DashFixCoderView, DashFixViewSet
 from .views import (
     WorkLocationViewSet, AppSettingViewSet, S3FileViewSet,
     AiActionViewSet, AiModelViewSet,
@@ -26,6 +26,8 @@ router.register(r'requests', ApprovalRequestViewSet, basename='approval-request'
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('dash-updates/coder/', DashFixCoderListView.as_view(), name='dash-update-coder-list'),
+    path('dash-updates/<int:pk>/coder/', DashFixCoderView.as_view(), name='dash-update-coder'),
     path('system/version/', app_version, name='app-version'),
     path('system/print-server-version/', print_server_version, name='print-server-version'),
     path('system/print-server-releases/', print_server_releases, name='print-server-releases'),

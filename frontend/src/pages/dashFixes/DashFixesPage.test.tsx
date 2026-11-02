@@ -33,7 +33,7 @@ function fix(over: Partial<DashFixDTO>): DashFixDTO {
     private: false, decline_reason: '', done_version: '', done_at: null, accepted_at: null,
     status_changed_at: '2026-11-01T10:00:00Z', created_at: '2026-11-01T10:00:00Z', submitted_by: 2,
     submitted_by_name: 'Ann Bench', photos: [], is_mine: false, unseen: false, notes: [], size: '',
-    depends_on: [], project: '', step: null, waiting_on: '', ...over,
+    depends_on: [], project: '', step: null, waiting_on: '', session: '', updated_at: '2026-11-01T10:00:00Z', ...over,
   };
 }
 
@@ -41,7 +41,7 @@ function renderPage() {
   render(
     <QueryClientProvider client={new QueryClient()}>
       <ThemeProvider theme={createTheme()}>
-        <MemoryRouter initialEntries={['/dash-fixes']}>
+        <MemoryRouter initialEntries={['/dash-updates']}>
           <DashFixesPage />
         </MemoryRouter>
       </ThemeProvider>
@@ -75,7 +75,7 @@ describe('model helpers', () => {
   });
 });
 
-describe('Dash Fixes page', () => {
+describe('Dash Updates page', () => {
   it('shows the sections and status chips', () => {
     renderPage();
     expect(screen.getByTestId('fix-section-line')).toHaveTextContent('In line (3)');
@@ -117,13 +117,44 @@ describe('Dash Fixes page', () => {
   });
 });
 
-describe('Report a fix', () => {
+describe('Dash Updates desktop table', () => {
+  function asDesktop() {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('min-width'), media: query, onchange: null,
+      addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
+    }));
+  }
+
+  it('shows one table row per update with rich fields; a click opens the drawer', async () => {
+    asDesktop();
+    state.rows[2] = fix({ id: 3, title: 'Working one', status: 'working', rank: 3, session: 'lane/dash-updates', size: 'M' });
+    state.rows[3] = fix({ id: 4, title: 'Almost one', status: 'almost', rank: 4, waiting_on: 'ship' });
+    renderPage();
+    expect(screen.getByTestId('fix-line').querySelector('table')).not.toBeNull();
+    const row = screen.getByTestId('fix-row-3');
+    expect(row.tagName).toBe('TR');
+    expect(row).toHaveTextContent('#3');
+    expect(row).toHaveTextContent('Ann Bench');
+    expect(screen.getByTestId('fix-session-3')).toHaveTextContent('lane/dash-updates');
+    expect(screen.getByTestId('fix-status-4')).toHaveTextContent('Almost done · waiting on ship');
+    expect(screen.getByTestId('fix-after-2-1')).toHaveTextContent('after #1');
+    expect(screen.getByTestId('fix-group-Nav')).toBeInTheDocument();
+    expect(screen.getByTestId('fix-done-list').querySelector('table')).not.toBeNull();
+    await userEvent.click(row);
+    expect(screen.getByTestId('fix-drawer')).toBeInTheDocument();
+    expect(screen.getByTestId('fix-drawer-session')).toHaveTextContent('lane/dash-updates');
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('Ask for an update', () => {
   it('sends the page the person was on, with the explanation', async () => {
     rememberPage('/inventory/processing');
+    expect(sourcePage('/dash-updates')).toBe('/inventory/processing');
     expect(sourcePage('/dash-fixes')).toBe('/inventory/processing');
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <ReportFixDialog open onClose={vi.fn()} pagePath={sourcePage('/dash-fixes')} />
+        <ReportFixDialog open onClose={vi.fn()} pagePath={sourcePage('/dash-updates')} />
       </QueryClientProvider>,
     );
     expect(screen.getByTestId('report-fix-page')).toHaveTextContent('/inventory/processing');

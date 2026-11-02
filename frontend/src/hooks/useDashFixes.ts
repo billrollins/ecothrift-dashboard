@@ -18,11 +18,15 @@ import type { DashFixReport } from '../types/dashFixes.types';
 export const dashFixesKey = ['dashFixes'] as const;
 export const dashFixCountKey = ['dashFixes', 'count'] as const;
 
+/** Refetched every 15 seconds so badges move while a coding session works. */
+export const DASH_FIXES_REFRESH_MS = 15_000;
+
 export function useDashFixes(enabled = true) {
   return useQuery({
     queryKey: dashFixesKey,
     queryFn: async () => (await getDashFixes()).data,
     enabled,
+    refetchInterval: DASH_FIXES_REFRESH_MS,
   });
 }
 

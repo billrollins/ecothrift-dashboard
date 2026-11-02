@@ -82,7 +82,7 @@ export function AccountMenu() {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [viewAsOpen, setViewAsOpen] = useState(false);
-  // "Report a fix" remembers the page you were on, not /dash-fixes.
+  // "Ask for an update" remembers the page you were on, not /dash-updates.
   const [reportPage, setReportPage] = useState<string | null>(null);
 
   if (!user) return null;
@@ -191,7 +191,7 @@ export function AccountMenu() {
           <ListItemIcon><Inventory2Outlined fontSize="small" /></ListItemIcon>
           <ListItemText primary={t('supplies', lang)} />
         </MenuItem>
-        <MenuItem key="dash-fixes" data-testid="account-menu-dash-fixes" onClick={() => go('/dash-fixes')}>
+        <MenuItem key="dash-fixes" data-testid="account-menu-dash-fixes" onClick={() => go('/dash-updates')}>
           <ListItemIcon><BuildCircleOutlined fontSize="small" /></ListItemIcon>
           <ListItemText primary={t('dashFixes', lang)} />
         </MenuItem>

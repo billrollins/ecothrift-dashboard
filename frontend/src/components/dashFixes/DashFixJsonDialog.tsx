@@ -21,7 +21,7 @@ function errorText(err: unknown, fallback: string): string {
 }
 
 /**
- * Upload or paste the Dash Fixes JSON an AI returned. The server checks it and lists every change;
+ * Upload or paste the Dash Updates JSON an AI returned. The server checks it and lists every change;
  * Save is the only moment anything is written.
  */
 export function DashFixJsonDialog({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {

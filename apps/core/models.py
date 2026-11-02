@@ -233,6 +233,8 @@ class DashFix(models.Model):
     coder_notes = models.TextField(blank=True, default='')
     # Almost done: what it is waiting on ("your review", "a test print").
     waiting_on = models.CharField(max_length=200, blank=True, default='')
+    # The coding session working on it (name or link), set by the session through the coder API.
+    session = models.CharField(max_length=300, blank=True, default='')
     # A question from the coder to the owner, and his answer (both owner-only).
     question_for_owner = models.TextField(blank=True, default='')
     owner_answer = models.TextField(blank=True, default='')
@@ -285,6 +287,8 @@ class DashFixNote(models.Model):
 
     fix = models.ForeignKey(DashFix, on_delete=models.CASCADE, related_name='notes')
     body = models.TextField()
+    # Set when a coding session wrote the note through the coder API (author is then empty).
+    session = models.CharField(max_length=300, blank=True, default='')
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='dash_fix_notes',

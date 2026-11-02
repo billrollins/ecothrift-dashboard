@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Typography } from '@mui/material';
+import { Alert, Box, Button, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useEffect, useMemo, useState } from 'react';
@@ -9,6 +9,7 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { DashFixDrawer } from '../../components/dashFixes/DashFixDrawer';
 import { DashFixJsonDialog } from '../../components/dashFixes/DashFixJsonDialog';
 import { DashFixRowBody } from '../../components/dashFixes/DashFixRow';
+import { DashFixTable, flatGroup } from '../../components/dashFixes/DashFixTable';
 import {
   VISIBLE_DONE,
   groupLine,
@@ -43,6 +44,9 @@ export default function DashFixesPage() {
   const { user } = useAuth();
   const lang = user?.language === 'es' ? 'es' : 'en';
   const isOwner = Boolean(user?.is_superuser);
+  const theme = useTheme();
+  // md and up: the full width and one dense table row per update. Phones keep the cards.
+  const desktop = useMediaQuery(theme.breakpoints.up('md'));
   const location = useLocation();
   const { enqueueSnackbar } = useSnackbar();
   const { data: rows = [], isLoading } = useDashFixes();
@@ -81,10 +85,31 @@ export default function DashFixesPage() {
     <DashFixRowBody key={row.id} row={row} lang={lang} onOpen={setOpenId} />
   );
 
+  const lineControls = (row: DashFixDTO) => {
+    if (!isOwner) return undefined;
+    const index = rankOrder.findIndex((other) => other.id === row.id);
+    return {
+      canUp: index > 0,
+      canDown: index < rankOrder.length - 1,
+      onUp: () => reorder.mutate(moveInLine(rankOrder, row.id, -1)),
+      onDown: () => reorder.mutate(moveInLine(rankOrder, row.id, 1)),
+    };
+  };
+
+  /** A section that is not the line: a table on desktop, cards on a phone. */
+  const plainSection = (items: DashFixDTO[], testId: string) =>
+    desktop ? (
+      <DashFixTable groups={flatGroup(items)} all={rows} byId={byId} lang={lang} onOpen={setOpenId} testId={testId} />
+    ) : (
+      <Box data-testid={testId} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, overflow: 'hidden' }}>
+        {items.map(plainRow)}
+      </Box>
+    );
+
   async function downloadForAi() {
     try {
       const { data } = await getDashFixBundle();
-      downloadJson(data, `ecothrift-dash-fixes-for-ai-${new Date().toISOString().slice(0, 10)}.json`);
+      downloadJson(data, `ecothrift-dash-updates-for-ai-${new Date().toISOString().slice(0, 10)}.json`);
       enqueueSnackbar('Downloaded. Give the file to any AI with what you want changed, then upload its answer here.', { variant: 'success' });
     } catch {
       enqueueSnackbar('Could not build the file.', { variant: 'error' });
@@ -102,7 +127,7 @@ export default function DashFixesPage() {
   }
 
   return (
-    <Box sx={{ maxWidth: 900, width: '100%', mx: 'auto', pb: 6 }}>
+    <Box sx={{ maxWidth: desktop ? 'none' : 900, width: '100%', mx: 'auto', pb: 6 }}>
       <PageHeader
         title={t('dashFixes', lang)}
         subtitle={t('fxPageSub', lang)}
@@ -126,6 +151,17 @@ export default function DashFixesPage() {
       <SectionTitle count={sections.line.length} testId="fix-section-line">{t('fxInLine', lang)}</SectionTitle>
       {sections.line.length === 0 ? (
         <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>{t('fxEmptyLine', lang)}</Typography>
+      ) : desktop ? (
+        <DashFixTable
+          groups={groups}
+          all={rows}
+          byId={byId}
+          lang={lang}
+          onOpen={setOpenId}
+          testId="fix-line"
+          nextUp={nextUp}
+          reorder={isOwner ? lineControls : undefined}
+        />
       ) : (
         <Box data-testid="fix-line" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, overflow: 'hidden' }}>
           {groups.map((group) => (
@@ -135,31 +171,19 @@ export default function DashFixesPage() {
                   {group.project}
                 </Typography>
               ) : null}
-              {group.items.map((row) => {
-                const index = rankOrder.findIndex((other) => other.id === row.id);
-                return (
-                  <DashFixRowBody
-                    key={row.id}
-                    row={row}
-                    lang={lang}
-                    number={row.rank || undefined}
-                    project={group.project ? projectLabel(row, rows, lang) : undefined}
-                    after={waitingOn(row, byId)}
-                    nextUp={row.id === nextUp}
-                    onOpen={setOpenId}
-                    reorder={
-                      isOwner
-                        ? {
-                            canUp: index > 0,
-                            canDown: index < rankOrder.length - 1,
-                            onUp: () => reorder.mutate(moveInLine(rankOrder, row.id, -1)),
-                            onDown: () => reorder.mutate(moveInLine(rankOrder, row.id, 1)),
-                          }
-                        : undefined
-                    }
-                  />
-                );
-              })}
+              {group.items.map((row) => (
+                <DashFixRowBody
+                  key={row.id}
+                  row={row}
+                  lang={lang}
+                  number={row.rank || undefined}
+                  project={group.project ? projectLabel(row, rows, lang) : undefined}
+                  after={waitingOn(row, byId)}
+                  nextUp={row.id === nextUp}
+                  onOpen={setOpenId}
+                  reorder={lineControls(row)}
+                />
+              ))}
             </Box>
           ))}
         </Box>
@@ -168,27 +192,21 @@ export default function DashFixesPage() {
       {sections.waiting.length > 0 ? (
         <>
           <SectionTitle count={sections.waiting.length} testId="fix-section-waiting">{t('fxWaiting', lang)}</SectionTitle>
-          <Box data-testid="fix-waiting" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, overflow: 'hidden' }}>
-            {sections.waiting.map(plainRow)}
-          </Box>
+          {plainSection(sections.waiting, 'fix-waiting')}
         </>
       ) : null}
 
       {sections.hold.length > 0 ? (
         <>
           <SectionTitle count={sections.hold.length} testId="fix-section-hold">{t('fxOnHold', lang)}</SectionTitle>
-          <Box data-testid="fix-hold" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, overflow: 'hidden' }}>
-            {sections.hold.map(plainRow)}
-          </Box>
+          {plainSection(sections.hold, 'fix-hold')}
         </>
       ) : null}
 
       {sections.done.length > 0 ? (
         <>
           <SectionTitle count={sections.done.length} testId="fix-section-done">{t('fxDone', lang)}</SectionTitle>
-          <Box data-testid="fix-done-list" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, overflow: 'hidden' }}>
-            {doneShown.map(plainRow)}
-          </Box>
+          {plainSection(doneShown, 'fix-done-list')}
           {sections.done.length > VISIBLE_DONE ? (
             <Button sx={{ mt: 0.5 }} onClick={() => setShowAllDone((value) => !value)} data-testid="fix-done-toggle">
               {showAllDone ? t('fxShowFewerDone', lang) : t('fxShowAllDone', lang).replace('{n}', String(sections.done.length))}
@@ -200,9 +218,7 @@ export default function DashFixesPage() {
       {sections.declined.length > 0 ? (
         <>
           <SectionTitle count={sections.declined.length} testId="fix-section-declined">{t('fxNotDoing', lang)}</SectionTitle>
-          <Box data-testid="fix-declined" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, overflow: 'hidden' }}>
-            {sections.declined.map(plainRow)}
-          </Box>
+          {plainSection(sections.declined, 'fix-declined')}
         </>
       ) : null}
 
@@ -224,7 +240,7 @@ export default function DashFixesPage() {
             setJsonOpen(false);
             void queryClient.invalidateQueries({ queryKey: dashFixesKey });
             void queryClient.invalidateQueries({ queryKey: dashFixCountKey });
-            enqueueSnackbar('Dash Fixes saved', { variant: 'success' });
+            enqueueSnackbar('Dash Updates saved', { variant: 'success' });
           }}
         />
       ) : null}

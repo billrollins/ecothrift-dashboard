@@ -206,6 +206,7 @@ Defined in `.env` (local values) and `.envprod` (mirror of Heroku Config Vars, w
 | ~~`AI_MODEL_<PURPOSE>`~~, ~~`AI_MODEL_FAST`~~ | **Removed.** Migration `core/0006_ai_models_from_env` copied their values into Settings > AI; code no longer reads them. Gone from `.env`, `.envprod` and Heroku (unset 2026-10-07, Heroku v420; T23) | - |
 | `AI_PRICING` | Defined in **`ecothrift/settings.py`** (per-model input/output/cache rates) — not env; costs recorded in the **`AIUsage`** table | — |
 | `VITE_DEV_LOG` | Frontend dev console (`devLog`) for Add Item / suggest | `false` |
+| `DASH_CODER_TOKEN` | Dash Updates coder API: a coding session sends it as `X-Coder-Token` (`scripts/dev/dash_update.py` reads it from `.envprod` / `.env`; [`mainline_updates.md`](../protocols/mainline_updates.md)). Blank = only a superuser sign-in works | — |
 | `BSTOCK_AUTH_TOKEN` | Last-resort JWT, after the handed-over `BStockToken` row and `workspace/.bstock_token` (from `python manage.py bstock_token` or DevTools) | — |
 | `BUYING_REQUEST_DELAY_SECONDS` | Minimum delay between scraper HTTP requests | `2.0` |
 | `BSTOCK_MAX_RETRIES` | Retries after HTTP 429 | `3` |

@@ -184,7 +184,7 @@ export function NotificationBell() {
             label={t('dashFixes', lang)}
             count={dashFixes}
             color={RED}
-            onClick={() => go('/dash-fixes')}
+            onClick={() => go('/dash-updates')}
             testId="bell-row-dash-fixes"
           />
           {total === 0 ? (

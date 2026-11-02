@@ -137,6 +137,7 @@ Load on demand. Do not read them all at session start. When you add, rename or r
 | Need | Where |
 |------|-------|
 | Start a session | [`protocols/startup.md`](protocols/startup.md) |
+| Dash Updates: pick, one session each, keep status current | [`protocols/mainline_updates.md`](protocols/mainline_updates.md) |
 | Messages from master / the other coder | [`protocols/check_comm.md`](protocols/check_comm.md) |
 | Standards review | [`protocols/standards-review.md`](protocols/standards-review.md) → [`initiatives/standards.md`](initiatives/standards.md) |
 | New / review initiatives | [`protocols/initiative-create.md`](protocols/initiative-create.md), [`protocols/initiative-review.md`](protocols/initiative-review.md) |

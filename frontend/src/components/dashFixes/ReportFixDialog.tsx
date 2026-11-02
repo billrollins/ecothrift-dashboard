@@ -21,12 +21,12 @@ export const MAX_PHOTOS = 3;
 export interface ReportFixDialogProps {
   open: boolean;
   onClose: () => void;
-  /** The Dash page the person was on (never /dash-fixes itself). Sent with the report. */
+  /** The Dash page the person was on (never Dash Updates itself). Sent with the report. */
   pagePath: string;
   onSent?: () => void;
 }
 
-/** The "Report a fix" form: say what is wrong or wanted, add up to three screenshots. */
+/** The "Ask for an update" form: say what is wrong or wanted, add up to three screenshots. */
 export function ReportFixDialog({ open, onClose, pagePath, onSent }: ReportFixDialogProps) {
   const { user } = useAuth();
   const lang = user?.language === 'es' ? 'es' : 'en';

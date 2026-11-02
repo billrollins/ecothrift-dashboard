@@ -53,7 +53,7 @@ CATALOG: tuple[Capability, ...] = (
     Capability('hr.kiosk:use', 'People', 'Host the time kiosk tablet (/kiosk); punches act as the scanned card', STAFF, 'IsStaff on kiosk_views'),
     Capability('routines:perform', 'Routines', 'Fill in assigned routines', STAFF, 'IsStaff on runs / submissions'),
     Capability('documents:perform', 'Documents', 'Sign, acknowledge, or read assigned documents', STAFF, 'IsStaff on recipients'),
-    Capability('dashfixes:report', 'Dash Fixes', 'Report a fix, read the line, add notes to what you can see', STAFF, 'DashFixViewSet IsStaff'),
+    Capability('dashfixes:report', 'Dash Updates', 'Report to Dash Updates, read the line, add notes to what you can see', STAFF, 'DashFixViewSet IsStaff'),
     Capability('floorplan:read', 'Studios', 'View floorplans', STAFF, 'FloorPlanViewSet GET → IsStaff'),
     # ── Manager+ (IsManagerOrAdmin) ───────────────────────────────────────
     Capability('settings:write', 'Settings', 'Edit Assumptions, Store, Printing, System', MANAGER_PLUS, 'AppSettingViewSet IsManagerOrAdmin'),
@@ -85,7 +85,8 @@ CATALOG: tuple[Capability, ...] = (
     Capability('blog:write', 'Studios', 'Write and publish in Blog Studio', SUPER_ONLY, 'blog _STAFF_PERMS IsSuperAdmin'),
     Capability('people.logins:merge', 'People', 'Merge a customer login into a staff login; make missing staff website accounts', SUPER_ONLY, 'LoginMergeViewSet; thriftplus staff-memberships create-missing'),
     Capability('restoration.parts:approve', 'Restoration', 'Approve, deny, buy, or set ETA on parts', SUPER_ONLY, 'parts approve/deny/purchase/eta'),
-    Capability('dashfixes:manage', 'Dash Fixes', 'Accept, decline, order, hide, start and finish Dash Fixes', SUPER_ONLY, 'DashFixViewSet owner actions'),
+    Capability('dashfixes:manage', 'Dash Updates', 'Accept, decline, order, hide, start and finish Dash Updates', SUPER_ONLY, 'DashFixViewSet owner actions'),
+    Capability('dashfixes:coder', 'Dash Updates', 'Coding sessions set status, waiting on, session and notes (or X-Coder-Token)', SUPER_ONLY, 'DashFixCoderView IsOwnerOrCoder'),
     Capability('floorplan.kinds:write', 'Studios', 'Create and edit floorplan element kinds', SUPER_ONLY, 'FloorPlanElementKindViewSet writes'),
     Capability('floorplan.kinds:ai_svg', 'Studios', 'Generate an element SVG with AI', SUPER_ONLY, 'FloorPlanElementKindViewSet.generate_svg'),
     Capability('settings.ai:write', 'Settings', 'Manage AI models and per-action model and effort', SUPER_ONLY, 'AiModelViewSet / AiActionViewSet writes'),

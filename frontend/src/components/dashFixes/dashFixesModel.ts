@@ -1,7 +1,9 @@
 import { t } from '../../i18n/routines';
 import type { DashFixDTO, DashFixKind } from '../../types/dashFixes.types';
 
-export const DASH_FIXES_PATH = '/dash-fixes';
+export const DASH_FIXES_PATH = '/dash-updates';
+/** The old address; it redirects to DASH_FIXES_PATH. */
+export const OLD_DASH_FIXES_PATH = '/dash-fixes';
 export const VISIBLE_DONE = 10;
 
 export interface DashFixSections {

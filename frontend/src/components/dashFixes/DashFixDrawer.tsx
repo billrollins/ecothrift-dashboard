@@ -109,6 +109,11 @@ export function DashFixDrawer({ fix, lang, isOwner, appVersion, onClose }: DashF
                 ].filter(Boolean).join(' · ')}
               </Typography>
               <Box sx={{ mt: 1 }}><StatusChip row={fix} lang={lang} /></Box>
+              {fix.session ? (
+                <Typography data-testid="fix-drawer-session" sx={{ fontSize: 12.5, color: 'text.secondary', mt: 0.5, overflowWrap: 'anywhere' }}>
+                  {t('fxSession', lang)}: {fix.session}
+                </Typography>
+              ) : null}
             </Box>
             <IconButton onClick={onClose} aria-label={t('fxClose', lang)} sx={{ width: 44, height: 44 }}>
               <CloseRounded />
@@ -265,7 +270,7 @@ export function DashFixDrawer({ fix, lang, isOwner, appVersion, onClose }: DashF
                 {fix.notes.map((entry) => (
                   <Box key={entry.id}>
                     <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                      {entry.author_name ?? ''} · {formatShortDate(entry.created_at)}
+                      {entry.author_name ?? (entry.session ? `${t('fxSession', lang)} ${entry.session}` : '')} · {formatShortDate(entry.created_at)}
                     </Typography>
                     <Typography sx={{ fontSize: 14, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{entry.body}</Typography>
                   </Box>

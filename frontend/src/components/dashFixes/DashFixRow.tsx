@@ -100,6 +100,11 @@ export function DashFixRowBody({ row, lang, number, onOpen, reorder, project, af
             ))}
             {row.private ? <Chip size="small" label={t('fxPrivate', lang)} sx={{ fontWeight: 700 }} /> : null}
           </Box>
+          {row.session ? (
+            <Typography data-testid={`fix-session-${row.id}`} sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5, overflowWrap: 'anywhere' }}>
+              {t('fxSession', lang)}: {row.session}
+            </Typography>
+          ) : null}
         </Box>
       </ButtonBase>
       {reorder ? (

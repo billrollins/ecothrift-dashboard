@@ -6,6 +6,8 @@ export interface DashFixNoteDTO {
   body: string;
   author: number | null;
   author_name: string | null;
+  /** Set when a coding session wrote the note (author is then empty). */
+  session: string;
   created_at: string;
 }
 
@@ -38,13 +40,16 @@ export interface DashFixDTO {
   coder_notes?: string;
   /** Almost done: what it waits on ("your review"). Public. */
   waiting_on: string;
+  /** The coding session working on it (name or link); empty when none. */
+  session: string;
+  updated_at: string;
   /** Owner only. */
   question_for_owner?: string;
   owner_answer?: string;
   answered_at?: string | null;
   parent?: number | null;
   is_mine: boolean;
-  /** Mine and its status changed since I last opened Dash Fixes. */
+  /** Mine and its status changed since I last opened Dash Updates. */
   unseen: boolean;
   notes: DashFixNoteDTO[];
 }

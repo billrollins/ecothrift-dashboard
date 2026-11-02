@@ -1,4 +1,4 @@
-"""Dash Fixes as one JSON file for the owner and an AI (the same idea as the careers file).
+"""Dash Updates (Dash Fixes in code) as one JSON file for the owner and an AI (the same idea as the careers file).
 
 ``build_bundle`` gives everything: every task (private ones too), the pending requests, and the
 instructions an AI needs. ``check_doc`` validates an edited file and lists what would change;
@@ -19,7 +19,7 @@ SIZES = ['S', 'M', 'L']
 FAR = 10 ** 6
 
 INSTRUCTIONS = (
-    'This is the whole Dash Fixes list. "tasks" are the approved items (and any the owner made himself); '
+    'This is the whole Dash Updates list. "tasks" are the approved items (and any the owner made himself); '
     '"pending_requests" are staff reports waiting for the owner. Return the SAME JSON with your changes. '
     'Rules: rank is the place in the line (1 = next); only accepted and working tasks have a rank and the '
     'ranks are renumbered 1..N when the file is applied, so you may give any increasing numbers. '
@@ -61,6 +61,7 @@ def _task_doc(fix: DashFix) -> dict:
         'question_for_owner': fix.question_for_owner,
         'owner_answer': fix.owner_answer,
         'step': fix.step,
+        'session': fix.session,  # read-only here; the coding session sets it through the coder API
         'reported_by': fix.submitted_by.full_name if fix.submitted_by_id else '',
         'created_at': fix.created_at.isoformat(),
     }
@@ -107,7 +108,7 @@ def check_doc(raw, *, allow_blocked: bool = False) -> dict:
         }
 
     if not isinstance(raw, dict) or not str(raw.get('format', '')).startswith('ecothrift.dash-fixes/'):
-        errors.append(f'This does not look like the Dash Fixes file (it should have "format": "{FORMAT}").')
+        errors.append(f'This does not look like the Dash Updates file (it should have "format": "{FORMAT}").')
         return result()
     tasks_raw = raw.get('tasks', [])
     pending_raw = raw.get('pending_requests', [])

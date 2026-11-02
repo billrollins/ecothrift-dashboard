@@ -1,9 +1,13 @@
-v2.233.1 — Open Mondays: Mon-Sat 9-6
+v2.234.0 — Dash Updates: desktop table, live status
 
-User-facing theme: **Eco-Thrift is open Mondays again: Monday - Saturday 9 AM - 6 PM, closed Sunday (Bill, 2026-11-02).**
+User-facing theme: **Dash Fixes is now Dash Updates, with a desktop table that refreshes itself and shows which session is working on each update (Bill, 2026-11-02).**
 
 ### Changed
-- Store hours everywhere Dash and the website show them: Monday - Saturday 9 AM - 6 PM, closed Sunday (website, store hours in Settings, the "we're closed" holding page, Online Sales hold times). The saved hours setting is switched over only if it still had the old Sunday + Monday closure.
-- Receipts print "Mon - Sat 9 AM - 6 PM / Sun Closed" from print server 1.9.11 (update the print server on each register; the Print server chip says Needs update).
+- Dash Fixes is renamed **Dash Updates** (page, your menu, the bell). "Report a fix" is now **Ask for an update**. Old links open the new page.
+- On a desktop the list is a full-width table, one row per update: #, update and description, project and step, who asked and when, size, status (with what it waits on and the session working on it), dependencies, last updated. Phones keep the cards.
+- The list refreshes every 15 seconds, so statuses change while work happens.
+
+### Added
+- Coding sessions can set an update's status, add a note and read new notes through a protected coder link, so the list stays current while work is under way. The way Mainline runs updates (one session per update, status kept current, notes read before every ship) is written in `.ai/protocols/mainline_updates.md`.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

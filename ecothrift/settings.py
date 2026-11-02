@@ -430,6 +430,9 @@ AI_PRICING = {
     },
 }
 
+# Dash Updates coder API: a coding session sends this in X-Coder-Token. Blank = only a superuser sign-in works.
+DASH_CODER_TOKEN = config('DASH_CODER_TOKEN', default='')
+
 # ── Buying / B-Stock (search POST is unauthenticated; other calls need JWT) ─
 BSTOCK_AUTH_TOKEN = config('BSTOCK_AUTH_TOKEN', default='')
 BUYING_REQUEST_DELAY_SECONDS = config(

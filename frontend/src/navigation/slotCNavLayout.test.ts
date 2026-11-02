@@ -271,9 +271,9 @@ describe('Command Center placement', () => {
   });
 });
 
-describe('Dash Fixes placement', () => {
+describe('Dash Updates placement', () => {
   it('is a catalog page for every staff login but sits in no workspace sidebar', () => {
-    expect(NAV_ITEM_CATALOG.dashFixes).toMatchObject({ path: '/dash-fixes', label: 'Dash Fixes' });
+    expect(NAV_ITEM_CATALOG.dashFixes).toMatchObject({ path: '/dash-updates', label: 'Dash Updates' });
     expect(NAV_ITEM_CATALOG.dashFixes?.superuserOnly).toBeUndefined();
     expect(NAV_ITEM_CATALOG.dashFixes?.roles).toBeUndefined();
     for (const group of SLOT_C_NAV_GROUPS) {

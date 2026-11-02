@@ -423,3 +423,93 @@ class StatusAndQuestionTests(DashFixBase):
         self.assertEqual(res.data['owner_answer'], 'Blue')
         self.assertIsNotNone(res.data['answered_at'])
         self.assertEqual(self.c_owner.get(f'{BASE}counts/').data['count'], 0)
+
+
+CODER = '/api/core/dash-updates/{}/coder/'
+
+
+@override_settings(DASH_CODER_TOKEN='test-coder-token')
+class CoderApiTests(DashFixBase):
+    def test_token_or_superuser_only(self):
+        fix = self.make(status='accepted', rank=1)
+        self.assertEqual(APIClient().get(CODER.format(fix.id)).status_code, 401)
+        self.assertEqual(self.c_ann.get(CODER.format(fix.id)).status_code, 403)
+        bad = APIClient()
+        bad.credentials(HTTP_X_CODER_TOKEN='wrong')
+        self.assertIn(bad.get(CODER.format(fix.id)).status_code, (401, 403))
+        self.assertEqual(self.c_owner.get(CODER.format(fix.id)).status_code, 200)
+        good = APIClient()
+        good.credentials(HTTP_X_CODER_TOKEN='test-coder-token')
+        self.assertEqual(good.get(CODER.format(fix.id)).status_code, 200)
+        self.assertEqual(good.get(CODER.format(99999)).status_code, 404)
+
+    @override_settings(DASH_CODER_TOKEN='')
+    def test_blank_setting_turns_the_token_off(self):
+        fix = self.make(status='accepted', rank=1)
+        client = APIClient()
+        client.credentials(HTTP_X_CODER_TOKEN='')
+        self.assertIn(client.get(CODER.format(fix.id)).status_code, (401, 403))
+
+    def test_session_moves_status_and_notes(self):
+        first = self.make(status='accepted', rank=1, title='First')
+        second = self.make(status='accepted', rank=2, title='Second')
+        client = APIClient()
+        client.credentials(HTTP_X_CODER_TOKEN='test-coder-token')
+        res = client.post(CODER.format(second.id), {
+            'status': 'working', 'session': 'Dash Updates: desktop view', 'note': 'Started.',
+        }, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+        second.refresh_from_db()
+        self.assertEqual((second.status, second.session, second.rank), ('working', 'Dash Updates: desktop view', 2))
+        note = second.notes.get()
+        self.assertEqual((note.author, note.session, note.body), (None, 'Dash Updates: desktop view', 'Started.'))
+
+        res = client.post(CODER.format(second.id), {'status': 'almost', 'waiting_on': 'ship'}, format='json')
+        second.refresh_from_db()
+        self.assertEqual((second.status, second.waiting_on), ('almost', 'ship'))
+
+        stamp = timezone.now()
+        DashFixNote.objects.create(fix=second, author=self.owner, body='Make the badge bigger.')
+        res = client.get(CODER.format(second.id), {'since': stamp.isoformat()})
+        self.assertEqual([n['body'] for n in res.data['notes']], ['Make the badge bigger.'])
+        self.assertEqual(client.get(CODER.format(second.id), {'since': 'yesterday'}).status_code, 400)
+
+        res = client.post(CODER.format(second.id), {'status': 'done', 'version': 'v2.234.0'}, format='json')
+        second.refresh_from_db()
+        first.refresh_from_db()
+        self.assertEqual((second.status, second.done_version, second.rank, second.waiting_on), ('done', 'v2.234.0', 0, ''))
+        self.assertIsNotNone(second.done_at)
+        self.assertEqual(first.rank, 1)
+
+    def test_hold_leaves_the_line_and_comes_back_last(self):
+        first = self.make(status='accepted', rank=1)
+        second = self.make(status='accepted', rank=2)
+        self.c_owner.post(CODER.format(first.id), {'status': 'hold'}, format='json')
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual((first.status, first.rank, second.rank), ('hold', 0, 1))
+        self.c_owner.post(CODER.format(first.id), {'status': 'accepted', 'note': 'Back on.'}, format='json')
+        first.refresh_from_db()
+        self.assertEqual((first.rank, first.notes.get().author), (2, self.owner))
+
+    def test_refuses_new_and_declined(self):
+        fix = self.make(status='accepted', rank=1)
+        res = self.c_owner.post(CODER.format(fix.id), {'status': 'declined'}, format='json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_session_shows_on_the_list(self):
+        fix = self.make(status='working', rank=1, session='lane/x')
+        rows = {row['id']: row for row in self.c_ann.get(BASE).data}
+        self.assertEqual(rows[fix.id]['session'], 'lane/x')
+
+    def test_open_list_for_mainline(self):
+        first = self.make(status='accepted', rank=1, title='First')
+        second = self.make(status='accepted', rank=2, title='Second')
+        second.depends_on.add(first)
+        self.make(status='done', title='Old')
+        client = APIClient()
+        client.credentials(HTTP_X_CODER_TOKEN='test-coder-token')
+        res = client.get('/api/core/dash-updates/coder/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual([(r['id'], r['blocked_by']) for r in res.data], [(first.id, []), (second.id, [first.id])])
+        self.assertEqual(self.c_ann.get('/api/core/dash-updates/coder/').status_code, 403)
