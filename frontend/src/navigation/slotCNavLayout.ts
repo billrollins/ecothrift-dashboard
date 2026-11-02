@@ -38,7 +38,6 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'restoration',
     label: 'Restoration',
     itemIds: ['restorationQueue', 'tars', 'restorationPartsRequests', 'restorationTracking'],
-    guestItemIds: ['enhancementRequests'],
   },
   {
     id: 'retailFloor',
@@ -212,7 +211,7 @@ export function resolveWorkspaceForRoute(
       return meta.id;
     }
   }
-  // Divider-only pages with no native home (Enhancements under Restoration).
+  // Divider-only pages with no native home (none today).
   // Guest shortcuts that already have a home (Restoration under Processing,
   // Command Center under Cashiers) stay with that home from the first pass.
   for (const meta of workspaceOrder) {

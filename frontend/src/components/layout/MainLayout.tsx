@@ -23,6 +23,7 @@ import { Sidebar, SIDEBAR_WIDTH } from './Sidebar';
 import { PhoneTabBar } from './PhoneTabBar';
 import { phoneShellTitle, showsPhoneTabBar } from './phoneFirstRoutes';
 import { getAppVersion } from '../../api/core.api';
+import { useRememberPage } from '../dashFixes/rememberPage';
 import logo from '../../assets/logo-full-360x120.png';
 import logoIcon from '../../assets/logo-icon-32x32.png';
 import { dashboardPalette } from '../dashboard/dashboardCardStyles';
@@ -66,6 +67,8 @@ export default function MainLayout() {
   const isPhoneShell = isMobile && showsPhoneTabBar(location.pathname, location.search);
 
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
+
+  useRememberPage();
 
   const { data: appVersion } = useQuery({
     queryKey: ['appVersion'],

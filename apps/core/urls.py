@@ -1,8 +1,9 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from .dash_fixes import DashFixViewSet
 from .views import (
     WorkLocationViewSet, AppSettingViewSet, S3FileViewSet,
-    EnhancementRequestViewSet, AiActionViewSet, AiModelViewSet,
+    AiActionViewSet, AiModelViewSet,
     app_version, print_server_version, print_server_releases,
     print_server_version_public, label_size, price_tag_switch, price_tag_design_switch, tag_marks,
     dev_log_config, dev_log_line,
@@ -18,7 +19,7 @@ router = DefaultRouter()
 router.register(r'locations', WorkLocationViewSet, basename='worklocation')
 router.register(r'settings', AppSettingViewSet, basename='appsetting')
 router.register(r'files', S3FileViewSet, basename='s3file')
-router.register(r'enhancement-requests', EnhancementRequestViewSet, basename='enhancementrequest')
+router.register(r'dash-fixes', DashFixViewSet, basename='dashfix')
 router.register(r'ai/models', AiModelViewSet, basename='ai-model')
 router.register(r'ai/actions', AiActionViewSet, basename='ai-action')
 router.register(r'requests', ApprovalRequestViewSet, basename='approval-request')

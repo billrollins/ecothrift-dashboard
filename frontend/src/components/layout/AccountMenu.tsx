@@ -15,6 +15,8 @@ import {
   Typography,
 } from '@mui/material';
 import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined';
+import BuildCircleOutlined from '@mui/icons-material/BuildCircleOutlined';
+import FeedbackOutlined from '@mui/icons-material/FeedbackOutlined';
 import Inventory2Outlined from '@mui/icons-material/Inventory2Outlined';
 import LockReset from '@mui/icons-material/LockReset';
 import Logout from '@mui/icons-material/Logout';
@@ -24,11 +26,13 @@ import StarOutlineRounded from '@mui/icons-material/StarOutlineRounded';
 import SummarizeOutlined from '@mui/icons-material/SummarizeOutlined';
 import TranslateOutlined from '@mui/icons-material/TranslateOutlined';
 import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { t } from '../../i18n/routines';
 import { dashboardTabHref, saveDashboardTab } from '../../navigation/dashboardTabs';
 import { resolveNavItems } from '../../navigation/navResolve';
+import { ReportFixDialog } from '../dashFixes/ReportFixDialog';
+import { sourcePage } from '../dashFixes/rememberPage';
 import ChangePasswordDialog from '../users/ChangePasswordDialog';
 import ViewAsDialog from '../viewAs/ViewAsDialog';
 import { VIEW_AS_BRIGHT, VIEW_AS_INK } from '../viewAs/ViewAsBanner';
@@ -74,9 +78,12 @@ export function AccountMenu() {
   const { user, logout, setLanguage, viewAs, stopViewAs } = useAuth();
   const lang = user?.language === 'es' ? 'es' : 'en';
   const navigate = useNavigate();
+  const location = useLocation();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [viewAsOpen, setViewAsOpen] = useState(false);
+  // "Report a fix" remembers the page you were on, not /dash-fixes.
+  const [reportPage, setReportPage] = useState<string | null>(null);
 
   if (!user) return null;
 
@@ -184,6 +191,22 @@ export function AccountMenu() {
           <ListItemIcon><Inventory2Outlined fontSize="small" /></ListItemIcon>
           <ListItemText primary={t('supplies', lang)} />
         </MenuItem>
+        <MenuItem key="dash-fixes" data-testid="account-menu-dash-fixes" onClick={() => go('/dash-fixes')}>
+          <ListItemIcon><BuildCircleOutlined fontSize="small" /></ListItemIcon>
+          <ListItemText primary={t('dashFixes', lang)} />
+        </MenuItem>
+        <MenuItem
+          key="report-fix"
+          data-testid="account-menu-report-fix"
+          onClick={() => {
+            const page = sourcePage(location.pathname);
+            close();
+            setReportPage(page);
+          }}
+        >
+          <ListItemIcon><FeedbackOutlined fontSize="small" /></ListItemIcon>
+          <ListItemText primary={t('reportFix', lang)} />
+        </MenuItem>
 
         {ownerItems.length > 0 ? <SectionLabel key="sec-owner">{t('sectionOwner', lang)}</SectionLabel> : null}
         {ownerPage ? (
@@ -253,6 +276,7 @@ export function AccountMenu() {
           <ListItemText primary={t('signOut', lang)} />
         </MenuItem>
       </Menu>
+      <ReportFixDialog open={reportPage !== null} pagePath={reportPage ?? ''} onClose={() => setReportPage(null)} />
       <ChangePasswordDialog open={passwordOpen} onClose={() => setPasswordOpen(false)} />
       {user.is_superuser ? <ViewAsDialog open={viewAsOpen} onClose={() => setViewAsOpen(false)} /> : null}
     </>

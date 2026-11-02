@@ -15,7 +15,6 @@ import {
 } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
-import { RequestsDrawerHost } from '../../../components/enhancements/RequestsDrawer';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { useMarkOrderComplete, usePurchaseOrders } from '../../../hooks/useInventory';
 import { getProcessingWorkspace, type ProcessingCheckInPayload } from '../../../api/inventory.api';
@@ -1222,7 +1221,6 @@ export default function ProcessingWorkspacePage() {
       />
       {ConfirmDialogHost}
       {retailCheck.dialog}
-      <RequestsDrawerHost defaultArea="processing" />
     </Box>
   );
 }

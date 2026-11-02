@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone as dj_timezone
 
 
 class WorkLocation(models.Model):
@@ -185,6 +186,108 @@ class EnhancementRequestNote(models.Model):
         null=True,
         blank=True,
         related_name='enhancement_request_notes',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+
+    def __str__(self):
+        return self.body[:48]
+
+
+class DashFix(models.Model):
+    """One thing planned for Dash. Staff report it, the owner accepts, orders and finishes it."""
+
+    KIND_PROBLEM = 'problem'
+    KIND_CHANGE = 'change'
+    KIND_IDEA = 'idea'
+    KIND_CHOICES = [(KIND_PROBLEM, 'Problem'), (KIND_CHANGE, 'Change'), (KIND_IDEA, 'Idea')]
+
+    STATUS_NEW = 'new'
+    STATUS_ACCEPTED = 'accepted'
+    STATUS_WORKING = 'working'
+    STATUS_ALMOST = 'almost'
+    STATUS_HOLD = 'hold'
+    STATUS_DONE = 'done'
+    STATUS_DECLINED = 'declined'
+    STATUS_CHOICES = [
+        (STATUS_NEW, 'New'),
+        (STATUS_ACCEPTED, 'Accepted'),
+        (STATUS_WORKING, 'Working'),
+        (STATUS_ALMOST, 'Almost done'),
+        (STATUS_HOLD, 'On hold'),
+        (STATUS_DONE, 'Done'),
+        (STATUS_DECLINED, 'Declined'),
+    ]
+    LINE_STATUSES = (STATUS_ACCEPTED, STATUS_WORKING, STATUS_ALMOST)
+
+    SIZE_CHOICES = [('S', 'Small'), ('M', 'Medium'), ('L', 'Large')]
+
+    title = models.CharField(max_length=200)
+    details = models.TextField(blank=True, default='')
+    page_path = models.CharField(max_length=300, blank=True, default='')
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=KIND_PROBLEM)
+    # The task side (owner and AI coder): size, what this waits on, a note for the coder, the request it came from.
+    size = models.CharField(max_length=1, choices=SIZE_CHOICES, blank=True, default='')
+    coder_notes = models.TextField(blank=True, default='')
+    # Almost done: what it is waiting on ("your review", "a test print").
+    waiting_on = models.CharField(max_length=200, blank=True, default='')
+    # A question from the coder to the owner, and his answer (both owner-only).
+    question_for_owner = models.TextField(blank=True, default='')
+    owner_answer = models.TextField(blank=True, default='')
+    answered_at = models.DateTimeField(null=True, blank=True)
+    # Grouping: tasks of one project sit together, in step order. The project's place in the line is its best rank.
+    project = models.CharField(max_length=100, blank=True, default='')
+    step = models.PositiveSmallIntegerField(null=True, blank=True)
+    depends_on = models.ManyToManyField('self', symmetrical=False, related_name='blocks', blank=True)
+    parent = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks',
+    )
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='dash_fixes',
+    )
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_NEW)
+    # Order of the line among accepted + working items (1 = next). 0 when not in the line.
+    rank = models.IntegerField(default=0)
+    private = models.BooleanField(default=False)
+    decline_reason = models.TextField(blank=True, default='')
+    done_version = models.CharField(max_length=40, blank=True, default='')
+    done_at = models.DateTimeField(null=True, blank=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    status_changed_at = models.DateTimeField(default=dj_timezone.now)
+    submitter_seen_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [models.Index(fields=['status', 'rank'])]
+
+    def __str__(self):
+        return self.title[:60]
+
+
+class DashFixPhoto(models.Model):
+    """Up to three screenshots on a report."""
+
+    fix = models.ForeignKey(DashFix, on_delete=models.CASCADE, related_name='photos')
+    file = models.ForeignKey('core.S3File', on_delete=models.PROTECT, related_name='+')
+    position = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['position', 'id']
+
+
+class DashFixNote(models.Model):
+    """One comment on a Dash Fix. Flat list, not a thread."""
+
+    fix = models.ForeignKey(DashFix, on_delete=models.CASCADE, related_name='notes')
+    body = models.TextField()
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='dash_fix_notes',
     )
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import WorkLocation, AppSetting, S3File, PrintServerRelease, EnhancementRequest, EnhancementRequestNote, AiAction, AiModel
+from .models import WorkLocation, AppSetting, S3File, PrintServerRelease, DashFix, DashFixNote, AiAction, AiModel
 
 
 @admin.register(WorkLocation)
@@ -25,18 +25,18 @@ class PrintServerReleaseAdmin(admin.ModelAdmin):
     list_display = ('version', 'is_current', 'released_at')
 
 
-class EnhancementRequestNoteInline(admin.TabularInline):
-    model = EnhancementRequestNote
+class DashFixNoteInline(admin.TabularInline):
+    model = DashFixNote
     extra = 0
     readonly_fields = ('author', 'created_at')
 
 
-@admin.register(EnhancementRequest)
-class EnhancementRequestAdmin(admin.ModelAdmin):
-    list_display = ('id', 'area', 'status', 'priority', 'submitted_by', 'target_date', 'created_at')
-    list_filter = ('area', 'status', 'priority')
-    search_fields = ('body',)
-    inlines = [EnhancementRequestNoteInline]
+@admin.register(DashFix)
+class DashFixAdmin(admin.ModelAdmin):
+    list_display = ('id', 'title', 'kind', 'status', 'rank', 'private', 'submitted_by', 'created_at')
+    list_filter = ('status', 'kind', 'private')
+    search_fields = ('title', 'details')
+    inlines = [DashFixNoteInline]
 
 
 @admin.register(AiModel)

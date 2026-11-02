@@ -50,7 +50,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const RoutinesPage = lazy(() => import('./pages/routines/RoutinesPage'));
 import { PendingBstockLoginNotice } from './pages/routines/runners/PendingBstockLoginNotice';
 const TimePayrollPage = lazy(() => import('./pages/admin/TimePayrollPage'));
-const EnhancementRequestsPage = lazy(() => import('./pages/admin/EnhancementRequestsPage'));
+const DashFixesPage = lazy(() => import('./pages/dashFixes/DashFixesPage'));
 const IconsPage = lazy(() => import('./pages/admin/IconsPage'));
 const KeysPage = lazy(() => import('./pages/admin/keys/KeysPage'));
 const AdminRoutinesPage = lazy(() => import('./pages/admin/routines/AdminRoutinesPage'));
@@ -552,14 +552,8 @@ function AppRoutes() {
             </SuperAdminRoute>
           }
         />
-        <Route
-          path="/admin/enhancement-requests"
-          element={
-            <SuperAdminRoute>
-              <EnhancementRequestsPage />
-            </SuperAdminRoute>
-          }
-        />
+        <Route path="/dash-fixes" element={<DashFixesPage />} />
+        <Route path="/admin/enhancement-requests" element={<Navigate to="/dash-fixes" replace />} />
         <Route
           path="/admin/routines"
           element={

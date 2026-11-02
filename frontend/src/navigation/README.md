@@ -26,7 +26,7 @@ Workspaces (assigned digits; letter is the first letter of the short name):
 
 1. **Buying** (`1` / `B`) — Auctions, Watchlist, Vendors, Orders, Preprocessing
 2. **Processing** (`2` / `P`) — Receiving, Processing (Restorations is a guest link)
-3. **Restoration** (`3` / `R`) — Overview, Bench, Parts Requests (Enhancements is a superuser guest link)
+3. **Restoration** (`3` / `R`) — Overview, Bench, Parts Requests
 4. **Retail Floor** (`4` / `F`) — Catalog, Quick reprice, Floorplans
 5. **Cashier** (`5` / `C`) — Terminal, Thrift+ Staff, Transactions, Drawers, Cash management; Setup: Test terminal, Printables, POS setup, Thrift+
 6. **Deliveries** (`6` / `D`) — Schedule, Table
@@ -35,7 +35,7 @@ Workspaces (assigned digits; letter is the first letter of the short name):
 9. **People** (`9`, Manager/Admin; `P` opens Processing) — Users, Applicants, Interviews, Onboarding, Check-ins; Setup: Payroll deductions, Jobs & careers page, Emails
 10. **Admin** (`0` / `A`, Manager/Admin) — Departments, Shifts, Routines (superuser; Routine Control), Command Center, Time & payroll (superuser), Requests (superuser), Supplies, Keys, Settings
 
-The same digit always opens the same workspace. A key for a workspace the user cannot see does nothing. Superuser **Enhancements** lives as a Restoration guest item (`/admin/enhancement-requests`). **Users** is Manager+; Employees is first and default for Admin, Customers is `?tab=customers`. Managers only see Customers.
+The same digit always opens the same workspace. A key for a workspace the user cannot see does nothing. **Dash Fixes** (`/dash-fixes`, every staff login) replaced Enhancements: it is in the avatar menu under MY REQUESTS (with **Report a fix**) and a row in the bell, in no workspace sidebar; `/admin/enhancement-requests` redirects to it. **Users** is Manager+; Employees is first and default for Admin, Customers is `?tab=customers`. Managers only see Customers.
 
 Recently moved paths (e.g. `/inventory/workbench`, `/inventory/quick-reprice`, old count links) keep working as
 redirects in `App.tsx` for a bookmark window and deliberately have no catalog entry — the catalog only holds links

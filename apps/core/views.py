@@ -15,14 +15,11 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin, IsTeamMember
 from .models import (
     WorkLocation, AppSetting, AppSettingHistory, S3File, PrintServerRelease,
-    EnhancementRequest, EnhancementRequestNote, AiAction, AiModel,
+    AiAction, AiModel,
 )
 from .serializers import (
     WorkLocationSerializer, AppSettingSerializer,
     S3FileSerializer, PrintServerReleaseSerializer,
-    EnhancementRequestSerializer, EnhancementRequestWriteSerializer,
-    EnhancementRequestTriageSerializer, EnhancementRequestNoteWriteSerializer,
-    EnhancementRequestNoteSerializer, _can_own,
     AiActionSerializer, AiModelSerializer,
 )
 from .services.ai_catalog import action_choices, discover_models
@@ -108,85 +105,6 @@ class S3FileViewSet(viewsets.ModelViewSet):
     queryset = S3File.objects.all()
     serializer_class = S3FileSerializer
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
-
-
-class EnhancementRequestViewSet(viewsets.ModelViewSet):
-    """Staff file a Restoration or Processing request. Superuser triages it."""
-
-    permission_classes = [IsAuthenticated, IsStaff]
-    pagination_class = None
-    http_method_names = ['get', 'post', 'patch', 'head', 'options']
-
-    def get_queryset(self):
-        return (
-            EnhancementRequest.objects.select_related('submitted_by', 'reviewed_by')
-            .prefetch_related('notes__author')
-            .all()
-        )
-
-    def get_serializer_class(self):
-        if self.action in ('create', 'partial_update', 'update'):
-            return EnhancementRequestWriteSerializer
-        return EnhancementRequestSerializer
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        row = EnhancementRequest.objects.create(
-            submitted_by=request.user,
-            **serializer.validated_data,
-        )
-        return Response(
-            EnhancementRequestSerializer(row, context={'request': request}).data,
-            status=status.HTTP_201_CREATED,
-        )
-
-    def partial_update(self, request, *args, **kwargs):
-        row = self.get_object()
-        if not _can_own(request.user, row):
-            raise PermissionDenied('Only the owner or a superuser can edit this request.')
-        serializer = EnhancementRequestWriteSerializer(data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        for field, value in serializer.validated_data.items():
-            setattr(row, field, value)
-        row.save()
-        return Response(EnhancementRequestSerializer(row, context={'request': request}).data)
-
-    @action(detail=True, methods=['get', 'post'], url_path='notes')
-    def notes(self, request, pk=None):
-        row = self.get_object()
-        if request.method == 'GET':
-            return Response(EnhancementRequestNoteSerializer(row.notes.all(), many=True).data)
-        if not _can_own(request.user, row):
-            raise PermissionDenied('Only the owner or a superuser can add a note.')
-        serializer = EnhancementRequestNoteWriteSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        EnhancementRequestNote.objects.create(
-            request=row,
-            author=request.user,
-            body=serializer.validated_data['body'],
-        )
-        row = self.get_queryset().get(pk=row.pk)
-        return Response(
-            EnhancementRequestSerializer(row, context={'request': request}).data,
-            status=status.HTTP_201_CREATED,
-        )
-
-    @action(
-        detail=True,
-        methods=['post'],
-        permission_classes=[IsAuthenticated, IsSuperAdmin],
-    )
-    def triage(self, request, pk=None):
-        row = self.get_object()
-        serializer = EnhancementRequestTriageSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        for field, value in serializer.validated_data.items():
-            setattr(row, field, value)
-        row.reviewed_by = request.user
-        row.reviewed_at = timezone.now()
-        row.save()
-        return Response(EnhancementRequestSerializer(row, context={'request': request}).data)
 
 
 @api_view(['GET'])

@@ -19,7 +19,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSnackbar } from 'notistack';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { RestorationReopenDialog } from './RestorationReopenDialog';
-import { RequestsDrawerHost } from '../../../components/enhancements/RequestsDrawer';
 import { PageHeader } from '../../../components/common/PageHeader';
 import { useAuth } from '../../../hooks/useAuth';
 import { useGradeScales } from '../../../hooks/useGradeScales';
@@ -658,7 +657,6 @@ export default function RestorationQueuePage() {
           );
         }}
       />
-      <RequestsDrawerHost defaultArea="restoration" />
     </Box>
   );
 }

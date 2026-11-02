@@ -271,34 +271,21 @@ describe('Command Center placement', () => {
   });
 });
 
-describe('Enhancement requests placement', () => {
-  const restoration = SLOT_C_NAV_GROUPS.find((g) => g.id === 'restoration');
-  const admin = SLOT_C_NAV_GROUPS.find((g) => g.id === 'admin');
-
-  it('sits in Restoration behind the divider, not under Admin', () => {
-    expect(restoration?.guestItemIds).toEqual(['enhancementRequests']);
-    expect(admin?.itemIds).not.toContain('enhancementRequests');
-    expect(NAV_ITEM_CATALOG.enhancementRequests?.superuserOnly).toBe(true);
-    expect(NAV_ITEM_CATALOG.enhancementRequests?.label).toBe('Enhancements');
+describe('Dash Fixes placement', () => {
+  it('is a catalog page for every staff login but sits in no workspace sidebar', () => {
+    expect(NAV_ITEM_CATALOG.dashFixes).toMatchObject({ path: '/dash-fixes', label: 'Dash Fixes' });
+    expect(NAV_ITEM_CATALOG.dashFixes?.superuserOnly).toBeUndefined();
+    expect(NAV_ITEM_CATALOG.dashFixes?.roles).toBeUndefined();
+    for (const group of SLOT_C_NAV_GROUPS) {
+      expect(group.itemIds).not.toContain('dashFixes');
+      expect(group.setupItemIds ?? []).not.toContain('dashFixes');
+      expect(group.guestItemIds ?? []).not.toContain('dashFixes');
+    }
   });
 
-  it('shows the owner the page after the Restoration list', () => {
+  it('leaves Restoration without a guest page', () => {
     const groups = resolveNavGroups({ role: 'Admin', is_superuser: true }, SLOT_C_NAV_GROUPS);
-    const group = groups.find((g) => g.id === 'restoration');
-    expect(group?.guestItems.map((item) => item.id)).toEqual(['enhancementRequests']);
-  });
-
-  it('leaves a Manager neither the page nor the divider above it', () => {
-    const groups = resolveNavGroups({ role: 'Admin', is_superuser: false }, SLOT_C_NAV_GROUPS);
-    const group = groups.find((g) => g.id === 'restoration');
-    expect(group?.items.map((item) => item.id)).toEqual([
-      'restorationQueue',
-      'tars',
-      'restorationPartsRequests',
-      'restorationTracking',
-    ]);
-    // The Sidebar draws the hairline only for a non-empty guest list.
-    expect(group?.guestItems).toEqual([]);
+    expect(groups.find((g) => g.id === 'restoration')?.guestItems).toEqual([]);
   });
 });
 
@@ -320,13 +307,10 @@ describe('glowColorForNavItem', () => {
     expect(glowColorForNavItem('restorations')).not.toBe(processing);
   });
 
-  it('gives a set-apart page with no other home the colour of its own workspace', () => {
-    expect(glowColorForNavItem('enhancementRequests')).toBe(restoration);
-  });
-
   it('gives pages in no workspace no letter colour', () => {
     expect(glowColorForNavItem('dashboard')).toBeUndefined();
     expect(glowColorForNavItem('owner')).toBeUndefined();
+    expect(glowColorForNavItem('dashFixes')).toBeUndefined();
     expect(glowColorForNavItem('pay')).toBeUndefined();
     expect(glowColorForNavItem('routines')).toBeUndefined();
     expect(glowColorForNavItem('documents')).toBeUndefined();

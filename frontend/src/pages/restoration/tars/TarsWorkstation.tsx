@@ -15,7 +15,6 @@ import { useSnackbar } from 'notistack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
-import { RequestsDrawerHost } from '../../../components/enhancements/RequestsDrawer';
 import { useAuth } from '../../../hooks/useAuth';
 
 import {
@@ -1311,7 +1310,6 @@ export function TarsWorkstation({ chrome = 'studio' }: { chrome?: 'studio' | 'da
           </Button>
         </DialogActions>
       </Dialog>
-      <RequestsDrawerHost defaultArea="restoration" />
     </Box>
   );
 }

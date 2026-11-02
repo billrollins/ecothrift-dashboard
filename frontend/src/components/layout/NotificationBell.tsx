@@ -3,6 +3,7 @@ import { Badge, Box, ButtonBase, IconButton, Popover, Typography } from '@mui/ma
 import ChecklistRounded from '@mui/icons-material/ChecklistRounded';
 import FactCheckOutlined from '@mui/icons-material/FactCheckOutlined';
 import MailOutlineRounded from '@mui/icons-material/MailOutlineRounded';
+import BuildCircleOutlined from '@mui/icons-material/BuildCircleOutlined';
 import NotificationsNoneRounded from '@mui/icons-material/NotificationsNoneRounded';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +11,7 @@ import { fetchApprovalRequests } from '../../api/approvalRequests.api';
 import { useAuth } from '../../hooks/useAuth';
 import { useBuyingNags } from '../../hooks/useBuyingNags';
 import { useHoursNag } from '../../hooks/useHoursNag';
+import { useDashFixCount } from '../../hooks/useDashFixes';
 import { useMyWork } from '../../hooks/useMyWork';
 import { t } from '../../i18n/routines';
 import { dashboardTabHref, saveDashboardTab } from '../../navigation/dashboardTabs';
@@ -57,6 +59,8 @@ export function NotificationBell() {
   const hours = useHoursNag();
   const buying = useBuyingNags();
   const approvals = useWaitingApprovals(Boolean(user?.is_superuser));
+  // Owner: requests waiting for acceptance. Everyone else: their own requests that changed.
+  const dashFixes = useDashFixCount(Boolean(user));
 
   const messages = inbox.messages;
   const messageKey = messages.map((row) => row.id).join(',');
@@ -70,8 +74,8 @@ export function NotificationBell() {
 
   const nag = nagSummary(work, messages.map((row) => row.run_id), hours.level, buying);
   const routines = nag.tone === 'none' ? 0 : nag.count;
-  const total = unread + routines + approvals;
-  const hot = unread > 0 || approvals > 0 || nag.tone === 'red';
+  const total = unread + routines + approvals + dashFixes;
+  const hot = unread > 0 || approvals > 0 || dashFixes > 0 || nag.tone === 'red';
   const badgeColor = hot ? RED : AMBER;
   const close = () => setAnchor(null);
 
@@ -175,6 +179,14 @@ export function NotificationBell() {
               testId="bell-row-approvals"
             />
           ) : null}
+          <BellRow
+            icon={<BuildCircleOutlined />}
+            label={t('dashFixes', lang)}
+            count={dashFixes}
+            color={RED}
+            onClick={() => go('/dash-fixes')}
+            testId="bell-row-dash-fixes"
+          />
           {total === 0 ? (
             <Typography sx={{ px: 2, pt: 1, pb: 0.5, fontSize: 13, color: dutyColors.ink60 }}>
               {t('nothingNew', lang)}

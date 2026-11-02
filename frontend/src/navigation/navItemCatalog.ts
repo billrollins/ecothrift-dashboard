@@ -427,12 +427,12 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'studio',
     superuserOnly: true,
   },
-  enhancementRequests: {
-    id: 'enhancementRequests',
-    path: '/admin/enhancement-requests',
-    label: 'Enhancements',
+  // Everything planned for Dash (replaces Enhancements). Reached from the avatar menu and the bell; in no workspace sidebar.
+  dashFixes: {
+    id: 'dashFixes',
+    path: '/dash-fixes',
+    label: 'Dash Fixes',
     icon: 'enhancement',
-    superuserOnly: true,
   },
   /** Routine Control: every routine with its history, quick edits, retire / restore / delete. */
   adminRoutines: {
