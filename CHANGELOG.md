@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.232.4] -->
-<!-- Last reviewed: 2026-10-31 (2.232.4) -->
+<!-- Line 1 release: ## [2.233.0] -->
+<!-- Last reviewed: 2026-11-02 (2.233.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.233.0] - 2026-11-02
+
+User-facing theme: **A cleaner Dash: the sidebar holds only your workspace, the top bar has a clock pill and one bell, your menu holds Me / My requests / Owner, the Dashboard is Store | My day, and Dash Fixes is the one list of everything planned for Dash (Bill, 2026-11-02).**
+
+### Added
+- **Dash Fixes** (your menu → My requests): anyone can report a fix with an explanation and up to 3 screenshots; the page they were on is filled in. Everyone sees the line in order: in line, working, almost done (waiting on …), on hold, done in which version, not doing. The owner approves or declines requests, marks items private, answers questions, and orders the list with the AI file (Download for AI / Upload JSON with a review before saving): projects, steps, dependencies ("after #3"), size. The two open Processing requests moved in; the old Enhancements page is gone (its link opens Dash Fixes).
+- **Clock pill** in the top bar: "On shift since 8:58 AM" / "Not clocked in". Tapping opens your shift; clocking in or out always asks again ("Clock out now, 3:42 PM?"). The My day clock card asks the same way.
+- **One bell** replaces the "!" and the envelope: messages, routines due, approvals (owner) and Dash Fixes updates.
+
+### Changed
+- Sidebar: the top links (Dashboard, Owner, Reports, Supplies) are gone. The logo opens the Dashboard; Supplies is in Admin; Owner and Reports are in the owner's menu.
+- Your menu (avatar): Me (My day, Schedule, My profile & PIN), My requests (Supplies, Dash Fixes, Report a fix), Owner (Owner page, Reports), Language, Sign out. Clear section labels.
+- Dashboard: two tabs, Store and My day (Today is now My day; old Today links still work). Settings left the header (it is in Admin). Store opens first for managers, My day for staff; your last choice is remembered.
+- My day: the clock and count chips are gone from its header (the clock pill and bell show them).
 
 ## [2.232.4] - 2026-10-31
 
