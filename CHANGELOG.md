@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.234.0] -->
-<!-- Last reviewed: 2026-11-02 (2.234.0) -->
+<!-- Line 1 release: ## [2.234.1] -->
+<!-- Last reviewed: 2026-11-02 (2.234.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.234.1] - 2026-11-02
+
+User-facing theme: **Three quick retail fixes from Carrie: the change line clears itself, the closing checklist stays open until 8:30 PM, and the week's sales total is big on the Dashboard (Carrie, 2026-11-02).**
+
+### Changed
+- Register: after a cash sale, "Give back $X" clears itself after 20 seconds (or as soon as the next item is scanned); the X still closes it.
+- Closing checklist: stays open until 8:30 PM (it showed as missed at 6:30 PM, the shift end). After 8:30 PM it can no longer be filled in. The 7:00 PM reminder now goes out. Routine Control can change the time.
+- Dashboard, Store tab: a big "This week $X" line under Sales on a desk; on a phone the week amount is larger.
+- Routines now treat Monday as an open day (the store reopened Mondays in v2.233.1); routine tests that check closed-day grading pin the old Sunday + Monday closure.
 
 ## [2.234.0] - 2026-11-02
 

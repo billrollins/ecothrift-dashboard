@@ -124,8 +124,12 @@ export function TodayHero({ sales }: { sales: SalesMetrics }) {
               >
                 Week vs goal
               </Typography>
-              <Typography sx={{ fontSize: '0.8125rem', fontWeight: 800, color: dashboardPalette.goldDark }}>
-                {formatDashboardCurrency(String(weekTotal))} · {goalLabel}
+              {/* The week's running total, big (Carrie, 2026-11-02). */}
+              <Typography sx={{ fontWeight: 800, color: dashboardPalette.goldDark }} data-testid="hero-week-to-date">
+                <Box component="span" sx={{ fontSize: '1.25rem', fontWeight: 900 }}>
+                  {formatDashboardCurrency(String(weekTotal))}
+                </Box>
+                <Box component="span" sx={{ fontSize: '0.8125rem' }}> · {goalLabel}</Box>
               </Typography>
             </Box>
             <Box

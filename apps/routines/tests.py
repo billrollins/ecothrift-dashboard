@@ -72,6 +72,13 @@ def _staff(email, role='Employee', *, superuser=False):
     return user
 
 
+
+def closed_sun_mon_hours():
+    """Store hours with the old Sunday + Monday closure (Monday reopened 2026-11-02)."""
+    from apps.core.models import AppSetting
+    from apps.webstore.services.hours import DEFAULT_HOURS
+    AppSetting.objects.update_or_create(key='online_sales.hours', defaults={'value': {**DEFAULT_HOURS, 'closed_weekdays': [0, 6]}})
+
 class DefinitionTests(TestCase):
     def test_rejects_unknown_control(self):
         errors = validate_definition({
@@ -821,6 +828,7 @@ class GradingTests(APITestCase):
     TUESDAY = date(2026, 9, 1)
 
     def setUp(self):
+        closed_sun_mon_hours()  # these tests pin the old Sunday + Monday closure
         self.department = Department.objects.get_or_create(name='Retail')[0]  # a data migration seeds Retail
         self.sam = _staff('sam@example.com')
         self.alex = _staff('alex@example.com')
@@ -1483,6 +1491,33 @@ class MissExpireTests(APITestCase):
         run.refresh_from_db()
         self.assertEqual(run.status, RoutineRun.STATUS_MISSED)
 
+    def test_close_checklist_stays_open_until_830(self):
+        # Carrie, 2026-11-02: the closing checklist is Overdue, not Missed, until 8:30 PM (its expire clock wins over the
+        # 6:30 shift end).
+        from apps.routines.command_center import miss_boundary
+        from apps.routines.program import PROGRAM_EXPIRE
+        from apps.routines.schedule import close_if_expired
+
+        routine = Routine.objects.create(
+            title='Closing checklist',
+            definition=DEFINITION,
+            trigger=Routine.TRIGGER_DAILY,
+            due_time=time(18, 0),
+            audience_all=True,
+            **PROGRAM_EXPIRE['retail.close'],
+        )
+        day = date(2026, 11, 2)
+        run = RoutineRun.objects.create(
+            routine=routine,
+            due_at=timezone.make_aware(datetime.combine(day, time(18, 0)), TZ),
+            period_key=day.isoformat(),
+            status=RoutineRun.STATUS_OPEN,
+        )
+        eight_thirty = timezone.make_aware(datetime(2026, 11, 2, 20, 30), TZ)
+        self.assertEqual(miss_boundary(run, day, TZ), eight_thirty)
+        self.assertFalse(close_if_expired(run, now=eight_thirty - timedelta(minutes=1)))
+        self.assertTrue(close_if_expired(run, now=eight_thirty + timedelta(minutes=1)))
+
     def test_submit_after_expire_is_refused(self):
         user = _staff('miss-submit@example.com')
         routine = Routine.objects.create(
@@ -1551,7 +1586,11 @@ class MissExpireTests(APITestCase):
         self.assertEqual(opening.expire_count, 6)
         self.assertEqual(opening.expire_unit, Routine.EXPIRE_UNIT_HOURS)
         self.assertEqual(opening.expire_from_time, time(8, 30))
-        for key in (SYSTEM_DAY, SYSTEM_CLOSE, SYSTEM_TALLY, SYSTEM_OWNER_SPOT, SYSTEM_CROSS_CHECK):
+        closing = Routine.objects.get(system_key=SYSTEM_CLOSE)
+        self.assertEqual(closing.expire_rule, Routine.EXPIRE_AFTER)
+        self.assertEqual(closing.expire_count, 2)
+        self.assertEqual(closing.expire_from_time, time(18, 30))
+        for key in (SYSTEM_DAY, SYSTEM_TALLY, SYSTEM_OWNER_SPOT, SYSTEM_CROSS_CHECK):
             row = Routine.objects.get(system_key=key)
             self.assertEqual(row.expire_rule, Routine.EXPIRE_END_OF_DAY, key)
         cycle = Routine.objects.get(system_key=SYSTEM_WORK_CYCLE)

@@ -166,7 +166,13 @@ PROGRAM_EXPIRE = {
         'expire_from_time': time(8, 30),
     },
     'retail.day': dict(_END_OF_DAY),
-    'retail.close': dict(_END_OF_DAY),
+    # Open until 8:30 PM, two hours past the Close shift (Carrie, 2026-11-02). Routine Control can move it.
+    'retail.close': {
+        'expire_rule': 'after',
+        'expire_count': 2,
+        'expire_unit': 'hours',
+        'expire_from_time': time(18, 30),
+    },
     'retail.owner_spot': dict(_END_OF_DAY),
     'retail.section_audit': dict(_END_OF_DAY),
     'retail.section_tally': dict(_END_OF_DAY),

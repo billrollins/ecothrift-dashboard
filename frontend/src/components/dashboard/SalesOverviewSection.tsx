@@ -1,6 +1,7 @@
 import { Box, Card, CardContent, Stack, Tooltip, Typography } from '@mui/material';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { t } from '../../i18n/routines';
 import type { SalesMetrics } from '../../types/pos.types';
 import {
   formatDashboardCurrency,
@@ -121,7 +122,10 @@ export function SalesOverviewSection({ sales, action }: SalesOverviewSectionProp
   const { user } = useAuth();
   const { isCompact, isMobile } = useDashboardLayout();
   const isSuperuser = Boolean(user?.is_superuser);
+  const lang = user?.language === 'es' ? 'es' : 'en';
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
+  // The week's running total, big (Carrie, 2026-11-02): the same number as This Week on the back of the card.
+  const weekTotal = sales.weekly_last_14_weeks.find((week) => week.label === 'This Week')?.week_total ?? '0';
 
   const goalAmount = sales.goal ? parseDashboardAmount(sales.goal.amount) : null;
   const canOpenGoal = Boolean(sales.goal) || isSuperuser;
@@ -206,6 +210,21 @@ export function SalesOverviewSection({ sales, action }: SalesOverviewSectionProp
               </Box>
             </Tooltip>
             {action}
+          </Box>
+          <Box
+            data-testid="sales-week-to-date"
+            sx={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 1, mb: 1 }}
+          >
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ fontWeight: 800, letterSpacing: 0.9, textTransform: 'uppercase' }}
+            >
+              {t('thisWeek', lang)}
+            </Typography>
+            <Typography sx={{ fontSize: { xs: '1.6rem', md: '2rem' }, fontWeight: 900, lineHeight: 1.1 }}>
+              {formatDashboardCurrency(weekTotal)}
+            </Typography>
           </Box>
           <Box
             sx={{

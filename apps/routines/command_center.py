@@ -52,6 +52,7 @@ from .schedule import (
     hard_at_for,
     materialize_routines,
     maybe_draw_spot,
+    miss_at,
     user_in_audience,
     week_days,
 )
@@ -257,7 +258,12 @@ def shift_end_on(shift: Shift, day: date, tz) -> datetime:
 
 
 def miss_boundary(run: RoutineRun, day: date, tz, hours_cfg=None) -> datetime:
-    """Overdue until this instant; Missed after. Shift end, else store close."""
+    """Overdue until this instant; Missed after. The routine's own clock (expire "after"), else shift end, else store close."""
+    routine = getattr(run, 'routine', None)
+    if routine is not None and routine.expire_rule == Routine.EXPIRE_AFTER:
+        when = miss_at(run)
+        if when is not None:
+            return when
     if run.assigned_to_id:
         row = assignment_for(run.assigned_to_id, day)
         if row:

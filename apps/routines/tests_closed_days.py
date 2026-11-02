@@ -25,8 +25,16 @@ def _staff(email):
     return user
 
 
+
+def closed_sun_mon_hours():
+    """Store hours with the old Sunday + Monday closure (Monday reopened 2026-11-02)."""
+    from apps.core.models import AppSetting
+    from apps.webstore.services.hours import DEFAULT_HOURS
+    AppSetting.objects.update_or_create(key='online_sales.hours', defaults={'value': {**DEFAULT_HOURS, 'closed_weekdays': [0, 6]}})
+
 class ClosedDayScoringTests(APITestCase):
     def setUp(self):
+        closed_sun_mon_hours()  # these tests pin the old Sunday + Monday closure
         self.retail, _ = Department.objects.get_or_create(
             slug='retail-operations',
             defaults={'name': 'Retail', 'icon': 'cart', 'sort_order': 0},

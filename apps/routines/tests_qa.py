@@ -60,6 +60,13 @@ def _staff(email, role='Employee', *, superuser=False):
     return user
 
 
+
+def closed_sun_mon_hours():
+    """Store hours with the old Sunday + Monday closure (Monday reopened 2026-11-02)."""
+    from apps.core.models import AppSetting
+    from apps.webstore.services.hours import DEFAULT_HOURS
+    AppSetting.objects.update_or_create(key='online_sales.hours', defaults={'value': {**DEFAULT_HOURS, 'closed_weekdays': [0, 6]}})
+
 class BaselineMathTests(TestCase):
     def test_poisson_when_variance_at_or_below_mean(self):
         dist = fit_count_dist(4, 4)
@@ -339,6 +346,7 @@ class FlagSpeedTests(TestCase):
 
 class CommandCenterTests(APITestCase):
     def setUp(self):
+        closed_sun_mon_hours()  # these tests pin the old Sunday + Monday closure
         self.mgr = _staff('mgr@example.com', 'Manager')
         self.sam = _staff('sam@example.com')
         self.department, _ = Department.objects.get_or_create(
@@ -1363,6 +1371,7 @@ def _last_weekday(weekday: int) -> date:
 
 class DaySummaryApiTests(APITestCase):
     def setUp(self):
+        closed_sun_mon_hours()  # these tests pin the old Sunday + Monday closure
         self.employee = _staff('day-summary-emp@example.com', 'Employee')
 
     def test_employee_open_day_is_200_without_names(self):

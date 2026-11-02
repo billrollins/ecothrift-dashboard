@@ -1,13 +1,10 @@
-v2.234.0 — Dash Updates: desktop table, live status
+v2.234.1 — Retail quick fixes: change line, 8:30 checklist, week total
 
-User-facing theme: **Dash Fixes is now Dash Updates, with a desktop table that refreshes itself and shows which session is working on each update (Bill, 2026-11-02).**
+User-facing theme: **Three quick retail fixes from Carrie: the change line clears itself, the closing checklist stays open until 8:30 PM, and the week's sales total is big on the Dashboard (Carrie, 2026-11-02).**
 
 ### Changed
-- Dash Fixes is renamed **Dash Updates** (page, your menu, the bell). "Report a fix" is now **Ask for an update**. Old links open the new page.
-- On a desktop the list is a full-width table, one row per update: #, update and description, project and step, who asked and when, size, status (with what it waits on and the session working on it), dependencies, last updated. Phones keep the cards.
-- The list refreshes every 15 seconds, so statuses change while work happens.
-
-### Added
-- Coding sessions can set an update's status, add a note and read new notes through a protected coder link, so the list stays current while work is under way. The way Mainline runs updates (one session per update, status kept current, notes read before every ship) is written in `.ai/protocols/mainline_updates.md`.
+- Register: after a cash sale, "Give back $X" clears itself after 20 seconds (or as soon as the next item is scanned); the X still closes it.
+- Closing checklist: stays open until 8:30 PM (it showed as missed at 6:30 PM, the shift end). After 8:30 PM it can no longer be filled in. The 7:00 PM reminder now goes out. Routine Control can change the time.
+- Dashboard, Store tab: a big "This week $X" line under Sales on a desk; on a phone the week amount is larger.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

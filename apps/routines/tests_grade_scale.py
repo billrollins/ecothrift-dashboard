@@ -9,6 +9,13 @@ from apps.routines.grading import (
 from apps.routines.settings import cap_letter_at, letter_for, letter_meets, retail_qa_settings
 
 
+
+def closed_sun_mon_hours():
+    """Store hours with the old Sunday + Monday closure (Monday reopened 2026-11-02)."""
+    from apps.core.models import AppSetting
+    from apps.webstore.services.hours import DEFAULT_HOURS
+    AppSetting.objects.update_or_create(key='online_sales.hours', defaults={'value': {**DEFAULT_HOURS, 'closed_weekdays': [0, 6]}})
+
 class GradeScaleTests(TestCase):
     def test_letter_for_boundaries(self):
         cases = (
@@ -80,6 +87,10 @@ class GradeScaleTests(TestCase):
 
 
 class ClosedMondayExpectedTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        closed_sun_mon_hours()  # these tests pin the old Sunday + Monday closure
+
     def test_live_monday_rule_includes_sections_sunday_does_not(self):
         from apps.routines.models import QaDayExpected
         monday = date(2026, 9, 21)

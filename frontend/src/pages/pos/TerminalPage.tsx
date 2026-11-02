@@ -193,6 +193,8 @@ function findAffectedCartLineId(prev: Cart | null, next: Cart): number | null {
 
 /** Thrift+ re-ring works for 30 minutes after a sale (apps/thriftplus/services/register.py). */
 const RERING_WINDOW_MS = 30 * 60 * 1000;
+/** How long the "Give back" change line stays after a sale (a scan clears it sooner). */
+const GIVE_BACK_SHOW_MS = 20 * 1000;
 
 export default function TerminalPage({ testRegister }: { testRegister?: Register } = {}) {
   // The test terminal (/pos/test, 2026-10-16) brings the training register itself and never reads or changes the
@@ -1536,6 +1538,12 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   useEffect(() => {
     if (cart?.id) setGiveBack(null);
   }, [cart?.id]);
+  // The change line stays long enough to count it out, then clears itself (Carrie, 2026-11-02).
+  useEffect(() => {
+    if (!giveBack) return;
+    const timer = window.setTimeout(() => setGiveBack(null), GIVE_BACK_SHOW_MS);
+    return () => window.clearTimeout(timer);
+  }, [giveBack]);
 
   const onCashTapped = (next: CashCount) => {
     setCashReceived(next);
