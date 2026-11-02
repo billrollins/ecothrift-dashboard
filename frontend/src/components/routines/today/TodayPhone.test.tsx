@@ -139,8 +139,8 @@ describe('TodayPhone', () => {
     expect(screen.getByText('Open checklist')).toBeInTheDocument();
     expect(screen.getByText('Day checklist')).toBeInTheDocument();
     // The header and the list agree: 2 to do, both nagging (amber), under Due soon.
-    expect(screen.getByText('2 to do')).toBeInTheDocument();
-    expect(screen.getByText('2 need attention')).toBeInTheDocument();
+    expect(screen.queryByText('2 to do')).toBeNull(); // counts live in the top bar now
+    expect(screen.queryByText('2 need attention')).toBeNull();
     expect(screen.getByText('Due soon')).toBeInTheDocument();
     await user.click(screen.getByText('Day checklist'));
     expect(screen.getByText('Runner 4')).toBeInTheDocument();

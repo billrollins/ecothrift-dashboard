@@ -43,29 +43,6 @@ export function TodayDesk() {
     <FloorPage
       title={greeting}
       subtitle={format(new Date(now), 'EEEE, MMMM d · h:mm a')}
-      chips={(
-        <>
-          <Chip
-            size="small"
-            label={clockedIn
-              ? t(clock.onBreak ? 'onBreak' : 'onTheClock', lang)
-              : t('clockedOut', lang)}
-            sx={clock.onBreak
-              ? { height: 24, fontWeight: 700, bgcolor: dutyColors.amberBg, color: dutyColors.amberInk }
-              : bandChipSx}
-          />
-          {work.count > 0 ? (
-            <Chip size="small" label={`${work.count} ${t('toDoLower', lang)}`} sx={bandChipSx} />
-          ) : null}
-          {nag.count > 0 && nag.tone !== 'none' ? (
-            <Chip
-              size="small"
-              label={`${nag.count} ${t(nag.count === 1 ? 'naggingOne' : 'nagging', lang)}`}
-              sx={{ height: 24, fontWeight: 700, bgcolor: NAG_CHIP_BG[nag.tone], color: '#fff' }}
-            />
-          ) : null}
-        </>
-      )}
     >
       <Box
         sx={{
