@@ -124,3 +124,71 @@ class CoverTests(_CoverFixtures, TestCase):
         self.drawer.save(update_fields=['status'])
         r = self._cover()
         self.assertEqual((r.status_code, r.json()['code']), (400, 'DRAWER_CLOSED'))
+
+
+class SpotCheckTests(_CoverFixtures, TestCase):
+    """Retail 4 step 4 (2026-11-02): after a cover, count just the bills and coins it moved."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.pos.models import Drawer
+        Drawer.objects.filter(pk=self.drawer.pk).update(contents={'twenties': 5, 'tens': 5, 'ones': 20, 'quarters': 20},
+                                                        date=timezone.localdate())
+        self.drawer.refresh_from_db()
+
+    def _covered_sale(self):
+        self.assertEqual(self._cover().status_code, 200)
+        cid, _cart = self._open_cart_with_item()
+        r = self._complete(cid, {'payment_method': 'cash', 'cash_received': {'hundreds': 2}})
+        self.assertEqual(r.status_code, 200, r.content)
+        return r.json()
+
+    def _check(self, data):
+        return self.client.post(f'/api/pos/drawers/{self.drawer.id}/spot-check/', data, format='json')
+
+    def test_back_says_what_the_cover_moved_and_the_check_counts_only_that(self):
+        sale = self._covered_sale()
+        back = self._back().json()
+        moved = back['spot_check']['changed']
+        self.assertGreater(moved['hundreds'], 0)
+        expected_keys = set(moved)
+        self.assertTrue(expected_keys >= {'hundreds'})
+        self.assertNotIn('fifties', moved)
+        self.drawer.refresh_from_db()
+        right = {k: self.drawer.contents[k] for k in expected_keys}
+        r = self._check({'cover': back['spot_check']['cover'], 'count': {**right, 'fifties': 9},
+                         'keys': ['fifties']})
+        self.assertEqual(r.status_code, 200, r.content)
+        check = r.json()['count_check']
+        self.assertEqual({row['key'] for row in check['rows']}, expected_keys)  # the screen's keys are ignored
+        self.assertEqual(check['difference_total'], '0.00')
+        from apps.pos.models import RegisterEvent
+        ev = RegisterEvent.objects.get(kind='spot_check')
+        self.assertEqual((ev.amount, ev.cover_id), (0, back['spot_check']['cover']))
+        again = self._check({'cover': back['spot_check']['cover'], 'count': right})
+        self.assertEqual((again.status_code, again.json()['code']), (400, 'ALREADY_CHECKED'))
+        self.assertTrue(sale['cash_received'])
+
+    def test_a_cover_with_no_cash_offers_nothing_and_the_difference_is_blind_on_the_timeline(self):
+        self.assertEqual(self._cover().status_code, 200)
+        self.assertNotIn('spot_check', self._back().json())
+        self._covered_sale()
+        back = self._back().json()
+        r = self._check({'cover': back['spot_check']['cover'], 'count': {'hundreds': 50}})
+        self.assertNotEqual(r.json()['count_check']['difference_total'], '0.00')
+        card = self.client.get(f'/api/pos/drawers/{self.drawer.id}/card/').json()
+        spot = next(e for e in card['journey'] if e['kind'] == 'spot_check')
+        self.assertIsNone(spot['variance'])  # a cashier, drawer open
+
+    def test_only_the_drawers_cashier_or_a_manager_checks(self):
+        self._covered_sale()
+        cover = self._back().json()['spot_check']['cover']
+        self.client.force_authenticate(self.dee)
+        self.assertEqual(self._check({'cover': cover, 'count': {'twenties': 7}}).status_code, 403)
+
+    def test_a_cover_that_ended_any_other_way_is_not_checked(self):
+        self._covered_sale()
+        cover = DrawerCover.objects.get(drawer=self.drawer, ended_at__isnull=True)
+        DrawerCover.objects.filter(pk=cover.pk).update(ended_at=timezone.now(), ended_how=DrawerCover.END_IDLE)
+        r = self._check({'cover': cover.pk, 'count': {'hundreds': 1}})
+        self.assertEqual((r.status_code, r.json()['code']), (400, 'INVALID_COVER'))

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.239.1] -->
-<!-- Last reviewed: 2026-11-02 (2.239.1) -->
+<!-- Line 1 release: ## [2.240.0] -->
+<!-- Last reviewed: 2026-11-02 (2.240.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.240.0] - 2026-11-02
+
+User-facing theme: **Spot check after a cover: when the cashier takes the register back, count just the bills and coins that changed (Bill, 2026-11-02; Dash Updates #43).**
+
+### Added
+- Spot check after a cover (Retail 4 step 4, #43): when the drawer's cashier takes the register back, Dash lists the bills and coins that changed while someone covered ("While Dee covered, these changed: $20 +2 · $1 −3") and offers a count of just those, blind until it is in. Once per cover, by the drawer's cashier or a manager; on the Register and Drawer timelines, its difference hidden from cashiers while the drawer is open. Nothing is offered when nothing moved. Migration `pos.0046`.
 
 ## [2.239.1] - 2026-11-02
 

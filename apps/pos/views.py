@@ -739,10 +739,58 @@ class DrawerViewSet(viewsets.ModelViewSet):
         """Back: the drawer's own cashier types their PIN (``pin``) and the cover ends."""
         drawer = self.get_object()
         try:
-            cover_service.back(drawer, str(request.data.get('pin') or ''), request=request)
+            cover = cover_service.back(drawer, str(request.data.get('pin') or ''), request=request)
         except PinError as exc:
             return Response(exc.payload(), status=exc.http)
-        return Response(self._drawer_now(drawer))
+        data = self._drawer_now(drawer)
+        # The spot check (Retail 4 step 4): which bills and coins the cover moved, so the cashier can count just those.
+        moved = {} if drawer.register.is_training or not drawer.contents else cover_service.changed(cover)
+        if moved:
+            data['spot_check'] = {'cover': cover.pk, 'covered_by': cover.user.full_name, 'changed': moved}
+        return Response(data)
+
+    @action(detail=True, methods=['post'], url_path='spot-check')
+    def spot_check(self, request, pk=None):
+        """A quick count after a cover (``cover``, ``count``; Retail 4 step 4): the bills and coins the cover moved,
+        worked out here (never sent by the screen), once per cover, by the drawer's cashier or a manager. Blind: Dash's
+        numbers come back only with the answer. Logged on the drawer's timeline; the contents stay as they are."""
+        drawer = self.get_object()
+        if drawer.register.is_training:
+            return Response({'detail': 'This is the training register: practice only.', 'code': TRAINING_REFUSED},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if drawer.status != 'open':
+            return Response({'detail': 'This drawer is closed.', 'code': 'DRAWER_CLOSED'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if request.user.pk != drawer.current_cashier_id and not IsManagerOrAdmin().has_permission(request, self):
+            return Response({'detail': "Only the drawer's cashier or a manager checks it."}, status=403)
+        try:
+            cover = drawer.covers.select_related('user').get(pk=int(request.data.get('cover') or 0))
+        except (TypeError, ValueError, OverflowError, DrawerCover.DoesNotExist):
+            return Response({'detail': 'That cover is not on this drawer.', 'code': 'INVALID_COVER'}, status=400)
+        # Only the cover just ended with Back: after any other end the drawer has moved on, and the check would be off.
+        latest = drawer.covers.order_by('-started_at', '-pk').first()
+        if cover.ended_how != DrawerCover.END_BACK or latest is None or latest.pk != cover.pk:
+            return Response({'detail': 'Only the cover just ended with Back is checked.', 'code': 'INVALID_COVER'},
+                            status=400)
+        if RegisterEvent.objects.filter(kind=RegisterEvent.KIND_SPOT_CHECK, cover=cover).exists():
+            return Response({'detail': 'This cover was already checked.', 'code': 'ALREADY_CHECKED'}, status=400)
+        try:
+            count = clean_count(request.data.get('count'), 'Spot check')
+        except CashCountError as exc:
+            return _cash_count_error(exc)
+        moved = cover_service.changed(cover)
+        keys = [k for k in drawer_life.LABELS if moved.get(k)]
+        if not keys:
+            return Response({'detail': 'Nothing changed while it was covered.', 'code': 'NOTHING_CHANGED'}, status=400)
+        counted = {k: count.get(k, 0) for k in keys}
+        expected = {k: int((drawer.contents or {}).get(k) or 0) for k in keys}
+        check = drawer_life.count_check(counted, expected)
+        RegisterEvent.objects.create(
+            kind=RegisterEvent.KIND_SPOT_CHECK, drawer=drawer, register_code=drawer.register.code, user=request.user,
+            cover=cover, amount=Decimal(check['difference_total']),
+            note=f"{', '.join(drawer_life.LABELS[k] for k in keys)} · {cover.user.full_name}"[:300],
+        )
+        return Response({'count_check': check})
 
     @action(detail=True, methods=['post'], url_path='open-drawer')
     def open_drawer(self, request, pk=None):

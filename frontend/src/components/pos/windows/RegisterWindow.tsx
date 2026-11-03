@@ -79,7 +79,7 @@ const STATUS: Record<RegisterCardData['status'], { key: CopyKey; color: 'success
 const DOT: Record<string, string> = {
   opened: '#2e7d32', closed: '#424242', handoff: '#0277bd', cover: '#6a1b9a', cover_end: '#9e9e9e',
   drop: '#00838f', paid_in: '#558b2f', paid_out: '#ef6c00', open_drawer: '#c62828',
-  reprint: '#757575', print_failed: '#c62828', tax_exempt: '#0277bd', tax_exempt_off: '#757575',
+  reprint: '#757575', print_failed: '#c62828', tax_exempt: '#0277bd', tax_exempt_off: '#757575', spot_check: '#6a1b9a',
 };
 
 /** Today's journey as timeline rows (the Register and Drawer windows). */
@@ -258,5 +258,5 @@ export function RegisterWindow({ id }: { id: number }) {
 
 const COPY_EVENT = new Set([
   'opened', 'closed', 'handoff', 'cover', 'cover_end', 'drop', 'paid_in', 'paid_out', 'open_drawer', 'reprint',
-  'print_failed', 'tax_exempt', 'tax_exempt_off',
+  'print_failed', 'tax_exempt', 'tax_exempt_off', 'spot_check',
 ]);

@@ -9,8 +9,14 @@ import {
   Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography,
 } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
-import { coverDrawer, endDrawerCover } from '../../api/pos.api';
+import { coverDrawer, endDrawerCover, spotCheck } from '../../api/pos.api';
 import type { Drawer } from '../../types/pos.types';
+import CountWindow from './CountWindow';
+import { tp } from '../../i18n/pos';
+import { useLanguage } from './windows/retailCopy';
+import { CASH_DENOMINATIONS, type CashKey } from '../../utils/cashCounts';
+
+type SpotCheck = { drawer: number; cover: number; covered_by: string; changed: Partial<Record<CashKey, number>> };
 
 function firstName(name: string | null | undefined): string {
   return (name ?? '').trim().split(/\s+/)[0] || 'them';
@@ -33,6 +39,9 @@ export function useRegisterCover(drawer: Drawer | null): { button: ReactNode; ba
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const cover = drawer?.cover ?? null;
+  const lang = useLanguage();
+  // After Back (Retail 4 step 4): the bills and coins the cover moved, to count just those.
+  const [spot, setSpot] = useState<SpotCheck | null>(null);
 
   // Ten idle minutes: when the time is up, read the drawer again (a sale since keeps the cover going).
   useEffect(() => {
@@ -63,6 +72,8 @@ export function useRegisterCover(drawer: Drawer | null): { button: ReactNode; ba
         return { ...page, results: page.results.map((d) => (d.id === data.id ? data : d)) };
       });
       void queryClient.invalidateQueries({ queryKey: ['drawers'] });
+      const moved = (data as Drawer & { spot_check?: Omit<SpotCheck, 'drawer'> }).spot_check;
+      if (mode === 'back' && moved) setSpot({ ...moved, drawer: data.id });
       close();
     } catch (err) {
       setError(pinError(err));
@@ -134,5 +145,29 @@ export function useRegisterCover(drawer: Drawer | null): { button: ReactNode; ba
     </Dialog>
   );
 
-  return { button, banner, dialog };
+  const spotKeys = CASH_DENOMINATIONS.filter((d) => spot?.changed[d.key]).map((d) => d.key);
+  const spotWindow = (
+    <CountWindow
+      open={spot !== null}
+      title={tp('spotCheck', lang)}
+      submitLabel={tp('check', lang)}
+      keys={spotKeys}
+      onCancel={() => setSpot(null)}
+      onSubmit={async (count) => {
+        if (!spot) return null;
+        const { data } = await spotCheck(spot.drawer, spot.cover, count as Record<string, number>);
+        return data.count_check;
+      }}
+      lang={lang}
+    >
+      <Typography sx={{ mb: 1 }} data-testid="spot-changed">
+        {tp('whileCovered', lang).replace('{name}', firstName(spot?.covered_by))}{' '}
+        {CASH_DENOMINATIONS.filter((d) => spot?.changed[d.key])
+          .map((d) => `${d.label} ${(spot?.changed[d.key] ?? 0) > 0 ? '+' : '−'}${Math.abs(spot?.changed[d.key] ?? 0)}`)
+          .join(' · ')}
+      </Typography>
+    </CountWindow>
+  );
+
+  return { button, banner, dialog: <>{dialog}{spotWindow}</> };
 }

@@ -47,6 +47,9 @@ const STRINGS = {
   whoTakes: { en: 'Who takes the drawer', es: 'Quién recibe la caja' },
   billsOnlyNote: { en: 'Bills only. Coins are counted at close.', es: 'Solo billetes. Las monedas se cuentan al cerrar.' },
   handedOver: { en: 'Drawer handed over', es: 'Caja entregada' },
+  spotCheck: { en: 'Spot check', es: 'Revisión rápida' },
+  check: { en: 'Check', es: 'Revisar' },
+  whileCovered: { en: 'While {name} covered, these changed:', es: 'Mientras {name} cubrió, cambiaron:' },
 } as const;
 
 export type PosStringKey = keyof typeof STRINGS;

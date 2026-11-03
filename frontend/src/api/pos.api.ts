@@ -1,5 +1,6 @@
 import type { PaginatedResponse } from '../types/index';
 import type {
+  CountCheck,
   DashboardMetrics,
   DashboardSalesGoal,
   DashboardDepartmentGoal,
@@ -754,6 +755,11 @@ export function coverDrawer(drawerId: number, pin: string): Promise<{ data: Draw
 /** Back: the drawer's own cashier types their PIN and the cover ends. */
 export function endDrawerCover(drawerId: number, pin: string): Promise<{ data: Drawer }> {
   return api.post<Drawer>(`/pos/drawers/${drawerId}/cover-back/`, { pin });
+}
+
+/** The spot check after a cover (Retail 4 step 4): the server picks which bills and coins from the cover. */
+export function spotCheck(drawerId: number, cover: number, count: Record<string, number>): Promise<{ data: { count_check: CountCheck } }> {
+  return api.post(`/pos/drawers/${drawerId}/spot-check/`, { cover, count });
 }
 
 /** A tax-exempt sale to a non-profit (2026-10-21): `org` and `number`, or a `photo` of the certificate; `off` undoes it. */

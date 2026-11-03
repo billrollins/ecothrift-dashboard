@@ -110,3 +110,27 @@ def back(drawer, pin: str, *, request):
     DrawerCover.objects.filter(pk=cover.pk, ended_at__isnull=True).update(
         ended_at=timezone.now(), ended_how=DrawerCover.END_BACK)
     return cover
+
+
+def changed(cover) -> dict:
+    """What the cover moved in the drawer, by bill and coin (Retail 4 step 4, Bill 2026-11-02: "these are the
+    denominations that changed, you might want to count those"): the cash taken less the change given on the sales
+    finished under it. Only what is not zero."""
+    from apps.pos.models import Cart
+    from apps.pos.services.cash_counts import add_counts
+
+    from apps.pos.models import CashDrop, CashMovement
+
+    net: dict = {}
+    for received, given in (Cart.objects.filter(cover=cover, status='completed')
+                            .values_list('cash_received', 'change_breakdown')):
+        net = add_counts(add_counts(net, received or {}), given or {}, -1)
+    # Drops and paid in / out by bill while the cover was on.
+    until = cover.ended_at or timezone.now()
+    for amount in CashDrop.objects.filter(drawer_id=cover.drawer_id, dropped_at__range=(cover.started_at, until)
+                                          ).values_list('amount', flat=True):
+        net = add_counts(net, amount or {}, -1)
+    for kind, amount in CashMovement.objects.filter(
+            drawer_id=cover.drawer_id, created_at__range=(cover.started_at, until)).values_list('kind', 'amount'):
+        net = add_counts(net, amount or {}, 1 if kind == CashMovement.KIND_PAID_IN else -1)
+    return net

@@ -93,7 +93,10 @@ def journey(drawer: Drawer | None, *, blind: bool) -> list[dict]:
         ev.append({'kind': m.kind, 'at': m.created_at, 'who': name(m.performed_by), 'amount': money(m.total),
                    'note': m.reason})
     for e in RegisterEvent.objects.filter(drawer=drawer).select_related('user'):
-        ev.append({'kind': e.kind, 'at': e.created_at, 'who': name(e.user), 'note': e.note, 'cart': e.cart_id})
+        row = {'kind': e.kind, 'at': e.created_at, 'who': name(e.user), 'note': e.note, 'cart': e.cart_id}
+        if e.kind == RegisterEvent.KIND_SPOT_CHECK:  # its difference is blind like a handoff's
+            row['variance'] = None if blind or e.amount is None else money(e.amount)
+        ev.append(row)
     if drawer.status == 'closed' and drawer.closed_at:
         ev.append({'kind': 'closed', 'at': drawer.closed_at, 'who': name(drawer.closed_by),
                    'variance': money(drawer.variance) if drawer.variance is not None else None})

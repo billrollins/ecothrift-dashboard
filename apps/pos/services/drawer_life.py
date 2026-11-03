@@ -20,6 +20,7 @@ BILLS = ('hundreds', 'fifties', 'twenties', 'tens', 'fives', 'ones')
 COINS = ('quarters', 'dimes', 'nickels', 'pennies')
 _LABELS = {'hundreds': '$100', 'fifties': '$50', 'twenties': '$20', 'tens': '$10', 'fives': '$5', 'ones': '$1',
            'quarters': '25¢', 'dimes': '10¢', 'nickels': '5¢', 'pennies': '1¢'}
+LABELS = _LABELS
 SETTING_KEY_CLOSE_NOTE_OVER = 'pos.close_note_over'
 DEFAULT_CLOSE_NOTE_OVER = Decimal('5.00')
 

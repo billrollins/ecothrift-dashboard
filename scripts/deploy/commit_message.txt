@@ -1,8 +1,8 @@
-v2.239.1 — Every staff member can send messages
+v2.240.0 — Spot check after a cover
 
-User-facing theme: **Every staff member can send messages in Dash (Carrie, 2026-11-02; Dash Updates #29).**
+User-facing theme: **Spot check after a cover: when the cashier takes the register back, count just the bills and coins that changed (Bill, 2026-11-02; Dash Updates #43).**
 
-### Changed
-- Messages: every staff login can start a message, to one person or a whole department, not only managers (Carrie, Dash Updates #29). Picking a department says who it reaches ("Goes to everyone in Retail (6 people)"). One-time secrets (PINs) stay the owner's and managers'. The compose box is in English and Spanish.
+### Added
+- Spot check after a cover (Retail 4 step 4, #43): when the drawer's cashier takes the register back, Dash lists the bills and coins that changed while someone covered ("While Dee covered, these changed: $20 +2 · $1 −3") and offers a count of just those, blind until it is in. Once per cover, by the drawer's cashier or a manager; on the Register and Drawer timelines, its difference hidden from cashiers while the drawer is open. Nothing is offered when nothing moved. Migration `pos.0046`.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -9,7 +9,7 @@ import {
   Box, Button, Dialog, DialogContent, IconButton, Stack, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import CashCountPad from './CashCountPad';
-import { CASH_DENOMINATIONS, countCents, type CashCount } from '../../utils/cashCounts';
+import { CASH_DENOMINATIONS, countCents, type CashCount, type CashKey } from '../../utils/cashCounts';
 import type { CountCheck } from '../../types/pos.types';
 import { tp } from '../../i18n/pos';
 
@@ -61,6 +61,8 @@ type Props = {
   /** Sends the count; answers the server's check (null when there is nothing to compare with). */
   onSubmit: (count: CashCount) => Promise<CountCheck | null>;
   only?: 'bills' | 'coins';
+  /** Only these bills and coins (a spot check). */
+  keys?: CashKey[];
   lang?: string | null;
   /** Above the pad (a handover: who takes the drawer). */
   children?: ReactNode;
@@ -71,7 +73,7 @@ type Props = {
 };
 
 export default function CountWindow({
-  open, title, submitLabel, onCancel, onSubmit, only, lang, children, ready = true, notReadyLabel,
+  open, title, submitLabel, onCancel, onSubmit, only, keys, lang, children, ready = true, notReadyLabel,
 }: Props) {
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down('sm'));
@@ -80,7 +82,10 @@ export default function CountWindow({
   const [check, setCheck] = useState<CountCheck | null>(null);
   const inFlight = useRef(false); // a double tap posts once
   // Only what the pad shows counts (a handover counts the bills).
-  const shown = only ? CASH_DENOMINATIONS.filter((d) => (only === 'bills') === d.bill).map((d) => d.key) : null;
+  const shown = only || keys
+    ? CASH_DENOMINATIONS.filter((d) => (!only || (only === 'bills') === d.bill) && (!keys || keys.includes(d.key)))
+      .map((d) => d.key)
+    : null;
   const counted: CashCount = shown ? Object.fromEntries(shown.filter((k) => count[k]).map((k) => [k, count[k]])) : count;
   const totalCents = countCents(counted);
   useEffect(() => {
@@ -126,7 +131,7 @@ export default function CountWindow({
         {check ? <CountResult check={check} lang={lang} /> : (
           <>
             {children}
-            <CashCountPad value={count} onChange={setCount} only={only} disabled={busy} lang={lang} />
+            <CashCountPad value={count} onChange={setCount} only={only} keys={keys} disabled={busy} lang={lang} />
           </>
         )}
       </DialogContent>
@@ -137,7 +142,7 @@ export default function CountWindow({
           </Button>
         ) : (
           <Button
-            fullWidth variant="contained" color="success" size="large" onClick={() => void submit()} disabled={busy || totalCents === 0 || !ready}
+            fullWidth variant="contained" color="success" size="large" onClick={() => void submit()} disabled={busy || (totalCents === 0 && !keys) || !ready}
             data-testid="count-submit" sx={{ minHeight: 60, fontSize: '1.2rem', fontWeight: 800 }}
           >
             {!ready && notReadyLabel ? notReadyLabel : `${submitLabel} · ${money(totalCents / 100)}`}

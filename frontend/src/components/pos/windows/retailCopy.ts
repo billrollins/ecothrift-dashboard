@@ -72,6 +72,7 @@ export const COPY = {
   ev_print_failed: { en: 'Receipt did not print', es: 'El recibo no se imprimió' },
   ev_tax_exempt: { en: 'Marked tax exempt', es: 'Marcada sin impuesto' },
   ev_tax_exempt_off: { en: 'Tax exempt taken off', es: 'Se quitó sin impuesto' },
+  ev_spot_check: { en: 'Spot check', es: 'Revisión rápida' },
   from: { en: 'from', es: 'de' },
   // The Drawer window.
   cashNow: { en: 'Cash now', es: 'Efectivo ahora' },

@@ -504,10 +504,12 @@ class RegisterEvent(models.Model):
     KIND_OPEN_DRAWER = 'open_drawer'
     KIND_REPRINT = 'reprint'
     KIND_PRINT_FAILED = 'print_failed'
+    KIND_SPOT_CHECK = 'spot_check'
     KIND_CHOICES = [
         (KIND_OPEN_DRAWER, 'Drawer opened (no sale)'),
         (KIND_REPRINT, 'Receipt reprinted'),
         (KIND_PRINT_FAILED, 'Receipt did not print'),
+        (KIND_SPOT_CHECK, 'Spot check after a cover'),
         ('tax_exempt', 'Sale marked tax exempt'),
         ('tax_exempt_off', 'Tax exempt taken off'),
     ]
@@ -518,6 +520,9 @@ class RegisterEvent(models.Model):
     register_code = models.CharField(max_length=20, blank=True, default='')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='register_events')
     note = models.CharField(max_length=300, blank=True, default='')
+    # A spot check after a cover (Retail 4 step 4): which cover, and how far off (counted - expected).
+    cover = models.ForeignKey('DrawerCover', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:

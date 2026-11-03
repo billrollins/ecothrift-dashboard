@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Drawer } from '../../types/pos.types';
 import { useRegisterCover } from './RegisterCover';
 
-const m = vi.hoisted(() => ({ cover: vi.fn(), back: vi.fn() }));
-vi.mock('../../api/pos.api', () => ({ coverDrawer: m.cover, endDrawerCover: m.back }));
+const m = vi.hoisted(() => ({ cover: vi.fn(), back: vi.fn(), spot: vi.fn() }));
+vi.mock('../../api/pos.api', () => ({ coverDrawer: m.cover, endDrawerCover: m.back, spotCheck: m.spot }));
 
 function apiError(data: Record<string, unknown>) {
   return Object.assign(new Error('http'), { response: { data } });
@@ -81,5 +81,27 @@ describe('Cover at the register (2026-10-22)', () => {
     renderWith(null);
     expect(screen.queryByTestId('cover-button')).toBeNull();
     expect(screen.queryByTestId('cover-banner')).toBeNull();
+  });
+
+  it('after Back it offers a count of just what the cover moved (Retail 4, 2026-11-02)', async () => {
+    const user = userEvent.setup();
+    m.back.mockReset();
+    m.spot.mockReset();
+    m.back.mockResolvedValueOnce({ data: { ...DRAWER, spot_check: { cover: 1, covered_by: 'Dee Next', changed: { twenties: 2, ones: -3 } } } });
+    m.spot.mockResolvedValueOnce({ data: { count_check: {
+      rows: [{ key: 'twenties', label: '$20', counted: 7, expected: 7, difference: 0 },
+        { key: 'ones', label: '$1', counted: 17, expected: 17, difference: 0 }],
+      counted_total: '157.00', expected_total: '157.00', difference_total: '0.00',
+    } } });
+    renderWith(COVERED);
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.type(screen.getByLabelText("Cara's PIN"), '2468{Enter}');
+    expect(await screen.findByTestId('spot-changed')).toHaveTextContent('While Dee covered, these changed: $20 +2 · $1 −3');
+    expect(screen.queryByTestId('count-tens')).toBeNull();
+    await user.type(screen.getByTestId('count-twenties'), '7');
+    await user.type(screen.getByTestId('count-ones'), '17');
+    await user.click(screen.getByTestId('count-submit'));
+    expect(m.spot).toHaveBeenCalledWith(7, 1, { twenties: 7, ones: 17 });
+    expect(await screen.findByTestId('count-result')).toHaveTextContent('Right on');
   });
 });
