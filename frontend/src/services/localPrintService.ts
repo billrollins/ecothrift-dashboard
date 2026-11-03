@@ -218,11 +218,11 @@ class LocalPrintService {
   }
 
   /**
-   * Restoration tags and test labels, drawn by the print server itself at the label size (1.9.10, owner 2026-10-29:
+   * Restoration tags, price tags (Classic `price`, Thrift+ `perks`; 1.9.12) and test labels, drawn by the print server itself at the label size (1.9.10, owner 2026-10-29:
    * tags are drawn there, never sent as a picture). Throws on older print servers.
    */
   async printTags(request: {
-    tags: Array<{ kind: 'restoration' | 'test'; data?: Record<string, unknown>; doc_name?: string }>;
+    tags: Array<{ kind: 'restoration' | 'test' | 'price' | 'perks'; data?: Record<string, unknown>; doc_name?: string }>;
     w_in: number;
     h_in: number;
     dpi: number;

@@ -39,7 +39,7 @@ class AiModelResolutionTests(TestCase):
         self.assertEqual(AiAction.objects.count(), 21)
         self.assertEqual(AiAction.objects.filter(purpose__in=['THRIFTPLUS_FAMILY', 'QA_TRIAGE']).count(), 2)
         self.assertFalse(AiAction.objects.filter(purpose='SUPERVISOR_BRIEF').exists())
-        self.assertFalse(AiAction.objects.filter(model__isnull=False).exclude(purpose__in=['SOCIAL_POST', 'KEYS']).exists())
+        self.assertFalse(AiAction.objects.filter(model__isnull=False).exclude(purpose__in=['SOCIAL_POST', 'KEYS', 'SUPPLY_FILL']).exists())
         self.assertEqual(
             set(AiModel.objects.values_list('slug', flat=True)),
             {

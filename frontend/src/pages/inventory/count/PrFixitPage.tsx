@@ -19,7 +19,6 @@ import {
   type TagLabel,
 } from '../../../api/stocktake.api';
 import { fetchBadTagPhoto, type BadTag } from '../../../api/badTags.api';
-import { PrintServerChip } from '../../../components/printing/PrintServerChip';
 import { printPriceTags } from '../../../printing/printTags';
 import QuickRepricePage from '../QuickRepricePage';
 import { priceFromNote } from './countProblems';
@@ -636,7 +635,6 @@ export default function PrFixitPage() {
             </TextField>
           )}
           {fixedToday > 0 && <Chip size="small" color="success" variant="outlined" label={`${fixedToday} fixed today`} />}
-          <PrintServerChip />
           <Button size="small" onClick={reload} sx={{ textTransform: 'none' }}>
             Refresh
           </Button>

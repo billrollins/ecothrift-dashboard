@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-28 (one label-size setting; tags drawn in Dash) -->
+<!-- Last updated: 2026-11-03 (one Printing screen, every choice per computer; tags 1.9.12) -->
 
 # Print Server — Extended Context
 
@@ -30,7 +30,7 @@ Printer assignment is **on the print server**, shared by all browsers on the PC.
 - Authenticated: `/api/core/system/print-server-version/`, `print-server-releases/`
 - Public (no auth): `/api/core/system/print-server-version-public/` — `@permission_classes([AllowAny])` so `/manage` can check without a JWT. Default `UPDATE_CHECK_URL` in [`printserver/config.py`](../../printserver/config.py); `/manage/check-update` proxies this (no browser CORS).
 
-Upload path pattern: `print-server/ecothrift-printserver-setup-v{VERSION}.exe`. **Ship:** [`.ai/protocols/ship-print-server.md`](../protocols/ship-print-server.md) — skip-if-done build, S3, local + Heroku `PrintServerRelease`, and this-PC install. Script: [`printserver/distribute.py`](../../printserver/distribute.py) `--install-local`. Register: `manage.py publish_printserver` (idempotent). Silent install: `python printserver/installer/setup.py --install`. **Current release:** **1.9.11** (2026-11-02: receipts show Mon - Sat hours, Sun closed). Before that 1.9.10 (2026-10-29: `/print/tags` draws restoration tags and the test label on the print server; tags are drawn here, never sent as pictures).
+Upload path pattern: `print-server/ecothrift-printserver-setup-v{VERSION}.exe`. **Ship:** [`.ai/protocols/ship-print-server.md`](../protocols/ship-print-server.md) — skip-if-done build, S3, local + Heroku `PrintServerRelease`, and this-PC install. Script: [`printserver/distribute.py`](../../printserver/distribute.py) `--install-local`. Register: `manage.py publish_printserver` (idempotent). Silent install: `python printserver/installer/setup.py --install`. **Current release:** **1.9.11** (2026-11-02: receipts show Mon - Sat hours, Sun closed). **1.9.12 prepared, not distributed:** `/print/tags` also draws the new price tag (`price`) and the Thrift+ Perks tag (`perks`). Before that 1.9.10 (2026-10-29: `/print/tags` draws restoration tags and the test label on the print server; tags are drawn here, never sent as pictures).
 
 ## V2 vs V3 (migration)
 
@@ -71,26 +71,29 @@ in the browser (`pages/restoration/tag/restorationTag.ts`). See [`restoration.md
 
 Owner: "our standard tag size as of now is 1.5 x 1 ... we often need to change tag sizes ... SUPER easy to adjust."
 
-- **One setting:** Settings → Printing → **What labels are you using?** Presets 1.5x1 (standard), 2.25x1.25, 3x2, or
-  Custom W x H inches (0.75 to 4), plus the printer's dpi (203 or 300). Store-wide in AppSetting `printing.label_size`
-  (`{w_in, h_in, dpi}`, default 1.5 x 1 at 203; `GET/PUT /api/core/printing/label-size/`, any team member reads,
-  managers set; changes go to AppSettingHistory). **Only this computer** saves an override in the browser
-  (`localStorage.label_size_station`); it wins over the store size. Code: `frontend/src/printing/labelSize.ts`.
-- **Tags drawn in Dash** at exactly W x H x dpi (one pixel per printer dot, snapped to black and white) and sent to
-  `/print/image-copies` with that dpi, which prints at physical size (`fit_to_printable=False`): the restoration tag and
-  the test label always. **Price tag behind a switch:** AppSetting `printing.price_tag_in_dash` (default **off**; owner
-  and managers flip it on the label-size card, "Use the new price tag drawing"; `PUT /api/core/printing/price-tag-in-dash/`
-  `{"on": true}`). Off: price tags print exactly as before (one label `/print/label`, more `/print/labels`, the print
-  server's own drawing at its own **Paper size**, `label_size_preset`, no longer shown in Dash). On: drawn in Dash
-  (`printing/tags/priceTag.ts`, a port of `label_printer.generate_label` scaled from the 305 x 203 reference); a print
-  server older than 1.4.1 falls back to `/print/labels`. Turn it on once Print a test label looks right on real stock.
+- **The Printing screen** (Bill, Dash Updates #9, 2026-11-03): one screen, `components/printing/PrintingSurface.tsx`, opened
+  from the sidebar foot (**Print server · v1.9.12 · Online**, under the Dash version, on every page;
+  `PrintServerButton.tsx`) and shown on Settings → Printing. Top to bottom: print server status with Update / Download;
+  **This computer**: receipt printer, label printer, label size in one row, each with its test prints under it; **Tags**:
+  big samples of the price tag (**Old | Thrift+**) and what an item going to Restoration gets (**Restoration | Price
+  tag**). **Every choice is this computer's** (`frontend/src/printing/printPrefs.ts`, `localStorage.print_prefs`); the
+  defaults are in code: 1.5 x 1, Thrift+, Restoration (Bill changes a default by telling the coder). Sizes are the presets
+  (1.5x1, 2.25x1.25, 3x2) at 203 dpi; no custom size, no dpi pick. The store AppSettings `printing.label_size`,
+  `price_tag_in_dash` and `price_tag_design` are no longer read by Dash. No drawer pin control.
+- **Tags are drawn by the print server** (owner 2026-10-29: "Always update print server, do not do that shortcut of making an
+  image to print"; browser-drawn pictures printed shrunk and cut off on the thermal driver). Dash sends data and the label
+  size (w, h, dpi) to `POST /print/tags` (`kind` restoration / test since 1.9.10; `price` / `perks` since 1.9.11), and
+  `printserver/services/tag_designs.py` draws one PIL picture per tag at exactly W x H x dpi, snapped to black and white,
+  printed through `send_image` fitted to the label. `/print/image-copies` is for Label Studio only. A print server older
+  than the tag's release answers 404 or `Unknown tag kind`; Dash says to update it (price tags fall back to `/print/labels`).
+  Price tags always go this way: **Old** is kind `price` (`draw_price_tag`, a port of `printing/tags/priceTag.ts`, the
+  side-stripe tag the store always printed), **Thrift+** is kind `perks`; a print server older than 1.9.12 falls back to
+  `/print/labels` (its own drawing).
 - **Kit:** `printing/tagCanvas.ts` (ops, fit/wrap, whole-dot QR, logo, render), `printing/printTags.ts` (`printTags`,
   `printPriceTags`, `printTestLabel`, `reprintLastTag`; `TAG_DESIGNS` registry). **A new tag design is one file** in
   `printing/tags/` exporting a `TagDesign` (its `layout(data, box, measure)` places ops in proportion to `box`), plus one
   line in `TAG_DESIGNS`.
-- **Price tag design** (owner 2026-10-28): Settings → Printing → **Price tag design: Classic / Thrift+ Perks**, store-wide in
-  AppSetting `printing.price_tag_design` (`classic` default; `PUT /api/core/printing/price-tag-design/` `{"design": "perks"}`,
-  managers; it rides along on `GET label-size/` as `price_tag_design`). Only used while `price_tag_in_dash` is on. **Thrift+
+- **Thrift+ Perks price tag** (owner 2026-10-28; the default since Dash Updates #9): **Thrift+
   Perks** (`printing/tags/perksTag.ts`, design G3 / G4, made for 2.25 x 1.25, laid out in proportion so 1.5 x 1 and 3 x 2 work):
   retail struck, OUR PRICE, price, title (2 lines), SKU on the left; THRIFT+ PERKS header, QR, two promise lines on the right;
   the full-width strip 3-DAY RETURNS WITH THRIFT+ or AS IS · NO RETURNS (rulebook A1). Short on room, the promise lines shrink,
@@ -102,11 +105,8 @@ Owner: "our standard tag size as of now is 1.5 x 1 ... we often need to change t
   `frontend/src/utils/scanCode.ts` `skuFromScan` and `apps/inventory/services/scan_code.py` `sku_from_scan` (register, Quick
   reprice, Returns, Count, PR Fix-it, Bad tag, Restoration queue and bench, Processing, Add item, Inventory search, Sold
   online, deliveries, the Thrift+ / Staff / Social scanners and the item lookups). Classic tags keep the plain SKU.
-- **Print a test label:** a frame on the edge, a 1/4 in ruler on the top and left, the size text; then a sample price
-  tag in the **new** drawing (switch on or off, to compare). **Reprint last label:** the last tag this computer printed (`localStorage.last_label_printed`), at today's size.
-- **Print-server chip** (`components/printing/PrintServerChip.tsx`, on the Processing header): Online / Needs update
-  (installed below the published release; click downloads) / Offline. Online opens a mini window with the label
-  printer pick (`LabelPrinterSelect`) and the label-size card (`LabelSizeCard`), the same components as the tab.
+- **Test prints:** Test label (a frame on the edge, a 1/4 in ruler, the size text), Price tag and Restoration tag (samples
+  in this computer's style), **Reprint last** (`localStorage.last_label_printed`), Member / Non-member receipt.
 
 ## Custom labels (Label Studio, v1.4.1)
 

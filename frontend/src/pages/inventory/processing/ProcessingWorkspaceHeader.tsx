@@ -19,7 +19,6 @@ import type { ProcessingWorkspaceOrderDTO, ProcessingWorkspaceRollupsDTO } from 
 import { formatCurrency } from '../../../utils/format';
 import { orderPickerProcessingBadgeColors } from '../../../utils/orderPickerDisplay';
 import { processingTokens } from './processingTokens';
-import { PrintServerChip } from '../../../components/printing/PrintServerChip';
 import type { TruckPalletLedgerDTO } from '../../../api/truckPallets.api';
 import { missingHeadline, palletHeadline } from './palletLedgerDisplay';
 import { IconClose as Close } from '../../../icons/ecoIcons';
@@ -355,7 +354,6 @@ export function ProcessingWorkspaceHeader({
         />
         <Box sx={{ flex: 1, minWidth: 8 }} />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-          <PrintServerChip sx={{ bgcolor: 'background.paper', mr: 0.5 }} />
           {addItemVisible && onAddItem ? (
           <Button
             size="small"

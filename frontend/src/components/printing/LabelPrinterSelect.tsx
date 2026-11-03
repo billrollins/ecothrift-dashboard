@@ -1,6 +1,6 @@
 /**
  * The label printer pick, saved on this computer's print server (shared by every browser on the PC). Used on
- * Settings → Printing and in the print-server chip's mini window.
+ * the Printing screen (Settings → Printing and the sidebar's Print server window).
  */
 import { FormControl, InputLabel, MenuItem, Select, type SxProps, type Theme } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material/Select';
@@ -25,7 +25,7 @@ export function withSetting(settings: PrinterSettings | undefined, change: Parti
   };
 }
 
-export function LabelPrinterSelect({ online, sx }: { online: boolean; sx?: SxProps<Theme> }) {
+export function LabelPrinterSelect({ online, sx, size }: { online: boolean; sx?: SxProps<Theme>; size?: 'small' | 'medium' }) {
   const { enqueueSnackbar } = useSnackbar();
   const { data: printers = [] } = useQuery<PrinterInfo[]>({
     queryKey: ['ps-printers'],
@@ -49,7 +49,7 @@ export function LabelPrinterSelect({ online, sx }: { online: boolean; sx?: SxPro
   });
 
   return (
-    <FormControl fullWidth disabled={!online} sx={sx}>
+    <FormControl fullWidth disabled={!online} sx={sx} size={size}>
       <InputLabel>Label printer</InputLabel>
       <Select
         value={psSettings?.label_printer ?? ''}

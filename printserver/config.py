@@ -1,6 +1,6 @@
-VERSION = "1.9.11"
+VERSION = "1.9.12"
 RELEASE_NOTES = (
-    'Receipts show the new hours: Mon - Sat 9 AM - 6 PM, Sun Closed.'
+    'The new price tag and the Thrift+ Perks price tag are drawn by the print server and fit the label.'
 )
 
 # Default URL for the public version-check endpoint on the dashboard backend.
@@ -8,6 +8,21 @@ RELEASE_NOTES = (
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.9.12] — 2026-11-03 (install on the processing label PCs and every PC that prints price tags)
+
+Owner 2026-10-29: "Always update print server, do not do that shortcut of making an image to print." The new price
+tag drawings printed shrunk and cut off on the store's thermal driver because Dash drew them as pictures. The print
+server now draws them itself from data.
+
+- `POST /print/tags` also draws price tags: `kind: "price"` (the Classic side-stripe tag, as the new drawing in Dash
+  had it) and `kind: "perks"` (Thrift+ Perks: retail struck, OUR PRICE, price, title, SKU, THRIFT+ PERKS header, QR of
+  `HTTPS://ECOTHRIFT.US/I/<SKU>`, promise lines, and the 3-DAY RETURNS WITH THRIFT+ / AS IS strip), at the width,
+  height and dpi Dash sends, fitted to the label like the other tags.
+- The price tag drawn from `/print/label` and `/print/labels` (the default) is unchanged.
+- Settings > Printing > "Use the new price tag drawing" and "Price tag design" still pick what Dash sends.
+- 1.5" x 1" (owner 11-03: the store stays on 1.5" x 1" labels): the Perks tag's QR prints at 4 dots a module (it was
+  3) by using the error correction that gives the biggest dots, with a slightly slimmer bottom strip. Same link.
+
 ## [1.9.11] — 2026-11-02 (install on every register)
 
 Owner 2026-11-02: the store is open Mondays again.

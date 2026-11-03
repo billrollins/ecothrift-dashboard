@@ -35,6 +35,7 @@ import { NotificationBell } from './NotificationBell';
 import { AccountMenu } from './AccountMenu';
 import { useDashboardTab } from '../../navigation/dashboardTabs';
 import { hasRunner } from '../../pages/routines/todayRunner';
+import { PrintServerButton } from '../printing/PrintServerButton';
 
 const DASHBOARD_BACKDROP = dashboardPalette.backdrop;
 
@@ -120,16 +121,16 @@ export default function MainLayout() {
       <Box sx={{ flexGrow: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
         <Sidebar />
       </Box>
-      {appVersion?.version && (
-        <>
-          <Divider />
-          <Box sx={{ px: 2, py: 1.5, textAlign: 'center' }}>
-            <Typography variant="caption" color="text.disabled">
-              v{appVersion.version}
-            </Typography>
-          </Box>
-        </>
-      )}
+      <Divider />
+      {/* The Dash version, then this computer's print server; a click opens Printing (Bill, Dash Updates #9). */}
+      <Box sx={{ px: 1, py: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25 }}>
+        {appVersion?.version && (
+          <Typography variant="caption" color="text.disabled">
+            v{appVersion.version}
+          </Typography>
+        )}
+        <PrintServerButton />
+      </Box>
     </Box>
   );
 

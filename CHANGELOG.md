@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.254.0] -->
-<!-- Last reviewed: 2026-11-03 (2.254.0) -->
+<!-- Line 1 release: ## [2.255.0] -->
+<!-- Last reviewed: 2026-11-03 (2.255.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.255.0] - 2026-11-03
+
+User-facing theme: **The new price tag and the Thrift+ Perks tag, drawn by the print server at 1.5" x 1" (Bill, 2026-11-03; Dash Updates #8). Needs print server 1.9.12.**
+
+### Changed
+- With Settings → Printing → "Use the new price tag drawing" on, price tags (Classic or Thrift+ Perks) go to the print server as data and it draws them at the label size (`/print/tags`, kinds `price` and `perks`). Dash no longer sends any tag as a picture. A print server older than 1.9.12 gets the old price tag instead.
+- The Perks tag's QR prints with bigger dots on 1.5" x 1" labels (4 dots a square, was 3), so it scans more easily; the bottom strip is a little slimmer. Same link.
+- **One Printing window** (Bill, Dash Updates #9): the sidebar's foot shows **Print server · v1.9.12 · Online** under the Dash version on every page; a click opens the Printing window, and Settings → Printing shows the same screen. Top to bottom: the print server (with Update when a new one is out); **This computer**: receipt printer, label printer and label size in one row, each with its test prints under it; **Tags**: big samples of the price tag (**Old** or **Thrift+**) and of what an item going to Restoration gets (**Restoration** tag or a **Price tag**).
+- Every printing choice is now **this computer's**, with the store standard as the default: 1.5 x 1 labels, the Thrift+ Perks price tag, the Restoration tag. Price tags always go to the print server as data ("Old" is the side-stripe tag the store has always printed).
+
+### Removed
+- The "Print server" chips on Processing and PR Fix-it (the sidebar button replaces them); the whole store / this computer choice, the dpi pick, custom sizes, the "Use the new price tag drawing" switch, and the drawer pin control.
 
 ## [2.254.0] - 2026-11-03
 

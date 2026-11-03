@@ -83,7 +83,8 @@ class ImageCopiesPrintRequest(BaseModel):
 
 class TagJob(BaseModel):
     """One tag the print server draws itself: ``kind`` restoration (data: sku, title, needs, holdout, sent_on,
-    sent_by) or test (no data)."""
+    sent_by), price (Classic) or perks (Thrift+ Perks, 1.9.12; data: text, qr_data, product_title,
+    product_brand, include_text, retail_text, as_is), or test (no data)."""
 
     kind: str
     data: dict = Field(default_factory=dict)

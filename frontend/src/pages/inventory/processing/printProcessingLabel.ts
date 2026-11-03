@@ -3,6 +3,7 @@ import { markItemsLabelsPrinted } from '../../../api/inventory.api';
 import type { Item } from '../../../types/inventory.types';
 import type { RestorationTagFacts } from '../../restoration/tag/restorationTag';
 import { printPriceTags, printTags } from '../../../printing/printTags';
+import { readPrintPrefs } from '../../../printing/printPrefs';
 
 type LabelInput = Pick<Item, 'sku' | 'price'> &
   Partial<Pick<Item, 'product_title' | 'product_brand' | 'product_number'>> & {
@@ -79,15 +80,16 @@ export async function printRestorationTags(
 }
 
 /**
- * Batch labels: price tags drawn here at the label-size setting, one print call each, in order (a print server
- * without `/print/image-copies` gets one `/print/labels` call instead). Items going to Restoration get the
- * restoration tag instead.
+ * Batch labels: price tags drawn by the print server at this computer's label size, one print call each, in order (a
+ * print server too old for `/print/tags` gets one `/print/labels` call instead). Items going to Restoration get the
+ * restoration tag instead, unless this computer prints them a price tag (its Printing choice, Dash Updates #9).
  */
 export async function printProcessingLabelsStaggered(
   items: LabelInput[],
   priceOverride?: string,
 ): Promise<{ succeeded: number; failed: number; succeededItemIds: number[] }> {
   if (!items.length) return { succeeded: 0, failed: 0, succeededItemIds: [] };
+  if (readPrintPrefs().restorationTag === 'price') return printPriceLabels(items, priceOverride);
   const resto = items.filter((it): it is LabelInput & { restoration_tag: RestorationTagFacts } => it.restoration_tag != null);
   if (resto.length) {
     const rest = items.filter((it) => it.restoration_tag == null);

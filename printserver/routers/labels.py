@@ -13,7 +13,7 @@ from models import (
 )
 from services.label_printer import generate_label, generate_test_label
 from services.printer_manager import resolve_printer, send_image
-from services.tag_designs import draw_restoration_tag, draw_test_label
+from services.tag_designs import draw_perks_tag, draw_price_tag, draw_restoration_tag, draw_test_label
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/print", tags=["labels"])
@@ -92,7 +92,7 @@ async def print_test(req: TestPrintRequest | None = None):
 
 @router.post("/tags", response_model=PrintResponse)
 async def print_tags(req: TagsPrintRequest):
-    """Restoration tags and test labels, drawn here at the label size Dash sends, printed one job per tag in order
+    """Restoration tags, price tags (Classic ``price``, Thrift+ ``perks``; 1.9.12) and test labels, drawn here at the label size Dash sends, printed one job per tag in order
     and fitted to the label like the price tag (1.9.10)."""
     printed = 0
     try:
@@ -100,6 +100,10 @@ async def print_tags(req: TagsPrintRequest):
         for job in req.tags:
             if job.kind == "restoration":
                 image = draw_restoration_tag(job.data, req.w_in, req.h_in, req.dpi)
+            elif job.kind == "price":
+                image = draw_price_tag(job.data, req.w_in, req.h_in, req.dpi)
+            elif job.kind == "perks":
+                image = draw_perks_tag(job.data, req.w_in, req.h_in, req.dpi)
             elif job.kind == "test":
                 image = draw_test_label(req.w_in, req.h_in, req.dpi)
             else:
