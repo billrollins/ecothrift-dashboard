@@ -439,7 +439,7 @@ export function ProcessingCheckInDialog({
               }
             />
             {toRestoration ?
-              <RestorationRequestFields value={estimate} onChange={setEstimate} disabled={busy} />
+              <RestorationRequestFields value={estimate} onChange={setEstimate} disabled={busy} price={price} />
             : null}
           </Stack>
         )}

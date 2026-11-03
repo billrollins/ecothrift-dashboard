@@ -168,10 +168,14 @@ function cellPad(columnId: CheckedInHistoryColumnId): number {
   return CHECKED_IN_HISTORY_CELL_PAD_PX;
 }
 
-export function checkedInHistoryActionsColPx(showReprint: boolean, showDelete: boolean): number {
-  if (!showReprint && !showDelete) return 8;
-  if (showReprint && showDelete) return CHECKED_IN_HISTORY_ACTIONS_WITH_DELETE_COL_PX;
-  return CHECKED_IN_HISTORY_ACTIONS_COL_PX;
+/** One more icon (Dispute, Dash Updates #1) takes this much more room. */
+export const CHECKED_IN_HISTORY_ACTION_ICON_PX = 32;
+
+export function checkedInHistoryActionsColPx(showReprint: boolean, showDelete: boolean, showDispute = false): number {
+  const extra = showDispute ? CHECKED_IN_HISTORY_ACTION_ICON_PX : 0;
+  if (!showReprint && !showDelete) return showDispute ? CHECKED_IN_HISTORY_ACTIONS_COL_PX : 8;
+  if (showReprint && showDelete) return CHECKED_IN_HISTORY_ACTIONS_WITH_DELETE_COL_PX + extra;
+  return CHECKED_IN_HISTORY_ACTIONS_COL_PX + extra;
 }
 
 function conditionColPxFromMeasured(measured: Record<CheckedInHistoryColumnId, number>): number {
@@ -384,12 +388,14 @@ export function computeCheckedInHistoryColumnWidths(
     productDropdown?: boolean;
     showReprint?: boolean;
     showDelete?: boolean;
+    showDispute?: boolean;
   } = {},
   measureTextWidth: MeasureTextWidthFn = defaultMeasureTextWidth,
 ): CheckedInHistoryColumnWidths {
   const actionsColPx = checkedInHistoryActionsColPx(
     options.showReprint ?? false,
     options.showDelete ?? false,
+    options.showDispute ?? false,
   );
   const dataWidth = Math.max(0, containerWidth - actionsColPx);
 

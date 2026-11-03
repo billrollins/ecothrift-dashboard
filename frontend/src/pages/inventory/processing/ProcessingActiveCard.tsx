@@ -60,6 +60,7 @@ import { isTaxonomyV1CategoryName, TAXONOMY_V1_CATEGORY_NAMES } from '../../../c
 import { ProcessingGoogleSearchButton } from './ProcessingGoogleSearchButton';
 import { parseSearchTagsCsv } from './processingGoogleQuery';
 import { ProcessingCheckInDialog, type ProcessingCheckInSeed } from './ProcessingCheckInDialog';
+import { DisputeItemsDialog } from './DisputeItemsDialog';
 import { RestorationRequestDialog } from '../restorationRequest/RestorationRequestDialog';
 import { ProcessingRowSection } from './ProcessingRowSection';
 import { processingTokens } from './processingTokens';
@@ -1402,6 +1403,8 @@ export function ProcessingActiveCard({
   const [checkInOpen, setCheckInOpen] = useState(false);
   /** A check-in the Goes-to dropdown is sending to Restoration: it waits for the request. */
   const [restorationTarget, setRestorationTarget] = useState<CheckedInHistoryRow | null>(null);
+  // Mark as disputed (Ashley, Dash Updates #1).
+  const [disputeTarget, setDisputeTarget] = useState<CheckedInHistoryRow | null>(null);
   const [checkInSeed, setCheckInSeed] = useState<ProcessingCheckInSeed | null>(null);
   const [checkInProductId, setCheckInProductId] = useState<number | null>(null);
   const [productEditorOpen, setProductEditorOpen] = useState(false);
@@ -2386,6 +2389,7 @@ export function ProcessingActiveCard({
                 onSelectItemId={handleSelectPriorCheckIn}
                 onReprintCheckIn={onReprintItems ? (historyRow) => void handleReprintCheckIn(historyRow) : undefined}
                 onDeleteItemCheckIn={handleUndoItemCheckIn}
+                onDisputeCheckIn={setDisputeTarget}
                 onSetCheckInProduct={
                   attachedProductOptions.length > 0 ?
                     (historyRow, productId) => void handleSetCheckInProduct(historyRow, productId)
@@ -2404,8 +2408,18 @@ export function ProcessingActiveCard({
 
       </Box>
 
+      <DisputeItemsDialog
+        open={disputeTarget != null}
+        items={disputeTarget?.items ?? []}
+        patch={(itemId, payload) => patchItem.mutateAsync({ itemId, payload })}
+        onClose={(result) => {
+          setDisputeTarget(null);
+          if (result?.saved) enqueueSnackbar(`${result.saved} item${result.saved === 1 ? '' : 's'} updated`, { variant: 'success' });
+        }}
+      />
       <RestorationRequestDialog
         open={restorationTarget != null}
+        price={restorationTarget?.items.find((it) => it.price)?.price ?? null}
         busy={updateItemCheckIn.isPending}
         onCancel={() => setRestorationTarget(null)}
         onConfirm={async (estimate) => {

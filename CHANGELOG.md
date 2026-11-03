@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.243.0] -->
-<!-- Last reviewed: 2026-11-02 (2.243.0) -->
+<!-- Line 1 release: ## [2.244.0] -->
+<!-- Last reviewed: 2026-11-02 (2.244.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.244.0] - 2026-11-02
+
+User-facing theme: **Two Processing fixes from Ashley: mark checked-in items as disputed, and the Restoration done price is no longer typed twice (Ashley, Dash Updates #1, #2).**
+
+### Added
+- Processing: mark checked-in items as disputed (Ashley, Dash Updates #1). In Prior check-ins, a new Dispute icon (after Reprint and Undo) opens "Mark as disputed": pick the item(s) of that check-in (items not on the shelf can't be picked), what's wrong (Broken, Missing pieces, Cosmetic damage, Missing key piece, Bad condition, Other), the % of value lost, and a description. It shows a dispute already there and can clear it. It marks the item (the Disputed N% chip); it does not file a claim with the supplier. Saves each item on its own and says which, if any, did not save.
+
+### Changed
+- Sending to Restoration (Ashley, Dash Updates #2): the Done price starts as the Price typed above and follows it until someone types a different one, so it is no longer typed twice, in every check-in form and when "Goes to" changes to Restoration on a past check-in (that box opened empty before). A done price already saved is kept.
 
 ## [2.243.0] - 2026-11-02
 

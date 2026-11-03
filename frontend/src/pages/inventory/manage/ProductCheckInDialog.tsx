@@ -434,7 +434,7 @@ export function ProductCheckInDialog({
               />
             </Box>
             {toRestoration ?
-              <RestorationRequestFields value={estimate} onChange={setEstimate} disabled={busy} />
+              <RestorationRequestFields value={estimate} onChange={setEstimate} disabled={busy} price={price} />
             : null}
           </Stack>
         </DialogContent>

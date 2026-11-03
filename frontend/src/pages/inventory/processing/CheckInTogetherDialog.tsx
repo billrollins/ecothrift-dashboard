@@ -170,7 +170,7 @@ export function CheckInTogetherDialog({ open, rows, loading, onClose, onSubmit }
         </Box>
         {toRestoration ?
           <Box sx={{ mb: 2 }}>
-            <RestorationRequestFields value={estimate} onChange={setEstimate} disabled={loading} />
+            <RestorationRequestFields value={estimate} onChange={setEstimate} disabled={loading} price={price} />
           </Box>
         : null}
         <Table size="small">

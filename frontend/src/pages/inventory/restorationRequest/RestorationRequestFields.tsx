@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Box, Checkbox, Chip, FormControlLabel, InputAdornment, Stack, TextField, Typography } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { getRestorationRequestSettings } from '../../../api/inventory.api';
@@ -29,20 +30,32 @@ const LABEL_SX = {
 /**
  * Send to Restoration (required): what it needs, the done price, and an as-is price for each other ending (filled in
  * from settings; any can be changed). The prices fill the box's width: one per line on a phone, two or three wider.
+ * `price` (the check-in's Price): the done price follows it until someone types a different one, so it is not typed
+ * twice (Ashley, Dash Updates #2).
  */
 export function RestorationRequestFields({
   value,
   onChange,
   disabled,
   showProblem = false,
+  price,
 }: {
   value: RestorationRequestForm;
+  /** The Price typed above; the done price starts as it. */
+  price?: string | null;
   onChange: (next: RestorationRequestForm) => void;
   disabled?: boolean;
   /** Say what is still missing here, for forms with no message line of their own. */
   showProblem?: boolean;
 }) {
   const settings = useRestorationRequestSettings();
+  // A done price already saved (an edit) or typed here is the person's own; until then it follows Price.
+  const own = useRef(Boolean(value.donePrice));
+  const follow = (price ?? '').trim();
+  useEffect(() => {
+    if (!own.current && follow && value.donePrice !== follow) onChange({ ...value, donePrice: follow });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [follow, value.donePrice]);
   const problem = showProblem ? requestProblems(value)[0] : undefined;
   const prices = asIsPrices(value, settings);
   const stake = valueAtStake(value, settings);
@@ -65,8 +78,8 @@ export function RestorationRequestFields({
       </Stack>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 1.25 }}>
         <TextField size="small" label="Done price" required value={value.donePrice}
-          onChange={(e) => onChange({ ...value, donePrice: e.target.value })}
-          helperText="When the work is done"
+          onChange={(e) => { own.current = true; onChange({ ...value, donePrice: e.target.value }); }}
+          helperText={!own.current && follow ? 'Same as Price; change it if not' : 'When the work is done'}
           InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
           inputProps={{ inputMode: 'decimal' }} disabled={disabled} />
         {prices.map((p) => {

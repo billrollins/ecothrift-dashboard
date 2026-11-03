@@ -19,9 +19,12 @@ export function RestorationRequestDialog({
   busy,
   onCancel,
   onConfirm,
+  price,
 }: {
   open: boolean;
   initial?: RestorationRequestForm;
+  /** The check-in's price: the done price starts as it (Dash Updates #2). */
+  price?: string | null;
   busy?: boolean;
   onCancel: () => void;
   onConfirm: (request: RestorationRequestPayload) => void;
@@ -36,7 +39,7 @@ export function RestorationRequestDialog({
     <Dialog open={open} onClose={busy ? undefined : onCancel} fullWidth maxWidth="sm">
       <DialogTitle sx={{ fontWeight: 800 }}>Send to Restoration</DialogTitle>
       <DialogContent>
-        <RestorationRequestFields value={form} onChange={setForm} disabled={busy} />
+        {open ? <RestorationRequestFields key={String(open)} value={form} onChange={setForm} disabled={busy} price={price} /> : null}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2, gap: 1, flexWrap: 'wrap' }}>
         <Typography variant="caption" color="warning.main" sx={{ flex: 1, minWidth: 160 }}>

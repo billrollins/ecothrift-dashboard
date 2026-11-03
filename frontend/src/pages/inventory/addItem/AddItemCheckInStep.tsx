@@ -176,7 +176,7 @@ export function AddItemCheckInStep({
             </Box>
 
             {restoration && (
-              <RestorationRequestFields value={form} onChange={(next) => set(next)} disabled={busy} />
+              <RestorationRequestFields value={form} onChange={(next) => set(next)} disabled={busy} price={form.price} />
             )}
 
             <TextField size="small" label="Notes" placeholder="Optional"

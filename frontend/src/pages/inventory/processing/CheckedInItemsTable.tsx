@@ -1,4 +1,5 @@
 import ArrowDropDown from '@mui/icons-material/ArrowDropDown';
+import ReportProblemOutlined from '@mui/icons-material/ReportProblemOutlined';
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Box,
@@ -581,6 +582,8 @@ interface CheckedInHistoryTableRowProps {
   onSelectItemId: (itemId: number) => void;
   onReprintCheckIn?: (row: CheckedInHistoryRow) => void;
   onDeleteItemCheckIn?: (row: CheckedInHistoryRow) => void;
+  /** Mark this check-in's item(s) as disputed (Dash Updates #1). */
+  onDisputeCheckIn?: (row: CheckedInHistoryRow) => void;
   onSetCheckInProduct?: (row: CheckedInHistoryRow, productId: number) => void;
   onSetCheckInPrice?: (row: CheckedInHistoryRow, value: string) => void;
   onSetCheckInCondition?: (row: CheckedInHistoryRow, value: string) => void;
@@ -598,6 +601,7 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
   onSelectItemId,
   onReprintCheckIn,
   onDeleteItemCheckIn,
+  onDisputeCheckIn,
   onSetCheckInProduct,
   onSetCheckInPrice,
   onSetCheckInCondition,
@@ -811,6 +815,18 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
               </IconButton>
             </Tooltip>
           : null}
+          {onDisputeCheckIn && row.items.some((it) => it.status === 'on_shelf') ?
+            <Tooltip title="Mark as disputed" enterDelay={300} disableInteractive>
+              <IconButton
+                size="small"
+                aria-label={`Dispute (${qty} item${qty === 1 ? '' : 's'})`}
+                onClick={() => onDisputeCheckIn(row)}
+                sx={actionIconSx(row.items.some((it) => it.dispute_type) ? 'error.main' : 'text.secondary')}
+              >
+                <ReportProblemOutlined sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          : null}
         </Box>
       </TableCell>
     </TableRow>
@@ -886,6 +902,8 @@ export interface CheckedInItemsTableProps {
   onSelectItemId: (itemId: number) => void;
   onReprintCheckIn?: (row: CheckedInHistoryRow) => void;
   onDeleteItemCheckIn?: (row: CheckedInHistoryRow) => void;
+  /** Mark this check-in's item(s) as disputed (Dash Updates #1). */
+  onDisputeCheckIn?: (row: CheckedInHistoryRow) => void;
   onSetCheckInProduct?: (row: CheckedInHistoryRow, productId: number) => void;
   onSetCheckInPrice?: (row: CheckedInHistoryRow, value: string) => void;
   onSetCheckInCondition?: (row: CheckedInHistoryRow, value: string) => void;
@@ -903,6 +921,7 @@ export function CheckedInItemsTable({
   onSelectItemId,
   onReprintCheckIn,
   onDeleteItemCheckIn,
+  onDisputeCheckIn,
   onSetCheckInProduct,
   onSetCheckInPrice,
   onSetCheckInCondition,
@@ -929,6 +948,7 @@ export function CheckedInItemsTable({
         productDropdown,
         showReprint: onReprintCheckIn != null,
         showDelete: showDeleteCheckInAction,
+        showDispute: onDisputeCheckIn != null,
       }),
     [
       rows,
@@ -938,6 +958,7 @@ export function CheckedInItemsTable({
       productDropdown,
       onReprintCheckIn,
       showDeleteCheckInAction,
+      onDisputeCheckIn,
     ],
   );
 
@@ -1042,6 +1063,7 @@ export function CheckedInItemsTable({
               striped={index % 2 === 1}
               onSelectItemId={onSelectItemId}
               onReprintCheckIn={onReprintCheckIn}
+              onDisputeCheckIn={onDisputeCheckIn}
               onDeleteItemCheckIn={onDeleteItemCheckIn}
               onSetCheckInProduct={onSetCheckInProduct}
               onSetCheckInPrice={onSetCheckInPrice}

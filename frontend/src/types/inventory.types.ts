@@ -493,7 +493,7 @@ export interface Item {
   notes: string;
   created_at: string;
   updated_at: string;
-  dispute_type?: '' | 'broken' | 'undelivered';
+  dispute_type?: '' | ProcessingItemDisputeType;
   dispute_pct_loss?: number | null;
   dispute_description?: string;
   /** ItemCheckIn that created this item, when known. */

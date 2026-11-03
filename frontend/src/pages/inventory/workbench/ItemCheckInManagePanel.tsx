@@ -816,6 +816,7 @@ function ItemCheckInEditPanel({
             <RestorationRequestFields
               value={estimate}
               onChange={setEstimate}
+              price={price}
               disabled={saveMutation.isPending || duplicateMutation.isPending}
               showProblem={isDuplicateDraft || baseline?.dispatch !== 'restoration'}
             />
@@ -1301,7 +1302,7 @@ function ItemCheckInCreatePanel({
             />
             {toRestoration ?
               <Box sx={{ mt: 1 }}>
-                <RestorationRequestFields value={estimate} onChange={setEstimate} disabled={createMutation.isPending} showProblem />
+                <RestorationRequestFields value={estimate} onChange={setEstimate} disabled={createMutation.isPending} showProblem price={price} />
                 {createIssues.filter((m) => m.startsWith('Restoration takes')).map((m) => (
                   <Typography key={m} variant="caption" color="warning.main" component="div" sx={{ mt: 0.5 }}>{m}</Typography>
                 ))}
