@@ -68,7 +68,7 @@ class ScheduleWeekTests(APITestCase):
         week = self.client.get('/api/hr/schedule/week/', {'start': MONDAY.isoformat()}).json()
         self.assertFalse(week['can_edit'])
         self.assertEqual(week['call_ins'], [])
-        self.assertEqual(set(week['people'][0]), {'id', 'name', 'department', 'department_name', 'hours'})
+        self.assertEqual(set(week['people'][0]), {'id', 'name', 'department', 'department_name', 'fixed', 'usual', 'hours'})
         self.assertEqual(week['shifts'][0]['note'], '')
         self.assertEqual(self.client.post('/api/hr/schedule/shifts/', {
             'employee': self.carrie.pk, 'date': '2026-10-20', 'start_time': '09:00', 'end_time': '15:00'},
@@ -134,6 +134,23 @@ class ScheduleWeekTests(APITestCase):
         self.assertEqual(days, [date(2026, 10, 20), date(2026, 10, 22)])
         self.assertEqual(self.client.post('/api/hr/schedule/fill-usual/', {'start': '2026-10-19'},
                                           format='json').json()['made'], 0)
+
+    def test_the_week_carries_usual_shifts_and_store_hours(self):
+        # Dash Updates #55: flexible rows show only days that differ from usual; Retail draws a timeline on store hours.
+        usual = Shift.objects.create(name='Test Flex', department=self.processing, time_in=time(9),
+                                     time_out=time(17), weekdays=[0, 1, 2, 3, 4], punch_code='')
+        ShiftAssignment.objects.create(employee=self.dave, shift=usual, weekdays=[0, 1, 2, 3, 4])
+        AppSetting.objects.update_or_create(key='online_sales.hours', defaults={
+            'value': {'open': '09:00', 'close': '18:00', 'closed_weekdays': [6]}})
+        week = self.client.get('/api/hr/schedule/week/', {'start': '2026-10-19'}).json()
+        dave = next(p for p in week['people'] if p['id'] == self.dave.pk)
+        carrie = next(p for p in week['people'] if p['id'] == self.carrie.pk)
+        self.assertEqual([u['weekday'] for u in dave['usual']], [0, 1, 2, 3, 4])
+        self.assertEqual((dave['usual'][0]['start_time'], dave['usual'][0]['end_time'], dave['usual'][0]['flexible']),
+                         ('09:00', '17:00', True))
+        self.assertEqual((dave['fixed'], carrie['fixed'], carrie['usual']), (False, True, []))
+        self.assertEqual([h['open'] for h in week['store_hours']], [True] * 6 + [False])
+        self.assertEqual((week['store_hours'][0]['start'], week['store_hours'][0]['end']), ('09:00', '18:00'))
 
     def test_my_week_is_this_week_and_next(self):
         today = timezone.localdate()

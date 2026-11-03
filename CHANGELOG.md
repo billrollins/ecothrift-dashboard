@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.253.0] -->
-<!-- Last reviewed: 2026-11-03 (2.253.0) -->
+<!-- Line 1 release: ## [2.254.0] -->
+<!-- Last reviewed: 2026-11-03 (2.254.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.254.0] - 2026-11-03
+
+User-facing theme: **Schedule at a glance: a section per department, Retail coverage, and only the days that differ (Bill, 2026-11-03; Dash Updates #55).**
+
+> **For staff:** The Schedule page has a new look. Each department has its own section, with Retail at the top. Retail shifts are bars from open to close, and the **Floor coverage** row under Retail shows how many people are on the floor: red means nobody, amber means just one person. Other departments show each person's **usual week** under their name (like "Mon-Fri 9-5"), and the grid only shows days that are different: a day off, an extra shift, or different times. A **call-in** now replaces the shift: a red "Called in" with the time crossed out (managers see call-ins). Today's column is shaded, and the small dot by a name means on shift (green), on break (amber) or late (red). Tap the (i) next to Schedule for a reminder.
+
+### Changed
+- People → Schedule (`/people/schedule`) redesigned (Dash Updates #55): a section per home department, Retail first; Processing, Restoration and Office collapse (remembered on that device). Retail draws each shift as a bar on one week-wide timeline (the store's open hours shaded) with a **Floor coverage** row under it: Retail-shift head count through store hours, minus call-ins, flagging gaps (red) and single coverage (amber). Flexible departments say each person's usual week once (from Admin → Shifts assignments) and only draw a day off, an extra shift or changed times; a usual shift draws nothing but still opens on tap.
+- A call-in replaces its shift cell (red tint, "Called in", struck-through time); the Call-ins column shows only when there is one ("1 call-in this week", 30/90-day totals on hover) instead of "0 / 0" on every row.
+- Every row is one fixed height: the On shift / Off badges are a small status dot, the department caption is gone (the section says it), shift notes are a small mark with the note on hover, and cell text is regular weight. Hours sit next to the name; a closed day nobody works (Sunday) is a narrow column; today's column is tinted across every section.
+- Header: week navigation is the main control with a This week button; Copy last week and Fill from usual shifts are quieter text buttons; the explanation moved into an (i) tooltip.
+- Phone: the same sections stacked; each scrolls sideways on its own (no page-wide sideways scroll) with names pinned, opening at today. The one-day card view is retired.
+- The week API (`/api/hr/schedule/week/`) also returns each person's `usual` shifts and `fixed` flag, and `store_hours` per day from the store hours setting and its overrides. No migration.
 
 ## [2.253.0] - 2026-11-03
 

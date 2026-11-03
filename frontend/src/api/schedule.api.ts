@@ -39,17 +39,39 @@ export interface CallIn {
   created_at: string;
 }
 
+/** One usual weekly shift (Admin → Shifts assignments); weekday 0 = Monday. */
+export interface UsualShift {
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  department: number | null;
+  department_name: string;
+  flexible: boolean;
+}
+
+/** Store hours for one day, from the store hours setting and its overrides. */
+export interface StoreDay {
+  date: string;
+  open: boolean;
+  start: string;
+  end: string;
+}
+
 export type NowState = 'on_shift' | 'on_break' | 'late' | 'off';
 
 export interface ScheduleWeek {
   start: string;
   end: string;
   days: string[];
+  store_hours: StoreDay[];
   people: Array<{
     id: number;
     name: string;
     department: number | null;
     department_name: string;
+    /** Home department keeps fixed shifts (Retail). */
+    fixed: boolean;
+    usual: UsualShift[];
     hours: number;
     /** Managers only (Dash Updates #6): staff get the week without call-ins. */
     call_ins?: CallInCounts;

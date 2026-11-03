@@ -9,6 +9,9 @@
 - **My week.** Each person sees their own shifts for this week and next (Me page).
 - **Call-ins.** Who, which shift, when they called (or a no-call no-show) and why; counted per person over the last 30
   and 90 days. Managers only: staff see the week without them.
+- **At a glance** (Bill, Dash Updates #55, 2026-11-03). The week also carries each person's usual weekly shifts (so
+  flexible departments show only the days that differ) and the store hours per day (the Retail timeline and floor
+  coverage). Store hours come from the online-sales hours setting and its overrides, never hard-coded.
 - **Right now** (Bill, Dash Updates #6, 2026-11-02). Everyone sees the week, and next to each person their state now from
   the time clock: on shift, on break, late (a shift that has started, not clocked in, no call-in) or off.
 """
@@ -146,6 +149,40 @@ def now_states(people_ids, now: datetime | None = None) -> dict[int, str]:
     return states
 
 
+def usual_shifts(people_ids, fixed: set[str]) -> dict[int, list[dict]]:
+    """{person id: [{weekday, start_time, end_time, department, department_name, flexible}]} from the usual weekly
+    shifts (Admin → Shifts assignments), Monday first."""
+    from apps.hr.models import ShiftAssignment
+
+    out: dict[int, list[dict]] = {}
+    rows = (ShiftAssignment.objects.filter(shift__is_active=True, employee_id__in=list(people_ids))
+            .select_related('shift', 'shift__department'))
+    for a in rows:
+        dept = a.shift.department
+        for weekday in a.weekday_list():
+            out.setdefault(a.employee_id, []).append({
+                'weekday': weekday, 'start_time': a.shift.time_in.strftime('%H:%M'),
+                'end_time': a.shift.time_out.strftime('%H:%M'),
+                'department': dept.pk if dept else None, 'department_name': dept.name if dept else '',
+                'flexible': not (dept and dept.slug in fixed),
+            })
+    for rows_ in out.values():
+        rows_.sort(key=lambda r: (r['weekday'], r['start_time']))
+    return out
+
+
+def store_hours(days) -> list[dict]:
+    """[{date, open, start, end}] for each day, from the store hours setting and its overrides."""
+    from apps.webstore.services.hours import effective_day, get_hours_config
+
+    cfg = get_hours_config()
+    out = []
+    for day in days:
+        h = effective_day(day, cfg=cfg)
+        out.append({'date': day.isoformat(), 'open': h.open, 'start': h.open_hhmm, 'end': h.close_hhmm})
+    return out
+
+
 def week(start: date, *, manager: bool = True) -> dict:
     from apps.hr.models import CallIn, ScheduledShift
 
@@ -162,12 +199,17 @@ def week(start: date, *, manager: bool = True) -> dict:
     for s in shifts:
         hours[s.employee_id] = round(hours.get(s.employee_id, 0) + shift_hours(s), 2)
     today = timezone.localdate()
+    usual = usual_shifts(ids, fixed)
+    days = [start + timedelta(days=n) for n in range(7)]
     payload = {
         'start': start.isoformat(), 'end': end.isoformat(),
-        'days': [(start + timedelta(days=n)).isoformat() for n in range(7)],
+        'days': [d.isoformat() for d in days],
+        'store_hours': store_hours(days),
         'people': [
             {'id': p.pk, 'name': p.full_name,
              'department': p.employee.department_id, 'department_name': p.employee.department.name if p.employee.department_id else '',
+             'fixed': bool(p.employee.department_id and p.employee.department.slug in fixed),
+             'usual': usual.get(p.pk, []),
              'hours': hours.get(p.pk, 0), 'call_ins': counts.get(p.pk, {'d30': 0, 'd90': 0, 'no_show_90': 0})}
             for p in people
         ],
