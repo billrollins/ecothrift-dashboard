@@ -365,6 +365,7 @@ export function useAddDiscountToCart() {
       percent,
       reason,
       target_line_id,
+      target_line_ids,
       google_review_username,
       google_review_stars,
       manager_pin,
@@ -375,6 +376,7 @@ export function useAddDiscountToCart() {
       percent?: number | string;
       reason?: string;
       target_line_id?: number | null;
+      target_line_ids?: number[];
       google_review_username?: string;
       google_review_stars?: number;
       manager_pin?: string;
@@ -386,6 +388,7 @@ export function useAddDiscountToCart() {
         ...(percent !== undefined ? { percent } : {}),
         ...(reason !== undefined ? { reason } : {}),
         ...(target_line_id != null ? { target_line_id } : {}),
+        ...(target_line_ids?.length ? { target_line_ids } : {}),
         ...(google_review_username !== undefined
           ? { google_review_username, google_review_stars }
           : {}),

@@ -1670,6 +1670,11 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
+        target_ids = request.data.get('target_line_ids')
+        if isinstance(target_ids, list) and len(target_ids) > 1 and reason == REASON_GOOGLE_REVIEW:
+            return Response({'detail': 'A Google Review discount goes on one item or the whole sale.',
+                             'code': 'INVALID_TARGET'}, status=400)
+
         review_name = None
         review_stars = None
         review_key = None
@@ -1686,7 +1691,13 @@ class CartViewSet(viewsets.ModelViewSet):
                     status=exc.http_status,
                 )
 
+        # Several items at once (Carrie, Dash Updates #30): one discount line per item, as if each was done by hand.
+        if isinstance(target_ids, list) and len(target_ids) > 1:
+            return self._add_item_discounts(request, cart, reason, target_ids)
+
         target_line_id = request.data.get('target_line_id')
+        if isinstance(target_ids, list) and len(target_ids) == 1:
+            target_line_id = target_ids[0]
         target_line = None
         scope = 'cart'
         if target_line_id is not None and target_line_id != '':
@@ -1803,6 +1814,90 @@ class CartViewSet(viewsets.ModelViewSet):
         )
 
         cart.recalculate()
+        cart = self.get_queryset().get(pk=cart.pk)
+        return Response(CartSerializer(cart).data)
+
+    def _add_item_discounts(self, request, cart, reason, target_ids):
+        """A percent off several item lines at once (Dash Updates #30). Every line is checked before anything is
+        written; each gets its own discount line (``scope`` line, its own ``target_line_id``), so tax, Thrift+, the
+        card fee and returns treat it exactly like a discount picked line by line. Over the owner's cap one manager's
+        PIN covers them all."""
+        if str(request.data.get('mode') or 'amount').strip().lower() != 'percent':
+            return Response({'detail': 'Several items take a percent off, not a dollar amount.',
+                             'code': 'INVALID_MODE'}, status=400)
+        try:
+            ids = list(dict.fromkeys(int(x) for x in target_ids))
+        except (TypeError, ValueError):
+            return Response({'detail': 'target_line_ids not found on this cart.', 'code': 'LINE_NOT_FOUND'},
+                            status=404)
+        targets = {ln.pk: ln for ln in cart.lines.filter(pk__in=ids)}
+        if len(targets) != len(ids):
+            return Response({'detail': 'target_line_ids not found on this cart.', 'code': 'LINE_NOT_FOUND'},
+                            status=404)
+        if any(ln.line_kind in (CartLine.LINE_KIND_DISCOUNT, CartLine.LINE_KIND_DELIVERY) for ln in targets.values()):
+            return Response({'detail': 'Cannot discount a discount or delivery line.', 'code': 'INVALID_TARGET'},
+                            status=400)
+        positive = sum(
+            (ln.line_total for ln in cart.lines.exclude(line_kind=CartLine.LINE_KIND_DISCOUNT)),
+            Decimal('0'),
+        )
+        amounts = {}
+        percent = None
+        for pk in ids:
+            line = targets[pk]
+            if line.line_total <= 0:
+                continue
+            try:
+                amount, percent = resolve_discount_amount(
+                    mode='percent', raw_amount=None, raw_percent=request.data.get('percent'),
+                    base=line.line_total, reason=reason,
+                )
+            except DiscountError as exc:
+                return Response({'detail': exc.detail, 'code': exc.code}, status=exc.http_status)
+            if amount > line.line_total:
+                return Response({'detail': 'Discount cannot exceed the target line total.',
+                                 'code': 'DISCOUNT_EXCEEDS_LINE'}, status=400)
+            if amount > 0:  # a free item or a percent that rounds to nothing gets no $0.00 line
+                amounts[pk] = amount
+        if not amounts:
+            return Response({'detail': 'Nothing to take off these items.', 'code': 'NOTHING_TO_DISCOUNT'}, status=400)
+        ids = [pk for pk in ids if pk in amounts]
+        total = sum(amounts.values(), Decimal('0'))
+        if total > positive:
+            return Response({'detail': 'Discount cannot exceed the current cart merchandise/delivery total.',
+                             'code': 'DISCOUNT_EXCEEDS_CART'}, status=400)
+
+        cap = manager_ok.discount_cap_percent()
+        given = sum(
+            (-ln.line_total for ln in cart.lines.filter(line_kind=CartLine.LINE_KIND_DISCOUNT)
+             if (ln.meta or {}).get('thrift') != 'bucks'),
+            Decimal('0'),
+        )
+        over_line = any(targets[pk].line_total > 0 and amounts[pk] * 100 > targets[pk].line_total * cap for pk in ids)
+        over_sale = positive > 0 and (given + total) * 100 > positive * cap
+        approval = None
+        if over_line or over_sale:
+            try:
+                approval = manager_ok.approve(
+                    request, cart=cart, kind=RegisterApproval.KIND_DISCOUNT, reason=reason, cap=cap,
+                    detail={'amount': str(total), 'percent': str(percent), 'scope': 'lines',
+                            'cap_percent': str(cap), 'sale_discounts_before': str(given), 'target_line_ids': ids},
+                )
+            except manager_ok.ManagerOkError as exc:
+                return Response(exc.payload(), status=exc.http)
+
+        with transaction.atomic():
+            for pk in ids:
+                line = targets[pk]
+                meta = {'reason': reason, 'scope': 'line', 'target_line_id': pk, 'amount': str(amounts[pk]),
+                        'mode': 'percent', 'percent': str(percent)}
+                if approval is not None:
+                    meta['manager_ok'] = manager_ok.stamp(approval)
+                CartLine.objects.create(
+                    cart=cart, item=None, description=f'Discount - {reason} (on {line.description[:80]})'[:300],
+                    quantity=1, unit_price=-amounts[pk], line_kind=CartLine.LINE_KIND_DISCOUNT, meta=meta,
+                )
+            cart.recalculate()
         cart = self.get_queryset().get(pk=cart.pk)
         return Response(CartSerializer(cart).data)
 

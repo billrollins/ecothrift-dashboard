@@ -65,7 +65,7 @@ export function SaleDetail({
 
   return (
     <Box>
-      {/* When and who are in the window's header; a cover is said here. */}
+      {/* When and who are in the window's header; who was covering is said here. */}
       {cart.covering_for_name ? (
         <Typography variant="body2" color="text.secondary">
           {cart.cashier_name ?? '-'} ({tr('coveringFor')} {cart.covering_for_name})

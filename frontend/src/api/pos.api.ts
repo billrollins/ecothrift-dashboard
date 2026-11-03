@@ -242,6 +242,8 @@ export function addDiscountToCart(
     percent?: number | string;
     reason?: string;
     target_line_id?: number | null;
+    /** Several items (Dash Updates #30): a percent off each, one discount line per item. */
+    target_line_ids?: number[];
     google_review_username?: string;
     google_review_stars?: number;
     /** Over the discount cap: a manager's register PIN (the discount's reason is the why). */

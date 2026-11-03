@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.242.0] -->
-<!-- Last reviewed: 2026-11-02 (2.242.0) -->
+<!-- Line 1 release: ## [2.243.0] -->
+<!-- Last reviewed: 2026-11-02 (2.243.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.243.0] - 2026-11-02
+
+User-facing theme: **Register: a percent off several items at once, and the frontend tests are all green again (Carrie and Bill, 2026-11-02; Dash Updates #30, #17).**
+
+### Fixed
+- Tests (Dash Updates #17): the old failing frontend tests pass again. The print-label tests follow the print server 1.9.10 split (restoration tags and the test label go to it as data; price tags are still drawn in Dash), and the words check allows Bill's "Earned" on the Transactions numbers. The whole frontend suite is green.
+
+### Added
+- Register: a percent off several items at once (Carrie, Dash Updates #30). In Discount, "Apply to" has Several items: tick the items (or All items), type the percent, and each item gets its own discount line, exactly as if each was done by hand, so tax, "No tax" items, Thrift+, the card fee and returns work as before. Dollar amounts stay for the whole ticket or one item; Google Review stays one per sale. Over the discount cap, one manager's PIN covers all of them. Nothing is added unless every item can take it.
 
 ## [2.242.0] - 2026-11-02
 

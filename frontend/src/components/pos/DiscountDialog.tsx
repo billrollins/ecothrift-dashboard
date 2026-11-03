@@ -3,11 +3,13 @@ import {
   Autocomplete,
   Box,
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   FormControl,
+  FormControlLabel,
   InputAdornment,
   InputLabel,
   MenuItem,
@@ -45,6 +47,8 @@ export interface DiscountSubmitPayload {
   percent?: number;
   reason: string;
   target_line_id: number | null;
+  /** Several items at once (Dash Updates #30): a percent off each, one discount line per item. */
+  target_line_ids?: number[];
   google_review_username?: string;
   google_review_stars?: number;
 }
@@ -74,7 +78,9 @@ export function DiscountDialog({ open, cart, pending, onClose, onSubmit }: Disco
   const [mode, setMode] = useState<DiscountInputMode>('amount');
   const [amount, setAmount] = useState('');
   const [percent, setPercent] = useState('');
-  const [targetLineId, setTargetLineId] = useState<DiscountApplyTo>('ticket');
+  const [targetLineId, setTargetLineId] = useState<DiscountApplyTo | 'several'>('ticket');
+  // "Several items" (Carrie, Dash Updates #30): the lines picked for a percent off each.
+  const [picked, setPicked] = useState<number[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -86,11 +92,16 @@ export function DiscountDialog({ open, cart, pending, onClose, onSubmit }: Disco
     setAmount('');
     setPercent('');
     setTargetLineId('ticket');
+    setPicked([]);
   }, [open]);
 
   const lines = cart?.lines ?? [];
   const itemLines = discountableLines(lines);
-  const base = discountBase(lines, targetLineId);
+  const several = targetLineId === 'several';
+  const pickedLines = itemLines.filter((ln) => picked.includes(ln.id));
+  const base = several
+    ? pickedLines.reduce((sum, ln) => sum + Number(ln.line_total), 0)
+    : discountBase(lines, targetLineId);
   const isGoogleReview = reasonPreset === DISCOUNT_REASON_GOOGLE_REVIEW;
 
   const applyGooglePreset = () => {
@@ -102,11 +113,14 @@ export function DiscountDialog({ open, cart, pending, onClose, onSubmit }: Disco
   const derivedDollars = useMemo(() => {
     const p = parsePositive(percent);
     if (p == null) return '';
-    let dollars = dollarsFromPercent(p, base);
+    // Several items: each line's own percent, rounded per line, as the register adds them.
+    let dollars = several
+      ? pickedLines.reduce((sum, ln) => sum + dollarsFromPercent(p, Number(ln.line_total)), 0)
+      : dollarsFromPercent(p, base);
     if (isGoogleReview) dollars = applyGoogleReviewCap(dollars, base);
     if (dollars <= 0) return '';
     return dollars.toFixed(2);
-  }, [percent, base, isGoogleReview]);
+  }, [percent, base, isGoogleReview, several, pickedLines]);
 
   const derivedPercent = useMemo(() => {
     const d = parsePositive(amount);
@@ -165,6 +179,20 @@ export function DiscountDialog({ open, cart, pending, onClose, onSubmit }: Disco
           }
         : {};
 
+    if (several) {
+      const p = parsePositive(percent);
+      if (pickedLines.length < 2) {
+        enqueueSnackbar('Pick two or more items.', { variant: 'warning' });
+        return;
+      }
+      if (p == null || p > 100) {
+        enqueueSnackbar('Enter a percent greater than 0 and at most 100.', { variant: 'warning' });
+        return;
+      }
+      await onSubmit({ mode: 'percent', percent: p, reason, target_line_id: null, target_line_ids: pickedLines.map((ln) => ln.id) });
+      return;
+    }
+
     if (mode === 'percent') {
       const p = parsePositive(percent);
       if (p == null || p > 100) {
@@ -179,7 +207,7 @@ export function DiscountDialog({ open, cart, pending, onClose, onSubmit }: Disco
         mode: 'percent',
         percent: p,
         reason,
-        target_line_id: targetLineId === 'ticket' ? null : targetLineId,
+        target_line_id: typeof targetLineId === 'number' ? targetLineId : null,
         ...reviewFields,
       });
       return;
@@ -194,7 +222,7 @@ export function DiscountDialog({ open, cart, pending, onClose, onSubmit }: Disco
       mode: 'amount',
       amount: d,
       reason,
-      target_line_id: targetLineId === 'ticket' ? null : targetLineId,
+      target_line_id: typeof targetLineId === 'number' ? targetLineId : null,
       ...reviewFields,
     });
   };
@@ -204,9 +232,10 @@ export function DiscountDialog({ open, cart, pending, onClose, onSubmit }: Disco
   const helper = isGoogleReview
     ? `Google Review: ${GOOGLE_REVIEW_PERCENT}% of the selected total, max $${GOOGLE_REVIEW_MAX_DOLLARS}.`
     : 'Applied as a negative line on the cart.';
-  const applyHelper =
-    mode === 'percent'
-      ? 'Percent of the whole ticket or of one line.'
+  const applyHelper = several
+    ? 'Several items take a percent off each, one line per item.'
+    : mode === 'percent'
+      ? 'Percent of the whole ticket, one line, or several items.'
       : 'Dollar off the whole ticket or of one line.';
   const previewText =
     previewDollars > 0
@@ -327,7 +356,7 @@ export function DiscountDialog({ open, cart, pending, onClose, onSubmit }: Disco
                   if (next) switchMode(next);
                 }}
               >
-                <ToggleButton value="amount" sx={{ textTransform: 'none' }}>
+                <ToggleButton value="amount" disabled={several} sx={{ textTransform: 'none' }}>
                   $
                 </ToggleButton>
                 <ToggleButton value="percent" sx={{ textTransform: 'none' }}>
@@ -374,17 +403,23 @@ export function DiscountDialog({ open, cart, pending, onClose, onSubmit }: Disco
               {helper}
             </Typography>
             <FormControl fullWidth size="small">
-              <InputLabel>Apply to</InputLabel>
+              <InputLabel id="discount-apply-label">Apply to</InputLabel>
               <Select
+                labelId="discount-apply-label"
                 label="Apply to"
-                value={targetLineId === 'ticket' ? 'ticket' : String(targetLineId)}
-                onChange={(e) =>
-                  setTargetLineId(
-                    e.target.value === 'ticket' ? 'ticket' : Number(e.target.value),
-                  )
-                }
+                value={typeof targetLineId === 'number' ? String(targetLineId) : targetLineId}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === 'several') {
+                    setTargetLineId('several');
+                    switchMode('percent');
+                  } else {
+                    setTargetLineId(v === 'ticket' ? 'ticket' : Number(v));
+                  }
+                }}
               >
                 <MenuItem value="ticket">Full ticket</MenuItem>
+                {itemLines.length > 1 && !isGoogleReview ? <MenuItem value="several">Several items</MenuItem> : null}
                 {itemLines.map((ln: CartLine) => (
                   <MenuItem key={ln.id} value={String(ln.id)}>
                     Per line - {ln.description} ({formatDiscountCurrency(Number(ln.line_total))})
@@ -392,6 +427,35 @@ export function DiscountDialog({ open, cart, pending, onClose, onSubmit }: Disco
                 ))}
               </Select>
             </FormControl>
+            {several ? (
+              <Box data-testid="discount-several" sx={{ border: 1, borderColor: 'divider', borderRadius: 1, px: 1, py: 0.5, maxHeight: 220, overflowY: 'auto' }}>
+                <FormControlLabel
+                  control={(
+                    <Checkbox
+                      size="small"
+                      checked={picked.length === itemLines.length}
+                      indeterminate={picked.length > 0 && picked.length < itemLines.length}
+                      onChange={(e) => setPicked(e.target.checked ? itemLines.map((ln) => ln.id) : [])}
+                    />
+                  )}
+                  label={<Typography variant="body2" fontWeight={700}>All items</Typography>}
+                />
+                {itemLines.map((ln: CartLine) => (
+                  <FormControlLabel
+                    key={ln.id}
+                    sx={{ display: 'flex' }}
+                    control={(
+                      <Checkbox
+                        size="small"
+                        checked={picked.includes(ln.id)}
+                        onChange={(e) => setPicked((now) => (e.target.checked ? [...now, ln.id] : now.filter((id) => id !== ln.id)))}
+                      />
+                    )}
+                    label={<Typography variant="body2">{ln.description} ({formatDiscountCurrency(Number(ln.line_total))})</Typography>}
+                  />
+                ))}
+              </Box>
+            ) : null}
             <Typography variant="caption" color="text.secondary" sx={{ minHeight: 20 }}>
               {applyHelper}
             </Typography>

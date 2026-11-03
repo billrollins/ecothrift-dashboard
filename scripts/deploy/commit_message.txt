@@ -1,8 +1,11 @@
-v2.242.0 — Closing: Expected beside Counted, keep, swap, drop
+v2.243.0 — Percent off several items; tests green
 
-User-facing theme: **Closing a drawer: Expected beside Counted, then what to keep for tomorrow, what to swap with the office and what to drop (Bill and Carrie, 2026-11-02; Dash Updates #44, #26).**
+User-facing theme: **Register: a percent off several items at once, and the frontend tests are all green again (Carrie and Bill, 2026-11-02; Dash Updates #30, #17).**
+
+### Fixed
+- Tests (Dash Updates #17): the old failing frontend tests pass again. The print-label tests follow the print server 1.9.10 split (restoration tags and the test label go to it as data; price tags are still drawn in Dash), and the words check allows Bill's "Earned" on the Transactions numbers. The whole frontend suite is green.
 
 ### Added
-- Closing (Retail 4 step 5, #44 with #26): Close drawer is the count window: the bills by hand, the coin counter's total (or "Count coins by coin"), the note only when the count is far off; the button shows the total. After the blind count: Expected and Counted side by side, big, with Short / Over and the bills that are off. Then the close-out: Keep for tomorrow (the register's till, by piece), Get from the office (the pieces the count lacks; give the office the same dollars back from the rest) and Drop (the rest). Short of the till: the office tops it up. Saved on the drawer and shown in the Drawer window. The office ledger is unchanged (everything counted still goes into the office). Migration `pos.0047`.
+- Register: a percent off several items at once (Carrie, Dash Updates #30). In Discount, "Apply to" has Several items: tick the items (or All items), type the percent, and each item gets its own discount line, exactly as if each was done by hand, so tax, "No tax" items, Thrift+, the card fee and returns work as before. Dollar amounts stay for the whole ticket or one item; Google Review stays one per sale. Over the discount cap, one manager's PIN covers all of them. Nothing is added unless every item can take it.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

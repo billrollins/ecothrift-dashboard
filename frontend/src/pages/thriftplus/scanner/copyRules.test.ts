@@ -126,7 +126,9 @@ describe('Thrift+ register, receipt and Dash words (the 10-12 policy)', () => {
     const files = [
       // ReturnsPopup is the owner's own sentence for the cashier to say (10-20): "Returns are valid through ... and are
       // 80% store credit." It stays word for word.
-      ...sourceFiles(join(SRC, 'components/pos'), ['DiscountDialog.tsx', 'discountUtils.ts', 'ReturnsPopup.tsx']),
+      // SalesNumbersBlock's "Earned" is Bill's own word for ThriftBucks members earned (the Transactions numbers, 10-20):
+      // staff read it on the Transactions page, not the register or a receipt (Dash Updates #17).
+      ...sourceFiles(join(SRC, 'components/pos'), ['DiscountDialog.tsx', 'discountUtils.ts', 'ReturnsPopup.tsx', 'SalesNumbersBlock.tsx']),
       ...sourceFiles(join(SRC, 'components/thriftplus')),
       join(SRC, 'utils/posReceipt.ts'),
       join(SRC, 'utils/thriftPlusRegister.ts'),
