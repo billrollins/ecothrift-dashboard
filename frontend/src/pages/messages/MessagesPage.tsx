@@ -46,6 +46,7 @@ import {
 } from '../../api/messages.api';
 import { UNREAD_KEY } from '../../components/messages/MessagesEnvelope';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../i18n/useLanguage';
 import { ccTokens } from '../../theme';
 
 export const THREADS_KEY = ['messages', 'threads'] as const;
@@ -196,7 +197,33 @@ function ThreadPane({ id, onBack }: { id: number; onBack?: () => void }) {
   );
 }
 
-function ComposeDialog({ open, onClose, onSent }: { open: boolean; onClose: () => void; onSent: (id: number) => void }) {
+/** The compose words in English and Spanish: every staff login writes here since Dash Updates #29. */
+const COPY = {
+  newMessage: { en: 'New message', es: 'Mensaje nuevo' },
+  onePerson: { en: 'One person', es: 'Una persona' },
+  department: { en: 'A department', es: 'Un departamento' },
+  to: { en: 'To', es: 'Para' },
+  subject: { en: 'Subject', es: 'Asunto' },
+  message: { en: 'Message', es: 'Mensaje' },
+  secret: { en: 'One-time secret (optional)', es: 'Secreto de una vez (opcional)' },
+  secretHelp: {
+    en: 'Like a PIN or a code. They see it once with a Show tap, then Dash deletes it.',
+    es: 'Como un PIN o un código. Lo ven una vez con Mostrar y Dash lo borra.',
+  },
+  cancel: { en: 'Cancel', es: 'Cancelar' },
+  send: { en: 'Send', es: 'Enviar' },
+  reach: { en: 'Goes to everyone in {d} ({n} people).', es: 'Llega a todos en {d} ({n} personas).' },
+} satisfies Record<string, { en: string; es: string }>;
+
+function ComposeDialog({ open, onClose, onSent, canSecret }: {
+  open: boolean;
+  onClose: () => void;
+  onSent: (id: number) => void;
+  /** Owner and managers: a one-time secret (a PIN) can ride along. */
+  canSecret: boolean;
+}) {
+  const lang = useLanguage();
+  const tr = (key: keyof typeof COPY) => COPY[key][lang];
   const { enqueueSnackbar } = useSnackbar();
   const audiences = useQuery({ queryKey: ['messages', 'audiences'], queryFn: async () => (await getAudiences()).data, enabled: open });
   const [mode, setMode] = useState<'person' | 'department'>('person');
@@ -206,6 +233,7 @@ function ComposeDialog({ open, onClose, onSent }: { open: boolean; onClose: () =
   const [secret, setSecret] = useState('');
   const [busy, setBusy] = useState(false);
   const options = mode === 'person' ? audiences.data?.people ?? [] : audiences.data?.departments ?? [];
+  const reach = mode === 'department' ? audiences.data?.departments.find((d) => d.id === to) : undefined;
   const send = async () => {
     setBusy(true);
     try {
@@ -225,28 +253,33 @@ function ComposeDialog({ open, onClose, onSent }: { open: boolean; onClose: () =
   };
   return (
     <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>New message</DialogTitle>
+      <DialogTitle>{tr('newMessage')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 0.5 }}>
           <ToggleButtonGroup exclusive size="small" value={mode} onChange={(_e, v) => { if (v) { setMode(v); setTo(''); } }}>
-            <ToggleButton value="person">One person</ToggleButton>
-            <ToggleButton value="department">A department</ToggleButton>
+            <ToggleButton value="person">{tr('onePerson')}</ToggleButton>
+            <ToggleButton value="department">{tr('department')}</ToggleButton>
           </ToggleButtonGroup>
           <FormControl size="small" fullWidth>
-            <InputLabel>To</InputLabel>
-            <Select label="To" value={to} onChange={(e) => setTo(String(e.target.value) === '' ? '' : Number(e.target.value))}>
+            <InputLabel>{tr('to')}</InputLabel>
+            <Select label={tr('to')} value={to} onChange={(e) => setTo(String(e.target.value) === '' ? '' : Number(e.target.value))}>
               {options.map((o) => <MenuItem key={o.id} value={o.id}>{o.name}</MenuItem>)}
             </Select>
           </FormControl>
-          <TextField size="small" label="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} fullWidth />
-          <TextField label="Message" value={body} onChange={(e) => setBody(e.target.value)} multiline minRows={3} fullWidth />
-          {mode === 'person' ? (
+          {reach ? (
+            <Typography variant="body2" color="text.secondary" data-testid="compose-reach">
+              {tr('reach').replace('{d}', reach.name).replace('{n}', String(reach.people ?? 0))}
+            </Typography>
+          ) : null}
+          <TextField size="small" label={tr('subject')} value={subject} onChange={(e) => setSubject(e.target.value)} fullWidth />
+          <TextField label={tr('message')} value={body} onChange={(e) => setBody(e.target.value)} multiline minRows={3} fullWidth />
+          {mode === 'person' && canSecret ? (
             <TextField
               size="small"
-              label="One-time secret (optional)"
+              label={tr('secret')}
               value={secret}
               onChange={(e) => setSecret(e.target.value)}
-              helperText="Like a PIN or a code. They see it once with a Show tap, then Dash deletes it."
+              helperText={tr('secretHelp')}
               autoComplete="off"
               fullWidth
             />
@@ -254,8 +287,8 @@ function ComposeDialog({ open, onClose, onSent }: { open: boolean; onClose: () =
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} disabled={busy}>Cancel</Button>
-        <Button variant="contained" onClick={send} disabled={busy || to === '' || !subject.trim() || !body.trim()}>Send</Button>
+        <Button onClick={onClose} disabled={busy}>{tr('cancel')}</Button>
+        <Button variant="contained" onClick={send} disabled={busy || to === '' || !subject.trim() || !body.trim()}>{tr('send')}</Button>
       </DialogActions>
     </Dialog>
   );
@@ -269,7 +302,10 @@ export default function MessagesPage({ basePath = '/messages', compact = false }
   const openId = params.id ? Number(params.id) : null;
   const [composing, setComposing] = useState(false);
   const threads = useQuery({ queryKey: THREADS_KEY, queryFn: async () => (await getThreads()).data, refetchInterval: 60_000 });
-  const canStart = Boolean(user?.is_superuser || user?.role === 'Manager' || user?.role === 'Admin');
+  // Every staff login starts a message (Dash Updates #29); secrets (PINs) stay the owner's and managers'.
+  const canStart = Boolean(user);
+  const canSecret = Boolean(user?.is_superuser || user?.role === 'Manager' || user?.role === 'Admin');
+  const lang = useLanguage();
   const openThread = (id: number) => navigate(`${basePath}/${id}`);
 
   const list = (
@@ -313,7 +349,7 @@ export default function MessagesPage({ basePath = '/messages', compact = false }
   const header = (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, px: compact ? 1.5 : 0, pt: compact ? 1.5 : 0 }}>
       <Typography variant={compact ? 'h6' : 'h5'} fontWeight={800} sx={{ flex: 1 }}>Messages</Typography>
-      {canStart ? <Button variant="contained" onClick={() => setComposing(true)}>New message</Button> : null}
+      {canStart ? <Button variant="contained" onClick={() => setComposing(true)}>{COPY.newMessage[lang]}</Button> : null}
     </Box>
   );
 
@@ -335,6 +371,7 @@ export default function MessagesPage({ basePath = '/messages', compact = false }
         ) : list}
       </Box>
       <ComposeDialog
+        canSecret={canSecret}
         open={composing}
         onClose={() => setComposing(false)}
         onSent={(id) => {

@@ -42,7 +42,8 @@ export interface Thread {
 
 export interface Audiences {
   people: Array<{ id: number; name: string }>;
-  departments: Array<{ id: number; name: string }>;
+  /** `people`: how many it reaches (everyone in it now). */
+  departments: Array<{ id: number; name: string; people?: number }>;
 }
 
 export const getThreads = () => api.get<ThreadRow[]>('/accounts/messages/');

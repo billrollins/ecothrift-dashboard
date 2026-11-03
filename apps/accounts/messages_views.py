@@ -14,7 +14,7 @@ from .services import staff_messages
 @permission_classes([IsTeamMember])
 def threads_view(request):
     """GET: my threads, newest first, with unread counts. POST: start one ``{subject, body, to_user | to_department,
-    secret?}`` (owner and managers)."""
+    secret?}`` (any staff login; a secret only from the owner and managers)."""
     if request.method == 'GET':
         return Response(staff_messages.threads_for(request.user))
     data = request.data
@@ -35,9 +35,7 @@ def unread_view(request):
 @api_view(['GET'])
 @permission_classes([IsTeamMember])
 def audiences_view(request):
-    if not staff_messages.can_start(request.user):
-        return Response({'detail': 'Only the owner and managers start a message.'}, status=status.HTTP_403_FORBIDDEN)
-    return Response(staff_messages.audiences())
+    return Response(staff_messages.audiences(request.user))
 
 
 @api_view(['GET'])

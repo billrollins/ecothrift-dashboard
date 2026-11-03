@@ -1,7 +1,9 @@
 """Staff messages in Dash (owner 2026-10-21): never email or text, ever.
 
-- **Who sends.** The owner and managers start a thread, to one person or to a whole department (everyone in it at the
-  time). Everyone on a thread can reply. Each message keeps read receipts: who read it, and when.
+- **Who sends.** Every staff login starts a thread (Dash Updates #29, Carrie 2026-11-02; before, only the owner and
+  managers), to one person or to a whole department (everyone in it at the time). Everyone on a thread can reply. Each
+  message keeps read receipts: who read it, and when.
+- **Secrets are the owner's and managers'** (they carry PINs); staff receive and Show them.
 - **One-time secrets.** A message to one person can carry a secret (a PIN). Only that person sees it, once, with a
   Show tap. Dash records when and from which device, then deletes the secret; the message stays and says "Shown once
   on <date>; deleted". The secret is never in a list, a notification, admin or a log.
@@ -10,7 +12,7 @@
 from __future__ import annotations
 
 from django.db import transaction
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
@@ -23,7 +25,8 @@ MAX_BODY = 4000
 MAX_SECRET = 200
 
 
-def can_start(user) -> bool:
+def can_send_secret(user) -> bool:
+    """One-time secrets (a PIN) come from the owner and managers only."""
     return bool(user.is_superuser or user.role in ('Manager', 'Admin'))
 
 
@@ -34,14 +37,21 @@ def _active_staff():
     return staff_users().exclude(employee__termination_date__lte=today)
 
 
-def audiences() -> dict:
+def audiences(sender=None) -> dict:
     """Who a new thread can go to: a person, or a department."""
     from apps.hr.models import Department
 
-    people = _active_staff().order_by('first_name', 'last_name')
+    staff = _active_staff()
+    people = staff.order_by('first_name', 'last_name')
+    if sender is not None:
+        people = people.exclude(pk=sender.pk)
+    sizes = {row['employee__department']: row['n'] for row in
+             staff.values('employee__department').annotate(n=Count('pk')).order_by()}
     return {
         'people': [{'id': u.pk, 'name': u.full_name} for u in people],
-        'departments': [{'id': d.pk, 'name': d.name} for d in Department.objects.filter(is_active=True)],
+        # How many each department reaches, so a sender sees who gets it before sending.
+        'departments': [{'id': d.pk, 'name': d.name, 'people': sizes.get(d.pk, 0)}
+                        for d in Department.objects.filter(is_active=True)],
     }
 
 
@@ -73,13 +83,13 @@ def start_thread(sender, *, subject: str, body: str, to_user=None, to_department
     """A new thread. ``system`` lets Dash itself (a Requests kind) send, with the approver as the sender."""
     from apps.hr.models import Department
 
-    if not system and not can_start(sender):
-        raise PermissionDenied('Only the owner and managers start a message.')
     subject = ' '.join(str(subject or '').split())[:140]
     if not subject:
         raise ValidationError({'subject': 'Add a subject.'})
     body = _clean_body(body)
     secret = str(secret or '').strip()
+    if secret and not system and not can_send_secret(sender):
+        raise PermissionDenied('Only the owner and managers send a one-time secret.')
     if len(secret) > MAX_SECRET:
         raise ValidationError({'secret': f'Keep the secret under {MAX_SECRET} characters.'})
     if to_user is not None and to_department is not None:

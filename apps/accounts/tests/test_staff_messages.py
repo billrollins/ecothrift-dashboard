@@ -61,12 +61,33 @@ class ThreadTests(APITestCase):
         self.assertEqual(self.client.post(f'/api/accounts/messages/{thread["id"]}/reply/', {'body': 'hi'},
                                           format='json').status_code, 404)
 
-    def test_staff_cannot_start_a_thread(self):
+    def test_every_staff_login_starts_a_thread_but_not_a_secret(self):
+        # Dash Updates #29 (Carrie, 2026-11-02): staff send to a person or a department; secrets stay the managers'.
         self.client.force_authenticate(self.carrie)
+        aud = self.client.get('/api/accounts/messages/audiences/')
+        self.assertEqual(aud.status_code, 200)
+        self.assertNotIn(self.carrie.pk, [p['id'] for p in aud.json()['people']])
+        retail = next(d for d in aud.json()['departments'] if d['id'] == self.retail.pk)
+        self.assertEqual(retail['people'], 3)
         res = self.client.post('/api/accounts/messages/', {
             'subject': 'Hi', 'body': 'x', 'to_user': self.dave.pk}, format='json')
+        self.assertEqual(res.status_code, 201, res.content)
+        res = self.client.post('/api/accounts/messages/', {
+            'subject': 'Truck', 'body': 'Here at 2', 'to_department': self.retail.pk}, format='json')
+        self.assertEqual(res.status_code, 201, res.content)
+        res = self.client.post('/api/accounts/messages/', {
+            'subject': 'PIN', 'body': 'x', 'to_user': self.dave.pk, 'secret': '1234'}, format='json')
         self.assertEqual(res.status_code, 403)
-        self.assertEqual(self.client.get('/api/accounts/messages/audiences/').status_code, 403)
+        self.client.force_authenticate(self.manager)
+        res = self.client.post('/api/accounts/messages/', {
+            'subject': 'PIN', 'body': 'x', 'to_user': self.dave.pk, 'secret': '1234'}, format='json')
+        self.assertEqual(res.status_code, 201, res.content)
+
+    def test_dash_itself_still_sends_a_secret_for_a_staff_approver(self):
+        from apps.accounts.services import staff_messages
+        thread = staff_messages.start_thread(self.carrie, subject='PIN', body='x', to_user=self.dave,
+                                             secret='5678', system=True)
+        self.assertTrue(thread.messages.get().has_secret)
 
     def test_customers_have_no_messages(self):
         customer = User.objects.create_user(email='c@x.com', first_name='C', last_name='C', password='pw-12345-xx')

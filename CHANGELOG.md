@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.239.0] -->
-<!-- Last reviewed: 2026-11-02 (2.239.0) -->
+<!-- Line 1 release: ## [2.239.1] -->
+<!-- Last reviewed: 2026-11-02 (2.239.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.239.1] - 2026-11-02
+
+User-facing theme: **Every staff member can send messages in Dash (Carrie, 2026-11-02; Dash Updates #29).**
+
+### Changed
+- Messages: every staff login can start a message, to one person or a whole department, not only managers (Carrie, Dash Updates #29). Picking a department says who it reaches ("Goes to everyone in Retail (6 people)"). One-time secrets (PINs) stay the owner's and managers'. The compose box is in English and Spanish.
 
 ## [2.239.0] - 2026-11-02
 

@@ -68,12 +68,26 @@ describe('MessagesPage', () => {
     setWide(true);
   });
 
-  it('on a desk shows the list beside the open thread; staff cannot start one', async () => {
+  it('on a desk shows the list beside the open thread', async () => {
     renderAt('/messages/7');
     expect(await screen.findByText('Truck Friday')).toBeInTheDocument();
     expect(screen.getByTestId('message-list')).toBeInTheDocument();
     expect(await screen.findByTestId('message-thread')).toHaveTextContent('tap Show');
-    expect(screen.queryByRole('button', { name: 'New message' })).toBeNull();
+  });
+
+  it('staff start a message too (Dash Updates #29): to a department it says who gets it; no secret field', async () => {
+    const user = userEvent.setup();
+    api.getAudiences.mockResolvedValue({ data: { people: [{ id: 2, name: 'Dave T' }], departments: [{ id: 5, name: 'Retail', people: 6 }] } });
+    api.startThread.mockResolvedValue({ data: { ...PIN_THREAD, id: 9 } });
+    renderAt('/messages');
+    await user.click(await screen.findByRole('button', { name: 'New message' }));
+    await user.click(screen.getByRole('button', { name: 'A department' }));
+    await user.click(screen.getByRole('combobox'));
+    await user.click(await screen.findByRole('option', { name: 'Retail' }));
+    expect(screen.getByTestId('compose-reach')).toHaveTextContent('Goes to everyone in Retail (6 people).');
+    expect(screen.queryByLabelText(/One-time secret/)).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'One person' }));
+    expect(screen.queryByLabelText(/One-time secret/)).toBeNull();
   });
 
   it('shows a one-time secret once, then says it is gone', async () => {
