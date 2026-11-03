@@ -53,10 +53,6 @@ import { useSnackbar } from 'notistack';
 import { format } from 'date-fns';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
-import DenominationCounter, {
-  EMPTY_BREAKDOWN,
-  calculateTotal,
-} from '../../components/forms/DenominationCounter';
 import { DeviceSetupDialog } from '../../components/pos/DeviceSetupDialog';
 import { DiscountDialog, type DiscountSubmitPayload } from '../../components/pos/DiscountDialog';
 import { useManagerOk } from '../../components/pos/ManagerOkDialog';
@@ -65,7 +61,7 @@ import CashWindow from '../../components/pos/CashWindow';
 import DrawerContentsDialog, { DrawerChip } from '../../components/pos/DrawerContentsDialog';
 import { useObjectModal } from '../../components/objects/ObjectModal';
 import { tp } from '../../i18n/pos';
-import CountCheckDialog from '../../components/pos/CountCheckDialog';
+import CountWindow from '../../components/pos/CountWindow';
 import { useRegisterCover } from '../../components/pos/RegisterCover';
 import { countCents, describeCount, hasPieces, type CashCount } from '../../utils/cashCounts';
 import { thriftCoversSale, thriftPaymentParts } from '../../utils/posPayment';
@@ -277,14 +273,12 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   const [returnsPopup, setReturnsPopup] = useState<{ until: string; note: string } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [openDrawerDialog, setOpenDrawerDialog] = useState(false);
-  const [openingCount, setOpeningCount] = useState<DenominationBreakdown>(EMPTY_BREAKDOWN);
   const [editingLineId, setEditingLineId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState({ quantity: '', description: '', unit_price: '' });
   const [voidConfirmOpen, setVoidConfirmOpen] = useState(false);
   // Cash by bill and coin (2026-10-21): what was tapped; "type the amount" is the fallback for odd cash.
   const [cashReceived, setCashReceived] = useState<CashCount>({});
   // The opening count beside the register's till fund, shown after the blind count (2026-10-21).
-  const [openingCheck, setOpeningCheck] = useState<CountCheck | null>(null);
   const [typeCash, setTypeCash] = useState(false);
   /** The cash window (2026-11-02): open for Cash or for the cash part of a Split. */
   const [cashWindow, setCashWindow] = useState<'cash' | 'split' | null>(null);
@@ -540,26 +534,25 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
     }
   }, [isRegister, managerDrawerId, startCart, enqueueSnackbar, markRegisterActivity]);
 
-  const handleOpenDrawer = useCallback(async () => {
-    if (registerId == null || typeof registerId !== 'number') return;
-    const total = calculateTotal(openingCount);
+  /** The opening count is in: open the drawer; the server answers how it compares with the till (null: no till). */
+  const handleOpenDrawer = useCallback(async (count: CashCount): Promise<CountCheck | null> => {
+    if (registerId == null || typeof registerId !== 'number') return null;
     try {
       const opened = await openDrawerMutation.mutateAsync({
         register: registerId,
-        opening_count: openingCount,
-        opening_total: total,
+        opening_count: count as DenominationBreakdown,
+        opening_total: countCents(count) / 100,
       });
       enqueueSnackbar('Drawer opened', { variant: 'success' });
-      if (opened?.count_check) setOpeningCheck(opened.count_check);
-      setOpenDrawerDialog(false);
-      setOpeningCount(EMPTY_BREAKDOWN);
+      return opened?.count_check ?? null;
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
         'Failed to open drawer';
       enqueueSnackbar(msg, { variant: 'error' });
+      throw err;
     }
-  }, [registerId, openingCount, openDrawerMutation, enqueueSnackbar]);
+  }, [registerId, openDrawerMutation, enqueueSnackbar]);
 
   const handleTakeover = useCallback(async (drawerId: number) => {
     try {
@@ -2724,34 +2717,15 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         {renderContent()}
       </Box>
 
-      {/* Open drawer dialog (register mode) */}
-      <Dialog
+      {/* Open drawer (register mode): the opening count (Retail 4, 2026-11-02), blind until it is in. */}
+      <CountWindow
         open={openDrawerDialog}
-        onClose={() => setOpenDrawerDialog(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Open drawer</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 1 }}>
-            <DenominationCounter
-              value={openingCount}
-              onChange={setOpeningCount}
-              label="Opening count"
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDrawerDialog(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleOpenDrawer}
-            disabled={openDrawerMutation.isPending}
-          >
-            {openDrawerMutation.isPending ? 'Opening…' : 'Open'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        title={tp('openingCount', lang)}
+        submitLabel={tp('openDrawer', lang)}
+        onCancel={() => setOpenDrawerDialog(false)}
+        onSubmit={handleOpenDrawer}
+        lang={lang}
+      />
 
       <Dialog
         open={!!soldScanDialog}
@@ -3267,7 +3241,6 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
 
       {registerCover.dialog}
 
-      <CountCheckDialog check={openingCheck} title="Opening count" onClose={() => setOpeningCheck(null)} />
 
       {/* A receipt that did not print (REG-03): loud, and it stays until someone deals with it. */}
       <Dialog open={printProblem !== null} maxWidth="xs" fullWidth data-testid="print-problem">

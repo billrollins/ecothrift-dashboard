@@ -1,12 +1,9 @@
-v2.238.0 — Owner page, Schedule for everyone, sidebar logo
+v2.239.0 — Opening and handover count window
 
-User-facing theme: **Navigation finish: an Owner page with tabs, the Schedule open to everyone with who is on right now, a tidier sidebar logo, and routine links straight to My day (Bill, 2026-11-02).**
+User-facing theme: **Opening and handover counts are one big count window: a row per bill and coin, the total on the button, and Right on / Short / Over right after (Bill, 2026-11-02; Dash Updates #41, #42).**
 
 ### Changed
-- Navigation tidy-up (Dash Updates #7): routine links open My day directly (`/dashboard?tab=myday&run=…`) instead of going through `/today` first; the old `!` routines nag (`RoutinesNag`, unused since the bell replaced it) is removed. Old `/today` links still work.
-- Schedule for everyone (Bill, Dash Updates #6): every staff login opens the week's Schedule from the avatar menu, read-only, with each person's state right now from the time clock: On shift, On break, Late, or Off. Late is for fixed (Retail) shifts only, once the shift has started with no clock-in and no call-in; flexible departments' times are the plan. Call-ins, their counts and shift notes stay the managers'; only managers change the week. English and Spanish; on a phone your own row comes first.
-- Owner page with tabs (Bill, Dash Updates #5): one owner-only page from the avatar menu, with Overview (the old Owner page), Reports, Approvals (the Requests page, with the waiting count on the tab) and Dash Updates (every update, private ones too). Each tab has its own address (/owner, /owner/reports, /owner/approvals, /owner/updates); /reports and /admin/requests still work and land on their tab. The avatar menu's OWNER section has one link, Owner. No Money tab: Overview already has the Scorecard, what is owed, supplies and AI spend.
-- Sidebar logo: its block is now the top bar's height (64 px on a desk, 56 on a phone) with the logo 44 px tall, so there is less empty space above and below it and the grey line under it meets the line under the top bar (Bill, Dash Updates #32).
-- Time clock tests: the closed-day warning test pins the old Sunday + Monday closure (Monday reopened in v2.233.1).
+- Opening count (Retail 4 step 1, #41): Open drawer is a count window with one big row per bill and coin (−, the number, +), full screen on a phone. The button shows the total ("Open drawer · $160.00"), so a wrong number shows before it is sent. After the count it says Right on, or Short / Over and only the bills and coins that are off, against the register's till. Blind until the count is in, as before. English and Spanish.
+- Handover count (Retail 4 step 2, #42): Handoff on the Drawers page is the same count window, bills only: pick who takes the drawer (not the person who has it), count the bills ("Hand over · $200.00"), then both see Right on, or Short / Over and the bills that are off. The count becomes the drawer's bills.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -122,27 +122,39 @@ describe('Drawers page: a drawer\'s life (2026-10-21)', () => {
     expect((m.close.mock.calls[1][0] as { data: Record<string, unknown> }).data.note).toBe('Gave a $20 too many in change');
   });
 
-  it('handoff counts the bills only', async () => {
+  it('the handover counts the bills only, needs who takes it, and shows how it came out (2026-11-02)', async () => {
     m.manager = true;
     const user = userEvent.setup();
     m.handoff.mockReset();
+    m.handoff.mockRejectedValueOnce({ response: { data: { detail: 'Try again.' } } });
     m.handoff.mockResolvedValueOnce({
-      id: 1, count_check: { rows: [], counted_total: '200.00', expected_total: '200.00', difference_total: '0.00' },
+      id: 1, count_check: {
+        rows: [{ key: 'twenties', label: '$20', counted: 10, expected: 11, difference: -1 }],
+        counted_total: '200.00', expected_total: '220.00', difference_total: '-20.00',
+      },
     });
     renderPage();
     await user.click(screen.getByRole('button', { name: /Handoff/ }));
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).queryByLabelText('25¢')).toBeNull();
-    await user.type(qty(dialog, '$20'), '10');
-    await user.click(within(dialog).getByRole('combobox', { name: 'Incoming cashier' }));
+    const dialog = await screen.findByTestId('count-window');
+    expect(within(dialog).queryByTestId('count-quarters')).toBeNull();
+    await user.type(within(dialog).getByTestId('count-twenties'), '10');
+    expect(within(dialog).getByTestId('count-submit')).toHaveTextContent('Pick who takes it');
+    expect(within(dialog).getByTestId('count-submit')).toBeDisabled();
+    await user.click(within(dialog).getByRole('combobox', { name: 'Who takes the drawer' }));
+    expect(screen.queryByRole('option', { name: 'Cara Cashier' })).toBeNull(); // the drawer's cashier now
     await user.click(await screen.findByRole('option', { name: 'Dee Next' }));
-    await user.click(within(dialog).getByRole('button', { name: 'Handoff' }));
-    await waitFor(() => expect(m.handoff).toHaveBeenCalled());
-    const sent = m.handoff.mock.calls[0][0] as { data: { incoming_cashier: number; count: Record<string, number> } };
-    expect(sent.data.incoming_cashier).toBe(4);
-    expect(sent.data.count.twenties).toBe(10);
-    expect(sent.data.count.quarters).toBe(0);
-    expect(await screen.findByTestId('count-check')).toHaveTextContent('Right on');
+    expect(within(dialog).getByTestId('count-submit')).toHaveTextContent('Hand over · $200.00');
+    await user.click(within(dialog).getByTestId('count-submit'));
+    // An error keeps who and the count.
+    await waitFor(() => expect(within(dialog).getByTestId('count-submit')).not.toBeDisabled());
+    expect(within(dialog).getByTestId('count-twenties')).toHaveValue('10');
+    await user.click(within(dialog).getByTestId('count-submit'));
+    await waitFor(() => expect(m.handoff).toHaveBeenCalledTimes(2));
+    const sent = m.handoff.mock.calls[1][0] as { data: { incoming_cashier: number; count: Record<string, number> } };
+    expect(sent.data).toEqual({ incoming_cashier: 4, count: { twenties: 10 } });
+    const result = await screen.findByTestId('count-result');
+    expect(result).toHaveTextContent('Short $20.00');
+    expect(result).toHaveTextContent('$20Short 1');
   });
 
   it('drops and paid out say why', async () => {

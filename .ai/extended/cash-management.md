@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-02 (Cash / Card / Split buttons, the cash window, the drawer view; a handoff count sets the drawer's bills) -->
+<!-- Last updated: 2026-11-02 (Cash / Card / Split, the cash window, the drawer view; a handoff count sets the drawer's bills; the opening count window) -->
 
 # Cash Management — Extended Context
 
@@ -39,6 +39,8 @@ Reusable form at `frontend/src/components/forms/DenominationCounter.tsx`:
 - **The drawer's contents** (`Drawer.contents`, by bill and coin) start as the opening count, take a handoff's or takeover's bill count as the bills (coins kept until the office close; 2026-11-02), gain each cash sale's money received less the change given (under a row lock), lose drops by their count, and get a void's money back out. A count can go below 0 when Dash and the drawer disagree; the closing count shows it. The training register touches no drawer.
 
 ### A drawer's life (2026-10-22, digest point 3, REG-18/19, `pos.0044`, `services/drawer_life.py`)
+
+- **The count window (Retail 4, 2026-11-02):** `components/pos/CountWindow.tsx` + `CashCountPad.tsx`: one big row per bill and coin (−, the number, +; typing works), the button carries the total ("Open drawer · $160.00"), a double tap posts once, an error keeps the count. After the count the same window shows Right on, or Short / Over and only the bills and coins that are off (`CountResult`). Used for the opening count (terminal and Drawers page) and the handover (Drawers page: who takes it in the window's top slot, bills only, the drawer's cashier cannot be picked); spot check and close move to it in their steps.
 
 - **Blind counts.** Opening, handoff and close are counted without seeing what Dash expects. The answer after the count (`count_check` on the response) shows counted, expected and the difference by bill and coin (`components/pos/CountCheckDialog.tsx`). Opening is checked against the register's till fund (`Register.starting_breakdown`; none set, no check). A cashier's Drawers card hides the running cash sales while the drawer is open.
 - **Handoff and takeover count the bills only** (Bill, 10-21): coins in the count are refused; expected = the bills in `Drawer.contents`. The handoff keeps `bills_only` and `expected_count`.

@@ -50,6 +50,9 @@ import { useDeviceConfig } from '../../hooks/useDeviceConfig';
 import type { DenominationBreakdown } from '../../types/pos.types';
 import type { CountCheck, Drawer, SuspendedSaleTab } from '../../types/pos.types';
 import CountCheckDialog from '../../components/pos/CountCheckDialog';
+import CountWindow from '../../components/pos/CountWindow';
+import { tp } from '../../i18n/pos';
+import { countCents, type CashCount } from '../../utils/cashCounts';
 import { moveDrawerCash } from '../../api/pos.api';
 import { tabDetail, tabLabel } from '../../components/pos/SuspendedSalesBar';
 import { format } from 'date-fns';
@@ -79,6 +82,7 @@ function apiDetail(err: unknown, fallback: string): string {
 export default function DrawerListPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { user, hasRole } = useAuth();
+  const lang = user?.language;
   const { config } = useDeviceConfig();
   const { openObject } = useObjectModal();
   const isManager = hasRole('Manager') || hasRole('Admin');
@@ -137,25 +141,23 @@ export default function DrawerListPage() {
   const { data: usersData } = useUsers({ page_size: 200 });
   const usersForHandoff = usersData?.results ?? [];
 
-  const handleOpenDrawer = async () => {
-    if (!selectedRegister || typeof selectedRegister !== 'number') return;
-    const total = calculateTotal(count);
+  const handleOpenDrawer = async (opening: CashCount): Promise<CountCheck | null> => {
+    if (!selectedRegister || typeof selectedRegister !== 'number') return null;
     try {
       const opened = await openDrawerMutation.mutateAsync({
         register: selectedRegister,
-        opening_count: count,
-        opening_total: total,
+        opening_count: opening as DenominationBreakdown,
+        opening_total: countCents(opening) / 100,
       });
       enqueueSnackbar('Drawer opened', { variant: 'success' });
-      if (opened?.count_check) setCheck({ title: 'Opening count', data: opened.count_check });
-      setOpenDialog(null);
       setSelectedRegister('');
-      setCount(EMPTY_BREAKDOWN);
+      return opened?.count_check ?? null;
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
         'Failed to open drawer';
       enqueueSnackbar(msg, { variant: 'error' });
+      throw err;
     }
   };
 
@@ -200,28 +202,24 @@ export default function DrawerListPage() {
     }
   };
 
-  const handleHandoff = async () => {
-    if (!handoffDrawer || !handoffCashier) return;
+  /** The drawer's cashier now: the one who cannot take it (the server refuses the same). */
+  const handoffFrom = drawers.find((d) => d.id === handoffDrawer)?.current_cashier ?? null;
+
+  const handleHandoff = async (bills: CashCount): Promise<CountCheck | null> => {
+    if (!handoffDrawer || !handoffCashier) return null;
     try {
       const handed = await handoffMutation.mutateAsync({
         id: handoffDrawer,
-        data: {
-          incoming_cashier: Number(handoffCashier),
-          count: { ...count, ...COINS_ONLY },
-        },
+        data: { incoming_cashier: Number(handoffCashier), count: bills as DenominationBreakdown },
       });
-      enqueueSnackbar('Handoff completed', { variant: 'success' });
-      const handCheck = (handed as unknown as { count_check?: CountCheck })?.count_check;
-      if (handCheck) setCheck({ title: 'Handoff count (bills)', data: handCheck });
-      setOpenDialog(null);
-      setHandoffDrawer(null);
-      setHandoffCashier('');
-      setCount(EMPTY_BREAKDOWN);
+      enqueueSnackbar(tp('handedOver', lang), { variant: 'success' });
+      return (handed as unknown as { count_check?: CountCheck })?.count_check ?? null;
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
         'Failed to complete handoff';
       enqueueSnackbar(msg, { variant: 'error' });
+      throw err;
     }
   };
 
@@ -552,20 +550,15 @@ export default function DrawerListPage() {
         })}
       </Grid>
 
-      <Dialog open={openDialog === 'open'} onClose={resetDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Open drawer</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 1 }}>
-            <DenominationCounter value={count} onChange={setCount} label="Opening count" />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={resetDialog}>Cancel</Button>
-          <Button variant="contained" onClick={handleOpenDrawer} disabled={openDrawerMutation.isPending}>
-            Open
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* The opening count (Retail 4, 2026-11-02): blind until it is in, then how it compares with the till. */}
+      <CountWindow
+        open={openDialog === 'open'}
+        title={tp('openingCount', lang)}
+        submitLabel={tp('openDrawer', lang)}
+        onCancel={resetDialog}
+        onSubmit={handleOpenDrawer}
+        lang={lang}
+      />
 
       <Dialog open={openDialog === 'close'} onClose={resetDialog} maxWidth="sm" fullWidth>
         <DialogTitle>Close drawer (office count)</DialogTitle>
@@ -629,39 +622,38 @@ export default function DrawerListPage() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={openDialog === 'handoff'} onClose={resetDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Drawer handoff</DialogTitle>
-        <DialogContent>
-          <FormControl fullWidth size="small" sx={{ mt: 2, mb: 2 }}>
-            <InputLabel id="handoff-cashier-label">Incoming cashier</InputLabel>
-            <Select
-              labelId="handoff-cashier-label"
-              value={handoffCashier}
-              label="Incoming cashier"
-              onChange={(e) => setHandoffCashier(e.target.value)}
-            >
-              <MenuItem value="">Select…</MenuItem>
-              {usersForHandoff
-                .filter((u: { id: number }) => !user || String(u.id) !== String(user.id))
-                .map((u: { id: number; full_name: string }) => (
-                  <MenuItem key={u.id} value={String(u.id)}>
-                    {u.full_name}
-                  </MenuItem>
-                ))}
-            </Select>
-          </FormControl>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            Count the bills only. Coins are counted in the office at the end of the day.
-          </Typography>
-          <DenominationCounter value={count} onChange={setCount} only="bills" label="Handoff count (bills)" />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={resetDialog}>Cancel</Button>
-          <Button variant="contained" onClick={handleHandoff} disabled={handoffMutation.isPending}>
-            Handoff
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* The handover count (Retail 4 step 2, 2026-11-02): who takes it, the bills, then how it came out, for both. */}
+      <CountWindow
+        open={openDialog === 'handoff'}
+        title={tp('handoverCount', lang)}
+        submitLabel={tp('handOver', lang)}
+        notReadyLabel={tp('pickWho', lang)}
+        ready={handoffCashier !== ''}
+        only="bills"
+        onCancel={resetDialog}
+        onSubmit={handleHandoff}
+        lang={lang}
+      >
+        <FormControl fullWidth size="small" sx={{ mb: 1 }}>
+          <InputLabel id="handoff-cashier-label">{tp('whoTakes', lang)}</InputLabel>
+          <Select
+            labelId="handoff-cashier-label"
+            value={handoffCashier}
+            label={tp('whoTakes', lang)}
+            onChange={(e) => setHandoffCashier(e.target.value)}
+            data-testid="handoff-who"
+          >
+            {usersForHandoff
+              .filter((u: { id: number }) => u.id !== handoffFrom)
+              .map((u: { id: number; full_name: string }) => (
+                <MenuItem key={u.id} value={String(u.id)}>
+                  {u.full_name}
+                </MenuItem>
+              ))}
+          </Select>
+        </FormControl>
+        <Typography variant="body2" color="text.secondary">{tp('billsOnlyNote', lang)}</Typography>
+      </CountWindow>
 
       <Dialog open={openDialog === 'drop'} onClose={resetDialog} maxWidth="sm" fullWidth>
         <DialogTitle>Cash drop</DialogTitle>

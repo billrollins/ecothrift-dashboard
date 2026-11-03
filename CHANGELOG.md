@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.238.0] -->
-<!-- Last reviewed: 2026-11-02 (2.238.0) -->
+<!-- Line 1 release: ## [2.239.0] -->
+<!-- Last reviewed: 2026-11-02 (2.239.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.239.0] - 2026-11-02
+
+User-facing theme: **Opening and handover counts are one big count window: a row per bill and coin, the total on the button, and Right on / Short / Over right after (Bill, 2026-11-02; Dash Updates #41, #42).**
+
+### Changed
+- Opening count (Retail 4 step 1, #41): Open drawer is a count window with one big row per bill and coin (−, the number, +), full screen on a phone. The button shows the total ("Open drawer · $160.00"), so a wrong number shows before it is sent. After the count it says Right on, or Short / Over and only the bills and coins that are off, against the register's till. Blind until the count is in, as before. English and Spanish.
+- Handover count (Retail 4 step 2, #42): Handoff on the Drawers page is the same count window, bills only: pick who takes the drawer (not the person who has it), count the bills ("Hand over · $200.00"), then both see Right on, or Short / Over and the bills that are off. The count becomes the drawer's bills.
 
 ## [2.238.0] - 2026-11-02
 
