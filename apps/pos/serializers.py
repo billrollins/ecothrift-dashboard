@@ -101,7 +101,7 @@ class DrawerSerializer(serializers.ModelSerializer):
             'closed_by', 'closed_by_name', 'closed_at',
             'closing_count', 'closing_total',
             'cash_sales_total', 'expected_cash', 'variance', 'contents',
-            'opening_expected', 'closing_expected', 'coin_counter_total', 'close_note',
+            'opening_expected', 'closing_expected', 'coin_counter_total', 'close_note', 'close_out',
             'card_sales_total', 'card_surcharge_total',
             'handoffs', 'drops', 'movements', 'cover',
         ]

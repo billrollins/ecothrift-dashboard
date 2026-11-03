@@ -84,6 +84,7 @@ def card(drawer: Drawer, *, manager: bool = True) -> dict:
             'total': money(count_total(now) if open_ or drawer.closing_total is None else drawer.closing_total),
         },
         'counts': _counts(drawer, blind=blind),
+        'close_out': drawer.close_out if drawer.status == 'closed' else None,
         'sales': today_sales(drawer, blind=blind),
         'journey': journey(drawer, blind=blind),
     }

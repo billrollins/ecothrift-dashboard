@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -51,6 +51,8 @@ import type { DenominationBreakdown } from '../../types/pos.types';
 import type { CountCheck, Drawer, SuspendedSaleTab } from '../../types/pos.types';
 import CountCheckDialog from '../../components/pos/CountCheckDialog';
 import CountWindow from '../../components/pos/CountWindow';
+import CashCountPad from '../../components/pos/CashCountPad';
+import CloseOutGuide, { type CloseOut } from '../../components/pos/CloseOutGuide';
 import { tp } from '../../i18n/pos';
 import { countCents, type CashCount } from '../../utils/cashCounts';
 import { moveDrawerCash } from '../../api/pos.api';
@@ -95,7 +97,10 @@ export default function DrawerListPage() {
   // A blind count's answer (2026-10-21): shown only after the count is in.
   const [check, setCheck] = useState<{ title: string; data: CountCheck } | null>(null);
   // The office close: bills by hand; coins by coin or the coin counter's total; a note when far off.
-  const [coinsMode, setCoinsMode] = useState<'count' | 'total'>('count');
+  const [coinsMode, setCoinsMode] = useState<'count' | 'total'>('total');
+  const [closeOut, setCloseOut] = useState<CloseOut | null>(null);
+  const [closeResult, setCloseResult] = useState<CountCheck | null>(null);
+  const lastCloseBills = useRef<CashCount>({});
   const [coinCount, setCoinCount] = useState<DenominationBreakdown>(EMPTY_BREAKDOWN);
   const [coinsTotal, setCoinsTotal] = useState('');
   const [closeNote, setCloseNote] = useState('');
@@ -161,44 +166,36 @@ export default function DrawerListPage() {
     }
   };
 
-  const handleCloseDrawer = async (voidSuspended = false) => {
-    if (!selectedDrawer) return;
-    const bills = { ...count, ...COINS_ONLY };
-    const closingCount = coinsMode === 'count' ? { ...bills, ...pickCoins(coinCount) } : bills;
-    if (coinsMode === 'total' && coinsTotal.trim() === '') {
-      enqueueSnackbar("Enter the coin counter's total.", { variant: 'warning' });
-      return;
-    }
+  /** The close count (Retail 4 step 5): bills by hand from the window, coins as the counter's total (or by coin), a
+   * note only when the server asks. Answers the check; the close-out guide shows under it. */
+  const handleCloseDrawer = async (bills: CashCount, voidSuspended = false): Promise<CountCheck | null> => {
+    if (!selectedDrawer) return null;
+    lastCloseBills.current = bills;
     try {
       const closed = await closeDrawerMutation.mutateAsync({
         id: selectedDrawer.id,
         data: {
-          closing_count: closingCount,
-          ...(coinsMode === 'total' ? { coins_total: coinsTotal.trim() } : {}),
+          closing_count: coinsMode === 'count' ? { ...bills, ...pickCoins(coinCount) } : bills,
+          ...(coinsMode === 'total' ? { coins_total: coinsTotal.trim() || '0' } : {}),
           ...(closeNote.trim() ? { note: closeNote.trim() } : {}),
           ...(voidSuspended ? { void_suspended: true } : {}),
         },
       });
-      if (closed?.count_check) setCheck({ title: `${selectedDrawer.register_name}: closed`, data: closed.count_check });
       enqueueSnackbar(voidSuspended ? 'Drawer closed. Sales set aside were deleted.' : 'Drawer closed', {
         variant: 'success',
       });
       setSetAside(null);
-      resetDialog();
+      setCloseOut((closed as unknown as { close_out?: CloseOut })?.close_out ?? null);
+      return closed?.count_check ?? null;
     } catch (err: unknown) {
       const body = (err as {
         response?: { data?: { code?: string; detail?: string; suspended?: SuspendedSaleTab[] } };
       })?.response?.data;
-      if (body?.code === 'SUSPENDED_SALES') {
-        setSetAside(body.suspended ?? []);
-        return;
-      }
-      if (body?.code === 'NOTE_REQUIRED') {
-        // Still blind: only that it is too far off, not by how much.
-        setNoteNeeded(body.detail ?? 'Add a note saying why.');
-        return;
-      }
-      enqueueSnackbar(body?.detail ?? 'Failed to close drawer', { variant: 'error' });
+      if (body?.code === 'SUSPENDED_SALES') setSetAside(body.suspended ?? []);
+      // Still blind: only that it is too far off, not by how much.
+      else if (body?.code === 'NOTE_REQUIRED') setNoteNeeded(body.detail ?? 'Add a note saying why.');
+      else enqueueSnackbar(body?.detail ?? 'Failed to close drawer', { variant: 'error' });
+      throw err;
     }
   };
 
@@ -297,7 +294,9 @@ export default function DrawerListPage() {
     setReopenDrawerId(null);
     setCount(EMPTY_BREAKDOWN);
     setCoinCount(EMPTY_BREAKDOWN);
-    setCoinsMode('count');
+    setCoinsMode('total');
+    setCloseOut(null);
+    setCloseResult(null);
     setCoinsTotal('');
     setCloseNote('');
     setNoteNeeded('');
@@ -560,67 +559,63 @@ export default function DrawerListPage() {
         lang={lang}
       />
 
-      <Dialog open={openDialog === 'close'} onClose={resetDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Close drawer (office count)</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 1 }}>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Count blind: what Dash expects shows after you submit. Bills by hand; coins from the coin counter.
-              Everything counted goes into the office drawer.
-            </Typography>
-            <DenominationCounter value={count} onChange={setCount} only="bills" label="Bills (counted by hand)" />
-            <Box sx={{ mt: 2 }}>
-              <RadioGroup
-                row
-                value={coinsMode}
-                onChange={(e) => setCoinsMode(e.target.value as 'count' | 'total')}
-                aria-label="How the coins were counted"
-              >
-                <FormControlLabel value="count" control={<Radio />} label="Coins by coin" />
-                <FormControlLabel value="total" control={<Radio />} label="Coin counter total" />
-              </RadioGroup>
-              {coinsMode === 'count' ? (
-                <DenominationCounter value={coinCount} onChange={setCoinCount} only="coins" label="Coins" />
-              ) : (
-                <TextField
-                  label="Coin counter total"
-                  value={coinsTotal}
-                  onChange={(e) => setCoinsTotal(e.target.value.replace(/[^0-9.]/g, ''))}
-                  inputProps={{ inputMode: 'decimal' }}
-                  fullWidth
-                  sx={{ mt: 1 }}
-                />
-              )}
-            </Box>
-            {noteNeeded && (
-              <Alert severity="warning" sx={{ mt: 2 }} data-testid="close-note-needed">
-                {noteNeeded}
-              </Alert>
-            )}
+      {/* The close (Retail 4 step 5 with #26): count blind, then Expected beside Counted and the close-out guide. */}
+      <CountWindow
+        open={openDialog === 'close'}
+        title={selectedDrawer ? `${tp('closeCount', lang)} · ${selectedDrawer.register_name}` : tp('closeCount', lang)}
+        submitLabel={tp('closeBtn', lang)}
+        only="bills"
+        extraCents={coinsMode === 'total'
+          ? Math.round((Number.parseFloat(coinsTotal) || 0) * 100)
+          : countCents(pickCoins(coinCount) as CashCount)}
+        ready={!noteNeeded || Boolean(closeNote.trim())}
+        result={closeResult}
+        after={closeOut ? <CloseOutGuide out={closeOut} lang={lang} /> : null}
+        bigResult
+        onCancel={resetDialog}
+        onSubmit={(bills) => handleCloseDrawer(bills)}
+        lang={lang}
+      >
+        <Box sx={{ mb: 1.5 }}>
+          {coinsMode === 'total' ? (
             <TextField
-              label={noteNeeded ? 'Note (needed)' : 'Note (needed when the count is far off)'}
-              value={closeNote}
-              onChange={(e) => setCloseNote(e.target.value)}
-              error={Boolean(noteNeeded) && !closeNote.trim()}
+              label={tp('coinsTotal', lang)}
+              value={coinsTotal}
+              onChange={(e) => setCoinsTotal(e.target.value.replace(/[^0-9.]/g, ''))}
+              inputProps={{ inputMode: 'decimal', 'data-testid': 'close-coins-total' }}
               fullWidth
-              multiline
-              minRows={2}
-              sx={{ mt: 2 }}
             />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={resetDialog}>Cancel</Button>
+          ) : (
+            <CashCountPad
+              value={pickCoins(coinCount) as CashCount}
+              onChange={(c) => setCoinCount({ ...EMPTY_BREAKDOWN, ...c } as DenominationBreakdown)}
+              only="coins"
+              lang={lang}
+            />
+          )}
           <Button
-            variant="contained"
-            color="error"
-            onClick={() => handleCloseDrawer()}
-            disabled={closeDrawerMutation.isPending}
+            size="small"
+            sx={{ textTransform: 'none', minHeight: 40 }}
+            onClick={() => setCoinsMode((m) => (m === 'total' ? 'count' : 'total'))}
           >
-            Close drawer
+            {coinsMode === 'total' ? tp('byCoin', lang) : tp('useCounter', lang)}
           </Button>
-        </DialogActions>
-      </Dialog>
+          {noteNeeded && (
+            <>
+              <Alert severity="warning" sx={{ mt: 1 }} data-testid="close-note-needed">{noteNeeded}</Alert>
+              <TextField
+                label={tp('noteNeeded', lang)}
+                value={closeNote}
+                onChange={(e) => setCloseNote(e.target.value)}
+                fullWidth
+                multiline
+                minRows={2}
+                sx={{ mt: 1 }}
+              />
+            </>
+          )}
+        </Box>
+      </CountWindow>
 
       {/* The handover count (Retail 4 step 2, 2026-11-02): who takes it, the bills, then how it came out, for both. */}
       <CountWindow
@@ -725,7 +720,9 @@ export default function DrawerListPage() {
           <Button
             variant="contained"
             color="warning"
-            onClick={() => handleCloseDrawer(true)}
+            onClick={() => {
+              void handleCloseDrawer(lastCloseBills.current, true).then(setCloseResult, () => undefined);
+            }}
             disabled={closeDrawerMutation.isPending}
           >
             Close and delete them

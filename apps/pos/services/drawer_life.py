@@ -113,3 +113,39 @@ def post_to_office(kind: str, drawer, count: dict, total: Decimal, user, *, sign
         office.current_balance = add_counts(office.current_balance, count, sign)
     office.save(update_fields=['current_total', 'current_balance'])
     return line
+
+
+def close_out(counted: dict, till: dict | None, till_total: Decimal, closing_total: Decimal, *,
+              coins_total: Decimal | None = None) -> dict:
+    """After the close count (Retail 4 step 5, Bill 2026-11-02: "exchange with supplemental to have count match what
+    opening register needs / create a cash drop of excess"): keep the whole till for tomorrow; the office brings the
+    pieces the count lacks and takes the same dollars back out of the rest (less what the count was short of the till);
+    the drop is the rest, by piece. Coins from the coin counter are one total, so they go by dollars. With no till by bill only the
+    totals are known. Saved on the drawer (``Drawer.close_out``)."""
+    # The office fills the drawer to the whole till: what the count is short of it comes in and nothing goes back.
+    short = max(Decimal('0.00'), till_total - closing_total)
+    out = {
+        'keep_total': str(till_total), 'drop_total': str(max(Decimal('0.00'), closing_total - till_total)),
+        'short_for_till': str(short),
+        'keep': None, 'from_office': None, 'drop': None, 'coins_from_office': None, 'drop_coins': None,
+        'swap_total': '0.00', 'give_back': '0.00',
+    }
+    if not till:
+        return out
+    by_piece = coins_total is None
+    keys = [k for k, _v in DENOMINATIONS if by_piece or k in BILLS]
+    have = {k: int(counted.get(k) or 0) for k in keys}
+    want = {k: int(till.get(k) or 0) for k in keys}
+    out['keep'] = {k: v for k, v in till.items() if v}
+    out['from_office'] = {k: want[k] - have[k] for k in keys if want[k] > have[k]}
+    out['drop'] = {k: have[k] - want[k] for k in keys if have[k] > want[k]}
+    swap = count_total(out['from_office'])
+    if not by_piece:
+        till_coins = count_total(coins_of(till))
+        out['coins_from_office'] = str(max(Decimal('0.00'), till_coins - coins_total))
+        out['drop_coins'] = str(max(Decimal('0.00'), coins_total - till_coins))
+        swap += Decimal(out['coins_from_office'])
+    out['swap_total'] = str(swap.quantize(Decimal('0.01')))
+    # For the pieces the office brings, it takes the same dollars back out of the rest, less what the count was short.
+    out['give_back'] = str(max(Decimal('0.00'), swap - short).quantize(Decimal('0.01')))
+    return out

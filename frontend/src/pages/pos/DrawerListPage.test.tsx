@@ -83,7 +83,7 @@ describe('Drawers page: a drawer\'s life (2026-10-21)', () => {
     expect(screen.queryByText(/Cash sales/)).toBeNull();
   });
 
-  it('close: bills by hand, the coin counter total, a note asked for when far off, then the difference after', async () => {
+  it('close: bills by hand, the coin counter total, a note when far off, then Expected beside Counted and the close-out', async () => {
     m.manager = false;
     const user = userEvent.setup();
     m.close.mockReset();
@@ -93,32 +93,38 @@ describe('Drawers page: a drawer\'s life (2026-10-21)', () => {
         ...DRAWER, status: 'closed',
         count_check: {
           rows: [{ key: 'twenties', label: '$20', counted: 10, expected: 11, difference: -1 }],
-          counted_total: '342.40', expected_total: '362.40', difference_total: '-20.00',
+          counted_total: '212.40', expected_total: '232.40', difference_total: '-20.00',
+        },
+        close_out: {
+          keep_total: '150.00', drop_total: '62.40', short_for_till: '0.00', swap_total: '0.00',
+          keep: { twenties: 5, tens: 5 }, from_office: {}, drop: { twenties: 5 }, coins_from_office: '0.00', drop_coins: '12.40',
         },
       });
     renderPage();
     await user.click(screen.getByRole('button', { name: /Close drawer/ }));
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await screen.findByTestId('count-window');
     expect(within(dialog).queryByText(/Expected/)).toBeNull();
-    await user.clear(qty(dialog, '$20'));
-    await user.type(qty(dialog, '$20'), '10');
-    await user.click(within(dialog).getByLabelText('Coin counter total'));
-    await user.type(within(dialog).getByRole('textbox', { name: 'Coin counter total' }), '12.40');
-    await user.click(within(dialog).getByRole('button', { name: 'Close drawer' }));
+    expect(within(dialog).queryByTestId('count-quarters')).toBeNull();
+    await user.type(within(dialog).getByTestId('count-twenties'), '10');
+    await user.type(within(dialog).getByTestId('close-coins-total'), '12.40');
+    expect(within(dialog).getByTestId('count-submit')).toHaveTextContent('Close drawer · $212.40');
+    await user.click(within(dialog).getByTestId('count-submit'));
 
     expect(await within(dialog).findByTestId('close-note-needed')).toHaveTextContent('more than $5.00 off');
     const first = m.close.mock.calls[0][0] as { id: number; data: Record<string, unknown> };
     expect(first.id).toBe(7);
-    expect(first.data.coins_total).toBe('12.40');
-    expect((first.data.closing_count as Record<string, number>).twenties).toBe(10);
-    expect((first.data.closing_count as Record<string, number>).quarters).toBe(0);
-    expect(first.data.note).toBeUndefined();
+    expect(first.data).toEqual({ closing_count: { twenties: 10 }, coins_total: '12.40' });
+    expect(within(dialog).getByTestId('count-submit')).toBeDisabled(); // the note first
 
     await user.type(within(dialog).getByLabelText('Note (needed)'), 'Gave a $20 too many in change');
-    await user.click(within(dialog).getByRole('button', { name: 'Close drawer' }));
-    const check = await screen.findByTestId('count-check');
-    expect(check).toHaveTextContent('Short $20.00');
-    expect(check).toHaveTextContent('Counted $342.40 · expected $362.40');
+    await user.click(within(dialog).getByTestId('count-submit'));
+    const side = await within(dialog).findByTestId('count-side-by-side');
+    expect(side).toHaveTextContent('Expected$232.40');
+    expect(side).toHaveTextContent('Counted$212.40');
+    expect(within(dialog).getByTestId('count-result')).toHaveTextContent('Short $20.00');
+    expect(within(dialog).getByTestId('close-keep')).toHaveTextContent('Keep for tomorrow$150.00');
+    expect(within(dialog).getByTestId('close-drop')).toHaveTextContent('5 × $20');
+    expect(within(dialog).getByTestId('close-drop')).toHaveTextContent('$12.40 coins');
     expect((m.close.mock.calls[1][0] as { data: Record<string, unknown> }).data.note).toBe('Gave a $20 too many in change');
   });
 

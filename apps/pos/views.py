@@ -635,6 +635,14 @@ class DrawerViewSet(viewsets.ModelViewSet):
             drawer.closing_expected = drawer.contents
             drawer.coin_counter_total = coins_total
             drawer.close_note = note[:2000]
+            # The close-out (Retail 4 step 5): keep the till, swap with the office, drop the rest. Saved with the close.
+            try:
+                till = clean_count(drawer.register.starting_breakdown, 'Till fund')
+            except CashCountError:
+                till = {}
+            till_total = count_total(till) if till else (drawer.register.starting_cash or Decimal('0'))
+            drawer.close_out = drawer_life.close_out(closing_count, till or None, till_total, closing_total,
+                                                     coins_total=coins_total)
             drawer.save()
             cover_service.end_all(drawer, DrawerCover.END_CLOSED)
             # Everything counted goes back into the office (REG-19).
@@ -644,6 +652,7 @@ class DrawerViewSet(viewsets.ModelViewSet):
         data = DrawerSerializer(drawer).data
         data['count_check'] = drawer_life.count_check(closing_count, drawer.contents or {}, coins_total=coins_total)
         data['count_check']['difference_total'] = str(variance)
+        data['close_out'] = drawer.close_out
         return Response(data)
 
     @action(detail=True, methods=['post'])

@@ -19,7 +19,7 @@ function money(v: string | number): string {
 }
 
 /** How the count came out: Right on, or Short / Over, and only the bills and coins that differ. */
-export function CountResult({ check, lang }: { check: CountCheck; lang?: string | null }) {
+export function CountResult({ check, lang, big }: { check: CountCheck; lang?: string | null; big?: boolean }) {
   const off = Number.parseFloat(check.difference_total) || 0;
   const right = Math.abs(off) < 0.005;
   const differ = check.rows.filter((r) => Number.parseFloat(String(r.difference)) !== 0);
@@ -28,9 +28,21 @@ export function CountResult({ check, lang }: { check: CountCheck; lang?: string 
       <Typography variant="h4" fontWeight={800} color={right ? 'success.main' : 'error.main'}>
         {right ? tp('rightOn', lang) : `${tp(off > 0 ? 'over' : 'short', lang)} ${money(Math.abs(off))}`}
       </Typography>
-      <Typography color="text.secondary" sx={{ mb: 2 }}>
-        {tp('counted', lang)} {money(check.counted_total)} · {tp('shouldHold', lang)} {money(check.expected_total)}
-      </Typography>
+      {big ? (
+        // The close (Carrie, 2026-11-02, #26): what Dash expected beside what was counted, big.
+        <Stack direction="row" spacing={4} sx={{ my: 1.5 }} data-testid="count-side-by-side">
+          {([['expected', check.expected_total], ['counted', check.counted_total]] as const).map(([k, v]) => (
+            <Box key={k}>
+              <Typography variant="body2" color="text.secondary" fontWeight={700}>{tp(k, lang)}</Typography>
+              <Typography variant="h5" fontWeight={800}>{money(v)}</Typography>
+            </Box>
+          ))}
+        </Stack>
+      ) : (
+        <Typography color="text.secondary" sx={{ mb: 2 }}>
+          {tp('counted', lang)} {money(check.counted_total)} · {tp('shouldHold', lang)} {money(check.expected_total)}
+        </Typography>
+      )}
       {differ.length > 0 && (
         <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 3, rowGap: 0.75, alignItems: 'baseline' }}>
           {differ.map((r) => {
@@ -70,10 +82,19 @@ type Props = {
   ready?: boolean;
   /** The button's words while not ready ("Pick who takes it"). */
   notReadyLabel?: string;
+  /** Counted outside the pad (the close's coin counter total), added to the button's total. */
+  extraCents?: number;
+  /** The answer when it came another way (the close after setting aside sales). */
+  result?: CountCheck | null;
+  /** Under the result (the close-out guide). */
+  after?: ReactNode;
+  /** The result with the totals big, side by side (the close). */
+  bigResult?: boolean;
 };
 
 export default function CountWindow({
-  open, title, submitLabel, onCancel, onSubmit, only, keys, lang, children, ready = true, notReadyLabel,
+  open, title, submitLabel, onCancel, onSubmit, only, keys, lang, children, ready = true, notReadyLabel, extraCents = 0,
+  result, after, bigResult,
 }: Props) {
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down('sm'));
@@ -81,13 +102,14 @@ export default function CountWindow({
   const [busy, setBusy] = useState(false);
   const [check, setCheck] = useState<CountCheck | null>(null);
   const inFlight = useRef(false); // a double tap posts once
+  const shownCheck = result ?? check;
   // Only what the pad shows counts (a handover counts the bills).
   const shown = only || keys
     ? CASH_DENOMINATIONS.filter((d) => (!only || (only === 'bills') === d.bill) && (!keys || keys.includes(d.key)))
       .map((d) => d.key)
     : null;
   const counted: CashCount = shown ? Object.fromEntries(shown.filter((k) => count[k]).map((k) => [k, count[k]])) : count;
-  const totalCents = countCents(counted);
+  const totalCents = countCents(counted) + extraCents;
   useEffect(() => {
     if (open) {
       setCount({});
@@ -128,7 +150,12 @@ export default function CountWindow({
         </IconButton>
       </Stack>
       <DialogContent sx={{ px: { xs: 2, sm: 3 } }}>
-        {check ? <CountResult check={check} lang={lang} /> : (
+        {shownCheck ? (
+          <>
+            <CountResult check={shownCheck} lang={lang} big={bigResult} />
+            {after}
+          </>
+        ) : (
           <>
             {children}
             <CashCountPad value={count} onChange={setCount} only={only} keys={keys} disabled={busy} lang={lang} />
@@ -136,7 +163,7 @@ export default function CountWindow({
         )}
       </DialogContent>
       <Box sx={{ px: { xs: 2, sm: 3 }, pb: 2, pt: 1, position: 'sticky', bottom: 0, bgcolor: 'background.paper' }}>
-        {check ? (
+        {shownCheck ? (
           <Button fullWidth variant="contained" size="large" onClick={onCancel} sx={{ minHeight: 60, fontSize: '1.2rem', fontWeight: 800 }}>
             {tp('done', lang)}
           </Button>

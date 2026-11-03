@@ -88,6 +88,7 @@ export const COPY = {
   blindNote: { en: 'Expected shows when the drawer closes.', es: 'Lo esperado se ve al cerrar la caja.' },
   drawerSales: { en: "This drawer's sales", es: 'Ventas de este cajón' },
   registerBtn: { en: 'Register', es: 'Caja' },
+  closeOut: { en: 'Close-out', es: 'Cierre' },
   managerOnly: { en: 'Only a manager sees a past drawer.', es: 'Solo un gerente ve un cajón pasado.' },
   // The Thrift+ Member window (Dash Updates #16).
   memberNo: { en: 'Copy member number', es: 'Copiar número de miembro' },

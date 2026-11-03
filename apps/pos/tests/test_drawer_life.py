@@ -109,6 +109,36 @@ class CloseTests(_LifeFixtures, TestCase):
         self.assertEqual(self.office.current_balance['tens'], 22)
         self.assertTrue(SupplementalTransaction.objects.filter(transaction_type='drawer_close', total=D('91.75')).exists())
 
+    def test_the_close_says_what_to_keep_for_tomorrow_what_to_swap_and_what_to_drop(self):
+        Register.objects.filter(pk=self.register.pk).update(starting_breakdown={'tens': 2, 'fives': 2, 'ones': 15})
+        r = self.client.post(self._url('close'), {'closing_count': {**self.BILLS, 'quarters': 8}}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        out = r.json()['close_out']
+        # Counted $60 in 20s, $20 in 10s, $10 in 1s, $2 in quarters = $92; the till is $45.
+        self.assertEqual((out['keep_total'], out['drop_total'], out['short_for_till']), ('45.00', '47.00', '0.00'))
+        self.assertEqual(out['from_office'], {'fives': 2, 'ones': 5})
+        self.assertEqual(out['drop'], {'twenties': 3, 'quarters': 8})
+        self.assertEqual((out['swap_total'], out['give_back']), ('15.00', '15.00'))
+        self.drawer.refresh_from_db()
+        self.assertEqual(self.drawer.close_out, out)
+
+    def test_coins_from_the_counter_go_by_dollars_and_a_short_count_says_so(self):
+        Register.objects.filter(pk=self.register.pk).update(starting_breakdown={'twenties': 5, 'quarters': 40})
+        r = self.client.post(self._url('close'), {'closing_count': self.BILLS, 'coins_total': '4.00', 'note': 'Short'},
+                             format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        out = r.json()['close_out']
+        self.assertEqual((out['keep_total'], out['short_for_till'], out['drop_total']), ('110.00', '16.00', '0.00'))
+        self.assertEqual((out['coins_from_office'], out['drop_coins']), ('6.00', '0.00'))
+        self.assertNotIn('quarters', out['from_office'])
+        self.assertEqual(out['from_office'], {'twenties': 2})
+        self.assertEqual((out['swap_total'], out['give_back']), ('46.00', '30.00'))  # $46 in, $30 of the rest out
+
+    def test_no_till_by_bill_gives_totals_only(self):
+        Register.objects.filter(pk=self.register.pk).update(starting_breakdown={}, starting_cash=D('50'))
+        out = self.client.post(self._url('close'), {'closing_count': self.BILLS}, format='json').json()['close_out']
+        self.assertEqual((out['keep_total'], out['drop_total'], out['drop']), ('50.00', '40.00', None))
+
     def test_the_coin_counter_total_is_one_row(self):
         r = self.client.post(self._url('close'), {'closing_count': self.BILLS, 'coins_total': '2.00'}, format='json')
         self.assertEqual(r.status_code, 200, r.content)

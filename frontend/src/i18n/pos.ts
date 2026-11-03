@@ -50,6 +50,20 @@ const STRINGS = {
   spotCheck: { en: 'Spot check', es: 'Revisión rápida' },
   check: { en: 'Check', es: 'Revisar' },
   whileCovered: { en: 'While {name} covered, these changed:', es: 'Mientras {name} cubrió, cambiaron:' },
+  expected: { en: 'Expected', es: 'Esperado' },
+  closeCount: { en: 'Close drawer', es: 'Cerrar caja' },
+  closeBtn: { en: 'Close drawer', es: 'Cerrar caja' },
+  coinsTotal: { en: 'Coin counter total', es: 'Total de la contadora de monedas' },
+  byCoin: { en: 'Count coins by coin', es: 'Contar monedas una por una' },
+  useCounter: { en: 'Use the coin counter total', es: 'Usar el total de la contadora' },
+  noteNeeded: { en: 'Note (needed)', es: 'Nota (necesaria)' },
+  keepForTomorrow: { en: 'Keep for tomorrow', es: 'Dejar para mañana' },
+  fromOffice: { en: 'Get from the office', es: 'Pedir a la oficina' },
+  giveOffice: { en: 'Give the office from the rest:', es: 'Da a la oficina de lo que sobra:' },
+  drop: { en: 'Drop', es: 'Depósito' },
+  dropRest: { en: 'Drop the rest', es: 'Deposita el resto' },
+  coinsDollars: { en: 'coins', es: 'monedas' },
+  shortForTill: { en: "Short for tomorrow's till by", es: 'Falta para la caja de mañana:' },
 } as const;
 
 export type PosStringKey = keyof typeof STRINGS;

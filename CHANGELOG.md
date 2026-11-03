@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.241.0] -->
-<!-- Last reviewed: 2026-11-02 (2.241.0) -->
+<!-- Line 1 release: ## [2.242.0] -->
+<!-- Last reviewed: 2026-11-02 (2.242.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.242.0] - 2026-11-02
+
+User-facing theme: **Closing a drawer: Expected beside Counted, then what to keep for tomorrow, what to swap with the office and what to drop (Bill and Carrie, 2026-11-02; Dash Updates #44, #26).**
+
+### Added
+- Closing (Retail 4 step 5, #44 with #26): Close drawer is the count window: the bills by hand, the coin counter's total (or "Count coins by coin"), the note only when the count is far off; the button shows the total. After the blind count: Expected and Counted side by side, big, with Short / Over and the bills that are off. Then the close-out: Keep for tomorrow (the register's till, by piece), Get from the office (the pieces the count lacks; give the office the same dollars back from the rest) and Drop (the rest). Short of the till: the office tops it up. Saved on the drawer and shown in the Drawer window. The office ledger is unchanged (everything counted still goes into the office). Migration `pos.0047`.
 
 ## [2.241.0] - 2026-11-02
 

@@ -65,6 +65,8 @@ class Drawer(models.Model):
     # Blind counts (2026-10-21, drawer life): what was expected is kept beside what was counted, shown only after.
     opening_expected = models.JSONField(null=True, blank=True, help_text="The register's till fund at opening.")
     closing_expected = models.JSONField(null=True, blank=True, help_text='The contents Dash expected at close.')
+    # After the close (Retail 4 step 5): what was kept for the next till, swapped with the office, and dropped.
+    close_out = models.JSONField(null=True, blank=True)
     coin_counter_total = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
         help_text='Coins from the office coin counter when only its total was entered (no count per coin).',

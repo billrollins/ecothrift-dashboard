@@ -11,6 +11,7 @@ import api from '../../../api/client';
 import { useObjectModal } from '../../objects/ObjectModal';
 import { Facts, Section, Timeline } from '../../objects/windowParts';
 import { DrawerContentsGrid } from '../DrawerContentsDialog';
+import CloseOutGuide, { type CloseOut } from '../CloseOutGuide';
 import type { CashCount } from '../../../utils/cashCounts';
 import { historyKey } from './historyScope';
 import { journeyRows, type RegisterCardData } from './RegisterWindow';
@@ -53,6 +54,7 @@ export interface DrawerCardData {
   variance: string | null;
   cash_now: { count: CashCount; coins_total?: string | null; total: string };
   counts: DrawerCount[];
+  close_out: CloseOut | null;
   sales: RegisterCardData['sales'];
   journey: RegisterCardData['journey'];
 }
@@ -199,6 +201,11 @@ export function DrawerWindow({ id }: { id: number }) {
             </Stack>
             {c.blind && <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 1 }}>{tr('blindNote')}</Typography>}
           </Section>
+          {c.close_out && (
+            <Section title={tr('closeOut')}>
+              <CloseOutGuide out={c.close_out} lang={lang} />
+            </Section>
+          )}
           <Section title={tr('today')}>
             <Timeline rows={allDay ? journey : journey.slice(0, 10)} empty={tr('nothingToday')} />
             {!allDay && journey.length > 10 && (
