@@ -9,6 +9,8 @@
  *
  * - An item opens the universal Item modal (`ItemCard.tsx`): read-only, every department's view, Edit for the editor.
  * - On a phone the modal is full screen.
+ * - Retail windows (Retail 2, 2026-11-02): a register, a sale, and a Transactions list (`type: 'history'`, its id is
+ *   the scope as one string: `historyKey()` in `components/pos/windows/historyScope.ts`).
  *
  * MainLayout puts one `<ObjectModalProvider>` around every staff page; a page wraps its own to keep the open
  * object in its URL.
@@ -24,6 +26,7 @@ import { getProduct } from '../../api/inventory.api';
 import { IconBack as ArrowBack, IconClose as Close, IconOpenExternal as OpenInNew } from '../../icons/ecoIcons';
 import { ItemCardBody } from './ItemCard';
 import { ItemPeek } from './ItemPeek';
+import { useLanguage } from '../pos/windows/retailCopy';
 
 // The panels load when first opened, so a provider can sit on every page (MainLayout) at no cost.
 const ProductManagePanel = lazy(() =>
@@ -33,12 +36,21 @@ const ItemCheckInManagePanel = lazy(() =>
 const ItemManagePanel = lazy(() =>
   import('../../pages/inventory/workbench/ItemManagePanel').then((m) => ({ default: m.ItemManagePanel })));
 const OrderDetailPage = lazy(() => import('../../pages/inventory/OrderDetailPage'));
+const RegisterWindow = lazy(() =>
+  import('../pos/windows/RegisterWindow').then((m) => ({ default: m.RegisterWindow })));
+const SaleWindow = lazy(() => import('../pos/windows/SaleWindow').then((m) => ({ default: m.SaleWindow })));
+const TransactionsWindow = lazy(() =>
+  import('../pos/windows/TransactionsWindow').then((m) => ({ default: m.TransactionsWindow })));
 
 export type ObjectRef =
   | { type: 'product'; id: number }
   | { type: 'checkin'; id: number }
   | { type: 'item'; id: number }
   | { type: 'order'; id: number }
+  | { type: 'register'; id: number }
+  | { type: 'sale'; id: number }
+  /** A Transactions list; the id is its scope (`historyKey`). */
+  | { type: 'history'; id: string }
   /** A new check-in for a product: "add more of these". */
   | { type: 'new-checkin'; id: number };
 
@@ -48,18 +60,23 @@ const LABEL: Record<ObjectRef['type'], string> = {
   item: 'Item',
   order: 'Order',
   'new-checkin': 'Add items',
+  register: 'Register',
+  sale: 'Sale',
+  history: 'Transactions',
 };
+/** The retail windows' header word in Spanish (their staff read them in either language). */
+const LABEL_ES: Partial<Record<ObjectRef['type'], string>> = { register: 'Caja', sale: 'Venta', history: 'Ventas' };
 
-type LinkType = 'product' | 'checkin' | 'item' | 'order';
+type LinkType = 'product' | 'checkin' | 'item' | 'order' | 'register' | 'sale';
 
 export function parseObjectRef(raw: string | null | undefined): ObjectRef | null {
-  const m = (raw || '').match(/^(product|checkin|item|order):(\d+)$/i);
+  const m = (raw || '').match(/^(product|checkin|item|order|register|sale):(\d+)$/i);
   if (!m) return null;
   return { type: m[1].toLowerCase() as LinkType, id: Number.parseInt(m[2], 10) };
 }
 
 export function formatObjectRef(ref: ObjectRef | null): string {
-  return ref && ref.type !== 'new-checkin' ? `${ref.type}:${ref.id}` : '';
+  return ref && ref.type !== 'new-checkin' && ref.type !== 'history' ? `${ref.type}:${ref.id}` : '';
 }
 
 interface ObjectModalContextValue {
@@ -141,6 +158,8 @@ export function ObjectModalProvider({
   const wide = current?.type === 'order';
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down('sm'));
+  const lang = useLanguage();
+  const label = (type: ObjectRef['type']) => (lang === 'es' && LABEL_ES[type]) || LABEL[type];
 
   return (
     <ObjectModalContext.Provider value={value}>
@@ -165,8 +184,8 @@ export function ObjectModalProvider({
                 </Tooltip>
               )}
               <Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }}>
-                {LABEL[current.type]}
-                {current.type !== 'new-checkin' && current.type !== 'order' && (
+                {label(current.type)}
+                {current.type !== 'new-checkin' && current.type !== 'order' && current.type !== 'history' && (
                   <Typography component="span" color="text.secondary" sx={{ ml: 1 }}>
                     #{current.id}
                   </Typography>
@@ -229,6 +248,9 @@ export function ObjectModalProvider({
                   )}
                   {current.type === 'product' && <ProductBody id={current.id} onDone={closeObject} />}
                   {current.type === 'order' && <OrderDetailPage orderId={current.id} embedded />}
+                  {current.type === 'register' && <RegisterWindow id={current.id} />}
+                  {current.type === 'sale' && <SaleWindow id={current.id} />}
+                  {current.type === 'history' && <TransactionsWindow scopeKey={current.id} />}
                 </Suspense>
               </Box>
             </DialogContent>

@@ -21,6 +21,7 @@ import {
 import { GoogleItLink } from './GoogleItLink';
 import { ProductCategoryLine } from './ProductCategoryLine';
 import { useObjectModal } from './ObjectModal';
+import { Facts, Section } from './windowParts';
 
 const STATUS_TONE: Record<string, 'success' | 'info' | 'warning' | 'default' | 'error'> = {
   on_shelf: 'success',
@@ -43,44 +44,6 @@ const JOURNEY_DOT: Record<ItemJourneyEvent['kind'], string> = {
   note: '#ef6c00',
   count: '#00838f',
 };
-
-function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
-  return (
-    <Box component="section" sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: { xs: 1.5, md: 2 }, minWidth: 0 }}>
-      <Stack direction="row" alignItems="center" sx={{ mb: 1 }}>
-        <Typography component="h3" sx={{ fontSize: 13, fontWeight: 800, letterSpacing: 0.4, textTransform: 'uppercase', color: 'text.secondary', flex: 1 }}>
-          {title}
-        </Typography>
-        {action}
-      </Stack>
-      {children}
-    </Box>
-  );
-}
-
-/** Label / value rows. Empty values are left out, so every section shows only what is known. */
-function Facts({ rows }: { rows: [string, ReactNode][] }) {
-  const shown = rows.filter(([, v]) => v != null && v !== '' && v !== false);
-  if (!shown.length) return <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Nothing recorded.</Typography>;
-  return (
-    <Box
-      component="dl"
-      sx={{
-        m: 0, display: 'grid', gridTemplateColumns: { xs: 'minmax(96px, auto) 1fr', sm: 'minmax(120px, auto) 1fr' },
-        columnGap: 2, rowGap: 0.75, fontSize: 14,
-        '& dt': { color: 'text.secondary' },
-        '& dd': { m: 0, overflowWrap: 'anywhere', fontWeight: 500 },
-      }}
-    >
-      {shown.map(([k, v]) => (
-        <Box key={k} sx={{ display: 'contents' }}>
-          <dt>{k}</dt>
-          <dd>{v}</dd>
-        </Box>
-      ))}
-    </Box>
-  );
-}
 
 function money(v: string | null | undefined): string | null {
   return v == null || v === '' ? null : itemCardMoney(v);

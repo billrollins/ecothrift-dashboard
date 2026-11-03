@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.235.0] -->
-<!-- Last reviewed: 2026-11-02 (2.235.0) -->
+<!-- Line 1 release: ## [2.236.0] -->
+<!-- Last reviewed: 2026-11-02 (2.236.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.236.0] - 2026-11-02
+
+User-facing theme: **Retail windows: the Register and Transactions windows open the same way wherever a register, a drawer's sales or a member's trips show (Bill, 2026-11-02; Dash Updates #37, #48).**
+
+### Added
+- Register window: click a register's name (Drawers page) for one window like the Item window: code with copy, status (Open, Closed today, Not opened today, Off), who is on it, today's sales, count and average, today's money by how paid, the last 5 sales, today's timeline (drawer opened, handoffs, covers, drops, paid in/out, Open drawer button, reprints) and links. Edit hands over to POS setup (managers). Counts stay blind: while a drawer is open a cashier does not see its cash line. A practice register shows its practice sales, never money. English and Spanish; full screen on a phone. API: `GET /api/pos/registers/<id>/card/`.
+- Transactions window: the sales of one register, drawer or Thrift+ member, with Today / Yesterday / This week / This month / All and a day-by-day arrow; total, count, average on top; newest first, 25 at a time; a table on a desk, one line per sale on a phone. Opens from the Register window (All today, This week), the Drawers page (This drawer's sales) and the member card (Recent trips: See all). New list filters `register` and `member` (a person: their membership's sales) on `/api/pos/carts/` and its summary.
+- Sale window: a sale opened from those lists shows the Transactions page's sale detail (lines, totals, payment, Reprint, Fix card type, Void with a manager's PIN); a member card trip opens it too. The rich Transaction window is a later update (#15).
+
+### Changed
+- The Transactions page's sale dialog now uses the shared sale detail (`components/pos/SaleDetail.tsx`); nothing about it changed.
 
 ## [2.235.0] - 2026-11-02
 

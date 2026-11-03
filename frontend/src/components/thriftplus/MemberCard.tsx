@@ -17,6 +17,8 @@ import type { Cart } from '../../types/pos.types';
 import { formatCurrency } from '../../utils/format';
 import { useByText } from '../../utils/thriftPlusRegister';
 import AddPersonPanel from './AddPersonPanel';
+import { useOptionalObjectModal } from '../objects/ObjectModal';
+import { historyKey } from '../pos/windows/historyScope';
 import SelfieCheck, { NO_CHECKS, checksDone, type FaceChecks } from './SelfieCheck';
 import { tbNumber } from './ThriftBucks';
 
@@ -69,6 +71,7 @@ export default function MemberCard({
   onChanged?: () => void;
 }) {
   const client = useQueryClient();
+  const windows = useOptionalObjectModal();
   const [activeId, setActiveId] = useState(personId);
   const [checks, setChecks] = useState<FaceChecks>(NO_CHECKS);
   const [newSelfie, setNewSelfie] = useState<Blob | null>(null);
@@ -216,18 +219,29 @@ export default function MemberCard({
       ) : null}
 
       <Box>
-        <Typography variant="overline" color="text.secondary" component="div">Recent trips</Typography>
+        <Stack direction="row" alignItems="center">
+          <Typography variant="overline" color="text.secondary" component="div" sx={{ flex: 1 }}>Recent trips</Typography>
+          {/* The Transactions window (Retail 2): every sale on this membership; a trip opens its Sale window. */}
+          {/* Only when there are more than the recent trips shown (the server sends up to 8). */}
+          {windows && trips.length >= 8 ? (
+            <Button size="small" data-testid="member-card-all-trips"
+              onClick={() => windows.openObject({ type: 'history', id: historyKey({ member: activeId, title: person.name }) })}>
+              See all
+            </Button>
+          ) : null}
+        </Stack>
         {trips.length === 0 ? (
           <Typography color="text.secondary">No trips yet.</Typography>
         ) : (
           <Box data-testid="member-card-trips">
             {trips.map((t) => (
-              <Box key={t.cart_id} sx={{ display: 'flex', gap: 1.5, py: 0.75, borderBottom: 1, borderColor: 'divider', alignItems: 'baseline' }}>
+              <ButtonBase key={t.cart_id} disabled={!windows} onClick={() => windows?.openObject({ type: 'sale', id: t.cart_id })}
+                sx={{ display: 'flex', width: '100%', textAlign: 'left', gap: 1.5, py: 0.75, borderBottom: 1, borderColor: 'divider', alignItems: 'baseline' }}>
                 <Typography sx={{ width: 96, flexShrink: 0, fontWeight: 600 }}>{day(t.date)}</Typography>
                 <Typography sx={{ flex: 1, minWidth: 0 }} noWrap>{`Ticket ${t.ticket}`}</Typography>
                 <Typography color="text.secondary" sx={{ flexShrink: 0 }}>{`${t.items} ${t.items === 1 ? 'item' : 'items'}`}</Typography>
                 <Typography fontWeight={700} sx={{ width: 84, flexShrink: 0, textAlign: 'right' }}>{formatCurrency(t.total)}</Typography>
-              </Box>
+              </ButtonBase>
             ))}
           </Box>
         )}

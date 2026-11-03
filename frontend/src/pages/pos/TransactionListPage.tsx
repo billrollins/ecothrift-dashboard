@@ -20,22 +20,14 @@ import {
 } from '@mui/material';
 import Clear from '@mui/icons-material/Clear';
 import { DataGrid, type GridColDef, type GridRowsProp } from '@mui/x-data-grid';
-import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
-import { ConfirmDialog } from '../../components/common/ConfirmDialog';
-import { useCartSummary, useCarts, useVoidCart } from '../../hooks/usePOS';
-import { useManagerOk } from '../../components/pos/ManagerOkDialog';
-import { paymentMethodLabel, thriftPaymentParts } from '../../utils/posPayment';
-import { taxExemptText } from '../../components/pos/TaxExemptDialog';
+import { useCartSummary, useCarts } from '../../hooks/usePOS';
+import { paymentMethodLabel } from '../../utils/posPayment';
 import { useUsers } from '../../hooks/useEmployees';
-import { useAuth } from '../../contexts/AuthContext';
-import { printErrorMessage } from '../../services/localPrintService';
-import { reprintReceipt } from '../../services/receiptReprint';
-import type { Cart, CartLine } from '../../types/pos.types';
-import { CartCardBreakdown } from '../../components/pos/CartCardBreakdown';
+import type { Cart } from '../../types/pos.types';
+import { SaleDetail, saleTitle } from '../../components/pos/SaleDetail';
 import { SalesNumbersBlock } from '../../components/pos/SalesNumbersBlock';
-import { CardTypeFixControls } from '../../components/pos/CardTypeFixControls';
 import { format, startOfMonth, startOfWeek, subDays } from 'date-fns';
 import { IconSearch as Search } from '../../icons/ecoIcons';
 function formatCurrency(value: string | number): string {
@@ -64,8 +56,6 @@ function thriftMoney(value: number): string {
 }
 
 export default function TransactionListPage() {
-  const { enqueueSnackbar } = useSnackbar();
-  const { hasRole } = useAuth();
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [receiptDraft, setReceiptDraft] = useState('');
@@ -90,7 +80,6 @@ export default function TransactionListPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [paymentFilter, setPaymentFilter] = useState('');
   const [selectedCart, setSelectedCart] = useState<Cart | null>(null);
-  const [voidDialog, setVoidDialog] = useState<Cart | null>(null);
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
 
   const { data: usersData } = useUsers({ page_size: 200 });
@@ -138,9 +127,6 @@ export default function TransactionListPage() {
     placeholderData: keepPreviousData,
     staleTime: 5 * 60 * 1000,
   });
-  const voidCartMutation = useVoidCart();
-  const { run: runWithManagerOk, dialog: managerOkDialog } = useManagerOk();
-  const canVoid = hasRole('Manager') || hasRole('Admin');
 
   const carts = data?.results ?? [];
 
@@ -235,22 +221,6 @@ export default function TransactionListPage() {
       valueGetter: (_, row) => thriftMoney(parseFloat((row as Cart).thrift_row?.instant ?? '0')),
     },
   ];
-
-  const handleVoid = async () => {
-    if (!voidDialog) return;
-    const cartId = voidDialog.id;
-    setVoidDialog(null);
-    try {
-      // A manager's register PIN and a reason (2026-10-21), even when a manager is signed in.
-      const voided = await runWithManagerOk((extra) => voidCartMutation.mutateAsync({ cartId, ...extra }));
-      if (!voided) return;
-      enqueueSnackbar('Transaction voided', { variant: 'success' });
-      setSelectedCart(null);
-    } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      enqueueSnackbar(detail || 'Failed to void transaction', { variant: 'error' });
-    }
-  };
 
   if (isLoading && carts.length === 0) return <LoadingScreen message="Loading transactions..." />;
 
@@ -412,144 +382,17 @@ export default function TransactionListPage() {
         fullWidth
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          {selectedCart?.receipt?.receipt_number
-            ? `Receipt #${selectedCart.receipt.receipt_number}`
-            : `Sale ${selectedCart?.id ?? '-'} (no receipt: ${selectedCart?.status === 'voided' ? 'voided before payment' : 'not paid'})`}
+          {selectedCart ? saleTitle(selectedCart) : ''}
           {selectedCart?.status === 'voided' && (
             <Chip size="small" label="Voided" color="error" />
           )}
         </DialogTitle>
         <DialogContent>
           {selectedCart && (
-            <Box>
-              <Typography variant="body2" color="text.secondary">
-                {format(new Date(selectedCart.completed_at ?? selectedCart.created_at), 'PPp')} ·{' '}
-                {selectedCart.cashier_name ?? '-'}
-                {selectedCart.covering_for_name ? ` (covering for ${selectedCart.covering_for_name})` : ''}
-              </Typography>
-              {selectedCart.status === 'voided' && selectedCart.voided_by_name && (
-                <Typography variant="body2" color="error">
-                  Voided by {selectedCart.voided_by_name}
-                  {selectedCart.voided_at ? ` · ${format(new Date(selectedCart.voided_at), 'PPp')}` : ''}
-                  {selectedCart.void_reason ? ` · ${selectedCart.void_reason}` : ''}
-                </Typography>
-              )}
-              <Box sx={{ mt: 2 }}>
-                {(selectedCart.lines ?? []).map((line: CartLine) => (
-                  <Box
-                    key={line.id}
-                    sx={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      gap: 1,
-                      py: 0.5,
-                    }}
-                  >
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography variant="body2">
-                        {line.description} × {line.quantity}
-                        {line.tax_exempt && line.line_kind !== 'discount' ? ' · No tax' : ''}
-                      </Typography>
-                      {line.resale_source_sku ? (
-                        <Typography variant="caption" color="text.secondary" display="block">
-                          Resale copy from {line.resale_source_sku}
-                        </Typography>
-                      ) : null}
-                    </Box>
-                    <Typography variant="body2" sx={{ flexShrink: 0 }}>
-                      {formatCurrency(line.line_total)}
-                    </Typography>
-                  </Box>
-                ))}
-              </Box>
-              <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography>Subtotal</Typography>
-                  <Typography>{formatCurrency(selectedCart.subtotal)}</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography>Tax</Typography>
-                  <Typography>{formatCurrency(selectedCart.tax_amount)}</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
-                  <Typography>Total</Typography>
-                  <Typography>{formatCurrency(selectedCart.total)}</Typography>
-                </Box>
-                <Box sx={{ mt: 1 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Payment: {paymentMethodLabel(selectedCart.payment_method)}
-                    {selectedCart.payment_method === 'payroll' && selectedCart.payroll_employee_name
-                      ? ` deduction, from ${selectedCart.payroll_employee_name}'s next paycheck`
-                      : ''}
-                    {selectedCart.payment_method === 'split' && selectedCart.cash_tendered != null && selectedCart.card_amount != null && (
-                      <> · Cash {formatCurrency(selectedCart.cash_tendered)} + Card {formatCurrency(selectedCart.card_amount)}</>
-                    )}
-                    {thriftPaymentParts(selectedCart).map((part) => ` · ${part}`).join('')}
-                  {selectedCart.tax_exempt_at ? (
-                    <Typography component="span" display="block" variant="body2" color="info.main" fontWeight={700}>
-                      {taxExemptText(selectedCart)} · by {selectedCart.tax_exempt_by_name ?? '-'}
-                      {selectedCart.tax_exempt_photo_url ? (
-                        <>
-                          {' · '}
-                          <a href={selectedCart.tax_exempt_photo_url} target="_blank" rel="noreferrer">certificate photo</a>
-                        </>
-                      ) : null}
-                    </Typography>
-                  ) : null}
-                  </Typography>
-                  <CartCardBreakdown cart={selectedCart} />
-                </Box>
-              </Box>
-              <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={async () => {
-                    try {
-                      const copy = await reprintReceipt(selectedCart);
-                      enqueueSnackbar(`Copy ${copy} printed (marked COPY)`, { variant: 'success' });
-                    } catch (err) {
-                      enqueueSnackbar(printErrorMessage(err), { variant: 'error' });
-                    }
-                  }}
-                >
-                  Reprint receipt
-                </Button>
-                <CardTypeFixControls
-                  cart={selectedCart}
-                  onUpdated={(updated) => setSelectedCart(updated)}
-                />
-                {canVoid && selectedCart.status !== 'voided' && (
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    size="small"
-                    onClick={() => {
-                      setSelectedCart(null);
-                      setVoidDialog(selectedCart);
-                    }}
-                  >
-                    Void transaction
-                  </Button>
-                )}
-              </Box>
-            </Box>
+            <SaleDetail cart={selectedCart} onUpdated={setSelectedCart} onVoided={() => setSelectedCart(null)} />
           )}
         </DialogContent>
       </Dialog>
-
-      <ConfirmDialog
-        open={!!voidDialog}
-        title="Void Transaction"
-        message="Void this transaction? A paid sale's items go back on the shelf and its cash comes out of the drawer. A manager's PIN and a reason come next. This cannot be undone."
-        confirmLabel="Void"
-        severity="error"
-        onConfirm={handleVoid}
-        onCancel={() => setVoidDialog(null)}
-        loading={voidCartMutation.isPending}
-      />
-      {managerOkDialog}
     </Box>
   );
 }

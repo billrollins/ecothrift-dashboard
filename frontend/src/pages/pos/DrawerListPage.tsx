@@ -55,6 +55,8 @@ import { tabDetail, tabLabel } from '../../components/pos/SuspendedSalesBar';
 import { format } from 'date-fns';
 import { IconAdd as Add, IconRemove as Remove } from '../../icons/ecoIcons';
 import { TRAINING_REGISTER_LABEL, sortRegistersForSetup } from '../../utils/trainingRegister';
+import { ObjectLink, useObjectModal } from '../../components/objects/ObjectModal';
+import { historyKey } from '../../components/pos/windows/historyScope';
 
 const DRAWER_LIST_PARAMS = { include_training: 1 };
 
@@ -79,6 +81,7 @@ export default function DrawerListPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { user, hasRole } = useAuth();
   const { config } = useDeviceConfig();
+  const { openObject } = useObjectModal();
   const isManager = hasRole('Manager') || hasRole('Admin');
   const myRegisterId = config?.deviceType === 'register' ? config?.registerId : null;
 
@@ -345,7 +348,8 @@ export default function DrawerListPage() {
                   )}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
                     <Typography variant="h6">
-                      {reg.name} ({reg.code})
+                      {/* The Register window (Retail 2): the same window wherever a register shows. */}
+                      <ObjectLink type="register" id={reg.id} label={`${reg.name} (${reg.code})`} />
                     </Typography>
                     <Chip
                       size="small"
@@ -405,6 +409,16 @@ export default function DrawerListPage() {
                           Practice drawer: not real cash. Cash drops are not recorded.
                         </Typography>
                       )}
+                      <Button
+                        size="small"
+                        sx={{ mt: 0.5, px: 0 }}
+                        onClick={() => openObject({
+                          type: 'history',
+                          id: historyKey({ drawer: drawer.id, from: drawer.date, to: drawer.date, title: reg.name }),
+                        })}
+                      >
+                        This drawer&apos;s sales
+                      </Button>
                       {isOpen && (
                         <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
                           {!training && (

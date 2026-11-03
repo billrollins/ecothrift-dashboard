@@ -40,10 +40,19 @@ class CartFilter(filters.FilterSet):
         ).filter(Q(receipt__receipt_number__icontains=value) | Q(_tp_name__icontains=value))
 
     q = filters.CharFilter(method='filter_search')
+    # The Transactions window (Retail 2): one register's sales, or a Thrift+ member's (a person id: their whole
+    # membership's sales, the rows the member card's Recent trips lists).
+    register = filters.NumberFilter(field_name='drawer__register_id')
+
+    def filter_member(self, qs, name, value):
+        from apps.thriftplus.models import Person
+        return qs.filter(thrift_member__account_id__in=Person.objects.filter(pk=value).values('account_id'))
+
+    member = filters.NumberFilter(method='filter_member')
 
     class Meta:
         model = Cart
         fields = [
             'drawer', 'cashier', 'payment_method', 'card_type',
-            'receipt_number', 'date_from', 'date_to', 'status', 'q',
+            'receipt_number', 'date_from', 'date_to', 'status', 'q', 'register', 'member',
         ]

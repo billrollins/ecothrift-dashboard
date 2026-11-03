@@ -1018,7 +1018,7 @@ class CartViewSet(viewsets.ModelViewSet):
         ).prefetch_related('lines').all()
         # Practice sales on the training register stay out of the Transactions list (they showed as
         # "Completed" under All). The terminal still finds its own open cart by asking for its drawer.
-        if self.action in ('list', 'summary') and not _include_training_rows(self.request.query_params, 'drawer'):
+        if self.action in ('list', 'summary') and not _include_training_rows(self.request.query_params, 'drawer', 'register'):
             qs = qs.exclude(drawer__register__is_training=True)
         if self.action == 'list':
             qs = qs.select_related('thrift_member__person').annotate(tp_earned=thrift_earned_on())
@@ -1060,7 +1060,7 @@ class CartViewSet(viewsets.ModelViewSet):
         params = self.request.query_params
         lo, hi = parse_date(params.get('date_from') or ''), parse_date(params.get('date_to') or '')
         other = {k: v for k, v in params.items()
-                 if k in ('drawer', 'cashier', 'payment_method', 'card_type', 'receipt_number', 'q') and v}
+                 if k in ('drawer', 'register', 'member', 'cashier', 'payment_method', 'card_type', 'receipt_number', 'q') and v}
         returns = ReturnRecord.objects.all()
         if lo:
             returns = returns.filter(created_at__date__gte=lo)

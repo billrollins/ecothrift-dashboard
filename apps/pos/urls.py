@@ -1,6 +1,6 @@
 from django.urls import path, include
 
-from . import report_views, staff_views
+from . import report_views, staff_views, window_views
 from rest_framework.routers import DefaultRouter
 from .views import (
     RegisterViewSet, DrawerViewSet, SupplementalViewSet,
@@ -44,6 +44,7 @@ router.register(r'delivery-days', DeliveryDayViewSet, basename='deliveryday')
 router.register(r'deliveries', DeliveryViewSet, basename='delivery')
 
 urlpatterns = [
+    path('registers/<int:pk>/card/', window_views.register_card_view, name='register-card'),
     path('', include(router.urls)),
     # The owner's Reports page (2026-10-13): the sales tax report.
     path('reports/sales-tax/', report_views.sales_tax_report, name='sales-tax-report'),

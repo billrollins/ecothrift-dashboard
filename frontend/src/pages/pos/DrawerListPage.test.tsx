@@ -4,6 +4,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SnackbarProvider } from 'notistack';
 import { MemoryRouter } from 'react-router-dom';
+import { ObjectModalProvider } from '../../components/objects/ObjectModal';
 import { describe, expect, it, vi } from 'vitest';
 import DrawerListPage from './DrawerListPage';
 
@@ -59,7 +60,9 @@ function renderPage() {
       <ThemeProvider theme={createTheme()}>
         <SnackbarProvider>
           <MemoryRouter>
-            <DrawerListPage />
+            <ObjectModalProvider>
+              <DrawerListPage />
+            </ObjectModalProvider>
           </MemoryRouter>
         </SnackbarProvider>
       </ThemeProvider>
