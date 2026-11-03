@@ -23,6 +23,15 @@ export interface CashDenomination {
   odd?: boolean;
   /** Its colour (2026-11-03, Bill: "color code the denominations"): the real note's colour, coins in metal. */
   tone: { bg: string; fg: string };
+  /** A coin's edge, as felt (Bill 2026-11-03: "ridges on the 25 and small ridges on the dime and none on nickel"). */
+  edge?: 'ridges' | 'fine';
+}
+
+/** The ridges drawn along a coin's top edge: a quarter's wide, a dime's fine. */
+export function edgeStripes(edge: CashDenomination['edge']): string | undefined {
+  if (edge === 'ridges') return 'repeating-linear-gradient(90deg, rgba(0,0,0,0.5) 0 2px, transparent 2px 6px)';
+  if (edge === 'fine') return 'repeating-linear-gradient(90deg, rgba(0,0,0,0.5) 0 1px, transparent 1px 3px)';
+  return undefined;
 }
 
 // Readable on light and dark: a solid fill with its own text colour.
@@ -35,8 +44,8 @@ export const CASH_DENOMINATIONS: CashDenomination[] = [
   { key: 'tens', label: '$10', name: '$10', cents: 1000, bill: true, hotkey: 'R', tone: { bg: '#e65100', fg: '#fff' } },
   { key: 'fives', label: '$5', name: '$5', cents: 500, bill: true, hotkey: 'T', tone: { bg: '#6a1b9a', fg: '#fff' } },
   { key: 'ones', label: '$1', name: '$1', cents: 100, bill: true, hotkey: 'Y', tone: { bg: '#616161', fg: '#fff' } },
-  { key: 'quarters', label: '25¢', name: 'quarters', cents: 25, bill: false, hotkey: 'A', tone: SILVER },
-  { key: 'dimes', label: '10¢', name: 'dimes', cents: 10, bill: false, hotkey: 'S', tone: SILVER },
+  { key: 'quarters', label: '25¢', name: 'quarters', cents: 25, bill: false, hotkey: 'A', tone: SILVER, edge: 'ridges' },
+  { key: 'dimes', label: '10¢', name: 'dimes', cents: 10, bill: false, hotkey: 'S', tone: SILVER, edge: 'fine' },
   { key: 'nickels', label: '5¢', name: 'nickels', cents: 5, bill: false, hotkey: 'D', tone: SILVER },
   { key: 'pennies', label: '1¢', name: 'pennies', cents: 1, bill: false, hotkey: 'F', tone: { bg: '#a0522d', fg: '#fff' } },
   { key: 'twos', label: '$2', name: '$2 bills', cents: 200, bill: true, hotkey: '', odd: true, tone: { bg: '#00695c', fg: '#fff' } },
@@ -46,6 +55,7 @@ export const CASH_DENOMINATIONS: CashDenomination[] = [
 
 export const ODDBALLS = CASH_DENOMINATIONS.filter((d) => d.odd);
 export const TONES = Object.fromEntries(CASH_DENOMINATIONS.map((d) => [d.key, d.tone])) as Record<CashKey, CashDenomination['tone']>;
+export const EDGES = Object.fromEntries(CASH_DENOMINATIONS.map((d) => [d.key, d.edge])) as Record<CashKey, CashDenomination['edge']>;
 
 /**
  * The bills and coins a counter counts: `only` the bills (a handover, the close's hand count; the oddballs go with

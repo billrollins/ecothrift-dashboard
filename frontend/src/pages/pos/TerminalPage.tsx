@@ -125,7 +125,7 @@ import type { DeliveryAddressSuggestion } from '../../api/pos.api';
 import { localPrintService, printErrorMessage } from '../../services/localPrintService';
 import type { CardPreview, Cart, CartLine, Drawer, PaymentMethod, POSDeviceConfig, Register } from '../../types/pos.types';
 import { deriveTerminalState } from './terminalState';
-import { TEST_TERMINAL_TITLE, testTerminalDeviceConfig } from '../../utils/testTerminal';
+import { testTerminalDeviceConfig } from '../../utils/testTerminal';
 import type { CountCheck, DenominationBreakdown } from '../../types/pos.types';
 import {
   parsePosAddItemError,
@@ -2638,18 +2638,9 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       {(testMode || todayDrawer?.register_is_training) && <TrainingBanner />}
       <PageHeader
         dense
-        title={
-          testMode
-            ? TEST_TERMINAL_TITLE
-            : todayDrawer?.register_is_training
-              ? 'Training Terminal'
-              : 'POS Terminal'
-        }
-        subtitle={
-          testMode
-            ? `Training Terminal · ${deviceLabel} · this computer's own register setup is not changed`
-            : deviceLabel
-        }
+        // The page reads exactly like the real register (Bill 2026-11-03); the banner in the top bar says it's practice.
+        title="POS Terminal"
+        subtitle={deviceLabel}
         action={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             {(terminalState === 'ready' || terminalState === 'active_sale') && registerCover.button}
@@ -2670,7 +2661,6 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
             {(terminalState === 'ready' || terminalState === 'active_sale') && (
               <DrawerChip
                 contents={drawerContents}
-                practice={Boolean(todayDrawer?.register_is_training)}
                 lang={lang}
                 onClick={() => {
                   // The Drawer window (Retail 2): the chip opens the whole drawer; the cash window keeps the quick view.

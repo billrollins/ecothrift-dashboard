@@ -30,6 +30,7 @@ import { dashboardPalette } from '../dashboard/dashboardCardStyles';
 import { dutyColors } from '../duty/tokens';
 import { RESTORATION_BENCH_PATH } from '../../pages/restoration/restorationRoutes';
 import { ClockPill } from './ClockPill';
+import { TOP_BAR_SLOT_ID } from '../pos/TrainingRegister';
 import { NotificationBell } from './NotificationBell';
 import { AccountMenu } from './AccountMenu';
 import { useDashboardTab } from '../../navigation/dashboardTabs';
@@ -208,7 +209,11 @@ export default function MainLayout() {
                   </Typography>
                 </Box>
               ) : null}
-              <Box sx={{ flexGrow: 1 }} />
+              {/* The empty middle; the training register's banner shows here (TrainingBanner). */}
+              <Box
+                id={TOP_BAR_SLOT_ID}
+                sx={{ flexGrow: 1, minWidth: { xs: 'auto', sm: 0 }, display: 'flex', justifyContent: 'center', px: 1 }}
+              />
               {/* Top bar = right now: the clock, the one bell, me. */}
               {user ? (
                 <>

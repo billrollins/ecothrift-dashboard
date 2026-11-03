@@ -1,32 +1,46 @@
+import { useLayoutEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Box, Button, Dialog, Stack } from '@mui/material';
 
 /** Training register (owner, 2026-10-10): looks and acts exactly as on launch day, but nothing real is written. */
 
 const STRIPES = 'repeating-linear-gradient(-45deg, #FFD400 0 22px, #111 22px 44px)';
 
-/** Always on: nobody can mistake this register for a real one. */
+/** The top bar's empty space between the logo and the clock (MainLayout), where the banner sits. */
+export const TOP_BAR_SLOT_ID = 'top-bar-slot';
+
+/**
+ * Always on: nobody can mistake this register for a real one. It sits in the top bar's empty space (Bill 2026-11-03:
+ * "put this in unused space between logo and on Shift so it doesn't push content down"), so the page below looks
+ * exactly like the real register. With no top bar (a test, a field phone), it shows above the page instead.
+ */
 export function TrainingBanner() {
-  return (
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => setSlot(document.getElementById(TOP_BAR_SLOT_ID)), []);
+  const banner = (
     <Box
       role="alert"
       data-testid="training-banner"
-      sx={{ flexShrink: 0, background: STRIPES, p: '6px' }}
+      sx={{ flexShrink: { xs: 0, sm: 1 }, minWidth: { xs: 'auto', sm: 0 }, background: STRIPES, p: '4px', borderRadius: 1, maxWidth: 640, width: slot ? '100%' : undefined }}
     >
       <Box
         sx={{
-          bgcolor: '#C62828', color: '#fff', textAlign: 'center', borderRadius: 1, py: 1, px: 2,
-          lineHeight: 1.2,
+          bgcolor: '#C62828', color: '#fff', textAlign: 'center', borderRadius: 0.5, py: 0.25, px: 1.5,
+          lineHeight: 1.15,
         }}
       >
-        <Box sx={{ fontSize: { xs: 22, md: 30 }, fontWeight: 900, letterSpacing: '0.04em' }}>
-          TRAINING REGISTER: NOT A REAL SALE
+        <Box sx={{ fontSize: { xs: 13, md: 18 }, fontWeight: 900, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>TRAINING REGISTER: NOT A REAL SALE</Box>
+          <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>PRACTICE</Box>
         </Box>
-        <Box sx={{ fontSize: { xs: 14, md: 17 }, fontWeight: 700 }}>
-          Practice only. Do not take money. Do not run a real card.
+        <Box sx={{ fontSize: { xs: 11, md: 13 }, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Practice only. Do not take money. Do not run a real card.</Box>
+          <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Not a real sale</Box>
         </Box>
       </Box>
     </Box>
   );
+  return slot ? createPortal(banner, slot) : banner;
 }
 
 /** The second warning, at payment: the practice sale finishes only after this. */

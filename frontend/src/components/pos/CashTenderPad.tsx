@@ -13,6 +13,7 @@ import {
   CASH_DENOMINATIONS,
   ODDBALLS,
   addCounts,
+  edgeStripes,
   countCents,
   hasPieces,
   makeChange,
@@ -123,6 +124,13 @@ export default function CashTenderPad({ received, onChange, dueCents, drawerCont
             bgcolor: n ? d.tone.bg : 'background.paper',
             color: n ? d.tone.fg : 'text.primary',
             '&:hover': { border: `3px solid ${d.tone.bg}`, bgcolor: n ? d.tone.bg : 'action.hover' },
+            // A coin's ridges along the top edge: wide on the quarter, fine on the dime, none on the nickel.
+            ...(d.edge && {
+              '&::before': {
+                content: '""', position: 'absolute', top: 0, left: 0, right: 0, height: 10,
+                borderRadius: '5px 5px 0 0', backgroundImage: edgeStripes(d.edge), pointerEvents: 'none',
+              },
+            }),
             borderRadius: 2,
             flexDirection: 'column',
             textTransform: 'none',

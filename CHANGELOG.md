@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.248.0] -->
-<!-- Last reviewed: 2026-11-03 (2.248.0) -->
+<!-- Line 1 release: ## [2.248.1] -->
+<!-- Last reviewed: 2026-11-03 (2.248.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.248.1] - 2026-11-03
+
+User-facing theme: **Coin ridges and a practice register that looks exactly like the real one (Bill, 2026-11-03).**
+
+### Changed
+- Coins show their edge: wide ridges on the quarter, fine ridges on the dime, a smooth nickel (cash window tiles and coin labels).
+- Training register: the warning moved into the top bar's empty space between the logo and the clock, so it no longer pushes the page down. The page below reads exactly like the real register ("POS Terminal", the register's name, the Drawer chip). On a phone the top bar says "PRACTICE · Not a real sale". The full-screen "This is just a test" warning at payment stays.
 
 ## [2.248.0] - 2026-11-03
 

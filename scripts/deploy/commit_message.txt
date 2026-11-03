@@ -1,11 +1,9 @@
-v2.248.0 — Online Sales listing templates and phone test report
+v2.248.1 — Coin ridges and a training register that looks real
 
-﻿User-facing theme: **Online Sales listing templates: Standard and Phone / device, with a phone test report (Bill, 2026-11-03; Dash Updates #51).**
+User-facing theme: **Coin ridges and a practice register that looks exactly like the real one (Bill, 2026-11-03).**
 
-### Added
-- Listing Studio: a Template picker (Standard, Phone / device). Phone / device adds a Phone test: "Did we test it?" first; then Turns on, Charges, Holds a charge (Pass / Fail / Not checked), Carrier locked (and which carrier) and Demo locked; also screen and touch, buttons, speaker and mic, cameras, Wi-Fi, iCloud / Google lock, battery health %, storage and a note for buyers. Beside it, the report as the shop will show it.
-- Shop listing: "Tested by Eco-Thrift" with the date, one row per check with a mark and the result in words. Shown only when tested is Yes; Bill's five always, the other checks only when checked. Switching back to Standard keeps the test but hides it.
-- Facebook copy carries the report as plain text.
-- The server checks every value (apps/webstore/listing_templates.py, one registry so more templates can be added) and stamps the test date and who saved it. Migration webstore 0024.
+### Changed
+- Coins show their edge: wide ridges on the quarter, fine ridges on the dime, a smooth nickel (cash window tiles and coin labels).
+- Training register: the warning moved into the top bar's empty space between the logo and the clock, so it no longer pushes the page down. The page below reads exactly like the real register ("POS Terminal", the register's name, the Drawer chip). On a phone the top bar says "PRACTICE · Not a real sale". The full-screen "This is just a test" warning at payment stays.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addCounts, countCents, describeCount, makeChange, padKeys, type CashCount } from './cashCounts';
+import { EDGES, addCounts, countCents, describeCount, makeChange, padKeys, type CashCount } from './cashCounts';
 
 const FULL: CashCount = {
   hundreds: 2, fifties: 2, twenties: 10, tens: 10, fives: 10, ones: 30, quarters: 40, dimes: 50, nickels: 40, pennies: 50,
@@ -37,5 +37,9 @@ describe('cashCounts (the same answers as the server)', () => {
     expect(padKeys('bills')).toContain('twos');
     expect(padKeys('bills')).toContain('dollar_coins');
     expect(padKeys('coins')).not.toContain('halves');
+  });
+
+  it('ridges on the quarter, small ridges on the dime, none on the nickel (Bill 2026-11-03)', () => {
+    expect([EDGES.quarters, EDGES.dimes, EDGES.nickels]).toEqual(['ridges', 'fine', undefined]);
   });
 });
