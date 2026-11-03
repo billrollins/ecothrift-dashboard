@@ -9,6 +9,7 @@ import { Alert, Box, Button, Chip, LinearProgress, Paper, Stack, TextField, Typo
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { fetchOverstock, markOverstock } from '../../api/thriftplus.api';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../hooks/useAuth';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import type { OverstockAction, OverstockRow, OverstockShow } from '../../types/thriftplus.types';
@@ -32,7 +33,7 @@ function supplyText(days: number): string {
 
 export default function OverstockTab() {
   const { user } = useAuth();
-  const owner = Boolean(user?.is_superuser);
+  const owner = canAccess(user, ['thriftplus:owner', 'cashier:full']);
   const qc = useQueryClient();
   const [show, setShow] = useState<OverstockShow>('undecided');
   const [search, setSearch] = useState('');

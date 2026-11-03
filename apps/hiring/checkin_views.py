@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsTeamMember
+from apps.accounts.services.access import manager_or
 from apps.core.files import stream_s3
 from apps.hiring import checkins as service
 from apps.hiring.models import CheckIn
@@ -131,7 +132,7 @@ def checkin_pdf(request, pk):
     """The signed check-in: managers, and the employee it is about."""
     row = _checkin(pk)
     viewer = request.user
-    if row.user_id != viewer.pk and not (viewer.is_superuser or getattr(viewer, 'role', None) in ('Manager', 'Admin')):
+    if row.user_id != viewer.pk and not manager_or(viewer, 'hiring:manage'):
         raise Http404
     if not row.signed_pdf_id:
         raise Http404

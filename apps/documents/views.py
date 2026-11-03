@@ -13,6 +13,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsStaff, IsSuperAdmin
+from apps.accounts.services.access import owner_or
 from apps.core.files import save_upload, stream_s3, validate_pdf
 from .flatten import bytes_as_upload, flatten_document, pdf_page_count
 from .models import (
@@ -55,7 +56,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 distinct=True,
             ),
         )
-        if self.request.user.is_superuser:
+        if owner_or(self.request.user, 'documents:write'):
             return qs
         assigned = DocumentRecipient.objects.filter(
             user=self.request.user,
@@ -139,7 +140,7 @@ class DocumentRecipientViewSet(viewsets.ReadOnlyModelViewSet):
         qs = DocumentRecipient.objects.select_related(
             'assignment', 'assignment__document', 'user',
         ).prefetch_related('assignment__document__fields')
-        if self.request.user.is_superuser and self.action != 'mine':
+        if owner_or(self.request.user, 'documents:write') and self.action != 'mine':
             return qs
         return qs.filter(user=self.request.user)
 
@@ -234,7 +235,7 @@ class DocumentRecipientViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['get'])
     def signed(self, request, pk=None):
         recipient = self.get_object()
-        if not request.user.is_superuser and recipient.user_id != request.user.pk:
+        if not owner_or(request.user, 'documents:write') and recipient.user_id != request.user.pk:
             return Response({'detail': 'Not assigned to you.'}, status=403)
         if not recipient.signed_file_id:
             return Response({'detail': 'No signed PDF yet.'}, status=404)

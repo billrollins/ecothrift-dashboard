@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { canAccess } from '../auth/access';
 import type { Cart } from '../types/pos.types';
 
 export type CardTypeFixWindow = {
@@ -11,7 +12,7 @@ export type CardTypeFixWindow = {
 
 export function useCardTypeFixWindow(
   cart: Cart | null | undefined,
-  user?: { is_superuser?: boolean } | null,
+  user?: Parameters<typeof canAccess>[0],
 ): CardTypeFixWindow {
   const [now, setNow] = useState(() => Date.now());
 
@@ -33,7 +34,7 @@ export function useCardTypeFixWindow(
       : Number.NaN;
     const inWindow = Number.isFinite(deadlineMs) && now <= deadlineMs;
     const minutesLeft = inWindow ? Math.max(1, Math.ceil((deadlineMs - now) / 60_000)) : 0;
-    const isSuper = Boolean(user?.is_superuser);
+    const isSuper = canAccess(user, ['pos.cash:owner', 'cashier:full']);
     const canFix = inWindow || isSuper;
     let reason = '';
     if (inWindow) {
@@ -44,5 +45,5 @@ export function useCardTypeFixWindow(
       reason = 'Locked after 15 min. Ask Bill Rollins to change it.';
     }
     return { eligible: true, inWindow, canFix, minutesLeft, reason };
-  }, [cart, user?.is_superuser, now]);
+  }, [cart, user, now]);
 }

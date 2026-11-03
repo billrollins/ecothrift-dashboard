@@ -13,6 +13,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsEmployee, IsSuperAdmin
+from apps.accounts.services.access import manager_or, owner_or
 from apps.core.local_dates import local_day
 from apps.hr.services.departments import (
     HARD_FIELDS,
@@ -68,7 +69,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         return qs
 
     def update(self, request, *args, **kwargs):
-        if not request.user.is_superuser:
+        if not owner_or(request.user, 'hr.department:admin'):
             blocked = HARD_FIELDS.intersection(request.data.keys())
             if blocked:
                 return Response(
@@ -80,7 +81,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         old_slug = serializer.instance.slug
         serializer.save()
-        if self.request.user.is_superuser:
+        if owner_or(self.request.user, 'hr.department:admin'):
             sync_program_department_slug(old_slug, serializer.instance.slug)
 
     def destroy(self, request, *args, **kwargs):
@@ -129,9 +130,9 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = TimeEntry.objects.select_related('employee', 'approved_by').all()
         user = self.request.user
-        is_manager = user.role in ('Manager', 'Admin') or user.is_superuser
+        is_manager = manager_or(user, 'hr.time_entry:edit')
         # List/summary = "my shifts" unless a manager passes ?employee=
-        if user.role == 'Employee':
+        if not is_manager:
             qs = qs.filter(employee=user)
         elif self.action in ('list', 'summary'):
             employee_id = self.request.query_params.get('employee')
@@ -159,7 +160,7 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         """Clock-in (self) or manager-added row (any employee)."""
         user = self.request.user
         target = serializer.validated_data.get('employee') or user
-        is_manager = user.role in ('Manager', 'Admin') or user.is_superuser
+        is_manager = manager_or(user, 'hr.time_entry:edit')
 
         # Only managers may log time for someone other than themselves.
         if target != user and not is_manager:
@@ -242,7 +243,7 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         """Change the label on an open punch. Own row, or a manager."""
         entry = self.get_object()
         user = request.user
-        is_manager = user.role in ('Manager', 'Admin') or user.is_superuser
+        is_manager = manager_or(user, 'hr.time_entry:edit')
         if entry.employee_id != user.pk and not is_manager:
             return Response({'detail': 'Not your punch.'}, status=status.HTTP_403_FORBIDDEN)
         if entry.clock_out:
@@ -276,8 +277,8 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
             entry.finalize_open_break()
         entry.clock_out = timezone.now()
         user = request.user
-        typed_break = 'break_minutes' in request.data and entry.employee_id != user.pk and (
-            user.role in ('Manager', 'Admin') or user.is_superuser)
+        typed_break = 'break_minutes' in request.data and entry.employee_id != user.pk and manager_or(
+            user, 'hr.time_entry:edit')
         before = time_changes.snapshot(entry)
         if typed_break:  # your own breaks come from the break button, never a typed number
             entry.break_minutes = request.data.get('break_minutes', entry.break_minutes)
@@ -292,7 +293,7 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         """Close a forgotten punch at the time the person left; a manager confirms it."""
         entry = self.get_object()
         user = request.user
-        is_manager = user.role in ('Manager', 'Admin') or user.is_superuser
+        is_manager = manager_or(user, 'hr.time_entry:edit')
         if entry.employee_id != user.pk and not is_manager:
             return Response({'detail': 'Not your punch.'}, status=status.HTTP_403_FORBIDDEN)
         before = time_changes.snapshot(entry)
@@ -362,7 +363,7 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         """Current user's weekly hours vs 40h limit."""
         employee_id = request.query_params.get('employee')
         user = request.user
-        if employee_id and user.role in ('Manager', 'Admin'):
+        if employee_id and manager_or(user, 'hr.time_entry:edit'):
             from django.contrib.auth import get_user_model
             User = get_user_model()
             try:
@@ -601,7 +602,7 @@ class TimeEntryModificationRequestViewSet(viewsets.ModelViewSet):
         qs = TimeEntryModificationRequest.objects.select_related(
             'time_entry', 'employee', 'reviewed_by',
         ).all()
-        if not self.request.user.is_superuser:
+        if not owner_or(self.request.user, 'hr.mod_requests:triage'):
             qs = qs.filter(employee=self.request.user)
         return qs
 
@@ -616,7 +617,7 @@ class TimeEntryModificationRequestViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         time_entry = serializer.validated_data.get('time_entry')
-        if time_entry and time_entry.employee_id != user.id and not user.is_superuser:
+        if time_entry and time_entry.employee_id != user.id and not owner_or(user, 'hr.mod_requests:triage'):
             raise ValidationError({'time_entry': 'You can only request changes for your own shifts.'})
         serializer.save(employee=user)
 

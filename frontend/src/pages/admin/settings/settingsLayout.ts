@@ -7,6 +7,7 @@
  * - **Custom** pieces are editors that are not one setting per row (store hours, printers, AI models...).
  * - A setting no section names lands in System → Unsorted, which should stay empty (a test checks the registry).
  */
+import { canAccess, type AccessNeed } from '../../../auth/access';
 import type { SettingsTab } from './settingsRegistry';
 
 export type Access = 'all' | 'admin' | 'superuser';
@@ -35,6 +36,8 @@ export interface SettingsSectionDef {
   help?: string;
   stage?: Stage;
   access?: Access;
+  /** What opens it when `access` is not 'all' (People → Permissions); default: the owner settings item. */
+  need?: AccessNeed;
   keys?: string[];
   custom?: CustomPiece[];
 }
@@ -43,6 +46,7 @@ export interface SettingsTabDef {
   id: SettingsTab;
   label: string;
   access: Access;
+  need?: AccessNeed;
   sections: SettingsSectionDef[];
 }
 
@@ -286,6 +290,7 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
     id: 'ai',
     label: 'AI',
     access: 'superuser',
+    need: ['settings.ai:write', 'admin:full'],
     sections: [{ id: 'models', title: 'Models, assignments and costs', custom: ['ai-models'] }],
   },
   {
@@ -293,7 +298,7 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
     label: 'People',
     access: 'all',
     sections: [
-      { id: 'permissions', title: 'Permissions', access: 'admin', help: 'What each role can do.', custom: ['permissions'] },
+      { id: 'permissions', title: 'Permissions', access: 'all', help: 'Levels, departments and each person now live on People → Permissions.', custom: ['permissions'] },
       { id: 'email', title: 'Email', keys: ['mailbox.email_signature'] },
       { id: 'careers', title: 'Careers page', help: 'Jobs, the application form and its emails are edited in People → Jobs.', custom: ['careers-link'] },
     ],
@@ -321,8 +326,7 @@ export function placedKeys(): Map<string, { tab: SettingsTab; section: string }>
   return out;
 }
 
-export function canSee(access: Access | undefined, isAdmin: boolean, isSuperuser: boolean): boolean {
-  if (!access || access === 'all') return true;
-  if (access === 'superuser') return isSuperuser;
-  return isAdmin || isSuperuser;
+export function canSee(def: { access?: Access; need?: AccessNeed }, user: Parameters<typeof canAccess>[0]): boolean {
+  if (!def.access || def.access === 'all') return true;
+  return canAccess(user, def.need ?? ['settings:owner', 'admin:full']);
 }

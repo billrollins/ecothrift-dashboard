@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsSuperAdmin, IsTeamMember
+from apps.accounts.services.access import manager_or, owner_or
 
 from .models import SupplyCount, SupplyCountLine, SupplyItem, SupplyList, SupplyOrder, SupplyOrderLine, SupplyRequest
 from .services import ai_fill, csv_import, orders, receiving, schedule
@@ -35,7 +36,7 @@ def _err(detail, status=400, **extra):
 
 
 def _can_edit(user) -> bool:
-    return bool(user.is_superuser or getattr(user, 'role', '') in ('Manager', 'Admin'))
+    return manager_or(user, 'supplies:manage')
 
 
 def _who(user) -> str:
@@ -118,7 +119,7 @@ def lists(request):
     return Response({
         'cycle': cycle,
         'can_edit': _can_edit(request.user),
-        'is_owner': bool(request.user.is_superuser),
+        'is_owner': owner_or(request.user, 'supplies:order'),
         'lists': [list_payload(sl, ws) for sl in qs],
         'pending_requests': (
             SupplyRequest.objects.filter(status=SupplyRequest.STATUS_PENDING).count() if _can_edit(request.user) else None

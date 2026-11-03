@@ -40,6 +40,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsAdmin, IsStaff, IsSuperAdmin
+from apps.accounts.services.access import manager_or, owner_or
 from apps.buying.filters import AuctionFilter, WatchlistAuctionFilter
 from apps.buying.models import (
     Auction,
@@ -833,7 +834,7 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         auction's shipping). Manager, Admin or superuser.
         """
         user = request.user
-        if not (user.is_superuser or getattr(user, 'role', '') in ('Manager', 'Admin')):
+        if not manager_or(user, 'buying.wins:record'):
             return Response({'detail': 'A manager records wins.'}, status=status.HTTP_403_FORBIDDEN)
         auction = self.get_object()
 
@@ -1122,7 +1123,7 @@ class BuyingNagsView(APIView):
     def get(self, request):
         from apps.buying.services import buying_nags
 
-        if not request.user.is_superuser:
+        if not owner_or(request.user, 'buying.purchase'):
             return Response(buying_nags.empty())
         return Response(buying_nags.buying_nags())
 

@@ -16,6 +16,7 @@ import { Badge, Box, Tab, Tabs } from '@mui/material';
 import { PageHeader } from '../../../components/common/PageHeader';
 import CustomerDetailDrawer from '../../../components/users/CustomerDetailDrawer';
 import EmployeeDetailDrawer from '../../../components/users/EmployeeDetailDrawer';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useCustomerStats, useEmployeeStats } from '../../../hooks/useEmployees';
 import { useIsMobileLayout } from '../../../hooks/useIsMobileLayout';
@@ -29,7 +30,7 @@ type UsersTab = 'members' | 'employees';
 export default function UsersPage() {
   const isMobile = useIsMobileLayout();
   const { user } = useAuth();
-  const canSeeEmployees = user?.role === 'Admin';
+  const canSeeEmployees = canAccess(user, ['users.staff:manage', 'people:full']);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');

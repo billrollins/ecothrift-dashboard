@@ -59,6 +59,7 @@ import AuctionSecondaryCard from '../../components/buying/AuctionSecondaryCard';
 import { ValuationCategoryTableCard, ValuationCostsCard } from '../../components/buying/AuctionValuationCard';
 import BuyingDetailSectionTitle from '../../components/buying/BuyingDetailSectionTitle';
 import CategoryDistributionBar from '../../components/buying/CategoryDistributionBar';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   ManifestUploadProgress,
@@ -410,8 +411,8 @@ export default function AuctionDetailPage() {
   const { id: rawId } = useParams<{ id: string }>();
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
-  const { hasRole } = useAuth();
-  const isAdmin = hasRole('Admin');
+  const { user } = useAuth();
+  const isAdmin = canAccess(user, ['buying.valuation:override', 'buying:full']);
 
   const auctionId = useMemo(() => {
     const n = Number(rawId);

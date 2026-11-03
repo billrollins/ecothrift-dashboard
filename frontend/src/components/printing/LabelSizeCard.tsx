@@ -22,6 +22,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../hooks/useAuth';
 import {
   describeLabelSize,
@@ -96,8 +97,8 @@ function TagPreview({ size, scale = 1.6, design = 'classic' }: { size: LabelSize
 
 export function LabelSizeCard({ compact = false }: { compact?: boolean }) {
   const { enqueueSnackbar } = useSnackbar();
-  const { hasRole } = useAuth();
-  const canSetStore = hasRole('Manager');
+  const { user } = useAuth();
+  const canSetStore = canAccess(user, ['settings:write', 'admin:manage']);
   const { store, station, effective, saveStore, saveStation, priceTagInDash, savePriceSwitch, priceTagDesign, savePriceDesign } =
     useLabelSize();
 

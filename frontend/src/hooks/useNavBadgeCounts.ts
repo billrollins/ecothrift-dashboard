@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { canAccess } from '../auth/access';
 import { partsNavWaitingCount } from '../pages/restoration/parts/partsBoard';
 import { useAuth } from './useAuth';
 import { useRestorationPartsOrders } from './useRestorationBench';
@@ -30,7 +31,7 @@ export function useNavBadgeCounts(options: {
 }): Record<string, number> {
   const { user } = useAuth();
   const nextAction = useNeedsReplyCount({ enabled: options.onlineSales });
-  const partsWaiting = useRestorationPartsWaitingCount(Boolean(user?.is_superuser));
+  const partsWaiting = useRestorationPartsWaitingCount(canAccess(user, ['restoration.parts:approve', 'restoration:full']));
   // Routines live on Today: the badge is the same "to do today" count Today shows
   // (useMyWork), never a separately computed number.
   const { work } = useMyWork();

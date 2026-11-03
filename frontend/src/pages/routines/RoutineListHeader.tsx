@@ -1,5 +1,6 @@
 import { Box, Typography } from '@mui/material';
 import { dutyColors } from '../../components/duty/tokens';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../hooks/useAuth';
 import { t } from '../../i18n/routines';
 import { RoutineViewToggle } from './RoutineViewToggle';
@@ -18,8 +19,8 @@ export function RoutineListHeader({
 }) {
   const { user } = useAuth();
   const lang = user?.language === 'es' ? 'es' : 'en';
-  // The catalog is a superuser tool (Admin > Routines); staff see their list only.
-  const showToggle = Boolean(user?.is_superuser);
+  // The catalog is an owner tool (Admin > Routines, or a grant); staff see their list only.
+  const showToggle = canAccess(user, ['routines:write', 'admin:full']);
   return (
     <Box
       sx={{

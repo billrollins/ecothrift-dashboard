@@ -16,6 +16,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsStaff, IsSuperAdmin
+from apps.accounts.services.access import owner_or
 from apps.core.files import save_upload, stream_s3
 from apps.core.models import S3File
 from apps.hr.models import TimeEntry
@@ -101,7 +102,7 @@ class RoutineViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         # Staff surfaces never list retired routines.
         qs = super().get_queryset()
-        if self.action in self.ADMIN_ACTIONS and self.request.user.is_superuser:
+        if self.action in self.ADMIN_ACTIONS and owner_or(self.request.user, 'routines:write'):
             return qs
         return qs.filter(is_active=True)
 
@@ -237,7 +238,7 @@ class SectionViewSet(viewsets.ModelViewSet):
             qs = qs.filter(department_id=department)
         if self.request.query_params.get('include_retired') == '1':
             return qs
-        if self.action in self.ADMIN_ACTIONS and self.request.user.is_superuser:
+        if self.action in self.ADMIN_ACTIONS and owner_or(self.request.user, 'routines:write'):
             return qs
         return qs.filter(is_active=True)
 
@@ -303,7 +304,7 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         run = self.get_object()
-        if not request.user.is_superuser and not user_can_see_run(run, request.user):
+        if not owner_or(request.user, 'routines:write') and not user_can_see_run(run, request.user):
             return Response({'detail': 'Not assigned to you.'}, status=403)
         data = RoutineRunSerializer(run).data
         data['definition'] = run.routine.definition
@@ -434,7 +435,7 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'detail': 'A pooled run is already open to anyone.'}, status=400)
         if run.assigned_to_id == request.user.pk:
             return Response({'detail': 'That one is already yours.'}, status=400)
-        if not request.user.is_superuser and not user_in_audience(run.routine, request.user):
+        if not owner_or(request.user, 'routines:write') and not user_in_audience(run.routine, request.user):
             return Response({'detail': 'This one is not yours to cover.'}, status=403)
         if run.routine.system_key == SYSTEM_TALLY:
             # A section check moves for today only, aisle by aisle; the owner stays the owner.
@@ -468,7 +469,7 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'detail': 'Only a cross-check can be requested early.'}, status=400)
         if run.status != RoutineRun.STATUS_OPEN:
             return Response({'detail': 'That run is already closed.'}, status=400)
-        if not request.user.is_superuser and run.assigned_to_id != request.user.pk:
+        if not owner_or(request.user, 'routines:write') and run.assigned_to_id != request.user.pk:
             return Response({'detail': 'That cross-check is not yours.'}, status=403)
         existing = QaNudge.objects.filter(
             run=run, source='early_check', acked_at__isnull=True,
@@ -490,7 +491,7 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
     def reroll_section(self, request, pk=None):
         """Pick a different unseen aisle for today's owner spot check."""
         run = get_object_or_404(RoutineRun, pk=pk, routine__is_active=True)
-        if not request.user.is_superuser and not user_can_see_run(run, request.user):
+        if not owner_or(request.user, 'routines:write') and not user_can_see_run(run, request.user):
             return Response({'detail': 'Not assigned to you.'}, status=403)
         if run.status != RoutineRun.STATUS_OPEN:
             return Response({'detail': 'That run is already closed.'}, status=400)
@@ -594,7 +595,7 @@ class RoutineSubmissionViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = RoutineSubmission.objects.select_related('routine', 'run', 'submitted_by')
-        if not self.request.user.is_superuser:
+        if not owner_or(self.request.user, 'routines:write'):
             qs = qs.filter(submitted_by=self.request.user)
         return qs
 

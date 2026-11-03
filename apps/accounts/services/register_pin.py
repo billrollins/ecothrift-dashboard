@@ -149,6 +149,15 @@ def is_locked(device: str) -> bool:
     return bool(cache.get(_lock_key(device)))
 
 
+def _granted_rank(user, min_role: str | None) -> bool:
+    """A manager's PIN without the Manager level: someone granted register approvals on People → Permissions (#53)."""
+    if min_role != 'Manager':
+        return False
+    from apps.accounts.services.access import holds
+
+    return holds(user, 'pos.override:use')
+
+
 def check_pin(pin: str, *, device: str, min_role: str | None = None) -> User:
     """Whose PIN is this. Answers the user, or raises ``PinError``: ``PIN_LOCKED`` (429), ``PIN_NEEDED``,
     ``PIN_WRONG`` (with ``tries_left``). ``min_role`` ('Employee', 'Manager', 'Admin') refuses anyone below it; that
@@ -162,7 +171,7 @@ def check_pin(pin: str, *, device: str, min_role: str | None = None) -> User:
     if min_role and not need:
         raise ValueError(f'Unknown role {min_role!r}')
     user = User.objects.filter(register_pin_hash=_hash(pin)).first() if PIN_RE.fullmatch(pin) else None
-    if user is not None and can_hold_pin(user) and role_rank(user) >= need:
+    if user is not None and can_hold_pin(user) and (role_rank(user) >= need or _granted_rank(user, min_role)):
         cache.delete(_fail_key(device))
         return user
     count_wrong(device, manager=need >= ROLE_RANK['Manager'])

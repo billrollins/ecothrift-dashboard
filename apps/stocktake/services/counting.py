@@ -14,6 +14,7 @@ from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from apps.accounts.services.access import manager_or
 from apps.inventory.models import Item
 
 from ..models import Cart, CountScan, InventoryCount, Issue, Run, Section
@@ -690,7 +691,7 @@ def bootstrap(user) -> dict:
             for s in Section.objects.filter(is_active=True)
         ],
         'pending': mine,
-        'can_start': bool(user.is_superuser or getattr(user, 'role', '') in ('Manager', 'Admin')),
+        'can_start': manager_or(user, 'inventory.inventories:manage'),
         'carts': {
             'pr': cart_payload(current_cart(user, Cart.KIND_PR, create=False)),
             'relocate': cart_payload(current_cart(user, Cart.KIND_RELOCATE, create=False)),

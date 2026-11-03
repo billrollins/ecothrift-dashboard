@@ -9,7 +9,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import AccessToken
 
-from apps.accounts.capabilities import capabilities_for_user
+from apps.accounts.services.access import access_ids
 from apps.accounts.middleware import ViewAsMiddleware
 from apps.accounts.models import AccountEvent, EmployeeProfile, User, ViewAsSession
 from apps.accounts.services import view_as
@@ -78,10 +78,11 @@ class ViewAsTests(APITestCase):
                                                    'job': 'Processing Associate'})
         self.assertEqual(me['view_as']['real_user']['name'], 'Bill K')
         caps = self.client.get('/api/auth/capabilities/', **self._as(token)).json()['capabilities']
-        self.assertEqual(caps, capabilities_for_user(self.maria))
-        self.assertNotEqual(caps, capabilities_for_user(self.bill))
-        # An owner-only route is refused, as it is for Maria.
-        self.assertEqual(self.client.get('/api/accounts/capability-catalog/', **self._as(token)).status_code, 403)
+        self.assertEqual(caps, access_ids(self.maria))
+        self.assertNotEqual(caps, access_ids(self.bill))
+        self.assertEqual(me['access'], caps)
+        # A manager's page is refused, as it is for Maria.
+        self.assertEqual(self.client.get('/api/accounts/access/', **self._as(token)).status_code, 403)
 
     def test_without_view_as_me_has_no_banner(self):
         own = self._sign_in(self.bill)

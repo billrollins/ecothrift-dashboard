@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import type { QaDayTile, QaJob, QaResolveKind } from '../../../api/routines.api';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../hooks/useAuth';
 import { useRoutineAssignees } from '../../../hooks/useRoutines';
 import {
@@ -267,7 +268,7 @@ export default function RetailQaPage() {
     })
     .map((row) => ({ id: row.id, name: row.name }));
   // Superusers clear missed routines; nobody nudges on a past day (owner, 2026-10-08).
-  const superuser = Boolean(user?.is_superuser);
+  const superuser = canAccess(user, ['retail_qa:owner', 'admin:full']);
   // A section row clears only its aisle; other rows clear their run, or the day's routine when it has no run.
   const resolveJob = superuser
     ? (job: QaJob, kind: QaResolveKind) => void resolveRun(
@@ -309,7 +310,7 @@ export default function RetailQaPage() {
         onMoveWeek={moveWeek}
         onSelectDay={(next) => setDay(next, week)}
       />
-      {user?.is_superuser && data?.spot_walks?.warning ? (
+      {superuser && data?.spot_walks?.warning ? (
         <div className="walk-nag" role="alert">
           <b>WARNING</b>
           <span>

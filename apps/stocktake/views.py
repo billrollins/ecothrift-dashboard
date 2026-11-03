@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin
+from apps.accounts.services.access import manager_or, owner_or
 from apps.core.files import stream_s3
 
 from .models import BadTag, Cart, CountScan, InventoryCount, Issue, Run, Section
@@ -26,7 +27,7 @@ def _not_found(what='Count'):
 
 
 def _is_manager(user) -> bool:
-    return bool(user.is_superuser or user.role in ('Manager', 'Admin'))
+    return manager_or(user, 'inventory.inventories:manage')
 
 
 def _get(model, pk, *related):
@@ -40,7 +41,7 @@ def _get(model, pk, *related):
 @permission_classes(STAFF)
 def sections(request):
     if request.method == 'POST':
-        if not request.user.is_superuser:
+        if not owner_or(request.user, 'inventory.inventories:owner'):
             return _err('Only the Super User adds sections.', 'SUPERUSER_ONLY', 403)
         name = str(request.data.get('name') or '').strip()[:60]
         if not name:
@@ -56,7 +57,7 @@ def sections(request):
 @api_view(['PATCH'])
 @permission_classes(STAFF)
 def section_detail(request, pk):
-    if not request.user.is_superuser:
+    if not owner_or(request.user, 'inventory.inventories:owner'):
         return _err('Only the Super User edits sections.', 'SUPERUSER_ONLY', 403)
     s = _get(Section, pk)
     if s is None:
@@ -119,7 +120,7 @@ def run_detail(request, pk):
     if err:
         return err
     if request.method == 'DELETE':
-        if not request.user.is_superuser:
+        if not owner_or(request.user, 'inventory.inventories:owner'):
             return _err('Only the Super User deletes a session.', 'SUPERUSER_ONLY', 403)
         counting.delete_run(run)
         return Response(status=204)
@@ -497,7 +498,7 @@ def count_detail(request, pk):
     if count is None:
         return _not_found()
     if request.method == 'DELETE':
-        if not request.user.is_superuser:
+        if not owner_or(request.user, 'inventory.inventories:owner'):
             return _err('Only the Super User deletes an inventory.', 'SUPERUSER_ONLY', 403)
         counting.delete_count(count)
         return Response(status=204)

@@ -17,6 +17,7 @@ import { DEFAULT_PROGRAM_DEPARTMENT_SLUG, programDepartmentSlug } from '../../..
 import type { RoutineAssignee, Section } from '../../../api/routines.api';
 import { StatusTag } from '../../../components/duty/StatusTag';
 import { dutyColors, thinScrollSx } from '../../../components/duty/tokens';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../hooks/useAuth';
 import {
   useDeleteSection,
@@ -53,7 +54,7 @@ export function AdminSectionsPane({
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const isSuperuser = Boolean(user?.is_superuser);
+  const isSuperuser = canAccess(user, ['routines:write', 'admin:full']) && canAccess(user, ['settings:write', 'admin:manage']);
   const settings = useQuery({
     queryKey: ['settings'],
     queryFn: async () => (await getSettings()).data,

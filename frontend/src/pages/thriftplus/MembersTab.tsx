@@ -47,6 +47,7 @@ import {
 } from '../../api/thriftplus.api';
 import type { NewMember, ThriftPlusAccount, ThriftPlusPerson } from '../../types/thriftplus.types';
 import DeleteForGoodDialog from '../../components/thriftplus/DeleteForGoodDialog';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../hooks/useAuth';
 import PersonFields from '../../components/thriftplus/PersonFields';
 import MemberMoney from './MemberMoney';
@@ -341,7 +342,7 @@ function AccountDetail({ id, onDeleted }: { id: number; onDeleted: () => void })
         {account.status === 'active' ? (
           <Button color="error" onClick={() => setRevokeReason('')}>Revoke membership</Button>
         ) : null}
-        {user?.is_superuser ? (
+        {canAccess(user, ['thriftplus:owner', 'cashier:full']) ? (
           <Button color="error" variant="outlined" onClick={() => setDeleting(true)}>Delete (testing)</Button>
         ) : null}
       </Stack>

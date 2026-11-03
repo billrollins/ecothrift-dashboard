@@ -33,6 +33,7 @@ import {
   type TruckMeasure,
 } from '../../../api/truckFinalize.api';
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../hooks/useAuth';
 import { IconClose as Close } from '../../../icons/ecoIcons';
 import { formatCurrency, formatCurrencyWhole } from '../../../utils/format';
@@ -57,7 +58,7 @@ export default function TruckFinalizePage() {
   const { id } = useParams<{ id: string }>();
   const orderId = id && /^\d+$/.test(id) ? Number.parseInt(id, 10) : null;
   const { enqueueSnackbar } = useSnackbar();
-  const { hasRole } = useAuth();
+  const { user } = useAuth();
   const qc = useQueryClient();
   const [allLines, setAllLines] = useState(false);
   const [confirm, setConfirm] = useState<'finalize' | 'reopen' | null>(null);
@@ -121,7 +122,7 @@ export default function TruckFinalizePage() {
           Processing
         </Button>
         {finalized ? (
-          hasRole('Manager') ? (
+          canAccess(user, ['buying:manage']) ? (
             <Button variant="outlined" color="warning" onClick={() => setConfirm('reopen')}>
               Reopen
             </Button>

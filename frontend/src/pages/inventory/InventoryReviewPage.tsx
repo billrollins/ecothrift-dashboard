@@ -20,6 +20,7 @@ import {
   type ReviewResponse, type ReviewRow,
 } from '../../api/inventoryReview.api';
 import { PageHeader } from '../../components/common/PageHeader';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../contexts/AuthContext';
 
 type SortKey = 'label' | 'rank' | 'units_in' | 'units_out' | 'on_hand' | 'weeks_of_supply' | 'stale_share' | 'bulk_share'
@@ -492,8 +493,9 @@ function Carriers({ flag, heading }: { flag: FlagsResponse['flags'][number]; hea
 function FlagsTab({ span, phone, setParam }: {
   span: 1 | 4; phone: boolean; setParam: (changes: Record<string, string | null>) => void;
 }) {
-  const { hasRole, user } = useAuth();
-  const canEdit = hasRole('Manager') || !!user?.is_superuser;
+  const { user } = useAuth();
+  // The limits are saved as settings, so the settings item opens the Save box.
+  const canEdit = canAccess(user, ['settings:write', 'admin:manage']);
   const { data, isFetching, isError } = useQuery({
     queryKey: ['inventory-review-flags', span],
     queryFn: async ({ signal }) => (await getReviewFlags(span, signal)).data,

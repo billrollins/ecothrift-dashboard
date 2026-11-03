@@ -37,6 +37,7 @@ import {
 } from '../../api/hiring.api';
 import { PageHeader } from '../../components/common/PageHeader';
 import { SetPasswordLinkDialog } from '../../components/users/SetPasswordLinkDialog';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../hooks/useAuth';
 import { ccTokens } from '../../theme';
 import { useEmailReview } from './EmailReview';
@@ -271,7 +272,7 @@ function HandbookTab() {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
-  const isAdmin = Boolean(user?.is_superuser || user?.role === 'Admin');
+  const isAdmin = canAccess(user, ['hiring:owner', 'people:full']);
   const state = useQuery({ queryKey: ['hiring', 'handbook'], queryFn: async () => (await getHandbook()).data });
   const careers = useQuery({ queryKey: ['hiring', 'careers'], queryFn: async () => (await getCareers()).data });
   const [draft, setDraft] = useState({ title: '', text: '', acknowledgment: '' });

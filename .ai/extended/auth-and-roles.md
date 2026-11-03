@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-22 (View as; register PIN count_wrong for Cover) -->
+<!-- Last updated: 2026-11-03 (Staff permissions #53: areas and dials, levels, departments, exceptions, History) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -186,9 +186,27 @@ Messages in Dash between staff; never email or text. Code: `apps/accounts/servic
 
 ---
 
+## Staff permissions (People → Permissions, Dash Update #53, 2026-11-03)
+
+One page, `/people/permissions` (People workspace; `/admin/permissions` redirects): **Levels · Departments · People · History**. Managers read it; only the owner changes it (`IsOwner`, never by a grant).
+
+| Piece | How |
+|-------|-----|
+| Areas | The 10 sidebar workspaces: Buying, Processing, Restoration, Inventory, Cashier, Deliveries, Online Sales, Studios, People, Admin. |
+| Dial | One per area: None 0 · View 1 · Work 2 · Manage 3 · Full 4. Each step includes the ones below it. |
+| Items | `apps/accounts/capabilities.py` `ITEMS`: each sits on one step of one area (ids are the old capability ids). An item's step follows today's gate (View/Work = any staff, Manage = `IsManagerOrAdmin`, Full = owner). `locked` items (change permissions, View as, the Dash Updates line) are the owner's alone. `paths` = the API paths a single tick of that item opens. |
+| Basics | On no dial, every staff login: clock and kiosk, Today / Dashboard / Me, messages, assigned routines and documents, Dash Updates report. |
+| Layers | **Level** (Employee, Manager; the Owner = superuser, locked at Full) sets the base → **Department** adds (a higher dial or single items; never takes away) → **Exception** for one person has the last word (a dial up or down, items added, items taken away; a personal "no" beats everything; optional end date and note). |
+| Day one | `LEVEL_DEFAULTS` = exactly what each level had before #53: Employee Work in Buying, Processing, Restoration, Inventory, Cashier, Deliveries, Studios and None in Online Sales, People, Admin; Manager Manage everywhere. Department presets start empty. The retired Admin group counts as Manager; the old Admin-only things are Owner (Full). |
+| Store | `AccessSet` (one row per layer: `level:Employee`, `department:<id>`, `person:<id>`; `areas` JSON `{area: {step, add, remove, until, note}}`) and `AccessEvent` (History: who, when, what, area, the change in words, note). A level with no row uses the defaults. |
+| Resolve | `apps/accounts/services/access.py` `resolve(user)`: dial per area with its source, items held with their source, items denied. Kept on the user object for the request (`forget(user)` drops it). |
+| API | `GET /api/accounts/access/` (the page), `PUT access/layer/` (one layer whole), `POST access/level/` (Employee ↔ Manager; never the owner), `GET access/history/`. `GET /api/auth/me/` and the sign-in answer carry `access` (item ids + dial steps reached, e.g. `admin:manage`); `GET /api/auth/capabilities/` answers the same list. |
+| Server, phase 1 | **Giving more works.** `IsManagerOrAdmin`, `IsSuperAdmin`, `IsAdmin` and Keys' `IsOwnerOrAdmin` keep their old rule and also let in a staff login whose dial for the request's area reaches the gate's step (Manage / Full), or who holds an item at that step or higher naming the path (`capabilities.API_AREAS` maps each API prefix to an area; a test fails if a gated endpoint has none). Inline checks use `manager_or(user, need)`, `owner_or(user, need)`, `admin_or(user, need)`. A register approval PIN (`min_role='Manager'`) also takes the PIN of someone granted `pos.override:use`. Customers and consignees never hold anything. Someone granted staff accounts cannot make or change a Manager or Admin (`UserViewSet._levels_guard`). **Taking away** (a lower dial, an unticked item, a personal no) hides menus and pages now; the server enforces it in phase 2, area by area. |
+| Frontend | `frontend/src/auth/access.ts` `canAccess(user, need)`: `need` lists the item(s) and the dial step, e.g. `['settings:write', 'admin:manage']`. With `access` the items decide; without it (an old sign-in, a test double) the dial step falls back to the old level rule. Sidebar entries carry `need` (else their area's View step); routes use `AccessRoute need=…`. |
+
 ## Roles (Django Groups)
 
-Five roles, stored as **Django Group** names. A user can belong to **multiple groups** simultaneously (e.g., a user can be both an Employee and a Consignee).
+Five roles, stored as **Django Group** names. A user can belong to **multiple groups** simultaneously (e.g., a user can be both an Employee and a Consignee). On the Permissions page the staff groups are levels: Employee and Manager (Admin is retired into the Owner, #53).
 
 | Role | Group Name | is_staff |
 |------|------------|----------|
@@ -205,17 +223,18 @@ User's `roles` property: returns **all** group names as a list (e.g. `['Employee
 
 ## Backend Permission Classes
 
-| Class | Allowed Roles |
-|-------|---------------|
-| `IsAdmin` | Admin only |
-| `IsManagerOrAdmin` | Manager or Admin, or any Django superuser |
+| Class | Allowed |
+|-------|---------|
+| `IsAdmin` | The owner, the retired Admin group, or a grant at Full for the area (#53) |
+| `IsManagerOrAdmin` | Manager or Admin, any superuser, or a grant at Manage for the area (#53) |
 | `IsEmployee` | Employee, Manager, Admin |
 | `IsConsignee` | Consignee only |
 | `IsCustomer` | Customer only (storefront account endpoints) |
 | `IsStaff` | Alias of `IsEmployee` (staff floor) |
-| `IsSuperAdmin` | Django superuser (Blog Studio and other owner-only tooling; the B-Stock login hand-off **`/api/buying/bstock-login/`** and manifest pulls **`/api/buying/manifest-pulls/`**) |
+| `IsSuperAdmin` | Django superuser, or a grant at Full for the area (#53) (Blog Studio and other owner tooling; the B-Stock login hand-off **`/api/buying/bstock-login/`** and manifest pulls **`/api/buying/manifest-pulls/`**) |
+| `IsOwner` | Django superuser only, never by a grant: changing permissions |
 
-`IsManager` (Manager only) was unused and has been removed. Django's `Permission` table is not consulted. The live list of what each role can do is `apps/accounts/capabilities.py`, exposed as `GET /api/auth/capabilities/` (the caller's set) and `GET /api/accounts/capability-catalog/` (Admin, full matrix). Per-user extra grants are not implemented.
+`IsManager` (Manager only) was unused and has been removed. Django's `Permission` table is not consulted. What each level, department and person can do: § Staff permissions above.
 
 ### Time kiosk (`/kiosk` hosted, `/clock` public)
 
@@ -232,8 +251,7 @@ User's `roles` property: returns **all** group names as a list (e.g. `['Employee
 |-------|-------|
 | **ProtectedRoute** | Requires `isAuthenticated`; else redirect to `/login` |
 | **StaffRoute** | Requires `Admin` / `Manager` / `Employee`. Consignee → `/consignee`. Anyone else (including `role === null`) → `/login` |
-| **ManagerRoute** | If `role` not in `['Admin','Manager']` → redirect to `/dashboard` |
-| **SuperAdminRoute** | If `!user.is_superuser` → redirect to `/dashboard` |
+| **AccessRoute** | `need` (item ids + the dial step, #53) via `canAccess`; else redirect to `/dashboard`. Replaced ManagerRoute, SuperAdminRoute and OwnerOrAdminRoute. |
 
 Route nesting: `ProtectedRoute` → `StaffRoute` → `MainLayout` for staff; `ProtectedRoute` → `ConsigneeLayout` for consignees.
 
@@ -241,7 +259,7 @@ Route nesting: `ProtectedRoute` → `StaffRoute` → `MainLayout` for staff; `Pr
 
 ## hasRole() Hierarchy Logic
 
-Single table in `frontend/src/auth/roles.ts` (also used by nav):
+Single table in `frontend/src/auth/roles.ts`. The sidebar, the page guards and most in-page buttons read `canAccess` instead (#53); `hasRole` stays for checks not moved yet.
 
 ```ts
 ROLE_RANK: { Admin: 4, Manager: 3, Employee: 2, Consignee: 1, Customer: 0 }

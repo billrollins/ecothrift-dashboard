@@ -14,7 +14,9 @@ from apps.pos.services import staff_purchases as service
 
 
 def _is_owner(user) -> bool:
-    return bool(user.is_superuser or getattr(user, 'role', None) == 'Admin')
+    from apps.accounts.services.access import admin_or
+
+    return admin_or(user, 'people.pay:owner')
 
 
 @api_view(['GET', 'PUT'])

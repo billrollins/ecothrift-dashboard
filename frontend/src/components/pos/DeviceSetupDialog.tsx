@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import { useRegisters } from '../../hooks/usePOS';
 import { useDeviceConfig, saveDeviceConfig } from '../../hooks/useDeviceConfig';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../contexts/AuthContext';
 import type { POSDeviceType } from '../../types/pos.types';
 import { TRAINING_REGISTER_LABEL, sortRegistersForSetup } from '../../utils/trainingRegister';
@@ -45,8 +46,8 @@ export interface DeviceSetupDialogProps {
 
 export function DeviceSetupDialog({ open, onClose, onSaved }: DeviceSetupDialogProps) {
   const { config } = useDeviceConfig();
-  const { hasRole } = useAuth();
-  const isManager = hasRole('Manager');
+  const { user } = useAuth();
+  const isManager = canAccess(user, ['pos.setup:write', 'cashier:manage']);
   const { data: registersData } = useRegisters();
   const registers = useMemo(
     () => (registersData?.results ?? []) as SetupRegister[],

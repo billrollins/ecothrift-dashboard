@@ -27,7 +27,9 @@ MAX_SECRET = 200
 
 def can_send_secret(user) -> bool:
     """One-time secrets (a PIN) come from the owner and managers only."""
-    return bool(user.is_superuser or user.role in ('Manager', 'Admin'))
+    from apps.accounts.services.access import manager_or
+
+    return manager_or(user, 'people:manage')
 
 
 def _active_staff():

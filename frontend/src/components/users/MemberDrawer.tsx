@@ -25,6 +25,7 @@ import {
   updateMember,
   type MemberRow,
 } from '../../api/memberDirectory.api';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../contexts/AuthContext';
 import { useIsMobileLayout } from '../../hooks/useIsMobileLayout';
 import { maskPhoneInput, stripPhone } from '../../utils/formatPhone';
@@ -283,7 +284,7 @@ export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; 
                     : run(() => deactivateMemberRow(row.key), 'Deactivated. Reactivate puts it back.', 'Could not deactivate'))}>
                   {off ? 'Reactivate' : 'Deactivate'}
                 </Button>
-                {user?.is_superuser ? (
+                {canAccess(user, ['thriftplus:owner', 'cashier:full']) ? (
                   <Button size="small" variant="outlined" color="error" onClick={() => setDeleting(true)}>Delete account</Button>
                 ) : null}
               </Stack>

@@ -38,12 +38,102 @@ export function patchMe(data: { language: 'en' | 'es' }): Promise<{ data: User }
   return api.patch<User>('/auth/me/', data);
 }
 
-export interface CapabilityRow {
+/** People → Permissions (Dash Update #53). Steps: 0 None · 1 View · 2 Work · 3 Manage · 4 Full. */
+export type AccessLevel = 'Employee' | 'Manager' | 'Owner';
+export type AccessSource = 'level' | 'department' | 'person' | 'owner';
+
+export interface AccessItem {
   id: string;
-  area: string;
+  step: number;
   label: string;
-  holders: string[];
-  source: string;
+  /** Only the owner has it; never given. */
+  locked: boolean;
+}
+
+export interface AccessArea {
+  id: string;
+  label: string;
+  helper: string;
+  items: AccessItem[];
+}
+
+/** One area of one layer: the dial (absent = not set), single items added or taken away, an end date (people). */
+export interface AccessEntry {
+  step?: number;
+  add?: string[];
+  remove?: string[];
+  until?: string;
+  note?: string;
+}
+export type AccessAreas = Record<string, AccessEntry>;
+
+export interface AccessPerson {
+  id: number;
+  name: string;
+  level: AccessLevel;
+  department: { id: number; name: string } | null;
+  position: string;
+  /** The dial they end up with, per area, and where it came from. */
+  steps: Record<string, number>;
+  step_from: Record<string, AccessSource>;
+  /** Items they hold, and where each came from. */
+  items: Record<string, AccessSource>;
+  /** Items a personal "no" takes away. */
+  denied: string[];
+  exceptions: AccessAreas;
+  exception_count: number;
+}
+
+export interface AccessDepartment {
+  id: number;
+  name: string;
+  people: number;
+  areas: AccessAreas;
+}
+
+export interface AccessPage {
+  catalog: {
+    steps: { step: number; key: string; name: string; help: string }[];
+    areas: AccessArea[];
+    basics: string[];
+    level_defaults: Record<string, Record<string, number>>;
+  };
+  levels: Record<'Employee' | 'Manager', AccessAreas>;
+  departments: AccessDepartment[];
+  people: AccessPerson[];
+  can_edit: boolean;
+}
+
+export interface AccessHistoryRow {
+  id: number;
+  at: string;
+  actor: string;
+  target: string;
+  area: string;
+  change: string;
+  note: string;
+}
+
+export type AccessLayer =
+  | { kind: 'level'; level: 'Employee' | 'Manager'; areas: AccessAreas }
+  | { kind: 'department'; department_id: number; areas: AccessAreas }
+  | { kind: 'person'; user_id: number; areas: AccessAreas };
+
+export function getAccessPage(): Promise<{ data: AccessPage }> {
+  return api.get('/accounts/access/');
+}
+
+/** Save one layer whole (owner only). Answers the page again. */
+export function saveAccessLayer(layer: AccessLayer): Promise<{ data: AccessPage }> {
+  return api.put('/accounts/access/layer/', layer);
+}
+
+export function setAccessLevel(userId: number, level: 'Employee' | 'Manager'): Promise<{ data: AccessPage }> {
+  return api.post('/accounts/access/level/', { user_id: userId, level });
+}
+
+export function getAccessHistory(): Promise<{ data: { results: AccessHistoryRow[] } }> {
+  return api.get('/accounts/access/history/');
 }
 
 /** View as (owner only): start seeing Dash as this person. Answers a view-as access token. */
@@ -58,10 +148,6 @@ export function stopViewAs(): Promise<{ data: { ended: boolean; detail: string }
 
 export function getMyCapabilities(): Promise<{ data: { capabilities: string[] } }> {
   return api.get('/auth/capabilities/');
-}
-
-export function getCapabilityCatalog(): Promise<{ data: { results: CapabilityRow[] } }> {
-  return api.get('/accounts/capability-catalog/');
 }
 
 export function changePassword(

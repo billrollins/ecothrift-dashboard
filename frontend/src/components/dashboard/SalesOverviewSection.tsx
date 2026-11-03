@@ -1,5 +1,6 @@
 import { Box, Card, CardContent, Stack, Tooltip, Typography } from '@mui/material';
 import { useMemo, useState, type ReactNode } from 'react';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../hooks/useAuth';
 import { t } from '../../i18n/routines';
 import type { SalesMetrics } from '../../types/pos.types';
@@ -121,7 +122,7 @@ function GoalStat({
 export function SalesOverviewSection({ sales, action }: SalesOverviewSectionProps) {
   const { user } = useAuth();
   const { isCompact, isMobile } = useDashboardLayout();
-  const isSuperuser = Boolean(user?.is_superuser);
+  const isSuperuser = canAccess(user, ['dashboard.goals:write', 'admin:full']);
   const lang = user?.language === 'es' ? 'es' : 'en';
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   // The week's running total, big (Carrie, 2026-11-02): the same number as This Week on the back of the card.

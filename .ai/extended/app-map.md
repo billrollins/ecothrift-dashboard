@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-02 (Cashier menu after the retail windows, #49) -->
+<!-- Last updated: 2026-11-03 (People → Permissions, #53) -->
 # Eco-Thrift Dashboard — App Map for Navigation Consultation
 
 **Purpose:** Hand this document to a consulting AI (or UX reviewer) to evaluate whether the staff navbar, workspaces, and page grouping can be organized more clearly.
@@ -223,8 +223,8 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 | **Employees** | `/admin/users` | Admin: users, roles, pay-related fields. |
 | **Departments** | `/admin/departments`, `/admin/departments/:slug` | Manager+: directory and per-department hub (home staff, shifts, routines, sections when present). Superuser create / rename / deactivate / delete / reorder. Grouping only; departments grant no permissions. |
 | **Customers** | `/admin/customers` | Admin: customer list. |
-| **Permissions** | `/admin/permissions` | Admin: permission matrix UI. |
-| **Settings** | `/admin/settings` | Manager+: app settings. Tabs `?tab=` — System, Printing, Store, Assumptions, **Retail QA** (grade weights, letter lines, audit floors, idle prompt minutes), Permissions (Admin only), **AI** (superuser only: model catalog, per-action model + effort). |
+| **Permissions** | `/people/permissions` (`/admin/permissions` redirects) | People workspace; Managers read, the owner changes (#53): Levels (a dial per area for Employee and Manager; Owner locked at Full), Departments (adds only), People (each person's level, dial per area with where it came from, exceptions with an end date and a note, View as), History. |
+| **Settings** | `/admin/settings` | Manager+: app settings. Tabs `?tab=` — System, Printing, Store, Assumptions, **Retail QA** (grade weights, letter lines, audit floors, idle prompt minutes), Permissions (a link to People → Permissions), **AI** (superuser only: model catalog, per-action model + effort). |
 | **Keys** | `/admin/keys` (`?tab=rings`, `where`, `find`) | Owner and Admin role: every key with its photo and AI-read metrics, key rings with check out / check in, where everything is, find a key from a photo. Desk and phone layouts. Details: `keys.md`. |
 | **Label Studio** | `/admin/label-studio` (+ `/:id`) | Manager+: label template library and visual/PDF designer; print integration. |
 | **Blog Studio** | `/blog-studio` | Superuser TipTap blog CMS for the public site; **new window**. |

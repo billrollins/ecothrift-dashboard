@@ -87,6 +87,9 @@ export interface User {
   hours_flag?: { hours: string; limit: string; text: string; link: string } | null;
   /** View as (owner 2026-10-21): from `GET /api/auth/me/` only. Set while the owner sees Dash as this person. */
   view_as?: ViewAs | null;
+  /** What they may open (People → Permissions, #53): item ids and dial steps. From sign-in and `/api/auth/me/` only;
+   * read it with `canAccess` (`auth/access.ts`). */
+  access?: string[];
 }
 
 /** The owner viewing Dash as an employee: read only, at most two hours (`apps/accounts/services/view_as.py`). */

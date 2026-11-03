@@ -1,7 +1,7 @@
 from django.contrib.auth.models import Group
 from rest_framework.test import APITestCase
 
-from apps.accounts.capabilities import capabilities_for_user, CATALOG
+from apps.accounts.capabilities import ITEMS
 from apps.accounts.models import User
 
 
@@ -19,56 +19,42 @@ def _staff(email, role, *, superuser=False):
     return user
 
 
-class CapabilityCatalogTests(APITestCase):
+class MyCapabilitiesTests(APITestCase):
+    """``/api/auth/capabilities/``: what the caller holds (People → Permissions, #53). Day one = before #53."""
     def setUp(self):
         self.admin = _staff('admin@example.com', 'Admin')
         self.manager = _staff('mgr@example.com', 'Manager')
         self.employee = _staff('emp@example.com', 'Employee')
         self.owner = _staff('owner@example.com', 'Employee', superuser=True)
 
-    def test_catalog_is_admin_only(self):
-        self.client.force_authenticate(self.manager)
-        denied = self.client.get('/api/accounts/capability-catalog/')
-        self.assertEqual(denied.status_code, 403)
+    def _mine(self, user):
+        self.client.force_authenticate(user)
+        res = self.client.get('/api/auth/capabilities/')
+        self.assertEqual(res.status_code, 200)
+        return set(res.data['capabilities'])
 
-        self.client.force_authenticate(self.admin)
-        ok = self.client.get('/api/accounts/capability-catalog/')
-        self.assertEqual(ok.status_code, 200, ok.data)
-        ids = {row['id'] for row in ok.data['results']}
-        self.assertIn('users.staff:manage', ids)
-        self.assertIn('hr.payroll:read', ids)
-        self.assertIn('hr.department:admin', ids)
-        self.assertEqual(len(ok.data['results']), len(CATALOG))
+    def test_mine_follows_level_and_owner(self):
+        emp = self._mine(self.employee)
+        self.assertIn('pos.terminal:use', emp)
+        self.assertIn('cashier:work', emp)
+        self.assertNotIn('settings:write', emp)
+        self.assertNotIn('hr.payroll:read', emp)
 
-    def test_mine_follows_role_and_superuser(self):
-        self.client.force_authenticate(self.employee)
-        emp = self.client.get('/api/auth/capabilities/')
-        self.assertEqual(emp.status_code, 200)
-        self.assertIn('pos.terminal:use', emp.data['capabilities'])
-        self.assertNotIn('settings:write', emp.data['capabilities'])
-        self.assertNotIn('hr.payroll:read', emp.data['capabilities'])
+        mgr = self._mine(self.manager)
+        self.assertIn('settings:write', mgr)
+        self.assertIn('admin:manage', mgr)
+        self.assertNotIn('users.staff:manage', mgr)
+        self.assertNotIn('admin:full', mgr)
 
-        self.client.force_authenticate(self.manager)
-        mgr = self.client.get('/api/auth/capabilities/')
-        self.assertIn('settings:write', mgr.data['capabilities'])
-        self.assertNotIn('users.staff:manage', mgr.data['capabilities'])
+        # The retired Admin group is a Manager on the page; the owner holds everything.
+        self.assertEqual(self._mine(self.admin), mgr)
+        own = self._mine(self.owner)
+        self.assertTrue({item.id for item in ITEMS} <= own)
 
-        self.client.force_authenticate(self.admin)
-        adm = self.client.get('/api/auth/capabilities/')
-        self.assertIn('users.staff:manage', adm.data['capabilities'])
-        self.assertNotIn('hr.payroll:read', adm.data['capabilities'])
-
-        self.client.force_authenticate(self.owner)
-        su = self.client.get('/api/auth/capabilities/')
-        self.assertIn('hr.payroll:read', su.data['capabilities'])
-        self.assertIn('pos.terminal:use', su.data['capabilities'])
-        self.assertNotIn('users.staff:manage', su.data['capabilities'])
-
-    def test_helper_matches_endpoint(self):
-        self.assertEqual(
-            capabilities_for_user(self.admin),
-            [cap.id for cap in CATALOG if 'Admin' in cap.holders],
-        )
+    def test_customers_hold_nothing(self):
+        customer = User.objects.create_user(email='c@example.com', password='x', first_name='C', last_name='C')
+        customer.groups.add(Group.objects.get_or_create(name='Customer')[0])
+        self.assertEqual(self._mine(customer), set())
 
 
 class UserRoleUpdateKeepsExtraGroupsTests(APITestCase):

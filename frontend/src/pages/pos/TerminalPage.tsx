@@ -111,6 +111,7 @@ import { WorkCyclePromptDialog } from './WorkCyclePromptDialog';
 import { writeLastActivity } from './idlePrompt';
 import { useDeviceConfig } from '../../hooks/useDeviceConfig';
 import { useLocalPrintStatus } from '../../hooks/useLocalPrintStatus';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   getCarts,
@@ -208,7 +209,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   const { user } = useAuth();
   const lang = user?.language;
   // The owner (Admin or superuser) turns the store sale on and off (REG-21).
-  const isOwner = Boolean(user?.is_superuser || user?.role === 'Admin');
+  const isOwner = canAccess(user, ['pos.cash:owner', 'cashier:full']);
   const skuInputRef = useRef<HTMLInputElement>(null);
   const manualDescriptionInputRef = useRef<HTMLInputElement>(null);
   const cartRef = useRef<Cart | null>(null);

@@ -22,6 +22,7 @@ import {
   type RosterAssignment,
   type RosterShift,
 } from '../../../api/hr.api';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../hooks/useAuth';
 import { coverageNote, sectionCoverage } from '../routines/sectionCoverage';
 import { ShiftCard } from '../retailqa/ShiftCard';
@@ -42,7 +43,7 @@ export default function DepartmentDetailPage() {
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const isSuper = Boolean(user?.is_superuser);
+  const isSuper = canAccess(user, ['hr.department:admin', 'admin:full']);
   const [editOpen, setEditOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);

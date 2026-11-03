@@ -39,6 +39,7 @@ import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, X
 import { CHART_INITIAL_DIMENSION } from '../../components/common/chartDefaults';
 import { fetchApprovalRequests } from '../../api/approvalRequests.api';
 import { fetchCalculator, fetchEngine, saveEngine } from '../../api/thriftplus.api';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../hooks/useAuth';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import type { CalculatorChoices, CalculatorRow, EngineState } from '../../types/thriftplus.types';
@@ -321,7 +322,7 @@ export default function CalculatorTab() {
             <Num label="Most off on launch day" suffix="%" blankable value={c.max_start_pct} onChange={(v) => set('max_start_pct', v)} helper="Blank = no cap. From launch it grows at the normal rate." />
           </Section>
 
-          {user?.is_superuser ? (
+          {canAccess(user, ['thriftplus:owner', 'cashier:full']) ? (
             <Box sx={{ mb: 1 }}>
               <Button fullWidth variant="contained" disabled={blocked.length > 0 || save.isPending} onClick={() => setConfirm(true)} sx={plain}
                 data-testid="engine-save">

@@ -79,6 +79,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'floorplan',
     // Studios opens to every staff login for Social Studio (2026-10-21); the rest stay managers'.
     roles: ['Manager', 'Admin'],
+    need: ['floorplan:write', 'studios:manage'],
   },
   inventoryCount: {
     id: 'inventoryCount',
@@ -94,12 +95,14 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Inventories',
     icon: 'inventories',
     roles: ['Manager', 'Admin'],
+    need: ['inventory.inventories:manage', 'inventory:manage'],
   },
   prFixit: {
     id: 'prFixit',
     path: '/inventory/pr-fixit',
     label: 'PR Fix-it',
     icon: 'fixit',
+    area: 'inventory',
   },
   // Wrong tags found on the floor, traced to who checked them in (retail_tags_and_social Phase 1).
   // Everyone: managers see every one, others the tags they checked in or found.
@@ -108,6 +111,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     path: '/inventory/tag-errors',
     label: 'Tag errors',
     icon: 'productReview',
+    area: 'inventory',
   },
   quickReprice: {
     id: 'quickReprice',
@@ -134,6 +138,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     // Always on the training register, any computer: practice and new roll-outs (owner, 2026-10-16).
     icon: 'register',
     roles: ['Employee'],
+    need: ['pos.terminal:use', 'cashier:work'],
   },
   posDrawers: {
     id: 'posDrawers',
@@ -148,6 +153,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Cash',
     icon: 'cash',
     roles: ['Manager', 'Admin'],
+    need: ['pos.cash:manage', 'cashier:manage'],
   },
   posTransactions: {
     id: 'posTransactions',
@@ -230,6 +236,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Assumptions',
     icon: 'assumptions',
     roles: ['Manager', 'Admin'],
+    need: ['settings:write', 'admin:manage'],
   },
   posSetup: {
     id: 'posSetup',
@@ -237,6 +244,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'POS setup',
     icon: 'registerSetup',
     roles: ['Manager', 'Admin'],
+    need: ['pos.setup:write', 'cashier:manage'],
   },
   onlineSalesListings: {
     id: 'onlineSalesListings',
@@ -244,6 +252,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Listings',
     icon: 'listing',
     roles: ['Manager', 'Admin'],
+    need: ['online_sales.listings:manage', 'online_sales:manage'],
   },
   onlineSalesHolds: {
     id: 'onlineSalesHolds',
@@ -251,6 +260,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Holds',
     icon: 'hold',
     roles: ['Manager', 'Admin'],
+    need: ['online_sales.listings:manage', 'online_sales:manage'],
   },
   onlineSalesCustomers: {
     id: 'onlineSalesCustomers',
@@ -258,6 +268,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Messages',
     icon: 'messages',
     roles: ['Manager', 'Admin'],
+    need: ['users.customers:manage', 'online_sales:manage'],
   },
   // Employees is first and default for Admin; Managers only see Customers.
   users: {
@@ -266,6 +277,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Users',
     icon: 'staff',
     roles: ['Manager', 'Admin'],
+    need: ['users.staff:manage', 'users.customers:manage', 'people:manage'],
   },
   departments: {
     id: 'departments',
@@ -273,13 +285,15 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Departments',
     icon: 'departments',
     roles: ['Manager', 'Admin'],
+    need: ['hr.department:write', 'admin:manage'],
   },
   permissions: {
     id: 'permissions',
-    path: '/admin/permissions',
+    path: '/people/permissions',
     label: 'Permissions',
     icon: 'permissions',
-    roles: ['Admin'],
+    roles: ['Manager', 'Admin'],
+    need: ['people.permissions:read', 'people:manage'],
   },
   settings: {
     id: 'settings',
@@ -288,6 +302,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Settings',
     icon: 'settings',
     roles: ['Manager', 'Admin'],
+    need: ['settings:write', 'admin:manage'],
   },
   labelStudio: {
     id: 'labelStudio',
@@ -295,6 +310,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Label Studio',
     icon: 'labelDesign',
     roles: ['Manager', 'Admin'],
+    need: ['labels:write', 'studios:manage'],
   },
   tars: {
     id: 'tars',
@@ -327,6 +343,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     pathAliases: ['/restoration/queue'],
     label: 'Restoration',
     icon: 'restoration',
+    area: 'restoration',
   },
   /** @deprecated Prefer `restorations` - kept for preference migration. */
   restorationReturns: {
@@ -335,6 +352,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     pathAliases: ['/restoration/queue', '/inventory/restorations'],
     label: 'Restoration',
     icon: 'restoration',
+    area: 'restoration',
   },
   /** Retail makes the day's post here (Lane F Phase 2); every staff login. */
   socialStudio: {
@@ -350,6 +368,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Announcements',
     icon: 'announce',
     roles: ['Manager', 'Admin'],
+    need: ['announcements:manage', 'studios:manage'],
   },
   blogStudio: {
     id: 'blogStudio',
@@ -358,6 +377,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'blog',
     superuserOnly: true,
     openInNewWindow: true,
+    need: ['blog:write', 'studios:full'],
   },
   shifts: {
     id: 'shifts',
@@ -365,6 +385,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Shifts',
     icon: 'shifts',
     roles: ['Manager', 'Admin'],
+    need: ['hr.shifts:write', 'admin:manage'],
   },
   payrollHours: {
     id: 'payrollHours',
@@ -372,6 +393,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Time & payroll',
     icon: 'payroll',
     superuserOnly: true,
+    need: ['hr.payroll:read', 'hr.mod_requests:triage', 'admin:full'],
   },
   owner: {
     id: 'owner',
@@ -381,6 +403,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'owner',
     superuserOnly: true,
     pathAliases: ['/brief'],
+    need: ['owner.page', 'admin:full'],
   },
   // Supply lists, the weekly count and (owner) the order (owner, 2026-10-26). Every staff login counts.
   supplies: {
@@ -388,6 +411,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     path: '/supplies',
     label: 'Supplies',
     icon: 'purchaseOrder',
+    need: ['supplies:manage', 'admin:manage'],
   },
   reports: {
     id: 'reports',
@@ -398,6 +422,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     // The owner's monthly reports (2026-10-14), one tab each: sales tax for now.
     icon: 'reports',
     superuserOnly: true,
+    need: ['owner.page', 'admin:full'],
   },
   thriftPlus: {
     id: 'thriftPlus',
@@ -406,6 +431,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     // Member service, ThriftBucks and the reward engine. Superuser-only until the Thrift+ launch (2026-10-20).
     icon: 'thriftPlus',
     superuserOnly: true,
+    need: ['thriftplus:owner', 'cashier:full'],
   },
   keys: {
     id: 'keys',
@@ -414,6 +440,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     // Every key and key ring, and where each one is (owner, 2026-10-26). Owner and Admin only: the photos show the cuts.
     icon: 'permissions',
     roles: ['Admin'],
+    need: ['keys:manage', 'admin:full'],
   },
   superRequests: {
     id: 'superRequests',
@@ -424,6 +451,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     // Routine data work staged in production for the owner to approve (data_platform Phase 1).
     icon: 'requests',
     superuserOnly: true,
+    need: ['owner.page', 'admin:full'],
   },
   icons: {
     id: 'icons',
@@ -432,6 +460,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     // Eco-Thrift's own icon set on one sheet (T75): every icon at 20 and 40 px, light and dark.
     icon: 'studio',
     superuserOnly: true,
+    need: ['admin:full'],
   },
   // Everything planned for Dash (replaces Enhancements). Reached from the avatar menu and the bell; in no workspace sidebar.
   dashFixes: {
@@ -447,6 +476,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Routines',
     icon: 'routine',
     superuserOnly: true,
+    need: ['routines:write', 'admin:full'],
   },
   retailQa: {
     id: 'retailQa',
@@ -454,6 +484,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Command Center',
     icon: 'commandCenter',
     roles: ['Manager', 'Admin'],
+    need: ['retail_qa:manage', 'admin:manage'],
   },
   /** Hiring: everyone who applied at ecothrift.us/careers, plus walk-ins. */
   applicants: {
@@ -463,6 +494,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'applicant',
     roles: ['Manager', 'Admin'],
     navSearch: 'hiring applications candidates resumes careers',
+    need: ['hiring:manage', 'people:manage'],
   },
   /** Booked interviews, the weekly interview hours, extra openings and blocks, scorecards. */
   interviews: {
@@ -472,6 +504,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'interview',
     roles: ['Manager', 'Admin'],
     navSearch: 'hiring interview calendar schedule scorecard',
+    need: ['hiring:manage', 'people:manage'],
   },
   /** Every hiring email: one version for all roles, or a role's own version; AI help on each. */
   /** New hires' first weeks: the first-day email, the checklist, the I-9 (Admin), the handbook. */
@@ -482,6 +515,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'onboarding',
     roles: ['Manager', 'Admin'],
     navSearch: 'onboarding new hire checklist i9 i-9 handbook first day quickbooks',
+    need: ['hiring:manage', 'people:manage'],
   },
   /** 30, 60 and 90-day check-ins: due this week, coming up, done (filled in a meeting, signed by both). */
   schedule: {
@@ -491,6 +525,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'calendar',
     roles: ['Manager', 'Admin'],
     navSearch: 'schedule week shifts call-ins call in no show who works',
+    need: ['hr.schedule:write', 'people:manage'],
   },
   checkins: {
     id: 'checkins',
@@ -499,6 +534,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'checkIn',
     roles: ['Manager', 'Admin'],
     navSearch: 'check-ins checkin 30 60 90 day review new hire meeting',
+    need: ['hiring:manage', 'people:manage'],
   },
   /** Staff purchases by payroll deduction, per pay period, to enter in QuickBooks Payroll. */
   payrollDeductions: {
@@ -508,6 +544,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'deductions',
     roles: ['Manager', 'Admin'],
     navSearch: 'payroll deduction staff purchases quickbooks paycheck',
+    need: ['people.pay:read', 'people:manage'],
   },
   hiringEmails: {
     id: 'hiringEmails',
@@ -516,6 +553,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'email',
     roles: ['Manager', 'Admin'],
     navSearch: 'hiring emails templates auto-reply not now interview reminder',
+    need: ['hiring:manage', 'people:manage'],
   },
   /** The roles, the careers page, the form and the hiring emails (one YAML / JSON file). */
   jobs: {
@@ -525,5 +563,6 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'jobPost',
     roles: ['Manager', 'Admin'],
     navSearch: 'hiring job postings careers page roles',
+    need: ['hiring:manage', 'people:manage'],
   },
 };

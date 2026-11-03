@@ -2,6 +2,7 @@ import FactCheck from '@mui/icons-material/FactCheck';
 import AssignmentTurnedIn from '@mui/icons-material/AssignmentTurnedIn';
 import { Box, Button, Paper, Tab, Tabs, useMediaQuery, useTheme } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../contexts/AuthContext';
 
 type View = 'count' | 'inventories';
@@ -13,11 +14,11 @@ const PATH: Record<View, string> = { count: '/inventory/count', inventories: '/i
  * Tabs across the top on a desk; two thumb-size buttons fixed to the bottom on a phone (owner, 2026-10-02).
  */
 export function CountNav({ current }: { current: View }) {
-  const { user, hasRole } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down('sm'));
-  if (!(hasRole('Manager') || user?.is_superuser)) return null;
+  if (!canAccess(user, ['inventory.inventories:manage', 'inventory:manage'])) return null;
 
   if (!phone) {
     return (

@@ -19,8 +19,10 @@ from .services.cash_counts import CashCountError
 
 
 def _owner(user) -> bool:
-    """The owner, as the register reads it: a superuser or the Admin role."""
-    return bool(getattr(user, 'is_superuser', False) or getattr(user, 'role', None) == 'Admin')
+    """The owner, as the register reads it: a superuser or the Admin role, or a grant (People → Permissions)."""
+    from apps.accounts.services.access import admin_or
+
+    return admin_or(user, 'pos.cash:owner')
 
 
 def _line(line, *, owner: bool) -> dict:

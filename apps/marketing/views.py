@@ -11,6 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsEmployee, IsSuperAdmin
+from apps.accounts.services.access import owner_or
 from apps.webstore.services.hours import get_hours_config, is_open_day
 
 from .models import MarketingSpend, SocialPhoto, SocialPost, SocialPostPhoto
@@ -89,7 +90,7 @@ def week(request):
         'days': days,
         'brand': brand,
         'rules': {'min_photos': settings['min_photos'], 'hook_max_chars': settings['hook_max_chars']},
-        'can_rate': bool(request.user.is_superuser),
+        'can_rate': owner_or(request.user, 'marketing:owner'),
     })
 
 
@@ -113,7 +114,7 @@ def post_detail(request, pk):
         payload = post_payload(post)
         payload['brand'] = brand_payload()
         payload['rules'] = {k: marketing_settings()[k] for k in ('min_photos', 'hook_max_chars')}
-        payload['can_rate'] = bool(request.user.is_superuser)
+        payload['can_rate'] = owner_or(request.user, 'marketing:owner')
         return Response(payload)
     if post.status == SocialPost.STATUS_POSTED:
         return _err('This post is posted; it cannot change.', 'POSTED')
@@ -269,7 +270,7 @@ def numbers_page(request):
     except ValueError:
         weeks = 8
     data = insights(weeks=weeks)
-    data['can_spend'] = bool(request.user.is_superuser)
+    data['can_spend'] = owner_or(request.user, 'marketing:owner')
     return Response(data)
 
 
@@ -308,7 +309,7 @@ def post_channel_posted(request, pk, channel):
     payload = post_payload(post)
     payload['brand'] = brand_payload()
     payload['rules'] = {k: marketing_settings()[k] for k in ('min_photos', 'hook_max_chars')}
-    payload['can_rate'] = bool(request.user.is_superuser)
+    payload['can_rate'] = owner_or(request.user, 'marketing:owner')
     return Response(payload)
 
 
@@ -316,7 +317,7 @@ def post_channel_posted(request, pk, channel):
 @permission_classes(STAFF)
 def post_rating(request, pk):
     """The owner's 1-5 mark (null clears it)."""
-    if not request.user.is_superuser:
+    if not owner_or(request.user, 'marketing:owner'):
         return _err('Only the owner rates posts.', 'SUPERUSER_ONLY', 403)
     post = _post(pk)
     if post is None:

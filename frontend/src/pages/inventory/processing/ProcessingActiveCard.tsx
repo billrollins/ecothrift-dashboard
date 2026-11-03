@@ -23,6 +23,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { CheckInUndoDialog, type CheckInUndoTarget } from './CheckInUndoDialog';
 import { useSnackbar } from 'notistack';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
   useProcessingUpdateItemCheckIn,
@@ -1391,8 +1392,8 @@ export function ProcessingActiveCard({
 
   const displayRetail = moneyOverlay?.retail ?? row.unitRetail ?? '';
   const displayPrice = moneyOverlay?.price ?? row.price ?? '';
-  const { hasRole } = useAuth();
-  const isManager = hasRole('Manager') || hasRole('Admin');
+  const { user } = useAuth();
+  const isManager = canAccess(user, ['processing:manage']);
   const setRowProduct = useProcessingSetRowProduct(orderId);
   const [undoTarget, setUndoTarget] = useState<CheckInUndoTarget | null>(null);
   const updateItemCheckIn = useProcessingUpdateItemCheckIn(orderId);

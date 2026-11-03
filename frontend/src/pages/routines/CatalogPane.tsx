@@ -5,6 +5,7 @@ import { GroupHeader } from '../../components/duty/GroupHeader';
 import { StatusTag } from '../../components/duty/StatusTag';
 import { TaskRow, TaskRowAction } from '../../components/duty/TaskRow';
 import { dutyColors, thinScrollSx } from '../../components/duty/tokens';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../hooks/useAuth';
 import { useRoutines } from '../../hooks/useRoutines';
 import { pick, t, triggerLabel } from '../../i18n/routines';
@@ -41,13 +42,14 @@ export function CatalogPane({ desktop }: { desktop: boolean }) {
   const [params] = useSearchParams();
   const selectedId = Number(params.get('view') || 0) || null;
   const catalog = useRoutines();
+  const buyer = canAccess(user, ['buying.purchase', 'buying:full']);
   const groups = useMemo(
     () => groupCatalog((catalog.data ?? []).filter((routine) => (
       routine.is_active
-      // The B-Stock pull is the owner's; nobody else can run it.
-      && (routine.kind !== 'bstock_pull' || Boolean(user?.is_superuser))
+      // The B-Stock pull is the buyer's (the owner, or a Purchaser grant); nobody else can run it.
+      && (routine.kind !== 'bstock_pull' || buyer)
     ))),
-    [catalog.data, user?.is_superuser],
+    [catalog.data, buyer],
   );
 
   return (

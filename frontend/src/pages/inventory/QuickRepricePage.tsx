@@ -38,6 +38,7 @@ import {
 } from '../../api/inventory.api';
 import type { Item, ItemStatus } from '../../types/inventory.types';
 import { printPriceTags } from '../../printing/printTags';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../contexts/AuthContext';
 import { ScanBar } from './count/ScanBar';
 import { skuFromScan } from '../../utils/scanCode';
@@ -108,8 +109,8 @@ function loadPersistedSession(): { entries: SessionEntry[]; savings: number } {
  */
 export default function QuickRepricePage({ embedded = false }: { embedded?: boolean }) {
   const { enqueueSnackbar } = useSnackbar();
-  const { hasRole } = useAuth();
-  const isManager = hasRole('Manager') || hasRole('Admin');
+  const { user } = useAuth();
+  const isManager = canAccess(user, ['inventory.inventories:manage', 'inventory:manage']);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');

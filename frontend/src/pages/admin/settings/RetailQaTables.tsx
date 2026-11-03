@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { updateSetting } from '../../../api/core.api';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../hooks/useAuth';
 import { useQaHistory, useQaPreview } from '../../../hooks/useRetailQa';
 import { useAppSettings } from './useAppSettings';
@@ -45,7 +46,7 @@ export function RetailQaTables() {
   const queryClient = useQueryClient();
   const { data: settings, isLoading } = useAppSettings();
   const preview = useQaPreview();
-  const isOwner = Boolean(user?.is_superuser);
+  const isOwner = canAccess(user, ['retail_qa:owner', 'admin:full']);
 
   const rows = useMemo(() => new Map((settings ?? []).map((row) => [row.key, row])), [settings]);
   const [verifyLadder, setVerifyLadder] = useState<LadderRow[] | null>(null);

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, CircularProgress, Stack, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { postBstockLogin } from '../../api/buying.api';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../hooks/useAuth';
 import {
   announceBstockLogin,
@@ -44,7 +45,7 @@ export default function BstockLoginHandoffPage() {
   const [phase, setPhase] = useState<Phase>({ kind: 'confirm' });
   const [closeFailed, setCloseFailed] = useState(false);
   const expires = useMemo(() => (token ? expiryLabel(token) : null), [token]);
-  const isOwner = Boolean(user?.is_superuser);
+  const isOwner = canAccess(user, ['buying.purchase', 'buying:full']);
 
   useEffect(() => {
     // Someone else's session: the owner's login must not linger in this tab.

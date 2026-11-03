@@ -29,7 +29,10 @@ const DRAWER = {
 };
 
 vi.mock('../../contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 3 }, hasRole: (r: string) => m.manager && (r === 'Manager' || r === 'Admin') }),
+  useAuth: () => ({
+    user: { id: 3, role: m.manager ? 'Manager' : 'Employee' },
+    hasRole: (r: string) => m.manager && (r === 'Manager' || r === 'Admin'),
+  }),
 }));
 vi.mock('../../hooks/useDeviceConfig', () => ({
   useDeviceConfig: () => ({ config: { deviceType: 'register', registerId: 1 } }),

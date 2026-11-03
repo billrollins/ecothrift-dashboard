@@ -27,9 +27,14 @@ PARSERS = [MultiPartParser, FormParser, JSONParser]
 
 
 class IsOwnerOrAdmin(BasePermission):
+    """The owner or the retired Admin group, or a grant of Admin at Full / "Keys and key rings" (#53)."""
     def has_permission(self, request, view):
+        from apps.accounts.services.access import request_granted
+
         user = request.user
-        return bool(user and user.is_authenticated and (user.is_superuser or user.role == 'Admin'))
+        if not user or not user.is_authenticated:
+            return False
+        return bool(user.is_superuser or user.role == 'Admin') or request_granted(request, 4)
 
 
 OWNER = [IsAuthenticated, IsOwnerOrAdmin]

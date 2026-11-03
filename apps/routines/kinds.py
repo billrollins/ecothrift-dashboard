@@ -497,7 +497,9 @@ def submit_blockers(routine: Routine, responses: dict, *, min_items: int = 0, ru
         from apps.buying.services.manifest_pull import shortlist_queryset
 
         submitter = get_user_model().objects.filter(pk=submitter_id).first() if submitter_id else None
-        if submitter is None or not submitter.is_superuser:
+        from apps.accounts.services.access import owner_or
+
+        if submitter is None or not owner_or(submitter, 'buying.purchase'):
             return ['Only the owner can submit the B-Stock pull.']
         job = _bstock_pull_job(responses)
         if job is not None and job.status in (ManifestPullJob.STATUS_QUEUED, ManifestPullJob.STATUS_RUNNING):

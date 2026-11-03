@@ -35,6 +35,7 @@ import {
 } from '../../api/thriftplusReturns.api';
 import { PageHeader } from '../../components/common/PageHeader';
 import { tbNumber } from '../../components/thriftplus/ThriftBucks';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDeviceConfig } from '../../hooks/useDeviceConfig';
 import { formatCurrency } from '../../utils/format';
@@ -94,7 +95,7 @@ export default function ReturnsPage() {
   const device = useDeviceConfig();
   const practice = params.get('practice') === '1';
   const registerCode = practice ? 'TRAIN' : (device.config?.registerCode ?? '');
-  const canSeeLate = Boolean(user?.is_superuser || user?.role === 'Manager' || user?.role === 'Admin');
+  const canSeeLate = canAccess(user, ['thriftplus:manage', 'cashier:manage']);
 
   const [tab, setTab] = useState<'return' | 'late'>('return');
   const [step, setStep] = useState<Step>('find');

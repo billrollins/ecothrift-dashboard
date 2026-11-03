@@ -14,13 +14,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsTeamMember
+from apps.accounts.services.access import admin_or, manager_or
 from apps.core.files import stream_s3
 from apps.hiring import compose, onboarding as service
 from apps.hiring.models import Application, HandbookSignature, I9File, Onboarding, OnboardingTask
 
 
 def _is_admin(user) -> bool:
-    return bool(user.is_superuser or getattr(user, 'role', None) == 'Admin')
+    return admin_or(user, 'hiring:owner')
 
 
 def _require_admin(request) -> None:
@@ -304,7 +305,7 @@ def handbook_publish(request):
 def handbook_signature_pdf(request, signature_id):
     row = get_object_or_404(HandbookSignature, pk=signature_id)
     viewer = request.user
-    if row.user_id != viewer.pk and not (viewer.is_superuser or getattr(viewer, 'role', None) in ('Manager', 'Admin')):
+    if row.user_id != viewer.pk and not manager_or(viewer, 'hiring:manage'):
         raise Http404
     if not row.signed_pdf_id:
         raise Http404

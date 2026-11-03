@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { format, startOfWeek } from 'date-fns';
 import api from '../../../api/client';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../contexts/AuthContext';
 import { IconEdit } from '../../../icons/ecoIcons';
 import { useObjectModal } from '../../objects/ObjectModal';
@@ -116,7 +117,7 @@ export function useRegisterCard(id: number) {
 
 export function RegisterWindow({ id }: { id: number }) {
   const { tr, paid, when } = useRetailCopy();
-  const { hasRole } = useAuth();
+  const { user } = useAuth();
   const { openObject, closeObject } = useObjectModal();
   const navigate = useNavigate();
   const { data: c, isLoading, isError } = useRegisterCard(id);
@@ -166,7 +167,7 @@ export function RegisterWindow({ id }: { id: number }) {
             )}
           </Stack>
         </Stack>
-        {hasRole('Manager') && (
+        {canAccess(user, ['pos.setup:write', 'cashier:manage']) && (
           <Button variant="contained" startIcon={<IconEdit fontSize="small" />} onClick={() => go('/admin/pos-setup')} sx={{ flexShrink: 0 }}>
             {tr('edit')}
           </Button>
@@ -247,7 +248,7 @@ export function RegisterWindow({ id }: { id: number }) {
               <Button size="small" variant="outlined" onClick={() => history(c.today, c.today)}>{tr('allToday')}</Button>
               <Button size="small" variant="outlined" onClick={() => history(weekStart, c.today)}>{tr('thisWeekBtn')}</Button>
               <Button size="small" variant="outlined" onClick={() => go('/pos/drawers')}>{tr('drawersPage')}</Button>
-              {hasRole('Manager') && (
+              {canAccess(user, ['pos.cash:manage', 'cashier:manage']) && (
                 <Button size="small" variant="outlined" onClick={() => go('/pos/cash')}>{tr('cashPage')}</Button>
               )}
             </Stack>

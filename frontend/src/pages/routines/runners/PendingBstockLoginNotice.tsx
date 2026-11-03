@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Snackbar } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasRunner } from '../todayRunner';
 import { BSTOCK_HANDOFF_PATH, clearPendingBstockToken, peekPendingBstockToken } from './bstockHandoff';
@@ -14,6 +15,7 @@ import { BSTOCK_HANDOFF_PATH, clearPendingBstockToken, peekPendingBstockToken } 
  */
 export function PendingBstockLoginNotice() {
   const { user } = useAuth();
+  const buyer = canAccess(user, ['buying.purchase', 'buying:full']);
   const location = useLocation();
   const navigate = useNavigate();
   const [pending, setPending] = useState<string | null>(() => peekPendingBstockToken());
@@ -23,16 +25,16 @@ export function PendingBstockLoginNotice() {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (pending && user && !user.is_superuser) {
+    if (pending && user && !buyer) {
       clearPendingBstockToken();
       setPending(null);
     }
-  }, [pending, user]);
+  }, [pending, user, buyer]);
 
   const onOwnPage = location.pathname === BSTOCK_HANDOFF_PATH
     || location.pathname.startsWith('/routines/run/')
     || ((location.pathname === '/today' || location.pathname === '/dashboard') && hasRunner(new URLSearchParams(location.search)));
-  if (!pending || !user?.is_superuser || onOwnPage) return null;
+  if (!pending || !buyer || onOwnPage) return null;
 
   return (
     <Snackbar open anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>

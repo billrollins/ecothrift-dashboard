@@ -41,6 +41,7 @@ import {
   type ScanResult,
   type Section,
 } from '../../../api/stocktake.api';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../contexts/AuthContext';
 import { ACTION_WORDS } from './countProblems';
 import { clockTime, formatElapsed, ratePerMinute } from './countTimer';
@@ -495,7 +496,7 @@ export default function InventorySessions({ id }: { id: number }) {
   const narrow = useNarrow();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isSuper = !!user?.is_superuser;
+  const isSuper = canAccess(user, ['inventory.inventories:owner', 'inventory:full']);
   const [day, setDay] = useState<DayDetail | null>(null);
   const [error, setError] = useState('');
   const [scansOf, setScansOf] = useState<RunSummary | null>(null);

@@ -22,6 +22,7 @@ import {
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import { isAxiosError } from 'axios';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../contexts/AuthContext';
 import { useFloorPlan, useSaveFloorPlan } from '../../hooks/useFloorplans';
 import { useFloorPlanAssets, useUploadFloorPlanAsset } from '../../hooks/useFloorplanAssets';
@@ -98,8 +99,8 @@ export default function FloorplanEditorPage() {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
-  const readOnly = !user?.role || !['Manager', 'Admin'].includes(user.role);
-  const canManageKinds = Boolean(user?.is_superuser);
+  const readOnly = !canAccess(user, ['floorplan:write', 'studios:manage']);
+  const canManageKinds = canAccess(user, ['floorplan.kinds:write', 'studios:full']);
 
   const planQuery = useFloorPlan(Number.isFinite(planId) ? planId : null);
   const saveMutation = useSaveFloorPlan();

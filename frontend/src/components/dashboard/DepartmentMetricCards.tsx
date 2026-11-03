@@ -5,6 +5,7 @@ import ShoppingBag from '@mui/icons-material/ShoppingBag';
 import PrecisionManufacturing from '@mui/icons-material/PrecisionManufacturing';
 import Handyman from '@mui/icons-material/Handyman';
 import Storefront from '@mui/icons-material/Storefront';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../hooks/useAuth';
 import { isoWeekKey } from '../../pages/admin/routines/gradeWeek';
 import type {
@@ -71,8 +72,8 @@ interface CardConfig {
 export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
   const { user } = useAuth();
   const { isMobile } = useDashboardLayout();
-  const isSuperuser = Boolean(user?.is_superuser);
-  const canOpenCommandCenter = ['Admin', 'Manager'].includes(user?.role || '');
+  const isSuperuser = canAccess(user, ['dashboard.goals:write', 'admin:full']);
+  const canOpenCommandCenter = canAccess(user, ['retail_qa:manage', 'admin:manage']);
   const { buying, processing, restoration, retail, goals, daily_weeks } = metrics;
   const [openKey, setOpenKey] = useState<DepartmentGoalKey | null>(null);
   const [details, setDetails] = useState<DepartmentDetailsRequest | null>(null);

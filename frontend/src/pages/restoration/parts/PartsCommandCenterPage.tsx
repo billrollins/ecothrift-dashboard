@@ -14,6 +14,7 @@ import { useSnackbar } from 'notistack';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../../../components/common/PageHeader';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../hooks/useAuth';
 import {
   useApproveRestorationPartsOrder,
@@ -67,7 +68,7 @@ export default function PartsCommandCenterPage() {
   const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const canAct = Boolean(user?.is_superuser);
+  const canAct = canAccess(user, ['restoration.parts:approve', 'restoration:full']);
   const [tab, setTab] = useState<'live' | 'history'>('live');
   const [attention, setAttention] = useState<AttentionKey | ''>('');
   const [historyWindow, setHistoryWindow] = useState<HistoryWindow>('90d');

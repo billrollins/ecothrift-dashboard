@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { formatCurrency } from '../../utils/format';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../hooks/useAuth';
 import { useBuyingCategoryGoalMutation } from '../../hooks/useBuyingCategoryNeed';
 import type { BuyingCategoryGoal, BuyingCategoryNeedRow } from '../../types/buying.types';
@@ -203,8 +204,8 @@ const GOAL_LABEL: Record<BuyingCategoryGoal, string> = {
 
 /** Manager goal for a category (Admin can change it; others see it). */
 function CategoryGoalPicker({ category, goal }: { category: string; goal: BuyingCategoryGoal }) {
-  const { hasRole } = useAuth();
-  const canEdit = hasRole('Admin');
+  const { user } = useAuth();
+  const canEdit = canAccess(user, ['buying.valuation:override', 'buying:full']);
   const mutation = useBuyingCategoryGoalMutation();
   return (
     <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>

@@ -10,6 +10,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
+import { canAccess } from '../../../../auth/access';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useDeliveryDay } from '../../../../hooks/useDelivery';
 import {
@@ -39,8 +40,8 @@ export default function FieldDayDetailPage() {
   const navigate = useNavigate();
   const id = Number(dayId);
   const validId = Number.isFinite(id) ? id : undefined;
-  const { hasRole } = useAuth();
-  const canManage = hasRole('Manager') || hasRole('Admin');
+  const { user } = useAuth();
+  const canManage = canAccess(user, ['delivery:manage', 'deliveries:manage']);
   const { data: day, isLoading, isError } = useDeliveryDay(validId);
   const dayIsToday = Boolean(day && isFieldDayToday(day.date));
   const [runRequested, setRunRequested] = useState(false);

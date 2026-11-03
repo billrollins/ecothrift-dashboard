@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import BuyingDetailSectionTitle from './BuyingDetailSectionTitle';
 import { useBuyingCategoryNeed } from '../../hooks/useBuyingCategoryNeed';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../hooks/useAuth';
 import { useBuyingShippingQuoteMutation } from '../../hooks/useBuyingShippingQuoteMutation';
 import { useBuyingValuationInputsMutation } from '../../hooks/useBuyingValuationInputsMutation';
@@ -337,7 +338,7 @@ export function ValuationCostsCard({ detail, isAdmin }: CostsProps) {
   const valuationMutation = useBuyingValuationInputsMutation();
   const quoteMutation = useBuyingShippingQuoteMutation();
   const { user } = useAuth();
-  const canQuote = Boolean(user?.is_superuser);
+  const canQuote = canAccess(user, ['buying.purchase', 'buying:full']);
   const { tableTotals } = useValuationBreakdownRows(detail);
 
   const [local, setLocal] = useState<LocalOverrides>({

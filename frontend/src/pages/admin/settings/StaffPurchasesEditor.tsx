@@ -3,6 +3,7 @@ import { Alert, Box, Button, FormControlLabel, Switch, TextField, Typography } f
 import { useSnackbar } from 'notistack';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getStaffPurchaseSettings, saveStaffPurchaseSettings } from '../../../api/pos.api';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../hooks/useAuth';
 import { IconSave as Save } from '../../../icons/ecoIcons';
 
@@ -13,7 +14,7 @@ import { IconSave as Save } from '../../../icons/ecoIcons';
  */
 export function StaffPurchasesEditor() {
   const { user } = useAuth();
-  const isOwner = Boolean(user?.is_superuser || user?.role === 'Admin');
+  const isOwner = canAccess(user, ['people.pay:owner', 'people:full']);
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const current = useQuery({

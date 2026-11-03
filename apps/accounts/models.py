@@ -447,3 +447,44 @@ class ViewAsSession(models.Model):
 
     def __str__(self):
         return f'{self.real_user_id} as {self.target_id}'
+
+
+class AccessSet(models.Model):
+    """One layer of staff permissions (Dash Update #53, ``capabilities.py``, ``services/access.py``): a level's preset
+    (Employee, Manager), a department's preset (adds only), or one person's exceptions (the last word).
+
+    ``areas`` is ``{area_id: {"step": 0-4 or null, "add": [item ids], "remove": [item ids], "until": "YYYY-MM-DD" or
+    null, "note": ""}}``. A level with no row uses the day-one defaults in ``capabilities.LEVEL_DEFAULTS``."""
+    KIND_LEVEL = 'level'
+    KIND_DEPARTMENT = 'department'
+    KIND_PERSON = 'person'
+    KIND_CHOICES = [(KIND_LEVEL, 'Level'), (KIND_DEPARTMENT, 'Department'), (KIND_PERSON, 'Person')]
+
+    kind = models.CharField(max_length=12, choices=KIND_CHOICES)
+    key = models.CharField(max_length=40, unique=True, help_text='level:Employee, department:<id> or person:<id>.')
+    department = models.ForeignKey('hr.Department', on_delete=models.CASCADE, null=True, blank=True, related_name='+')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='+')
+    areas = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    class Meta:
+        ordering = ['kind', 'key']
+
+    def __str__(self):
+        return self.key
+
+
+class AccessEvent(models.Model):
+    """Permissions History: every change to a level, a department, a person's exceptions or a person's level."""
+    at = models.DateTimeField(auto_now_add=True, db_index=True)
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    target = models.CharField(max_length=120, help_text='Who or what changed: "Employee level", "Maria K".')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='access_events',
+                             help_text='The person, when the change is about one person.')
+    area = models.CharField(max_length=20, blank=True, default='')
+    change = models.CharField(max_length=300)
+    note = models.CharField(max_length=300, blank=True, default='')
+
+    class Meta:
+        ordering = ['-at']

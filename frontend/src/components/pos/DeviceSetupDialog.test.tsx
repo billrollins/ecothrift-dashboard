@@ -19,6 +19,7 @@ vi.mock('../../hooks/usePOS', () => ({
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
+    user: { role: state.manager ? 'Manager' : 'Employee', is_superuser: false },
     hasRole: (role: string) => (state.manager ? true : role === 'Employee'),
   }),
 }));

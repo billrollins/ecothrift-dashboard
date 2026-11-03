@@ -38,6 +38,7 @@ import { useQrCamera } from '../scanner/useQrCamera';
 import { AgreeButton, JoinQrDialog, SIGNATURE_WORDS, TermsDialog, useStayOnPage } from './finalizeParts';
 import { PersonCard, PersonSheet } from './finalizePeople';
 import AssistedJoin from './AssistedJoin';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../contexts/AuthContext';
 
 export { SIGNATURE_WORDS };
@@ -496,7 +497,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
 
       <PersonSheet
         person={info}
-        owner={Boolean(user?.is_superuser)}
+        owner={canAccess(user, ['thriftplus:owner', 'cashier:full'])}
         onClose={() => setInfo(null)}
         onFinish={pick}
         onDeleted={() => void search(searched)}

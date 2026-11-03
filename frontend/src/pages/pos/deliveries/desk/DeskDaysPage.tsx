@@ -15,6 +15,7 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
+import { canAccess } from '../../../../auth/access';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useDeliveryDays } from '../../../../hooks/useDelivery';
 import {
@@ -43,8 +44,8 @@ export default function DeskDaysPage() {
   const state = useMemo(() => parseDeskDaysUrlState(searchParams), [searchParams]);
   const { data, isLoading, isError } = useDeliveryDays(deskDaysStateToApiParams(state));
   const rows = data?.results ?? [];
-  const { hasRole } = useAuth();
-  const canManage = hasRole('Manager') || hasRole('Admin');
+  const { user } = useAuth();
+  const canManage = canAccess(user, ['delivery:manage', 'deliveries:manage']);
   const [newDayOpen, setNewDayOpen] = useState(false);
 
   const patchState = (patch: Partial<typeof state>) => {

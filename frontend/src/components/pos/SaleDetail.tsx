@@ -12,6 +12,7 @@ import { useVoidCart } from '../../hooks/usePOS';
 import { useManagerOk } from './ManagerOkDialog';
 import { paymentMethodLabel, thriftPaymentParts } from '../../utils/posPayment';
 import { taxExemptText } from './TaxExemptDialog';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../contexts/AuthContext';
 import { printErrorMessage } from '../../services/localPrintService';
 import { reprintReceipt } from '../../services/receiptReprint';
@@ -42,12 +43,12 @@ export function SaleDetail({
   onVoided?: () => void;
 }) {
   const { enqueueSnackbar } = useSnackbar();
-  const { hasRole } = useAuth();
+  const { user } = useAuth();
   const { tr, paid } = useRetailCopy();
   const [confirmVoid, setConfirmVoid] = useState(false);
   const voidCartMutation = useVoidCart();
   const { run: runWithManagerOk, dialog: managerOkDialog } = useManagerOk();
-  const canVoid = hasRole('Manager') || hasRole('Admin');
+  const canVoid = canAccess(user, ['pos.override:use', 'cashier:manage']);
 
   const handleVoid = async () => {
     setConfirmVoid(false);

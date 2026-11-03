@@ -5,6 +5,7 @@ import { dutyCardSx } from '../../components/duty/cards';
 import { dutyColors } from '../../components/duty/tokens';
 import { FloorPage } from '../../components/layout/FloorPage';
 import { PhoneFrame } from '../../components/layout/PhoneFrame';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../hooks/useAuth';
 import { useRoutine } from '../../hooks/useRoutines';
 import { t } from '../../i18n/routines';
@@ -42,7 +43,7 @@ export default function RoutinesPage() {
     const target = todayHref(`${location.pathname}${location.search}`);
     return <Navigate to={target.startsWith('/dashboard') ? target : dashboardTabHref('myday')} replace />;
   }
-  if (mode === 'mine' || !user?.is_superuser) {
+  if (mode === 'mine' || !canAccess(user, ['routines:write', 'admin:full'])) {
     return <Navigate to={dashboardTabHref('myday')} replace />;
   }
 

@@ -5,7 +5,7 @@ from django.contrib.auth.models import Group
 from django.apps import apps
 from rest_framework.test import APITestCase
 
-from apps.accounts.capabilities import CATALOG
+from apps.accounts.capabilities import ITEMS
 from apps.accounts.models import EmployeeProfile, User
 from apps.accounts.permissions import IsManagerOrAdmin
 from apps.hr.models import Department, Shift, ShiftAssignment
@@ -91,7 +91,7 @@ class DepartmentApiTests(APITestCase):
             self.ghost.save(update_fields=['is_active'])
 
     def test_catalog_includes_department_admin(self):
-        ids = {cap.id for cap in CATALOG}
+        ids = {item.id for item in ITEMS}
         self.assertIn('hr.department:admin', ids)
         self.assertIn('hr.department:write', ids)
 

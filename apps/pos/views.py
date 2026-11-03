@@ -14,6 +14,7 @@ from rest_framework.filters import OrderingFilter
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsEmployee, IsSuperAdmin, IsTeamMember
 from apps.accounts.services.register_pin import PinError
+from apps.accounts.services.access import admin_or, manager_or, owner_or
 from apps.core.models import WorkLocation
 from apps.inventory.models import Item, ItemScanHistory
 from apps.inventory.services import sale_facts
@@ -2261,7 +2262,7 @@ class CartViewSet(viewsets.ModelViewSet):
         now = timezone.now()
         deadline = card_type_fix_deadline(cart)
         locked = deadline is None or now > deadline
-        if locked and not request.user.is_superuser:
+        if locked and not owner_or(request.user, 'pos.cash:owner'):
             return Response(
                 {
                     'detail': (
@@ -3156,7 +3157,7 @@ def sale_mode(request):
     """The register's sales (GET, any staff). POST turns the store sale on or off: the owner only (REG-21)."""
     if request.method == 'GET':
         return Response(sale_mode_payload())
-    if not (request.user.is_superuser or getattr(request.user, 'role', None) == 'Admin'):
+    if not admin_or(request.user, 'pos.cash:owner'):
         return Response({'detail': 'Only the owner turns the store sale on or off.', 'code': 'OWNER_ONLY'}, status=403)
     if 'override' not in request.data:
         return Response(
@@ -4291,7 +4292,7 @@ class DeliveryDayViewSet(viewsets.ViewSet):
         from apps.accounts.models import User
         from apps.pos.services.delivery_day import create_day, serialize_day_detail, annotate_day_queryset
 
-        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+        if not manager_or(request.user, 'delivery:manage'):
             return Response({'detail': 'Manager required.'}, status=403)
         ser = DeliveryDayWriteSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
@@ -4325,7 +4326,7 @@ class DeliveryDayViewSet(viewsets.ViewSet):
             annotate_day_queryset, serialize_day_detail, update_day,
         )
 
-        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+        if not manager_or(request.user, 'delivery:manage'):
             return Response({'detail': 'Manager required.'}, status=403)
         try:
             day = DeliveryDay.objects.get(pk=pk)
@@ -4360,7 +4361,7 @@ class DeliveryDayViewSet(viewsets.ViewSet):
     def destroy(self, request, pk=None):
         from apps.pos.services.delivery_day import archive_day
 
-        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+        if not manager_or(request.user, 'delivery:manage'):
             return Response({'detail': 'Manager required.'}, status=403)
         try:
             day = DeliveryDay.objects.get(pk=pk)
@@ -4494,7 +4495,7 @@ class DeliveryViewSet(viewsets.ViewSet):
     def create(self, request):
         from apps.pos.services.delivery_crud import create_delivery
 
-        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+        if not manager_or(request.user, 'delivery:manage'):
             return Response({'detail': 'Manager required.'}, status=403)
         day = None
         day_id = request.data.get('day') or request.data.get('day_id') or request.data.get('availability')
@@ -4551,7 +4552,7 @@ class DeliveryViewSet(viewsets.ViewSet):
     def partial_update(self, request, pk=None):
         from apps.pos.services.delivery_crud import update_delivery
 
-        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+        if not manager_or(request.user, 'delivery:manage'):
             return Response({'detail': 'Manager required.'}, status=403)
         try:
             job = DeliveryJob.objects.get(pk=pk)
@@ -4577,7 +4578,7 @@ class DeliveryViewSet(viewsets.ViewSet):
     def destroy(self, request, pk=None):
         from apps.pos.services.delivery_crud import archive_delivery
 
-        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+        if not manager_or(request.user, 'delivery:manage'):
             return Response({'detail': 'Manager required.'}, status=403)
         try:
             job = DeliveryJob.objects.get(pk=pk)
@@ -4590,7 +4591,7 @@ class DeliveryViewSet(viewsets.ViewSet):
     def restore(self, request, pk=None):
         from apps.pos.services.delivery_crud import restore_delivery
 
-        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+        if not manager_or(request.user, 'delivery:manage'):
             return Response({'detail': 'Manager required.'}, status=403)
         try:
             job = DeliveryJob.objects.get(pk=pk)
@@ -4617,7 +4618,7 @@ class DeliveryViewSet(viewsets.ViewSet):
     def assign_day(self, request, pk=None):
         from apps.pos.services.delivery_crud import assign_delivery_to_day
 
-        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+        if not manager_or(request.user, 'delivery:manage'):
             return Response({'detail': 'Manager required.'}, status=403)
         try:
             job = DeliveryJob.objects.get(pk=pk)
@@ -4643,7 +4644,7 @@ class DeliveryViewSet(viewsets.ViewSet):
         from apps.pos.services.delivery_crud import add_job_item
         from apps.pos.serializers import DeliveryJobItemSerializer
 
-        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+        if not manager_or(request.user, 'delivery:manage'):
             return Response({'detail': 'Manager required.'}, status=403)
         try:
             job = DeliveryJob.objects.get(pk=pk)
@@ -4664,7 +4665,7 @@ class DeliveryViewSet(viewsets.ViewSet):
         from apps.pos.services.delivery_crud import remove_job_item
         from apps.pos.serializers import DeliveryJobItemSerializer
 
-        if not (request.user.is_superuser or request.user.groups.filter(name__in=['Manager', 'Admin']).exists()):
+        if not manager_or(request.user, 'delivery:manage'):
             return Response({'detail': 'Manager required.'}, status=403)
         try:
             item = DeliveryJobItem.objects.select_related('job').get(pk=item_id, job_id=pk)

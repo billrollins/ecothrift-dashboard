@@ -36,6 +36,7 @@ import BuyingFilterChips, { type AuctionFilterChipId } from '../../components/bu
 import BuyingSweepProgressDialog from '../../components/buying/BuyingSweepProgressDialog';
 import CategoryNeedPanel from '../../components/buying/CategoryNeedPanel';
 import { PageHeader } from '../../components/common/PageHeader';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBuyingAuctions } from '../../hooks/useBuyingAuctions';
 import { useBuyingAuctionsInfinite } from '../../hooks/useBuyingAuctionsInfinite';
@@ -98,9 +99,9 @@ export default function AuctionListPage() {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
-  const { hasRole } = useAuth();
-  /** Admin, Manager, or Employee - used for thumbs-up (matches backend IsStaff). */
-  const isStaff = hasRole('Employee');
+  const { user } = useAuth();
+  /** Thumbs-up: the Work step of Buying (matches backend IsStaff by default). */
+  const isStaff = canAccess(user, ['buying.thumbs:write', 'buying:work']);
 
   const [ordering, setOrdering] = useState(DEFAULT_BUYING_LIST_ORDERING);
   const [filterChips, setFilterChips] = useState<Set<AuctionFilterChipId>>(

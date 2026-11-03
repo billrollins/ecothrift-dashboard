@@ -20,6 +20,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin, IsStaff, IsSuperAdmin, IsTeamMember
+from apps.accounts.services.access import owner_or
 from apps.accounts.services.register_pin import PinError
 from apps.thriftplus.models import (
     Account,
@@ -268,7 +269,7 @@ class StaffMembershipsViewSet(viewsets.ViewSet):
     def list(self, request):
         from apps.thriftplus.services import staff_members
 
-        return Response({**staff_members.staff_list(), 'can_merge': bool(request.user.is_superuser)})
+        return Response({**staff_members.staff_list(), 'can_merge': owner_or(request.user, 'thriftplus:owner')})
 
     @action(detail=False, methods=['post'], url_path='create-missing', permission_classes=[IsAuthenticated, IsSuperAdmin])
     def create_missing(self, request):
@@ -604,7 +605,7 @@ class RewardsViewSet(viewsets.ViewSet):
         calculator's setting (owner 2026-10-13); with the Thrift+ switch off, every floor item's ThriftBucks are rebuilt
         for launch day as an approved request (Superuser → Requests), so staff see launch-day ThriftBucks."""
         if request.method == 'POST':
-            if not request.user.is_superuser:
+            if not owner_or(request.user, 'thriftplus:owner'):
                 return Response({'detail': 'Only the owner can change the engine.'}, status=status.HTTP_403_FORBIDDEN)
             try:
                 saved = rewards.save_engine(request.data, user=request.user)

@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { isStaffRole } from './auth/roles';
 import { useAuth } from './contexts/AuthContext';
+import { canAccess, type AccessNeed } from './auth/access';
 import { LoadingScreen } from './components/feedback/LoadingScreen';
 import MainLayout from './components/layout/MainLayout';
 import { ConsigneeLayout } from './components/layout/ConsigneeLayout';
@@ -35,6 +36,7 @@ const EmailsPage = lazy(() => import('./pages/people/EmailsPage'));
 const OnboardingPage = lazy(() => import('./pages/people/OnboardingPage'));
 const MyOnboardingPage = lazy(() => import('./pages/people/MyOnboardingPage'));
 const PayrollDeductionsPage = lazy(() => import('./pages/people/PayrollDeductionsPage'));
+const PermissionsPage = lazy(() => import('./pages/people/permissions/PermissionsPage'));
 const CheckInsPage = lazy(() => import('./pages/people/CheckInsPage'));
 const SchedulePage = lazy(() => import('./pages/people/SchedulePage'));
 const MyCheckInsPage = lazy(() => import('./pages/people/MyCheckInsPage'));
@@ -189,10 +191,10 @@ function HomeRedirect() {
   return <Navigate to={landingPath(user)} replace />;
 }
 
-function ManagerRoute({ children }: { children: React.ReactNode }) {
+/** A page that needs `need` on People → Permissions (#53): its item(s) and its dial step. */
+function AccessRoute({ need, children }: { need: AccessNeed; children: React.ReactNode }) {
   const { user } = useAuth();
-  if (!user?.role || !['Admin', 'Manager'].includes(user.role))
-    return <Navigate to="/dashboard" replace />;
+  if (!canAccess(user, need)) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
@@ -209,23 +211,10 @@ function LegacyQuickRepriceRedirect() {
   return <Navigate to={`/inventory/pr-fixit?tab=reprice${sku ? `&sku=${encodeURIComponent(sku)}` : ''}`} replace />;
 }
 
-/** The owner (superuser) or an Admin. */
-function OwnerOrAdminRoute({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
-  if (!user?.is_superuser && user?.role !== 'Admin') return <Navigate to="/dashboard" replace />;
-  return <>{children}</>;
-}
-
 /** A moved page: same query string (e.g. Reports' ?tab=), new address. */
 function KeepSearchRedirect({ to }: { to: string }) {
   const { search } = useLocation();
   return <Navigate to={`${to}${search}`} replace />;
-}
-
-function SuperAdminRoute({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
-  if (!user?.is_superuser) return <Navigate to="/dashboard" replace />;
-  return <>{children}</>;
 }
 
 function AppRoutes() {
@@ -306,8 +295,8 @@ function AppRoutes() {
         />
         <Route path="/routines" element={<RoutinesPage />} />
         <Route path="/routines/catalog" element={<RoutinesPage />} />
-        <Route path="/routines/new" element={<SuperAdminRoute><RoutinesPage /></SuperAdminRoute>} />
-        <Route path="/routines/:id/edit" element={<SuperAdminRoute><RoutinesPage /></SuperAdminRoute>} />
+        <Route path="/routines/new" element={<AccessRoute need={['routines:write', 'admin:full']}><RoutinesPage /></AccessRoute>} />
+        <Route path="/routines/:id/edit" element={<AccessRoute need={['routines:write', 'admin:full']}><RoutinesPage /></AccessRoute>} />
         <Route path="/routines/run/:id" element={<RoutinesPage />} />
         <Route
           path="/routines/bstock-login"
@@ -341,7 +330,7 @@ function AppRoutes() {
         <Route path="/supplies/count" element={<Navigate to="/supplies" replace />} />
         <Route path="/supplies/lists/:id" element={<SupplyListPage />} />
         <Route path="/supplies/count/:id" element={<SupplyCountPage />} />
-        <Route path="/supplies/order" element={<SuperAdminRoute><SupplyOrderPage /></SuperAdminRoute>} />
+        <Route path="/supplies/order" element={<AccessRoute need={['supplies:order', 'admin:full']}><SupplyOrderPage /></AccessRoute>} />
         {/* Received and "We need ___" (owner, 2026-10-28): everyone; managers answer requests. */}
         <Route path="/supplies/receive" element={<SupplyReceivePage />} />
         <Route path="/supplies/requests" element={<SupplyRequestsPage />} />
@@ -363,21 +352,21 @@ function AppRoutes() {
         <Route
           path="/inventory/inventories"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['inventory.inventories:manage', 'inventory:manage']}>
               <Suspense fallback={<LoadingScreen message="Loading…" />}>
                 <InventoriesPage />
               </Suspense>
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/inventory/inventories/:id"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['inventory.inventories:manage', 'inventory:manage']}>
               <Suspense fallback={<LoadingScreen message="Loading…" />}>
                 <InventoryPage />
               </Suspense>
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route path="/inventory/count/days" element={<LegacyCountRedirect />} />
@@ -405,7 +394,7 @@ function AppRoutes() {
         <Route path="/pos/test" element={<TestTerminalPage />} />
         <Route path="/pos/drawers" element={<DrawerListPage />} />
         {/* Managers and the owner (Retail 5, #49): a cashier would only meet refusals here. */}
-        <Route path="/pos/cash" element={<ManagerRoute><CashManagementPage /></ManagerRoute>} />
+        <Route path="/pos/cash" element={<AccessRoute need={['pos.cash:manage', 'cashier:manage']}><CashManagementPage /></AccessRoute>} />
         <Route path="/pos/transactions" element={<TransactionListPage />} />
         <Route path="/pos/members" element={<MembersLookupPage />} />
         <Route path="/pos/returns" element={<ReturnsPage />} />
@@ -439,82 +428,92 @@ function AppRoutes() {
         <Route
           path="/admin/pos-setup"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['pos.setup:write', 'cashier:manage']}>
               <PosStoreSetupPage />
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/consignment/accounts"
-          element={<ManagerRoute><ConsignmentAccountsPage /></ManagerRoute>}
+          element={<AccessRoute need={['consignment:manage', 'admin:manage']}><ConsignmentAccountsPage /></AccessRoute>}
         />
         <Route
           path="/consignment/accounts/:id"
-          element={<ManagerRoute><ConsigneeDetailPage /></ManagerRoute>}
+          element={<AccessRoute need={['consignment:manage', 'admin:manage']}><ConsigneeDetailPage /></AccessRoute>}
         />
         <Route
           path="/consignment/items"
-          element={<ManagerRoute><ConsignmentItemsPage /></ManagerRoute>}
+          element={<AccessRoute need={['consignment:manage', 'admin:manage']}><ConsignmentItemsPage /></AccessRoute>}
         />
         <Route
           path="/consignment/payouts"
-          element={<ManagerRoute><ConsignmentPayoutsPage /></ManagerRoute>}
+          element={<AccessRoute need={['consignment:manage', 'admin:manage']}><ConsignmentPayoutsPage /></AccessRoute>}
         />
         <Route
           path="/admin/users"
-          element={<ManagerRoute><UsersPage /></ManagerRoute>}
+          element={<AccessRoute need={['users.staff:manage', 'users.customers:manage', 'people:manage']}><UsersPage /></AccessRoute>}
         />
         <Route path="/online-sales" element={<Navigate to="/online-sales/listings" replace />} />
         <Route
           path="/online-sales/listings"
-          element={<ManagerRoute><OnlineSalesListingsPage /></ManagerRoute>}
+          element={<AccessRoute need={['online_sales.listings:manage', 'online_sales:manage']}><OnlineSalesListingsPage /></AccessRoute>}
         />
         <Route
           path="/online-sales/listings/:id"
-          element={<ManagerRoute><ListingStudioPage /></ManagerRoute>}
+          element={<AccessRoute need={['online_sales.listings:manage', 'online_sales:manage']}><ListingStudioPage /></AccessRoute>}
         />
         <Route
           path="/online-sales/holds"
-          element={<ManagerRoute><OnlineSalesHoldsPage /></ManagerRoute>}
+          element={<AccessRoute need={['online_sales.listings:manage', 'online_sales:manage']}><OnlineSalesHoldsPage /></AccessRoute>}
         />
         <Route
           path="/online-sales/messages"
-          element={<ManagerRoute><OnlineSalesMessagesPage /></ManagerRoute>}
+          element={<AccessRoute need={['online_sales.listings:manage', 'online_sales:manage']}><OnlineSalesMessagesPage /></AccessRoute>}
         />
         <Route
           path="/admin/permissions"
-          element={<Navigate to="/admin/settings?tab=people&section=permissions" replace />}
+          element={<Navigate to="/people/permissions" replace />}
+        />
+        <Route
+          path="/people/permissions"
+          element={
+            <AccessRoute need={['people.permissions:read', 'people:manage']}>
+              <Suspense fallback={<LoadingScreen message="Loading…" />}>
+                <PermissionsPage />
+              </Suspense>
+            </AccessRoute>
+          }
         />
         <Route
           path="/admin/time-payroll"
           element={
-            <SuperAdminRoute>
+            <AccessRoute need={['hr.payroll:read', 'hr.mod_requests:triage', 'admin:full']}>
               <TimePayrollPage />
-            </SuperAdminRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/brief"
           element={
-            <SuperAdminRoute>
+            <AccessRoute need={['owner.page', 'admin:full']}>
               <Navigate to="/owner" replace />
-            </SuperAdminRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/owner/*"
           element={
-            <SuperAdminRoute>
+            <AccessRoute need={['owner.page', 'admin:full']}>
               <OwnerPage />
-            </SuperAdminRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/thrift-plus"
           element={
-            <SuperAdminRoute>
+            <AccessRoute need={['thriftplus:owner', 'cashier:full']}>
               <ThriftPlusPage />
-            </SuperAdminRoute>
+            </AccessRoute>
           }
         />
         {/* Reports and Requests are Owner page tabs since Dash Updates #5; the old addresses keep working. */}
@@ -523,25 +522,25 @@ function AppRoutes() {
         <Route
           path="/admin/qa"
           element={
-            <SuperAdminRoute>
+            <AccessRoute need={['owner.page', 'admin:full']}>
               <QAPage />
-            </SuperAdminRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/admin/keys"
           element={
-            <OwnerOrAdminRoute>
+            <AccessRoute need={['keys:manage', 'admin:full']}>
               <KeysPage />
-            </OwnerOrAdminRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/admin/icons"
           element={
-            <SuperAdminRoute>
+            <AccessRoute need={['admin:full']}>
               <IconsPage />
-            </SuperAdminRoute>
+            </AccessRoute>
           }
         />
         <Route path="/dash-updates" element={<DashFixesPage />} />
@@ -550,57 +549,57 @@ function AppRoutes() {
         <Route
           path="/admin/routines"
           element={
-            <SuperAdminRoute>
+            <AccessRoute need={['routines:write', 'admin:full']}>
               <AdminRoutinesPage />
-            </SuperAdminRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/admin/retail-qa"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['retail_qa:manage', 'admin:manage']}>
               <RetailQaPage />
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/people/applicants"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['hiring:manage', 'people:manage']}>
               <Suspense fallback={<LoadingScreen message="Loading…" />}>
                 <ApplicantsPage />
               </Suspense>
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/people/jobs"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['hiring:manage', 'people:manage']}>
               <Suspense fallback={<LoadingScreen message="Loading…" />}>
                 <JobsPage />
               </Suspense>
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/people/interviews"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['hiring:manage', 'people:manage']}>
               <Suspense fallback={<LoadingScreen message="Loading…" />}>
                 <InterviewsPage />
               </Suspense>
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/people/onboarding"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['hiring:manage', 'people:manage']}>
               <Suspense fallback={<LoadingScreen message="Loading…" />}>
                 <OnboardingPage />
               </Suspense>
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
@@ -615,64 +614,64 @@ function AppRoutes() {
         <Route
           path="/people/checkins"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['hiring:manage', 'people:manage']}>
               <Suspense fallback={<LoadingScreen message="Loading…" />}>
                 <CheckInsPage />
               </Suspense>
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/people/payroll-deductions"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['people.pay:read', 'people:manage']}>
               <Suspense fallback={<LoadingScreen message="Loading…" />}>
                 <PayrollDeductionsPage />
               </Suspense>
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/people/emails"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['hiring:manage', 'people:manage']}>
               <Suspense fallback={<LoadingScreen message="Loading…" />}>
                 <EmailsPage />
               </Suspense>
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route path="/people" element={<Navigate to="/people/applicants" replace />} />
         <Route
           path="/admin/departments"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['hr.department:write', 'admin:manage']}>
               <DepartmentsPage />
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/admin/departments/:slug"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['hr.department:write', 'admin:manage']}>
               <DepartmentDetailPage />
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/admin/shifts"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['hr.shifts:write', 'admin:manage']}>
               <ShiftsPage />
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/admin/settings"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['settings:write', 'admin:manage']}>
               <SettingsPage />
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         {/* Social Studio (Lane F Phase 2): every staff login; the rating inside is the owner's. */}
@@ -711,35 +710,35 @@ function AppRoutes() {
         <Route
           path="/announcements"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['announcements:manage', 'studios:manage']}>
               <AnnouncementsPage />
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/announcements/:id"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['announcements:manage', 'studios:manage']}>
               <Suspense fallback={<LoadingScreen message="Loading announcement…" />}>
                 <AnnouncementEditorPage />
               </Suspense>
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/admin/label-studio"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['labels:write', 'studios:manage']}>
               <LabelStudioPage />
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
           path="/admin/label-studio/:id"
           element={
-            <ManagerRoute>
+            <AccessRoute need={['labels:write', 'studios:manage']}>
               <LabelDesignerPage />
-            </ManagerRoute>
+            </AccessRoute>
           }
         />
         <Route
@@ -767,11 +766,11 @@ function AppRoutes() {
         path="/blog-studio"
         element={
           <ProtectedRoute>
-            <SuperAdminRoute>
+            <AccessRoute need={['blog:write', 'studios:full']}>
               <Suspense fallback={<LoadingScreen message="Loading Blog Studio…" />}>
                 <BlogStudioPage />
               </Suspense>
-            </SuperAdminRoute>
+            </AccessRoute>
           </ProtectedRoute>
         }
       />

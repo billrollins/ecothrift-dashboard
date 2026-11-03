@@ -1421,7 +1421,9 @@ def _user_is_manager_or_admin(user) -> bool:
         return False
     if getattr(user, 'is_superuser', False):
         return True
-    return user.groups.filter(name__in=['Manager', 'Admin']).exists()
+    from apps.accounts.services.access import manager_or
+
+    return manager_or(user, 'delivery:manage')
 
 
 def complete_stop(

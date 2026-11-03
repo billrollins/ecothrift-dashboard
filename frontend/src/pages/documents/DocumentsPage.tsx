@@ -6,6 +6,7 @@ import { StatusTag } from '../../components/duty/StatusTag';
 import { TaskCard } from '../../components/duty/TaskCard';
 import { dutyColors } from '../../components/duty/tokens';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../hooks/useAuth';
 import { useMyDocumentRecipients, useStaffDocuments } from '../../hooks/useDocuments';
 import type { DocumentMode } from '../../api/documents.api';
@@ -18,6 +19,7 @@ function modeTag(mode: DocumentMode) {
 
 export default function DocumentsPage() {
   const { user } = useAuth();
+  const canWrite = canAccess(user, ['documents:write', 'admin:full']);
   const navigate = useNavigate();
   const mine = useMyDocumentRecipients();
   const catalog = useStaffDocuments();
@@ -31,7 +33,7 @@ export default function DocumentsPage() {
       <Box sx={{ px: 2, pt: 2, pb: 1.5, borderBottom: `1px solid ${dutyColors.ink15}` }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography sx={{ fontSize: 22, fontWeight: 700, color: dutyColors.ink }}>Documents</Typography>
-          {user?.is_superuser ? (
+          {canWrite ? (
             <Button size="small" onClick={() => navigate('/documents/new')}>Upload</Button>
           ) : null}
         </Box>
@@ -63,7 +65,7 @@ export default function DocumentsPage() {
         )) : (
           <Typography sx={{ px: 2, pb: 1, fontSize: 12.5, color: dutyColors.ink40, minHeight: 20 }}>None</Typography>
         )}
-        {user?.is_superuser ? (
+        {canWrite ? (
           <>
             <GroupHeader title="All documents" count={catalog.data?.length ?? 0} />
             {(catalog.data ?? []).map((doc) => (

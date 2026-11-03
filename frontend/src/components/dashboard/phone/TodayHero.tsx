@@ -1,5 +1,6 @@
 import { Box, Card, Typography } from '@mui/material';
 import { useState } from 'react';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../hooks/useAuth';
 import type { SalesMetrics } from '../../../types/pos.types';
 import { dashboardPalette, dashboardPhoneCardSx } from '../dashboardCardStyles';
@@ -12,7 +13,7 @@ import { SalesSubLines } from '../SalesSubLines';
 
 export function TodayHero({ sales }: { sales: SalesMetrics }) {
   const { user } = useAuth();
-  const isSuperuser = Boolean(user?.is_superuser);
+  const isSuperuser = canAccess(user, ['dashboard.goals:write', 'admin:full']);
   const [goalOpen, setGoalOpen] = useState(false);
 
   const today = parseDashboardAmount(sales.today);

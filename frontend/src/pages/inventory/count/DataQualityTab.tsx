@@ -22,6 +22,7 @@ import {
   Typography,
 } from '@mui/material';
 import { apiMessage, getQualityFindings, stageQualityRequest, type QualityFinding } from '../../../api/stocktake.api';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../contexts/AuthContext';
 
 const plain = { textTransform: 'none' as const };
@@ -69,7 +70,7 @@ function FixLine({ f, countId, onStaged }: { f: QualityFinding; countId: number;
           label={`Request #${latest.id}: ${REQUEST_WORDS[latest.status] ?? latest.status}`}
         />
       )}
-      {user?.is_superuser && latest && (
+      {canAccess(user, ['owner.page', 'admin:full']) && latest && (
         <Button component={RouterLink} to="/owner/approvals" size="small" sx={plain}>
           Open Requests
         </Button>

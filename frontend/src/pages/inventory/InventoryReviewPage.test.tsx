@@ -14,7 +14,7 @@ const core = vi.hoisted(() => ({ updateSetting: vi.fn() }));
 vi.mock('../../api/core.api', () => core);
 const auth = vi.hoisted(() => ({ manager: true }));
 vi.mock('../../contexts/AuthContext', () => ({
-  useAuth: () => ({ hasRole: () => auth.manager, user: { is_superuser: false } }),
+  useAuth: () => ({ hasRole: () => auth.manager, user: { is_superuser: false, role: auth.manager ? 'Manager' : 'Employee' } }),
 }));
 
 function row(key: string, over: Partial<ReviewRow> = {}): ReviewRow {

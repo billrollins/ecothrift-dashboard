@@ -38,7 +38,15 @@ vi.mock('@mui/x-data-grid', () => ({
 }));
 
 vi.mock('../../../contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 1, role: state.role, full_name: 'Boss' } }),
+  // An Admin holds the staff-accounts item (the owner step of People); a Manager holds the Manage step only.
+  useAuth: () => ({
+    user: {
+      id: 1,
+      role: state.role,
+      full_name: 'Boss',
+      access: state.role === 'Admin' ? ['people:manage', 'people:full', 'users.staff:manage'] : ['people:manage'],
+    },
+  }),
 }));
 
 vi.mock('./MembersPanel', () => ({

@@ -45,6 +45,7 @@ import {
 } from '../../hooks/usePOS';
 import { useCashDrop } from '../../hooks/useCashManagement';
 import { useUsers } from '../../hooks/useEmployees';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDeviceConfig } from '../../hooks/useDeviceConfig';
 import type { DenominationBreakdown } from '../../types/pos.types';
@@ -83,11 +84,11 @@ function apiDetail(err: unknown, fallback: string): string {
 
 export default function DrawerListPage() {
   const { enqueueSnackbar } = useSnackbar();
-  const { user, hasRole } = useAuth();
+  const { user } = useAuth();
   const lang = user?.language;
   const { config } = useDeviceConfig();
   const { openObject } = useObjectModal();
-  const isManager = hasRole('Manager') || hasRole('Admin');
+  const isManager = canAccess(user, ['pos.override:use', 'cashier:manage']);
   const myRegisterId = config?.deviceType === 'register' ? config?.registerId : null;
 
   const queryClient = useQueryClient();

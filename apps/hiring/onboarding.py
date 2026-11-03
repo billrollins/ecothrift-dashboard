@@ -283,7 +283,9 @@ def password_link(onboarding: Onboarding, *, request) -> dict:
 
     user = onboarding.user
     actor = request.user
-    if not (actor.is_superuser or actor.role == 'Admin') and user.role != 'Employee':
+    from apps.accounts.services.access import admin_or
+
+    if not admin_or(actor, 'hiring:owner') and user.role != 'Employee':
         raise PermissionDenied('Only an Admin can make a set-password link for a manager or an Admin.')
     if not is_staff_account(user) or not user.is_active:
         raise ValidationError({'detail': 'This person is switched off, or not staff.'})

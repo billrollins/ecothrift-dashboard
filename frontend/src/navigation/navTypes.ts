@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import type { SvgIconProps } from '@mui/material/SvgIcon';
+import type { AccessNeed } from '../auth/access';
 import type { EcoIconName } from '../icons/ecoIcons';
 import type { UserRole } from '../types/accounts.types';
 
@@ -22,6 +23,14 @@ export interface NavItemDef {
   pathAliases?: string[];
   /** Only visible to Django superusers (the Super Admin); the `roles` ranking can't express this. */
   superuserOnly?: boolean;
+  /**
+   * What it needs on People → Permissions (#53): its item(s) plus the dial step, e.g.
+   * `['settings:write', 'admin:manage']`. Left out: its area's View step (the area is the workspace that lists it).
+   * `roles` / `superuserOnly` stay as the rule for a user object without `access`.
+   */
+  need?: AccessNeed;
+  /** The permission area of a page no workspace lists as its own (only a guest link). */
+  area?: string;
 }
 
 export interface NavGroupDef {

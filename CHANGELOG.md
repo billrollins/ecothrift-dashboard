@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.251.0] -->
-<!-- Last reviewed: 2026-11-03 (2.251.0) -->
+<!-- Line 1 release: ## [2.252.0] -->
+<!-- Last reviewed: 2026-11-03 (2.252.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,23 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.252.0] - 2026-11-03
+
+User-facing theme: **Staff permissions on one page: a dial per area for each level, department and person (Bill, 2026-11-03; Dash Updates #53, phase 1).**
+
+### Added
+- People → Permissions (`/people/permissions`): one dial per sidebar area (None · View · Work · Manage · Full; each step includes the ones below). Tabs: Levels (Employee and Manager; the Owner is locked at Full), Departments (a department only adds), People (each person's level, what they end up with per area and where it came from, exceptions with an end date and a note, View as) and History (who changed what, when). Open an area to tick or untick single items; the dial then reads "Work +1". Managers can read the page; only the owner changes it.
+- The basics stay on for every staff login and sit on no dial: clock and kiosk, Today, Dashboard and Me, messages, assigned routines and documents, Dash Updates report.
+- Day one changes nobody: the Employee and Manager presets are what each level had before.
+
+### Changed
+- Giving more works everywhere: a grant (a higher dial, a department, or one item for one person) opens the menus, pages, buttons and server checks that were Manager- or owner-only, including inline checks and a manager's register PIN. Taking away hides menus, pages and buttons now; the server lock follows in phase 2.
+- The Admin group is retired into the Owner: its three extras (staff accounts, valuation overrides, the permissions grid) are the Owner's. Someone granted staff accounts edits Employee accounts only: never the owner's or a Manager's, and never makes a Manager.
+- Settings → People → Permissions now links to the new page; `/admin/permissions` redirects there.
+
+### Migrations
+- `accounts.0018_staff_permissions`: new tables `AccessSet` (levels, departments, exceptions) and `AccessEvent` (History). No data changes.
 
 ## [2.251.0] - 2026-11-03
 

@@ -10011,7 +10011,9 @@ class RestorationPartsOrderViewSet(viewsets.GenericViewSet):
 
         raw = request.data if isinstance(request.data, dict) else {}
         refunded = bool(raw.get('refunded')) if raw else False
-        force = bool(getattr(request.user, 'is_superuser', False))
+        from apps.accounts.services.access import owner_or
+
+        force = owner_or(request.user, 'restoration.parts:approve')
         return self._run(cancel_order, force=force, refunded=refunded)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsSuperAdmin])

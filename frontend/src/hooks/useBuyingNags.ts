@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchBuyingNags } from '../api/buying.api';
+import { canAccess } from '../auth/access';
 import type { BuyingNags } from '../types/buying.types';
 import { useAuth } from './useAuth';
 
@@ -11,12 +12,13 @@ export const NO_BUYING_NAGS: BuyingNags = { ending: [], unrecorded: [], count: 0
  */
 export function useBuyingNags(): BuyingNags {
   const { user } = useAuth();
+  const buyer = canAccess(user, ['buying.purchase', 'buying:full']);
   const query = useQuery({
     queryKey: ['buying', 'nags'],
     queryFn: fetchBuyingNags,
-    enabled: Boolean(user?.is_superuser),
+    enabled: buyer,
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
-  return (user?.is_superuser && query.data) || NO_BUYING_NAGS;
+  return (buyer && query.data) || NO_BUYING_NAGS;
 }

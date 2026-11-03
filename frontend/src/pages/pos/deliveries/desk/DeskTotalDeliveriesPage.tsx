@@ -18,6 +18,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { AddDeliveryDialog } from '../../../../components/pos/delivery/AddDeliveryDialog';
 import { useDeliveriesSearch, useDeliveryMutations } from '../../../../hooks/useDelivery';
 import { useDeliveryAvailabilities } from '../../../../hooks/usePOS';
+import { canAccess } from '../../../../auth/access';
 import { useAuth } from '../../../../hooks/useAuth';
 import {
   ecoField,
@@ -39,8 +40,8 @@ export default function DeskTotalDeliveriesPage() {
   const { data, isLoading } = useDeliveriesSearch(deskTotalStateToApiParams(state));
   const { data: daySlots = [] } = useDeliveryAvailabilities({ upcoming: '1' });
   const { archive, restore } = useDeliveryMutations();
-  const { hasRole } = useAuth();
-  const canManage = hasRole('Manager') || hasRole('Admin');
+  const { user } = useAuth();
+  const canManage = canAccess(user, ['delivery:manage', 'deliveries:manage']);
   const [selected, setSelected] = useState<DeliveryJob | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const rows = data?.results ?? [];

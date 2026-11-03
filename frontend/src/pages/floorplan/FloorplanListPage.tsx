@@ -25,6 +25,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { getFloorPlan } from '../../api/floorplan.api';
 import { getLocations } from '../../api/core.api';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   useCreateFloorPlan,
@@ -42,7 +43,7 @@ export default function FloorplanListPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
-  const canEdit = Boolean(user?.role && ['Manager', 'Admin'].includes(user.role));
+  const canEdit = canAccess(user, ['floorplan:write', 'studios:manage']);
 
   const plansQuery = useFloorPlans();
   const locationsQuery = useQuery({

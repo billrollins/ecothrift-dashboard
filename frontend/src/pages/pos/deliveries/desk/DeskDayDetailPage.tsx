@@ -14,6 +14,7 @@ import {
   buildDeliveryDayCards,
   type DeliveryDayCardModel,
 } from '../../../../components/pos/delivery/dayBoardUtils';
+import { canAccess } from '../../../../auth/access';
 import { useAuth } from '../../../../hooks/useAuth';
 import {
   useDeliveryDay,
@@ -42,8 +43,8 @@ export default function DeskDayDetailPage() {
   const validId = Number.isFinite(id) ? id : undefined;
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
-  const { hasRole } = useAuth();
-  const canManage = hasRole('Manager') || hasRole('Admin');
+  const { user } = useAuth();
+  const canManage = canAccess(user, ['delivery:manage', 'deliveries:manage']);
   const { data: day, isLoading, isError } = useDeliveryDay(validId);
   const { data: run } = useFieldDeliveryRun(validId, {
     enabled: Boolean(day),

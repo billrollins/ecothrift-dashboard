@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model, authenticate
 from django.contrib.auth.models import update_last_login
 from rest_framework import serializers, viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import SimpleRateThrottle
@@ -20,7 +20,6 @@ from .serializers import (
     LoginSerializer, EmployeeProfileSerializer, ConsigneeProfileSerializer,
     PasswordChangeSerializer,
 )
-from .capabilities import capabilities_for_user, catalog_as_dicts
 from .permissions import IsAdmin, IsManagerOrAdmin, IsSuperAdmin
 
 from .models import AccountEvent
@@ -153,7 +152,11 @@ def login_view(request):
     idle.stamp(user, force=True)
 
     refresh = RefreshToken.for_user(user)
-    user_data = UserSerializer(user).data
+    user_data = dict(UserSerializer(user).data)
+    # What they may open (People → Permissions, #53): the sidebar and pages read it.
+    from .services.access import access_ids
+
+    user_data['access'] = access_ids(user)
 
     response = Response({
         'access': str(refresh.access_token),
@@ -259,15 +262,10 @@ def logout_view(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def capabilities_view(request):
-    """Capability ids the calling user holds today (role + is_superuser)."""
-    return Response({'capabilities': capabilities_for_user(request.user)})
+    """What the calling person holds (People → Permissions, #53): item ids and each dial step reached."""
+    from .services.access import access_ids
 
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated, IsAdmin])
-def capability_catalog_view(request):
-    """Full catalog for the Settings → Permissions matrix."""
-    return Response({'results': catalog_as_dicts()})
+    return Response({'capabilities': access_ids(request.user)})
 
 
 @api_view(['GET'])
@@ -305,6 +303,10 @@ def me_view(request):
 
     session = getattr(request._request, 'view_as_session', None)
     data['view_as'] = view_as.payload(session) if session is not None else None
+    # What they may open (People → Permissions, #53): the sidebar and pages read it. Viewing as: the employee's.
+    from .services.access import access_ids
+
+    data['access'] = access_ids(request.user)
     return Response(data)
 
 
@@ -485,13 +487,40 @@ class UserViewSet(viewsets.ModelViewSet):
             qs = qs.filter(is_active=is_active.lower() in ('true', '1'))
         return qs.distinct()
 
+    def get_object(self):
+        user = super().get_object()
+        if self.request.method not in ('GET', 'HEAD', 'OPTIONS'):
+            self._target_guard(user)
+        return user
+
+    def _target_guard(self, target) -> None:
+        """Someone who manages staff accounts by a grant (#53) changes Employee accounts only: never the owner's, a
+        Manager's or an Admin's (an email change there would hand over the account)."""
+        actor = self.request.user
+        if actor.is_superuser or actor.role == 'Admin':
+            return
+        if target.is_superuser or target.role in ('Manager', 'Admin'):
+            raise PermissionDenied("Only the owner changes a manager's or the owner's account.")
+
+    def _levels_guard(self, new_role, instance=None) -> None:
+        """Levels are the owner's (People → Permissions, #53): someone who manages staff accounts by a grant may add
+        and edit Employees, never make or change a Manager or an Admin."""
+        actor = self.request.user
+        if actor.is_superuser or actor.role == 'Admin':
+            return
+        high = ('Manager', 'Admin')
+        if new_role in high or (instance is not None and instance.role in high and new_role and new_role != instance.role):
+            raise PermissionDenied('Only the owner sets levels.')
+
     def perform_create(self, serializer):
+        self._levels_guard(serializer.validated_data.get('role'))
         user = serializer.save()
         AccountEvent.log(user, AccountEvent.KIND_CREATED, actor=self.request.user,
                          detail=f'{user.role or ""} {user.username or user.email}'.strip())
 
     def perform_update(self, serializer):
         before = serializer.instance
+        self._levels_guard(serializer.validated_data.get('role'), before)
         old = {'role': before.role, 'is_active': before.is_active, 'username': before.username}
         user = serializer.save()
         actor = self.request.user

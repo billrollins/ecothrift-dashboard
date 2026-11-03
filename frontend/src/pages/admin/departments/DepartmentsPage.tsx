@@ -37,6 +37,7 @@ import {
   updateDepartment,
   type Department,
 } from '../../../api/hr.api';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../hooks/useAuth';
 import { QaIcon } from '../retailqa/QaIcons';
 import { ccTokens } from '../../../theme';
@@ -53,7 +54,7 @@ export default function DepartmentsPage() {
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const isSuper = Boolean(user?.is_superuser);
+  const isSuper = canAccess(user, ['hr.department:admin', 'admin:full']);
   const [showInactive, setShowInactive] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editRow, setEditRow] = useState<Department | null>(null);

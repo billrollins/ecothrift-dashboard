@@ -13,6 +13,7 @@ from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin, IsTeamMember
+from apps.accounts.services.access import admin_or, owner_or
 from .models import (
     WorkLocation, AppSetting, AppSettingHistory, S3File, PrintServerRelease,
     AiAction, AiModel,
@@ -60,9 +61,9 @@ class AppSettingViewSet(viewsets.ModelViewSet):
 
     def _owner_only(self, key: str) -> None:
         user = self.request.user
-        if key.startswith(self.SUPERUSER_PREFIXES) and not user.is_superuser:
+        if key.startswith(self.SUPERUSER_PREFIXES) and not owner_or(user, 'settings:owner'):
             raise PermissionDenied('Only the Super User changes Thrift+ settings.')
-        if key in self.ADMIN_ONLY and not (user.is_superuser or getattr(user, 'role', None) == 'Admin'):
+        if key in self.ADMIN_ONLY and not admin_or(user, 'settings:owner'):
             raise PermissionDenied('Only the owner (Admin) changes this setting.')
 
     def perform_create(self, serializer):

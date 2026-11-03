@@ -28,6 +28,7 @@ import {
   formatObjectRef, ObjectLink, ObjectModalProvider, parseObjectRef, useObjectModal, type ObjectRef,
 } from '../../components/objects/ObjectModal';
 import { ProductItemsTable } from '../../components/objects/ProductItemsTable';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../utils/format';
 import { parseRichSearch, parseWorkbenchSelection } from '../../utils/richInventorySearch';
@@ -122,8 +123,8 @@ function SimilarProducts({ productId }: { productId: number }) {
 /** The bar that appears when something is ticked, plus the dialog and the drawer it drives. */
 function BulkBar() {
   const sel = useOptionalSelection();
-  const { hasRole } = useAuth();
-  const canPrice = hasRole('Manager');
+  const { user } = useAuth();
+  const canPrice = canAccess(user, ['inventory.inventories:manage', 'inventory:manage']);
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const { job, print, cancel } = usePrintQueue();

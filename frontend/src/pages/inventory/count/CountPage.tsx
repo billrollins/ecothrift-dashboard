@@ -49,6 +49,7 @@ import {
   type RunSummary,
   type Section,
 } from '../../../api/stocktake.api';
+import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../contexts/AuthContext';
 import { CountNav } from './CountNav';
 import { SectionsPanel } from './InventorySessions';
@@ -162,9 +163,9 @@ type Sheet = { mode: 'scan'; clientId: string } | { mode: 'notag' } | null;
 
 /** Shelf inventory count. Phone first: pick a section, scan fast, answer problems in a tap. */
 export default function CountPage() {
-  const { hasRole, user } = useAuth();
-  const isManager = hasRole('Manager') || hasRole('Admin') || !!user?.is_superuser;
-  const isSuper = !!user?.is_superuser;
+  const { user } = useAuth();
+  const isManager = canAccess(user, ['inventory.inventories:manage', 'inventory:manage']);
+  const isSuper = canAccess(user, ['inventory.inventories:owner', 'inventory:full']);
 
   const [booting, setBooting] = useState(true);
   const [error, setError] = useState('');

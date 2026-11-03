@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import UserViewSet, CustomerViewSet, LoginMergeViewSet, capability_catalog_view, pay_levels_view
+from .views import UserViewSet, CustomerViewSet, LoginMergeViewSet, pay_levels_view
+from . import access_views
 from . import messages_views as msg
 
 router = DefaultRouter()
@@ -17,7 +18,11 @@ urlpatterns = [
     path('messages/<int:thread_id>/', msg.thread_view, name='staff-message-thread'),
     path('messages/<int:thread_id>/reply/', msg.reply_view, name='staff-message-reply'),
     path('messages/secret/<int:message_id>/show/', msg.show_secret_view, name='staff-message-show-secret'),
-    path('capability-catalog/', capability_catalog_view, name='capability-catalog'),
+    # People → Permissions (Dash Update #53).
+    path('access/', access_views.access_page_view, name='access-page'),
+    path('access/layer/', access_views.access_layer_view, name='access-layer'),
+    path('access/level/', access_views.access_level_view, name='access-level'),
+    path('access/history/', access_views.access_history_view, name='access-history'),
     path('pay-levels/', pay_levels_view, name='pay-levels'),
     path('', include(router.urls)),
 ]

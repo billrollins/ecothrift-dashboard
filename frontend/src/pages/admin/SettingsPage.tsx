@@ -16,6 +16,7 @@ import { useSearchParams } from 'react-router-dom';
 import type { Setting } from '../../api/core.api';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
+import { canAccess } from '../../auth/access';
 import { useAuth } from '../../contexts/AuthContext';
 import { canSee, SETTINGS_LAYOUT, type SettingsSectionDef, type SettingsTabDef } from './settings/settingsLayout';
 import { metaForKey, parseSettingsTab, type SettingsTab } from './settings/settingsRegistry';
@@ -102,8 +103,9 @@ function SectionView({ tab, section, settings, open, onToggle, highlight }: {
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'Admin';
-  const isSuperuser = Boolean(user?.is_superuser);
+  // Owner tabs open on their own item (Thrift+ and the owner keys; AI models); `canSee` below decides each one.
+  const isAdmin = canAccess(user, ['settings:owner', 'admin:full']);
+  const isSuperuser = canAccess(user, ['settings:owner', 'settings.ai:write', 'admin:full']);
   const [params, setParams] = useSearchParams();
   const tabId = parseSettingsTab(params.get('tab'), isAdmin, isSuperuser);
   const askedSection = params.get('section');
@@ -112,16 +114,16 @@ export default function SettingsPage() {
   const [open, setOpen] = useState<Record<string, boolean>>(readOpen);
   const [showLegacy, setShowLegacy] = useState(false);
 
-  const tabs = SETTINGS_LAYOUT.filter((t) => canSee(t.access, isAdmin, isSuperuser));
+  const tabs = SETTINGS_LAYOUT.filter((t) => canSee(t, user));
   const tab = tabs.find((t) => t.id === tabId) ?? tabs[0];
-  const sections = tab.sections.filter((s) => canSee(s.access, isAdmin, isSuperuser) && (showLegacy || s.stage !== 'legacy'));
+  const sections = tab.sections.filter((s) => canSee(s, user) && (showLegacy || s.stage !== 'legacy'));
   const hasLegacy = tab.sections.some((s) => s.stage === 'legacy');
 
   const hits = useMemo<SearchHit[]>(() => {
     const out: SearchHit[] = [];
     for (const t of tabs) {
       for (const s of t.sections) {
-        if (!canSee(s.access, isAdmin, isSuperuser)) continue;
+        if (!canSee(s, user)) continue;
         for (const key of s.keys ?? []) {
           const meta = metaForKey(key);
           out.push({ key, label: meta.label, help: meta.help, tab: t, section: s });
@@ -130,7 +132,7 @@ export default function SettingsPage() {
       }
     }
     return out;
-  }, [tabs, isAdmin, isSuperuser]);
+  }, [tabs, user]);
 
   const isOpen = (sectionId: string, index: number) => {
     const id = `${tab.id}.${sectionId}`;

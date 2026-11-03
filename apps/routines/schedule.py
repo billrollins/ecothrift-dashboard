@@ -12,6 +12,7 @@ from django.db.models import Case, Q, When
 from django.utils import timezone
 
 from apps.webstore.services.hours import _local_now, is_open_day
+from apps.accounts.services.access import owner_or
 
 from .models import QaCallIn, QaDayOverride, Routine, RoutineRun, RoutineSubmission, Section
 from .settings import LATE_RED_MINUTES, retail_qa_settings
@@ -899,8 +900,8 @@ def materialize_routines(day: date | None = None) -> int:
                 and routine.kind != Routine.KIND_BSTOCK_PULL
             ):
                 continue
-            # The B-Stock pull runs on superuser-only endpoints; nobody else gets a run.
-            if routine.kind == Routine.KIND_BSTOCK_PULL and not user.is_superuser:
+            # The B-Stock pull runs on owner-only endpoints; nobody else gets a run (unless granted, #53).
+            if routine.kind == Routine.KIND_BSTOCK_PULL and not owner_or(user, 'buying.purchase'):
                 continue
             extras = _run_extras(routine, day, key, user.pk)
             if routine.system_key == SYSTEM_TALLY:
@@ -1018,7 +1019,7 @@ def personal_section_run(run: RoutineRun) -> bool:
 
 
 def user_can_see_run(run: RoutineRun, user) -> bool:
-    if getattr(user, 'is_superuser', False):
+    if owner_or(user, 'routines:write'):
         return True
     if personal_section_run(run):
         return run.assigned_to_id == user.pk
