@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-28 (Supplies: Receive and We need requests) -->
+<!-- Last updated: 2026-11-02 (Cashier menu after the retail windows, #49) -->
 # Eco-Thrift Dashboard — App Map for Navigation Consultation
 
 **Purpose:** Hand this document to a consulting AI (or UX reviewer) to evaluate whether the staff navbar, workspaces, and page grouping can be organized more clearly.
@@ -70,7 +70,7 @@ Intended story: *source → prep → ingest → restore → records → floor �
 | 3 | `restoration` | Restoration | Test, assemble, repair, salvage | TARS (new window), Parts requests (Manager+) |
 | 4 | `inventory` | Inventory | Catalog — products, check-ins, items | Catalog |
 | 5 | `retailFloor` | Floor | Shelf and floorplans | Catalog, Quick reprice, Floorplans |
-| 5 | `storeSales` | Cashier | Register, sales, drawers, and Thrift+ | Terminal, Thrift+ Staff, Transactions, Drawers, Cash management; **Setup:** Test terminal, Printables, POS setup (Manager+), Thrift+ (superuser); Command Center after a line (Manager+) |
+| 5 | `storeSales` | Cashier | Register, sales, drawers, and Thrift+ | Terminal, Thrift+ Staff, Transactions, Returns, Drawers, Cash (Manager+; #49, 2026-11-02: Thrift+ members left the menu, the Member window covers it); **Setup:** Test terminal, Printables, POS setup (Manager+), Thrift+ (superuser); Command Center after a line (Manager+) |
 | 7 | `admin` | Admin | Setup and access | Assumptions, Employees, Customers, Permissions, Settings, Label Studio, Blog studio, Time & payroll *(Admin group itself Manager+; items further gated)* |
 
 \*Placeholder pages.
@@ -211,7 +211,7 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 | **Delivery Desk** | `/pos/deliveries/desk/schedule`, `/desk/table`, `/desk/schedule/:dayId` | Office planning/review + live run/route/ETA monitor on day detail; never renders the Field driver wizard. |
 | **Delivery Field** | `/pos/deliveries/field/schedule`, `/field/table`, `/field/schedule/:dayId` | Mobile full-day run: Contact → Load → Routes → Deliveries → Finish; Routes API ETAs; sticky timer + step rail. |
 | **Drawers** | `/pos/drawers` | Cash drawer open/close status by register/day. |
-| **Cash management** | `/pos/cash` | Drops, pickups, safe / reconciliation workflows. |
+| **Cash** | `/pos/cash` | Managers and the owner: office cash, the safe, bank deposits and change (Retail 5). |
 | **Printables** | `/pos/printables` | Policy sheets / driver logs and similar printables. |
 | **POS setup** | `/admin/pos-setup` | Manager+: registers, locations, POS configuration. |
 

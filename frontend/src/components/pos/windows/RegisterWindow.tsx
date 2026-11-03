@@ -247,7 +247,9 @@ export function RegisterWindow({ id }: { id: number }) {
               <Button size="small" variant="outlined" onClick={() => history(c.today, c.today)}>{tr('allToday')}</Button>
               <Button size="small" variant="outlined" onClick={() => history(weekStart, c.today)}>{tr('thisWeekBtn')}</Button>
               <Button size="small" variant="outlined" onClick={() => go('/pos/drawers')}>{tr('drawersPage')}</Button>
-              <Button size="small" variant="outlined" onClick={() => go('/pos/cash')}>{tr('cashPage')}</Button>
+              {hasRole('Manager') && (
+                <Button size="small" variant="outlined" onClick={() => go('/pos/cash')}>{tr('cashPage')}</Button>
+              )}
             </Stack>
           </Section>
         </Stack>

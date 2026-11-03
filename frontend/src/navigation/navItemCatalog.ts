@@ -141,11 +141,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Drawers',
     icon: 'cashDrawer',
   },
+  // The office cash, the safe and the bank (Retail 5): managers and the owner; a cashier's drops are on Drawers.
   posCash: {
     id: 'posCash',
     path: '/pos/cash',
-    label: 'Cash management',
+    label: 'Cash',
     icon: 'cash',
+    roles: ['Manager', 'Admin'],
   },
   posTransactions: {
     id: 'posTransactions',

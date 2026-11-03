@@ -20,6 +20,8 @@ vi.mock('../../api/thriftplusReturns.api', async (orig) => ({
 }));
 const auth = vi.hoisted(() => ({ user: { role: 'Employee', is_superuser: false } as { role: string; is_superuser: boolean } }));
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: auth.user }) }));
+const openObject = vi.hoisted(() => vi.fn());
+vi.mock('../../components/objects/ObjectModal', () => ({ useObjectModal: () => ({ openObject }) }));
 vi.mock('../../hooks/useDeviceConfig', () => ({ useDeviceConfig: () => ({ config: { registerCode: 'R1' } }) }));
 
 const LAMP = { cart_line: 11, sku: 'ITM100', title: 'Brass lamp', quantity: 1, price: '80.00', mark: '3-day return', refund: '68.48',
@@ -64,9 +66,14 @@ function Where() {
   return <div data-testid="where">{l.pathname}{l.search}</div>;
 }
 
+let client: QueryClient;
+const invalidated = () => vi.mocked(client.invalidateQueries).mock.calls.map(([f]) => (f as { queryKey: unknown }).queryKey);
+
 function renderPage(url = '/pos/returns') {
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  vi.spyOn(client, 'invalidateQueries');
   return render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider client={client}>
       <SnackbarProvider>
         <MemoryRouter initialEntries={[url]}>
           <Routes>
@@ -151,7 +158,8 @@ describe('Returns page (owner 2026-10-20)', () => {
     await user.type(screen.getByTestId('returns-scan'), '{Enter}'); // nothing typed: on to the summary
     await user.click(await screen.findByTestId('returns-confirm'));
     expect(api.confirmReturn).toHaveBeenCalledWith({ cart: 5, cart_lines: [11], register: 'R1' });
-    expect(await screen.findByTestId('where')).toHaveTextContent('/pos/members?person=7');
+    await waitFor(() => expect(openObject).toHaveBeenCalledWith({ type: 'member', id: 7 })); // the Member window (#49)
+    expect(invalidated()).toContainEqual(['member-window', 7]); // read again: the new credit, not the old
   });
 
   it("past the 3 days the summary asks for a reason and a manager's PIN, and a wrong PIN says how many tries are left", async () => {
@@ -184,7 +192,7 @@ describe('Returns page (owner 2026-10-20)', () => {
     await waitFor(() => expect(api.confirmReturn).toHaveBeenLastCalledWith({
       cart: 5, cart_lines: [11], register: 'R1', late: { reason: 'closed', note: 'Closed Sun and Mon' }, pin: '4821',
     }));
-    expect(await screen.findByTestId('where')).toHaveTextContent('/pos/members?person=7');
+    await waitFor(() => expect(openObject).toHaveBeenCalledWith({ type: 'member', id: 7 })); // the Member window (#49)
   });
 
   it('the owner signed in needs no PIN', async () => {

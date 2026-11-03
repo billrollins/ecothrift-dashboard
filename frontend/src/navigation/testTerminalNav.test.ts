@@ -15,8 +15,8 @@ describe('Test terminal in the Cashier nav (2026-10-16)', () => {
     const group = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS)
       .find((g) => g.id === 'storeSales');
     expect(group?.setupItems.map((item) => item.id)).toEqual(['posTestTerminal', 'posPrintables']);
-    expect(cashierItems('Employee').slice(0, 7)).toEqual(
-      ['posTerminal', 'thriftPlusFinalize', 'thriftPlusMembers', 'posTransactions', 'posReturns', 'posDrawers', 'posCash']);
+    expect(cashierItems('Employee').slice(0, 5)).toEqual(
+      ['posTerminal', 'thriftPlusFinalize', 'posTransactions', 'posReturns', 'posDrawers']);
   });
 
   it('shows for Employee and up, not below', () => {
@@ -30,5 +30,12 @@ describe('Test terminal in the Cashier nav (2026-10-16)', () => {
     expect(NAV_ITEM_CATALOG.posTerminal?.path).toBe('/pos/terminal');
     expect(navItemIsActive('/pos/test', '', '', NAV_ITEM_CATALOG.posTerminal!)).toBe(false);
     expect(navItemIsActive('/pos/terminal', '', '', NAV_ITEM_CATALOG.posTestTerminal!)).toBe(false);
+  });
+
+  it('the retail windows took over (#49, 2026-11-02): no Thrift+ members link; Cash for managers only', () => {
+    expect(cashierItems('Employee')).not.toContain('thriftPlusMembers');
+    expect(cashierItems('Employee')).not.toContain('posCash');
+    expect(cashierItems('Manager')).toContain('posCash');
+    expect(NAV_ITEM_CATALOG.posCash?.label).toBe('Cash');
   });
 });

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.246.0] -->
-<!-- Last reviewed: 2026-11-02 (2.246.0) -->
+<!-- Line 1 release: ## [2.246.1] -->
+<!-- Last reviewed: 2026-11-02 (2.246.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.246.1] - 2026-11-02
+
+User-facing theme: **A tidier Cashier menu now that the retail windows open everywhere (Bill, 2026-11-02; Dash Updates #49).**
+
+### Changed
+- Cashier menu: Terminal, Thrift+ Staff, Transactions, Returns, Drawers, Cash. Thrift+ members left the menu (it was the same find as Thrift+ Staff; a member opens as the Member window); /pos/members still works.
+- Cash management is now Cash, for managers and the owner only (menu, page and the Register window's link); a cashier's drops stay on Drawers.
+- Returns: after the credit, the member's window opens.
 
 ## [2.246.0] - 2026-11-02
 

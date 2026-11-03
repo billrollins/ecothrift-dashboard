@@ -49,7 +49,9 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'storeSales',
     label: 'Cashier',
     // Every shift on top; practice, printing and setup below (owner, 2026-10-19: "the cashier workspace is messy").
-    itemIds: ['posTerminal', 'thriftPlusFinalize', 'thriftPlusMembers', 'posTransactions', 'posReturns', 'posDrawers', 'posCash'],
+    // Retail windows (#49, 2026-11-02): a member opens as the Member window from anywhere, so Thrift+ members (the same
+    // find as Thrift+ Staff) left the list; /pos/members still works.
+    itemIds: ['posTerminal', 'thriftPlusFinalize', 'posTransactions', 'posReturns', 'posDrawers', 'posCash'],
     setupItemIds: ['posTestTerminal', 'posPrintables', 'posSetup', 'thriftPlus'],
     guestItemIds: ['retailQa'],
   },

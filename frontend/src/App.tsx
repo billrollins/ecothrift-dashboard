@@ -404,7 +404,8 @@ function AppRoutes() {
         <Route path="/pos/terminal" element={<TerminalPage />} />
         <Route path="/pos/test" element={<TestTerminalPage />} />
         <Route path="/pos/drawers" element={<DrawerListPage />} />
-        <Route path="/pos/cash" element={<CashManagementPage />} />
+        {/* Managers and the owner (Retail 5, #49): a cashier would only meet refusals here. */}
+        <Route path="/pos/cash" element={<ManagerRoute><CashManagementPage /></ManagerRoute>} />
         <Route path="/pos/transactions" element={<TransactionListPage />} />
         <Route path="/pos/members" element={<MembersLookupPage />} />
         <Route path="/pos/returns" element={<ReturnsPage />} />

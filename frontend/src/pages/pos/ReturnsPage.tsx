@@ -21,6 +21,8 @@ import {
 import { useSnackbar } from 'notistack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useObjectModal } from '../../components/objects/ObjectModal';
+import { useQueryClient } from '@tanstack/react-query';
 import { thriftErrorMessage } from '../../api/thriftplusRegister.api';
 import {
   findReturns,
@@ -85,6 +87,8 @@ function PersonRow({ p, onPick }: { p: ReturnsPerson; onPick: (id: number) => vo
 export default function ReturnsPage() {
   const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
+  const { openObject } = useObjectModal();
+  const queryClient = useQueryClient();
   const [params] = useSearchParams();
   const { user } = useAuth();
   const device = useDeviceConfig();
@@ -192,7 +196,10 @@ export default function ReturnsPage() {
       { variant: 'success' },
     );
     reset();
-    navigate(`/pos/members?person=${result.person_id}`);
+    // The member's window (#49): the credit shows on their card, wherever the page is (read again, not from before).
+    void queryClient.invalidateQueries({ queryKey: ['member-window', result.person_id] });
+    void queryClient.invalidateQueries({ queryKey: ['thriftplus', 'member-card', result.person_id] });
+    openObject({ type: 'member', id: result.person_id });
   }
 
   const tickedCredit = receipt ? receipt.lines.filter((l) => ticked.includes(l.cart_line)).reduce((sum, l) => sum + Number(l.refund), 0) : 0;
