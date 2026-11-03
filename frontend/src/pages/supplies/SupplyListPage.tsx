@@ -1,15 +1,16 @@
 /**
  * One supply list (owner, 2026-10-26). Everyone sees it; managers and the owner add, edit and remove items, rename or
- * archive the list, and import a CSV (template to download). Add item can start from a pasted link: the AI fills the
- * name, pack and (from page text the person pastes) the price, and the person checks it before saving. The server
- * never opens the vendor's page. Desk: a table. Phone: one card per item.
+ * archive the list, and import a CSV (template to download). Add item can start from the product page pasted in
+ * (Amazon, Uline, any vendor; a link alone works too): the AI fills the form, the fields it filled are marked "AI" until
+ * someone edits them, and nothing saves until the person checks it and presses Save. The server never opens the
+ * vendor's page. Desk: a table. Phone: one card per item.
  */
 import { useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, IconButton,
+  Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton,
   LinearProgress, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip,
-  Typography, useMediaQuery, useTheme, Paper,
+  Typography, useMediaQuery, useTheme, Paper, InputAdornment,
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -20,7 +21,7 @@ import {
 import { PageHeader } from '../../components/common/PageHeader';
 import { ECO_ICONS } from '../../icons/ecoIcons';
 import { formatCurrency } from '../../utils/format';
-import { apiError, deadlineText, OutLink, packText, whenText } from './supplyBits';
+import { apiError, deadlineText, OutLink, packText, unitCostText, whenText } from './supplyBits';
 
 type Draft = {
   name: string; description: string; vendor: string; vendor_url: string; url: string; vendor_item_id: string;
@@ -56,13 +57,23 @@ function ItemDialog({ listId, item, open, onClose }: {
   const [link, setLink] = useState('');
   const [pageText, setPageText] = useState('');
   const [aiNote, setAiNote] = useState('');
+  const [aiKeys, setAiKeys] = useState<Set<string>>(new Set());
   const fullScreen = useMediaQuery(useTheme().breakpoints.down('sm'));
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
-  const set = (key: keyof Draft) => (e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, [key]: e.target.value });
+  const set = (key: keyof Draft) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDraft({ ...draft, [key]: e.target.value });
+    if (aiKeys.has(key)) setAiKeys(new Set([...aiKeys].filter((k) => k !== key)));
+  };
+  // A small "AI" tag on a field the AI filled, until someone edits it.
+  const ai = (key: keyof Draft) => (aiKeys.has(key) ? {
+    color: 'secondary' as const, focused: true,
+    slotProps: { input: { endAdornment: <InputAdornment position="end"><Chip label="AI" size="small" color="secondary" variant="outlined" /></InputAdornment> } },
+  } : {});
 
   const fill = useMutation({
     mutationFn: () => aiFillSupply({ url: link.trim(), page_text: pageText }),
+    onMutate: () => setAiNote(''),
     onSuccess: (r) => {
       setDraft({
         ...draft, name: r.name || draft.name, description: r.description || draft.description,
@@ -70,11 +81,11 @@ function ItemDialog({ listId, item, open, onClose }: {
         vendor_item_id: r.vendor_item_id || draft.vendor_item_id, pack_size: String(r.pack_size || 1),
         unit: r.unit || draft.unit, price: r.price ?? draft.price,
       });
+      setAiKeys(new Set(r.ai_fields ?? []));
       setAiNote(r.price_found
-        ? 'Filled in. Check every field before you save.'
-        : 'Filled in, but no price: paste the page text (select all on the page, copy, paste) and fill again, or type it.');
+        ? 'Filled in. Check the fields marked AI before you save.'
+        : 'Filled in, but no price was on the page: type it, or paste the whole page and fill again.');
     },
-    onError: (err) => enqueueSnackbar(apiError(err, 'The AI could not fill it.'), { variant: 'error' }),
   });
 
   const save = useMutation({
@@ -96,34 +107,37 @@ function ItemDialog({ listId, item, open, onClose }: {
       <DialogContent>
         {!item && (
           <Paper variant="outlined" sx={{ p: 2, mt: 1, mb: 2 }}>
-            <Typography variant="subtitle2" gutterBottom>Start from a link (Amazon or any vendor)</Typography>
+            <Typography variant="subtitle2" gutterBottom>Paste the product page (Amazon, Uline, any vendor)</Typography>
             <Stack spacing={1.5}>
-              <TextField size="small" label="Paste the item's link" value={link} onChange={(e) => setLink(e.target.value)} />
               <TextField
-                size="small" label="Page text, for the price (optional)" value={pageText}
-                onChange={(e) => setPageText(e.target.value)} multiline minRows={2} maxRows={6}
-                helperText="On the item's page: select all, copy, paste here. We never open the vendor's site."
+                size="small" label="Paste the product page" value={pageText}
+                onChange={(e) => setPageText(e.target.value)} multiline minRows={3} maxRows={8}
+                helperText="On the item's page: select all (Ctrl+A), copy, paste here. We never open the vendor's site."
               />
+              <TextField size="small" label="The item's link (optional)" value={link} onChange={(e) => setLink(e.target.value)} />
               <Box>
-                <Button variant="outlined" disabled={!link.trim() || fill.isPending} onClick={() => fill.mutate()}>
+                <Button variant="outlined" disabled={(!link.trim() && !pageText.trim()) || fill.isPending} onClick={() => fill.mutate()}>
                   {fill.isPending ? 'Filling…' : 'Fill with AI'}
                 </Button>
               </Box>
+              {fill.isError && <Alert severity="warning">{apiError(fill.error, 'The AI could not fill it.')}</Alert>}
               {aiNote && <Alert severity={aiNote.startsWith('Filled in.') ? 'success' : 'warning'}>{aiNote}</Alert>}
             </Stack>
           </Paper>
         )}
         <Box sx={{ display: 'grid', gap: 2, mt: item ? 1 : 0, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
-          <TextField label="Name" value={draft.name} onChange={set('name')} required sx={{ gridColumn: { sm: '1 / -1' } }} />
-          <TextField label="Description" value={draft.description} onChange={set('description')} sx={{ gridColumn: { sm: '1 / -1' } }} />
-          <TextField label="Vendor" value={draft.vendor} onChange={set('vendor')} />
-          <TextField label="Vendor's site" value={draft.vendor_url} onChange={set('vendor_url')} placeholder="https://" />
-          <TextField label="Item link" value={draft.url} onChange={set('url')} placeholder="https://" sx={{ gridColumn: { sm: '1 / -1' } }} />
-          <TextField label="Vendor id (Amazon ASIN)" value={draft.vendor_item_id} onChange={set('vendor_item_id')} />
-          <TextField label="Unit (what staff count)" value={draft.unit} onChange={set('unit')} helperText="roll, box, bag, each" />
+          <TextField label="Name" value={draft.name} onChange={set('name')} required {...ai('name')} sx={{ gridColumn: { sm: '1 / -1' } }} />
+          <TextField label="Description" value={draft.description} onChange={set('description')} {...ai('description')} sx={{ gridColumn: { sm: '1 / -1' } }} />
+          <TextField label="Vendor" value={draft.vendor} onChange={set('vendor')} {...ai('vendor')} />
+          <TextField label="Vendor's site" value={draft.vendor_url} onChange={set('vendor_url')} {...ai('vendor_url')} placeholder="https://" />
+          <TextField label="Item link" value={draft.url} onChange={set('url')} {...ai('url')} placeholder="https://" sx={{ gridColumn: { sm: '1 / -1' } }} />
+          <TextField label="Item # / SKU (Amazon ASIN)" value={draft.vendor_item_id} onChange={set('vendor_item_id')} {...ai('vendor_item_id')} />
+          <TextField label="Unit (what staff count)" value={draft.unit} onChange={set('unit')} {...ai('unit')} helperText="roll, box, bag, each" />
           <TextField label="Pack size" type="number" value={draft.pack_size} onChange={set('pack_size')}
-            helperText="Units in one pack you buy" slotProps={{ htmlInput: { min: 1 } }} />
-          <TextField label="Price of one pack" value={draft.price} onChange={set('price')} placeholder="0.00" />
+            helperText="Units in one pack you buy" {...ai('pack_size')}
+            slotProps={{ ...ai('pack_size').slotProps, htmlInput: { min: 1 } }} />
+          <TextField label="Price of one pack" value={draft.price} onChange={set('price')} placeholder="0.00" {...ai('price')}
+            helperText={unitCostText(draft.price, draft.pack_size) || ' '} />
           <TextField label="Min" type="number" value={draft.min_qty} onChange={set('min_qty')}
             helperText="At or under this, order" slotProps={{ htmlInput: { min: 0 } }} />
           <TextField label="Max" type="number" value={draft.max_qty} onChange={set('max_qty')} error={rangeBad}

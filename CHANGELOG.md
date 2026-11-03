@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.252.0] -->
-<!-- Last reviewed: 2026-11-03 (2.252.0) -->
+<!-- Line 1 release: ## [2.253.0] -->
+<!-- Last reviewed: 2026-11-03 (2.253.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.253.0] - 2026-11-03
+
+User-facing theme: **Supplies: paste the product page and AI fills the item (Bill, 2026-11-03; Dash Updates #20).**
+
+### Added
+- Supplies → a list → **Add item → Paste the product page** (Dash Updates #20). Staff copy the whole page from Amazon, Uline or any vendor (Ctrl+A, Ctrl+C) and paste it; a link is now optional. The AI fills name, description, vendor and site, item # / SKU (the ASIN on Amazon), the item link if the text has one, pack size, unit and price, and the form shows the **per-unit cost** under the price. Every field the AI filled carries an **AI** tag until someone edits it; nothing saves until Save. Junk (a search page, a cart, random text) gets a plain "That doesn't look like a product page" message.
+
+### Changed
+- The supply fill's reply is checked on the server: a price, item number or link that is not in the pasted text is dropped, never guessed. Its price field is a plain number now, so Gemini models accept the schema (they rejected it before).
+- Settings → AI: **Supplies: fill an item from a pasted product page** defaults to Spark contributor when no model was picked (migration `supplies.0004`, data only). About 9 s a fill; logged to AI spend as `supplies.ai_fill`.
 
 ## [2.252.0] - 2026-11-03
 

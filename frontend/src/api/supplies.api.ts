@@ -89,10 +89,14 @@ export interface AiFill {
   url: string;
   vendor_item_id: string;
   price: string | null;
+  /** Price of one pack / pack size, when a price was found. */
+  unit_cost: string | null;
   pack_size: number;
   unit: string;
   model: string;
   price_found: boolean;
+  /** Form fields the AI filled; the form marks them until the person edits them. */
+  ai_fields: string[];
 }
 
 export interface ImportResult {
@@ -187,7 +191,7 @@ export const importSupplyCsv = (listId: number, file: File) => {
 };
 export const downloadSupplyTemplate = () =>
   api.get<Blob>('/supplies/import-template/', { responseType: 'blob' }).then((r) => r.data);
-export const aiFillSupply = (body: { url: string; page_text?: string }) =>
+export const aiFillSupply = (body: { url?: string; page_text?: string }) =>
   api.post<AiFill>('/supplies/ai-fill/', body).then((r) => r.data);
 
 export const getSupplyCount = (listId: number) =>

@@ -1,6 +1,7 @@
 /** Small shared pieces of the Supplies pages (owner, 2026-10-26). */
 import { Link } from '@mui/material';
 import type { ReactNode } from 'react';
+import { formatCurrency } from '../../utils/format';
 
 /** "Mon Nov 2, 3:00 PM" in store time. */
 export function deadlineText(iso: string): string {
@@ -47,4 +48,12 @@ export function packText(packSize: number, unit: string): string {
 export function apiError(err: unknown, fallback: string): string {
   const data = (err as { response?: { data?: { detail?: string } } })?.response?.data;
   return (data && typeof data.detail === 'string' && data.detail) || fallback;
+}
+
+/** Price of one pack spread over the pack, or '' when either is missing. */
+export function unitCostText(price: string, pack: string): string {
+  const p = Number(price.trim().replace('$', '').replace(/,/g, ''));
+  const n = Number(pack);
+  if (!price.trim() || !Number.isFinite(p) || p <= 0 || !Number.isFinite(n) || n < 1) return '';
+  return `${formatCurrency(p / n)} a unit`;
 }

@@ -243,6 +243,47 @@ class ApiTests(TestCase):
         self.assertFalse(SupplyItem.objects.filter(name='Packing tape').exists())
         self.assertEqual(self.as_(self.staff).post('/api/supplies/ai-fill/', {'url': 'x'}, format='json').status_code, 403)
 
+    def test_ai_fill_from_pasted_page_alone(self):
+        page = ('Uline H-150 Side Loading Tape Gun - 2" pistol grip. Model # H-150. Pack of 6. '
+                'Price $24.00 / pack. https://www.uline.com/Product/Detail/H-150/Tape-Guns.')
+        answer = ({'is_product': True, 'name': 'Tape gun', 'description': '2 in pistol grip', 'vendor': 'Uline',
+                   'item_number': 'H-150', 'url': 'https://www.uline.com/Product/Detail/H-150/Tape-Guns',
+                   'price': 24, 'pack_size': 6, 'unit': 'Each'}, 'm')
+        with mock.patch('apps.core.services.llm_router.llm_chat_tool_input', return_value=answer):
+            r = self.as_(self.manager).post('/api/supplies/ai-fill/', {'page_text': page}, format='json')
+        self.assertEqual(r.status_code, 200)
+        d = r.data
+        self.assertEqual((d['url'], d['vendor_url'], d['vendor_item_id']),
+                         ('https://www.uline.com/Product/Detail/H-150/Tape-Guns', 'https://www.uline.com', 'H-150'))
+        self.assertEqual((d['price'], d['unit_cost'], d['pack_size'], d['unit']), ('24.00', '4.00', 6, 'each'))
+        self.assertIn('price', d['ai_fields'])
+        self.assertFalse(SupplyItem.objects.filter(name='Tape gun').exists())
+
+    def test_ai_fill_drops_what_the_page_does_not_show(self):
+        page = 'Heavy duty packing tape, clear, 2 inch wide, 6 rolls in each pack. In stock and ships today.'
+        answer = ({'is_product': True, 'name': 'Packing tape', 'vendor': 'Amazon', 'item_number': 'B0MADEUP01',
+                   'url': 'https://www.amazon.com/dp/B0MADEUP01', 'price': 18.5, 'pack_size': 6, 'unit': 'roll'}, 'm')
+        with mock.patch('apps.core.services.llm_router.llm_chat_tool_input', return_value=answer):
+            r = self.as_(self.manager).post('/api/supplies/ai-fill/', {'page_text': page}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual((r.data['price'], r.data['unit_cost'], r.data['url'], r.data['vendor_item_id']),
+                         (None, None, '', ''))
+        self.assertFalse(r.data['price_found'])
+
+    def test_ai_fill_junk_gets_a_plain_message(self):
+        c = self.as_(self.manager)
+        with mock.patch('apps.core.services.llm_router.llm_chat_tool_input') as llm:
+            r = c.post('/api/supplies/ai-fill/', {'page_text': 'asdf 123'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("doesn't look like a product page", r.data['detail'])
+        llm.assert_not_called()
+        answer = ({'is_product': False, 'name': '', 'vendor': '', 'price': None, 'pack_size': 1, 'unit': ''}, 'm')
+        with mock.patch('apps.core.services.llm_router.llm_chat_tool_input', return_value=answer):
+            r = c.post('/api/supplies/ai-fill/', {'page_text': 'Results for "tape". Sort by: Featured. ' * 3},
+                       format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("doesn't look like a product page", r.data['detail'])
+
     def test_csv_import_endpoint_and_template(self):
         c = self.as_(self.manager)
         r = c.get('/api/supplies/import-template/')
