@@ -137,7 +137,7 @@ describe('The member card (owner 2026-10-20)', () => {
           { person_id: 6, first_name: 'Ben', name: 'Ben Bell', role: 'secondary', photo_url: null, verified_18: true },
         ],
       }),
-      9: card({ person_id: 9, account_id: 2, name: 'Cy Lee', first_name: 'Cy', last_name: 'Lee', standing: 'pending', status: 'pending' }),
+      9: card({ person_id: 9, account_id: 2, name: 'Cy Lee', first_name: 'Cy', last_name: 'Lee', standing: 'pending', status: 'pending', assisted: true }),
     };
     const { unmount } = wrap(<MemberCard personId={5} />);
     await screen.findByTestId('member-card-name');
@@ -168,13 +168,13 @@ describe('The member card (owner 2026-10-20)', () => {
 
 describe('Finalize on the member card: only the ID check, then Match (owner 2026-10-20)', () => {
   beforeEach(() => {
-    m.card = { 9: card({ person_id: 9, account_id: 2, name: 'Cy Lee', first_name: 'Cy', last_name: 'Lee', standing: 'pending', status: 'pending', signed: true, photo_url: '/media/cy.jpg' }) };
+    m.card = { 9: card({ person_id: 9, account_id: 2, name: 'Cy Lee', first_name: 'Cy', last_name: 'Lee', standing: 'pending', status: 'pending', assisted: true, signed: true, photo_url: '/media/cy.jpg' }) };
   });
 
   it('asks Name matches, Photo matches and 18 or older; Match waits for the first two', async () => {
     const user = userEvent.setup();
     wrap(<MemberCard personId={9} cartId={3} />);
-    expect(await screen.findByTestId('member-card-status')).toHaveTextContent('Needs ID check');
+    expect(await screen.findByTestId('member-card-status')).toHaveTextContent('Not finished');
     const match = screen.getByTestId('member-card-match');
     expect(match).toBeDisabled();
     const name = screen.getByLabelText('Name matches');
@@ -211,7 +211,7 @@ describe('Finalize on the member card: only the ID check, then Match (owner 2026
 
   it('a Retake photo goes with Match, and a missing photo must be taken first', async () => {
     const user = userEvent.setup();
-    m.card = { 9: card({ person_id: 9, account_id: 2, name: 'Cy Lee', first_name: 'Cy', last_name: 'Lee', standing: 'pending', status: 'pending', signed: true, photo_url: null }) };
+    m.card = { 9: card({ person_id: 9, account_id: 2, name: 'Cy Lee', first_name: 'Cy', last_name: 'Lee', standing: 'pending', status: 'pending', assisted: true, signed: true, photo_url: null }) };
     m.finishResult = { person_id: 9, account_id: 2, first_name: 'Cy', last_name: 'Lee', status: 'active', cart: null };
     wrap(<MemberCard personId={9} />);
     await screen.findByTestId('member-card-finalize');
@@ -231,7 +231,7 @@ describe('Finalize on the member card: only the ID check, then Match (owner 2026
 
   it('asks for I agree only when they never agreed (owner 2026-11-03: a tap)', async () => {
     const user = userEvent.setup();
-    m.card = { 9: card({ person_id: 9, account_id: 2, name: 'Cy Lee', first_name: 'Cy', last_name: 'Lee', standing: 'pending', status: 'pending', signed: false }) };
+    m.card = { 9: card({ person_id: 9, account_id: 2, name: 'Cy Lee', first_name: 'Cy', last_name: 'Lee', standing: 'pending', status: 'pending', assisted: true, signed: false }) };
     m.finishResult = { person_id: 9, account_id: 2, first_name: 'Cy', last_name: 'Lee', status: 'active', cart: null };
     wrap(<MemberCard personId={9} />);
     await screen.findByTestId('member-card-sign');

@@ -165,7 +165,7 @@ export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; 
                   {row.number}{row.second ? ` · with ${row.second}` : ''}
                 </Typography>
                 <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 0.75 }}>
-                  <Chip size="small" data-testid="member-stage" color={row.stage === 'member' ? 'success' : row.stage === 'needs_finalize' ? 'warning' : 'default'} label={STAGE_LABEL[row.stage]} />
+                  <Chip size="small" data-testid="member-stage" color={row.stage === 'member' ? 'success' : row.stage === 'needs_finalize' || row.stage === 'joining' ? 'warning' : 'default'} label={STAGE_LABEL[row.stage]} />
                   {row.staff ? <Chip size="small" variant="outlined" label={`Staff: ${row.staff}`} /> : null}
                   {row.legacy ? <Chip size="small" variant="outlined" label="Old account" /> : null}
                 </Stack>
@@ -206,7 +206,11 @@ export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; 
               </Stack>
               {row.stage === 'needs_finalize' ? (
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  Needs Finalize: at any register, look them up by name or their QR, then phone, ID and photo.
+                  Needs Finalize (Assisted join): in the Thrift+ Staff app, Find them, then their photo, I agree and the ID check.
+                </Alert>
+              ) : row.stage === 'joining' ? (
+                <Alert severity="info" sx={{ mb: 2 }} data-testid="member-joining">
+                  Finishing in the app: they add a phone, a selfie and I agree in the Thrift+ app on their phone. No staff step.
                 </Alert>
               ) : null}
 

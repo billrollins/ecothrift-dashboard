@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.255.0] -->
-<!-- Last reviewed: 2026-11-03 (2.255.0) -->
+<!-- Line 1 release: ## [2.256.0] -->
+<!-- Last reviewed: 2026-11-03 (2.256.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,41 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.256.0] - 2026-11-03
+
+User-facing theme: **HR app on the avatar menu, phone joins finish in the app, and the Wi-Fi time clock pilot (Bill, 2026-11-03; Dash Updates #56, #58, #63).**
+
+
+> **For staff:** The avatar menu has a new **HR** link at the top. It opens one HR page with tabs: **Me** and **Schedule** for everyone, and for managers **People**, **Hiring** and **Onboarding**. The owner also sees **Time & payroll**. Each tab shows the same pages as before, so nothing moved away. Requests, time off and schedule changes come next.
+
+### Added
+- HR app at `/hr` (`/hr/<tab>/<section>`): tabs Me, Schedule, People (Staff, Permissions), Hiring (Applicants, Interviews, Jobs & careers page, Emails), Onboarding (Onboarding, Check-ins), Time & payroll (Time & payroll, Payroll deductions) around the existing pages. A tab or section shows only when that person can open its page (the same permission dials as the sidebar); no new data or API. The old URLs and the People and Admin sidebar entries stay.
+- Avatar menu: **HR** first in the Me section (English and Spanish).
+
+
+
+> **For staff:** Someone who joins Thrift+ on their own phone is finished there: a name, their phone checked with a text, a selfie and a tap on I agree make them a member. There is no Finalize and no ID check for them at the register any more. Finalize and the ID check are now only for **Assisted join** (a flip phone or no phone). In the Staff app, a phone join that is not done yet says **In their app**; their sheet says they finish in the Thrift+ app. In Dash → Users → Members the stages are **In the app**, **Needs Finalize** (Assisted joins only), Member and Off.
+
+### Changed
+- Thrift+ joining (rulebook J2, J8, J13, J15–J17, J20, J22): a pending join on the member's own phone becomes active once it has a first and last name, a verified phone, the selfie and I agree (`members.finish_on_phone`, run on every member payload and after Edit name or phone). An Assisted join (its `assisted_join` event) never finishes this way; it still goes through Finalize with the ID check. Pending rows carry `assisted`.
+- Register member card: Finalize only for an Assisted join; a phone join not finished shows "Not finished" and "They finish in the Thrift+ app". `MEMBER_PENDING` says the same. Staff app Find: "Check their ID now" and a scanned QR's ID check only for Assisted joins; others show "In their app".
+- Dash Users → Members: new stage `joining` ("Finishing in the app"); Needs Finalize is Assisted joins only; the strip counts both. Thrift+ → Members: "Not finished" replaces "Needs Finalize" and the "the register asks the phone" lines.
+- Member app: "Then you're a Thrift+ member" / "You're a Thrift+ member. Show your member QR at the register."; the "Finish joining at any register" and "with your photo ID" lines are gone.
+- Store terms (English and Spanish, same version): A.3, §1.3, §10.1, §10.2 and the ID FAQ say joining finishes in the app; the photo ID is looked at only when staff help you join or for an 18+ item. ecothrift.us Thrift+ copy and the marketing post line no longer say "finish at any register".
+- Removed: the last "Scan a blank card" field (Thrift+ person fields).
+
+### Migration
+- `thriftplus.0031_finished_on_phone` (data only, reversible): pending phone joins that already have a name, a verified phone, a selfie and I agree become members (11 in production on 11-03, read-only count; 53 others stay pending until they finish in the app).
+
+
+
+> **For staff:** Nothing changes for you. The owner is testing a clock that notices when his phone is on the store Wi-Fi. It only watches his phone and makes no punches.
+
+### Added
+- Wi-Fi time clock pilot (D23, `{master}/standards/time-clock.md`), shadow mode: a store PC helper (`scripts/wifi_clock/helper.py`, sign-in task from `install.ps1`, no window) reports "seen" / "not seen" for registered phones every 60 s with a device token (only its hash in Dash); every other device on the Wi-Fi is dropped on the PC and never sent, kept or logged. Dash logs what it would have done (`hr.WifiPilotEvent`: arrive, leave, short misses, would clock in with the arrival and the shift start, would clock out, break and left questions) against a pilot schedule that does not show on the staff Schedule, and emails the person ("Would have clocked you in at 8:58", the clock-out, "Was this a break?" with Yes / No). It writes no time entries and touches nothing in payroll.
+- `hr.wifi_clock_pilot` request (Superuser → Requests): the phone's Wi-Fi address on the profile (`EmployeeProfile.wifi_mac`, masked in the preview and scrubbed after apply), the helper's token hash, and the pilot schedule. Staged through `POST /api/hr/wifi-clock/stage-setup/`.
+- Migrations: `accounts/0019_wifi_clock_pilot`, `hr/0018_wifi_clock_pilot`.
 
 ## [2.255.0] - 2026-11-03
 

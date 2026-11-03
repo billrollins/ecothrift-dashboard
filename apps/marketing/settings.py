@@ -13,7 +13,7 @@ PREFIX = 'marketing.'
 
 DEFAULT_THRIFT_PLUS_LINE = (
     'Thrift+ is free to join, nothing owed. Members collect ThriftBucks on most items. '
-    'Join at any register in a minute, or start on your phone from our website. '
+    'Join on your phone in a minute from our website; no smartphone? Staff help you join in the store. '
     'ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value. Members 18+. '
     'Full terms on our website and at every register.'
 )

@@ -223,7 +223,7 @@ export function SidewaysQr() {
           <CardQr text={c.qr} size="min(74vh, 74vw)" />
           <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: 18, letterSpacing: '0.12em', color: sc.ink }}>{c.display}</Box>
           <Box sx={{ fontSize: 14, color: sc.ink2 }}>
-            {c.ready ? 'Show this at the register.' : 'Finish joining at any register. Show them this code.'}
+            {c.ready ? 'Show this at the register.' : 'Finish joining in the app first.'}
           </Box>
         </>
       ) : (
@@ -284,16 +284,14 @@ export function WalletScreen({ member, onFinish }: { member: ThriftPlusMember; o
             <Box sx={{ py: u(120) }}><CircularProgress size={28} sx={{ color: sc.green }} /></Box>
           )}
         </Box>
-        {/* Not joined at a register yet (J2): the bold line says so; the card's B12 line stays on every card (APP D1).
-            Join v2: with the selfie and signature done in the app, the register only checks the photo ID. */}
+        {/* Not finished yet (J2): the bold line says so; the B12 line stays under every QR (APP D1). Owner 2026-11-03
+            (J8): a join on their own phone is finished in the app, with no staff step. */}
         <Box data-testid="my-card-line" sx={{ mt: u(24), textAlign: 'center', fontWeight: 700, fontSize: u(32) }}>
           {steps
-            ? 'Finish joining here, or at any register.'
-            : member.ready === false && member.finish_steps
-              ? 'Show this QR at the register with your photo ID.'
-              : c && !c.ready
-                ? 'Finish joining at any register. Show them this code.'
-                : 'Show this at the register.'}
+            ? 'Finish joining here in the app.'
+            : c && !c.ready
+              ? 'Not finished yet. Ask at the register.'
+              : 'Show this at the register.'}
         </Box>
         <Box sx={{ mt: u(10), textAlign: 'center', fontSize: u(24), lineHeight: 1.4, opacity: 0.92 }}>
           {CARD_TERMS} Terms:{' '}

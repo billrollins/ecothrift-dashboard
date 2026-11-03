@@ -235,8 +235,9 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
     try {
       const found = await findPendingOrMember(`TP${code}`);
       if (found.people.length > 0) {
-        // Find (owner 2026-10-20): a member opens their sheet (quick fixes); someone still to finish goes to the ID check.
-        if (found.people[0].status === 'active') {
+        // Find (owner 2026-10-20): a member opens their sheet (quick fixes); an Assisted join still to finish goes to the
+        // ID check (owner 2026-11-03, J22); any other join finishes in their own app, so their sheet says so.
+        if (found.people[0].status === 'active' || !found.people[0].assisted) {
           setScanning(false);
           setInfo(found.people[0]);
         } else {

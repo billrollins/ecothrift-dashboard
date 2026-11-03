@@ -161,6 +161,9 @@ class EmployeeProfile(models.Model):
     badge_token_hash = models.CharField(max_length=64, unique=True, null=True, blank=True)
     badge_issued_at = models.DateTimeField(null=True, blank=True)
     badge_revoked_at = models.DateTimeField(null=True, blank=True)
+    # Wi-Fi time clock (D23): the phone's fixed Wi-Fi address on the store network, aa:bb:cc:dd:ee:ff.
+    # Personal data: kept here only, never logged. Blank = not opted in.
+    wifi_mac = models.CharField(max_length=17, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

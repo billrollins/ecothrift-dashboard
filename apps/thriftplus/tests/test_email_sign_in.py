@@ -366,12 +366,14 @@ class FinishJoiningTests(MailMixin, RegisterBase):
         cart = self._cart()
         expected = {
             'code': 'MEMBER_PENDING', 'person_id': self.cara.pk, 'account_id': self.cara.account_id,
-            'detail': 'Joined online. Finish joining first: check their photo ID against their photo.',
+            'detail': 'Not finished joining yet. They finish in the Thrift+ app on their phone (a selfie and I agree).',
             'first_name': 'Cara', 'last_name': 'Joyner', 'email': 'cara@example.com', 'code_last4': self.cara_code[-4:],
             # The terminal shows their QR for the Finalize phone to scan (owner 2026-10-16).
             'qr': f'TP{self.cara_code}',
             # Join v2 (owner 2026-10-19): the app's selfie and signature, and how they joined (masked).
             'photo_url': None, 'selfie': False, 'signed': False, 'contact': 'c***@example.com',
+            # Owner 2026-11-03 (J22): only an Assisted join is finished on Finalize.
+            'assisted': False,
         }
         for r in (self._attach(cart['id'], self.cara_code),
                   self.api.post('/api/thriftplus/register/attach/', {'cart': cart['id'], 'person': self.cara.pk}, format='json')):
@@ -400,7 +402,7 @@ class FinishJoiningTests(MailMixin, RegisterBase):
         self.assertEqual(find('Ana'), [])  # an active member is not a pending join
         row = find('joyner')[0]
         self.assertEqual(set(row), {'person_id', 'account_id', 'first_name', 'last_name', 'email', 'joined_at', 'code_last4', 'qr',
-                                    'photo_url', 'selfie', 'signed', 'contact'})
+                                    'photo_url', 'selfie', 'signed', 'contact', 'assisted'})
         self.assertEqual(row['qr'], f'TP{self.cara_code}')
 
     def test_finalize_lists_the_newest_online_joins_finished_ones_too(self):

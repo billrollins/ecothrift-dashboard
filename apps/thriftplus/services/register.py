@@ -13,9 +13,10 @@ exactly as before. Anything that goes wrong in here is logged and never raised i
 scan box (``TP`` + their member code), or by finding them by phone and picking the person (owner 2026-10-14: there is
 no Thrift+ card).
 
-**Joined online** (owner 2026-10-15, J8): a pending membership collects and uses nothing (J2). Its QR (attach, re-ring,
-the returns lookup) answers ``MEMBER_PENDING`` with the person, and the terminal opens Finish joining: the cashier asks
-the phone number and reads it back, checks the ID and takes the photo (``finish_join``); the membership is then active.
+**Not finished joining** (J2): a pending membership collects and uses nothing. Its QR (attach, re-ring, the returns
+lookup) answers ``MEMBER_PENDING`` with the person, and the terminal opens their card. Owner 2026-11-03 (J8): a join on
+their own phone finishes in the app (``members.finish_on_phone``); only an Assisted join (J22) is finished here
+(``finish_join``: the photo, I agree, the ID check), and the membership is then active.
 
 **Paying, in order (B3, B14, T1-T4):**
 1. **Thrift+ credit** (refund money) first, automatically, up to the whole total: a payment after tax
@@ -64,7 +65,9 @@ RERING_WINDOW = timedelta(minutes=30)
 BUCKS_TAG = 'bucks'
 BUCKS_LABEL = 'ThriftBucks used'
 ERROR_TEXT = 'Thrift+ could not work out this sale. It is priced as a non-member sale; call a manager.'
-PENDING_TEXT = 'Joined online. Finish joining first: check their photo ID against their photo.'
+PENDING_TEXT = 'Not finished joining yet. They finish in the Thrift+ app on their phone (a selfie and I agree).'
+# J22: an Assisted join is the one join staff finish, on the member card's Finalize.
+PENDING_ASSISTED_TEXT = 'Assisted join, not finished. Finalize it first: check their photo ID against their photo.'
 PHONE_TAKEN_TEXT = 'That phone number is on another membership. Check the ID and ask a manager.'
 
 
@@ -587,9 +590,11 @@ def _card(code: str) -> Card:
 
 def _check_ready(person: Person) -> None:
     """A person who can go on a sale: on the membership, and the membership active. Joined online and not finished:
-    ``MEMBER_PENDING`` with the person, so the terminal opens Finish joining (J2: it collects and uses nothing)."""
+    ``MEMBER_PENDING`` with the person, so the terminal opens their card (J2: it collects and uses nothing): Finalize for
+    an Assisted join, "they finish in the app" for anyone else (owner 2026-11-03, J8)."""
     if person.removed_at is None and person.account.status == Account.STATUS_PENDING:
-        raise RegisterError('MEMBER_PENDING', PENDING_TEXT, **pending_person(person))
+        row = pending_person(person)
+        raise RegisterError('MEMBER_PENDING', PENDING_ASSISTED_TEXT if row['assisted'] else PENDING_TEXT, **row)
     if person.removed_at is not None or person.account.status != Account.STATUS_ACTIVE:
         raise RegisterError('CARD_NOT_ACTIVE', 'This membership is not active.')
 
@@ -914,6 +919,8 @@ def pending_person(person: Person) -> dict:
         'code_last4': card[-4:] if card else None, 'qr': f'TP{card}' if card else None,
         'photo_url': person.photo.url if person.photo else None, 'selfie': bool(person.photo),
         'signed': agreed(person), 'contact': contact(person),
+        # Owner 2026-11-03 (J8, J22): only an Assisted join is finished on Finalize; any other join finishes in the app.
+        'assisted': members.assisted(person.account),
     }
 
 

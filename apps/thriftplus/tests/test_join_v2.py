@@ -174,7 +174,7 @@ class JoinV2Tests(TwilioMixin, MailMixin, TestCase):
         self.assertTrue(Card.objects.filter(person=person, status=Card.STATUS_ACTIVE).exists())
         self.assertEqual(Event.objects.get(action='joined_online').detail, {'to': 'a***@gmail.com', 'by': 'google'})
         self.assertEqual(MemberSession.objects.get().kind, MemberSession.KIND_EMAIL)
-        self.assertEqual(member_list.stage(person.account, person), 'needs_finalize')
+        self.assertEqual(member_list.stage(person.account, person), 'joining')  # finishing in the app (owner 11-03)
         again = self._google(api=APIClient())
         self.assertEqual((again.status_code, again.json()['purpose']), (200, 'sign_in'))
         self.assertEqual(Account.objects.count(), 1)
@@ -380,11 +380,28 @@ class JoinV2Tests(TwilioMixin, MailMixin, TestCase):
         self.assertIsNotNone(person.signed_at)
         self.assertTrue(register.from_app(person))
         self.assertTrue(Event.objects.filter(action='app_agreed', person=person).exists())
+        # Owner 2026-11-03 (J8): name, verified phone, selfie and I agree finish it in the app: a member, no Finalize.
+        self.assertEqual((person.account.status, r.json()['member']['ready']), (Account.STATUS_ACTIVE, True))
+        self.assertTrue(Event.objects.filter(action='finished_on_phone', person=person).exists())
         # "agree" must be a real true: a string or a missing drawing is still refused.
         person.signed_at = None
         person.save(update_fields=['signed_at'])
+        Account.objects.filter(pk=person.account_id).update(status=Account.STATUS_PENDING)
         r = self.app.post(BASE + 'me/signature/', {'agree': 'yes'}, format='json')
         self.assertEqual((r.status_code, r.json()['code']), (400, 'SIGNATURE_BAD'))
+
+    def test_with_no_verified_phone_the_app_steps_wait_and_a_phone_finishes_it(self):
+        # Owner 2026-11-03 (J8): no Finalize for a join on their own phone; the verified phone is the last piece here.
+        self._google()
+        self.app.post(BASE + 'me/selfie/', {'photo': _jpeg()}, format='multipart')
+        r = self.app.post(BASE + 'me/signature/', {'agree': True}, format='json')
+        self.assertEqual((r.status_code, r.json()['member']['ready']), (200, False))
+        person = Person.objects.get(email='ana.diaz@gmail.com')
+        self.assertEqual(member_list.stage(person.account, person), 'joining')
+        members.set_details(person, first_name='Ana', last_name='Diaz', phone=PHONE)  # staff type it (J19)
+        person.refresh_from_db()
+        self.assertEqual(person.account.status, Account.STATUS_ACTIVE)
+        self.assertEqual(member_list.stage(person.account, person), 'member')
 
     def test_the_selfie_and_signature_refuse_bad_files(self):
         self.phone_join()
@@ -416,11 +433,11 @@ class JoinV2Tests(TwilioMixin, MailMixin, TestCase):
 
     # ── Confirmed by phone ──
 
-    def test_a_phone_confirmed_join_is_needs_finalize_and_never_purged(self):
+    def test_a_phone_confirmed_join_is_finishing_in_the_app_and_never_purged(self):
         person = self.phone_join()
         Account.objects.filter(pk=person.account_id).update(created_at=timezone.now() - timedelta(hours=30))
         self.assertTrue(members.confirmed(person))
-        self.assertEqual(member_list.stage(person.account, person), 'needs_finalize')
+        self.assertEqual(member_list.stage(person.account, person), 'joining')  # no Finalize (owner 11-03, J8)
         self.assertIn(f'a{person.account_id}', [row['key'] for row in member_list.rows()])
         # Confirmed by phone with no phone on file (it can't be here, but the rule is the verified phone): kept too.
         Person.objects.filter(pk=person.pk).update(phone='')
@@ -434,7 +451,9 @@ class JoinV2Tests(TwilioMixin, MailMixin, TestCase):
 
 @override_settings(ONLINE_SALES_PUBLIC_BASE_URL='https://ecothrift.us')
 class FinalizeV2Tests(TwilioMixin, MailMixin, RegisterBase):
-    """Finalize Thrift+ when the app already has the selfie and the signature: the ID, the face, 18+, Verified."""
+    """Finalize Thrift+ when the selfie and the signature are already on file: the ID, the face, 18+, Verified. Owner
+    2026-11-03 (J8, J22): Finalize is for an Assisted join only, so Pat is one (a join on her own phone would finish in
+    the app)."""
 
     def setUp(self):
         super().setUp()
@@ -443,6 +462,7 @@ class FinalizeV2Tests(TwilioMixin, MailMixin, RegisterBase):
         AppSetting.objects.update_or_create(key=members.ENABLED_KEY, defaults={'value': True})
         self.app = APIClient()
         self.pat = self.phone_join()
+        members.log('assisted_join', account=self.pat.account, person=self.pat, by='phone')
         self.app.post(BASE + 'me/selfie/', {'photo': _jpeg()}, format='multipart')
         self.app.post(BASE + 'me/signature/', {'signature': _png_data_url(), 'terms_version': register.TERMS_VERSION},
                       format='json')

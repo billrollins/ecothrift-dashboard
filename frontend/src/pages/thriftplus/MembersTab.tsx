@@ -130,7 +130,8 @@ function phone(p: string): string {
 }
 
 /** Joined online with a name and email; the phone, ID and photo come at a register (owner 2026-10-15, J8). */
-const PENDING_LABEL = 'Needs Finalize'; // owner 2026-10-16: the stages are Needs Finalize and Member
+// Owner 2026-11-03 (J8, J22): a join on their own phone finishes in the app; only an Assisted join waits for Finalize.
+const PENDING_LABEL = 'Not finished';
 
 /**
  * Send the Thrift+ app link (J12): a join email until the address is confirmed, then a sign-in link. With `email`, the
@@ -186,7 +187,7 @@ function PersonCard({ person, account, onChanged }: { person: ThriftPlusPerson; 
             {!active ? <Chip size="small" label="Removed" /> : null}
           </Stack>
           <Typography variant="body2" color="text.secondary">
-            {person.phone ? phone(person.phone) : pending ? 'No phone yet: the register asks it and reads it back' : 'No phone'}
+            {person.phone ? phone(person.phone) : pending ? 'No phone yet: they add it in the Thrift+ app' : 'No phone'}
           </Typography>
           {active ? (
             <Stack direction="row" spacing={1} sx={{ mt: 0.75 }} useFlexGap flexWrap="wrap" alignItems="center">
@@ -320,8 +321,8 @@ function AccountDetail({ id, onDeleted }: { id: number; onDeleted: () => void })
       </Stack>
       {account.status === 'pending' ? (
         <Alert severity="info" data-testid="thrift-pending-note">
-          <strong>{PENDING_LABEL}.</strong> Not a member yet: it collects and uses nothing until a register asks the phone
-          number and reads it back, checks the ID and takes the photo.
+          <strong>{PENDING_LABEL}.</strong> Not a member yet: it collects and uses nothing until they finish in the Thrift+
+          app on their phone (a verified phone, a selfie and I agree). An Assisted join finishes on Finalize in the Staff app.
         </Alert>
       ) : null}
       {account.is_practice ? <PracticeNote account={account} /> : null}
@@ -365,7 +366,7 @@ function AccountDetail({ id, onDeleted }: { id: number; onDeleted: () => void })
             <>
               <FormControlLabel control={<Checkbox checked={second.both_present} onChange={(e) => setSecond({ ...second, both_present: e.target.checked })} />} label="Both adults are here" />
               <FormControlLabel control={<Checkbox checked={second.primary_approves} onChange={(e) => setSecond({ ...second, primary_approves: e.target.checked })} />} label="The primary approves" />
-              <PersonFields value={second} onChange={(v) => setSecond({ ...second, ...v })} blankCard={false} />
+              <PersonFields value={second} onChange={(v) => setSecond({ ...second, ...v })} />
             </>
           ) : null}
         </DialogContent>
@@ -440,7 +441,7 @@ export default function MembersTab() {
             clickable
             color={pendingOnly ? 'info' : 'default'}
             variant={pendingOnly ? 'filled' : 'outlined'}
-            label="Needs Finalize"
+            label={PENDING_LABEL}
             onClick={() => setPendingOnly((v) => !v)}
             aria-pressed={pendingOnly}
           />

@@ -7,6 +7,7 @@ from .views import (
 )
 from . import kiosk_views as kiosk
 from . import schedule_views as sched
+from . import wifi_views as wifi
 
 router = DefaultRouter()
 router.register(r'departments', DepartmentViewSet, basename='department')
@@ -44,5 +45,10 @@ urlpatterns = [
     path('clock/clock-out/', kiosk.ClockClockOutView.as_view(), name='clock-clock-out'),
     path('clock/break/', kiosk.ClockBreakView.as_view(), name='clock-break'),
     path('clock/fix-stale/', kiosk.ClockFixStaleView.as_view(), name='clock-fix-stale'),
+    # Wi-Fi time clock pilot (D23): store PC helper (device token), email answers, setup request
+    path('wifi-clock/phones/', wifi.WifiPhonesView.as_view(), name='wifi-clock-phones'),
+    path('wifi-clock/heartbeat/', wifi.WifiHeartbeatView.as_view(), name='wifi-clock-heartbeat'),
+    path('wifi-clock/answer/<str:token>/', wifi.wifi_answer_view, name='wifi-clock-answer'),
+    path('wifi-clock/stage-setup/', wifi.WifiStageSetupView.as_view(), name='wifi-clock-stage-setup'),
     path('', include(router.urls)),
 ]

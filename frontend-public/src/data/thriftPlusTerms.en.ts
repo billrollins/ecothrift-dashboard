@@ -66,7 +66,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
     {
       num: 'A.3',
       what: 'Before your membership works',
-      short: 'Your name, a photo, your OK to these terms, and a photo ID check at the register.',
+      short: 'Your name, a checked mobile number, a photo and your OK to these terms, all in the Thrift+ app.',
       section: 1,
     },
     { num: 'B.1', what: 'ThriftBucks', short: 'On most items. They grow as an item sits, up to 95% of the tag.', section: 3 },
@@ -160,7 +160,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
     },
     {
       q: 'Do you keep my ID or photo?',
-      a: "We look at your photo ID once to check your name and age, and we keep nothing from it. Your photo is used only so staff can confirm it's you. It's never used for marketing or shared, and it's deleted 24 months after your last purchase, or sooner if you ask.",
+      a: "When we look at your photo ID (if staff help you join, or for an 18+ item), we check your name and age and keep nothing from it. Your photo is used only so staff can confirm it's you. It's never used for marketing or shared, and it's deleted 24 months after your last purchase, or sooner if you ask.",
     },
     {
       q: 'Will you text me?',
@@ -199,7 +199,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
         },
         {
           n: '1.3',
-          text: 'Your membership works only after we have your name, your photo and your OK to these terms, and staff have checked your photo ID at a register. Until then, your account collects and uses nothing. Join on your phone at ecothrift.us/join with your name and Google, your mobile number or your email; take your photo (a selfie) and tap I agree in the Thrift+ app; then show your member QR and your photo ID at any register. If you skip the selfie or I agree, we take your photo and you tap I agree at the register.',
+          text: 'Your membership works once we have your first and last name, a mobile number checked with a texted code, your photo and your OK to these terms. Until then, your account collects and uses nothing. Join on your phone at ecothrift.us/join with your name and Google or your mobile number, then take your photo (a selfie) and tap I agree in the Thrift+ app. That finishes it: show your member QR at any register. No smartphone? Staff can help you join in the store: they take your photo, you tap I agree on their phone, and they check your photo ID.',
         },
         { n: '1.4', text: 'By tapping I agree, you agree to these terms and to the photo release in §10.' },
         { n: '1.5', text: 'Items for adults 18 and over require an ID check every time, member or not.' },
@@ -369,12 +369,12 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
         {
           n: '10.1',
           label: 'Photo.',
-          text: "You take your photo (a selfie) in the Thrift+ app, or we take it at the register; staff check it against your photo ID. It is used only so staff can confirm it's you. It is never used for marketing, shared, or used for face recognition. We delete it 24 months after your last purchase, or within 30 days of your request.",
+          text: "You take your photo (a selfie) in the Thrift+ app, or staff take it if they help you join. It is used only so staff can confirm it's you. It is never used for marketing, shared, or used for face recognition. We delete it 24 months after your last purchase, or within 30 days of your request.",
         },
         {
           n: '10.2',
           label: 'ID.',
-          text: 'Staff look at your photo ID once to check your name, age and face. Nothing from your ID is scanned, copied or kept. We record only that it was checked, by whom and when.',
+          text: 'When staff look at your photo ID (if they help you join, or for an 18+ item), they check your name, age and face. Nothing from your ID is scanned, copied or kept. We record only that it was checked, by whom and when.',
         },
         {
           n: '10.3',

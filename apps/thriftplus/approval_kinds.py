@@ -112,11 +112,11 @@ def _legacy_preview(params: dict) -> dict:
     staff = '; '.join(p['staff_in_group_list']) or 'none'
     return {
         'counts': {'Old customers': p['customer_logins'], 'Link to their member': p['link_existing'],
-                   'New Needs Finalize members': p['make_memberships'], 'Customer passwords': p['customer_passwords'],
+                   'New members (finish in the app)': p['make_memberships'], 'Customer passwords': p['customer_passwords'],
                    'Old app passwords': p['app_passwords'], 'Staff in the Customer group': p['staff_in_group']},
         'changes': [
             f"Every old ecothrift.us customer becomes a member: {p['link_existing']:,} link to the member with the same "
-            f"email, {p['make_memberships']:,} become new members at Needs Finalize. Their holds stay with them.",
+            f"email, {p['make_memberships']:,} become new members who finish in the app (add a phone, a selfie, I agree). Their holds stay with them.",
             f"Removes {p['customer_passwords']:,} customer passwords and {p['app_passwords']:,} old Thrift+ app logins. "
             'Members sign in with an emailed link. Staff passwords are not touched.',
             f"Takes staff logins out of the Customer group ({staff}). The staff logins stay.",

@@ -1,7 +1,8 @@
 /**
  * Users → Members (owner 2026-10-16): every member, newest first. Each cell is two lines:
  * Name / Member # · Since / ThriftBucks · Returns · Phone / Email · Holds · Stage / Notes.
- * Stages: Needs Finalize (email confirmed, finish at a register), Member, Off. Unconfirmed sign-ups are not listed.
+ * Stages: Finishing in the app (joined on their phone, not done there yet), Needs Finalize (an Assisted join, J22), Member,
+ * Off. Unconfirmed sign-ups are not listed.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Chip, InputAdornment, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
@@ -24,7 +25,7 @@ export function useMembers() {
 }
 
 const TONE: Record<MemberStage, 'good' | 'warn' | 'muted'> = {
-  member: 'good', needs_finalize: 'warn', off: 'muted', unconfirmed: 'muted',
+  member: 'good', joining: 'warn', needs_finalize: 'warn', off: 'muted', unconfirmed: 'muted',
 };
 
 function matches(row: MemberRow, q: string): boolean {
@@ -165,6 +166,7 @@ export default function MembersPanel({ openKey }: { openKey?: string | null }) {
           sx={{ minWidth: isMobile ? 0 : 280, flex: isMobile ? undefined : '1 1 280px' }} />
         <ToggleButtonGroup exclusive size="small" value={filter} onChange={(_e, v: Filter | null) => v && setFilter(v)}>
           <ToggleButton value="all" sx={{ textTransform: 'none', px: 1.5 }}>All {data ? data.length : ''}</ToggleButton>
+          <ToggleButton value="joining" sx={{ textTransform: 'none', px: 1.5 }}>In the app {counts.joining ?? 0}</ToggleButton>
           <ToggleButton value="needs_finalize" sx={{ textTransform: 'none', px: 1.5 }}>Needs Finalize {counts.needs_finalize ?? 0}</ToggleButton>
           <ToggleButton value="member" sx={{ textTransform: 'none', px: 1.5 }}>Member {counts.member ?? 0}</ToggleButton>
           <ToggleButton value="off" sx={{ textTransform: 'none', px: 1.5 }}>Off {counts.off ?? 0}</ToggleButton>

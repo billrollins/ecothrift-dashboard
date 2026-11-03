@@ -177,7 +177,7 @@ export default function ThriftPlusSignupDialog({ open, onClose, cart, lastSale, 
                 Without an ID check they still collect ThriftBucks, but have no returns and no 18+ items.
               </Alert>
             ) : null}
-            <PersonFields value={value} onChange={setValue} blankCard={false} />
+            <PersonFields value={value} onChange={setValue} />
             {!openSale && lastSale && !training ? (
               <FormControlLabel
                 control={<Checkbox checked={rering} onChange={(e) => setRering(e.target.checked)} />}

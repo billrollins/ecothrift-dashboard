@@ -647,7 +647,7 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     expect(screen.getByTestId('where')).toHaveTextContent('?view=finish');
     expect(screen.queryByTestId('member-bar')).toBeNull(); // required: no way around it by the bar
     expect(within(finish).getByTestId('finish-progress')).toHaveTextContent('Step 1 of 2');
-    expect(within(finish).getByTestId('finish-intro')).toHaveTextContent('Two quick steps: 1. Selfie 2. Agree to the terms. Then show your QR at the register.');
+    expect(within(finish).getByTestId('finish-intro')).toHaveTextContent("Two quick steps: 1. Selfie 2. Agree to the terms. Then you're a Thrift+ member.");
     expect(within(finish).getByTestId('selfie-tip')).toHaveTextContent('Fit your face in the oval. No hat or sunglasses.');
     expect(within(finish).queryByRole('button', { name: /skip|later/i })).toBeNull();
     const input = within(finish).getByTestId('selfie-input');
@@ -666,10 +666,10 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     expect(within(finish).queryByTestId('thrift-signature-pad')).toBeNull();
     await user.click(within(finish).getByRole('button', { name: 'I agree to the Thrift+ terms and photo release' }));
 
-    // Done: the Member QR, with the photo ID at the register.
+    // Done: a member now, with no staff step and no photo ID at the register (owner 2026-11-03, J8).
     const done = await within(finish).findByTestId('finish-done');
-    expect(done).toHaveTextContent("You're all set");
-    expect(done).toHaveTextContent('Show this QR at the register with your photo ID.');
+    expect(done).toHaveTextContent("You're a Thrift+ member");
+    expect(done).toHaveTextContent('Show your member QR at the register.');
     expect(thriftPlusMockControls.finished()).toMatchObject([
       { step: 'selfie' },
       { step: 'sign', terms_version: '2026-11-03' },
@@ -677,7 +677,7 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     await user.click(within(done).getByRole('button', { name: 'Done' }));
     const wallet = await screen.findByTestId('wallet-screen');
     expect(screen.getByTestId('where')).toHaveTextContent('?view=qr');
-    expect(within(wallet).getByTestId('my-card-line')).toHaveTextContent('Show this QR at the register with your photo ID.');
+    expect(within(wallet).getByTestId('my-card-line')).toHaveTextContent('Show this at the register.');
     expect(within(wallet).queryByRole('button', { name: 'Finish joining' })).toBeNull();
     // Finished: the bar is back, on My QR.
     expect(screen.getByTestId('member-bar')).toBeInTheDocument();

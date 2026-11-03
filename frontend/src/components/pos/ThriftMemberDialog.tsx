@@ -56,7 +56,7 @@ export default function ThriftMemberDialog({ open, onClose, cart, ensureCart, on
   async function pick(person: ThriftPendingPerson, scannedCode?: string) {
     setError('');
     if (person.status !== 'active') {
-      setViewing(person.person_id); // still to finish: their card has Finalize
+      setViewing(person.person_id); // still to finish: their card (Finalize for an Assisted join)
       setFinding(false);
       return;
     }

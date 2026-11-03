@@ -81,7 +81,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
     {
       num: 'A.3',
       what: 'Antes de que su membresía funcione',
-      short: 'Su nombre, una foto, su aceptación de estos términos y la revisión de una identificación con foto en la caja.',
+      short: 'Su nombre, un número de celular verificado, una foto y su aceptación de estos términos, todo en la app Thrift+.',
       section: 1,
     },
     {
@@ -191,7 +191,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
     },
     {
       q: '¿Guardan mi identificación o mi foto?',
-      a: 'Revisamos su identificación con foto una vez para confirmar su nombre y su edad, y no guardamos nada de ella. Su foto solo sirve para que el personal confirme que es usted. Nunca se usa para publicidad ni se comparte, y se borra 24 meses después de su última compra, o antes si lo pide.',
+      a: 'Cuando revisamos su identificación con foto (si el personal le ayuda a unirse, o para un artículo para mayores de 18), confirmamos su nombre y su edad, y no guardamos nada de ella. Su foto solo sirve para que el personal confirme que es usted. Nunca se usa para publicidad ni se comparte, y se borra 24 meses después de su última compra, o antes si lo pide.',
     },
     {
       q: '¿Me van a mandar mensajes de texto?',
@@ -230,7 +230,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
         },
         {
           n: '1.3',
-          text: 'Su membresía funciona solo después de que tengamos su nombre, su foto y su aceptación de estos términos, y el personal haya revisado su identificación con foto en una caja. Hasta entonces, su cuenta no reúne ni usa nada. Únase en su teléfono en ecothrift.us/join con su nombre y Google, su número de celular o su correo; tómese la foto (una selfie) y toque Acepto en la app Thrift+; luego muestre su QR de miembro y su identificación con foto en cualquier caja. Si no se toma la selfie o no toca Acepto, le tomamos la foto y toca Acepto en la caja.',
+          text: 'Su membresía funciona cuando tengamos su nombre y apellido, un número de celular verificado con un código por mensaje de texto, su foto y su aceptación de estos términos. Hasta entonces, su cuenta no reúne ni usa nada. Únase en su teléfono en ecothrift.us/join con su nombre y Google o su número de celular; luego tómese la foto (una selfie) y toque Acepto en la app Thrift+. Con eso termina: muestre su QR de miembro en cualquier caja. ¿No tiene teléfono inteligente? El personal puede ayudarle a unirse en la tienda: le toman la foto, usted toca Acepto en su teléfono y revisan su identificación con foto.',
         },
         { n: '1.4', text: 'Al tocar Acepto, acepta estos términos y la autorización de foto de la §10.' },
         {
@@ -403,12 +403,12 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
         {
           n: '10.1',
           label: 'Foto.',
-          text: 'Usted se toma la foto (una selfie) en la app Thrift+, o se la tomamos en la caja; el personal la compara con su identificación con foto. Solo sirve para que el personal confirme que es usted. Nunca se usa para publicidad ni para reconocimiento facial, ni se comparte. La borramos 24 meses después de su última compra, o dentro de los 30 días después de que lo pida.',
+          text: 'Usted se toma la foto (una selfie) en la app Thrift+, o el personal se la toma si le ayuda a unirse. Solo sirve para que el personal confirme que es usted. Nunca se usa para publicidad ni para reconocimiento facial, ni se comparte. La borramos 24 meses después de su última compra, o dentro de los 30 días después de que lo pida.',
         },
         {
           n: '10.2',
           label: 'Identificación.',
-          text: 'El personal revisa su identificación con foto una vez para confirmar su nombre, su edad y su rostro. No se escanea, copia ni guarda nada de su identificación. Solo registramos que se revisó, quién la revisó y cuándo.',
+          text: 'Cuando el personal revisa su identificación con foto (si le ayuda a unirse, o para un artículo para mayores de 18), confirma su nombre, su edad y su rostro. No se escanea, copia ni guarda nada de su identificación. Solo registramos que se revisó, quién la revisó y cuándo.',
         },
         {
           n: '10.3',

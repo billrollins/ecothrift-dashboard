@@ -5,8 +5,12 @@
 import type { MemberDeletePreview } from '../types/thriftplus.types';
 import api from './client';
 
-/** Needs Finalize: email confirmed, finish at a register. Member: finalized. Off: deactivated or revoked. */
-export type MemberStage = 'needs_finalize' | 'member' | 'off' | 'unconfirmed';
+/**
+ * Finishing in the app: joined on their own phone, still adding a phone, a selfie or I agree there (owner 2026-11-03,
+ * J8: no staff step). Needs Finalize: an Assisted join (J22) still to finish on Finalize. Member: finalized. Off:
+ * deactivated or revoked.
+ */
+export type MemberStage = 'joining' | 'needs_finalize' | 'member' | 'off' | 'unconfirmed';
 
 /** One person on a membership, for the avatar circles (owner 2026-10-16). */
 export interface MemberPerson {
@@ -96,6 +100,7 @@ export async function deleteMemberRow(key: string, name: string): Promise<Member
 }
 
 export const STAGE_LABEL: Record<MemberStage, string> = {
+  joining: 'Finishing in the app',
   needs_finalize: 'Needs Finalize',
   member: 'Member',
   off: 'Off',

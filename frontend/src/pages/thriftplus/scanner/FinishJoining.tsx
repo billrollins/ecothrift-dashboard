@@ -1,9 +1,10 @@
 /**
  * Finish joining (Join v2, owner 2026-10-19: "SMOOTH and CLEAR and SIMPLE"): right after a join's sign-in, and from the
  * Member QR's "Finish joining", a pending member does in the app what the register used to: a selfie, then a tap on
- * "I agree" under the terms (owner 2026-11-03; it was a finger signature). One screen per step, "Step 1 of 2". Then "You're all set": at the register staff only check the photo
- * ID against the selfie. Required (owner 2026-10-20): no skip and no ×; a pending member with steps left always lands
- * here. Only Sign out leaves it. The register can still take both (as today).
+ * "I agree" under the terms (owner 2026-11-03; it was a finger signature). One screen per step, "Step 1 of 2". Then
+ * "You're a Thrift+ member": with a name and a verified phone, the last step finishes the membership, with no staff step
+ * and no ID check at the register (owner 2026-11-03, J8). Required (owner 2026-10-20): no skip and no ×; a pending
+ * member with steps left always lands here. Only Sign out leaves it.
  * The server's member payload says what is left (`finish_steps`).
  */
 import { useEffect, useRef, useState } from 'react';
@@ -110,7 +111,7 @@ export function FinishJoining({ member, onDone, onSignOut }: {
       <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: u(40), pt: u(24), pb: `calc(${u(44)} + env(safe-area-inset-bottom, 0px))` }}>
         {n === 1 && count === 2 && (
           <Box data-testid="finish-intro" sx={{ mb: u(26), p: u(24), borderRadius: u(24), bgcolor: sc.greenTint, color: sc.greenDeep, fontSize: u(29), lineHeight: 1.4, fontWeight: 600 }}>
-            Two quick steps: 1. Selfie 2. Agree to the terms. Then show your QR at the register.
+            Two quick steps: 1. Selfie 2. Agree to the terms. Then you're a Thrift+ member.
           </Box>
         )}
         {step === 'selfie' ? <SelfieStep key="selfie" /> : step === 'sign' ? <SignStep key="sign" /> : <AllSet onDone={onDone} />}
@@ -276,13 +277,13 @@ function SignStep() {
   );
 }
 
-/** Done: nothing left in the app; the register checks the photo ID. */
+/** Done: nothing left; they are a member (owner 2026-11-03, J8: no staff step). */
 function AllSet({ onDone }: { onDone: () => void }) {
   return (
     <Box data-testid="finish-done" sx={{ textAlign: 'center', pt: u(60) }}>
       <CheckCircleRounded aria-hidden sx={{ fontSize: u(150), color: sc.green }} />
-      <Box component="h1" sx={{ ...heading, mt: u(14) }}>You're all set</Box>
-      <Box sx={{ ...line, fontSize: u(34), color: sc.ink }}>Show this QR at the register with your photo ID.</Box>
+      <Box component="h1" sx={{ ...heading, mt: u(14) }}>You're a Thrift+ member</Box>
+      <Box sx={{ ...line, fontSize: u(34), color: sc.ink }}>Show your member QR at the register.</Box>
       <Box sx={{ mt: u(44), display: 'flex' }}>
         <BigButton primary onClick={onDone} testId="finish-done-button">Done</BigButton>
       </Box>

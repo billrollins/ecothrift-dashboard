@@ -4,12 +4,15 @@ Dash → Users → Members (owner 2026-10-16): every member in one list, and the
 **Stages, nothing else:**
 - ``unconfirmed``: signed up, neither the email nor the phone confirmed yet. Not listed; deleted after 24 hours
   (``purge_unconfirmed``).
-- ``needs_finalize``: the email or the phone confirmed (``members.confirmed``, Join v2); finish at a register (ID, photo).
-- ``member``: finalized at a register.
+- ``joining``: joined on their own phone, the email or the phone confirmed (``members.confirmed``), and still finishing
+  in the app (Add your mobile number, the selfie, I agree). They become a member there, with no staff step (owner
+  2026-11-03, J8; ``members.finish_on_phone``).
+- ``needs_finalize``: an Assisted join (J22) still to finish on Finalize (the photo, I agree, the ID check).
+- ``member``: finalized (in the app, or on Finalize).
 - ``off``: deactivated (Reactivate puts it back) or revoked.
 
 **Rows:** every membership (not practice, not unconfirmed), and, until the legacy cleanup request has run, each old
-ecothrift.us customer login with no membership (``legacy``: shown as Needs Finalize, an old account). A staff member's
+ecothrift.us customer login with no membership (``legacy``: shown as Finishing in the app, an old account). A staff member's
 own membership is a member with a Staff tag; a staff login itself is never a row. Keys: ``a<account>``, ``c<user>``.
 """
 from __future__ import annotations
@@ -24,7 +27,8 @@ from django.utils import timezone
 
 from apps.thriftplus.models import Account, CartMember, LedgerEntry, Person, ReturnRecord
 
-STAGES = {'unconfirmed': 'Unconfirmed', 'needs_finalize': 'Needs Finalize', 'member': 'Member', 'off': 'Off'}
+STAGES = {'unconfirmed': 'Unconfirmed', 'joining': 'Finishing in the app', 'needs_finalize': 'Needs Finalize',
+          'member': 'Member', 'off': 'Off'}
 UNCONFIRMED_HOURS = 24
 
 
@@ -33,15 +37,17 @@ def primary(account: Account) -> Person | None:
     return next((p for p in people if p.role == Person.ROLE_PRIMARY), people[0] if people else None)
 
 
-def stage(account: Account, person: Person | None = None) -> str:
+def stage(account: Account, person: Person | None = None, *, assisted: bool | None = None) -> str:
     if account.status in (Account.STATUS_INACTIVE, Account.STATUS_REVOKED):
         return 'off'
     if account.status == Account.STATUS_ACTIVE:
         return 'member'
-    from apps.thriftplus.services.members import confirmed
+    from apps.thriftplus.services import members
 
     person = person if person is not None else primary(account)
-    return 'needs_finalize' if confirmed(person) else 'unconfirmed'
+    if not members.confirmed(person):
+        return 'unconfirmed'
+    return 'needs_finalize' if (members.assisted(account) if assisted is None else assisted) else 'joining'
 
 
 def _unconfirmed_q() -> Q:
@@ -90,6 +96,9 @@ def rows() -> list[dict]:
                       .order_by('issued_at', 'pk').values_list('person_id', 'code')):
         codes[pid] = code
 
+    from apps.thriftplus.models import Event
+
+    assisted = set(Event.objects.filter(action='assisted_join', account__isnull=False).values_list('account_id', flat=True))
     out = []
     for account in accounts:
         person = primary(account)
@@ -106,7 +115,7 @@ def rows() -> list[dict]:
             # membership's database id stays internal.
             'number': display(code) if code else '', 'name': (str(person) if person else '') or email or 'No name',
             'second': others[0] if others else '', 'email': person.email if person else '',
-            'phone': person.phone if person else '', 'stage': stage(account, person),
+            'phone': person.phone if person else '', 'stage': stage(account, person, assisted=account.pk in assisted),
             'since': account.created_at, 'bucks': str(ledger.bucks_total(account)),
             'bucks_lifetime': str(collected.get(account.pk) or Decimal('0.00')),
             'credit': str(ledger.credit_balance(account)), 'returns': returns.get(account.pk, 0),
@@ -128,7 +137,7 @@ def rows() -> list[dict]:
             'key': f'c{user.pk}', 'kind': 'legacy', 'account_id': None, 'user_id': user.pk,
             'number': '', 'name': user.full_name or email, 'second': '',
             'email': user.email, 'phone': user.phone or '',
-            'stage': 'needs_finalize' if user.is_active else 'off', 'since': user.date_joined,
+            'stage': 'joining' if user.is_active else 'off', 'since': user.date_joined,
             'bucks': '0.00', 'bucks_lifetime': '0.00', 'credit': '0.00', 'returns': 0, 'sales': 0, 'spent': '0.00',
             'last_visit': None, 'holds_active': hold.get('active', 0), 'holds_total': hold.get('total', 0),
             'needs_reply': email in waiting, 'notes': '', 'staff': '', 'legacy': True,

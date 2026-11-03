@@ -28,7 +28,7 @@ const ANA = vi.hoisted<ThriftPendingPerson>(() => ({
 }));
 const CY = vi.hoisted<ThriftPendingPerson>(() => ({
   person_id: 9, account_id: 2, first_name: 'Cy', last_name: 'Lee', email: 'cy@example.com', joined_at: '2026-10-20T15:00:00Z',
-  code_last4: '1111', code_display: '1000 0000 1111', status: 'pending', photo_url: '/media/cy.jpg', selfie: true, signed: true,
+  code_last4: '1111', code_display: '1000 0000 1111', status: 'pending', assisted: true, photo_url: '/media/cy.jpg', selfie: true, signed: true,
 }));
 
 function cardFor(person: ThriftPendingPerson, standing: 'member' | 'pending', people = 1) {

@@ -131,7 +131,7 @@ describe('UsersPage', () => {
   it('opens Members when a customer is deep-linked', () => {
     wrap('/admin/users?customer=12');
     // Drawer covers the tablist; the customer strip is the proof of the tab.
-    expect(screen.getByText('finalized at a register')).toBeInTheDocument();
+    expect(screen.getByText('finished joining')).toBeInTheDocument();
     expect(screen.queryByText('On the clock')).not.toBeInTheDocument();
   });
 

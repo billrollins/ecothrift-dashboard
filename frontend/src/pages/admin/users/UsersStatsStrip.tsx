@@ -167,11 +167,12 @@ export function MemberStatsStrip({ rows, needsReply }: { rows?: MemberRow[]; nee
     : undefined;
   return (
     <Strip>
-      <Metric label="Members" value={num(count('member'))} sub="finalized at a register" />
+      <Metric label="Members" value={num(count('member'))} sub="finished joining" />
+      <Metric label="In the app" value={num(count('joining'))} sub="still finishing on their phone" />
       <Metric
         label="Needs Finalize"
         value={num(count('needs_finalize'))}
-        sub="finish at a register"
+        sub="Assisted joins"
         tone={count('needs_finalize') ? 'warn' : 'neutral'}
       />
       <Metric label="New" value={num(fresh)} sub="last 7 days" />

@@ -28,7 +28,7 @@ export const THRIFT_PLUS_HOME_BAND = {
 /** 2. The Visit page, after the address and hours. */
 export const THRIFT_PLUS_VISIT_BLOCK = {
   heading: 'Bring your phone',
-  text: 'Scan any price tag with the Thrift+ app to see its ThriftBucks, and whether it has 3-day returns. Not a member yet? Start on your phone, then finish at any register.',
+  text: 'Scan any price tag with the Thrift+ app to see its ThriftBucks, and whether it has 3-day returns. Not a member yet? Join on your phone in a minute.',
   open: { label: 'Open the app', href: '/scan' },
   join: { label: 'Join', href: '/join' },
 } as const
@@ -82,7 +82,7 @@ const EN: ThriftPlusAboutContent = {
       id: 'meet',
       file: 'thriftplus-poster-1-meet',
       heading: 'Meet Thrift+',
-      text: 'Membership is free and easy: start on your phone, finish at any register. ThriftBucks grow as items sit, and you have 3 days to bring a qualifying item back.',
+      text: 'Membership is free and easy: join on your phone in a minute. ThriftBucks grow as items sit, and you have 3 days to bring a qualifying item back.',
     },
     {
       id: 'thriftbucks',

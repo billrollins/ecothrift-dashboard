@@ -284,6 +284,7 @@ export const STRINGS: Record<string, { en: string; es: string }> = {
   sectionMyRequests: { en: 'My requests', es: 'Mis solicitudes' },
   sectionOwner: { en: 'Owner', es: 'Dueno' },
   schedule: { en: 'Schedule', es: 'Horario' },
+  hr: { en: 'HR', es: 'Recursos humanos' },
   myProfilePin: { en: 'My profile & PIN', es: 'Mi perfil y PIN' },
   supplies: { en: 'Supplies', es: 'Suministros' },
   ownerPage: { en: 'Owner page', es: 'Pagina del dueno' },

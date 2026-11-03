@@ -277,7 +277,7 @@ def apply(progress=None) -> dict:
     """The legacy cleanup. Idempotent: safe to run again.
 
     1. Every old ecothrift.us customer becomes a member: linked to the member with the same email, or a new one at
-       Needs Finalize (their email counts as confirmed: they have a history with us, so the 24-hour delete never
+       Finishing in the app (their email counts as confirmed: they have a history with us, so the 24-hour delete never
        takes them).
     2. Every customer password and old Thrift+ app login is removed. Staff passwords are not touched.
     3. The Customer-group links on staff logins are removed. The logins themselves stay. (The retired
@@ -304,7 +304,7 @@ def apply(progress=None) -> dict:
         if person.email_verified_at is None:
             person.email_verified_at = timezone.now()
             person.save(update_fields=['email_verified_at', 'updated_at'])
-    note(f"Linked {counts['linked']} old customers to their member; made {counts['made']} Needs Finalize members.")
+    note(f"Linked {counts['linked']} old customers to their member; made {counts['made']} new members (they finish in the app).")
     for user in _customer_users().iterator():
         if user.has_usable_password():
             user.set_unusable_password()

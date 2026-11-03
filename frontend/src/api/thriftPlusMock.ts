@@ -613,6 +613,11 @@ function pendingJoin(): { stored: StoredSession; join: MockJoin; contact: string
   return { stored, join, contact };
 }
 
+/** Owner 2026-11-03 (J8): a phone join with the selfie and I agree is a member at once, with no staff step. */
+function finishedOnPhone(join: MockJoin, contact: string): { ready?: true } {
+  return join.selfie && join.signed && !contact.includes('@') ? { ready: true } : {};
+}
+
 function memberNow(): ThriftPlusMember {
   const s = readSession();
   if (s.status !== 'member') throw new ThriftPlusError('Sign in first.', 'NOT_SIGNED_IN');
@@ -627,7 +632,7 @@ export async function uploadSelfie(photo: Blob): Promise<ThriftPlusMember> {
   if (!photo.size) throw new ThriftPlusError('Take your selfie first.', 'PHOTO_NEEDED');
   if (photo.size > 8 * 1024 * 1024) throw new ThriftPlusError('That photo is too big. Take your selfie again.', 'PHOTO_TOO_BIG');
   join.selfie = true;
-  writeJson(LS.session, { ...stored, selfie: true } satisfies StoredSession);
+  writeJson(LS.session, { ...stored, selfie: true, ...finishedOnPhone(join, contact) } satisfies StoredSession);
   state.finished.push({ step: 'selfie', contact });
   return memberNow();
 }
@@ -637,7 +642,7 @@ export async function signTerms(termsVersion: string): Promise<ThriftPlusMember>
   await wait();
   const { stored, join, contact } = pendingJoin();
   join.signed = true;
-  writeJson(LS.session, { ...stored, signed: true } satisfies StoredSession);
+  writeJson(LS.session, { ...stored, signed: true, ...finishedOnPhone(join, contact) } satisfies StoredSession);
   state.finished.push({ step: 'sign', contact, terms_version: termsVersion });
   return memberNow();
 }

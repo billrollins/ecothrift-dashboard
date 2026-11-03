@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-26 (scheduled_sweep builds the week's supply order first) -->
+<!-- Last updated: 2026-11-03 (Wi-Fi clock helper env vars) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -207,6 +207,9 @@ Defined in `.env` (local values) and `.envprod` (mirror of Heroku Config Vars, w
 | `AI_PRICING` | Defined in **`ecothrift/settings.py`** (per-model input/output/cache rates) — not env; costs recorded in the **`AIUsage`** table | — |
 | `VITE_DEV_LOG` | Frontend dev console (`devLog`) for Add Item / suggest | `false` |
 | `DASH_CODER_TOKEN` | Dash Updates coder API: a coding session sends it as `X-Coder-Token` (`scripts/dev/dash_update.py` reads it from `.envprod` / `.env`; [`mainline_updates.md`](../protocols/mainline_updates.md)). Blank = only a superuser sign-in works | — |
+| `WIFI_CLOCK_TOKEN` | **Store PC only** (user env var, not `.env` / Heroku): the Wi-Fi clock helper's device token, made by `scripts/wifi_clock/install.ps1`. Dash keeps only its sha256 (`hr.WifiClockDevice`, set by the `hr.wifi_clock_pilot` request) | — |
+| `WIFI_CLOCK_URL` | **Store PC only**: where the helper posts | `https://dash.ecothrift.us` |
+| `WIFI_CLOCK_SUBNET` | **Store PC only**, optional: the subnet to sweep when the PC's own /24 is wrong | the PC's /24 |
 | `BSTOCK_AUTH_TOKEN` | Last-resort JWT, after the handed-over `BStockToken` row and `workspace/.bstock_token` (from `python manage.py bstock_token` or DevTools) | — |
 | `BUYING_REQUEST_DELAY_SECONDS` | Minimum delay between scraper HTTP requests | `2.0` |
 | `BSTOCK_MAX_RETRIES` | Retries after HTTP 429 | `3` |

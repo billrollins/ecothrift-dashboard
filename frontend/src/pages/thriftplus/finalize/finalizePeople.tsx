@@ -61,7 +61,7 @@ export function PersonCard({ person, onOpen }: { person: ThriftPendingPerson; on
         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, minWidth: 0 }}>
           <Typography fontWeight={800} fontSize="1.05rem" noWrap sx={{ flex: 1, minWidth: 0 }}>{pendingName(person)}</Typography>
           <Typography fontWeight={800} fontSize="0.85rem" sx={{ flexShrink: 0, color: done ? 'success.main' : 'warning.dark' }}>
-            {done ? 'Member' : 'To finish'}
+            {done ? 'Member' : person.assisted ? 'To finish' : 'In their app'}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, minWidth: 0, overflow: 'hidden' }} data-testid="finalize-person-line">
@@ -213,7 +213,8 @@ function DetailsForm({ person, onSaved, onCancel }: {
 
 /**
  * Everything we know about one online join, from the bottom of the screen (owner 2026-10-16), with what can be done:
- * Finish now and Resend join email while they're to finish; the owner alone may Delete and start over (anything gone
+ * Check their ID now for an Assisted join still to finish (J22; any other join finishes in their app, J8), Resend join
+ * email while they're to finish; the owner alone may Delete and start over (anything gone
  * wrong: they join again from the beginning).
  */
 export function PersonSheet({ person, owner, onClose, onFinish, onDeleted, onChanged }: {
@@ -319,7 +320,7 @@ export function PersonSheet({ person, owner, onClose, onFinish, onDeleted, onCha
           <Box sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: 'divider', mx: 'auto', mb: 1.5 }} />
           <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
             <Typography variant="h5" fontWeight={800} sx={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{name}</Typography>
-            <Typography fontWeight={800} sx={{ color: done ? 'success.main' : 'warning.dark' }}>{done ? 'Member' : 'To finish'}</Typography>
+            <Typography fontWeight={800} sx={{ color: done ? 'success.main' : 'warning.dark' }}>{done ? 'Member' : person.assisted ? 'To finish' : 'In their app'}</Typography>
           </Box>
 
           <Box sx={{ mt: 1 }}>
@@ -334,7 +335,7 @@ export function PersonSheet({ person, owner, onClose, onFinish, onDeleted, onCha
               <Row label="Finished">{`${when(person.finished_at, true) || '-'}${person.finished_by ? ` by ${person.finished_by}` : ''}`}</Row>
             ) : null}
             <Row label="Photo ID">{`${yes(person.id_checked)} checked · 18+ ${yes(person.verified_18)}`}</Row>
-            <Row label="Signed">{person.signed_at ? when(person.signed_at, true) : 'Not yet'}</Row>
+            <Row label="Agreed">{person.signed_at ? when(person.signed_at, true) : 'Not yet'}</Row>
             <Row label="Thrift+ app">{person.app_signed_in ? 'Signed in' : 'Not signed in'}</Row>
             {person.photo_url ? (
               <Box sx={{ py: 1 }}>
@@ -349,10 +350,16 @@ export function PersonSheet({ person, owner, onClose, onFinish, onDeleted, onCha
             ) : null}
           </Box>
 
+          {!done && !person.assisted ? (
+            <Alert severity="info" sx={{ mt: 2 }} data-testid="finalize-sheet-in-app">
+              They finish in the Thrift+ app on their phone: a selfie and I agree. No ID check here.
+            </Alert>
+          ) : null}
           {note ? <Alert severity={note.ok ? 'success' : 'error'} sx={{ mt: 2 }} data-testid="finalize-sheet-note">{note.text}</Alert> : null}
 
           <Stack spacing={1.25} sx={{ mt: 2 }}>
-            {!done ? (
+            {/* Owner 2026-11-03 (J8, J22): only an Assisted join is finished here. */}
+            {!done && person.assisted ? (
               <Button variant="contained" size="large" onClick={() => { close(); onFinish(person); }} sx={{ ...big, minHeight: 64 }}>
                 Check their ID now
               </Button>

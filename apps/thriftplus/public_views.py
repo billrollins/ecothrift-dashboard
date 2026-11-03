@@ -51,6 +51,9 @@ def _session_payload(request) -> dict:
     if not isinstance(user, member_auth.Member):
         return {'status': 'signed_out', 'price_first': members.price_first()}
     person = user.person
+    # Owner 2026-11-03 (J8): a join on their own phone is finished in the app, with no staff step.
+    if user.account.status == Account.STATUS_PENDING and members.finish_on_phone(person):
+        user.account.refresh_from_db()
     card = person.cards.filter(status='active').order_by('-issued_at').first()
     balances = ledger.balances(user.account)
     return {
@@ -601,7 +604,7 @@ def my_card(request):
         'code': card.code, 'display': cards.display(card.code), 'qr': cards.qr_payload(card.code),
         'first_name': person.first_name,
         # J2 (owner 2026-10-15): joined online and not finished at a register yet is "not ready"; the app says
-        # "Finish joining at any register. Show them this code."
+        # "Finish joining in the app first." (owner 2026-11-03, J8: no staff step)
         'ready': request.user.account.status == Account.STATUS_ACTIVE,
     })
 

@@ -514,3 +514,95 @@ def _weekday_list(raw) -> list[int]:
         if 0 <= weekday <= 6 and weekday not in days:
             days.append(weekday)
     return days
+
+
+# ── Wi-Fi time clock pilot (D23, {master}/standards/time-clock.md) ─────────────
+# Shadow mode: these rows record what the Wi-Fi clock would have done. They never write a TimeEntry.
+
+class WifiClockDevice(models.Model):
+    """The store PC helper that reports which registered phones are on the Wi-Fi. Only the token's hash is kept."""
+
+    name = models.CharField(max_length=60)
+    token_hash = models.CharField(max_length=64, unique=True)
+    is_active = models.BooleanField(default=True)
+    last_heartbeat_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+
+class WifiPilotShift(models.Model):
+    """The pilot schedule. Kept apart from Shift/ScheduledShift so it never shows on the staff Schedule."""
+
+    employee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='wifi_pilot_shifts')
+    weekday = models.PositiveSmallIntegerField()  # 0 = Monday
+    start = models.TimeField()
+    end = models.TimeField()
+    punch_code = models.CharField(max_length=20, blank=True, default='')
+
+    class Meta:
+        ordering = ['employee_id', 'weekday', 'start']
+
+    def __str__(self):
+        return f'{self.employee_id} {self.weekday} {self.start:%H:%M}-{self.end:%H:%M}'
+
+
+class WifiPresence(models.Model):
+    """What the Wi-Fi last knew about one person's phone, and the shadow punch for the current shift."""
+
+    employee = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='wifi_presence')
+    present = models.BooleanField(default=False)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    unseen_since = models.DateTimeField(null=True, blank=True)  # first "not seen" check of the current miss
+    arrived_at = models.DateTimeField(null=True, blank=True)  # start of the current stay
+    shift_day = models.DateField(null=True, blank=True)
+    shadow_in_at = models.DateTimeField(null=True, blank=True)
+    shadow_out_at = models.DateTimeField(null=True, blank=True)
+    gap_start = models.DateTimeField(null=True, blank=True)  # left mid-shift, not back yet
+    asked_left = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class WifiPilotEvent(models.Model):
+    """The pilot log: what the Wi-Fi saw, what it would have done, and the person's answers."""
+
+    KIND_ARRIVE = 'arrive'
+    KIND_LEAVE = 'leave'
+    KIND_BLIP = 'blip'
+    KIND_CLOCK_IN = 'would_clock_in'
+    KIND_CLOCK_OUT = 'would_clock_out'
+    KIND_BREAK = 'break_question'
+    KIND_LEFT = 'left_question'
+    KIND_NEVER_LEFT = 'never_left'
+    KIND_HELPER_GAP = 'helper_gap'
+    KIND_CHOICES = [
+        (KIND_ARRIVE, 'Arrived'), (KIND_LEAVE, 'Left'), (KIND_BLIP, 'Short miss'),
+        (KIND_CLOCK_IN, 'Would clock in'), (KIND_CLOCK_OUT, 'Would clock out'),
+        (KIND_BREAK, 'Was this a break?'), (KIND_LEFT, 'Clock out when you left?'),
+        (KIND_NEVER_LEFT, 'Still seen at day end'), (KIND_HELPER_GAP, 'Helper went quiet'),
+    ]
+    ANSWER_YES = 'yes'
+    ANSWER_NO = 'no'
+
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True, related_name='wifi_pilot_events',
+    )
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    at = models.DateTimeField(db_index=True)  # when it happened (for a punch: the punch time)
+    arrived_at = models.DateTimeField(null=True, blank=True)
+    shift_start = models.DateTimeField(null=True, blank=True)
+    shift_end = models.DateTimeField(null=True, blank=True)
+    gap_start = models.DateTimeField(null=True, blank=True)
+    gap_end = models.DateTimeField(null=True, blank=True)
+    answer = models.CharField(max_length=3, blank=True, default='')
+    answered_at = models.DateTimeField(null=True, blank=True)
+    emailed_at = models.DateTimeField(null=True, blank=True)
+    meta = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-at', '-id']
+
+    def __str__(self):
+        return f'{self.kind} {self.at:%Y-%m-%d %H:%M}'

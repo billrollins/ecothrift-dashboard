@@ -105,7 +105,7 @@ class OneAccountTests(MailMixin, TestCase):
         shopper.refresh_from_db()
         self.assertFalse(shopper.has_usable_password())
         person = Person.objects.get(user=shopper)
-        self.assertEqual(member_list.stage(person.account, person), 'needs_finalize')  # never purged
+        self.assertEqual(member_list.stage(person.account, person), 'joining')  # never purged; finishes in the app
         self.assertFalse(MemberLogin.objects.exists())
         boss.refresh_from_db()
         self.assertTrue(boss.check_password('staff-pass-9'))  # staff keep their password
@@ -163,7 +163,7 @@ class MembersTabTests(TestCase):
     def test_the_list_shows_stages_newest_first_and_hides_unconfirmed_sign_ups(self):
         rows = self.api.get(self.API).json()['results']
         self.assertEqual([(r['name'], r['stage']) for r in rows],
-                         [('Old Hold', 'needs_finalize'), ('Pat New', 'needs_finalize'), ('Ana Per', 'member')])
+                         [('Old Hold', 'joining'), ('Pat New', 'joining'), ('Ana Per', 'member')])
         ana = rows[2]
         self.assertEqual((ana['bucks'], ana['bucks_lifetime'], ana['returns']), ('1250.00', '1250.00', 0))
         # Member # is the 12-digit member code (owner 2026-10-16), not the membership's database id.

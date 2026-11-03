@@ -3,6 +3,8 @@ phone or, with no phone, by the photo ID; then the Finalize screen (photo, a tap
 mocked: nothing real is texted."""
 from __future__ import annotations
 
+from django.utils import timezone
+
 from apps.core.models import AppSetting
 from apps.thriftplus.models import Account, Card, Event, Person
 from apps.thriftplus.services import member_list, members, register
@@ -43,6 +45,15 @@ class AssistedJoinTests(TwilioMixin, RegisterBase):
         self.assertEqual(person.phone_verified_by, self.clerk)
         self.assertEqual(person.account.notes, 'Assisted join (their phone, a texted code).')
         self.assertTrue(Event.objects.filter(action='assisted_join', person=person, actor=self.clerk).exists())
+        # Owner 2026-11-03 ("keep ID check for assisted only"): a verified phone, a photo and I agree never finish an
+        # Assisted join without Finalize; it is the one Needs Finalize.
+        self.assertEqual((row['assisted'], member_list.stage(person.account, person)), (True, 'needs_finalize'))
+        person.photo, person.signed_at = _jpeg(), timezone.now()
+        person.save()
+        self.assertFalse(members.finish_on_phone(person))
+        person.photo, person.signed_at = '', None
+        person.save()
+        self.assertEqual(Account.objects.get(pk=person.account_id).status, Account.STATUS_PENDING)
 
         r = self._finish(person.pk)
         self.assertEqual((r.status_code, r.json()['status'], r.json()['signed']), (200, 'active', True))

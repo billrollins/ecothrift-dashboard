@@ -46,6 +46,8 @@ vi.mock('../../../services/receiving/receivingClient', () => ({
 const CARA: ThriftPendingPerson = {
   person_id: 7, account_id: 3, first_name: 'Cara', last_name: 'Joyner', email: 'cara@example.com',
   joined_at: '2026-10-16T14:05:00Z', code_last4: '1907',
+  // Owner 2026-11-03 (J22): Finalize and the ID check are for an Assisted join only.
+  assisted: true,
 };
 const CODE = '402155831900';
 /** Join v2 (owner 2026-10-19): a selfie and a signature from the app. */

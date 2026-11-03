@@ -83,8 +83,9 @@ export async function reringThriftMember(cartId: number, personId: number): Prom
 }
 
 /**
- * Joined online and not finished yet (owner 2026-10-15, J8): a pending membership. It collects and uses nothing until
- * the register finishes joining (the phone read back, the ID, the photo).
+ * Not finished yet: a pending membership. It collects and uses nothing until then. A join on their own phone finishes
+ * in the app (a verified phone, the selfie, I agree; owner 2026-11-03, J8); only an Assisted join (`assisted`, J22)
+ * finishes on Finalize.
  */
 export interface ThriftPendingPerson {
   person_id: number;
@@ -119,6 +120,9 @@ export interface ThriftPendingPerson {
   contact?: string;
   /** Phase 4 (owner 2026-10-20): "Text sign-in link" is offered: the own-number switch is on, they have a phone and have not said STOP. */
   can_text_link?: boolean;
+  /** Owner 2026-11-03 (J22): made by Assisted join, so it is finished on Finalize (the ID check). Any other pending join
+   * finishes in their own app. */
+  assisted?: boolean;
 }
 
 /** Pending joins by name, email or member code, newest first (at most 10). A POST, so names stay out of request logs. */

@@ -83,13 +83,45 @@ def normalize_phone(raw: str | None) -> str:
 
 def confirmed(person: Person | None) -> bool:
     """Join v2 (owner 2026-10-19): a join is confirmed once its email (link, code or Google) or its phone (a texted
-    code, or read back at a register) is verified. Confirmed pending joins are Needs Finalize and never purged."""
+    code, or read back at a register) is verified. Confirmed pending joins are never purged: an Assisted join is Needs
+    Finalize, any other is still finishing in the app (owner 2026-11-03, J8)."""
     return person is not None and (person.email_verified_at is not None or person.phone_verified_at is not None)
 
 
 def confirmed_q(prefix: str = '') -> Q:
     """``confirmed`` as a filter; ``prefix`` is the path to the person (``'people__'`` from an Account)."""
     return Q(**{f'{prefix}email_verified_at__isnull': False}) | Q(**{f'{prefix}phone_verified_at__isnull': False})
+
+
+def assisted(account) -> bool:
+    """Made by Assisted join on the store phone (J22): the one kind of join still finished on Finalize."""
+    return account is not None and Event.objects.filter(account=account, action='assisted_join').exists()
+
+
+def finished_on_phone(person: Person) -> bool:
+    """Owner 2026-11-03 (J8): a join on the customer's own phone is finished there, with no staff step: a first and a
+    last name, a verified phone, and the app's Finish joining (the selfie and the tap on I agree, J5)."""
+    from apps.thriftplus.services.register import agreed
+
+    return bool((person.first_name or '').strip() and (person.last_name or '').strip()
+                and person.phone_verified_at is not None and person.photo and agreed(person))
+
+
+def finish_on_phone(person: Person) -> bool:
+    """Make a pending join a member once ``finished_on_phone``; never an Assisted join (J22: Finalize) or a practice
+    member. Called after each app step (the texted code, Add your mobile number, the selfie, I agree). True when it
+    finished them now."""
+    with transaction.atomic():
+        account = Account.objects.select_for_update().get(pk=person.account_id)
+        if (account.status != Account.STATUS_PENDING or account.is_practice or person.removed_at is not None
+                or not finished_on_phone(person) or assisted(account)):
+            return False
+        account.status = Account.STATUS_ACTIVE
+        account.save(update_fields=['status', 'updated_at'])
+        person.account = account
+        log('finished_on_phone', account=account, person=person)
+        member_code(person)
+    return True
 
 
 def log(action: str, *, account=None, person=None, card=None, actor=None, **detail) -> Event:
@@ -164,7 +196,7 @@ def card_by_code(raw: str) -> Card:
 
 def _require_active(account: Account) -> None:
     if account.status == Account.STATUS_PENDING:
-        raise MemberError('Joined online: finish joining at a register first.')
+        raise MemberError('Not finished joining yet: they finish in the Thrift+ app (an Assisted join on Finalize).')
     if account.status == Account.STATUS_INACTIVE:
         raise MemberError('This membership is deactivated. Reactivate it in Dash first.')
     if account.status != Account.STATUS_ACTIVE:
@@ -364,6 +396,7 @@ def set_details(person: Person, *, first_name: str, last_name: str, phone: str, 
     person.save(update_fields=fields)
     log('details', account=person.account, person=person, actor=user, before=before,
         after={'first_name': first, 'last_name': last, 'phone': digits[-4:] if digits else ''})
+    finish_on_phone(person)
     return person
 
 

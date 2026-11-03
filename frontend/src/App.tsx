@@ -41,6 +41,7 @@ const CheckInsPage = lazy(() => import('./pages/people/CheckInsPage'));
 const SchedulePage = lazy(() => import('./pages/people/SchedulePage'));
 const MyCheckInsPage = lazy(() => import('./pages/people/MyCheckInsPage'));
 const MePage = lazy(() => import('./pages/me/MePage'));
+const HrPage = lazy(() => import('./pages/hr/HrPage'));
 const MessagesPage = lazy(() => import('./pages/messages/MessagesPage'));
 const FloorplanListPage = lazy(() => import('./pages/floorplan/FloorplanListPage'));
 
@@ -269,6 +270,15 @@ function AppRoutes() {
             }
           />
         ))}
+        {/* HR (Bill, Dash Updates #56): one HR app on the avatar menu; each tab keeps its page's own access. */}
+        <Route
+          path="/hr/*"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <HrPage />
+            </Suspense>
+          }
+        />
         <Route
           path="/me"
           element={

@@ -42,10 +42,10 @@ export function PhotoField({ photo, onChange }: { photo: File | null | undefined
  * boxes: receipts and updates go to it, and store news with an unsubscribe link; T74), the ID check and the 18+
  * flag it allows, and a photo. The ID itself is never kept.
  *
- * `blankCard` keeps the register's old blank-card scan until the register drops it. Dash passes false: there is no
- * physical card since 2026-10-14 (owner); members get their member code in the Thrift+ app.
+ * No blank-card scan: there is no physical card (owner 2026-10-14, J10; the last field went 2026-11-03). Members get
+ * their member code in the Thrift+ app.
  */
-export default function PersonFields({ value, onChange, blankCard = true }: { value: NewMember; onChange: (v: NewMember) => void; blankCard?: boolean }) {
+export default function PersonFields({ value, onChange }: { value: NewMember; onChange: (v: NewMember) => void }) {
   const note = useQuery({ queryKey: ['thriftplus', 'email-note'], queryFn: fetchEmailNote, staleTime: Infinity });
   return (
     <Stack spacing={1.25} sx={{ mt: 1 }}>
@@ -64,9 +64,6 @@ export default function PersonFields({ value, onChange, blankCard = true }: { va
       />
       <IdCheckFields value={value} onChange={onChange} />
       <PhotoField photo={value.photo} onChange={(photo) => onChange({ ...value, photo })} />
-      {blankCard ? (
-        <TextField label="Scan a blank card" value={value.card_code ?? ''} onChange={(e) => onChange({ ...value, card_code: e.target.value })} helperText="Optional. Scan the card, or type its 12 digits." />
-      ) : null}
       <Typography variant="caption" color="text.secondary">
         Never scan or keep the ID itself: only the name, phone, email, photo and the 18+ flag are stored.
       </Typography>

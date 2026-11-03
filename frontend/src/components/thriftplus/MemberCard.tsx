@@ -44,7 +44,7 @@ function Tile({ label, children, note, testId }: { label: string; children: Reac
 
 const STANDING = {
   member: { label: 'Member', color: 'success' },
-  pending: { label: 'Needs ID check', color: 'warning' },
+  pending: { label: 'Not finished', color: 'warning' },
   off: { label: 'Off', color: 'error' },
 } as const;
 
@@ -52,8 +52,9 @@ const STANDING = {
  * The member card (owner 2026-10-20): one person's Thrift+ standing on a screen. Their photo, name and status
  * (pending / member / off); ThriftBucks collected, used and left (with the use-by date) and Thrift+ credit; recent trips
  * (day, ticket number, total); the people on the membership. Two things can be done here, with the customer in front of
- * you: Add a 2nd person to a member, and, for someone who joined online, Finalize: only the ID check (Name matches,
- * Photo matches, 18 or older), then Match. The Members page (/pos/members) and the register's Thrift+ member button
+ * you: Add a 2nd person to a member, and, for an Assisted join still to finish (J22), Finalize: only the ID check (Name
+ * matches, Photo matches, 18 or older), then Match. A join on their own phone finishes in their app, with no staff step
+ * (owner 2026-11-03, J8). The Members page (/pos/members) and the register's Thrift+ member button
  * show this same card; the Returns page can too.
  *
  * ``cartId`` is the open sale at the register: Finalize puts the member on it (``onCart`` gets the sale). ``onFinalized``
@@ -155,6 +156,7 @@ export default function MemberCard({
   const standing = STANDING[person.standing] ?? STANDING.off;
   const useBy = useByText(rewards.use_by);
   const canAdd = person.standing === 'member' && people.length < 2;
+  const finalize = person.standing === 'pending' && Boolean(person.assisted);
   const signatureNeeded = !person.signed;
   const matchReady = checksDone(checks) && Boolean(person.photo_url || newSelfie) && (!signatureNeeded || signed);
 
@@ -182,8 +184,12 @@ export default function MemberCard({
         </Box>
       </Stack>
 
-      {person.standing === 'pending' ? (
-        <Alert severity="warning">Joined online. Check their photo ID to finish joining: they collect and use nothing until then.</Alert>
+      {finalize ? (
+        <Alert severity="warning">Assisted join. Check their photo ID to finish: they collect and use nothing until then.</Alert>
+      ) : person.standing === 'pending' ? (
+        <Alert severity="warning" data-testid="member-card-in-app">
+          Not finished yet. They finish in the Thrift+ app on their phone (a selfie and I agree), then show their member QR.
+        </Alert>
       ) : null}
       {person.standing === 'off' ? (
         <Alert severity="error">This membership is not active. Ask a manager.</Alert>
@@ -264,7 +270,7 @@ export default function MemberCard({
         </Stack>
       </Box>
 
-      {person.standing === 'pending' ? (
+      {finalize ? (
         <Box data-testid="member-card-finalize">
           <Typography variant="h6" fontWeight={800} sx={{ mb: 1 }}>Finalize</Typography>
           <SelfieCheck

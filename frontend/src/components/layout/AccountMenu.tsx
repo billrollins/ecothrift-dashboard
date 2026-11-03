@@ -14,6 +14,7 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
+import BadgeOutlined from '@mui/icons-material/BadgeOutlined';
 import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined';
 import BuildCircleOutlined from '@mui/icons-material/BuildCircleOutlined';
 import FeedbackOutlined from '@mui/icons-material/FeedbackOutlined';
@@ -71,7 +72,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 /**
- * The avatar menu is "me" (the HR side): who I am, my day, my schedule, my PIN, my requests, and
+ * The avatar menu is "me" (the HR side): the HR app (#56), who I am, my day, my schedule, my PIN, my requests, and
  * for the owner the Owner page (its tabs hold Reports, Approvals and Dash Updates). Language, View as and sign out close it.
  */
 export function AccountMenu() {
@@ -171,6 +172,10 @@ export function AccountMenu() {
         </Box>
 
         <SectionLabel key="sec-me">{t('sectionMe', lang)}</SectionLabel>
+        <MenuItem key="hr" data-testid="account-menu-hr" onClick={() => go('/hr')}>
+          <ListItemIcon><BadgeOutlined fontSize="small" /></ListItemIcon>
+          <ListItemText primary={t('hr', lang)} />
+        </MenuItem>
         <MenuItem key="my-day" data-testid="account-menu-my-day" onClick={goMyDay}>
           <ListItemIcon><SpaceDashboardOutlined fontSize="small" /></ListItemIcon>
           <ListItemText primary={t('myDay', lang)} />
