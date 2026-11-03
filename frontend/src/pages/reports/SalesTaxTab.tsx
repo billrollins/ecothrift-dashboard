@@ -232,7 +232,7 @@ export default function SalesTaxTab() {
             <Table size="small">
               <TableBody>
                 <CopyRow label="Gross sales" value={data.gross_sales} />
-                <CopyRow label="Exempt sales" value={data.exempt_sales} note={'Lines marked "No tax" at the register (pop), and tax-exempt sales to non-profits (listed below).'} />
+                <CopyRow label="Exempt sales" value={data.exempt_sales} note={'Drinks (never taxed; before 11-03, lines marked "No tax" at the register), and tax-exempt sales to non-profits (listed below).'} />
                 <CopyRow label="Net taxable sales" value={data.taxable_sales} strong />
                 {data.rates.map((r) => (
                   <Fragment key={r.rate}>

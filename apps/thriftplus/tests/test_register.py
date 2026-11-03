@@ -525,6 +525,15 @@ class ReturnTests(RegisterBase):
         again = self._return(line_id)
         self.assertIn('already returned', again.json()['detail'])
 
+    def test_an_untaxed_line_gives_no_tax_back(self):
+        # A drink (never taxed, 2026-11-03) or a tax-exempt sale paid no tax, so its return gives none back.
+        sale = self._buy()
+        line_id = sale['lines'][0]['id']
+        CartLine.objects.filter(pk=line_id).update(tax_exempt=True)
+        self.assertEqual(self._return(line_id).status_code, 201)
+        record = ReturnRecord.objects.get()
+        self.assertEqual((record.credit, record.taxable_back, record.tax_back), (D('64.00'), D('64.00'), D('0.00')))  # 64.00 paid, no tax on top
+
     def test_w5_redeemed_instantly_66_88_gives_53_50_and_nothing_to_take_back(self):
         sale = self._buy(choice='instant')
         self.assertEqual(sale['total'], '66.88')

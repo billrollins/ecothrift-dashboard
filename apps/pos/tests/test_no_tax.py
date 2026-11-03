@@ -1,5 +1,5 @@
-"""Per-line "No tax" (Bill, 2026-10-21: "we started selling pop"): a line can be left untaxed; the rest of the sale is
-taxed as usual, and the sales tax report shows exempt sales apart."""
+"""Drinks are never taxed (Bill, 2026-11-03; before that a per-line "No tax" button, 2026-10-21: pop): a drink is
+left out of the tax, the rest of the sale is taxed as usual, and the sales tax report shows exempt sales apart."""
 from datetime import datetime, time
 from decimal import Decimal
 
@@ -15,54 +15,68 @@ from .test_cart_card_surcharge import _CartCardSurchargeFixtures
 D = Decimal
 
 
-class NoTaxLineTests(_CartCardSurchargeFixtures, TestCase):
+class DrinksNeverTaxedTests(_CartCardSurchargeFixtures, TestCase):
     def setUp(self):
         super().setUp()
         AppSetting.objects.update_or_create(key='tax_rate', defaults={'value': '0.07', 'description': 'test tax'})
         self.lamp = Item.objects.create(sku='POSNT001', product=self.item.product, price=D('20.00'), status='on_shelf')
 
-    def _sale_with_pop(self):
+    def _add(self, cid, **extra):
+        return self.client.post(f'/api/pos/carts/{cid}/add-manual-line/',
+                                {'description': 'Pop', 'unit_price': '1.50', **extra}, format='json')
+
+    def _sale_with_drink(self):
         cid, _ = self._open_cart_with_item(self.lamp.sku)
-        pop = self.client.post(f'/api/pos/carts/{cid}/add-manual-line/',
-                               {'description': 'Pop', 'unit_price': '1.50'}, format='json').json()
-        pop_line = next(ln for ln in pop['lines'] if ln['description'] == 'Pop')
-        return cid, pop_line['id']
+        body = self._add(cid, category='drinks').json()
+        return cid, next(ln for ln in body['lines'] if ln['description'] == 'Pop')['id']
 
-    def _no_tax(self, cid, line_id, value=True):
-        return self.client.patch(f'/api/pos/carts/{cid}/lines/{line_id}/', {'tax_exempt': value}, format='json')
-
-    def test_a_no_tax_line_is_left_out_of_the_tax(self):
-        cid, pop = self._sale_with_pop()
-        self.assertEqual(Cart.objects.get(pk=cid).tax_amount, D('1.50'))  # 21.50 × 7% = 1.505, rounded as before
-        r = self._no_tax(cid, pop)
+    def test_a_drink_is_left_out_of_the_tax(self):
+        cid, _ = self._open_cart_with_item(self.lamp.sku)
+        r = self._add(cid, category='drinks')
         self.assertEqual(r.status_code, 200, r.content)
         body = r.json()
         self.assertEqual((body['subtotal'], body['tax_amount'], body['total']), ('21.50', '1.40', '22.90'))
-        self.assertTrue(next(ln for ln in body['lines'] if ln['id'] == pop)['tax_exempt'])
-        back = self._no_tax(cid, pop, False).json()
-        self.assertEqual(back['tax_amount'], '1.50')
+        drink = next(ln for ln in body['lines'] if ln['description'] == 'Pop')
+        self.assertTrue(drink['tax_exempt'])
+        self.assertEqual(drink['meta'], {'category': 'drinks'})
 
-    def test_no_pin_and_only_true_or_false(self):
-        cid, pop = self._sale_with_pop()
-        for bad in ('yes', 1, None):
-            r = self._no_tax(cid, pop, bad)
-            self.assertEqual((r.status_code, r.json()['code']), (400, 'INVALID_TAX_EXEMPT'), bad)
+    def test_a_pink_tag_line_is_still_taxed(self):
+        cid, _ = self._open_cart_with_item(self.lamp.sku)
+        body = self._add(cid).json()
+        self.assertEqual(body['tax_amount'], '1.50')  # 21.50 × 7% = 1.505, rounded as before
+        self.assertFalse(next(ln for ln in body['lines'] if ln['description'] == 'Pop')['tax_exempt'])
 
-    def test_a_discount_on_a_no_tax_line_is_untaxed_too(self):
-        cid, pop = self._sale_with_pop()
-        self._no_tax(cid, pop)
+    def test_an_unknown_category_is_refused(self):
+        cid, _ = self._open_cart_with_item(self.lamp.sku)
+        r = self._add(cid, category='candy')
+        self.assertEqual((r.status_code, r.json()['code']), (400, 'INVALID_CATEGORY'))
+
+    def test_no_per_line_tax_button(self):
+        cid, drink = self._sale_with_drink()
+        lamp = CartLine.objects.get(cart_id=cid, item=self.lamp).pk
+        for line_id, value in ((drink, False), (lamp, True)):
+            r = self.client.patch(f'/api/pos/carts/{cid}/lines/{line_id}/', {'tax_exempt': value}, format='json')
+            self.assertEqual((r.status_code, r.json()['code']), (400, 'INVALID_TAX_EXEMPT'))
+        self.assertEqual(Cart.objects.get(pk=cid).tax_amount, D('1.40'))
+
+    def test_a_drink_stays_untaxed_whatever_the_line_says(self):
+        cid, drink = self._sale_with_drink()
+        CartLine.objects.filter(pk=drink).update(tax_exempt=False)
+        cart = Cart.objects.get(pk=cid)
+        cart.recalculate()
+        self.assertEqual(cart.tax_amount, D('1.40'))
+        self.assertTrue(CartLine.objects.get(pk=drink).tax_exempt)
+
+    def test_a_discount_on_a_drink_is_untaxed_too(self):
+        cid, drink = self._sale_with_drink()
         r = self.client.post(f'/api/pos/carts/{cid}/add-discount/',
-                             {'amount': '0.25', 'reason': 'Dented can', 'target_line_id': pop}, format='json')
+                             {'amount': '0.25', 'reason': 'Dented can', 'target_line_id': drink}, format='json')
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(r.json()['tax_amount'], '1.40')  # the lamp's tax only
-        disc = CartLine.objects.get(cart_id=cid, line_kind='discount')
-        self.assertTrue(disc.tax_exempt)
-        refused = self._no_tax(cid, disc.pk, False)
-        self.assertEqual(refused.json()['code'], 'INVALID_TARGET')
+        self.assertTrue(CartLine.objects.get(cart_id=cid, line_kind='discount').tax_exempt)
 
     def test_a_paid_sale_keeps_its_lower_tax(self):
-        cid, pop = self._sale_with_pop()
-        self._no_tax(cid, pop)
+        cid, _ = self._sale_with_drink()
         r = self._complete(cid, {'payment_method': 'cash', 'cash_tendered': '23.00'})
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual((r.json()['tax_amount'], r.json()['change_given']), ('1.40', '0.10'))

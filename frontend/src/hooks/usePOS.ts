@@ -250,16 +250,19 @@ export function useAddManualLineToCart() {
       description,
       unit_price,
       quantity,
+      category,
     }: {
       cartId: number;
       description: string;
       unit_price?: number | string;
       quantity?: number;
+      category?: 'drinks';
     }) => {
       const { data } = await addManualLineToCart(cartId, {
         description,
         ...(unit_price !== undefined ? { unit_price } : {}),
         ...(quantity !== undefined ? { quantity } : {}),
+        ...(category ? { category } : {}),
       });
       return data;
     },

@@ -41,6 +41,7 @@ import AccountBalance from '@mui/icons-material/AccountBalance';
 import Build from '@mui/icons-material/Build';
 import CancelOutlined from '@mui/icons-material/CancelOutlined';
 import DeleteForever from '@mui/icons-material/DeleteForever';
+import LocalDrink from '@mui/icons-material/LocalDrink';
 import LocalShipping from '@mui/icons-material/LocalShipping';
 import Percent from '@mui/icons-material/Percent';
 import WbSunny from '@mui/icons-material/WbSunny';
@@ -156,6 +157,7 @@ import { skuFromScan } from '../../utils/scanCode';
 
 const DEFAULT_MANUAL_LINE_TITLE = 'Pink Tag Item';
 const DEFAULT_MANUAL_LINE_PRICE = '0.50';
+const DEFAULT_DRINK_TITLE = 'Drink';
 
 function formatCurrency(value: string | number | null | undefined): string {
   const num = typeof value === 'string' ? parseFloat(value) : (value ?? 0);
@@ -306,6 +308,8 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   const [unscannableDialogOpen, setUnscannableDialogOpen] = useState(false);
   const [manualDescription, setManualDescription] = useState(DEFAULT_MANUAL_LINE_TITLE);
   const [manualUnitPrice, setManualUnitPrice] = useState(DEFAULT_MANUAL_LINE_PRICE);
+  // Drinks are never taxed (Bill, 2026-11-03): the same hand-rung line, in the Drinks category.
+  const [manualIsDrink, setManualIsDrink] = useState(false);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
   const [deliveryTier, setDeliveryTier] = useState<'5mi' | '10mi'>('5mi');
@@ -673,8 +677,16 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   }, [unscannableDialogOpen]);
 
   const handleOpenUnscannableDialog = useCallback(() => {
+    setManualIsDrink(false);
     setManualDescription(DEFAULT_MANUAL_LINE_TITLE);
     setManualUnitPrice(DEFAULT_MANUAL_LINE_PRICE);
+    setUnscannableDialogOpen(true);
+  }, []);
+
+  const handleOpenDrinkDialog = useCallback(() => {
+    setManualIsDrink(true);
+    setManualDescription(DEFAULT_DRINK_TITLE);
+    setManualUnitPrice('');
     setUnscannableDialogOpen(true);
   }, []);
 
@@ -737,6 +749,10 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         return;
       }
       const priceStr = manualUnitPrice.trim();
+      if (manualIsDrink && priceStr === '') {
+        enqueueSnackbar('Enter the price of the drink.', { variant: 'warning' });
+        return;
+      }
       const unitPrice = priceStr === '' ? 0.5 : parseFloat(priceStr);
       if (Number.isNaN(unitPrice) || unitPrice < 0) {
         enqueueSnackbar('Enter a valid price.', { variant: 'error' });
@@ -770,6 +786,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
           cartId: activeCart.id,
           description: desc,
           unit_price: unitPrice,
+          ...(manualIsDrink ? { category: 'drinks' as const } : {}),
         });
         commitCart(updated as unknown as Cart);
         setUnscannableDialogOpen(false);
@@ -784,6 +801,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       cart,
       manualDescription,
       manualUnitPrice,
+      manualIsDrink,
       isRegister,
       managerDrawerId,
       startCart,
@@ -1208,24 +1226,6 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       setTaxExemptBusy(false);
     }
   };
-
-  const handleToggleNoTax = useCallback(
-    async (line: CartLine) => {
-      if (!cart) return;
-      try {
-        const updated = await updateLineMutation.mutateAsync({
-          cartId: cart.id,
-          lineId: line.id,
-          data: { tax_exempt: !line.tax_exempt },
-        });
-        commitCart(updated as unknown as Cart);
-      } catch (err: unknown) {
-        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-        enqueueSnackbar(detail || 'Could not change the tax on that line', { variant: 'error' });
-      }
-    },
-    [cart, updateLineMutation, commitCart, enqueueSnackbar],
-  );
 
   const handleVoidSale = useCallback(async () => {
     if (!cart) return;
@@ -2115,17 +2115,14 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                                       sx={{ height: 22 }}
                                     />
                                   )}
-                                  {line.line_kind !== 'discount' && (
-                                    // "No tax" (Bill, 2026-10-21: pop): one tap, no PIN; the rest of the sale is taxed.
+                                  {line.tax_exempt && line.line_kind !== 'discount' && (
+                                    // Drinks are never taxed (Bill, 2026-11-03); the cashier sees it, nothing to tap.
                                     <Chip
                                       size="small"
-                                      label="No tax"
-                                      color={line.tax_exempt ? 'warning' : 'default'}
-                                      variant={line.tax_exempt ? 'filled' : 'outlined'}
-                                      onClick={() => void handleToggleNoTax(line)}
-                                      aria-pressed={Boolean(line.tax_exempt)}
+                                      color="info"
+                                      label={line.meta?.category === 'drinks' ? 'Drink · no tax' : 'No tax'}
                                       data-testid={`no-tax-${line.id}`}
-                                      sx={{ height: 22, opacity: line.tax_exempt ? 1 : 0.7 }}
+                                      sx={{ height: 22 }}
                                     />
                                   )}
                                 </Box>
@@ -2301,8 +2298,8 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                 <Box
                   sx={{
                     display: 'grid',
-                    // Five tiles in rows of three; four (no line sale) in two rows of two, so none sits alone.
-                    gridTemplateColumns: saleMode?.line_sale?.on ? 'repeat(3, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))',
+                    // Six tiles (with the line sale) or five, in rows of three.
+                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
                     gap: 1,
                   }}
                 >
@@ -2402,6 +2399,38 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                     </Typography>
                     <Typography variant="caption" sx={{ opacity: 0.85, lineHeight: 1.1 }}>
                       Unscannable
+                    </Typography>
+                  </Button>
+
+                  <Button
+                    onClick={handleOpenDrinkDialog}
+                    disabled={addManualLineMutation.isPending}
+                    sx={{
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 0.75,
+                      py: 1.5,
+                      px: 1,
+                      minHeight: 96,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      border: '2px solid',
+                      borderColor: 'info.light',
+                      bgcolor: 'rgba(2, 136, 209, 0.08)',
+                      color: 'info.dark',
+                      '&:hover': {
+                        bgcolor: 'rgba(2, 136, 209, 0.16)',
+                        borderColor: 'info.main',
+                      },
+                    }}
+                  >
+                    <LocalDrink sx={{ fontSize: 28 }} />
+                    <Typography variant="subtitle2" fontWeight={700} lineHeight={1.15}>
+                      Drinks
+                    </Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.85, lineHeight: 1.1 }}>
+                      No tax
                     </Typography>
                   </Button>
 
@@ -2786,7 +2815,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         fullWidth
       >
         <form onSubmit={handleSubmitManualLine}>
-          <DialogTitle>Unscannable item</DialogTitle>
+          <DialogTitle>{manualIsDrink ? 'Drink (no tax)' : 'Unscannable item'}</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 1 }}>
               <TextField

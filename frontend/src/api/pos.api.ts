@@ -186,7 +186,8 @@ export function addItemToCart(cartId: number, sku: string): Promise<{ data: Cart
 
 export function addManualLineToCart(
   cartId: number,
-  body: { description: string; unit_price?: number | string; quantity?: number },
+  // category 'drinks': never taxed (Bill, 2026-11-03).
+  body: { description: string; unit_price?: number | string; quantity?: number; category?: 'drinks' },
 ): Promise<{ data: Cart }> {
   return api.post<Cart>(`/pos/carts/${cartId}/add-manual-line/`, body);
 }

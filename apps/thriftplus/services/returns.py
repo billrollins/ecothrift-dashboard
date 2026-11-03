@@ -245,7 +245,8 @@ def refund_parts(line, *, rules: Guide | None = None) -> dict:
     """Everything a return of this line gives back and takes back, from the line's snapshot at the sale (or worked
     out from the sale for lines sold before it)."""
     share = credit_share()
-    rate = line.cart.tax_rate or ZERO
+    # An untaxed line (a drink, or a tax-exempt sale) gives no tax back.
+    rate = ZERO if (line.tax_exempt or line.cart.tax_exempt_at) else (line.cart.tax_rate or ZERO)
     snap = _snapshot(line)
     if snap:
         paid = Decimal(str(snap.get('paid') or '0'))

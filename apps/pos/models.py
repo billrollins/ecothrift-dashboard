@@ -441,7 +441,13 @@ class Cart(models.Model):
         # Query CartLine directly so we never sum a stale prefetch_related cache on `cart.lines`.
         lines = list(self.lines.model.objects.filter(cart_id=self.pk))
         self.subtotal = sum((line.line_total for line in lines), Decimal('0'))
-        # "No tax" lines (Bill, 2026-10-21: pop) are left out of the taxed amount; a discount aimed at one follows it.
+        # Drinks are never taxed (Bill, 2026-11-03), whatever the line says.
+        for line in lines:
+            if line.is_drink and not line.tax_exempt:
+                CartLine.objects.filter(pk=line.pk).update(tax_exempt=True)
+                line.tax_exempt = True
+        # "No tax" lines (drinks; pop marked by hand before 11-03) are left out of the taxed amount; a discount aimed
+        # at one follows it.
         exempt_ids = {line.pk for line in lines if line.tax_exempt and line.line_kind != CartLine.LINE_KIND_DISCOUNT}
         for line in lines:
             if line.line_kind == CartLine.LINE_KIND_DISCOUNT:
@@ -468,7 +474,8 @@ class CartLine(models.Model):
     quantity = models.IntegerField(default=1)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     line_total = models.DecimalField(max_digits=10, decimal_places=2)
-    # "No tax" (Bill, 2026-10-21: pop): this line is not taxed; the rest of the sale is. Any cashier sets it.
+    # "No tax": this line is not taxed; the rest of the sale is. Set by the line's category: Drinks are never taxed
+    # (Bill, 2026-11-03). Before that, a cashier could mark any line (2026-10-21: pop); those lines keep the mark.
     tax_exempt = models.BooleanField(default=False)
     resale_source_sku = models.CharField(max_length=20, blank=True, default='')
     resale_source_item_id = models.PositiveIntegerField(null=True, blank=True)
@@ -484,6 +491,9 @@ class CartLine(models.Model):
         (LINE_KIND_DELIVERY, 'Delivery fee'),
         (LINE_KIND_ASSEMBLY, 'Assembly'),
     ]
+    # Register categories for hand-rung lines, kept in meta['category']. Drinks are never taxed (Bill, 2026-11-03).
+    CATEGORY_DRINKS = 'drinks'
+    REGISTER_CATEGORIES = (CATEGORY_DRINKS,)
     SALE_LABEL_LABOR_DAY = 'labor_day'
     SALE_LABEL_SUMMER = 'summer'
     line_kind = models.CharField(
@@ -507,6 +517,10 @@ class CartLine(models.Model):
 
     def __str__(self):
         return f'{self.description} x{self.quantity}'
+
+    @property
+    def is_drink(self):
+        return (self.meta or {}).get('category') == self.CATEGORY_DRINKS
 
     def is_sale_eligible(self):
         return self.line_kind in (self.LINE_KIND_ITEM, self.LINE_KIND_MANUAL)

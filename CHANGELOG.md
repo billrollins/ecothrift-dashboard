@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.250.0] -->
-<!-- Last reviewed: 2026-11-03 (2.250.0) -->
+<!-- Line 1 release: ## [2.251.0] -->
+<!-- Last reviewed: 2026-11-03 (2.251.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.251.0] - 2026-11-03
+
+User-facing theme: **Drinks are never taxed (Bill, 2026-11-03; Dash Updates #31).**
+
+### Added
+- Register: a **Drinks** tile beside Pink tag. The cashier types what the drink is and its price; the line is never taxed. The cart shows "Drink · no tax" on the line, and the receipt prints "(No tax)" after it. The rest of the sale is taxed as usual, and a discount aimed at a drink is untaxed too.
+
+### Changed
+- The per-line "No tax" button is gone: a line's tax comes from its category. Drinks are never taxed; everything else is. Lines marked "No tax" before today keep their mark.
+- The register's quick tiles sit in rows of three.
+- Thrift+ 3-day returns: a line that paid no tax (a drink, or a tax-exempt sale) gives no tax back.
+- Sales tax report: "Exempt sales" now says drinks.
+- Drinks is a register category kept on the line (no database change, no migration).
 
 ## [2.250.0] - 2026-11-03
 

@@ -9,9 +9,9 @@ so earlier months work too. Days are store days (America/Chicago), by when the s
 - **Left out:** open carts, training-register "sales", and voided sales. Voided sales with a completed time in the
   period are counted on their own line, so a void after filing is easy to spot.
 - **Gross sales** are the sales' subtotals: merchandise after sale prices, less discount lines, plus delivery and
-  assembly fees. **Exempt sales** are the lines marked "No tax" at the register (Bill, 2026-10-21: pop), with any
-  discount aimed at them, and whole tax-exempt sales to non-profits (listed with the organization and its certificate
-  number); **taxable sales** are gross less exempt.
+  assembly fees. **Exempt sales** are drinks (never taxed, Bill 2026-11-03; before that, lines marked "No tax"),
+  with any discount aimed at them, and whole tax-exempt sales to non-profits (listed with the organization and its
+  certificate number); **taxable sales** are gross less exempt.
 - **Tax collected** is the sales' own tax, rounded on each receipt. **Tax at the rate** is taxable sales × the rate,
   split into Nebraska's state rate (5.5%) and the local rest; the small gap to tax collected is rounding.
 - **Not sales:** the CardX card surcharge (record only, not revenue, not taxed). Thrift+ credit spent is a payment, so

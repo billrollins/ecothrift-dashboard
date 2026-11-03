@@ -771,6 +771,8 @@ def _snapshot(line, *, collected: Decimal, redeemed: Decimal, bucks: Decimal, pa
     """What a line was sold at, for returns and receipts (W11): frozen at the sale."""
     from apps.thriftplus.services.returns import line_price, mark_for
 
+    if line.tax_exempt or line.cart.tax_exempt_at:  # an untaxed line (a drink, or a tax-exempt sale) paid no tax
+        rate = ZERO
     kept = max(ZERO, collected - redeemed)
     qty = line.quantity or 1
     mark, why = mark_for(line.item if _is_item(line) else None, price=line_price(line),

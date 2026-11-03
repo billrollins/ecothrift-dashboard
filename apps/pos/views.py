@@ -1555,6 +1555,14 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
+        # A register category (Bill, 2026-11-03): Drinks are never taxed.
+        category = (request.data.get('category') or '').strip().lower()
+        if category and category not in CartLine.REGISTER_CATEGORIES:
+            return Response(
+                {'detail': 'Unknown category.', 'code': 'INVALID_CATEGORY'},
+                status=400,
+            )
+
         line = CartLine.objects.create(
             cart=cart,
             item=None,
@@ -1562,6 +1570,8 @@ class CartViewSet(viewsets.ModelViewSet):
             quantity=quantity,
             unit_price=unit_price,
             line_kind=CartLine.LINE_KIND_MANUAL,
+            meta={'category': category} if category else {},
+            tax_exempt=category == CartLine.CATEGORY_DRINKS,
         )
         apply_sale_to_line(line)
 
@@ -2826,16 +2836,10 @@ class CartViewSet(viewsets.ModelViewSet):
                     return Response(exc.payload(), status=exc.http)
                 line.meta = {**(line.meta or {}), 'price_edit': {**manager_ok.stamp(approval),
                                                                  'before': str(line.unit_price)}}
-            # "No tax" (Bill, 2026-10-21: pop): any cashier, no PIN. A discount line follows the line it is aimed at.
+            # No per-line tax button (Bill, 2026-11-03): a line's tax comes from its category (Drinks: never taxed).
             if 'tax_exempt' in request.data:
-                raw = request.data.get('tax_exempt')
-                if not isinstance(raw, bool):
-                    return Response({'detail': 'tax_exempt must be true or false.', 'code': 'INVALID_TAX_EXEMPT'},
-                                    status=400)
-                if line.line_kind == CartLine.LINE_KIND_DISCOUNT:
-                    return Response({'detail': 'A discount is taxed like the line it is on.', 'code': 'INVALID_TARGET'},
-                                    status=400)
-                line.tax_exempt = raw
+                return Response({'detail': 'Tax is set by the category: drinks are never taxed, everything else is.',
+                                 'code': 'INVALID_TAX_EXEMPT'}, status=400)
             for field in ('quantity', 'description'):
                 if field in request.data:
                     setattr(line, field, keep_qty if (field == 'quantity' and extra_units) else request.data[field])
