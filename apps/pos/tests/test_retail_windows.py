@@ -198,3 +198,50 @@ class DrawerCardTests(_CartCardSurchargeFixtures, TestCase):
         self.assertEqual(self.client.get(f'/api/pos/drawers/{self.drawer.id}/card/').status_code, 403)
         self._manager()
         self.assertEqual(self.client.get(f'/api/pos/drawers/{self.drawer.id}/card/').status_code, 200)
+
+
+class SaleCardTests(_CartCardSurchargeFixtures, TestCase):
+    """The Transaction window (Dash Updates #15): register, member, items, returns and the journey in one call."""
+
+    def test_a_sale_with_a_returned_line(self):
+        from apps.pos.models import CartLine
+        from apps.thriftplus.models import Account, Card, CartMember, Person, ReturnRecord
+        cart = Cart.objects.create(drawer=self.drawer, cashier=self.user, status='completed', total=Decimal('100'),
+                                   completed_at=timezone.now())
+        line = CartLine.objects.create(cart=cart, item=self.item, description='Mixer', quantity=1,
+                                       unit_price=Decimal('100'), line_total=Decimal('100'))
+        account = Account.objects.create()
+        person = Person.objects.create(account=account, first_name='Ana', last_name='Ruiz')
+        CartMember.objects.create(cart=cart, account=account, person=person,
+                                  card=Card.objects.create(code='123456789012', person=person))
+        ReturnRecord.objects.create(account=account, person=person, cart_line=line, item=self.item,
+                                    paid=Decimal('80'), credit=Decimal('75'), returned_by=self.user)
+        RegisterEvent.objects.create(kind='reprint', drawer=self.drawer, cart=cart, user=self.user, register_code='POS-C1')
+        r = self.client.get(f'/api/pos/carts/{cart.id}/card/')
+        self.assertEqual(r.status_code, 200, r.content)
+        c = r.json()
+        self.assertEqual(c['register']['id'], self.register.id)
+        self.assertEqual(c['member'], {'person_id': person.id, 'name': 'Ana Ruiz'})
+        self.assertEqual(c['items'][str(line.id)], {'id': self.item.id, 'sku': self.item.sku})
+        self.assertEqual((c['returns'][0]['credit'], c['returns'][0]['status']), ('75.00', 'open'))
+        self.assertEqual({e['kind'] for e in c['journey']}, {'opened', 'completed', 'reprint', 'returned'})
+
+    def test_a_voided_guest_sale(self):
+        cart = Cart.objects.create(drawer=self.drawer, cashier=self.user, status='voided', total=Decimal('5'),
+                                   voided_at=timezone.now(), voided_by=self.user, void_reason='Rang twice')
+        c = self.client.get(f'/api/pos/carts/{cart.id}/card/').json()
+        self.assertIsNone(c['member'])
+        voided = next(e for e in c['journey'] if e['kind'] == 'voided')
+        self.assertEqual(voided['note'], 'Rang twice')
+
+    def test_a_practice_sale_says_its_register_is_training(self):
+        reg = Register.objects.create(location=self.location, name='Practice', code='TRN-2', is_training=True)
+        d = Drawer.objects.create(register=reg, date=timezone.localdate(), current_cashier=self.user,
+                                  opened_by=self.user, opened_at=timezone.now(), status='open')
+        cart = Cart.objects.create(drawer=d, cashier=self.user, status='training', total=Decimal('3'))
+        self.assertTrue(self.client.get(f'/api/pos/carts/{cart.id}/card/').json()['register']['is_training'])
+
+    def test_signed_out_is_refused(self):
+        cart = Cart.objects.create(drawer=self.drawer, cashier=self.user)
+        self.client.force_authenticate(user=None)
+        self.assertIn(self.client.get(f'/api/pos/carts/{cart.id}/card/').status_code, (401, 403))

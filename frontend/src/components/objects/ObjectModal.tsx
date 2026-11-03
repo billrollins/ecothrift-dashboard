@@ -40,6 +40,7 @@ const RegisterWindow = lazy(() =>
   import('../pos/windows/RegisterWindow').then((m) => ({ default: m.RegisterWindow })));
 const DrawerWindow = lazy(() =>
   import('../pos/windows/DrawerWindow').then((m) => ({ default: m.DrawerWindow })));
+const MemberWindow = lazy(() => import('../pos/windows/MemberWindow').then((m) => ({ default: m.MemberWindow })));
 const SaleWindow = lazy(() => import('../pos/windows/SaleWindow').then((m) => ({ default: m.SaleWindow })));
 const TransactionsWindow = lazy(() =>
   import('../pos/windows/TransactionsWindow').then((m) => ({ default: m.TransactionsWindow })));
@@ -52,6 +53,8 @@ export type ObjectRef =
   | { type: 'register'; id: number }
   | { type: 'drawer'; id: number }
   | { type: 'sale'; id: number }
+  /** A Thrift+ member: the id is the person's. */
+  | { type: 'member'; id: number }
   /** A Transactions list; the id is its scope (`historyKey`). */
   | { type: 'history'; id: string }
   /** A new check-in for a product: "add more of these". */
@@ -66,15 +69,16 @@ const LABEL: Record<ObjectRef['type'], string> = {
   register: 'Register',
   drawer: 'Drawer',
   sale: 'Sale',
+  member: 'Thrift+ member',
   history: 'Transactions',
 };
 /** The retail windows' header word in Spanish (their staff read them in either language). */
-const LABEL_ES: Partial<Record<ObjectRef['type'], string>> = { register: 'Caja', drawer: 'Cajón', sale: 'Venta', history: 'Ventas' };
+const LABEL_ES: Partial<Record<ObjectRef['type'], string>> = { register: 'Caja', drawer: 'Cajón', sale: 'Venta', history: 'Ventas', member: 'Miembro Thrift+' };
 
-type LinkType = 'product' | 'checkin' | 'item' | 'order' | 'register' | 'drawer' | 'sale';
+type LinkType = 'product' | 'checkin' | 'item' | 'order' | 'register' | 'drawer' | 'sale' | 'member';
 
 export function parseObjectRef(raw: string | null | undefined): ObjectRef | null {
-  const m = (raw || '').match(/^(product|checkin|item|order|register|drawer|sale):(\d+)$/i);
+  const m = (raw || '').match(/^(product|checkin|item|order|register|drawer|sale|member):(\d+)$/i);
   if (!m) return null;
   return { type: m[1].toLowerCase() as LinkType, id: Number.parseInt(m[2], 10) };
 }
@@ -255,6 +259,7 @@ export function ObjectModalProvider({
                   {current.type === 'register' && <RegisterWindow id={current.id} />}
                   {current.type === 'drawer' && <DrawerWindow id={current.id} />}
                   {current.type === 'sale' && <SaleWindow id={current.id} />}
+                  {current.type === 'member' && <MemberWindow personId={current.id} />}
                   {current.type === 'history' && <TransactionsWindow scopeKey={current.id} />}
                 </Suspense>
               </Box>

@@ -61,10 +61,43 @@ def on_membership(account: Account) -> list[dict]:
              'photo_url': p.photo.url if p.photo else None, 'verified_18': p.verified_18} for p in people]
 
 
-def card(person: Person) -> dict:
-    """Everything the member card shows for one person."""
+# The Member window's history (Dash Updates #16): only what changes a member's standing, newest first. Never the
+# event detail (a phone number, ID or signature steps), never sales (Trips) or sign-in codes.
+HISTORY_ACTIONS = (
+    'joined_online', 'joined_website', 'signup', 'finished_joining', 'staff_membership', 'second_added',
+    'phone_added', 'return', 'return_late_ok', 'deactivated',
+)
+HISTORY_LIMIT = 10
+
+
+def history(account: Account) -> list[dict]:
+    from apps.thriftplus.models import Event
+
+    rows = (Event.objects.filter(account=account, action__in=HISTORY_ACTIONS).select_related('actor', 'person')
+            .order_by('-created_at')[:HISTORY_LIMIT])
+    return [{
+        'action': e.action, 'at': e.created_at.isoformat(),
+        'person': e.person.first_name if e.person_id else None,
+        # Who did it, when it was the team (a member's own steps say nobody).
+        'by': e.actor.full_name if e.actor_id and (e.actor.is_superuser or e.actor.role in ('Employee', 'Manager', 'Admin')) else None,
+    } for e in rows]
+
+
+def returns_list(account: Account) -> list[dict]:
+    """Every return on the membership, newest first: day, the item, the credit given, waiting or handled."""
+    from apps.thriftplus.models import ReturnRecord
+
+    rows = ReturnRecord.objects.filter(account=account).select_related('cart_line', 'person').order_by('-created_at')[:20]
+    return [{'at': r.created_at.isoformat(), 'cart_id': r.cart_line.cart_id, 'item': r.cart_line.description,
+             'person': r.person.first_name,
+             'credit': _money(r.credit), 'status': r.status} for r in rows]
+
+
+def card(person: Person, *, window: bool = False) -> dict:
+    """Everything the member card shows for one person; ``window`` adds the Member window's history, returns and
+    trip count (Dash Updates #16)."""
     account = person.account
-    return {
+    body = {
         'person': {**register.finalize_row(person), 'name': f'{person.first_name} {person.last_name}'.strip(),
                    'standing': register.standing(person), 'role': person.role, 'practice': bool(account.is_practice)},
         'rewards': rewards(account),
@@ -73,3 +106,13 @@ def card(person: Person) -> dict:
         'trips': trips(account),
         'people': on_membership(account),
     }
+    if window:
+        from apps.pos.models import Cart
+
+        body['window'] = {
+            'joined_at': account.created_at.isoformat(),
+            'trip_count': Cart.objects.filter(thrift_member__account=account, status='completed').count(),
+            'returns': returns_list(account),
+            'history': history(account),
+        }
+    return body

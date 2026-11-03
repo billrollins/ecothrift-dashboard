@@ -74,6 +74,12 @@ function serve() {
   }));
 }
 
+// The Item link's hover card asks matchMedia (desk or phone); jsdom has none.
+window.matchMedia = ((query: string) => ({
+  matches: false, media: query, onchange: null, addListener: () => {}, removeListener: () => {},
+  addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+})) as unknown as typeof window.matchMedia;
+
 afterEach(() => {
   client.get.mockReset();
   auth.language = 'en';
@@ -144,6 +150,59 @@ describe('retail windows', () => {
     expect(await within(dialog).findByTestId('count-handoff')).toHaveTextContent('Counted $60.00');
     expect(within(dialog).queryByText(/Expected \$/)).not.toBeInTheDocument();
     expect(within(dialog).getByText('Expected shows when the drawer closes.')).toBeInTheDocument();
+  });
+
+  it('the Transaction window: lines with SKU links, the returned line, history and links', async () => {
+    const SALE = {
+      id: 501, status: 'completed', total: '30.00', subtotal: '28.04', tax_amount: '1.96', payment_method: 'card',
+      completed_at: `${TODAY}T16:00:00Z`, created_at: `${TODAY}T15:58:00Z`, cashier_name: 'Carrie Cash',
+      receipt: { receipt_number: 'R-0501' }, savings: { total: '0', lines: [] },
+      lines: [{ id: 9, description: 'Stand mixer', quantity: 1, line_total: '28.04', line_kind: 'item', tax_exempt: false }],
+    };
+    const CARD = {
+      id: 501, register: { id: 3, name: 'Register 1', is_training: false }, drawer: 70,
+      member: { person_id: 12, name: 'Ana Ruiz' }, items: { 9: { id: 44, sku: 'ITM0044' } },
+      returns: [{ line: 9, description: 'Stand mixer', at: `${TODAY}T18:00:00Z`, credit: '22.43', bucks_taken: '0.00', status: 'open', by: 'Carrie Cash' }],
+      journey: [{ kind: 'returned', at: `${TODAY}T18:00:00Z`, who: 'Carrie Cash', note: 'Stand mixer' },
+        { kind: 'completed', at: `${TODAY}T16:00:00Z`, who: 'Carrie Cash' }],
+    };
+    client.get.mockImplementation((url: string) => Promise.resolve({ data: url.endsWith('/card/') ? CARD : SALE }));
+    const user = userEvent.setup();
+    wrap(<ObjectLink type="sale" id={501} label="R-0501" />);
+    await user.click(screen.getByRole('button', { name: 'R-0501' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByRole('button', { name: 'ITM0044' })).toBeInTheDocument();
+    expect(within(dialog).getAllByText('Returned').length).toBeGreaterThan(0);
+    expect(within(dialog).getByText(/\$22\.43 credit/)).toBeInTheDocument();
+    expect(within(dialog).getByText('Paid')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Register 1' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /Thrift\+ member: Ana Ruiz/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Reprint receipt' })).toBeInTheDocument();
+  });
+
+  it('the Member window: standing, ThriftBucks, trips open the sale, the other adult opens their own window', async () => {
+    const person = (id: number, first: string, role: string) => ({ person_id: id, first_name: first, name: `${first} Ruiz`, role, photo_url: null, verified_18: true });
+    const DATA = {
+      person: { ...person(12, 'Ana', 'primary'), last_name: 'Ruiz', account_id: 4, email: '', joined_at: '', code_last4: null, code_display: '1234 5678 9012', standing: 'member', practice: false },
+      rewards: { collected: '45.00', used: '5.00', balance: '40.00', usable_today: '40.00', use_by: '2026-12-01', credit: '5.00' },
+      trips: [{ cart_id: 501, ticket: 'R-0501', date: TODAY, items: 2, total: '30.00' }],
+      people: [person(12, 'Ana', 'primary'), person(13, 'Ben', 'secondary')],
+      window: { joined_at: '2026-10-16T15:00:00Z', trip_count: 7, returns: [], history: [{ action: 'finished_joining', at: '2026-10-16T15:00:00Z', person: 'Ana', by: 'Carrie Cash' }] },
+    };
+    client.get.mockImplementation((url: string, cfg?: { params?: { person?: number } }) =>
+      Promise.resolve({ data: url.includes('/thriftplus/register/member/') ? { ...DATA, person: { ...DATA.person, person_id: cfg?.params?.person ?? 12 } } : SALES }));
+    const user = userEvent.setup();
+    wrap(<ObjectLink type="member" id={12} label="Ana" />);
+    await user.click(screen.getByRole('button', { name: 'Ana' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByRole('heading', { name: 'Ana Ruiz' })).toBeInTheDocument();
+    expect(within(dialog).getByText('1234 5678 9012')).toBeInTheDocument();
+    expect(within(dialog).getByText('Member')).toBeInTheDocument();
+    expect(within(dialog).getByText('7')).toBeInTheDocument();
+    expect(within(dialog).getByText('ID checked, joining finished')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: /Ben Ruiz/ }));
+    await within(dialog).findByRole('button', { name: 'Back' });
+    expect(client.get).toHaveBeenLastCalledWith('/thriftplus/register/member/', { params: { person: 13, window: 1 } });
   });
 
   it('a history scope travels as one string', () => {

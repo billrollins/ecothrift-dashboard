@@ -4,9 +4,6 @@ import {
   Box,
   Button,
   Chip,
-  Dialog,
-  DialogContent,
-  DialogTitle,
   FormControl,
   Grid,
   IconButton,
@@ -26,7 +23,7 @@ import { useCartSummary, useCarts } from '../../hooks/usePOS';
 import { paymentMethodLabel } from '../../utils/posPayment';
 import { useUsers } from '../../hooks/useEmployees';
 import type { Cart } from '../../types/pos.types';
-import { SaleDetail, saleTitle } from '../../components/pos/SaleDetail';
+import { useObjectModal } from '../../components/objects/ObjectModal';
 import { SalesNumbersBlock } from '../../components/pos/SalesNumbersBlock';
 import { format, startOfMonth, startOfWeek, subDays } from 'date-fns';
 import { IconSearch as Search } from '../../icons/ecoIcons';
@@ -79,7 +76,7 @@ export default function TransactionListPage() {
   const [cashierFilter, setCashierFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [paymentFilter, setPaymentFilter] = useState('');
-  const [selectedCart, setSelectedCart] = useState<Cart | null>(null);
+  const { openObject } = useObjectModal();
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
 
   const { data: usersData } = useUsers({ page_size: 200 });
@@ -367,7 +364,8 @@ export default function TransactionListPage() {
           onPaginationModelChange={setPaginationModel}
           pageSizeOptions={[10, 25, 50, 100]}
           density="compact"
-          onRowClick={({ row }) => setSelectedCart(row as Cart)}
+          // One window for a sale wherever it opens (Dash Updates #15): the Transaction window.
+          onRowClick={({ row }) => openObject({ type: 'sale', id: (row as Cart).id })}
           sx={{
             border: 'none',
             '& .MuiDataGrid-row': { cursor: 'pointer' },
@@ -375,24 +373,6 @@ export default function TransactionListPage() {
         />
       </Box>
 
-      <Dialog
-        open={!!selectedCart}
-        onClose={() => setSelectedCart(null)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          {selectedCart ? saleTitle(selectedCart) : ''}
-          {selectedCart?.status === 'voided' && (
-            <Chip size="small" label="Voided" color="error" />
-          )}
-        </DialogTitle>
-        <DialogContent>
-          {selectedCart && (
-            <SaleDetail cart={selectedCart} onUpdated={setSelectedCart} onVoided={() => setSelectedCart(null)} />
-          )}
-        </DialogContent>
-      </Dialog>
     </Box>
   );
 }

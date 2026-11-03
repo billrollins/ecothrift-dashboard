@@ -7,8 +7,8 @@ from rest_framework.response import Response
 
 from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin
 
-from . import drawer_card, register_card
-from .models import Drawer, Register
+from . import drawer_card, register_card, sale_card
+from .models import Cart, Drawer, Register
 
 
 @api_view(['GET'])
@@ -32,3 +32,12 @@ def drawer_card_view(request, pk: int):
     if not manager and drawer.date != timezone.localdate():
         return Response({'detail': 'Only a manager sees a past drawer.'}, status=403)
     return Response(drawer_card.card(drawer, manager=manager))
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsEmployee])
+def sale_card_view(request, pk: int):
+    """The Transaction window: GET /api/pos/carts/<id>/card/ (the sale itself is GET /api/pos/carts/<id>/)."""
+    cart = get_object_or_404(Cart.objects.select_related('drawer__register', 'cashier', 'voided_by', 'card_type_fixed_by'),
+                             pk=pk)
+    return Response(sale_card.card(cart))

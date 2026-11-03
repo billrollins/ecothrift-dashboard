@@ -859,7 +859,8 @@ class RegisterViewSet(viewsets.ViewSet):
             person = Person.objects.select_related('account').filter(cards__code=code).first() if code else None
         if person is None:
             return Response({'detail': 'That member is not in the system.', 'code': 'MEMBER_UNKNOWN'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(member_card.card(person))
+        # ?window=1: the Member window's extras (Dash Updates #16).
+        return Response(member_card.card(person, window=str(request.query_params.get('window')) == '1'))
 
     @action(detail=False, methods=['post'], parser_classes=[JSONParser, MultiPartParser, FormParser])
     def finish(self, request):

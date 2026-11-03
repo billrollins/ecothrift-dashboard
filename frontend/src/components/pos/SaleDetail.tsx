@@ -3,7 +3,8 @@
  * Moved out of the Transactions page (Retail 2, 2026-11-02) so the page's dialog and the Sale window show the same thing.
  */
 import { useState } from 'react';
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Button, Chip, Typography } from '@mui/material';
+import { ObjectLink } from '../objects/ObjectModal';
 import { useSnackbar } from 'notistack';
 import { format } from 'date-fns';
 import { ConfirmDialog } from '../common/ConfirmDialog';
@@ -24,19 +25,18 @@ function formatCurrency(value: string | number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num ?? 0);
 }
 
-/** "Receipt #R-123", or why a sale has none. */
-export function saleTitle(cart: Cart): string {
-  return cart.receipt?.receipt_number
-    ? `Receipt #${cart.receipt.receipt_number}`
-    : `Sale ${cart.id} (no receipt: ${cart.status === 'voided' ? 'voided before payment' : 'not paid'})`;
-}
-
 export function SaleDetail({
   cart,
   onUpdated,
   onVoided,
+  items,
+  returnedLines,
 }: {
   cart: Cart;
+  /** Each line's item, by line id: its SKU opens the Item window (the Transaction window passes these). */
+  items?: Record<string, { id: number; sku: string }>;
+  /** Lines that came back as Thrift+ returns. */
+  returnedLines?: Set<number>;
   /** The card-type fix saved a new copy of the sale. */
   onUpdated: (cart: Cart) => void;
   onVoided?: () => void;
@@ -65,11 +65,12 @@ export function SaleDetail({
 
   return (
     <Box>
-      <Typography variant="body2" color="text.secondary">
-        {format(new Date(cart.completed_at ?? cart.created_at), 'PPp')} ·{' '}
-        {cart.cashier_name ?? '-'}
-        {cart.covering_for_name ? ` (${tr('coveringFor')} ${cart.covering_for_name})` : ''}
-      </Typography>
+      {/* When and who are in the window's header; a cover is said here. */}
+      {cart.covering_for_name ? (
+        <Typography variant="body2" color="text.secondary">
+          {cart.cashier_name ?? '-'} ({tr('coveringFor')} {cart.covering_for_name})
+        </Typography>
+      ) : null}
       {cart.status === 'voided' && cart.voided_by_name && (
         <Typography variant="body2" color="error">
           {tr('voidedBy')} {cart.voided_by_name}
@@ -91,8 +92,16 @@ export function SaleDetail({
           >
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="body2">
+                {items?.[String(line.id)] ? (
+                  <Box component="span" sx={{ fontFamily: 'monospace', mr: 0.75 }}>
+                    <ObjectLink type="item" id={items[String(line.id)].id} label={items[String(line.id)].sku} />
+                  </Box>
+                ) : null}
                 {line.description} × {line.quantity}
                 {line.tax_exempt && line.line_kind !== 'discount' ? ` · ${tr('noTax')}` : ''}
+                {returnedLines?.has(line.id) ? (
+                  <Chip size="small" label={tr('returnedChip')} color="warning" variant="outlined" sx={{ ml: 1, height: 20 }} />
+                ) : null}
               </Typography>
               {line.resale_source_sku ? (
                 <Typography variant="caption" color="text.secondary" display="block">

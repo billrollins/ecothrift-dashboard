@@ -400,6 +400,21 @@ export interface ThriftMemberCardData {
   }>;
 }
 
+/** The Member window's extras (Dash Updates #16): joined, trip count, every return, and standing changes. */
+export interface ThriftMemberWindowData extends ThriftMemberCardData {
+  window: {
+    joined_at: string;
+    trip_count: number;
+    returns: Array<{ at: string; cart_id: number; item: string; person: string; credit: string; status: 'open' | 'done' }>;
+    history: Array<{ action: string; at: string; person: string | null; by: string | null }>;
+  };
+}
+
+export async function getMemberWindow(personId: number): Promise<ThriftMemberWindowData> {
+  const { data } = await api.get<ThriftMemberWindowData>('/thriftplus/register/member/', { params: { person: personId, window: 1 } });
+  return data;
+}
+
 /** One person's Thrift+ standing: photo, status, ThriftBucks, credit, recent trips and the people on the membership. */
 export async function getMemberCard(personId: number): Promise<ThriftMemberCardData> {
   const { data } = await api.get<ThriftMemberCardData>('/thriftplus/register/member/', { params: { person: personId } });

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.240.0] -->
-<!-- Last reviewed: 2026-11-02 (2.240.0) -->
+<!-- Line 1 release: ## [2.241.0] -->
+<!-- Last reviewed: 2026-11-02 (2.241.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.241.0] - 2026-11-02
+
+User-facing theme: **Retail windows: a sale and a Thrift+ member each open in one rich window, like the Item window (Bill, 2026-11-02; Dash Updates #15, #16).**
+
+### Added
+- Thrift+ Member window (Bill, Dash Updates #16): one window for a member, opened from a sale's member link. Photo, name, member number with copy, standing (Member, Needs ID check, Off), second adult and practice marks, when they joined; ThriftBucks (with use-by), credit and trips, and collected / used in one line. Trips (each opens its sale; See all opens the member's Transactions), returns (credit, waiting or handled), the people on the membership (each opens their own window) and what changed their standing (joined, ID checked, second adult, returns, turned off). No phone, email or ID details. "Open the card" shows the member card with its actions (finish joining, add a second adult). English and Spanish. API: the member card with `?window=1`. Next: the member names in the Transactions window and on the member card's people list open it too.
+- Transaction window (Bill, Dash Updates #15): one window for a sale wherever it opens (the Transactions page's rows now open it, the Transactions and Register windows, a member's trips). Receipt with copy, status (Completed, Voided, Practice, Open, Set aside) and a Returned mark, when, register and cashier; Total, Items and Saved. The sale's lines each open their Item window; totals, how it was paid, Reprint, Fix card type and Void work as before. A Thrift+ return is not a sale of its own: the returned lines show on the sale they came from (credit given, ThriftBucks taken back, waiting or handled, who). History (paid, reprints, card type fixed, returns, void) and links to the Register and the member. English and Spanish; one column on a phone. API: `GET /api/pos/carts/<id>/card/`.
+
+### Changed
+- Transactions page: a row opens the Transaction window instead of its own dialog.
 
 ## [2.240.0] - 2026-11-02
 

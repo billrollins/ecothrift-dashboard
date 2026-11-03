@@ -45,6 +45,7 @@ router.register(r'deliveries', DeliveryViewSet, basename='delivery')
 
 urlpatterns = [
     path('registers/<int:pk>/card/', window_views.register_card_view, name='register-card'),
+    path('carts/<int:pk>/card/', window_views.sale_card_view, name='sale-card'),
     path('drawers/<int:pk>/card/', window_views.drawer_card_view, name='drawer-card'),
     path('', include(router.urls)),
     # The owner's Reports page (2026-10-13): the sales tax report.

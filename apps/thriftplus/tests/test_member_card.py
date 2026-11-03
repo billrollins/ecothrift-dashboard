@@ -117,6 +117,29 @@ class MemberCardTests(RegisterBase):
         self.assertTrue(trip['ticket'])
         self.assertEqual([p['first_name'] for p in body['people']], ['Ana', 'Ben'])
 
+    def test_the_member_window_adds_history_returns_and_trips(self):
+        # Dash Updates #16: ?window=1 adds the Member window's extras; history keeps only standing changes, no detail.
+        from apps.thriftplus.models import Event
+        person = self.account.people.get(role=Person.ROLE_PRIMARY)
+        sale = self._cart('ITMTPLAMP')
+        self._attach(sale['id'])
+        self._complete(sale['id'])
+        Event.objects.create(account=self.account, person=person, action='phone_added', detail={'phone': '4025550100'})
+        Event.objects.create(account=self.account, person=person, action='phone_code_sent', detail={})
+        plain = self._card(person=person.pk).json()
+        self.assertNotIn('window', plain)
+        w = self._card(person=person.pk, window=1).json()['window']
+        self.assertEqual(w['trip_count'], 1)
+        self.assertEqual(w['returns'], [])
+        Cart.objects.filter(pk=sale['id']).update(status='voided')  # a voided sale is not a trip
+        self.assertEqual(self._card(person=person.pk, window=1).json()['window']['trip_count'], 0)
+        actions = [h['action'] for h in w['history']]
+        self.assertIn('phone_added', actions)
+        self.assertNotIn('phone_code_sent', actions)
+        self.assertNotIn('register_sale', actions)
+        self.assertNotIn('4025550100', str(w))
+        self.assertTrue(w['joined_at'])
+
     def test_used_thriftbucks_show_and_a_voided_sale_counts_for_nothing(self):
         self._lot('40.00', days_ago=3)
         sale = self._cart('ITMTPLAMP')
