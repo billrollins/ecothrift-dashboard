@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-22 (Dashboard: one section, details drawer, faster; Cover; drawer life; cash by denomination; tax-exempt sale to a non-profit; no tax on a line: pop; lock the till, manager OK, paid with Thrift+, Open drawer, loud print failures, COPY reprints) -->
+<!-- Last updated: 2026-11-02 (Cash / Card / Split and the cash window; Dashboard: one section, details drawer, faster; Cover; drawer life; cash by denomination; tax-exempt sale to a non-profit; no tax on a line: pop; lock the till, manager OK, paid with Thrift+, Open drawer, loud print failures, COPY reprints) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -127,7 +127,7 @@ Denomination counts (JSON) are used at each step for reconciliation.
 
 ## Cash by denomination (2026-10-21, `pos.0043`)
 
-The cashier taps the bills and coins handed over; Dash says what to give back from the drawer's contents and keeps the drawer's contents by bill and coin. Details: `cash-management.md` § Cash by denomination at the register.
+Cash / Card / Split buttons (2026-11-02); Cash and Split open the cash window, where the cashier taps the bills and coins handed over; Dash says what to give back from the drawer's contents and keeps the drawer's contents by bill and coin. Details: `cash-management.md` § Cash by denomination at the register.
 
 ## Paid with Thrift+ (Bill, 2026-10-21, `pos.0039`)
 

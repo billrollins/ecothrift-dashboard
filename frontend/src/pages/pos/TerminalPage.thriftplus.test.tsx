@@ -190,8 +190,9 @@ describe('Refresh on the cart (owner 2026-10-20)', () => {
 
 describe('The popup after a member\'s sale with a 3-day-return item (owner 2026-10-20)', () => {
   async function pay(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(await screen.findByTestId('cash-hundreds')); // the cashier taps the $100 handed over (2026-10-21)
-    await user.click(screen.getByRole('button', { name: 'Complete sale' }));
+    await user.click(await screen.findByTestId('pay-cash')); // Cash opens the cash window (2026-11-02)
+    await user.click(await screen.findByTestId('cash-hundreds')); // the cashier taps the $100 handed over
+    await user.click(screen.getByTestId('cash-complete'));
   }
 
   it('tells the cashier what to say, with the server\'s date, and must be tapped through', async () => {
@@ -225,5 +226,82 @@ describe('The popup after a member\'s sale with a 3-day-return item (owner 2026-
     await waitFor(() => expect(m.complete).toHaveBeenCalled());
     await screen.findByText('Scan an item to begin a new sale.');
     expect(screen.queryByTestId('returns-popup')).not.toBeInTheDocument();
+  });
+});
+
+describe('Cash, Card, Split (Bill, 2026-11-02)', () => {
+  async function preview(enabled: boolean) {
+    const api = await import('../../api/pos.api');
+    vi.mocked(api.getCartCardPreview).mockResolvedValue({
+      data: { enabled, percent: '3', rate: '0.03', card_base: '45.60', no_surcharge: '45.60', with_surcharge: '46.97', surcharge_amount: '1.37' },
+    } as never);
+    return vi.mocked(api.getCartCardPreview);
+  }
+  async function splitWithTwoTwenties(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByTestId('pay-split'));
+    await user.click(await screen.findByTestId('cash-twenties'));
+    await user.click(screen.getByTestId('cash-twenties'));
+  }
+
+  beforeEach(() => {
+    m.cart = cartWith(block());
+    m.complete.mockReset();
+    m.complete.mockResolvedValue(cartWith(block(), { status: 'completed', completed_at: '2026-11-02T20:00:00Z' }));
+  });
+
+  it('Card goes straight to the card step for the whole amount', async () => {
+    const user = userEvent.setup();
+    const get = await preview(false);
+    renderTerminal();
+    await user.click(await screen.findByTestId('pay-card'));
+    await waitFor(() => expect(get).toHaveBeenCalledWith(3, { payment_method: 'card', card_amount: 85.6 }));
+    await waitFor(() => expect(m.complete).toHaveBeenCalled());
+    expect(m.complete.mock.calls[0][0].data).toMatchObject({ payment_method: 'card', card_amount: 85.6, card_type: 'debit' });
+  });
+
+  it('Split is the cash part, then the card for the rest', async () => {
+    const user = userEvent.setup();
+    const get = await preview(false);
+    renderTerminal();
+    await splitWithTwoTwenties(user);
+    const rest = screen.getByTestId('cash-card-rest');
+    expect(rest).toHaveTextContent('Card for $45.60');
+    await user.click(rest);
+    await waitFor(() => expect(get).toHaveBeenCalledWith(3, { payment_method: 'split', card_amount: 45.6 }));
+    await waitFor(() => expect(m.complete).toHaveBeenCalled());
+    expect(m.complete.mock.calls[0][0].data).toMatchObject({
+      payment_method: 'split', cash_tendered: 40, cash_received: { twenties: 2 }, card_amount: 45.6,
+    });
+  });
+
+  it('a split the cash covers completes as cash', async () => {
+    const user = userEvent.setup();
+    renderTerminal();
+    await user.click(await screen.findByTestId('pay-split'));
+    await user.click(await screen.findByTestId('cash-hundreds'));
+    const done = screen.getByTestId('cash-complete');
+    expect(done).toHaveTextContent('Complete as cash');
+    await user.click(done);
+    await waitFor(() => expect(m.complete).toHaveBeenCalled());
+    expect(m.complete.mock.calls[0][0].data).toMatchObject({ payment_method: 'cash', cash_received: { hundreds: 1 } });
+  });
+
+  it('backing out of the card step keeps the split cash; Cash after that starts clean', async () => {
+    const user = userEvent.setup();
+    await preview(true);
+    renderTerminal();
+    await splitWithTwoTwenties(user);
+    await user.click(screen.getByTestId('cash-card-rest'));
+    await user.keyboard('{Escape}'); // the card step is backed out
+    await user.click(await screen.findByTestId('pay-split'));
+    expect(await screen.findByTestId('cash-card-rest')).toHaveTextContent('Card for $45.60');
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByTestId('cash-window')).not.toBeInTheDocument());
+    await splitWithTwoTwenties(user);
+    await user.click(screen.getByTestId('cash-card-rest'));
+    await user.keyboard('{Escape}');
+    await user.click(await screen.findByTestId('pay-cash'));
+    expect(await screen.findByTestId('cash-summary')).toHaveTextContent('Received $0.00');
+    expect(m.complete).not.toHaveBeenCalled();
   });
 });

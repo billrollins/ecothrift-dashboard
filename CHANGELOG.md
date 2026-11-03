@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.234.1] -->
-<!-- Last reviewed: 2026-11-02 (2.234.1) -->
+<!-- Line 1 release: ## [2.235.0] -->
+<!-- Last reviewed: 2026-11-02 (2.235.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.235.0] - 2026-11-02
+
+User-facing theme: **Register payment is three buttons: Cash, Card, Split. Cash opens a big bill-and-coin window with a one-tap fix, and Dash says which bills to give back from what the drawer holds (Bill, 2026-11-02).**
+
+### Added
+- Register: Cash / Card / Split buttons replace the Method list. Card goes straight to the card step. Cash and Split open the cash window (full screen on a phone): big bill and coin tiles, a minus edge on a tapped tile to take one off, Undo and Clear, then Complete. Split takes the cash part, then "Card for $X" (the 3% surcharge is on the card part only).
+- The cash window shows the change as the bills and coins to hand back, from what the drawer holds.
+- "Drawer $X" in the terminal header opens the drawer's bills and coins with counts and dollars.
+- English and Spanish for the new words.
+
+### Changed
+- A handoff or takeover counted by bill now sets the drawer's bills, so the drawer's contents are the last count plus sales less drops (coins stay as Dash knew them until the office close).
 
 ## [2.234.1] - 2026-11-02
 

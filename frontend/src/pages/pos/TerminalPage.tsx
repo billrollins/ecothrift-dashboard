@@ -34,6 +34,9 @@ import {
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import AccessTime from '@mui/icons-material/AccessTime';
+import CallSplit from '@mui/icons-material/CallSplit';
+import CreditCard from '@mui/icons-material/CreditCard';
+import Payments from '@mui/icons-material/Payments';
 import AccountBalance from '@mui/icons-material/AccountBalance';
 import Build from '@mui/icons-material/Build';
 import CancelOutlined from '@mui/icons-material/CancelOutlined';
@@ -58,7 +61,9 @@ import { DeviceSetupDialog } from '../../components/pos/DeviceSetupDialog';
 import { DiscountDialog, type DiscountSubmitPayload } from '../../components/pos/DiscountDialog';
 import { useManagerOk } from '../../components/pos/ManagerOkDialog';
 import TaxExemptDialog, { taxExemptText, type TaxExemptInput } from '../../components/pos/TaxExemptDialog';
-import CashTenderPad from '../../components/pos/CashTenderPad';
+import CashWindow from '../../components/pos/CashWindow';
+import DrawerContentsDialog, { DrawerChip } from '../../components/pos/DrawerContentsDialog';
+import { tp } from '../../i18n/pos';
 import CountCheckDialog from '../../components/pos/CountCheckDialog';
 import { useRegisterCover } from '../../components/pos/RegisterCover';
 import { countCents, describeCount, hasPieces, type CashCount } from '../../utils/cashCounts';
@@ -202,6 +207,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   const testMode = testRegister != null;
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
+  const lang = user?.language;
   // The owner (Admin or superuser) turns the store sale on and off (REG-21).
   const isOwner = Boolean(user?.is_superuser || user?.role === 'Admin');
   const skuInputRef = useRef<HTMLInputElement>(null);
@@ -279,6 +285,9 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   // The opening count beside the register's till fund, shown after the blind count (2026-10-21).
   const [openingCheck, setOpeningCheck] = useState<CountCheck | null>(null);
   const [typeCash, setTypeCash] = useState(false);
+  /** The cash window (2026-11-02): open for Cash or for the cash part of a Split. */
+  const [cashWindow, setCashWindow] = useState<'cash' | 'split' | null>(null);
+  const [drawerViewOpen, setDrawerViewOpen] = useState(false);
   // After a cash sale: what Dash says to give back, until the next sale starts.
   const [giveBack, setGiveBack] = useState<{ change: string; text: string; short: boolean } | null>(null);
   // A receipt that did not print (2026-10-21, REG-03): a box that stays until someone deals with it. For a cash sale
@@ -1410,6 +1419,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       setPayrollEmployee('');
       setCardTenderOpen(false);
       setCardPreview(null);
+      setCashWindow(null);
     },
     [enqueueSnackbar, markRegisterActivity],
   );
@@ -1449,7 +1459,8 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
     [sendComplete],
   );
 
-  const handleComplete = useCallback(async () => {
+  // The method comes in as an argument (2026-11-02): a button sets it and pays in one tap, before the state catches up.
+  const handleComplete = useCallback(async (method: PaymentMethod = paymentMethod) => {
     if (!cart || (cart.lines ?? []).length === 0) {
       enqueueSnackbar('Add at least one item before completing the sale.', { variant: 'warning' });
       return;
@@ -1462,13 +1473,13 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
     const total = amountDue(cart);
     const cash = parseFloat(cashTendered) || 0;
     const cardDue =
-      paymentMethod === 'split' ? moneyCents(Math.max(0, total - cash)) : total;
+      method === 'split' ? moneyCents(Math.max(0, total - cash)) : total;
 
-    if (paymentMethod === 'cash' && cash < total) {
+    if (method === 'cash' && cash < total) {
       enqueueSnackbar('Cash tendered is less than total', { variant: 'error' });
       return;
     }
-    if (paymentMethod === 'split') {
+    if (method === 'split') {
       if (!cashTendered.trim()) {
         enqueueSnackbar('Enter the cash portion first.', { variant: 'error' });
         return;
@@ -1479,7 +1490,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       }
     }
 
-    if (paymentMethod === 'payroll') {
+    if (method === 'payroll') {
       if (payrollEmployee === '') {
         enqueueSnackbar('Pick the staff member who is buying.', { variant: 'error' });
         return;
@@ -1488,29 +1499,29 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       return;
     }
 
-    const payload: Record<string, unknown> = { payment_method: paymentMethod };
-    if (paymentMethod === 'cash' || paymentMethod === 'split') {
+    const payload: Record<string, unknown> = { payment_method: method };
+    if (method === 'cash' || method === 'split') {
       payload.cash_tendered = cashTendered ? parseFloat(cashTendered) : 0;
       if (!typeCash && hasPieces(cashReceived)) payload.cash_received = cashReceived;
     }
-    if (paymentMethod === 'card' || paymentMethod === 'split')
+    if (method === 'card' || method === 'split')
       payload.card_amount = cardDue;
 
-    if (paymentMethod === 'cash') {
+    if (method === 'cash') {
       await postComplete(payload);
       return;
     }
 
     // Training register (C1): the "THIS IS JUST A TEST" screen comes first and no card step ever opens, so a
     // trainee is never asked to run a real card. The practice sale is recorded as a debit card with no surcharge.
-    if (!needsCardTender(paymentMethod, Boolean(todayDrawerRef.current?.register_is_training))) {
+    if (!needsCardTender(method, Boolean(todayDrawerRef.current?.register_is_training))) {
       await postComplete(practiceCardPayload(payload));
       return;
     }
 
     try {
       const { data: preview } = await getCartCardPreview(cart.id, {
-        payment_method: paymentMethod,
+        payment_method: method,
         card_amount: payload.card_amount as number,
       });
       if (!preview.enabled) {
@@ -1526,7 +1537,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
     } catch {
       enqueueSnackbar('Could not load card totals from the server.', { variant: 'error' });
     }
-  }, [cart, paymentMethod, cashTendered, payrollEmployee, postComplete, enqueueSnackbar]);
+  }, [cart, paymentMethod, cashTendered, cashReceived, typeCash, payrollEmployee, postComplete, enqueueSnackbar]);
 
   // Thrift+ credit and/or ThriftBucks leave nothing due (Bill, 2026-10-21): one button, no cash or card step.
   const thriftCovers = thriftCoversSale(cart);
@@ -1555,11 +1566,23 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
     ? todayDrawer?.contents
     : openDrawersList.find((d) => d.id === managerDrawerId)?.contents) ?? null;
 
-  const changeDue = (() => {
-    if (paymentMethod !== 'cash' && paymentMethod !== 'split') return 0;
-    const total = amountDue(cart);
-    return Math.max(0, (parseFloat(cashTendered) || 0) - total);
-  })();
+  /** Cash or Split opens the cash window. A Split reopened after its card step was backed out keeps its taps;
+   * anything else starts clean. */
+  const openCashWindow = (mode: 'cash' | 'split') => {
+    if (!(mode === 'split' && paymentMethod === 'split')) setCashTendered('');
+    setPaymentMethod(mode);
+    setCashWindow(mode);
+  };
+  const closeCashWindow = () => {
+    setCashWindow(null);
+    setCashTendered('');
+  };
+  const payByCard = () => {
+    setCashTendered('');
+    setPaymentMethod('card');
+    void handleComplete('card');
+  };
+
 
   // ── State panels ───────────────────────────────────────────────────────────
 
@@ -2485,101 +2508,71 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                   </Alert>
                 )}
                 {thriftCovers ? (
-                  <Alert severity="success" icon={false} sx={{ mb: 1 }}>
-                    <Typography fontWeight={700}>Nothing to pay: Thrift+ covers this sale.</Typography>
-                    <Typography variant="body2">{thriftPaymentParts(cart).join(' · ')}</Typography>
-                  </Alert>
+                  <>
+                    <Alert severity="success" icon={false} sx={{ mb: 1 }}>
+                      <Typography fontWeight={700}>Nothing to pay: Thrift+ covers this sale.</Typography>
+                      <Typography variant="body2">{thriftPaymentParts(cart).join(' · ')}</Typography>
+                    </Alert>
+                    <Button
+                      variant="contained" color="success" fullWidth size="large"
+                      onClick={() => void handleComplete()}
+                      disabled={!hasItems || completeCartMutation.isPending}
+                      sx={{ mt: 1, minHeight: 64 }}
+                    >
+                      {completeCartMutation.isPending ? 'Processing…' : 'Complete: paid with Thrift+'}
+                    </Button>
+                  </>
+                ) : paymentMethod === 'payroll' ? (
+                  <>
+                    <PayrollPicker amount={amountDue(cart)} value={payrollEmployee} onChange={setPayrollEmployee} />
+                    <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                      <Button size="large" onClick={() => setPaymentMethod('cash')}>{tp('back', lang)}</Button>
+                      <Button
+                        variant="contained" color="success" fullWidth size="large"
+                        onClick={() => void handleComplete('payroll')}
+                        disabled={!hasItems || completeCartMutation.isPending}
+                      >
+                        {completeCartMutation.isPending ? 'Processing…' : 'Complete sale'}
+                      </Button>
+                    </Stack>
+                  </>
                 ) : (
-                <>
-                <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-                  <InputLabel>Method</InputLabel>
-                  <Select
-                    value={paymentMethod}
-                    label="Method"
-                    onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                  >
-                    <MenuItem value="cash">Cash</MenuItem>
-                    <MenuItem value="card">Card</MenuItem>
-                    <MenuItem value="split">Split</MenuItem>
-                    {(payrollOn || paymentMethod === 'payroll') && (
-                      <MenuItem value="payroll">Payroll deduction (staff)</MenuItem>
+                  <>
+                    {/* Bill, 2026-11-02: three buttons. Cash and Split open the cash window; Card goes to the card step. */}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
+                      {([
+                        { key: 'cash', icon: <Payments />, color: 'success', variant: 'contained' },
+                        { key: 'card', icon: <CreditCard />, color: 'info', variant: 'contained' },
+                        { key: 'split', icon: <CallSplit />, color: 'info', variant: 'outlined' },
+                      ] as const).map((b) => (
+                        <Button
+                          key={b.key}
+                          variant={b.variant}
+                          color={b.color}
+                          disabled={!hasItems || completeCartMutation.isPending || cardTenderOpen}
+                          onClick={() => (b.key === 'card' ? payByCard() : openCashWindow(b.key))}
+                          data-testid={`pay-${b.key}`}
+                          sx={{
+                            minHeight: 88, flexDirection: 'column', gap: 0.5, borderRadius: 2, borderWidth: 2,
+                            '&:hover': { borderWidth: 2 }, fontSize: '1.15rem', fontWeight: 800, letterSpacing: 0.5,
+                            '& svg': { fontSize: 30 },
+                          }}
+                        >
+                          {b.icon}
+                          {tp(b.key, lang).toUpperCase()}
+                        </Button>
+                      ))}
+                    </Box>
+                    {payrollOn && (
+                      <Button
+                        size="small" onClick={() => setPaymentMethod('payroll')} disabled={!hasItems}
+                        sx={{ mt: 1, textTransform: 'none' }}
+                      >
+                        {tp('payroll', lang)}
+                      </Button>
                     )}
-                  </Select>
-                </FormControl>
-                {paymentMethod === 'payroll' && (
-                  <PayrollPicker amount={amountDue(cart)} value={payrollEmployee} onChange={setPayrollEmployee} />
+                  </>
                 )}
-
-                {(paymentMethod === 'cash' || paymentMethod === 'split') && !typeCash && (
-                  <Box sx={{ mb: 1 }}>
-                    <CashTenderPad
-                      received={cashReceived}
-                      onChange={onCashTapped}
-                      dueCents={Math.round(amountDue(cart) * 100)}
-                      drawerContents={drawerContents}
-                      split={paymentMethod === 'split'}
-                      disabled={completeCartMutation.isPending}
-                    />
-                  </Box>
-                )}
-                {(paymentMethod === 'cash' || paymentMethod === 'split') && typeCash && (
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Cash tendered"
-                    type="number"
-                    value={cashTendered}
-                    onChange={(e) => setCashTendered(e.target.value)}
-                    slotProps={{ input: { inputProps: { min: 0, step: 0.01 } } }}
-                    sx={{ mb: 1 }}
-                  />
-                )}
-                {(paymentMethod === 'cash' || paymentMethod === 'split') && (
-                  <Button
-                    size="small"
-                    sx={{ mb: 1, textTransform: 'none' }}
-                    onClick={() => {
-                      setTypeCash((v) => !v);
-                      setCashTendered('');
-                    }}
-                    data-testid="cash-type-toggle"
-                  >
-                    {typeCash ? 'Tap the bills and coins instead' : 'Type the amount instead'}
-                  </Button>
-                )}
-                {(paymentMethod === 'cash' || paymentMethod === 'split') && typeCash && changeDue > 0 && (
-                  <Typography
-                    variant="h6"
-                    color="success.main"
-                    fontWeight={700}
-                    sx={{ mb: 1 }}
-                  >
-                    Change: {formatCurrency(changeDue)}
-                  </Typography>
-                )}
-                {paymentMethod === 'split' && (
-                  <Typography variant="body2" fontWeight={600} sx={{ mb: 2 }}>
-                    Card: {formatCurrency(moneyCents(Math.max(0, amountDue(cart) - (parseFloat(cashTendered) || 0))))}
-                  </Typography>
-                )}
-                </>
-                )}
-
-                <Button
-                  variant="contained"
-                  color="success"
-                  fullWidth
-                  size="large"
-                  onClick={handleComplete}
-                  disabled={!hasItems || completeCartMutation.isPending}
-                  sx={{ mt: 1 }}
-                >
-                  {completeCartMutation.isPending
-                    ? 'Processing…'
-                    : thriftCovers
-                      ? 'Complete: paid with Thrift+'
-                      : 'Complete sale'}
-                </Button>
               </Paper>
             </Grid>
           </Grid>
@@ -2663,7 +2656,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
             : deviceLabel
         }
         action={
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             {(terminalState === 'ready' || terminalState === 'active_sale') && registerCover.button}
             {/* The Labor Day sale is retired (owner 2026-10-16): the chip shows only while a sale is actually on, so it
                 can be turned off, never on by accident. */}
@@ -2678,6 +2671,14 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
               variant="filled"
               title={isOwner ? 'Click to turn off' : 'The owner turns this sale on and off'}
             />
+            )}
+            {(terminalState === 'ready' || terminalState === 'active_sale') && (
+              <DrawerChip
+                contents={drawerContents}
+                practice={Boolean(todayDrawer?.register_is_training)}
+                lang={lang}
+                onClick={() => setDrawerViewOpen(true)}
+              />
             )}
             <Chip
               size="small"
@@ -3348,6 +3349,40 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
           setReturnsPopup(null);
           skuInputRef.current?.focus();
         }}
+      />
+
+      <CashWindow
+        open={cashWindow !== null}
+        mode={cashWindow ?? 'cash'}
+        dueCents={Math.round(amountDue(cart) * 100)}
+        received={cashReceived}
+        onReceived={onCashTapped}
+        typed={cashTendered}
+        onTyped={setCashTendered}
+        typeMode={typeCash}
+        onTypeMode={(on) => {
+          setTypeCash(on);
+          setCashTendered('');
+        }}
+        drawerContents={drawerContents}
+        pending={completeCartMutation.isPending}
+        lang={lang}
+        onCancel={closeCashWindow}
+        onComplete={() => {
+          setPaymentMethod('cash');
+          void handleComplete('cash');
+        }}
+        onCard={() => {
+          setCashWindow(null);
+          void handleComplete('split');
+        }}
+        onShowDrawer={() => setDrawerViewOpen(true)}
+      />
+      <DrawerContentsDialog
+        open={drawerViewOpen}
+        onClose={() => setDrawerViewOpen(false)}
+        contents={drawerContents}
+        lang={lang}
       />
 
       <CardTenderDialog

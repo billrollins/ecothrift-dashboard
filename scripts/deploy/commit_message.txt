@@ -1,10 +1,14 @@
-v2.234.1 — Retail quick fixes: change line, 8:30 checklist, week total
+v2.235.0 — Register: Cash / Card / Split, cash window, change from the drawer
 
-User-facing theme: **Three quick retail fixes from Carrie: the change line clears itself, the closing checklist stays open until 8:30 PM, and the week's sales total is big on the Dashboard (Carrie, 2026-11-02).**
+User-facing theme: **Register payment is three buttons: Cash, Card, Split. Cash opens a big bill-and-coin window with a one-tap fix, and Dash says which bills to give back from what the drawer holds (Bill, 2026-11-02).**
+
+### Added
+- Register: Cash / Card / Split buttons replace the Method list. Card goes straight to the card step. Cash and Split open the cash window (full screen on a phone): big bill and coin tiles, a minus edge on a tapped tile to take one off, Undo and Clear, then Complete. Split takes the cash part, then "Card for $X" (the 3% surcharge is on the card part only).
+- The cash window shows the change as the bills and coins to hand back, from what the drawer holds.
+- "Drawer $X" in the terminal header opens the drawer's bills and coins with counts and dollars.
+- English and Spanish for the new words.
 
 ### Changed
-- Register: after a cash sale, "Give back $X" clears itself after 20 seconds (or as soon as the next item is scanned); the X still closes it.
-- Closing checklist: stays open until 8:30 PM (it showed as missed at 6:30 PM, the shift end). After 8:30 PM it can no longer be filled in. The 7:00 PM reminder now goes out. Routine Control can change the time.
-- Dashboard, Store tab: a big "This week $X" line under Sales on a desk; on a phone the week amount is larger.
+- A handoff or takeover counted by bill now sets the drawer's bills, so the drawer's contents are the last count plus sales less drops (coins stay as Dash knew them until the office close).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

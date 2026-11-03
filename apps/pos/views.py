@@ -133,6 +133,12 @@ def _tender_fields(payment_method, amount_due, cash_tendered, change_given, card
     return None, None, None  # payroll or Thrift+: nothing in the drawer, nothing on a card
 
 
+def _bills_from_count(contents, count):
+    """The drawer after a handoff count (2026-11-02, the drawer knows its bills): the bills are what was counted, the
+    coins what Dash already had (coins are counted at the office close)."""
+    return {**drawer_life.coins_of(contents), **drawer_life.bills_of(count)}
+
+
 def _cash_count_error(exc):
     return Response({'detail': str(exc), 'code': 'INVALID_COUNT'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -501,7 +507,9 @@ class DrawerViewSet(viewsets.ModelViewSet):
         )
 
         drawer.current_cashier_id = incoming_cashier_id
-        drawer.save(update_fields=['current_cashier'])
+        if count:  # counted by bill (a total alone leaves the bills as Dash knew them)
+            drawer.contents = _bills_from_count(drawer.contents, count)
+        drawer.save(update_fields=['current_cashier', 'contents'])
         cover_service.end_all(drawer, DrawerCover.END_HANDOFF)
 
         data = DrawerHandoffSerializer(handoff).data
@@ -541,7 +549,9 @@ class DrawerViewSet(viewsets.ModelViewSet):
         )
 
         drawer.current_cashier = request.user
-        drawer.save(update_fields=['current_cashier'])
+        if count:
+            drawer.contents = _bills_from_count(drawer.contents, count)
+        drawer.save(update_fields=['current_cashier', 'contents'])
         cover_service.end_all(drawer, DrawerCover.END_HANDOFF)
 
         data = DrawerSerializer(drawer).data

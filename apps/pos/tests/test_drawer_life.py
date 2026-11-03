@@ -68,6 +68,24 @@ class HandoffTests(_LifeFixtures, TestCase):
         self.assertEqual((body['bills_only'], body['expected_total'], body['variance']), (True, '90.00', '-1.00'))
         self.assertEqual([row['key'] for row in body['count_check']['rows']], ['twenties', 'tens', 'ones'])
 
+    def test_a_handoff_count_becomes_the_drawers_bills_and_keeps_its_coins(self):
+        r = self.client.post(self._url('handoff'), {'incoming_cashier': self.manager.id,
+                                                    'count': {'twenties': 3, 'tens': 2, 'ones': 9}}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.drawer.refresh_from_db()
+        self.assertEqual(self.drawer.contents, {'twenties': 3, 'tens': 2, 'ones': 9, 'quarters': 8})
+
+    def test_a_takeover_with_no_count_leaves_the_bills_as_they_were(self):
+        before = dict(self.drawer.contents)
+        self.client.force_authenticate(self.manager)
+        self.assertEqual(self.client.post(self._url('takeover'), {}, format='json').status_code, 200)
+        self.drawer.refresh_from_db()
+        self.assertEqual(self.drawer.contents, before)
+        r = self.client.post(self._url('takeover'), {'count': {'twenties': 4, 'ones': 10}}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.drawer.refresh_from_db()
+        self.assertEqual(self.drawer.contents, {'twenties': 4, 'ones': 10, 'quarters': 8})
+
     def test_coins_are_not_counted_at_a_handoff(self):
         r = self.client.post(self._url('handoff'), {'incoming_cashier': self.manager.id,
                                                     'count': {'twenties': 3, 'quarters': 8}}, format='json')
