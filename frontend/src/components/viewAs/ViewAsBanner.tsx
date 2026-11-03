@@ -1,12 +1,15 @@
 /**
  * View as (owner 2026-10-21): the bright band across the top while the owner sees Dash as an employee.
  * "Viewing as Maria K (Processing Associate) · signed in as Bill · Back to Bill". On every screen, Dash and Thrift+
- * Staff alike. It sets `--view-as-band` (its height) on the page so the app shells start below it.
+ * Staff alike. Where there is a top bar it lives in the bar's empty space (Dash Updates #54), so nothing moves. Where
+ * there is none (Thrift+ Staff, a field phone) it is a band across the top and sets `--view-as-band` (its height) on
+ * the page so the app shells start below it.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTopBarBanner, useTopBarHost } from '../layout/TopBarBanners';
 
 export const VIEW_AS_BAND_VAR = '--view-as-band';
 export const VIEW_AS_INK = '#111111';
@@ -21,11 +24,28 @@ export default function ViewAsBanner() {
   const { viewAs, stopViewAs } = useAuth();
   const ref = useRef<HTMLDivElement | null>(null);
   const [leaving, setLeaving] = useState(false);
+  const hasHost = useTopBarHost();
+  const owner = viewAs ? viewAs.real_user.name.split(' ')[0] || viewAs.real_user.name : '';
+  const ends = viewAs ? endsAt(viewAs.expires_at) : '';
+  const leave = () => {
+    setLeaving(true);
+    void stopViewAs();
+  };
+
+  useTopBarBanner(viewAs && hasHost ? {
+    kind: 'view-as',
+    text: `Viewing as ${viewAs.target.name} (${viewAs.target.job})`,
+    detail: `Signed in as ${owner} · read only${ends ? ` · ends ${ends}` : ''}`,
+    shortText: `Viewing ${viewAs.target.name}`,
+    action: { label: `Back to ${owner}`, shortLabel: 'Back', onClick: leave, disabled: leaving },
+    priority: 30,
+    tone: 'warning',
+  } : null);
 
   useEffect(() => {
     const root = document.documentElement;
     const node = ref.current;
-    if (!viewAs || !node) {
+    if (!viewAs || hasHost || !node) {
       root.style.removeProperty(VIEW_AS_BAND_VAR);
       return undefined;
     }
@@ -37,11 +57,9 @@ export default function ViewAsBanner() {
       observer?.disconnect();
       root.style.removeProperty(VIEW_AS_BAND_VAR);
     };
-  }, [viewAs]);
+  }, [viewAs, hasHost]);
 
-  if (!viewAs) return null;
-  const owner = viewAs.real_user.name.split(' ')[0] || viewAs.real_user.name;
-  const ends = endsAt(viewAs.expires_at);
+  if (!viewAs || hasHost) return null;
 
   return (
     <Box
@@ -85,10 +103,7 @@ export default function ViewAsBanner() {
         variant="contained"
         size="small"
         disabled={leaving}
-        onClick={() => {
-          setLeaving(true);
-          void stopViewAs();
-        }}
+        onClick={leave}
         data-testid="view-as-back"
         sx={{
           flexShrink: 0,

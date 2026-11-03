@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.248.1] -->
-<!-- Last reviewed: 2026-11-03 (2.248.1) -->
+<!-- Line 1 release: ## [2.249.0] -->
+<!-- Last reviewed: 2026-11-03 (2.249.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.249.0] - 2026-11-03
+
+User-facing theme: **Banners that mean "this is not normal" live in the top bar and never push the page down (Bill, 2026-11-03; Dash Updates #54).**
+
+### Changed
+- Top bar banners (Bill, Dash Updates #54): "this is not normal" notices now live in the top bar's empty space between the logo and the clock, never in a band that pushes the page down. The "Viewing as …" notice moved there too, with its Back button and its end time. When more than one is on (for example viewing as a cashier on the training register), they take turns, with dots beside them to pick one; they hold still while the mouse is over them. The top bar keeps the same height, so nothing on the page moves. On a phone they use a few short words. Screens without a top bar (Thrift+ Staff, a field phone) keep the old band across the top.
 
 ## [2.248.1] - 2026-11-03
 

@@ -1,13 +1,18 @@
-import { useLayoutEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Box, Button, Dialog, Stack } from '@mui/material';
+import { useTopBarBanner, useTopBarHost, type TopBarBanner } from '../layout/TopBarBanners';
 
 /** Training register (owner, 2026-10-10): looks and acts exactly as on launch day, but nothing real is written. */
 
 const STRIPES = 'repeating-linear-gradient(-45deg, #FFD400 0 22px, #111 22px 44px)';
 
-/** The top bar's empty space between the logo and the clock (MainLayout), where the banner sits. */
-export const TOP_BAR_SLOT_ID = 'top-bar-slot';
+const TRAINING_TOP_BAR: TopBarBanner = {
+  kind: 'training',
+  text: 'TRAINING REGISTER: NOT A REAL SALE',
+  detail: 'Practice only. Do not take money. Do not run a real card.',
+  shortText: 'PRACTICE: not a real sale',
+  priority: 20,
+  tone: 'danger',
+};
 
 /**
  * Always on: nobody can mistake this register for a real one. It sits in the top bar's empty space (Bill 2026-11-03:
@@ -15,13 +20,14 @@ export const TOP_BAR_SLOT_ID = 'top-bar-slot';
  * exactly like the real register. With no top bar (a test, a field phone), it shows above the page instead.
  */
 export function TrainingBanner() {
-  const [slot, setSlot] = useState<HTMLElement | null>(null);
-  useLayoutEffect(() => setSlot(document.getElementById(TOP_BAR_SLOT_ID)), []);
-  const banner = (
+  const hasHost = useTopBarHost();
+  useTopBarBanner(hasHost ? TRAINING_TOP_BAR : null);
+  if (hasHost) return null;
+  return (
     <Box
       role="alert"
       data-testid="training-banner"
-      sx={{ flexShrink: { xs: 0, sm: 1 }, minWidth: { xs: 'auto', sm: 0 }, background: STRIPES, p: '4px', borderRadius: 1, maxWidth: 640, width: slot ? '100%' : undefined }}
+      sx={{ flexShrink: 0, background: STRIPES, p: '4px', borderRadius: 1, maxWidth: 640 }}
     >
       <Box
         sx={{
@@ -40,7 +46,6 @@ export function TrainingBanner() {
       </Box>
     </Box>
   );
-  return slot ? createPortal(banner, slot) : banner;
 }
 
 /** The second warning, at payment: the practice sale finishes only after this. */

@@ -1,9 +1,8 @@
-v2.248.1 — Coin ridges and a training register that looks real
+v2.249.0 — Top bar banners that never push the page
 
-User-facing theme: **Coin ridges and a practice register that looks exactly like the real one (Bill, 2026-11-03).**
+User-facing theme: **Banners that mean "this is not normal" live in the top bar and never push the page down (Bill, 2026-11-03; Dash Updates #54).**
 
 ### Changed
-- Coins show their edge: wide ridges on the quarter, fine ridges on the dime, a smooth nickel (cash window tiles and coin labels).
-- Training register: the warning moved into the top bar's empty space between the logo and the clock, so it no longer pushes the page down. The page below reads exactly like the real register ("POS Terminal", the register's name, the Drawer chip). On a phone the top bar says "PRACTICE · Not a real sale". The full-screen "This is just a test" warning at payment stays.
+- Top bar banners (Bill, Dash Updates #54): "this is not normal" notices now live in the top bar's empty space between the logo and the clock, never in a band that pushes the page down. The "Viewing as …" notice moved there too, with its Back button and its end time. When more than one is on (for example viewing as a cashier on the training register), they take turns, with dots beside them to pick one; they hold still while the mouse is over them. The top bar keeps the same height, so nothing on the page moves. On a phone they use a few short words. Screens without a top bar (Thrift+ Staff, a field phone) keep the old band across the top.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
