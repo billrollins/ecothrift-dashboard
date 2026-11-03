@@ -13,13 +13,18 @@ const state = vi.hoisted(() => ({
   work: { count: 0, nagCount: 0, nagTone: 'none', owed: [], next: null } as Record<string, unknown>,
   hours: 'none' as string,
   buying: { ending: [], unrecorded: [], count: 0, tone: 'none' } as Record<string, unknown>,
+  safe: false,
 }));
 
 vi.mock('../../hooks/useAuth', () => ({
   useAuth: () => ({
     user: { id: 1, first_name: 'Bill', role: 'Admin', is_superuser: state.superuser, language: 'en' },
     logout: vi.fn(),
+    hasRole: () => false,
   }),
+}));
+vi.mock('../../hooks/useSafe', () => ({
+  useSafe: () => ({ data: state.safe ? { needs_swap: true } : undefined }),
 }));
 vi.mock('../../api/messages.api', () => ({
   getUnread: async () => ({ data: { unread: state.unread } }),
@@ -136,5 +141,13 @@ describe('NotificationBell', () => {
     await user.click(screen.getByTestId('notification-bell'));
     await user.click(screen.getByTestId('bell-row-approvals'));
     expect(screen.getByTestId('where')).toHaveTextContent('/owner/approvals');
+  });
+
+  it('tells the owner and managers when the office cash needs a swap with the safe (2026-11-02)', async () => {
+    state.safe = true;
+    renderBell();
+    await userEvent.setup().click(await screen.findByTestId('notification-bell'));
+    expect(await screen.findByTestId('bell-row-safe')).toHaveTextContent('Office cash: swap with the safe');
+    state.safe = false;
   });
 });

@@ -1033,15 +1033,34 @@ class BankTransactionViewSet(viewsets.ModelViewSet):
     filterset_fields = ['location', 'transaction_type', 'status']
     ordering = ['-created_at']
 
+    def create(self, request, *args, **kwargs):
+        # Retail 5 (2026-11-02): deposits and change go through the Safe card, which moves the cash with them.
+        return Response({'detail': 'Record deposits and change from the bank on the Safe card.', 'code': 'USE_SAFE_CARD'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    def _locked(self, txn):
+        return bool(txn.source) or txn.bags.exists()
+
+    def update(self, request, *args, **kwargs):
+        if self._locked(self.get_object()):
+            return Response({'detail': 'This one moved cash; it cannot be changed.', 'code': 'LOCKED'}, status=400)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if self._locked(self.get_object()):
+            return Response({'detail': 'This one moved cash; it cannot be deleted.', 'code': 'LOCKED'}, status=400)
+        return super().destroy(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         serializer.save(performed_by=self.request.user)
 
     @action(detail=True, methods=['patch'])
     def complete(self, request, pk=None):
         txn = self.get_object()
-        txn.status = 'completed'
-        txn.completed_at = timezone.now()
-        txn.save()
+        if txn.status != 'completed':  # a second tap changes nothing
+            txn.status = 'completed'
+            txn.completed_at = timezone.now()
+            txn.save(update_fields=['status', 'completed_at'])
         return Response(BankTransactionSerializer(txn).data)
 
 

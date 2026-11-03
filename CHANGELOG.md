@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.244.0] -->
-<!-- Last reviewed: 2026-11-02 (2.244.0) -->
+<!-- Line 1 release: ## [2.245.0] -->
+<!-- Last reviewed: 2026-11-02 (2.245.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.245.0] - 2026-11-02
+
+User-facing theme: **Safe and bank: a Safe card for the office cash and the safe, bank deposits built from the drop bags, and change from the bank, seen only by managers and the owner (Bill, 2026-11-02; Dash Updates #45, #46, #47).**
+
+### Added (Retail 5 step 1, #45)
+- The safe: a Safe card on the Cash page (owner and managers) with the safe by bill and coin. The owner sets what the office cash should hold and a cap on its total. When the office is short of a bill or coin, or over the cap, the card says why and the bell tells managers and the owner "Office cash: swap with the safe". Swap with the safe opens prefilled with Dash's suggestion (take from the safe what the office lacks, put in what it holds over); one record moves both, all or nothing, and neither can go below zero. Count the safe is blind: managers see the safe's total, only the owner sees it by bill and the difference. Migration `pos.0048`.
+- Bank deposits (Retail 5 step 2, #46): Bank deposit on the Safe card: tick the bags it covers (drawers' cash drops and close-out drops not yet deposited); the count starts as their bills and can be changed; from the office or the safe. The bags' sum shows beside the count; far off needs a note. The cash leaves the office or the safe (never below zero); each bag goes to the bank once. "Deposit waiting for the bank" stays on the card until Mark deposited. Migration `pos.0049`.
+- Change from the bank (Retail 5 step 3, #47): Change from the bank on the Safe card: count the bills and coins that came back, into the safe (or the office). Taken as paid from the bank account. Migration `pos.0050`.
+
+### Changed
+- Bank transactions: new deposits and change come only from the Safe card (they move the cash); one that moved cash can no longer be edited or deleted; Mark deposited is safe to tap twice. The old New Bank Transaction button is gone.
 
 ## [2.244.0] - 2026-11-02
 

@@ -90,11 +90,13 @@ type Props = {
   after?: ReactNode;
   /** The result with the totals big, side by side (the close). */
   bigResult?: boolean;
+  /** What the pad starts with (the owner's office target, to change it). */
+  initial?: CashCount;
 };
 
 export default function CountWindow({
   open, title, submitLabel, onCancel, onSubmit, only, keys, lang, children, ready = true, notReadyLabel, extraCents = 0,
-  result, after, bigResult,
+  result, after, bigResult, initial,
 }: Props) {
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down('sm'));
@@ -112,7 +114,7 @@ export default function CountWindow({
   const totalCents = countCents(counted) + extraCents;
   useEffect(() => {
     if (open) {
-      setCount({});
+      setCount(initial ?? {});
       setCheck(null);
     }
   }, [open]);

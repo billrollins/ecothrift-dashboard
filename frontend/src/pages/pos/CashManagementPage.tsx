@@ -41,6 +41,8 @@ import {
 } from '../../hooks/useCashManagement';
 import type { DenominationBreakdown, BankTransaction } from '../../types/pos.types';
 import { format } from 'date-fns';
+import SafeCard from '../../components/pos/SafeCard';
+import { useAuth } from '../../contexts/AuthContext';
 import { IconAdd as Add, IconDelete as Delete, IconEdit as Edit } from '../../icons/ecoIcons';
 
 function formatCurrency(value: string | number): string {
@@ -51,6 +53,7 @@ function formatCurrency(value: string | number): string {
 type SuppDialogType = 'draw' | 'return' | 'audit' | null;
 
 export default function CashManagementPage() {
+  const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
 
   // Supplemental dialogs
@@ -227,18 +230,13 @@ export default function CashManagementPage() {
       <PageHeader
         title="Cash management"
         subtitle="Supplemental drawer and bank transactions"
-        action={
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={() => setCreateOpen(true)}
-          >
-            New Bank Transaction
-          </Button>
-        }
       />
 
       <Grid container spacing={3}>
+        {/* The safe (Retail 5, 2026-11-02): managers and the owner (this page is theirs). */}
+        <Grid size={{ xs: 12, md: 6 }}>
+          <SafeCard lang={user?.language} />
+        </Grid>
         {/* Supplemental Drawer */}
         <Grid size={{ xs: 12, md: 6 }}>
           <Card>

@@ -12,6 +12,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { useBuyingNags } from '../../hooks/useBuyingNags';
 import { useHoursNag } from '../../hooks/useHoursNag';
 import { useDashFixCount } from '../../hooks/useDashFixes';
+import { useSafe } from '../../hooks/useSafe';
+import AccountBalanceOutlined from '@mui/icons-material/AccountBalanceOutlined';
 import { useMyWork } from '../../hooks/useMyWork';
 import { t } from '../../i18n/routines';
 import { dashboardTabHref, saveDashboardTab } from '../../navigation/dashboardTabs';
@@ -46,7 +48,7 @@ export function useWaitingApprovals(enabled: boolean): number {
  * hours nag keep their cards at the top of the panel, and a new nudge opens the panel by itself.
  */
 export function NotificationBell() {
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
   const lang = user?.language === 'es' ? 'es' : 'en';
   const navigate = useNavigate();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
@@ -61,6 +63,8 @@ export function NotificationBell() {
   const approvals = useWaitingApprovals(Boolean(user?.is_superuser));
   // Owner: requests waiting for acceptance. Everyone else: their own requests that changed.
   const dashFixes = useDashFixCount(Boolean(user));
+  // The office cash needs a swap with the safe (Retail 5, 2026-11-02): owner and managers only.
+  const safeAlert = useSafe(Boolean(user?.is_superuser) || hasRole('Manager')).data?.needs_swap ? 1 : 0;
 
   const messages = inbox.messages;
   const messageKey = messages.map((row) => row.id).join(',');
@@ -74,8 +78,8 @@ export function NotificationBell() {
 
   const nag = nagSummary(work, messages.map((row) => row.run_id), hours.level, buying);
   const routines = nag.tone === 'none' ? 0 : nag.count;
-  const total = unread + routines + approvals + dashFixes;
-  const hot = unread > 0 || approvals > 0 || dashFixes > 0 || nag.tone === 'red';
+  const total = unread + routines + approvals + dashFixes + safeAlert;
+  const hot = unread > 0 || approvals > 0 || dashFixes > 0 || safeAlert > 0 || nag.tone === 'red';
   const badgeColor = hot ? RED : AMBER;
   const close = () => setAnchor(null);
 
@@ -177,6 +181,16 @@ export function NotificationBell() {
               color={RED}
               onClick={() => go('/owner/approvals')}
               testId="bell-row-approvals"
+            />
+          ) : null}
+          {safeAlert ? (
+            <BellRow
+              icon={<AccountBalanceOutlined />}
+              label={t('safeSwap', lang)}
+              count={safeAlert}
+              color={RED}
+              onClick={() => go('/pos/cash')}
+              testId="bell-row-safe"
             />
           ) : null}
           <BellRow

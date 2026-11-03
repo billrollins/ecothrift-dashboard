@@ -209,6 +209,11 @@ class SupplementalTransaction(models.Model):
         ('drawer_open', 'Drawer opened (till out)'),
         ('drop', 'Drop from a drawer'),
         ('drawer_close', 'Drawer closed (cash in)'),
+        # The safe (Retail 5, 2026-11-02): a swap moves pieces between the office and the safe.
+        ('from_safe', 'From the safe'),
+        ('to_safe', 'To the safe'),
+        ('to_bank', 'To the bank (deposit)'),
+        ('from_bank', 'Change from the bank'),
     ]
 
     supplemental = models.ForeignKey(
@@ -231,6 +236,46 @@ class SupplementalTransaction(models.Model):
 
     def __str__(self):
         return f'{self.transaction_type} ${self.total}'
+
+
+class Safe(models.Model):
+    """The store's safe (Retail 5, Bill 2026-11-02): the cash behind the office's supplemental drawer, by bill and coin.
+    Swaps with the office, counts, and (later) bank deposits and change move it, each as a ``SafeLine``."""
+    location = models.OneToOneField('core.WorkLocation', on_delete=models.CASCADE, null=True, blank=True,
+                                    related_name='safe')
+    balance = models.JSONField(default=dict)
+    total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    last_counted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='+')
+    last_counted_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f'Safe ${self.total}'
+
+
+class SafeLine(models.Model):
+    """One movement of the safe: a swap with the office (pieces both ways), or a count (``difference``: counted less
+    what Dash had)."""
+    KIND_SWAP = 'swap'
+    KIND_COUNT = 'count'
+    KIND_DEPOSIT = 'deposit'
+    KIND_CHANGE = 'change'
+    KIND_CHOICES = [(KIND_SWAP, 'Swap with the office'), (KIND_COUNT, 'Count'), (KIND_DEPOSIT, 'To the bank'),
+                    (KIND_CHANGE, 'Change from the bank')]
+
+    safe = models.ForeignKey(Safe, on_delete=models.CASCADE, related_name='lines')
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+    into_safe = models.JSONField(default=dict, blank=True)
+    into_total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    out_of_safe = models.JSONField(default=dict, blank=True)
+    out_total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    difference = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    performed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    performed_at = models.DateTimeField(auto_now_add=True)
+    note = models.CharField(max_length=300, blank=True, default='')
+
+    class Meta:
+        ordering = ['-performed_at', '-pk']
 
 
 class BankTransaction(models.Model):
@@ -257,12 +302,32 @@ class BankTransaction(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True, default='')
+    # A deposit built from bags (Retail 5 step 2): where its cash left from, the bags' sum and counted less that sum.
+    source = models.CharField(max_length=10, blank=True, default='')
+    bags_total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    difference = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']
 
     def __str__(self):
         return f'{self.transaction_type} ${self.total}'
+
+
+class DepositBag(models.Model):
+    """A bag a bank deposit covers (Retail 5 step 2): a drawer's cash drop or the drop from its close-out. A label only:
+    that cash was already in the office; the deposit itself takes it out. A bag goes to the bank once."""
+    KIND_DROP = 'drop'
+    KIND_CLOSE_OUT = 'close_out'
+    KIND_CHOICES = [(KIND_DROP, 'Cash drop'), (KIND_CLOSE_OUT, 'Close-out drop')]
+
+    deposit = models.ForeignKey(BankTransaction, on_delete=models.CASCADE, related_name='bags')
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+    ref = models.PositiveIntegerField(help_text='The CashDrop or the Drawer.')
+    total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['kind', 'ref'], name='deposit_bag_once')]
 
 
 class Cart(models.Model):

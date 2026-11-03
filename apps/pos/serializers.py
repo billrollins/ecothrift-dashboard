@@ -171,9 +171,9 @@ class BankTransactionSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'location', 'transaction_type', 'amount', 'total',
             'status', 'performed_by', 'performed_by_name',
-            'created_at', 'completed_at', 'notes',
+            'created_at', 'completed_at', 'notes', 'source', 'bags_total', 'difference',
         ]
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = ['id', 'created_at', 'source', 'bags_total', 'difference']
 
 
 class CartLineSerializer(serializers.ModelSerializer):

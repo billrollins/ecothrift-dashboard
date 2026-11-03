@@ -1,6 +1,6 @@
 from django.urls import path, include
 
-from . import report_views, staff_views, window_views
+from . import safe_views, report_views, staff_views, window_views
 from rest_framework.routers import DefaultRouter
 from .views import (
     RegisterViewSet, DrawerViewSet, SupplementalViewSet,
@@ -47,6 +47,12 @@ urlpatterns = [
     path('registers/<int:pk>/card/', window_views.register_card_view, name='register-card'),
     path('carts/<int:pk>/card/', window_views.sale_card_view, name='sale-card'),
     path('drawers/<int:pk>/card/', window_views.drawer_card_view, name='drawer-card'),
+    path('safe/', safe_views.safe_view, name='safe'),
+    path('safe/swap/', safe_views.safe_swap_view, name='safe-swap'),
+    path('safe/count/', safe_views.safe_count_view, name='safe-count'),
+    path('safe/target/', safe_views.safe_target_view, name='safe-target'),
+    path('bank/deposit/', safe_views.bank_deposit_view, name='bank-deposit'),
+    path('bank/change/', safe_views.bank_change_view, name='bank-change'),
     path('', include(router.urls)),
     # The owner's Reports page (2026-10-13): the sales tax report.
     path('reports/sales-tax/', report_views.sales_tax_report, name='sales-tax-report'),

@@ -128,7 +128,8 @@ describe('Thrift+ register, receipt and Dash words (the 10-12 policy)', () => {
       // 80% store credit." It stays word for word.
       // SalesNumbersBlock's "Earned" is Bill's own word for ThriftBucks members earned (the Transactions numbers, 10-20):
       // staff read it on the Transactions page, not the register or a receipt (Dash Updates #17).
-      ...sourceFiles(join(SRC, 'components/pos'), ['DiscountDialog.tsx', 'discountUtils.ts', 'ReturnsPopup.tsx', 'SalesNumbersBlock.tsx']),
+      // SafeCard and DepositWindow are the office's real bank (deposits, change from the bank), not the retired Thrift+ word.
+      ...sourceFiles(join(SRC, 'components/pos'), ['DiscountDialog.tsx', 'discountUtils.ts', 'ReturnsPopup.tsx', 'SalesNumbersBlock.tsx', 'SafeCard.tsx', 'DepositWindow.tsx']),
       ...sourceFiles(join(SRC, 'components/thriftplus')),
       join(SRC, 'utils/posReceipt.ts'),
       join(SRC, 'utils/thriftPlusRegister.ts'),

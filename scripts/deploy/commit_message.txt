@@ -1,11 +1,13 @@
-v2.244.0 — Processing: mark as disputed; restoration price once
+v2.245.0 — Safe and bank: safe card, deposits, change
 
-User-facing theme: **Two Processing fixes from Ashley: mark checked-in items as disputed, and the Restoration done price is no longer typed twice (Ashley, Dash Updates #1, #2).**
+User-facing theme: **Safe and bank: a Safe card for the office cash and the safe, bank deposits built from the drop bags, and change from the bank, seen only by managers and the owner (Bill, 2026-11-02; Dash Updates #45, #46, #47).**
 
-### Added
-- Processing: mark checked-in items as disputed (Ashley, Dash Updates #1). In Prior check-ins, a new Dispute icon (after Reprint and Undo) opens "Mark as disputed": pick the item(s) of that check-in (items not on the shelf can't be picked), what's wrong (Broken, Missing pieces, Cosmetic damage, Missing key piece, Bad condition, Other), the % of value lost, and a description. It shows a dispute already there and can clear it. It marks the item (the Disputed N% chip); it does not file a claim with the supplier. Saves each item on its own and says which, if any, did not save.
+### Added (Retail 5 step 1, #45)
+- The safe: a Safe card on the Cash page (owner and managers) with the safe by bill and coin. The owner sets what the office cash should hold and a cap on its total. When the office is short of a bill or coin, or over the cap, the card says why and the bell tells managers and the owner "Office cash: swap with the safe". Swap with the safe opens prefilled with Dash's suggestion (take from the safe what the office lacks, put in what it holds over); one record moves both, all or nothing, and neither can go below zero. Count the safe is blind: managers see the safe's total, only the owner sees it by bill and the difference. Migration `pos.0048`.
+- Bank deposits (Retail 5 step 2, #46): Bank deposit on the Safe card: tick the bags it covers (drawers' cash drops and close-out drops not yet deposited); the count starts as their bills and can be changed; from the office or the safe. The bags' sum shows beside the count; far off needs a note. The cash leaves the office or the safe (never below zero); each bag goes to the bank once. "Deposit waiting for the bank" stays on the card until Mark deposited. Migration `pos.0049`.
+- Change from the bank (Retail 5 step 3, #47): Change from the bank on the Safe card: count the bills and coins that came back, into the safe (or the office). Taken as paid from the bank account. Migration `pos.0050`.
 
 ### Changed
-- Sending to Restoration (Ashley, Dash Updates #2): the Done price starts as the Price typed above and follows it until someone types a different one, so it is no longer typed twice, in every check-in form and when "Goes to" changes to Restoration on a past check-in (that box opened empty before). A done price already saved is kept.
+- Bank transactions: new deposits and change come only from the Safe card (they move the cash); one that moved cash can no longer be edited or deleted; Mark deposited is safe to tap twice. The old New Bank Transaction button is gone.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
