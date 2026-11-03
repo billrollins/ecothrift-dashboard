@@ -4,8 +4,10 @@
  * - `<ObjectLink type="item" id={5} label="ITM0001" />` is the clickable id.
  * - It opens one modal with that object's panel. A link clicked inside the modal swaps the modal's content
  *   (with a Back arrow) instead of stacking a second modal.
- * - A product also has a full page (`/inventory/products/:id`) for the work that needs room.
- * - An order opens wider (the size its old full page was); `/inventory/orders/:id` opens the Orders list with it.
+ * - A product opens the Product window (`ProductCard.tsx`, Dash Updates #11): read-only, Edit for the editor; it also
+ *   has a full page (`/inventory/products/:id`) for the work that needs room.
+ * - An order opens the Order window (`OrderCard.tsx`, Dash Updates #12), wide; Edit shows the order page it showed
+ *   before; `/inventory/orders/:id` opens the Orders list with it.
  *
  * - An item opens the universal Item modal (`ItemCard.tsx`): read-only, every department's view, Edit for the editor.
  * - On a phone the modal is full screen.
@@ -25,6 +27,10 @@ import { useNavigate } from 'react-router-dom';
 import { getProduct } from '../../api/inventory.api';
 import { IconBack as ArrowBack, IconClose as Close, IconOpenExternal as OpenInNew } from '../../icons/ecoIcons';
 import { ItemCardBody } from './ItemCard';
+import { OrderCardBody } from './OrderCard';
+import { ProductCardBody } from './ProductCard';
+import { RestorationCardBody } from './RestorationCard';
+import { VendorCardBody } from './VendorCard';
 import { ItemPeek } from './ItemPeek';
 import { useLanguage } from '../pos/windows/retailCopy';
 
@@ -50,6 +56,8 @@ export type ObjectRef =
   | { type: 'checkin'; id: number }
   | { type: 'item'; id: number }
   | { type: 'order'; id: number }
+  | { type: 'vendor'; id: number }
+  | { type: 'restoration'; id: number }
   | { type: 'register'; id: number }
   | { type: 'drawer'; id: number }
   | { type: 'sale'; id: number }
@@ -65,6 +73,8 @@ const LABEL: Record<ObjectRef['type'], string> = {
   checkin: 'Check-in',
   item: 'Item',
   order: 'Order',
+  vendor: 'Vendor',
+  restoration: 'Restoration job',
   'new-checkin': 'Add items',
   register: 'Register',
   drawer: 'Drawer',
@@ -75,10 +85,10 @@ const LABEL: Record<ObjectRef['type'], string> = {
 /** The retail windows' header word in Spanish (their staff read them in either language). */
 const LABEL_ES: Partial<Record<ObjectRef['type'], string>> = { register: 'Caja', drawer: 'Cajón', sale: 'Venta', history: 'Ventas', member: 'Miembro Thrift+' };
 
-type LinkType = 'product' | 'checkin' | 'item' | 'order' | 'register' | 'drawer' | 'sale' | 'member';
+type LinkType = 'product' | 'checkin' | 'item' | 'order' | 'vendor' | 'restoration' | 'register' | 'drawer' | 'sale' | 'member';
 
 export function parseObjectRef(raw: string | null | undefined): ObjectRef | null {
-  const m = (raw || '').match(/^(product|checkin|item|order|register|drawer|sale|member):(\d+)$/i);
+  const m = (raw || '').match(/^(product|checkin|item|order|vendor|restoration|register|drawer|sale|member):(\d+)$/i);
   if (!m) return null;
   return { type: m[1].toLowerCase() as LinkType, id: Number.parseInt(m[2], 10) };
 }
@@ -254,8 +264,17 @@ export function ObjectModalProvider({
                       onCheckInCreated={(checkInId) => set([...stack.slice(0, -1), { type: 'checkin', id: checkInId }])}
                     />
                   )}
-                  {current.type === 'product' && <ProductBody id={current.id} onDone={closeObject} />}
-                  {current.type === 'order' && <OrderDetailPage orderId={current.id} embedded />}
+                  {current.type === 'product' && (
+                    <ProductCardBody
+                      productId={current.id}
+                      renderEditor={() => <ProductBody id={current.id} onDone={closeObject} />}
+                    />
+                  )}
+                  {current.type === 'vendor' && <VendorCardBody vendorId={current.id} />}
+                  {current.type === 'restoration' && <RestorationCardBody jobId={current.id} />}
+                  {current.type === 'order' && (
+                    <OrderCardBody orderId={current.id} renderEditor={() => <OrderDetailPage orderId={current.id} embedded />} />
+                  )}
                   {current.type === 'register' && <RegisterWindow id={current.id} />}
                   {current.type === 'drawer' && <DrawerWindow id={current.id} />}
                   {current.type === 'sale' && <SaleWindow id={current.id} />}

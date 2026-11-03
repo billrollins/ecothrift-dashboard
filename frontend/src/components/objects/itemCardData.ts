@@ -131,7 +131,9 @@ export function useItemCardLite(id: number, enabled: boolean, qc: QueryClient) {
 export function itemCardMoney(value: string | null | undefined): string {
   if (value == null || value === '') return '-';
   const n = Number(value);
-  return Number.isFinite(n) ? `$${n.toFixed(2)}` : '-';
+  if (!Number.isFinite(n)) return '-';
+  // Thousands with commas ($24,179.97): the object windows show truck-sized numbers.
+  return `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function itemCardSpecs(specs: Record<string, unknown> | undefined, max?: number): [string, string][] {

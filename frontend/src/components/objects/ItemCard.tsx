@@ -13,7 +13,6 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { IconCopy, IconEdit, IconSearch, IconBack } from '../../icons/ecoIcons';
-import { restorationOverviewPath } from '../../pages/restoration/restorationRoutes';
 import {
   itemCardDay, itemCardMoney, itemCardSpecs, itemCardWhen, itemCardWhere, useItemCard,
   type ItemCardFull, type ItemJourneyEvent,
@@ -58,7 +57,7 @@ const RETAIL_CHECK: Record<string, string> = {
 };
 
 /** "A $220 · B $160 · C $90": the restoration price per grade. */
-function gradePrices(values: Record<string, unknown> | undefined): string | null {
+export function gradePrices(values: Record<string, unknown> | undefined): string | null {
   const parts = Object.entries(values ?? {}).flatMap(([grade, v]) => {
     const n = typeof v === 'number' ? v : typeof v === 'string' ? Number.parseFloat(v) : Number.NaN;
     return Number.isFinite(n) ? [`${grade} $${Math.round(n)}`] : [];
@@ -66,7 +65,7 @@ function gradePrices(values: Record<string, unknown> | undefined): string | null
   return parts.length ? parts.join(' · ') : null;
 }
 
-function minutes(seconds: number | undefined): string | null {
+export function minutes(seconds: number | undefined): string | null {
   if (!seconds) return null;
   const m = Math.round(seconds / 60);
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
@@ -188,7 +187,7 @@ function CardView({ card, onEdit }: { card: ItemCardFull; onEdit: () => void }) 
         </Button>
       )}
       {r && (
-        <Button size="small" variant="outlined" onClick={() => go(restorationOverviewPath(r.job_id))}>
+        <Button size="small" variant="outlined" onClick={() => openObject({ type: 'restoration', id: r.job_id })}>
           Restoration job
         </Button>
       )}

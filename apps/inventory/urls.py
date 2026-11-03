@@ -11,7 +11,7 @@ from .api_bulk_price import (
 from .api_inventory_search import (
     inventory_review_flags_view, inventory_review_view, inventory_search_items_view, inventory_search_similar_view, inventory_search_view,
 )
-from .api_item_card import item_card_view
+from .api_item_card import item_card_view, order_card_view, product_card_view, restoration_card_view
 from .api_product_similar import similar_products_view
 from .views import (
     VendorViewSet, CategoryViewSet, PurchaseOrderViewSet,
@@ -70,6 +70,9 @@ urlpatterns = [
     path('store-report/', store_report_view, name='store-report'),
     path('shrink-estimate/', shrink_estimate_view, name='shrink-estimate'),
     path('items/<int:pk>/card/', item_card_view, name='item-card'),
+    path('products/<int:pk>/card/', product_card_view, name='product-card'),
+    path('orders/<int:pk>/card/', order_card_view, name='order-card'),
+    path('restoration-jobs/<int:pk>/card/', restoration_card_view, name='restoration-card'),
     path('items/<int:pk>/verify-present/', verify_present_view, name='item-verify-present'),
     path('items/<int:pk>/quick-reprice/', quick_reprice_view, name='item-quick-reprice'),
     path('items/<int:pk>/duplicate-for-resale/', duplicate_item_for_resale_view, name='item-duplicate-for-resale'),

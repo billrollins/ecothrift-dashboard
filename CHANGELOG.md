@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.245.0] -->
-<!-- Last reviewed: 2026-11-02 (2.245.0) -->
+<!-- Line 1 release: ## [2.246.0] -->
+<!-- Last reviewed: 2026-11-02 (2.246.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.246.0] - 2026-11-02
+
+User-facing theme: **Item-style windows for a product, an order, a vendor and a restoration job: each opens the same rich way everywhere (Bill, 2026-10-28; Dash Updates #11-#14).**
+
+### Added
+- Order window (Dash Updates #12): an order opens in a read-only window like the Item window. Order number with copy, status, condition, vendor and what it is; Cost, Cost of retail (landed cost as a share of manifest retail), Sold so far and Recovered (sold as a share of cost); money (purchase, shipping, fees, total landed, retail, est. shrink); units (manifest, pallets, items, where they are, disputed); the truck claim, disputes and notes; the journey from ordered to closed; links to its vendor, Receiving, Processing and Truck. Edit shows the order page it showed before. API: `GET /api/inventory/orders/<id>/card/` (one count over its items).
+- Vendor window (Dash Updates #13): a vendor opens in a read-only window, from an order's vendor link. Name, code with copy, type; for the last 90 days, 12 months or all time: Spent, Cost of retail, Recovered, Days to sell, and the vendor page's other numbers; contact; the newest orders (each opens its Order window). Edit opens the vendor page. It uses the vendor page's own numbers (no new API).
+- Restoration job window (Dash Updates #14): a restoration job opens in a read-only window, from the item's "Restoration job" link (it used to jump to the Restoration page). Photo, job number with copy, stage, hold-out, the item's SKU (opens its window), the product; Done price, Value added, Bench time and, once sold, Sold for; what Processing asked for (needs, done and as-is prices, value at stake, queue note, what it waits on); the work (scale, grade before → after, grade prices, bench, where it went, parts cost, each action); its history in words; links to the item, product, order and check-in. Edit opens the job on the Restoration page. API: `GET /api/inventory/restoration-jobs/<id>/card/`.
+- Object windows show money with thousands commas ($24,179.97).
+- Product window (Dash Updates #11): a product opens in a read-only window like the Item window, wherever its link is. Photo (the product's own; the newest item's only if the product has none), product number with copy, Google it, title, brand · model, category, Inactive mark; On the shelf, Sold and Avg sold, with average tag, retail and days to sell in one line; details (UPC and other numbers, tags, stock by status); the newest 10 items (each opens its Item window, "All" opens the full page); the orders it came on (each opens its Order window); a journey (created, checked in per order, first and last sale). Edit shows the product editor as before; "Open full page" stays. The numbers come from one count, so a product with thousands of items opens as fast as one with a few. API: `GET /api/inventory/products/<id>/card/`.
 
 ## [2.245.0] - 2026-11-02
 
