@@ -3,6 +3,7 @@ import { useSnackbar } from 'notistack';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
+import { dashboardTabHref } from '../../navigation/dashboardTabs';
 import {
   useDiscardRoutineDraft,
   useRoutine,
@@ -144,7 +145,7 @@ export function RoutineRunnerPage({ runId, onClose }: { runId?: number; onClose?
       onClose();
       return;
     }
-    navigate('/today');
+    navigate(dashboardTabHref('myday'));
   }
 
   async function handleCancel() {

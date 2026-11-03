@@ -9,6 +9,7 @@
  * renders, moves the token into sessionStorage, and strips the hash, so a login
  * bounce on the way in does not lose it. Nothing is sent until the owner confirms.
  */
+import { dashboardTabHref } from '../../../navigation/dashboardTabs';
 
 export const BSTOCK_HANDOFF_PATH = '/routines/bstock-login';
 // A seller page carries the login in its page data (the marketing home page may not).
@@ -99,7 +100,7 @@ export function rememberBstockReturn(path: string): void {
 export function bstockReturnPath(): string {
   const path = readStamped(local(), RETURN_KEY, RETURN_TTL_MS);
   // Only an in-app path: never navigate somewhere a stored value names.
-  return path && path.startsWith('/') && !path.startsWith('//') ? path : '/today';
+  return path && path.startsWith('/') && !path.startsWith('//') ? path : dashboardTabHref('myday');
 }
 
 const RUNNER_OPEN_KEY = 'bstock.runnerOpenAt';

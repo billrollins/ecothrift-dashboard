@@ -1,5 +1,8 @@
 /**
  * Owner (2026-10-21, critic review digest points 4 and 9): the owner's home. It replaced the morning brief.
+ * Since Dash Updates #5 (2026-11-02) it is one page with tabs, each with its own URL: Overview (/owner), Reports
+ * (/owner/reports), Approvals (/owner/approvals, the Requests page) and Dash Updates (/owner/updates, every update,
+ * private ones too). The avatar menu's OWNER section has this one link.
  * Scorecard (week and month), Needs you, links to every owner-only page, and AI spend. Social (Lane F Phase 5): this
  * week's posts and their numbers, marketing spend, and the rough read of post days against tickets and sales.
  */
@@ -15,11 +18,13 @@ import {
   ListItemButton,
   ListItemText,
   Stack,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
+  Tabs,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
@@ -29,8 +34,9 @@ import {
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
-import { useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { lazy, Suspense, useState, type ReactNode } from 'react';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useWaitingApprovals } from '../../components/layout/NotificationBell';
 import {
   fetchAiSpend,
   fetchNeedsYou,
@@ -48,6 +54,20 @@ import { getSupplySpendSummary } from '../../api/supplies.api';
 import { NAV_ITEM_CATALOG } from '../../navigation/navItemCatalog';
 import { formatCurrency, formatCurrencyWhole } from '../../utils/format';
 
+const ReportsPage = lazy(() => import('../reports/ReportsPage'));
+const RequestsPage = lazy(() => import('../admin/RequestsPage'));
+const DashFixesPage = lazy(() => import('../dashFixes/DashFixesPage'));
+
+/** The Owner page's tabs, one URL each. */
+const OWNER_TABS = [
+  { key: 'overview', path: '/owner', label: 'Overview' },
+  { key: 'reports', path: '/owner/reports', label: 'Reports' },
+  { key: 'approvals', path: '/owner/approvals', label: 'Approvals' },
+  { key: 'updates', path: '/owner/updates', label: 'Dash Updates' },
+] as const;
+/** Catalog items that are tabs here now, so the Owner pages list leaves them out. */
+const TAB_ITEMS = new Set(['owner', 'reports', 'superRequests']);
+
 /** Owner-only pages with no sidebar entry. */
 const EXTRA_OWNER_LINKS = [
   { label: 'Data checks (QA)', path: '/admin/qa' },
@@ -63,7 +83,7 @@ const SPEND_RANGES: { value: SpendRange; label: string }[] = [
 
 export function ownerLinks(): { label: string; path: string }[] {
   const fromNav = Object.values(NAV_ITEM_CATALOG)
-    .filter((item) => item.superuserOnly && item.id !== 'owner')
+    .filter((item) => item.superuserOnly && !TAB_ITEMS.has(item.id))
     .map((item) => ({ label: item.label, path: item.path }));
   return [...fromNav, ...EXTRA_OWNER_LINKS].sort((a, b) => a.label.localeCompare(b.label));
 }
@@ -363,6 +383,46 @@ function SiteErrors() {
 }
 
 export default function OwnerPage() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const waiting = useWaitingApprovals(true);
+  const current = OWNER_TABS.find((t) => pathname.replace(/\/$/, '') === t.path);
+  if (!current) return <Navigate to="/owner" replace />;
+  return (
+    <Box sx={{ maxWidth: 1600 }}>
+      <Typography variant="h5" component="h1" sx={{ fontWeight: 800 }}>Owner</Typography>
+      <Tabs
+        value={current.key}
+        onChange={(_, key: string) => {
+          const next = OWNER_TABS.find((t) => t.key === key);
+          if (next) navigate(next.path);
+        }}
+        variant="scrollable"
+        allowScrollButtonsMobile
+        sx={{ mb: 1.5, borderBottom: 1, borderColor: 'divider' }}
+      >
+        {OWNER_TABS.map((t) => (
+          <Tab
+            key={t.key}
+            value={t.key}
+            data-testid={`owner-tab-${t.key}`}
+            label={t.key === 'approvals' && waiting > 0 ? `${t.label} ${waiting}` : t.label}
+            sx={{ textTransform: 'none', fontWeight: 700 }}
+          />
+        ))}
+      </Tabs>
+      <Suspense fallback={<LinearProgress />}>
+        {current.key === 'overview' ? <OwnerOverview /> : null}
+        {current.key === 'reports' ? <ReportsPage embedded /> : null}
+        {current.key === 'approvals' ? <RequestsPage embedded /> : null}
+        {current.key === 'updates' ? <DashFixesPage embedded /> : null}
+      </Suspense>
+    </Box>
+  );
+}
+
+/** Overview: Scorecard, Owed, Needs you, Supplies, AI spend, Social, site errors and the other owner pages. */
+function OwnerOverview() {
   const navigate = useNavigate();
   const [range, setRange] = useState<SpendRange>('today');
   const scorecard = useQuery({ queryKey: ['owner', 'scorecard'], queryFn: fetchScorecard });
@@ -451,8 +511,7 @@ export default function OwnerPage() {
   );
 
   return (
-    <Box sx={{ maxWidth: 1600 }}>
-      <Typography variant="h5" component="h1" sx={{ fontWeight: 800, mb: 1.5 }}>Owner</Typography>
+    <Box>
       {desktop ? (
         // Desktop: the numbers on the left, the to-dos on the right, each column stacking on its own.
         <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 1.5, alignItems: 'start' }}>

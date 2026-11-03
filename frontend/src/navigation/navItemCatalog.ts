@@ -389,8 +389,10 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   },
   reports: {
     id: 'reports',
-    path: '/reports',
+    path: '/owner/reports',
     label: 'Reports',
+    // A tab of the Owner page since Dash Updates #5 (2026-11-02); /reports redirects.
+    pathAliases: ['/reports'],
     // The owner's monthly reports (2026-10-14), one tab each: sales tax for now.
     icon: 'reports',
     superuserOnly: true,
@@ -413,8 +415,10 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   },
   superRequests: {
     id: 'superRequests',
-    path: '/admin/requests',
+    path: '/owner/approvals',
     label: 'Requests',
+    // The Owner page's Approvals tab since Dash Updates #5 (2026-11-02); /admin/requests redirects.
+    pathAliases: ['/admin/requests'],
     // Routine data work staged in production for the owner to approve (data_platform Phase 1).
     icon: 'requests',
     superuserOnly: true,

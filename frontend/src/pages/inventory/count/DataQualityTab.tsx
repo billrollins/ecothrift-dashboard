@@ -70,7 +70,7 @@ function FixLine({ f, countId, onStaged }: { f: QualityFinding; countId: number;
         />
       )}
       {user?.is_superuser && latest && (
-        <Button component={RouterLink} to="/admin/requests" size="small" sx={plain}>
+        <Button component={RouterLink} to="/owner/approvals" size="small" sx={plain}>
           Open Requests
         </Button>
       )}

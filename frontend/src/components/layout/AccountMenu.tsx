@@ -23,7 +23,6 @@ import Logout from '@mui/icons-material/Logout';
 import Person from '@mui/icons-material/Person';
 import SpaceDashboardOutlined from '@mui/icons-material/SpaceDashboardOutlined';
 import StarOutlineRounded from '@mui/icons-material/StarOutlineRounded';
-import SummarizeOutlined from '@mui/icons-material/SummarizeOutlined';
 import TranslateOutlined from '@mui/icons-material/TranslateOutlined';
 import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -31,6 +30,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { t } from '../../i18n/routines';
 import { dashboardTabHref, saveDashboardTab } from '../../navigation/dashboardTabs';
 import { resolveNavItems } from '../../navigation/navResolve';
+import { NAV_ITEM_CATALOG } from '../../navigation/navItemCatalog';
 import { ReportFixDialog } from '../dashFixes/ReportFixDialog';
 import { sourcePage } from '../dashFixes/rememberPage';
 import ChangePasswordDialog from '../users/ChangePasswordDialog';
@@ -72,7 +72,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
 
 /**
  * The avatar menu is "me" (the HR side): who I am, my day, my schedule, my PIN, my requests, and
- * for the owner the Owner page and Reports. Language, View as and sign out close it.
+ * for the owner the Owner page (its tabs hold Reports, Approvals and Dash Updates). Language, View as and sign out close it.
  */
 export function AccountMenu() {
   const { user, logout, setLanguage, viewAs, stopViewAs } = useAuth();
@@ -97,11 +97,11 @@ export function AccountMenu() {
     go(dashboardTabHref('myday'));
   };
 
-  // Role gates come from the catalog: Schedule is Manager / Admin, Owner and Reports are the owner's.
-  const [schedule] = resolveNavItems(user, ['schedule']);
-  const ownerItems = resolveNavItems(user, ['owner', 'reports']);
+  // Everyone sees the week's Schedule (Dash Updates #6; the People sidebar entry stays Manager / Admin).
+  // Owner is the owner's (Reports is one of its tabs).
+  const schedule = NAV_ITEM_CATALOG.schedule;
+  const ownerItems = resolveNavItems(user, ['owner']);
   const ownerPage = ownerItems.find((item) => item.id === 'owner');
-  const reports = ownerItems.find((item) => item.id === 'reports');
   const roleText = user.role ? (ROLE_KEYS[user.role] ? t(ROLE_KEYS[user.role], lang) : user.role) : '';
 
   const handleLogout = async () => {
@@ -175,12 +175,10 @@ export function AccountMenu() {
           <ListItemIcon><SpaceDashboardOutlined fontSize="small" /></ListItemIcon>
           <ListItemText primary={t('myDay', lang)} />
         </MenuItem>
-        {schedule ? (
-          <MenuItem key="schedule" data-testid="account-menu-schedule" onClick={() => go(schedule.path)}>
-            <ListItemIcon><CalendarMonthOutlined fontSize="small" /></ListItemIcon>
-            <ListItemText primary={t('schedule', lang)} />
-          </MenuItem>
-        ) : null}
+        <MenuItem key="schedule" data-testid="account-menu-schedule" onClick={() => go(schedule.path)}>
+          <ListItemIcon><CalendarMonthOutlined fontSize="small" /></ListItemIcon>
+          <ListItemText primary={t('schedule', lang)} />
+        </MenuItem>
         <MenuItem key="me" data-testid="account-menu-me" onClick={() => go('/me')}>
           <ListItemIcon><Person fontSize="small" /></ListItemIcon>
           <ListItemText primary={t('myProfilePin', lang)} />
@@ -213,12 +211,6 @@ export function AccountMenu() {
           <MenuItem key="owner" data-testid="account-menu-owner" onClick={() => go(ownerPage.path)}>
             <ListItemIcon><StarOutlineRounded fontSize="small" /></ListItemIcon>
             <ListItemText primary={t('ownerPage', lang)} />
-          </MenuItem>
-        ) : null}
-        {reports ? (
-          <MenuItem key="reports" data-testid="account-menu-reports" onClick={() => go(reports.path)}>
-            <ListItemIcon><SummarizeOutlined fontSize="small" /></ListItemIcon>
-            <ListItemText primary={t('reports', lang)} />
           </MenuItem>
         ) : null}
 

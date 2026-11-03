@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { dashboardTabHref } from '../../navigation/dashboardTabs';
 
-/** Query keys that open a routine inside Today, e.g. `/today?run=212`. */
+/** Query keys that open a routine inside My day, e.g. `/dashboard?tab=myday&run=212`. */
 const RUNNER_KEYS = ['run', 'routine', 'draft', 'mode', 'return'] as const;
 
 export function hasRunner(params: URLSearchParams): boolean {
@@ -11,7 +12,8 @@ export function hasRunner(params: URLSearchParams): boolean {
 /**
  * The Today query for a routine link. Routines run beside the list on Today now, so every
  * old link (`/routines/run/12`, `/routines/run/new?routine=3&draft=9`, `/routines?run=12`)
- * maps to `/today?...`. Returns null for anything that is not a routine link.
+ * maps to `/dashboard?tab=myday&...` (My day; /today was its old address). Returns null for anything that is not a
+ * routine link.
  */
 export function todayRunnerSearch(href: string): URLSearchParams | null {
   let url: URL;
@@ -35,10 +37,10 @@ export function todayRunnerSearch(href: string): URLSearchParams | null {
   return hasRunner(next) ? next : null;
 }
 
-/** `/today?run=12` for a routine link; any other link unchanged. */
+/** `/dashboard?tab=myday&run=12` for a routine link (straight to My day, no /today hop); any other link unchanged. */
 export function todayHref(href: string): string {
   const search = todayRunnerSearch(href);
-  return search ? `/today?${search.toString()}` : href;
+  return search ? `${dashboardTabHref('myday')}&${search.toString()}` : href;
 }
 
 /** Open and close the routine runner on Today through the URL, so Back closes it on a phone. */

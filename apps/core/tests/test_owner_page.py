@@ -154,7 +154,7 @@ class OwnerPageTests(TestCase):
         ApprovalRequest.objects.create(kind='x', title='Merge 4 vendors')
         items = {i['key']: i for i in owner_page.needs_you()['items']}
         self.assertEqual((items['requests']['count'], items['requests']['detail']), (1, 'Merge 4 vendors'))
-        self.assertEqual(items['requests']['link'], '/admin/requests')
+        self.assertEqual(items['requests']['link'], '/owner/approvals')
         for key in ('time_changes', 'over_hours', 'late_returns', 'offers_to_send', 'checkins_due', 'site_errors'):
             self.assertEqual(items[key]['count'], 0, key)
 

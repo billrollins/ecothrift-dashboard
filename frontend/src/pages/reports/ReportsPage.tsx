@@ -9,16 +9,17 @@ import SalesTaxTab from './SalesTaxTab';
 const TABS = ['sales-tax'] as const;
 type TabKey = (typeof TABS)[number];
 
-export default function ReportsPage() {
+/** `embedded`: a tab of the Owner page, which carries the title; one report needs no tab row. */
+export default function ReportsPage({ embedded = false }: { embedded?: boolean }) {
   const [params, setParams] = useSearchParams();
   const asked = params.get('tab') as TabKey | null;
   const tab: TabKey = asked && TABS.includes(asked) ? asked : 'sales-tax';
   return (
     <Box>
-      <Typography variant="h5" component="h1" sx={{ fontWeight: 800 }}>Reports</Typography>
-      <Tabs value={tab} onChange={(_, v: TabKey) => setParams(v === 'sales-tax' ? {} : { tab: v })} sx={{ mb: 2 }}>
+      {embedded ? null : <Typography variant="h5" component="h1" sx={{ fontWeight: 800 }}>Reports</Typography>}
+      {embedded && TABS.length < 2 ? null : <Tabs value={tab} onChange={(_, v: TabKey) => setParams(v === 'sales-tax' ? {} : { tab: v })} sx={{ mb: 2 }}>
         <Tab value="sales-tax" label="Sales tax" sx={{ textTransform: 'none' }} />
-      </Tabs>
+      </Tabs>}
       {tab === 'sales-tax' ? <SalesTaxTab /> : null}
     </Box>
   );

@@ -6,7 +6,8 @@ const KEY = 'ecothrift.dashFixes.lastPage.v1';
 let last = '';
 
 function isDashFixes(path: string): boolean {
-  return [DASH_FIXES_PATH, OLD_DASH_FIXES_PATH].some((base) => path === base || path.startsWith(`${base}/`));
+  // The Owner page's Dash Updates tab is the same page (Dash Updates #5).
+  return [DASH_FIXES_PATH, OLD_DASH_FIXES_PATH, '/owner/updates'].some((base) => path === base || path.startsWith(`${base}/`));
 }
 
 /** Keeps the last Dash page that is not Dash Updates itself, so "Ask for an update" knows where you were. */

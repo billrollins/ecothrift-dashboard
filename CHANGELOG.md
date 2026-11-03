@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.237.0] -->
-<!-- Last reviewed: 2026-11-02 (2.237.0) -->
+<!-- Line 1 release: ## [2.238.0] -->
+<!-- Last reviewed: 2026-11-02 (2.238.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.238.0] - 2026-11-02
+
+User-facing theme: **Navigation finish: an Owner page with tabs, the Schedule open to everyone with who is on right now, a tidier sidebar logo, and routine links straight to My day (Bill, 2026-11-02).**
+
+### Changed
+- Navigation tidy-up (Dash Updates #7): routine links open My day directly (`/dashboard?tab=myday&run=…`) instead of going through `/today` first; the old `!` routines nag (`RoutinesNag`, unused since the bell replaced it) is removed. Old `/today` links still work.
+- Schedule for everyone (Bill, Dash Updates #6): every staff login opens the week's Schedule from the avatar menu, read-only, with each person's state right now from the time clock: On shift, On break, Late, or Off. Late is for fixed (Retail) shifts only, once the shift has started with no clock-in and no call-in; flexible departments' times are the plan. Call-ins, their counts and shift notes stay the managers'; only managers change the week. English and Spanish; on a phone your own row comes first.
+- Owner page with tabs (Bill, Dash Updates #5): one owner-only page from the avatar menu, with Overview (the old Owner page), Reports, Approvals (the Requests page, with the waiting count on the tab) and Dash Updates (every update, private ones too). Each tab has its own address (/owner, /owner/reports, /owner/approvals, /owner/updates); /reports and /admin/requests still work and land on their tab. The avatar menu's OWNER section has one link, Owner. No Money tab: Overview already has the Scorecard, what is owed, supplies and AI spend.
+- Sidebar logo: its block is now the top bar's height (64 px on a desk, 56 on a phone) with the logo 44 px tall, so there is less empty space above and below it and the grey line under it meets the line under the top bar (Bill, Dash Updates #32).
+- Time clock tests: the closed-day warning test pins the old Sunday + Monday closure (Mondays reopened in v2.233.1).
 
 ## [2.237.0] - 2026-11-02
 

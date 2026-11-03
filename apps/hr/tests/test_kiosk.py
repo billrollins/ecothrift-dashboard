@@ -159,10 +159,15 @@ class PreviewTests(KioskBase):
         self.assertEqual(svc.preview(self.maria, now=WED)['full_name'], 'Maria Ramirez')
 
     def test_store_closed_warning_only_for_an_unscheduled_punch_on_a_closed_day(self):
+        # Pin the old Sunday + Monday closure (Mondays reopened 2026-11-02) so MON is a closed day here.
+        from apps.core.models import AppSetting
+        from apps.webstore.services.hours import DEFAULT_HOURS
+        AppSetting.objects.update_or_create(
+            key='online_sales.hours', defaults={'value': {**DEFAULT_HOURS, 'closed_weekdays': [0, 6]}},
+        )
         self.assertTrue(svc.preview(self.maria, now=MON)['warnings']['store_closed'])
         _assign(self.maria, 'retail_reset')
         self.assertFalse(svc.preview(self.maria, now=MON)['warnings']['store_closed'])
-
 
 class PunchTests(KioskBase):
     def test_stale_fix_closes_at_the_suggested_out_and_files_the_request(self):

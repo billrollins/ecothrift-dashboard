@@ -1,7 +1,7 @@
 /** English / Spanish for the retail windows (Register, Transactions, Sale). Few words. */
 import { format } from 'date-fns';
 import { es as esLocale } from 'date-fns/locale';
-import { useAuth } from '../../../contexts/AuthContext';
+import { useLanguage } from '../../../i18n/useLanguage';
 
 export type Lang = 'en' | 'es';
 
@@ -116,14 +116,7 @@ const PAID: Record<string, Record<Lang, string>> = {
   thrift: { en: 'Thrift+', es: 'Thrift+' },
 };
 
-/** The signed-in person's language; English outside an AuthProvider (bare tests). useAuth only reads a context. */
-export function useLanguage(): Lang {
-  try {
-    return useAuth().user?.language === 'es' ? 'es' : 'en';
-  } catch {
-    return 'en';
-  }
-}
+export { useLanguage };
 
 export function useRetailCopy() {
   const lang = useLanguage();

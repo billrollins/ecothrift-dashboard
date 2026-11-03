@@ -3,6 +3,8 @@
  * shifts; every other department flexes (leave early on a slow day, come in or stay late on a busy one), so its times
  * are the plan. A shift opens to change it, remove it, or record a call-in; an empty day opens to add a shift or record
  * a call-in. Call-ins are counted per person over the last 30 and 90 days.
+ * Everyone sees the week (Dash Updates #6, 2026-11-02), read-only, with each person's state right now from the time
+ * clock (on shift, on break, late, off); call-ins, their counts and shift notes stay the managers'. English and Spanish.
  */
 import { useMemo, useState } from 'react';
 import {
@@ -32,6 +34,9 @@ import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { addDays, format, parseISO, startOfWeek } from 'date-fns';
+import { es as esLocale } from 'date-fns/locale';
+import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../i18n/useLanguage';
 import { getDepartments } from '../../api/hr.api';
 import {
   copyScheduleWeek,
@@ -42,12 +47,72 @@ import {
   recordCallIn,
   updateScheduledShift,
   type CallIn,
+  type NowState,
   type ScheduleWeek,
   type ScheduledShift,
 } from '../../api/schedule.api';
 import { ccTokens } from '../../theme';
 
 const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
+
+/** What staff read here, in English and Spanish. */
+const COPY = {
+  schedule: { en: 'Schedule', es: 'Horario' },
+  thisWeek: { en: 'This week', es: 'Esta semana' },
+  prevWeek: { en: 'Previous week', es: 'Semana anterior' },
+  nextWeek: { en: 'Next week', es: 'Semana siguiente' },
+  person: { en: 'Person', es: 'Persona' },
+  hours: { en: 'Hours', es: 'Horas' },
+  off: { en: 'Off', es: 'Libre' },
+  about: { en: 'About ', es: 'Aprox. ' },
+  on_shift: { en: 'On shift', es: 'Trabajando' },
+  on_break: { en: 'On break', es: 'En descanso' },
+  late: { en: 'Late', es: 'Tarde' },
+  couldNotLoad: { en: 'Could not load the schedule.', es: 'No se pudo cargar el horario.' },
+} satisfies Record<string, { en: string; es: string }>;
+
+/** The reader's id, or undefined outside an AuthProvider (bare tests). */
+function useMeId(): number | undefined {
+  try {
+    return useAuth().user?.id;
+  } catch {
+    return undefined;
+  }
+}
+
+function useCopy() {
+  const lang = useLanguage();
+  return {
+    tr: (key: keyof typeof COPY) => COPY[key][lang],
+    /** Day names in the reader's language. */
+    day: (d: string, pattern: string) => format(parseISO(d), pattern, lang === 'es' ? { locale: esLocale } : undefined),
+  };
+}
+
+const NOW_TONE: Record<Exclude<NowState, 'off'>, { bg: string; fg: string }> = {
+  on_shift: { bg: '#dcefdc', fg: '#1b5e20' },
+  on_break: { bg: '#fff1d6', fg: '#8a5300' },
+  late: { bg: '#fde2df', fg: '#8a1c12' },
+};
+
+/** Right now, next to a name: a small chip; Off is plain grey text. Nothing when the week is not this week. */
+function NowChip({ state }: { state: NowState | undefined }) {
+  const { tr } = useCopy();
+  if (!state) return null;
+  if (state === 'off') {
+    return <Typography component="span" variant="caption" color="text.disabled" data-testid="now-off">{tr('off')}</Typography>;
+  }
+  const tone = NOW_TONE[state];
+  return (
+    <Box
+      component="span"
+      data-testid={`now-${state}`}
+      sx={{ px: 0.75, py: 0.125, borderRadius: 1, bgcolor: tone.bg, color: tone.fg, fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap' }}
+    >
+      {tr(state)}
+    </Box>
+  );
+}
 
 export function weekLabel(start: string): string {
   const a = parseISO(start);
@@ -162,42 +227,50 @@ function ShiftDialog({ target, onClose, onSaved }: { target: Target | null; onCl
 }
 
 /** The phone view: pick a day, then one card per person with that day's shifts and call-ins. */
-function PhoneDay({ week, day, onDay, byCell, callIns, onPick }: {
+function PhoneDay({ week, day, onDay, byCell, callIns, onPick, meId }: {
   week: ScheduleWeek;
   day: string;
   onDay: (day: string) => void;
   byCell: Map<string, ScheduledShift[]>;
   callIns: Map<string, CallIn[]>;
-  onPick: (target: Target) => void;
+  /** Null when the reader cannot change the week. */
+  onPick: ((target: Target) => void) | null;
+  meId: number | undefined;
 }) {
+  const { tr, day: dayName } = useCopy();
+  // Staff read their own row first.
+  const people = onPick ? week.people : [...week.people].sort((a, b) => Number(b.id === meId) - Number(a.id === meId));
   return (
     <Box data-testid="schedule-phone">
       <Box sx={{ display: 'flex', gap: 0.5, overflowX: 'auto', pb: 1 }}>
         {week.days.map((d) => (
           <Button key={d} size="small" variant={d === day ? 'contained' : 'outlined'} onClick={() => onDay(d)} sx={{ minWidth: 56, flexShrink: 0, flexDirection: 'column', lineHeight: 1.2 }}>
-            <span>{format(parseISO(d), 'EEE')}</span>
+            <span>{dayName(d, 'EEE')}</span>
             <span>{format(parseISO(d), 'd')}</span>
           </Button>
         ))}
       </Box>
-      {week.people.map((person) => {
+      {people.map((person) => {
         const shifts = byCell.get(`${person.id}:${day}`) ?? [];
         const calls = callIns.get(`${person.id}:${day}`) ?? [];
         return (
           <Box
             key={person.id}
             data-testid={`schedule-card-${person.id}`}
-            onClick={() => onPick({ person, day, shift: shifts[0] ?? null })}
-            sx={{ p: 1.25, mb: 1, borderRadius: ccTokens.r, border: `1px solid ${ccTokens.line}`, bgcolor: ccTokens.card, cursor: 'pointer' }}
+            onClick={onPick ? () => onPick({ person, day, shift: shifts[0] ?? null }) : undefined}
+            sx={{ p: 1.25, mb: 1, borderRadius: ccTokens.r, border: `1px solid ${ccTokens.line}`, bgcolor: ccTokens.card, cursor: onPick ? 'pointer' : 'default' }}
           >
             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
               <Typography fontWeight={700} sx={{ flex: 1 }}>{person.name}</Typography>
-              <Typography variant="caption" color={person.call_ins.d30 >= 2 ? 'error.main' : 'text.secondary'}>
-                Call-ins {person.call_ins.d30} / {person.call_ins.d90}
-              </Typography>
+              <NowChip state={week.now?.[String(person.id)]} />
+              {person.call_ins ? (
+                <Typography variant="caption" color={person.call_ins.d30 >= 2 ? 'error.main' : 'text.secondary'}>
+                  Call-ins {person.call_ins.d30} / {person.call_ins.d90}
+                </Typography>
+              ) : null}
             </Box>
             <Typography variant="body2" color="text.secondary">
-              {shifts.length ? shifts.map((s) => `${s.flexible ? 'About ' : ''}${s.text}${s.department_name ? ` ${s.department_name}` : ''}`).join(', ') : 'Off'}
+              {shifts.length ? shifts.map((s) => `${s.flexible ? tr('about') : ''}${s.text}${s.department_name ? ` ${s.department_name}` : ''}`).join(', ') : tr('off')}
             </Typography>
             {calls.map((c) => (
               <Typography key={c.id} variant="caption" sx={{ color: '#8a1c12', fontWeight: 700, display: 'block' }}>
@@ -218,8 +291,16 @@ export default function SchedulePage() {
   const [target, setTarget] = useState<Target | null>(null);
   const wide = useMediaQuery(useTheme().breakpoints.up('md'));
   const [day, setDay] = useState<string | null>(null);
-  const query = useQuery({ queryKey: ['scheduleWeek', start], queryFn: async () => (await getScheduleWeek(start)).data });
+  // Every minute, so "right now" stays right (react-query pauses it while the tab is hidden).
+  const query = useQuery({
+    queryKey: ['scheduleWeek', start],
+    queryFn: async () => (await getScheduleWeek(start)).data,
+    refetchInterval: 60_000,
+  });
   const week = query.data;
+  const canEdit = Boolean(week?.can_edit);
+  const { tr, day: dayName } = useCopy();
+  const meId = useMeId();
   // Phone: one day at a time; today when it is in this week, else Monday.
   const today = fmt(new Date());
   const phoneDay = day && week?.days.includes(day) ? day : week?.days.includes(today) ? today : week?.days[0] ?? '';
@@ -256,49 +337,68 @@ export default function SchedulePage() {
   return (
     <Box sx={{ pb: 4 }} data-testid="schedule-page">
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'center' }} sx={{ mb: 1.5 }} useFlexGap flexWrap="wrap">
-        <Typography variant="h5" fontWeight={800}>Schedule</Typography>
+        <Typography variant="h5" fontWeight={800}>{tr('schedule')}</Typography>
         <Stack direction="row" alignItems="center" spacing={0.5}>
-          <IconButton aria-label="Previous week" onClick={() => move(-7)}><ChevronLeftRounded /></IconButton>
+          <IconButton aria-label={tr('prevWeek')} onClick={() => move(-7)}><ChevronLeftRounded /></IconButton>
           <Typography fontWeight={700} sx={{ minWidth: 110, textAlign: 'center' }} data-testid="schedule-week-label">{weekLabel(start)}</Typography>
-          <IconButton aria-label="Next week" onClick={() => move(7)}><ChevronRightRounded /></IconButton>
-          <Button size="small" onClick={() => setStart(fmt(startOfWeek(new Date(), { weekStartsOn: 1 })))}>This week</Button>
+          <IconButton aria-label={tr('nextWeek')} onClick={() => move(7)}><ChevronRightRounded /></IconButton>
+          <Button size="small" onClick={() => setStart(fmt(startOfWeek(new Date(), { weekStartsOn: 1 })))}>{tr('thisWeek')}</Button>
         </Stack>
         <Box sx={{ flex: 1 }} />
-        <Button variant="outlined" onClick={() => quick(() => copyScheduleWeek(fmt(addDays(parseISO(start), -7)), start), 'last week')}>
-          Copy last week
-        </Button>
-        <Button variant="outlined" onClick={() => quick(() => fillScheduleFromUsual(start), 'usual shifts')}>
-          Fill from usual shifts
-        </Button>
+        {canEdit ? (
+          <>
+            <Button variant="outlined" onClick={() => quick(() => copyScheduleWeek(fmt(addDays(parseISO(start), -7)), start), 'last week')}>
+              Copy last week
+            </Button>
+            <Button variant="outlined" onClick={() => quick(() => fillScheduleFromUsual(start), 'usual shifts')}>
+              Fill from usual shifts
+            </Button>
+          </>
+        ) : null}
       </Stack>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-        Retail shifts are fixed times. Other departments flex: the times are the plan, and people leave early on a slow
-        day or come in or stay late on a busy one. Tap a day to add a shift or record a call-in.
-      </Typography>
-      {query.isError ? <Alert severity="error">Could not load the schedule.</Alert> : null}
+      {canEdit ? (
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+          Retail shifts are fixed times. Other departments flex: the times are the plan, and people leave early on a slow
+          day or come in or stay late on a busy one. Tap a day to add a shift or record a call-in.
+        </Typography>
+      ) : null}
+      {query.isError ? <Alert severity="error">{tr('couldNotLoad')}</Alert> : null}
 
       {!wide && week ? (
-        <PhoneDay week={week} day={phoneDay} onDay={setDay} byCell={byCell} callIns={callIns} onPick={setTarget} />
+        <PhoneDay
+          week={week}
+          day={phoneDay}
+          onDay={setDay}
+          byCell={byCell}
+          callIns={callIns}
+          onPick={canEdit ? setTarget : null}
+          meId={meId}
+        />
       ) : (
       <Box sx={{ overflowX: 'auto', border: `1px solid ${ccTokens.line}`, borderRadius: ccTokens.r, bgcolor: ccTokens.card }}>
         <Box component="table" sx={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', '& td, & th': { borderBottom: `1px solid ${ccTokens.line}`, p: 0.75, verticalAlign: 'top' } }}>
           <thead>
             <tr>
-              <Box component="th" sx={{ textAlign: 'left', width: 170 }}>Person</Box>
+              <Box component="th" sx={{ textAlign: 'left', width: 170 }}>{tr('person')}</Box>
               {(week?.days ?? []).map((d) => (
-                <Box component="th" key={d} sx={{ textAlign: 'left', fontWeight: 700 }}>{format(parseISO(d), 'EEE d')}</Box>
+                <Box component="th" key={d} sx={{ textAlign: 'left', fontWeight: 700 }}>{dayName(d, 'EEE d')}</Box>
               ))}
-              <Box component="th" sx={{ textAlign: 'right', width: 60 }}>Hours</Box>
-              <Box component="th" sx={{ textAlign: 'right', width: 90 }}>
-                <Tooltip title="Call-ins and no-shows, last 30 / 90 days"><span>Call-ins</span></Tooltip>
-              </Box>
+              <Box component="th" sx={{ textAlign: 'right', width: 60 }}>{tr('hours')}</Box>
+              {canEdit ? (
+                <Box component="th" sx={{ textAlign: 'right', width: 90 }}>
+                  <Tooltip title="Call-ins and no-shows, last 30 / 90 days"><span>Call-ins</span></Tooltip>
+                </Box>
+              ) : null}
             </tr>
           </thead>
           <tbody>
             {(week?.people ?? []).map((person) => (
               <tr key={person.id} data-testid={`schedule-row-${person.id}`}>
                 <td>
-                  <Typography variant="body2" fontWeight={700}>{person.name}</Typography>
+                  <Stack direction="row" spacing={0.75} alignItems="center" useFlexGap flexWrap="wrap">
+                    <Typography variant="body2" fontWeight={700}>{person.name}</Typography>
+                    <NowChip state={week?.now?.[String(person.id)]} />
+                  </Stack>
                   <Typography variant="caption" color="text.secondary">{person.department_name}</Typography>
                 </td>
                 {(week?.days ?? []).map((day) => {
@@ -308,13 +408,13 @@ export default function SchedulePage() {
                     <Box
                       component="td"
                       key={day}
-                      onClick={() => setTarget({ person, day, shift: null })}
-                      sx={{ cursor: 'pointer', '&:hover': { bgcolor: ccTokens.bg }, minWidth: 96 }}
+                      onClick={canEdit ? () => setTarget({ person, day, shift: null }) : undefined}
+                      sx={canEdit ? { cursor: 'pointer', '&:hover': { bgcolor: ccTokens.bg }, minWidth: 96 } : { minWidth: 96 }}
                     >
                       {shifts.map((s) => (
                         <Box
                           key={s.id}
-                          onClick={(e) => { e.stopPropagation(); setTarget({ person, day, shift: s }); }}
+                          onClick={canEdit ? (e) => { e.stopPropagation(); setTarget({ person, day, shift: s }); } : undefined}
                           sx={{ px: 0.75, py: 0.25, mb: 0.5, borderRadius: 1, bgcolor: s.flexible ? ccTokens.kraftTint : ccTokens.goodTint, fontSize: 13, fontWeight: 700 }}
                           title={s.flexible ? 'Flexible: the times are the plan' : 'Fixed shift'}
                         >
@@ -331,9 +431,11 @@ export default function SchedulePage() {
                   );
                 })}
                 <Box component="td" sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{person.hours || '-'}</Box>
-                <Box component="td" sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: person.call_ins.d30 >= 2 ? 'error.main' : undefined }}>
-                  {person.call_ins.d30} / {person.call_ins.d90}
-                </Box>
+                {canEdit && person.call_ins ? (
+                  <Box component="td" sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: person.call_ins.d30 >= 2 ? 'error.main' : undefined }}>
+                    {person.call_ins.d30} / {person.call_ins.d90}
+                  </Box>
+                ) : null}
               </tr>
             ))}
           </tbody>

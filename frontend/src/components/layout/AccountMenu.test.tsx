@@ -81,14 +81,14 @@ describe('AccountMenu (me)', () => {
     expect(within(header).getByText('Employee')).toBeInTheDocument();
   });
 
-  it('gives an Employee ME and MY REQUESTS only: no Schedule, no Owner section', async () => {
+  it('gives an Employee ME (with the week Schedule) and MY REQUESTS: no Owner section', async () => {
     await openMenu();
     expect(screen.getByText('Me')).toBeInTheDocument();
     expect(screen.getByText('My requests')).toBeInTheDocument();
     expect(screen.getByTestId('account-menu-my-day')).toBeInTheDocument();
     expect(screen.getByText('My profile & PIN')).toBeInTheDocument();
     expect(screen.getByTestId('account-menu-supplies')).toBeInTheDocument();
-    expect(screen.queryByTestId('account-menu-schedule')).not.toBeInTheDocument();
+    expect(screen.getByTestId('account-menu-schedule')).toBeInTheDocument(); // everyone (Dash Updates #6)
     expect(screen.queryByText('Owner')).not.toBeInTheDocument();
     expect(screen.queryByTestId('account-menu-owner')).not.toBeInTheDocument();
     expect(screen.queryByTestId('account-menu-reports')).not.toBeInTheDocument();
@@ -111,14 +111,11 @@ describe('AccountMenu (me)', () => {
     expect(screen.getByTestId('where')).toHaveTextContent('/owner');
   });
 
-  it('opens Reports, My profile & PIN, and My day from their rows', async () => {
+  it('has one OWNER link (Reports is a tab of the Owner page), and opens My profile & PIN and My day', async () => {
     auth.role = 'Admin';
     auth.superuser = true;
     let user = await openMenu();
-    await user.click(screen.getByTestId('account-menu-reports'));
-    expect(screen.getByTestId('where')).toHaveTextContent('/reports');
-
-    await user.click(screen.getByTestId('account-menu-button'));
+    expect(screen.queryByTestId('account-menu-reports')).not.toBeInTheDocument();
     await user.click(screen.getByTestId('account-menu-me'));
     expect(screen.getByTestId('where')).toHaveTextContent('/me');
 

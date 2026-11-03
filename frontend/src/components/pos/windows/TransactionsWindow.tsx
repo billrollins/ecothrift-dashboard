@@ -73,7 +73,7 @@ export function TransactionsWindow({ scopeKey }: { scopeKey: string }) {
     setRange(next, next);
   };
   const range = oneDay ? when(`${from}T12:00:00`, 'EEEE MMM d')
-      : `${from ? when(`${from}T12:00:00`, 'MMM d') : '…'} – ${to ? when(`${to}T12:00:00`, 'MMM d') : '…'}`;
+      : `${from ? when(`${from}T12:00:00`, 'MMM d') : '…'} - ${to ? when(`${to}T12:00:00`, 'MMM d') : '…'}`;
 
   const receipt = (c: Cart) => c.receipt?.receipt_number ?? `#${c.id}`;
   // A member's own history does not repeat their name on every row.

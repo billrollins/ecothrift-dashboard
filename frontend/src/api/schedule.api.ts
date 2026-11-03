@@ -39,6 +39,8 @@ export interface CallIn {
   created_at: string;
 }
 
+export type NowState = 'on_shift' | 'on_break' | 'late' | 'off';
+
 export interface ScheduleWeek {
   start: string;
   end: string;
@@ -49,11 +51,16 @@ export interface ScheduleWeek {
     department: number | null;
     department_name: string;
     hours: number;
-    call_ins: CallInCounts;
+    /** Managers only (Dash Updates #6): staff get the week without call-ins. */
+    call_ins?: CallInCounts;
   }>;
   shifts: ScheduledShift[];
   call_ins: CallIn[];
   fixed_departments: string[];
+  /** Manager or Admin: may change the week. */
+  can_edit: boolean;
+  /** Each person's state right now (only when the week holds today), by person id. */
+  now: Record<string, NowState>;
 }
 
 export interface ShiftInput {

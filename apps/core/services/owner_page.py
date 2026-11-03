@@ -244,8 +244,8 @@ def needs_you(now: datetime | None = None) -> dict[str, Any]:
         titles = list(waiting.values_list('title', flat=True)[:3])
         failed = ApprovalRequest.objects.filter(status=ApprovalRequest.STATUS_FAILED).count()
         return [
-            _item('requests', 'Requests to approve', waiting.count(), '/admin/requests', detail='; '.join(titles)),
-            _item('requests_failed', 'Requests that failed', failed, '/admin/requests', tone='error'),
+            _item('requests', 'Requests to approve', waiting.count(), '/owner/approvals', detail='; '.join(titles)),
+            _item('requests_failed', 'Requests that failed', failed, '/owner/approvals', tone='error'),
         ]
 
     def time_changes():

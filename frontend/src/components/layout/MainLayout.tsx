@@ -95,8 +95,14 @@ export default function MainLayout() {
         overflowX: 'hidden',
       }}
     >
-      {/* The logo is home: it opens the Dashboard (its last tab). */}
-      <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'center', minWidth: 0 }}>
+      {/* The logo is home: it opens the Dashboard (its last tab). Its block is the top bar's height, so the grey line
+          under it meets the line under the top bar (Bill, Dash Updates #32). */}
+      <Box
+        sx={{
+          height: isPhoneShell ? 56 : { xs: 56, sm: 64 }, flexShrink: 0, px: 2,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 0,
+        }}
+      >
         <ButtonBase
           aria-label="Dashboard"
           data-testid="sidebar-logo"
@@ -106,7 +112,7 @@ export default function MainLayout() {
           }}
           sx={{ maxWidth: '100%', borderRadius: 1 }}
         >
-          <img src={logo} alt="Eco-Thrift" style={{ maxWidth: '100%', width: 180, height: 'auto' }} />
+          <img src={logo} alt="Eco-Thrift" style={{ display: 'block', maxWidth: '100%', height: 44, width: 'auto' }} />
         </ButtonBase>
       </Box>
       <Divider />

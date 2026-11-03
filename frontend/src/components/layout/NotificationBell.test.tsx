@@ -135,6 +135,6 @@ describe('NotificationBell', () => {
 
     await user.click(screen.getByTestId('notification-bell'));
     await user.click(screen.getByTestId('bell-row-approvals'));
-    expect(screen.getByTestId('where')).toHaveTextContent('/admin/requests');
+    expect(screen.getByTestId('where')).toHaveTextContent('/owner/approvals');
   });
 });

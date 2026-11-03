@@ -10,6 +10,7 @@ import { useRoutine } from '../../hooks/useRoutines';
 import { t } from '../../i18n/routines';
 import { CatalogPane } from './CatalogPane';
 import { todayHref } from './todayRunner';
+import { dashboardTabHref } from '../../navigation/dashboardTabs';
 import { emptyDefinition, RoutineEditorPane, type EditorPreview } from './RoutineEditorPane';
 import { RoutineIdlePhone, RoutinePreview } from './RoutinePreview';
 import { routineShellMode } from './routineMode';
@@ -39,10 +40,10 @@ export default function RoutinesPage() {
 
   if (mode === 'fill') {
     const target = todayHref(`${location.pathname}${location.search}`);
-    return <Navigate to={target.startsWith('/today') ? target : '/today'} replace />;
+    return <Navigate to={target.startsWith('/dashboard') ? target : dashboardTabHref('myday')} replace />;
   }
   if (mode === 'mine' || !user?.is_superuser) {
-    return <Navigate to="/today" replace />;
+    return <Navigate to={dashboardTabHref('myday')} replace />;
   }
 
   const left = mode === 'edit' ? (

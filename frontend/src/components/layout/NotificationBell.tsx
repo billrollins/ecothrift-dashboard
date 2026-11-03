@@ -26,7 +26,7 @@ const RED = dutyColors.red;
 const AMBER = '#B45309';
 
 /** Superusers only: approval requests waiting on the owner. Same query the Requests page uses for its Waiting tab. */
-function useWaitingApprovals(enabled: boolean): number {
+export function useWaitingApprovals(enabled: boolean): number {
   const query = useQuery({
     queryKey: ['approval-requests', 'waiting'],
     queryFn: () => fetchApprovalRequests('pending'),
@@ -175,7 +175,7 @@ export function NotificationBell() {
               label={t('approvalsWaiting', lang)}
               count={approvals}
               color={RED}
-              onClick={() => go('/admin/requests')}
+              onClick={() => go('/owner/approvals')}
               testId="bell-row-approvals"
             />
           ) : null}

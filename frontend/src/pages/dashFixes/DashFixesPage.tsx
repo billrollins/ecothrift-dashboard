@@ -40,7 +40,8 @@ function SectionTitle({ children, count, testId }: { children: string; count: nu
   );
 }
 
-export default function DashFixesPage() {
+/** `embedded`: the Owner page's Dash Updates tab, which carries the title; the page's own button stays. */
+export default function DashFixesPage({ embedded = false }: { embedded?: boolean }) {
   const { user } = useAuth();
   const lang = user?.language === 'es' ? 'es' : 'en';
   const isOwner = Boolean(user?.is_superuser);
@@ -128,15 +129,23 @@ export default function DashFixesPage() {
 
   return (
     <Box sx={{ maxWidth: desktop ? 'none' : 900, width: '100%', mx: 'auto', pb: 6 }}>
-      <PageHeader
-        title={t('dashFixes', lang)}
-        subtitle={t('fxPageSub', lang)}
-        action={
+      {embedded ? (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
           <Button variant="contained" onClick={() => setReportOpen(true)} data-testid="report-fix-button" sx={{ minHeight: 44 }}>
             {t('reportFix', lang)}
           </Button>
-        }
-      />
+        </Box>
+      ) : (
+        <PageHeader
+          title={t('dashFixes', lang)}
+          subtitle={t('fxPageSub', lang)}
+          action={
+            <Button variant="contained" onClick={() => setReportOpen(true)} data-testid="report-fix-button" sx={{ minHeight: 44 }}>
+              {t('reportFix', lang)}
+            </Button>
+          }
+        />
+      )}
 
       {isOwner ? (
         <Box data-testid="fix-json-tools" sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1 }}>

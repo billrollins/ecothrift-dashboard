@@ -59,12 +59,58 @@ class ScheduleWeekTests(APITestCase):
                                             start_time=time(9), end_time=time(15))
         self.assertTrue(schedule.shift_payload(row)['flexible'])
 
-    def test_staff_cannot_build_the_week(self):
+    def test_staff_see_the_week_but_cannot_build_it(self):
+        # Dash Updates #6 (2026-11-02): everyone sees the week, without call-ins or shift notes; only managers edit.
+        shift = ScheduledShift.objects.create(employee=self.carrie, date=MONDAY, department=self.retail,
+                                              start_time=time(9), end_time=time(15), note='Doctor at 3')
+        CallIn.objects.create(employee=self.dave, shift_date=MONDAY, reason='Sick', recorded_by=self.manager)
         self.client.force_authenticate(self.carrie)
-        self.assertEqual(self.client.get('/api/hr/schedule/week/').status_code, 403)
+        week = self.client.get('/api/hr/schedule/week/', {'start': MONDAY.isoformat()}).json()
+        self.assertFalse(week['can_edit'])
+        self.assertEqual(week['call_ins'], [])
+        self.assertEqual(set(week['people'][0]), {'id', 'name', 'department', 'department_name', 'hours'})
+        self.assertEqual(week['shifts'][0]['note'], '')
         self.assertEqual(self.client.post('/api/hr/schedule/shifts/', {
             'employee': self.carrie.pk, 'date': '2026-10-20', 'start_time': '09:00', 'end_time': '15:00'},
             format='json').status_code, 403)
+        self.assertEqual(self.client.patch(f'/api/hr/schedule/shifts/{shift.pk}/', {'note': ''}, format='json').status_code, 403)
+        self.assertEqual(self.client.delete(f'/api/hr/schedule/shifts/{shift.pk}/').status_code, 403)
+        self.assertEqual(self.client.post('/api/hr/schedule/copy-week/', {'from': '2026-10-12', 'to': '2026-10-19'},
+                                          format='json').status_code, 403)
+        self.client.force_authenticate(self.manager)
+        week = self.client.get('/api/hr/schedule/week/', {'start': MONDAY.isoformat()}).json()
+        self.assertTrue(week['can_edit'])
+        self.assertEqual(len(week['call_ins']), 1)
+        self.assertEqual(week['shifts'][0]['note'], 'Doctor at 3')
+
+    def test_who_is_on_right_now(self):
+        from apps.hr.models import TimeEntry
+        now = timezone.localtime().replace(hour=12, minute=0, second=0, microsecond=0)
+        today = now.date()
+        erin = _person('erin@x.com', department=self.retail)
+        fay = _person('fay@x.com', department=self.retail)
+        gus = _person('gus@x.com', department=self.retail)
+        for who, dept in ((self.carrie, self.retail), (self.dave, self.processing), (erin, self.retail),
+                          (fay, self.retail), (gus, self.retail)):
+            ScheduledShift.objects.create(employee=who, date=today, department=dept, start_time=time(9), end_time=time(15))
+        TimeEntry.objects.create(employee=self.manager, date=today, clock_in=now - timedelta(hours=2))
+        TimeEntry.objects.create(employee=erin, date=today, clock_in=now - timedelta(hours=3), on_break=True)
+        TimeEntry.objects.create(employee=fay, date=today, clock_in=now - timedelta(hours=3), clock_out=now - timedelta(hours=1))
+        CallIn.objects.create(employee=gus, shift_date=today, reason='Sick', recorded_by=self.manager)
+        hal = _person('hal@x.com', department=self.retail)  # closed last night: still late for today's shift
+        ScheduledShift.objects.create(employee=hal, date=today, department=self.retail, start_time=time(9), end_time=time(15))
+        TimeEntry.objects.create(employee=hal, date=today - timedelta(days=1), clock_in=now - timedelta(hours=19),
+                                 clock_out=now - timedelta(hours=14))
+        states = schedule.now_states([self.manager.pk, self.carrie.pk, self.dave.pk, erin.pk, fay.pk, gus.pk, hal.pk], now=now)
+        self.assertEqual(states, {
+            self.manager.pk: 'on_shift',  # clocked in with no shift
+            self.carrie.pk: 'late',       # Retail shift started, not clocked in
+            self.dave.pk: 'off',          # Processing flexes: not late
+            erin.pk: 'on_break',
+            fay.pk: 'off',                # worked and clocked out
+            gus.pk: 'off',                # called in reads as off
+            hal.pk: 'late',               # yesterday's clock-in does not count for today
+        })
 
     def test_copy_last_week_keeps_days_already_set(self):
         ScheduledShift.objects.create(employee=self.carrie, date=MONDAY, start_time=time(9), end_time=time(15))

@@ -257,7 +257,7 @@ export default function CalculatorTab() {
             : rebuild.data?.status === 'failed'
               ? `Saved, but the rebuild failed: ${rebuild.data.error || 'see Requests'}.`
               : `Saved. Rebuilding every floor item's ThriftBucks for launch day (a few minutes)… ${rebuild.data?.log?.split('\n').pop() ?? ''}`}{' '}
-          <RouterLink to="/admin/requests">Requests</RouterLink>
+          <RouterLink to="/owner/approvals">Requests</RouterLink>
         </Alert>
       ) : null}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '320px minmax(0, 1fr)' }, gap: 2, alignItems: 'start' }}>

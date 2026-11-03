@@ -36,6 +36,8 @@ const WEEK: ScheduleWeek = {
     { id: 21, employee: 5, employee_name: 'Carrie T', shift_date: '2026-10-22', scheduled_shift: null, shift_text: '', kind: 'called_in', kind_label: 'Called in', called_at: null, reason: 'Sick', recorded_by: 'M', created_at: '' },
   ],
   fixed_departments: ['retail-operations'],
+  can_edit: true,
+  now: {},
 };
 
 /** MUI useMediaQuery reads matchMedia: true makes every min-width query match (a 1440 px desk), false a phone. */
@@ -111,7 +113,8 @@ describe('SchedulePage', () => {
     await waitFor(() => expect(api.copyScheduleWeek).toHaveBeenCalled());
     const [from, to] = api.copyScheduleWeek.mock.calls[0];
     expect(to).toBe(start);
-    expect(new Date(`${to}T12:00`).getTime() - new Date(`${from}T12:00`).getTime()).toBe(7 * 86_400_000);
+    // UTC, so a week with a clock change (Nov 1) is still 7 days.
+    expect(new Date(`${to}T12:00Z`).getTime() - new Date(`${from}T12:00Z`).getTime()).toBe(7 * 86_400_000);
   });
 });
 
@@ -121,5 +124,21 @@ describe('schedule helpers', () => {
     expect(weekLabel('2026-10-26')).toBe('Oct 26-Nov 1');
     const weeks = groupByWeek('2026-10-19', [WEEK.shifts[0], { ...WEEK.shifts[0], id: 99, date: '2026-10-27' }]);
     expect(weeks.map((w) => w.shifts.length)).toEqual([1, 1]);
+  });
+
+  it('staff see the week read-only, with who is on right now', async () => {
+    // Dash Updates #6: no call-ins, no counts, no edit buttons; a chip for each person's state now.
+    const people = WEEK.people.map(({ call_ins: _c, ...p }) => p);
+    api.getScheduleWeek.mockResolvedValue({
+      data: { ...WEEK, people, call_ins: [], can_edit: false, now: { '5': 'late', '6': 'on_shift' } },
+    });
+    renderPage();
+    const carrie = await screen.findByTestId('schedule-row-5');
+    expect(within(carrie).getByTestId('now-late')).toHaveTextContent('Late');
+    expect(within(screen.getByTestId('schedule-row-6')).getByTestId('now-on_shift')).toHaveTextContent('On shift');
+    expect(screen.queryByText('Copy last week')).not.toBeInTheDocument();
+    expect(screen.queryByText('Call-ins')).not.toBeInTheDocument();
+    await userEvent.click(carrie.querySelectorAll('td')[2]);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

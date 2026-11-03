@@ -120,10 +120,13 @@ class CallInViewSet(viewsets.ModelViewSet):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, IsManagerOrAdmin])
+@permission_classes([IsTeamMember])
 def schedule_week_view(request):
-    """The week a manager builds: everyone, their shifts, the week's call-ins, and call-in counts (30 and 90 days)."""
-    return Response(schedule.week(schedule.parse_day(request.query_params.get('start')) or timezone.localdate()))
+    """The week: everyone, their shifts and their state right now (Dash Updates #6: every team member sees it).
+    Managers also get the week's call-ins and the call-in counts (30 and 90 days) and can edit."""
+    manager = IsManagerOrAdmin().has_permission(request, None)
+    return Response(schedule.week(schedule.parse_day(request.query_params.get('start')) or timezone.localdate(),
+                                  manager=manager))
 
 
 @api_view(['POST'])

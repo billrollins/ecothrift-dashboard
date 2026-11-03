@@ -40,7 +40,7 @@ vi.mock('../../api/owner.api', () => ({
   })),
   fetchNeedsYou: vi.fn(async () => ({
     items: [
-      { key: 'requests', label: 'Requests to approve', count: 2, link: '/admin/requests', detail: 'Merge vendors', tone: 'warning' },
+      { key: 'requests', label: 'Requests to approve', count: 2, link: '/owner/approvals', detail: 'Merge vendors', tone: 'warning' },
       { key: 'time_changes', label: 'Time-change requests', count: 0, link: '/admin/time-payroll', detail: '', tone: 'warning' },
     ],
     errors: [],
@@ -59,9 +59,9 @@ vi.mock('../../api/owner.api', () => ({
   })),
 }));
 
-function renderPage() {
+function renderPage(at = '/owner') {
   render(
-    <MemoryRouter initialEntries={['/owner']}>
+    <MemoryRouter initialEntries={[at]}>
       <QueryClientProvider client={new QueryClient()}>
         <OwnerPage />
       </QueryClientProvider>
@@ -129,10 +129,20 @@ describe('Owner page (2026-10-21)', () => {
     expect(await screen.findByTestId('owner-supply-spend')).toHaveTextContent('$75.45 this week · $327.45 this month');
   });
 
-  it('links every owner-only page but itself', () => {
+  it('links every owner-only page but itself and its own tabs', () => {
     const paths = ownerLinks().map((l) => l.path);
-    expect(paths).toEqual(expect.arrayContaining(['/admin/requests', '/thrift-plus', '/reports', '/admin/time-payroll', '/admin/qa']));
-    expect(paths).not.toContain('/owner');
+    expect(paths).toEqual(expect.arrayContaining(['/thrift-plus', '/admin/time-payroll', '/admin/qa']));
+    for (const tab of ['/owner', '/owner/reports', '/owner/approvals']) expect(paths).not.toContain(tab);
     expect(aiMoney('0')).toBe('$0.00');
+  });
+
+  it('is one page with tabs: Overview, Reports, Approvals, Dash Updates; each tab has its own address', async () => {
+    media.desktop = true;
+    renderPage('/owner/reports');
+    expect(screen.getByRole('heading', { level: 1, name: 'Owner' })).toBeInTheDocument();
+    const tabs = screen.getAllByRole('tab').map((t) => t.textContent);
+    expect(tabs).toEqual(['Overview', 'Reports', 'Approvals', 'Dash Updates']);
+    expect(screen.getByTestId('owner-tab-reports')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByTestId('owner-supply-spend')).not.toBeInTheDocument();
   });
 });

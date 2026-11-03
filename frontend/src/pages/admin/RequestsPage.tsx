@@ -233,7 +233,8 @@ function Detail({ req }: { req: ApprovalRequest }) {
  * Superuser → Requests: routine data work staged in production waits here for the owner.
  * Approve starts it in the background (it can be undone); Reject closes it. J/K move.
  */
-export default function RequestsPage() {
+/** `embedded`: the Owner page's Approvals tab, which carries the title. */
+export default function RequestsPage({ embedded = false }: { embedded?: boolean }) {
   const [tab, setTab] = useState('waiting');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const statuses = TABS.find((t) => t.value === tab)?.statuses;
@@ -261,7 +262,7 @@ export default function RequestsPage() {
   return (
     <Box>
       <Stack direction="row" alignItems="center">
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 800, flex: 1 }}>Requests</Typography>
+        {embedded ? <Box sx={{ flex: 1 }} /> : <Typography variant="h5" component="h1" sx={{ fontWeight: 800, flex: 1 }}>Requests</Typography>}
         <Button href="/admin/qa">Data QA checks</Button>
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>

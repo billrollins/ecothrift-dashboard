@@ -20,7 +20,6 @@ vi.mock('./PhoneTabBar', () => ({ PhoneTabBar: () => null }));
 vi.mock('./ClockPill', () => ({ ClockPill: () => <div data-testid="clock-pill-slot" /> }));
 vi.mock('./NotificationBell', () => ({ NotificationBell: () => <div data-testid="bell-slot" /> }));
 vi.mock('./AccountMenu', () => ({ AccountMenu: () => <div data-testid="avatar-slot" /> }));
-vi.mock('../routines/RoutinesNag', () => ({ RoutinesNag: () => <div data-testid="old-nag" /> }));
 vi.mock('../messages/MessagesEnvelope', () => ({ MessagesEnvelope: () => <div data-testid="old-envelope" /> }));
 
 function Where() {

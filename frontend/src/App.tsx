@@ -114,10 +114,8 @@ const AuctionDetailPage = lazy(() => import('./pages/buying/AuctionDetailPage'))
 const WatchlistPage = lazy(() => import('./pages/buying/WatchlistPage'));
 const WishListPage = lazy(() => import('./pages/buying/WishListPage'));
 const ReportCardsPage = lazy(() => import('./pages/buying/ReportCardsPage'));
-const RequestsPage = lazy(() => import('./pages/admin/RequestsPage'));
 const QAPage = lazy(() => import('./pages/admin/QAPage'));
 const ThriftPlusPage = lazy(() => import('./pages/thriftplus/ThriftPlusPage'));
-const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'));
 const OwnerPage = lazy(() => import('./pages/owner/OwnerPage'));
 const PartsCommandCenterPage = lazy(() => import('./pages/restoration/parts/PartsCommandCenterPage'));
 const RestorationQueuePage = lazy(() => import('./pages/restoration/queue/RestorationQueuePage'));
@@ -216,6 +214,12 @@ function OwnerOrAdminRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (!user?.is_superuser && user?.role !== 'Admin') return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
+}
+
+/** A moved page: same query string (e.g. Reports' ?tab=), new address. */
+function KeepSearchRedirect({ to }: { to: string }) {
+  const { search } = useLocation();
+  return <Navigate to={`${to}${search}`} replace />;
 }
 
 function SuperAdminRoute({ children }: { children: React.ReactNode }) {
@@ -497,7 +501,7 @@ function AppRoutes() {
           }
         />
         <Route
-          path="/owner"
+          path="/owner/*"
           element={
             <SuperAdminRoute>
               <OwnerPage />
@@ -512,22 +516,9 @@ function AppRoutes() {
             </SuperAdminRoute>
           }
         />
-        <Route
-          path="/admin/requests"
-          element={
-            <SuperAdminRoute>
-              <RequestsPage />
-            </SuperAdminRoute>
-          }
-        />
-        <Route
-          path="/reports"
-          element={
-            <SuperAdminRoute>
-              <ReportsPage />
-            </SuperAdminRoute>
-          }
-        />
+        {/* Reports and Requests are Owner page tabs since Dash Updates #5; the old addresses keep working. */}
+        <Route path="/admin/requests" element={<KeepSearchRedirect to="/owner/approvals" />} />
+        <Route path="/reports" element={<KeepSearchRedirect to="/owner/reports" />} />
         <Route
           path="/admin/qa"
           element={
@@ -614,11 +605,10 @@ function AppRoutes() {
         <Route
           path="/people/schedule"
           element={
-            <ManagerRoute>
-              <Suspense fallback={<LoadingScreen message="Loading…" />}>
-                <SchedulePage />
-              </Suspense>
-            </ManagerRoute>
+            // Everyone sees the week (Dash Updates #6); only managers change it (the API says can_edit).
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <SchedulePage />
+            </Suspense>
           }
         />
         <Route

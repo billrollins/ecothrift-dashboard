@@ -43,11 +43,11 @@ describe('bstockHandoff', () => {
   });
 
   it('returns only to a fresh in-app path', () => {
-    expect(bstockReturnPath()).toBe('/today');
+    expect(bstockReturnPath()).toBe('/dashboard?tab=myday');
     rememberBstockReturn('/routines/run/9');
     expect(bstockReturnPath()).toBe('/routines/run/9');
     rememberBstockReturn('//evil.example/x');
-    expect(bstockReturnPath()).toBe('/today');
+    expect(bstockReturnPath()).toBe('/dashboard?tab=myday');
   });
 
   it('tells other tabs a login arrived', () => {

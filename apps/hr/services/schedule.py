@@ -8,7 +8,9 @@
   ``hr.fixed_schedule_departments`` (department slugs, default ``["retail-operations"]``).
 - **My week.** Each person sees their own shifts for this week and next (Me page).
 - **Call-ins.** Who, which shift, when they called (or a no-call no-show) and why; counted per person over the last 30
-  and 90 days.
+  and 90 days. Managers only: staff see the week without them.
+- **Right now** (Bill, Dash Updates #6, 2026-11-02). Everyone sees the week, and next to each person their state now from
+  the time clock: on shift, on break, late (a shift that has started, not clocked in, no call-in) or off.
 """
 from __future__ import annotations
 
@@ -112,7 +114,39 @@ def schedulable_people():
             .order_by('employee__department__sort_order', 'first_name', 'last_name'))
 
 
-def week(start: date) -> dict:
+def now_states(people_ids, now: datetime | None = None) -> dict[int, str]:
+    """{person id: 'on_shift' | 'on_break' | 'late' | 'off'} right now, from the time clock and today's shifts.
+
+    Late is for fixed shifts only (Retail): flexible departments' times are the plan, so coming in later is not late.
+    Late = the shift has started and not ended, nobody clocked in today, and no call-in today (a call-in reads as off,
+    like any day off). A clock-in left open since before yesterday is a forgotten clock-out, not "on shift"."""
+    from apps.hr.models import CallIn, ScheduledShift, TimeEntry
+
+    now = timezone.localtime(now or timezone.now())
+    today = now.date()
+    ids = set(people_ids)
+    states = {pk: 'off' for pk in ids}
+    fixed = fixed_departments()
+    called = set(CallIn.objects.filter(shift_date=today, employee_id__in=ids).values_list('employee_id', flat=True))
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    clocked_today = set(TimeEntry.objects.filter(employee_id__in=ids, clock_in__gte=midnight)
+                        .values_list('employee_id', flat=True))
+    wall = now.replace(tzinfo=None)
+    for s in ScheduledShift.objects.filter(date=today, employee_id__in=ids).select_related('department'):
+        if not (s.department and s.department.slug in fixed):
+            continue
+        start = datetime.combine(s.date, s.start_time)
+        end = datetime.combine(s.date, s.end_time)
+        if end <= start:
+            end += timedelta(days=1)
+        if start <= wall < end and s.employee_id not in called and s.employee_id not in clocked_today:
+            states[s.employee_id] = 'late'
+    for entry in TimeEntry.objects.filter(employee_id__in=ids, clock_out__isnull=True, clock_in__gte=now - timedelta(hours=16)):
+        states[entry.employee_id] = 'on_break' if entry.on_break else 'on_shift'
+    return states
+
+
+def week(start: date, *, manager: bool = True) -> dict:
     from apps.hr.models import CallIn, ScheduledShift
 
     start = week_start(start)
@@ -127,7 +161,8 @@ def week(start: date) -> dict:
     hours: dict[int, float] = {}
     for s in shifts:
         hours[s.employee_id] = round(hours.get(s.employee_id, 0) + shift_hours(s), 2)
-    return {
+    today = timezone.localdate()
+    payload = {
         'start': start.isoformat(), 'end': end.isoformat(),
         'days': [(start + timedelta(days=n)).isoformat() for n in range(7)],
         'people': [
@@ -139,7 +174,16 @@ def week(start: date) -> dict:
         'shifts': [shift_payload(s, fixed) for s in shifts],
         'call_ins': [call_in_payload(c) for c in call_ins],
         'fixed_departments': sorted(fixed),
+        'can_edit': manager,
+        'now': {str(k): v for k, v in now_states(ids).items()} if start <= today <= end else {},
     }
+    if not manager:  # Call-ins (with reasons) and shift notes are the manager's: staff see the times only.
+        payload['call_ins'] = []
+        for person in payload['people']:
+            person.pop('call_ins')
+        for shift in payload['shifts']:
+            shift['note'] = ''
+    return payload
 
 
 def my_week(user, start: date | None = None) -> dict:

@@ -71,7 +71,7 @@ export default function QAPage() {
             {' '}Fixes wait in Requests for your OK.
           </Typography>
         </Box>
-        <Button href="/admin/requests">Requests</Button>
+        <Button href="/owner/approvals">Requests</Button>
         <Button variant="outlined" disabled={latest.data?.running || runNow.isPending} onClick={() => runNow.mutate()}>
           Run now
         </Button>
