@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.247.0] -->
-<!-- Last reviewed: 2026-11-03 (2.247.0) -->
+<!-- Line 1 release: ## [2.248.0] -->
+<!-- Last reviewed: 2026-11-03 (2.248.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.248.0] - 2026-11-03
+
+﻿User-facing theme: **Online Sales listing templates: Standard and Phone / device, with a phone test report (Bill, 2026-11-03; Dash Updates #51).**
+
+### Added
+- Listing Studio: a Template picker (Standard, Phone / device). Phone / device adds a Phone test: "Did we test it?" first; then Turns on, Charges, Holds a charge (Pass / Fail / Not checked), Carrier locked (and which carrier) and Demo locked; also screen and touch, buttons, speaker and mic, cameras, Wi-Fi, iCloud / Google lock, battery health %, storage and a note for buyers. Beside it, the report as the shop will show it.
+- Shop listing: "Tested by Eco-Thrift" with the date, one row per check with a mark and the result in words. Shown only when tested is Yes; Bill's five always, the other checks only when checked. Switching back to Standard keeps the test but hides it.
+- Facebook copy carries the report as plain text.
+- The server checks every value (apps/webstore/listing_templates.py, one registry so more templates can be added) and stamps the test date and who saved it. Migration webstore 0024.
 
 ## [2.247.0] - 2026-11-03
 

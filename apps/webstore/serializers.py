@@ -1,5 +1,8 @@
 """Serializers for the curated web catalog and reservations."""
+from django.utils import timezone
 from rest_framework import serializers
+
+from .listing_templates import clean_device_test
 
 from .models import (
     Announcement,
@@ -94,6 +97,8 @@ class WebListingSerializer(serializers.ModelSerializer):
     available = serializers.IntegerField(read_only=True)
     image_count = serializers.IntegerField(source='images.count', read_only=True)
     readiness_errors = serializers.SerializerMethodField()
+    device_report = serializers.JSONField(read_only=True)
+    device_tested_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = WebListing
@@ -104,6 +109,7 @@ class WebListingSerializer(serializers.ModelSerializer):
             'on_hand', 'reserved', 'available', 'stock',
             'status', 'status_display', 'featured',
             'return_policy', 'return_policy_display',
+            'template', 'device_test', 'device_tested_on', 'device_tested_by_name', 'device_report',
             'fb_title', 'fb_body', 'fb_posted_url', 'fb_posted_at',
             'images', 'image_count', 'channel_publications',
             'on_sale', 'is_available', 'readiness_errors',
@@ -115,20 +121,43 @@ class WebListingSerializer(serializers.ModelSerializer):
             'images', 'image_count', 'channel_publications',
             'on_sale', 'is_available', 'readiness_errors',
             'created_by', 'published_at', 'archived_at', 'created_at', 'updated_at',
-            'fb_posted_at',
+            'fb_posted_at', 'device_tested_on', 'device_tested_by_name', 'device_report',
         ]
 
     def get_readiness_errors(self, obj):
         return obj.publish_readiness_errors()
 
+    def get_device_tested_by_name(self, obj):
+        u = obj.device_tested_by
+        return ((u.full_name or '').strip() or u.email) if u else None
+
+    def validate_device_test(self, value):
+        return clean_device_test(value)
+
+    def _stamp_test(self, validated_data, before):
+        # A changed, tested report is stamped with today and whoever saved it.
+        test = validated_data.get('device_test')
+        if test is not None and test.get('tested') and test != (before or {}):
+            request = self.context.get('request')
+            validated_data['device_tested_on'] = timezone.localdate()
+            validated_data['device_tested_by'] = getattr(request, 'user', None) if request else None
+
+    def create(self, validated_data):
+        self._stamp_test(validated_data, None)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        self._stamp_test(validated_data, instance.device_test)
+        return super().update(instance, validated_data)
+
     def validate_status(self, value):
         if value == 'published':
             raise serializers.ValidationError(
-                'Use POST …/publish/ to publish a listing; status cannot be set to published here.',
+                'Use POST â€¦/publish/ to publish a listing; status cannot be set to published here.',
             )
         if value == 'sold':
             raise serializers.ValidationError(
-                'Use POST …/mark-sold/ to mark a listing sold; status cannot be set to sold here.',
+                'Use POST â€¦/mark-sold/ to mark a listing sold; status cannot be set to sold here.',
             )
         return value
 
@@ -167,10 +196,11 @@ class WebListingDetailPublicSerializer(WebListingListPublicSerializer):
     images = serializers.SerializerMethodField()
     return_policy = serializers.CharField(read_only=True)
     hold_policy = serializers.SerializerMethodField()
+    device_report = serializers.JSONField(read_only=True)
 
     class Meta(WebListingListPublicSerializer.Meta):
         fields = WebListingListPublicSerializer.Meta.fields + [
-            'description', 'sku', 'images', 'return_policy', 'hold_policy',
+            'description', 'sku', 'images', 'return_policy', 'hold_policy', 'template', 'device_report',
         ]
 
     def get_images(self, obj):
@@ -253,7 +283,7 @@ class ReservationStaffSerializer(serializers.ModelSerializer):
     # Unread count on the hold's own thread, so the holds queue can show that a
     # customer wrote in without staff opening the Messages tab.
     unread = serializers.SerializerMethodField()
-    # Deep-link into Customers → Messages when this hold has a thread.
+    # Deep-link into Customers â†’ Messages when this hold has a thread.
     conversation_id = serializers.SerializerMethodField()
     has_messages = serializers.SerializerMethodField()
     # Full action history for the Status column hover - who did what, when.

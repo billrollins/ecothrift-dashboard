@@ -30,6 +30,7 @@ import {
   listingImageFullUrl,
   type WebListingImage,
 } from '../../api/webstore.api';
+import { DeviceReportView, DeviceTestForm, TEMPLATE_OPTIONS } from './DeviceTestSection';
 import { ListingStatusChip } from './presentation';
 import { ListingPhotoDropzone } from './photos/ListingPhotoDropzone';
 import { ListingPhotoEditorDialog } from './photos/ListingPhotoEditorDialog';
@@ -358,6 +359,24 @@ export default function ListingStudioPage() {
               multiline
               minRows={4}
             />
+            <TextField
+              select
+              label="Template"
+              value={form.template}
+              onChange={(e) => setField('template', e.target.value)}
+              fullWidth
+              helperText={
+                form.template === 'standard' && form.device_test.tested
+                  ? 'The phone test is kept but not shown.'
+                  : undefined
+              }
+            >
+              {TEMPLATE_OPTIONS.map((o) => (
+                <MenuItem key={o.value} value={o.value}>
+                  {o.label}
+                </MenuItem>
+              ))}
+            </TextField>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField label="SKU" value={form.sku} onChange={(e) => setField('sku', e.target.value)} fullWidth />
               <TextField
@@ -532,6 +551,35 @@ export default function ListingStudioPage() {
             ) : null}
           </StudioSection>
         </Grid>
+
+        {form.template === 'phone' ? (
+          <>
+            <Grid size={{ xs: 12, md: 7 }} sx={{ display: 'flex' }}>
+              <StudioSection title="Phone test" caption="Shown on the listing only when tested is Yes.">
+                <DeviceTestForm
+                  test={form.device_test}
+                  onChange={(next) => setField('device_test', next)}
+                  testedLine={
+                    listing.device_tested_on
+                      ? `Tested ${formatPostedAt(`${listing.device_tested_on}T12:00:00`)}${listing.device_tested_by_name ? ` by ${listing.device_tested_by_name}` : ''}`
+                      : null
+                  }
+                />
+              </StudioSection>
+            </Grid>
+            <Grid size={{ xs: 12, md: 5 }} sx={{ display: 'flex' }}>
+              <StudioSection title="Test report on the shop" caption="Updates when the listing saves.">
+                {listing.device_report ? (
+                  <DeviceReportView report={listing.device_report} />
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Shows here once tested is Yes and saved.
+                  </Typography>
+                )}
+              </StudioSection>
+            </Grid>
+          </>
+        ) : null}
 
         <Grid size={{ xs: 12, md: 7 }} sx={{ display: 'flex' }}>
           <StudioSection

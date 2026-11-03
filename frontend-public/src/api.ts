@@ -170,6 +170,15 @@ export interface CatalogDetail extends CatalogItem {
   images: CatalogImage[]
   return_policy?: string
   hold_policy?: string
+  template?: string
+  /** Phone test report (Dash Updates #51); null for Standard or not tested. */
+  device_report?: DeviceReport | null
+}
+
+export interface DeviceReport {
+  rows: { key: string; label: string; result: string; tone: 'good' | 'bad' | 'none' }[]
+  note: string
+  tested_on: string | null
 }
 
 export interface CatalogPage {

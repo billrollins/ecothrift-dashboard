@@ -1,11 +1,11 @@
-v2.247.0 — Colour-coded cash and an Oddballs button
+v2.248.0 — Online Sales listing templates and phone test report
 
-User-facing theme: **Colour-coded cash and an Oddballs button (Bill, 2026-11-03; Dash Updates #52).**
+﻿User-facing theme: **Online Sales listing templates: Standard and Phone / device, with a phone test report (Bill, 2026-11-03; Dash Updates #51).**
 
 ### Added
-- Oddballs: a $2 bill, 50¢ pieces and $1 coins. On the register's cash window, the button sits at the end of the coin row and opens a small pop-up; on drawer counts it is one row at the end. The button shows the count ("Oddballs × 2") and never changes size. Oddballs count toward what is paid and what is counted, but are never given as change. At a close they get their own line and always go with the drop (the till never keeps them).
-
-### Changed
-- Each bill wears the colour of the real note ($100 blue, $50 pink, $20 green, $10 orange, $5 purple, $1 grey); coins are in metal tones (penny copper, the rest silver). The label is always written on it. This applies on every counter: the register's cash window and its give-back pieces, the opening, handover, spot-check and closing counts, the counted-vs-expected table, the close-out guide, the drawer's contents, deposits and safe swaps, and the till-fund and Cash page counters.
+- Listing Studio: a Template picker (Standard, Phone / device). Phone / device adds a Phone test: "Did we test it?" first; then Turns on, Charges, Holds a charge (Pass / Fail / Not checked), Carrier locked (and which carrier) and Demo locked; also screen and touch, buttons, speaker and mic, cameras, Wi-Fi, iCloud / Google lock, battery health %, storage and a note for buyers. Beside it, the report as the shop will show it.
+- Shop listing: "Tested by Eco-Thrift" with the date, one row per check with a mark and the result in words. Shown only when tested is Yes; Bill's five always, the other checks only when checked. Switching back to Standard keeps the test but hides it.
+- Facebook copy carries the report as plain text.
+- The server checks every value (apps/webstore/listing_templates.py, one registry so more templates can be added) and stamps the test date and who saved it. Migration webstore 0024.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useUpdateWebListing } from '../../hooks/useWebStore';
-import type { WebListing } from '../../api/webstore.api';
+import type { DeviceTest, WebListing } from '../../api/webstore.api';
 
 export type ListingForm = {
   title: string;
@@ -14,6 +14,8 @@ export type ListingForm = {
   category: string;
   featured: boolean;
   return_policy: string;
+  template: string;
+  device_test: DeviceTest;
   fb_title: string;
   fb_body: string;
   fb_posted_url: string;
@@ -30,6 +32,8 @@ const AUTOSAVE_KEYS = [
   'category',
   'featured',
   'return_policy',
+  'template',
+  'device_test',
   'fb_title',
   'fb_body',
 ] as const;
@@ -48,6 +52,8 @@ export function listingToForm(listing: WebListing | null | undefined): ListingFo
     category: listing?.category != null ? String(listing.category) : '',
     featured: Boolean(listing?.featured),
     return_policy: listing?.return_policy || 'final_sale',
+    template: listing?.template || 'standard',
+    device_test: listing?.device_test || {},
     fb_title: listing?.fb_title || '',
     fb_body: listing?.fb_body || '',
     fb_posted_url: listing?.fb_posted_url || '',
@@ -67,6 +73,8 @@ function formToPatch(form: ListingForm, keys: string[]): Record<string, unknown>
     if (key === 'category') data.category = form.category ? Number(form.category) : null;
     if (key === 'featured') data.featured = form.featured;
     if (key === 'return_policy') data.return_policy = form.return_policy;
+    if (key === 'template') data.template = form.template;
+    if (key === 'device_test') data.device_test = form.device_test;
     if (key === 'fb_title') data.fb_title = form.fb_title;
     if (key === 'fb_body') data.fb_body = form.fb_body;
   }
@@ -108,7 +116,7 @@ export function useListingDraft(listing: WebListing | null | undefined) {
     });
   }, [listing]);
 
-  const setField = useCallback((key: keyof ListingForm, value: string | boolean) => {
+  const setField = useCallback((key: keyof ListingForm, value: string | boolean | DeviceTest) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     dirtyRef.current.add(key);
     setDirtyVersion((v) => v + 1);

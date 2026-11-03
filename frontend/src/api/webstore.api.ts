@@ -78,6 +78,22 @@ export interface ChannelPublication {
   updated_at: string;
 }
 
+/** The phone test as stored (Dash Updates #51). Checks: pass | fail | not_checked; locks: no | yes | not_checked. */
+export type DeviceTest = {
+  tested?: boolean;
+  battery_health?: number | null;
+  storage?: string;
+  carrier?: string;
+  carrier_other?: string;
+  note?: string;
+} & Record<string, string | number | boolean | null | undefined>;
+
+export interface DeviceReport {
+  rows: { key: string; label: string; result: string; tone: 'good' | 'bad' | 'none' }[];
+  note: string;
+  tested_on: string | null;
+}
+
 export interface WebListing {
   id: number;
   title: string;
@@ -101,6 +117,13 @@ export interface WebListing {
   featured: boolean;
   return_policy: string;
   return_policy_display: string;
+  /** 'standard' | 'phone' (apps/webstore/listing_templates.py). */
+  template: string;
+  device_test: DeviceTest;
+  device_tested_on: string | null;
+  device_tested_by_name: string | null;
+  /** What the shop shows; null for Standard or not tested. */
+  device_report: DeviceReport | null;
   fb_title: string;
   fb_body: string;
   fb_posted_url: string;

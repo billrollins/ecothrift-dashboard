@@ -22,6 +22,7 @@ from rest_framework.throttling import SimpleRateThrottle
 from apps.accounts.permissions import IsManagerOrAdmin
 from apps.core.models import S3File
 
+from .listing_templates import report_text
 from .models import (
     Announcement,
     AnnouncementImage,
@@ -120,7 +121,7 @@ def _ensure_channel_rows(listing: WebListing) -> None:
 class WebListingViewSet(viewsets.ModelViewSet):
     queryset = (
         WebListing.objects
-        .select_related('category', 'item')
+        .select_related('category', 'item', 'device_tested_by')
         .prefetch_related('images__s3_file', 'images__variants__s3_file', 'channel_publications')
         .all()
     )
@@ -254,12 +255,15 @@ class WebListingViewSet(viewsets.ModelViewSet):
     def generate_fb_copy(self, request, pk=None):
         listing = self.get_object()
         title = listing.title[:200]
+        # The phone test report rides along as plain text (Dash Updates #51); empty for Standard or untested.
+        report = report_text(listing.template, listing.device_test, listing.device_tested_on)
         body = (
             f"{listing.title}\n"
             f"Condition: {listing.get_condition_display()}\n"
             f"Price: ${listing.price}\n\n"
             f"{(listing.description or '').strip()}\n\n"
-            f"Request a hold at ecothrift.us/shop/{listing.slug}\n"
+            + (f"{report}\n\n" if report else '')
+            + f"Request a hold at ecothrift.us/shop/{listing.slug}\n"
             f"Pay & pick up in store - no shipping or online payment."
         ).strip()
         listing.fb_title = title

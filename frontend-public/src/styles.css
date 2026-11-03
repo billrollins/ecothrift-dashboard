@@ -1891,3 +1891,18 @@ main:has(.home) + .ft { margin-top: 0; }
 @media (prefers-reduced-motion: reduce) {
   .ann--banner, .ann--sale.ann--banner { animation: none; }
 }
+
+/* Phone test report on a listing (Dash Updates #51): marks and words, never colour alone. */
+.devreport { margin: 4px 0 18px; border: 1px solid var(--line2); border-radius: var(--radius); background: var(--surface); }
+.devreport-title { margin: 0; padding: 11px 14px; font: 700 14px/1.3 var(--fbody); color: var(--ink); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.devreport-date { font-weight: 600; color: var(--muted); }
+.devreport-rows { margin: 0; padding: 4px 14px; }
+.devreport-row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; font-size: 14px; border-bottom: 1px solid var(--line); }
+.devreport-row:last-child { border-bottom: 0; }
+.devreport-row dt { color: #2c3530; }
+.devreport-row dd { margin: 0; font-weight: 700; text-align: right; }
+.devreport-mark { margin-right: 5px; }
+.devreport-good { color: var(--brand); }
+.devreport-bad { color: #b3261e; }
+.devreport-none { color: var(--muted); font-weight: 600; }
+.devreport-note { margin: 0; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13.5px; color: #2c3530; line-height: 1.5; }

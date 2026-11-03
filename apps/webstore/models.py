@@ -13,6 +13,8 @@ from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
 
+from .listing_templates import TEMPLATE_CHOICES, report_rows
+
 
 def _public_status_token() -> str:
     return secrets.token_urlsafe(24)
@@ -79,6 +81,16 @@ class WebListing(models.Model):
         max_length=32, choices=RETURN_POLICY_CHOICES, default='final_sale',
     )
 
+    # Template and the phone test report (Dash Updates #51): apps/webstore/listing_templates.py. Switching back to
+    # Standard keeps the report but hides it.
+    template = models.CharField(max_length=20, default='standard', choices=TEMPLATE_CHOICES)
+    device_test = models.JSONField(default=dict, blank=True)
+    device_tested_on = models.DateField(null=True, blank=True)
+    device_tested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='web_listings_device_tested',
+    )
+
     fb_title = models.CharField(max_length=200, blank=True, default='')
     fb_body = models.TextField(blank=True, default='')
     fb_posted_url = models.URLField(blank=True, default='')
@@ -129,6 +141,18 @@ class WebListing(models.Model):
     @property
     def on_sale(self) -> bool:
         return bool(self.compare_at_price and self.compare_at_price > self.price)
+
+    @property
+    def device_report(self) -> dict | None:
+        """The test report the shop shows, or None (Standard template, or not tested)."""
+        rows = report_rows(self.template, self.device_test)
+        if rows is None:
+            return None
+        return {
+            'rows': rows,
+            'note': (self.device_test or {}).get('note') or '',
+            'tested_on': self.device_tested_on.isoformat() if self.device_tested_on else None,
+        }
 
     @property
     def is_available(self) -> bool:

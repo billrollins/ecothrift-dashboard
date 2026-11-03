@@ -8,6 +8,7 @@ import {
   rememberMyRequest,
   type CatalogDetail,
 } from '../api'
+import DeviceReportCard from '../components/DeviceReportCard'
 import ListingLightbox from '../components/ListingLightbox'
 import { useAuth } from '../auth'
 import { useCart } from '../cart'
@@ -200,6 +201,8 @@ export default function ProductDetailPage() {
               ))}
             </div>
           ) : null}
+
+          {listing.device_report ? <DeviceReportCard report={listing.device_report} /> : null}
 
           {listing.available > 0 ? (
             <div className="addrow">
