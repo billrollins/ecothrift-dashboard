@@ -63,6 +63,7 @@ import { useManagerOk } from '../../components/pos/ManagerOkDialog';
 import TaxExemptDialog, { taxExemptText, type TaxExemptInput } from '../../components/pos/TaxExemptDialog';
 import CashWindow from '../../components/pos/CashWindow';
 import DrawerContentsDialog, { DrawerChip } from '../../components/pos/DrawerContentsDialog';
+import { useObjectModal } from '../../components/objects/ObjectModal';
 import { tp } from '../../i18n/pos';
 import CountCheckDialog from '../../components/pos/CountCheckDialog';
 import { useRegisterCover } from '../../components/pos/RegisterCover';
@@ -288,6 +289,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   /** The cash window (2026-11-02): open for Cash or for the cash part of a Split. */
   const [cashWindow, setCashWindow] = useState<'cash' | 'split' | null>(null);
   const [drawerViewOpen, setDrawerViewOpen] = useState(false);
+  const { openObject } = useObjectModal();
   // After a cash sale: what Dash says to give back, until the next sale starts.
   const [giveBack, setGiveBack] = useState<{ change: string; text: string; short: boolean } | null>(null);
   // A receipt that did not print (2026-10-21, REG-03): a box that stays until someone deals with it. For a cash sale
@@ -2677,7 +2679,12 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                 contents={drawerContents}
                 practice={Boolean(todayDrawer?.register_is_training)}
                 lang={lang}
-                onClick={() => setDrawerViewOpen(true)}
+                onClick={() => {
+                  // The Drawer window (Retail 2): the chip opens the whole drawer; the cash window keeps the quick view.
+                  const drawerId = isRegister ? todayDrawer?.id : managerDrawerId;
+                  if (typeof drawerId === 'number') openObject({ type: 'drawer', id: drawerId });
+                  else setDrawerViewOpen(true);
+                }}
               />
             )}
             <Chip

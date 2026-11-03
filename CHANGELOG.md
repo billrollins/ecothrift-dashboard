@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.236.0] -->
-<!-- Last reviewed: 2026-11-02 (2.236.0) -->
+<!-- Line 1 release: ## [2.237.0] -->
+<!-- Last reviewed: 2026-11-02 (2.237.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.237.0] - 2026-11-02
+
+User-facing theme: **Drawer window: one drawer in one window, with the cash in it by bill and coin and every count beside what Dash expected (Bill, 2026-11-02; Dash Updates #36).**
+
+### Added
+- Drawer window: who has it, when it opened, the cash in it now by bill and coin, each count (opening, handover, closing) with what was counted, what Dash expected and the difference (tap a count for it by bill), the drawer's sales and today's timeline. Counts stay blind: while a drawer is open a cashier sees what was counted, not what was expected. Cashiers see today's drawers; past drawers are for managers. English and Spanish; full screen on a phone. Opens from the Drawers page ("This drawer"), the Register window's Drawer line and the terminal's "Drawer $X". API: `GET /api/pos/drawers/<id>/card/`.
 
 ## [2.236.0] - 2026-11-02
 

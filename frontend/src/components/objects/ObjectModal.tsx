@@ -9,7 +9,7 @@
  *
  * - An item opens the universal Item modal (`ItemCard.tsx`): read-only, every department's view, Edit for the editor.
  * - On a phone the modal is full screen.
- * - Retail windows (Retail 2, 2026-11-02): a register, a sale, and a Transactions list (`type: 'history'`, its id is
+ * - Retail windows (Retail 2, 2026-11-02): a register, a drawer, a sale, and a Transactions list (`type: 'history'`, its id is
  *   the scope as one string: `historyKey()` in `components/pos/windows/historyScope.ts`).
  *
  * MainLayout puts one `<ObjectModalProvider>` around every staff page; a page wraps its own to keep the open
@@ -38,6 +38,8 @@ const ItemManagePanel = lazy(() =>
 const OrderDetailPage = lazy(() => import('../../pages/inventory/OrderDetailPage'));
 const RegisterWindow = lazy(() =>
   import('../pos/windows/RegisterWindow').then((m) => ({ default: m.RegisterWindow })));
+const DrawerWindow = lazy(() =>
+  import('../pos/windows/DrawerWindow').then((m) => ({ default: m.DrawerWindow })));
 const SaleWindow = lazy(() => import('../pos/windows/SaleWindow').then((m) => ({ default: m.SaleWindow })));
 const TransactionsWindow = lazy(() =>
   import('../pos/windows/TransactionsWindow').then((m) => ({ default: m.TransactionsWindow })));
@@ -48,6 +50,7 @@ export type ObjectRef =
   | { type: 'item'; id: number }
   | { type: 'order'; id: number }
   | { type: 'register'; id: number }
+  | { type: 'drawer'; id: number }
   | { type: 'sale'; id: number }
   /** A Transactions list; the id is its scope (`historyKey`). */
   | { type: 'history'; id: string }
@@ -61,16 +64,17 @@ const LABEL: Record<ObjectRef['type'], string> = {
   order: 'Order',
   'new-checkin': 'Add items',
   register: 'Register',
+  drawer: 'Drawer',
   sale: 'Sale',
   history: 'Transactions',
 };
 /** The retail windows' header word in Spanish (their staff read them in either language). */
-const LABEL_ES: Partial<Record<ObjectRef['type'], string>> = { register: 'Caja', sale: 'Venta', history: 'Ventas' };
+const LABEL_ES: Partial<Record<ObjectRef['type'], string>> = { register: 'Caja', drawer: 'Cajón', sale: 'Venta', history: 'Ventas' };
 
-type LinkType = 'product' | 'checkin' | 'item' | 'order' | 'register' | 'sale';
+type LinkType = 'product' | 'checkin' | 'item' | 'order' | 'register' | 'drawer' | 'sale';
 
 export function parseObjectRef(raw: string | null | undefined): ObjectRef | null {
-  const m = (raw || '').match(/^(product|checkin|item|order|register|sale):(\d+)$/i);
+  const m = (raw || '').match(/^(product|checkin|item|order|register|drawer|sale):(\d+)$/i);
   if (!m) return null;
   return { type: m[1].toLowerCase() as LinkType, id: Number.parseInt(m[2], 10) };
 }
@@ -249,6 +253,7 @@ export function ObjectModalProvider({
                   {current.type === 'product' && <ProductBody id={current.id} onDone={closeObject} />}
                   {current.type === 'order' && <OrderDetailPage orderId={current.id} embedded />}
                   {current.type === 'register' && <RegisterWindow id={current.id} />}
+                  {current.type === 'drawer' && <DrawerWindow id={current.id} />}
                   {current.type === 'sale' && <SaleWindow id={current.id} />}
                   {current.type === 'history' && <TransactionsWindow scopeKey={current.id} />}
                 </Suspense>

@@ -32,6 +32,7 @@ const STRINGS = {
   total: { en: 'Total', es: 'Total' },
   close: { en: 'Close', es: 'Cerrar' },
   back: { en: 'Back', es: 'Atras' },
+  coinsCounter: { en: 'Coins', es: 'Monedas' },
 } as const;
 
 export type PosStringKey = keyof typeof STRINGS;

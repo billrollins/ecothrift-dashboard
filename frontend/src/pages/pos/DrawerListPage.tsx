@@ -56,7 +56,6 @@ import { format } from 'date-fns';
 import { IconAdd as Add, IconRemove as Remove } from '../../icons/ecoIcons';
 import { TRAINING_REGISTER_LABEL, sortRegistersForSetup } from '../../utils/trainingRegister';
 import { ObjectLink, useObjectModal } from '../../components/objects/ObjectModal';
-import { historyKey } from '../../components/pos/windows/historyScope';
 
 const DRAWER_LIST_PARAMS = { include_training: 1 };
 
@@ -412,12 +411,10 @@ export default function DrawerListPage() {
                       <Button
                         size="small"
                         sx={{ mt: 0.5, px: 0 }}
-                        onClick={() => openObject({
-                          type: 'history',
-                          id: historyKey({ drawer: drawer.id, from: drawer.date, to: drawer.date, title: reg.name }),
-                        })}
+                        onClick={() => openObject({ type: 'drawer', id: drawer.id })}
+                        data-testid={`drawer-window-${drawer.id}`}
                       >
-                        This drawer&apos;s sales
+                        This drawer
                       </Button>
                       {isOpen && (
                         <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>

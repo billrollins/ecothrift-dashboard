@@ -121,3 +121,80 @@ class CartWindowFilterTests(_CartCardSurchargeFixtures, TestCase):
         CartMember.objects.create(cart=mine, account=account, person=first, card=card)
         r = self.client.get('/api/pos/carts/', {'member': second.id, 'status': 'all'})
         self.assertEqual([row['id'] for row in r.json()['results']], [mine.id])
+
+
+class DrawerCardTests(_CartCardSurchargeFixtures, TestCase):
+    """The Drawer window (Retail 2 step 1, 2026-11-02): cash now by bill, every count, blind while open."""
+
+    def setUp(self):
+        super().setUp()
+        Drawer.objects.filter(pk=self.drawer.pk).update(
+            date=timezone.localdate(), contents={'twenties': 3, 'ones': 10, 'quarters': 8},
+            opening_count={'tens': 5}, opening_total=Decimal('50.00'), opening_expected={'tens': 5, 'ones': 2},
+        )
+        self.drawer.refresh_from_db()
+        from apps.pos.models import DrawerHandoff
+        DrawerHandoff.objects.create(drawer=self.drawer, outgoing_cashier=self.user, incoming_cashier=self.user,
+                                     counted_at=timezone.now(), count={'twenties': 3}, counted_total=Decimal('60'),
+                                     expected_count={'twenties': 3, 'ones': 1}, expected_total=Decimal('61'),
+                                     variance=Decimal('-1'), bills_only=True)
+        Cart.objects.create(drawer=self.drawer, cashier=self.user, status='completed', total=Decimal('10'),
+                            payment_method='cash', completed_at=timezone.now())
+        CashDrop.objects.create(drawer=self.drawer, total=Decimal('100'), dropped_by=self.user, reason='Big bills')
+
+    def _card(self):
+        r = self.client.get(f'/api/pos/drawers/{self.drawer.id}/card/')
+        self.assertEqual(r.status_code, 200, r.content)
+        return r.json()
+
+    def _manager(self):
+        from django.contrib.auth.models import Group
+        self.user.groups.add(Group.objects.get_or_create(name='Manager')[0])
+
+    def test_a_cashier_sees_the_cash_now_and_what_was_counted_but_no_expected_while_open(self):
+        c = self._card()
+        self.assertEqual((c['status'], c['blind'], c['register']['code']), ('open', True, self.register.code))
+        self.assertEqual(c['cash_now'], {'count': {'twenties': 3, 'ones': 10, 'quarters': 8}, 'coins_total': None,
+                                         'total': '72.00'})
+        opening, handoff = c['counts']
+        self.assertEqual((opening['kind'], opening['counted_total'], opening['expected_total']), ('opening', '50.00', None))
+        self.assertEqual((handoff['kind'], handoff['bills_only'], handoff['difference']), ('handoff', True, None))
+        self.assertTrue(all('expected' not in row for row in handoff['rows']))
+        self.assertNotIn('cash', c['sales']['by_method'])
+        self.assertIsNone(c['variance'])
+        drop = next(e for e in c['journey'] if e['kind'] == 'drop')
+        self.assertEqual((drop['amount'], drop['note']), ('100.00', 'Big bills'))
+
+    def test_a_manager_sees_expected_and_the_difference_by_bill(self):
+        self._manager()
+        opening, handoff = self._card()['counts']
+        self.assertEqual((opening['expected_total'], opening['difference']), ('52.00', '-2.00'))
+        self.assertEqual((handoff['expected_total'], handoff['difference']), ('61.00', '-1.00'))
+        self.assertEqual({r['key']: r['difference'] for r in handoff['rows']}, {'twenties': 0, 'ones': -1})
+
+    def test_a_handover_counted_as_one_total_still_shows_a_manager_the_difference(self):
+        from apps.pos.models import DrawerHandoff
+        self._manager()
+        DrawerHandoff.objects.create(drawer=self.drawer, outgoing_cashier=self.user, incoming_cashier=self.user,
+                                     counted_at=timezone.now(), counted_total=Decimal('70'),
+                                     expected_total=Decimal('72'), variance=Decimal('-2'), bills_only=True)
+        last = self._card()['counts'][-1]
+        self.assertEqual((last['expected_total'], last['difference'], last['rows']), ('72.00', '-2.00', []))
+
+    def test_a_closed_drawer_shows_the_close_to_everyone(self):
+        Drawer.objects.filter(pk=self.drawer.pk).update(
+            status='closed', closed_at=timezone.now(), closed_by=self.user, closing_count={'twenties': 2},
+            closing_total=Decimal('40'), closing_expected={'twenties': 2, 'fives': 1}, expected_cash=Decimal('45'),
+            variance=Decimal('-5'), coin_counter_total=Decimal('3.10'))
+        c = self._card()
+        self.assertEqual(c['cash_now']['coins_total'], '3.10')
+        self.assertEqual((c['blind'], c['variance'], c['cash_now']['total']), (False, '-5.00', '40.00'))
+        close = c['counts'][-1]
+        self.assertEqual((close['kind'], close['counted_total'], close['expected_total'], close['difference']),
+                         ('close', '40.00', '45.00', '-5.00'))
+
+    def test_a_past_drawer_is_for_managers(self):
+        Drawer.objects.filter(pk=self.drawer.pk).update(date=timezone.localdate() - timedelta(days=1))
+        self.assertEqual(self.client.get(f'/api/pos/drawers/{self.drawer.id}/card/').status_code, 403)
+        self._manager()
+        self.assertEqual(self.client.get(f'/api/pos/drawers/{self.drawer.id}/card/').status_code, 200)

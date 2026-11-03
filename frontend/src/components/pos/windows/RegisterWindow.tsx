@@ -4,7 +4,7 @@
  * links. Read-only; Edit hands over to POS setup (managers). Opens from anywhere with `openObject({type:'register', id})`.
  */
 import { useState } from 'react';
-import { Alert, Box, Button, ButtonBase, Chip, CircularProgress, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, ButtonBase, Chip, CircularProgress, Link, Stack, Typography } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { format, startOfWeek } from 'date-fns';
@@ -82,6 +82,30 @@ const DOT: Record<string, string> = {
   reprint: '#757575', print_failed: '#c62828', tax_exempt: '#0277bd', tax_exempt_off: '#757575',
 };
 
+/** Today's journey as timeline rows (the Register and Drawer windows). */
+export function journeyRows(
+  events: RegisterCardData['journey'],
+  tr: (key: CopyKey) => string,
+  when: (iso: string | null | undefined, pattern?: string) => string,
+): TimelineRow[] {
+  return events.map((e, i) => {
+    const label = (COPY_EVENT.has(e.kind) ? tr(`ev_${e.kind}` as CopyKey) : e.kind);
+    const parts = [
+      e.amount && e.kind !== 'cover' && e.kind !== 'cover_end' ? money(e.amount) : '',
+      e.from ? `${tr('from')} ${e.from}` : '',
+      e.variance && Number.parseFloat(e.variance) !== 0 ? `${tr('countOff')} ${money(e.variance)}` : '',
+      e.note ?? '',
+    ].filter(Boolean);
+    return {
+      key: `${e.kind}-${e.at}-${i}`,
+      label,
+      detail: parts.join(' · ') || null,
+      when: `${when(e.at, 'h:mm a')}${e.who ? ` · ${e.who}` : ''}`,
+      dot: DOT[e.kind] ?? '#999',
+    };
+  });
+}
+
 export function useRegisterCard(id: number) {
   return useQuery({
     queryKey: ['register-card', id],
@@ -112,22 +136,7 @@ export function RegisterWindow({ id }: { id: number }) {
     openObject({ type: 'history', id: historyKey({ register: c.id, from, to, title: c.name }) });
   const weekStart = format(startOfWeek(new Date(`${c.today}T12:00:00`), { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
-  const journey: TimelineRow[] = c.journey.map((e, i) => {
-    const label = (COPY_EVENT.has(e.kind) ? tr(`ev_${e.kind}` as CopyKey) : e.kind);
-    const parts = [
-      e.amount && e.kind !== 'cover' && e.kind !== 'cover_end' ? money(e.amount) : '',
-      e.from ? `${tr('from')} ${e.from}` : '',
-      e.variance && Number.parseFloat(e.variance) !== 0 ? `${tr('countOff')} ${money(e.variance)}` : '',
-      e.note ?? '',
-    ].filter(Boolean);
-    return {
-      key: `${e.kind}-${e.at}-${i}`,
-      label,
-      detail: parts.join(' · ') || null,
-      when: `${when(e.at, 'h:mm a')}${e.who ? ` · ${e.who}` : ''}`,
-      dot: DOT[e.kind] ?? '#999',
-    };
-  });
+  const journey = journeyRows(c.journey, tr, when);
 
   return (
     <Stack spacing={2} sx={{ p: { xs: 1.5, md: 2.5 } }}>
@@ -170,7 +179,11 @@ export function RegisterWindow({ id }: { id: number }) {
           <Section title={tr('now')}>
             <Facts
               rows={[
-                [tr('drawer'), d ? tr(d.status === 'open' ? 'open' : 'closedToday') : tr('notOpened')],
+                [tr('drawer'), d ? (
+                  <Link component="button" onClick={() => openObject({ type: 'drawer', id: d.id })} data-testid="register-drawer-link">
+                    {tr(d.status === 'open' ? 'open' : 'closedToday')}
+                  </Link>
+                ) : tr('notOpened')],
                 [tr('cashier'), d?.cashier],
                 [tr('coveredBy'), d?.covered_by],
                 [tr('openedBy'), d?.opened_at ? `${when(d.opened_at, 'h:mm a')}${d.opened_by ? ` · ${d.opened_by}` : ''}` : null],

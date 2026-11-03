@@ -78,6 +78,7 @@ vi.mock('../../api/thriftplusRegister.api', async (importOriginal) => ({
 }));
 
 import TerminalPage from './TerminalPage';
+import { ObjectModalProvider } from '../../components/objects/ObjectModal';
 
 function block(over: Partial<ThriftPlusCartBlock> = {}): ThriftPlusCartBlock {
   return {
@@ -113,7 +114,9 @@ function renderTerminal() {
       <ThemeProvider theme={createTheme()}>
         <SnackbarProvider>
           <MemoryRouter>
-            <TerminalPage />
+            <ObjectModalProvider>
+              <TerminalPage />
+            </ObjectModalProvider>
           </MemoryRouter>
         </SnackbarProvider>
       </ThemeProvider>
