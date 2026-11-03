@@ -1,7 +1,7 @@
 /**
  * Finish joining (Join v2, owner 2026-10-19: "SMOOTH and CLEAR and SIMPLE"): right after a join's sign-in, and from the
- * Member QR's "Finish joining", a pending member does in the app what the register used to: a selfie, then a signature
- * on the terms. One screen per step, "Step 1 of 2". Then "You're all set": at the register staff only check the photo
+ * Member QR's "Finish joining", a pending member does in the app what the register used to: a selfie, then a tap on
+ * "I agree" under the terms (owner 2026-11-03; it was a finger signature). One screen per step, "Step 1 of 2". Then "You're all set": at the register staff only check the photo
  * ID against the selfie. Required (owner 2026-10-20): no skip and no ×; a pending member with steps left always lands
  * here. Only Sign out leaves it. The register can still take both (as today).
  * The server's member payload says what is left (`finish_steps`).
@@ -12,7 +12,6 @@ import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import FaceRounded from '@mui/icons-material/FaceRounded';
 import type { FinishStep, ThriftPlusMember } from '../../../api/thriftPlusScanner.api';
 import { compressImageToJpeg } from '../../../services/receiving/receivingClient';
-import ThriftSignaturePad, { type ThriftSignaturePadHandle } from '../finalize/ThriftSignaturePad';
 import ThriftPlusTermsText from '../../../components/thriftplus/ThriftPlusTermsText';
 import { ErrorLine } from './signInParts';
 import { sc, u } from './scannerTheme';
@@ -21,7 +20,7 @@ import { useFinishJoining } from './useThriftPlus';
 import SelfieCamera, { selfieCameraAvailable } from './SelfieCamera';
 
 /** The terms' version, as the server records it (apps/thriftplus/services/register.py TERMS_VERSION). */
-export const TERMS_VERSION = '2026-10-19'; // matches the server's register.TERMS_VERSION (the terms of 10-19, J17)
+export const TERMS_VERSION = '2026-11-03'; // matches the server's register.TERMS_VERSION (the terms of 11-03: I agree)
 
 function words(e: unknown, fallback: string): string {
   return e instanceof Error && e.message ? e.message : fallback;
@@ -37,15 +36,6 @@ async function selfieJpeg(file: File): Promise<Blob | null> {
   } catch {
     return null;
   }
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ''));
-    reader.onerror = () => reject(new Error('read'));
-    reader.readAsDataURL(blob);
-  });
 }
 
 /** The photo on screen; null where the browser can't show a blob (it still sends). */
@@ -120,7 +110,7 @@ export function FinishJoining({ member, onDone, onSignOut }: {
       <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: u(40), pt: u(24), pb: `calc(${u(44)} + env(safe-area-inset-bottom, 0px))` }}>
         {n === 1 && count === 2 && (
           <Box data-testid="finish-intro" sx={{ mb: u(26), p: u(24), borderRadius: u(24), bgcolor: sc.greenTint, color: sc.greenDeep, fontSize: u(29), lineHeight: 1.4, fontWeight: 600 }}>
-            Two quick steps: 1. Selfie 2. Sign. Then show your QR at the register.
+            Two quick steps: 1. Selfie 2. Agree to the terms. Then show your QR at the register.
           </Box>
         )}
         {step === 'selfie' ? <SelfieStep key="selfie" /> : step === 'sign' ? <SignStep key="sign" /> : <AllSet onDone={onDone} />}
@@ -254,42 +244,32 @@ function TermsBox() {
   );
 }
 
-/** Step: read the terms, sign with a finger. */
+/** The words on the agree button (J5): the deliberate act that covers the terms and the photo release. */
+export const AGREE_WORDS = 'I agree to the Thrift+ terms and photo release';
+
+/** Step: read the terms, tap "I agree" (owner 2026-11-03: a tap, no finger signature). */
 function SignStep() {
   const finish = useFinishJoining();
-  const pad = useRef<ThriftSignaturePadHandle | null>(null);
-  const [inked, setInked] = useState(false);
   const [err, setErr] = useState('');
 
-  const sign = async () => {
+  const agree = async () => {
     setErr('');
-    const png = await pad.current?.toBlob();
-    if (!png) {
-      setErr('The signature did not save. Clear it and sign again.');
-      return;
-    }
     try {
-      const signature = await blobToDataUrl(png);
-      await finish.sign.mutateAsync({ signature, termsVersion: TERMS_VERSION });
+      await finish.sign.mutateAsync({ termsVersion: TERMS_VERSION });
     } catch (e) {
-      setErr(words(e, 'Could not save your signature. Try again.'));
+      setErr(words(e, 'That did not save. Tap I agree again.'));
     }
   };
 
   return (
     <Box data-testid="finish-sign">
-      <Box component="h1" sx={heading}>Sign the terms</Box>
-      <Box sx={line}>Read the Thrift+ terms, then sign with your finger.</Box>
+      <Box component="h1" sx={heading}>Agree to the terms</Box>
+      <Box sx={line}>Read the Thrift+ terms, then tap I agree.</Box>
       <TermsBox />
-      <Box sx={{ mt: u(30), fontSize: u(28), fontWeight: 700, color: sc.ink }}>Your signature</Box>
-      <Box sx={{ mt: u(12) }}>
-        <ThriftSignaturePad ref={pad} onInk={setInked} disabled={finish.sign.isPending} />
-      </Box>
-      <Box sx={{ mt: u(8), fontSize: u(26), color: sc.ink2, lineHeight: 1.4 }}>By signing, you agree to the Thrift+ terms.</Box>
       {err && <ErrorLine>{err}</ErrorLine>}
       <Box sx={{ mt: u(30), display: 'flex' }}>
-        <BigButton primary onClick={() => void sign()} disabled={!inked || finish.sign.isPending} testId="sign-submit">
-          {finish.sign.isPending ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : 'Sign'}
+        <BigButton primary onClick={() => void agree()} disabled={finish.sign.isPending} testId="sign-submit">
+          {finish.sign.isPending ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : AGREE_WORDS}
         </BigButton>
       </Box>
     </Box>

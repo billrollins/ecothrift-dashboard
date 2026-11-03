@@ -30,19 +30,6 @@ vi.mock('../../api/thriftplus.api', () => ({
     return {};
   },
 }));
-// The signature pad needs a real canvas; here it just reports ink and hands back a PNG.
-vi.mock('../../pages/thriftplus/finalize/ThriftSignaturePad', async () => {
-  const React = await import('react');
-  return {
-    default: React.forwardRef(function Pad(
-      { onInk }: { onInk: (v: boolean) => void },
-      ref: React.Ref<{ toBlob: () => Promise<Blob>; clear: () => void }>,
-    ) {
-      React.useImperativeHandle(ref, () => ({ toBlob: async () => new Blob(['png'], { type: 'image/png' }), clear: () => undefined }));
-      return <button type="button" data-testid="pad" onClick={() => onInk(true)}>sign</button>;
-    }),
-  };
-});
 vi.mock('../../services/receiving/receivingClient', () => ({ compressImageToJpeg: async (f: File) => f }));
 
 function card(over: Partial<ThriftMemberCardData['person']> = {}, extra: Partial<ThriftMemberCardData> = {}): ThriftMemberCardData {
@@ -199,7 +186,7 @@ describe('Finalize on the member card: only the ID check, then Match (owner 2026
     await user.click(photo);
     expect(match).toBeEnabled();
     await user.click(over18);
-    expect(screen.getByText('Signed the terms in the app.')).toBeInTheDocument(); // no signature asked
+    expect(screen.getByText('Agreed to the terms in the app.')).toBeInTheDocument(); // no I agree asked
   });
 
   it('Match sends the ID check with the sale, puts them on it and says so', async () => {
@@ -242,7 +229,7 @@ describe('Finalize on the member card: only the ID check, then Match (owner 2026
     expect(await screen.findByTestId('member-card-note')).toHaveTextContent('Cy is a Thrift+ member.');
   });
 
-  it('asks for a signature only when they never signed', async () => {
+  it('asks for I agree only when they never agreed (owner 2026-11-03: a tap)', async () => {
     const user = userEvent.setup();
     m.card = { 9: card({ person_id: 9, account_id: 2, name: 'Cy Lee', first_name: 'Cy', last_name: 'Lee', standing: 'pending', status: 'pending', signed: false }) };
     m.finishResult = { person_id: 9, account_id: 2, first_name: 'Cy', last_name: 'Lee', status: 'active', cart: null };
@@ -251,11 +238,12 @@ describe('Finalize on the member card: only the ID check, then Match (owner 2026
     await user.click(screen.getByLabelText('Name matches'));
     await user.click(screen.getByLabelText('Photo matches'));
     expect(screen.getByTestId('member-card-match')).toBeDisabled();
-    expect(screen.getByText('They sign first.')).toBeInTheDocument();
-    await user.click(screen.getByTestId('pad'));
+    expect(screen.getByText('They tap I agree first.')).toBeInTheDocument();
+    await user.click(screen.getByTestId('member-card-agree'));
     await user.click(screen.getByTestId('member-card-match'));
     await waitFor(() => expect(m.finished).toHaveLength(1));
-    expect(m.finished[0].signature).toBeInstanceOf(Blob);
+    expect(m.finished[0].agree).toBe(true);
+    expect(m.finished[0]).not.toHaveProperty('signature');
   });
 
   it('shows the server\'s reason when Match is refused, and nothing is claimed', async () => {

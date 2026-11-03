@@ -1,6 +1,6 @@
 /**
  * Join Thrift+ (Join v2, owner 2026-10-19: "SMOOTH and CLEAR and SIMPLE"): Google, or a name and a phone or an email.
- * The code signs them in; then a selfie and a signature in the app (FinishJoining.tsx), and at the register only the
+ * The code signs them in; then a selfie and "I agree" in the app (FinishJoining.tsx), and at the register only the
  * QR and a photo ID. Opened from "Join Thrift+" on the sign-in screen, or straight from ecothrift.us/join
  * (`/scan?view=join`).
  *

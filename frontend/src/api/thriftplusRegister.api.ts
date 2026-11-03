@@ -148,6 +148,25 @@ export async function findPendingOrMember(
   return data;
 }
 
+// ── Assisted join (owner 2026-11-03, J22): a flip phone (our code texted to it) or no phone (the photo ID) ──
+
+/** Text the customer our join code. 409 PHONE_TAKEN when the number is already on a membership. */
+export async function assistSendCode(body: { first_name: string; last_name: string; phone: string }): Promise<void> {
+  await api.post('/thriftplus/register/assist/send/', body);
+}
+
+/** The code the customer read off their phone: a pending member, phone verified, ready for the Finalize screen. */
+export async function assistCheckCode(body: { phone: string; code: string }): Promise<ThriftPendingPerson> {
+  const { data } = await api.post<{ person: ThriftPendingPerson }>('/thriftplus/register/assist/check/', body);
+  return data.person;
+}
+
+/** No phone: the first and last name off their photo ID; a pending member with no contact. */
+export async function assistNoPhone(body: { first_name: string; last_name: string }): Promise<ThriftPendingPerson> {
+  const { data } = await api.post<{ person: ThriftPendingPerson }>('/thriftplus/register/assist/no-phone/', body);
+  return data.person;
+}
+
 export interface ThriftFinishJoin {
   person: number;
   /** Ten digits, read back to them. Optional since Join v2 (owner 2026-10-19): not sent when blank. */
@@ -157,8 +176,10 @@ export interface ThriftFinishJoin {
   /** Join v2: staff checked the face on the photo ID against the app selfie (the selfie path). */
   face_matches?: boolean;
   photo?: File | Blob | null;
-  /** The customer's signature, a PNG (J5). */
+  /** The customer's signature, a PNG (J5; old screens). */
   signature?: Blob | null;
+  /** J5 (owner 2026-11-03): the customer tapped "I agree" on this screen, in place of a signature. */
+  agree?: boolean;
   /** Finalize Thrift+ on a phone: the server requires the signature and the ID check. */
   finalize?: boolean;
   /** An open sale: the member goes on it after. */
@@ -189,6 +210,7 @@ export async function finishThriftJoin(body: ThriftFinishJoin): Promise<ThriftFi
   if (body.face_matches !== undefined) form.append('face_matches', String(body.face_matches));
   if (body.photo) form.append('photo', body.photo, body.photo instanceof File ? body.photo.name : 'photo.jpg');
   if (body.signature) form.append('signature', body.signature, 'signature.png');
+  if (body.agree) form.append('agree', 'true');
   if (body.finalize) form.append('finalize', 'true');
   if (body.cart) form.append('cart', String(body.cart));
   const { data } = await api.post<ThriftFinishResult>('/thriftplus/register/finish/', form, {

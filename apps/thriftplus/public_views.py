@@ -73,7 +73,9 @@ def _session_payload(request) -> dict:
 
 
 def _finish_state(person, account) -> dict:
-    selfie, signed = bool(person.photo), bool(person.signature)
+    from apps.thriftplus.services import register
+
+    selfie, signed = bool(person.photo), register.agreed(person)
     steps = []
     if account.status == Account.STATUS_PENDING:
         steps = [step for step, done in (('selfie', selfie), ('sign', signed)) if not done]
@@ -648,8 +650,9 @@ def selfie(request):
 @authentication_classes(AUTH)
 @permission_classes([IsMember])
 def signature(request):
-    """``me/signature/``: ``{signature: 'data:image/png;base64,...', terms_version}``, a pending member signs the terms
-    in the app. Stored as their signature with when and the terms version. Answers the session payload. 400
+    """``me/signature/``: ``{agree: true, terms_version}`` (owner 2026-11-03: a tap on "I agree"), or the old
+    ``{signature: 'data:image/png;base64,...', terms_version}`` (a drawing, for apps not yet reloaded). A pending member
+    agrees to the terms in the app; stored with when and the terms version. Answers the session payload. 400
     NOT_PENDING or SIGNATURE_BAD."""
     import base64
     import binascii
@@ -662,6 +665,14 @@ def signature(request):
     refused = _pending_only(request)
     if refused:
         return refused
+    person = request.user.person
+    version = str(request.data.get('terms_version') or '').strip()[:20] or register.TERMS_VERSION
+    if request.data.get('agree') is True and not request.data.get('signature'):
+        # Owner 2026-11-03 (J5): a tap on "I agree" is the deliberate act; no drawing.
+        person.signed_at, person.signed_terms_version = timezone.now(), version
+        person.save(update_fields=['signed_at', 'signed_terms_version', 'updated_at'])
+        members.log('app_agreed', account=person.account, person=person, terms_version=version)
+        return Response(_session_payload(request))
     raw = str(request.data.get('signature') or '')
     prefix = 'data:image/png;base64,'
     bad = Response({'detail': 'The signature did not save. Clear it and sign again.', 'code': 'SIGNATURE_BAD'},
@@ -674,9 +685,7 @@ def signature(request):
         return bad
     if len(data) > register.SIGNATURE_MAX_BYTES or not data.startswith(b'\x89PNG\r\n\x1a\n'):
         return bad
-    person = request.user.person
     now = timezone.now()
-    version = str(request.data.get('terms_version') or '').strip()[:20] or register.TERMS_VERSION
     person.signature = ContentFile(data, name=f'person-{person.pk}-{now:%Y%m%d%H%M%S}.png')
     person.signed_at, person.signed_terms_version = now, version
     person.save(update_fields=['signature', 'signed_at', 'signed_terms_version', 'updated_at'])

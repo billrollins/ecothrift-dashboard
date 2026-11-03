@@ -270,8 +270,7 @@ describe('Join v2 (mock, owner 2026-10-19): one box, a code by text or email, Go
 
     await expect(uploadSelfie(new Blob(['x'], { type: 'text/plain' }))).rejects.toMatchObject({ code: 'PHOTO_BAD' });
     expect(await uploadSelfie(new Blob(['x'], { type: 'image/jpeg' }))).toMatchObject({ selfie: true, finish_steps: ['sign'] });
-    await expect(signTerms('not a png', '2026-10-15')).rejects.toMatchObject({ code: 'SIGNATURE_BAD' });
-    expect(await signTerms('data:image/png;base64,cG5n', '2026-10-15')).toMatchObject({ signed: true, ready: false, finish_steps: [] });
+    expect(await signTerms('2026-10-15')).toMatchObject({ signed: true, ready: false, finish_steps: [] });
     expect(thriftPlusMockControls.finished()).toEqual([
       { step: 'selfie', contact: '+14025550123' },
       { step: 'sign', contact: '+14025550123', terms_version: '2026-10-15' },

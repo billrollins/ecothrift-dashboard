@@ -743,6 +743,7 @@ class RegisterViewSet(viewsets.ViewSet):
     - ``pending`` ``{q}``: joined online and not finished yet (owner 2026-10-15, J8), by name, email or member code;
     - ``finish`` ``{person, phone, id_checked, verified_18, photo, signature?, finalize?, cart?}``: finish joining (the
       phone read back, the ID, the photo, the signature); with ``cart``, the member goes on that sale after.
+    - ``assist/send``, ``assist/check``, ``assist/no-phone``: Assisted join (owner 2026-11-03, J22), then ``finish``.
 
     A pending member's QR (attach, re-ring) answers 400 ``MEMBER_PENDING`` with the person to finish. Thrift+ credit is
     used first, automatically (no action). Every sale action refuses while Thrift+ is dark there.
@@ -842,6 +843,54 @@ class RegisterViewSet(viewsets.ViewSet):
                 body['member'] = who
         return Response(body)
 
+    # ── Assisted join (owner 2026-11-03, J22): staff sign up a customer with a flip phone or no phone ──
+
+    def _assisted(self, fn) -> Response:
+        from apps.thriftplus.services.member_auth import AuthError, LimitError
+
+        try:
+            person = fn()
+        except LimitError as exc:
+            body = {'detail': str(exc), 'code': exc.code}
+            if exc.retry_after:
+                body['retry_after'] = exc.retry_after
+            return Response(body, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        except AuthError as exc:
+            code = status.HTTP_409_CONFLICT if exc.code == 'PHONE_TAKEN' else status.HTTP_400_BAD_REQUEST
+            return Response({'detail': str(exc), 'code': exc.code}, status=code)
+        if person is None:
+            return Response({'status': 'sent'})
+        person = Person.objects.select_related('account').get(pk=person.pk)
+        return Response({'person': register.finalize_row(person)})
+
+    @action(detail=False, methods=['post'], url_path='assist/send')
+    def assist_send(self, request):
+        """``{first_name, last_name, phone}``: text the customer our join code (their flip phone). 409 PHONE_TAKEN when the
+        number is already on a membership; 429 with ``retry_after`` over a limit."""
+        from apps.thriftplus.services import assisted_join
+
+        d = request.data
+        return self._assisted(lambda: assisted_join.send(str(d.get('first_name') or ''), str(d.get('last_name') or ''),
+                                                         str(d.get('phone') or ''), user=request.user))
+
+    @action(detail=False, methods=['post'], url_path='assist/check')
+    def assist_check(self, request):
+        """``{phone, code}``: the code the customer read out. ``{person}`` (a Finalize row), pending, phone verified."""
+        from apps.thriftplus.services import assisted_join
+
+        d = request.data
+        return self._assisted(lambda: assisted_join.check(str(d.get('phone') or ''), str(d.get('code') or ''),
+                                                          user=request.user))
+
+    @action(detail=False, methods=['post'], url_path='assist/no-phone')
+    def assist_no_phone(self, request):
+        """``{first_name, last_name}`` off their photo ID: ``{person}`` (a Finalize row), pending, no contact."""
+        from apps.thriftplus.services import assisted_join
+
+        d = request.data
+        return self._assisted(lambda: assisted_join.no_phone(str(d.get('first_name') or ''),
+                                                             str(d.get('last_name') or ''), user=request.user))
+
     @action(detail=False, methods=['get'])
     def member(self, request):
         """The member card (owner 2026-10-20): ``?person=<id>`` (or ``?code=<member QR>``). Their photo and status
@@ -869,7 +918,8 @@ class RegisterViewSet(viewsets.ViewSet):
         sale), the member goes on it after; a refusal there comes back as ``attach_error`` (they are still joined).
 
         ``signature`` (optional, owner 2026-10-16, J5): a PNG of the customer's signature, stored with ``signed_at`` and
-        the terms version. ``finalize=true`` (Finalize Thrift+, the cashier's phone, no cart): the signature and the ID
+        the terms version; or ``agree=true`` (owner 2026-11-03: a tap on "I agree", no drawing). ``finalize=true``
+        (Finalize Thrift+, the cashier's phone, no cart): the terms (signed or agreed) and the ID
         check are required (400 ``SIGNATURE_NEEDED`` / ``ID_NEEDED``).
 
         Join v2 (owner 2026-10-19): ``phone`` is optional for everyone. When the selfie and the signature were taken in
@@ -887,12 +937,13 @@ class RegisterViewSet(viewsets.ViewSet):
                                           verified_18=_truthy(d.get('verified_18')), photo=request.FILES.get('photo'),
                                           signature=request.FILES.get('signature'),
                                           require_signature=_truthy(d.get('finalize')),
-                                          face_matches=_truthy(d.get('face_matches')), user=request.user)
+                                          face_matches=_truthy(d.get('face_matches')), agree=_truthy(d.get('agree')),
+                                          user=request.user)
         except register.RegisterError as exc:
             code = status.HTTP_409_CONFLICT if exc.code == 'PHONE_TAKEN' else status.HTTP_400_BAD_REQUEST
             return Response(exc.payload(), status=code)
         body = {'person_id': person.pk, 'account_id': person.account_id, 'first_name': person.first_name,
-                'last_name': person.last_name, 'status': person.account.status, 'signed': bool(person.signature),
+                'last_name': person.last_name, 'status': person.account.status, 'signed': register.agreed(person),
                 'cart': None}
         if cart is not None:
             try:
@@ -911,7 +962,7 @@ def _found_person(person: Person) -> dict:
         'photo_url': person.photo.url if person.photo else None, 'verified_18': person.verified_18,
         'practice': bool(person.account.is_practice), 'account_status': person.account.status,
         # Join v2: the selfie and signature taken in the app ("Ready" for Finalize when both are there).
-        'selfie': bool(person.photo), 'signed': bool(person.signature),
+        'selfie': bool(person.photo), 'signed': register.agreed(person),
     }
 
 

@@ -79,7 +79,7 @@ export function useSignInOptions() {
 }
 
 /**
- * Finish joining in the app (Join v2, owner 2026-10-19): the selfie, then the signature. Each answer is the member,
+ * Finish joining in the app (Join v2, owner 2026-10-19): the selfie, then "I agree" to the terms (a tap since 11-03). Each answer is the member,
  * whose `finish_steps` says what is left.
  */
 export function useFinishJoining() {
@@ -88,7 +88,7 @@ export function useFinishJoining() {
   return {
     selfie: useMutation({ mutationFn: (photo: Blob) => uploadSelfie(photo), onSuccess: setMember }),
     sign: useMutation({
-      mutationFn: ({ signature, termsVersion }: { signature: string; termsVersion: string }) => signTerms(signature, termsVersion),
+      mutationFn: ({ termsVersion }: { termsVersion: string }) => signTerms(termsVersion),
       onSuccess: setMember,
     }),
   };

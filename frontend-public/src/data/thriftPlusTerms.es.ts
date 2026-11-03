@@ -81,7 +81,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
     {
       num: 'A.3',
       what: 'Antes de que su membresía funcione',
-      short: 'Su nombre, una foto, su firma y la revisión de una identificación con foto en la caja.',
+      short: 'Su nombre, una foto, su aceptación de estos términos y la revisión de una identificación con foto en la caja.',
       section: 1,
     },
     {
@@ -212,7 +212,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
   fullIntro: {
     label: 'Términos de la membresía Thrift+.',
     text: 'EcoThrift LLC, 8425 West Center Road, Omaha, NE 68124 · (402) 881-9861',
-    version: 'Versión: 19 de octubre de 2026.',
+    version: 'Versión: 3 de noviembre de 2026.',
   },
 
   sections: [
@@ -230,9 +230,9 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
         },
         {
           n: '1.3',
-          text: 'Su membresía funciona solo después de que tengamos su nombre, su foto y su firma, y el personal haya revisado su identificación con foto en una caja. Hasta entonces, su cuenta no reúne ni usa nada. Únase en su teléfono en ecothrift.us/join con su nombre y Google, su número de celular o su correo; tómese la foto (una selfie) y firme en la app Thrift+; luego muestre su QR de miembro y su identificación con foto en cualquier caja. Si no se toma la selfie o no firma, le tomamos la foto y firma en la caja.',
+          text: 'Su membresía funciona solo después de que tengamos su nombre, su foto y su aceptación de estos términos, y el personal haya revisado su identificación con foto en una caja. Hasta entonces, su cuenta no reúne ni usa nada. Únase en su teléfono en ecothrift.us/join con su nombre y Google, su número de celular o su correo; tómese la foto (una selfie) y toque Acepto en la app Thrift+; luego muestre su QR de miembro y su identificación con foto en cualquier caja. Si no se toma la selfie o no toca Acepto, le tomamos la foto y toca Acepto en la caja.',
         },
-        { n: '1.4', text: 'Al firmar, acepta estos términos y la autorización de foto de la §10.' },
+        { n: '1.4', text: 'Al tocar Acepto, acepta estos términos y la autorización de foto de la §10.' },
         {
           n: '1.5',
           text: 'Los artículos para mayores de 18 años requieren revisar la identificación cada vez, sea miembro o no.',

@@ -66,7 +66,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
     {
       num: 'A.3',
       what: 'Before your membership works',
-      short: 'Your name, a photo, your signature, and a photo ID check at the register.',
+      short: 'Your name, a photo, your OK to these terms, and a photo ID check at the register.',
       section: 1,
     },
     { num: 'B.1', what: 'ThriftBucks', short: 'On most items. They grow as an item sits, up to 95% of the tag.', section: 3 },
@@ -181,7 +181,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
   fullIntro: {
     label: 'Thrift+ Membership Terms.',
     text: 'EcoThrift LLC, 8425 West Center Road, Omaha, NE 68124 · (402) 881-9861',
-    version: 'Version: October 19, 2026.',
+    version: 'Version: November 3, 2026.',
   },
 
   sections: [
@@ -199,9 +199,9 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
         },
         {
           n: '1.3',
-          text: 'Your membership works only after we have your name, your photo and your signature, and staff have checked your photo ID at a register. Until then, your account collects and uses nothing. Join on your phone at ecothrift.us/join with your name and Google, your mobile number or your email; take your photo (a selfie) and sign in the Thrift+ app; then show your member QR and your photo ID at any register. If you skip the selfie or the signature, we take your photo and you sign at the register.',
+          text: 'Your membership works only after we have your name, your photo and your OK to these terms, and staff have checked your photo ID at a register. Until then, your account collects and uses nothing. Join on your phone at ecothrift.us/join with your name and Google, your mobile number or your email; take your photo (a selfie) and tap I agree in the Thrift+ app; then show your member QR and your photo ID at any register. If you skip the selfie or I agree, we take your photo and you tap I agree at the register.',
         },
-        { n: '1.4', text: 'By signing, you agree to these terms and to the photo release in §10.' },
+        { n: '1.4', text: 'By tapping I agree, you agree to these terms and to the photo release in §10.' },
         { n: '1.5', text: 'Items for adults 18 and over require an ID check every time, member or not.' },
       ],
     },

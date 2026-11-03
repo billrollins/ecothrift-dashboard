@@ -329,14 +329,14 @@ export async function uploadSelfie(photo: Blob): Promise<ThriftPlusMember> {
   }
 }
 
-/** "Sign": the signature as a PNG data URL, and the terms version it was signed under. */
-export async function signTerms(signature: string, termsVersion: string): Promise<ThriftPlusMember> {
+/** "I agree" (owner 2026-11-03: a tap, no drawing): the terms version they agreed to. */
+export async function signTerms(termsVersion: string): Promise<ThriftPlusMember> {
   try {
-    const { data } = await http.post<ThriftPlusMember>('/me/signature/', { signature, terms_version: termsVersion });
+    const { data } = await http.post<ThriftPlusMember>('/me/signature/', { agree: true, terms_version: termsVersion });
     member = memberOf(data);
     return member;
   } catch (err) {
-    throw problem(err, 'Could not save your signature. Try again.');
+    throw problem(err, 'That did not save. Tap I agree again.');
   }
 }
 

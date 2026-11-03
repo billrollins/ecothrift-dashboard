@@ -3,15 +3,14 @@ import PersonAddAlt1Rounded from '@mui/icons-material/PersonAddAlt1Rounded';
 import { Alert, Avatar, Box, Button, ButtonBase, Chip, CircularProgress, Stack, Typography } from '@mui/material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   finishThriftJoin,
   getMemberCard,
   thriftErrorMessage,
   type ThriftFinishResult,
 } from '../../api/thriftplusRegister.api';
-import { SIGNATURE_WORDS, TermsDialog } from '../../pages/thriftplus/finalize/finalizeParts';
-import ThriftSignaturePad, { type ThriftSignaturePadHandle } from '../../pages/thriftplus/finalize/ThriftSignaturePad';
+import { AgreeButton, SIGNATURE_WORDS, TermsDialog } from '../../pages/thriftplus/finalize/finalizeParts';
 import { compressImageToJpeg } from '../../services/receiving/receivingClient';
 import type { Cart } from '../../types/pos.types';
 import { formatCurrency } from '../../utils/format';
@@ -81,7 +80,6 @@ export default function MemberCard({
   const [note, setNote] = useState('');
   const [adding, setAdding] = useState(false);
   const [terms, setTerms] = useState(false);
-  const pad = useRef<ThriftSignaturePadHandle | null>(null);
 
   const key = ['thriftplus', 'member-card', activeId];
   const { data, isLoading, error: loadError } = useQuery({
@@ -121,20 +119,13 @@ export default function MemberCard({
   async function match() {
     const p = data?.person;
     if (!p || !checksDone(checks) || !(p.photo_url || newSelfie)) return;
-    let signature: Blob | null | undefined = null;
-    if (!p.signed) {
-      signature = await pad.current?.toBlob();
-      if (!signature) {
-        setError('The signature did not save. Clear it and sign again.');
-        return;
-      }
-    }
+    if (!p.signed && !signed) return;
     setBusy(true);
     setError('');
     try {
       const result = await finishThriftJoin({
         person: p.person_id, id_checked: true, face_matches: true, verified_18: checks.over18, finalize: true,
-        cart: cartId, ...(newSelfie ? { photo: newSelfie } : {}), ...(signature ? { signature } : {}),
+        cart: cartId, ...(newSelfie ? { photo: newSelfie } : {}), ...(!p.signed ? { agree: true } : {}),
       });
       if (result.cart) onCart?.(result.cart);
       setNote(
@@ -289,15 +280,15 @@ export default function MemberCard({
           >
             {signatureNeeded ? (
               <Stack spacing={1.5} data-testid="member-card-sign">
-                <Typography fontWeight={700} color="text.secondary">They have not signed yet. Hand them the screen to sign.</Typography>
+                <Typography fontWeight={700} color="text.secondary">They have not agreed to the terms yet. Hand them the screen to tap I agree.</Typography>
                 <Typography fontWeight={800}>{SIGNATURE_WORDS}</Typography>
                 <Button variant="outlined" size="large" startIcon={<DescriptionRounded />} onClick={() => setTerms(true)} disabled={busy} sx={big}>
                   Read the terms
                 </Button>
-                <ThriftSignaturePad ref={pad} onInk={setSigned} disabled={busy} />
+                <AgreeButton agreed={signed} onAgree={setSigned} disabled={busy} testId="member-card-agree" />
               </Stack>
             ) : (
-              <Alert severity="success">Signed the terms in the app.</Alert>
+              <Alert severity="success">Agreed to the terms in the app.</Alert>
             )}
             {error ? <Alert severity="error" data-testid="member-card-error">{error}</Alert> : null}
             <Button
@@ -314,7 +305,7 @@ export default function MemberCard({
             {!(person.photo_url || newSelfie) ? (
               <Typography variant="body2" color="text.secondary" textAlign="center">Take their photo first.</Typography>
             ) : signatureNeeded && !signed ? (
-              <Typography variant="body2" color="text.secondary" textAlign="center">They sign first.</Typography>
+              <Typography variant="body2" color="text.secondary" textAlign="center">They tap I agree first.</Typography>
             ) : null}
           </SelfieCheck>
           <TermsDialog open={terms} onClose={() => setTerms(false)} />

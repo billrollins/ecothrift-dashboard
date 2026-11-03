@@ -1,5 +1,6 @@
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import DescriptionRounded from '@mui/icons-material/DescriptionRounded';
+import PersonAddAlt1Rounded from '@mui/icons-material/PersonAddAlt1Rounded';
 import PhotoCameraRounded from '@mui/icons-material/PhotoCameraRounded';
 import QrCode2Rounded from '@mui/icons-material/QrCode2Rounded';
 import QrCodeScannerRounded from '@mui/icons-material/QrCodeScannerRounded';
@@ -34,10 +35,10 @@ import { compressImageToJpeg } from '../../../services/receiving/receivingClient
 import { thriftCardCode } from '../../../utils/thriftPlusCard';
 import { isStandalone } from '../scanner/installApp';
 import { useQrCamera } from '../scanner/useQrCamera';
-import { JoinQrDialog, SIGNATURE_WORDS, TermsDialog, useStayOnPage } from './finalizeParts';
+import { AgreeButton, JoinQrDialog, SIGNATURE_WORDS, TermsDialog, useStayOnPage } from './finalizeParts';
 import { PersonCard, PersonSheet } from './finalizePeople';
+import AssistedJoin from './AssistedJoin';
 import { useAuth } from '../../../contexts/AuthContext';
-import ThriftSignaturePad, { type ThriftSignaturePadHandle } from './ThriftSignaturePad';
 
 export { SIGNATURE_WORDS };
 
@@ -45,7 +46,7 @@ export { SIGNATURE_WORDS };
  * `verify`: the one screen for a selfie and a signature from the app (Join v2, owner 2026-10-19). Otherwise the store
  * phone takes them: the ID, a photo and the signature. No phone number is asked here since Join v2 (it is optional).
  */
-type Step = 'find' | 'verify' | 'done' | 'add';
+type Step = 'find' | 'assist' | 'verify' | 'done' | 'add';
 
 
 export { codeMemberMessage };
@@ -174,7 +175,6 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
   const [added, setAdded] = useState('');
   const { user } = useAuth();
   const navigate = useNavigate();
-  const pad = useRef<ThriftSignaturePadHandle | null>(null);
   const lastScan = useRef('');
 
   const midway = step !== 'find' && step !== 'done';
@@ -271,22 +271,16 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
 
   /**
    * Done (owner 2026-10-19): the photo ID checked against their photo. A retaken photo replaces it; with no photo on
-   * file one is taken here; the signature is taken here only when they didn't sign in the app.
+   * file one is taken here; "I agree" is tapped here only when they didn't agree in the app (owner 2026-11-03: a tap,
+   * no finger signature).
    */
   async function verified() {
     if (!person || !checksDone(checks) || !(person.photo_url || newSelfie)) return;
-    let signature: Blob | null | undefined = null;
-    if (!person.signed) {
-      signature = await pad.current?.toBlob();
-      if (!signature) {
-        setError('The signature did not save. Clear it and sign again.');
-        return;
-      }
-    }
+    if (!person.signed && !signed) return;
     await send({
       person: person.person_id, id_checked: true, face_matches: true, verified_18: checks.over18, finalize: true,
       ...(newSelfie ? { photo: newSelfie } : {}),
-      ...(signature ? { signature } : {}),
+      ...(!person.signed ? { agree: true } : {}),
     });
   }
 
@@ -309,10 +303,16 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
     void search('');
   }
 
-  const back: Partial<Record<Step, Step>> = { verify: 'find', add: 'done' };
+  const back: Partial<Record<Step, Step>> = { assist: 'find', verify: 'find', add: 'done' };
   const joinButton = (
     <Button variant="outlined" size="large" startIcon={<QrCode2Rounded />} onClick={() => setJoinQr(true)} sx={big} data-testid="finalize-show-join">
       Not joined yet? Show the Join QR
+    </Button>
+  );
+  // Owner 2026-11-03 (J22): a flip phone or no phone joins here, on the store phone.
+  const assistButton = (
+    <Button variant="outlined" size="large" startIcon={<PersonAddAlt1Rounded />} onClick={() => setStep('assist')} sx={big} data-testid="finalize-assist">
+      No smartphone? Assisted join
     </Button>
   );
 
@@ -340,7 +340,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
             Back
           </Button>
         ) : null}
-        <Typography variant="h5" fontWeight={800} sx={{ flex: 1 }}>{step === 'find' ? 'Find' : 'Check their ID'}</Typography>
+        <Typography variant="h5" fontWeight={800} sx={{ flex: 1 }}>{step === 'find' ? 'Find' : step === 'assist' ? 'Assisted join' : 'Check their ID'}</Typography>
         {/* In a browser tab (not the home-screen app), the way back to Dash: only before anyone is picked. */}
         {step === 'find' && !isStandalone() ? (
           <Button size="small" onClick={() => navigate('/dashboard')} sx={{ minHeight: 44 }}>Dash</Button>
@@ -353,6 +353,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
           </Typography>
           {findNote ? <Alert severity="info" data-testid="finalize-find-note">{findNote}</Alert> : null}
           {!scanning ? joinButton : null}
+          {!scanning ? assistButton : null}
           {scanning ? (
             <QrScan busy={finding} onCode={(raw) => void onScan(raw)} onClose={() => setScanning(false)} />
           ) : (
@@ -415,15 +416,17 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
         </Stack>
       ) : null}
 
+      {step === 'assist' ? <AssistedJoin onReady={pick} /> : null}
+
       {/* One screen for everyone (owner 2026-10-19): their photo, the ID check, the signature only if not signed in the app. */}
       {step === 'verify' && person ? (
         <Box data-testid="finalize-verify">
           <SelfieCheck person={person} checks={checks} onChecks={setChecks} retake={newSelfie} onRetake={(f) => void onRetake(f)} disabled={busy}>
             {person.signed ? (
-              <Alert severity="success" data-testid="finalize-signed">Signed the terms in the app.</Alert>
+              <Alert severity="success" data-testid="finalize-signed">Agreed to the terms in the app.</Alert>
             ) : (
               <Stack spacing={1.5} data-testid="finalize-sign">
-                <Typography fontWeight={700} color="text.secondary">Hand the phone to the customer to sign.</Typography>
+                <Typography fontWeight={700} color="text.secondary">Hand the phone to the customer to tap I agree.</Typography>
                 <Typography variant="h6" fontWeight={800} data-testid="finalize-sign-words">{SIGNATURE_WORDS}</Typography>
                 <Button
                   variant="outlined"
@@ -436,7 +439,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
                 >
                   Read the terms
                 </Button>
-                <ThriftSignaturePad ref={pad} onInk={setSigned} disabled={busy} />
+                <AgreeButton agreed={signed} onAgree={setSigned} disabled={busy} testId="finalize-agree" />
               </Stack>
             )}
             {error ? <Alert severity="error" data-testid="finalize-error">{error}</Alert> : null}
@@ -454,7 +457,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
             {!(person.photo_url || newSelfie) ? (
               <Typography variant="body2" color="text.secondary" textAlign="center">Take their photo first.</Typography>
             ) : !person.signed && !signed ? (
-              <Typography variant="body2" color="text.secondary" textAlign="center">They sign first.</Typography>
+              <Typography variant="body2" color="text.secondary" textAlign="center">They tap I agree first.</Typography>
             ) : null}
           </SelfieCheck>
         </Box>

@@ -368,6 +368,24 @@ class JoinV2Tests(TwilioMixin, MailMixin, TestCase):
         self.assertTrue(Event.objects.filter(action='app_signature', person=person).exists())
         self.assertEqual(self.app.get(BASE + 'session/').json()['member']['finish_steps'], [])
 
+    def test_a_tap_on_i_agree_finishes_the_terms_step_with_no_drawing(self):
+        # Owner 2026-11-03 (J5): a tap on "I agree" is the deliberate act; no finger signature.
+        self.phone_join()
+        self.app.post(BASE + 'me/selfie/', {'photo': _jpeg()}, format='multipart')
+        r = self.app.post(BASE + 'me/signature/', {'agree': True, 'terms_version': register.TERMS_VERSION}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual((r.json()['member']['signed'], r.json()['member']['finish_steps']), (True, []))
+        person = Person.objects.get()
+        self.assertEqual((bool(person.signature), person.signed_terms_version), (False, register.TERMS_VERSION))
+        self.assertIsNotNone(person.signed_at)
+        self.assertTrue(register.from_app(person))
+        self.assertTrue(Event.objects.filter(action='app_agreed', person=person).exists())
+        # "agree" must be a real true: a string or a missing drawing is still refused.
+        person.signed_at = None
+        person.save(update_fields=['signed_at'])
+        r = self.app.post(BASE + 'me/signature/', {'agree': 'yes'}, format='json')
+        self.assertEqual((r.status_code, r.json()['code']), (400, 'SIGNATURE_BAD'))
+
     def test_the_selfie_and_signature_refuse_bad_files(self):
         self.phone_join()
         bad = SimpleUploadedFile('x.jpg', b'not an image', content_type='image/jpeg')
@@ -487,6 +505,19 @@ class FinalizeV2Tests(TwilioMixin, MailMixin, RegisterBase):
         em.refresh_from_db()
         self.assertEqual((em.phone, em.phone_verified_at), ('', None))
         self.assertIsNotNone(em.email_verified_at)  # finalized in person
+
+    def test_finalize_takes_a_tap_on_i_agree_in_place_of_a_signature(self):
+        # Owner 2026-11-03 (J5): the customer taps I agree on the staff phone; no drawing is stored.
+        member_auth.join('Em', 'Ail', 'em@example.com', base_url='https://ecothrift.us', ip=IP)
+        em = Person.objects.get(email='em@example.com')
+        r = self._finish(person=em, agree='false', photo=_jpeg())
+        self.assertEqual((r.status_code, r.json()['code']), (400, 'SIGNATURE_NEEDED'))
+        r = self._finish(person=em, agree='true', photo=_jpeg())
+        self.assertEqual((r.status_code, r.json()['status'], r.json()['signed']), (200, 'active', True))
+        em.refresh_from_db()
+        self.assertEqual((bool(em.signature), em.signed_terms_version), (False, register.TERMS_VERSION))
+        self.assertIsNotNone(em.signed_at)
+        self.assertTrue(Event.objects.get(action='finished_joining', person=em).detail['signed'])
 
     def test_the_register_terminal_finishes_without_a_phone_and_a_typed_phone_is_still_checked(self):
         member_auth.join('Em', 'Ail', 'em@example.com', base_url='https://ecothrift.us', ip=IP)

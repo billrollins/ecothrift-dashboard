@@ -632,11 +632,10 @@ export async function uploadSelfie(photo: Blob): Promise<ThriftPlusMember> {
   return memberNow();
 }
 
-/** "Sign" (`me/signature/`): the signature as a PNG data URL, and the terms version it was signed under. */
-export async function signTerms(signature: string, termsVersion: string): Promise<ThriftPlusMember> {
+/** "I agree" (`me/signature/`, owner 2026-11-03: a tap, no drawing): the terms version they agreed to. */
+export async function signTerms(termsVersion: string): Promise<ThriftPlusMember> {
   await wait();
   const { stored, join, contact } = pendingJoin();
-  if (!signature.startsWith('data:image/png;base64,')) throw new ThriftPlusError('The signature did not save. Clear it and sign again.', 'SIGNATURE_BAD');
   join.signed = true;
   writeJson(LS.session, { ...stored, signed: true } satisfies StoredSession);
   state.finished.push({ step: 'sign', contact, terms_version: termsVersion });

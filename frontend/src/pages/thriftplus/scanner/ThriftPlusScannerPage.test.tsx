@@ -98,14 +98,6 @@ async function sendMyCode(user: User, contact = 'dana@example.com') {
   return screen.findByTestId('check-code');
 }
 
-/** A line on the signature pad. */
-function sign() {
-  const pad = screen.getByTestId('thrift-signature-pad');
-  fireEvent.pointerDown(pad, { pointerId: 1, clientX: 10, clientY: 10 });
-  fireEvent.pointerMove(pad, { pointerId: 1, clientX: 60, clientY: 40 });
-  fireEvent.pointerUp(pad, { pointerId: 1 });
-}
-
 const lastCode = () => thriftPlusMockControls.outbox().at(-1)?.code ?? '';
 
 async function scan(user: User, code: string) {
@@ -655,7 +647,7 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     expect(screen.getByTestId('where')).toHaveTextContent('?view=finish');
     expect(screen.queryByTestId('member-bar')).toBeNull(); // required: no way around it by the bar
     expect(within(finish).getByTestId('finish-progress')).toHaveTextContent('Step 1 of 2');
-    expect(within(finish).getByTestId('finish-intro')).toHaveTextContent('Two quick steps: 1. Selfie 2. Sign. Then show your QR at the register.');
+    expect(within(finish).getByTestId('finish-intro')).toHaveTextContent('Two quick steps: 1. Selfie 2. Agree to the terms. Then show your QR at the register.');
     expect(within(finish).getByTestId('selfie-tip')).toHaveTextContent('Fit your face in the oval. No hat or sunglasses.');
     expect(within(finish).queryByRole('button', { name: /skip|later/i })).toBeNull();
     const input = within(finish).getByTestId('selfie-input');
@@ -667,15 +659,12 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     expect(within(finish).getByRole('button', { name: 'Retake' })).toBeInTheDocument();
     await user.click(within(finish).getByRole('button', { name: 'Use this photo' }));
 
-    // Step 2: the terms, then the signature.
+    // Step 2: the terms, then a tap on "I agree" (owner 2026-11-03: no finger signature).
     expect(await within(finish).findByTestId('finish-sign')).toBeInTheDocument();
     expect(within(finish).getByTestId('finish-progress')).toHaveTextContent('Step 2 of 2');
     expect(within(finish).getByTestId('finish-terms')).toHaveTextContent('All you need to know');
-    const signButton = within(finish).getByRole('button', { name: 'Sign' });
-    expect(signButton).toBeDisabled();
-    sign();
-    await waitFor(() => expect(signButton).toBeEnabled());
-    await user.click(signButton);
+    expect(within(finish).queryByTestId('thrift-signature-pad')).toBeNull();
+    await user.click(within(finish).getByRole('button', { name: 'I agree to the Thrift+ terms and photo release' }));
 
     // Done: the Member QR, with the photo ID at the register.
     const done = await within(finish).findByTestId('finish-done');
@@ -683,7 +672,7 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     expect(done).toHaveTextContent('Show this QR at the register with your photo ID.');
     expect(thriftPlusMockControls.finished()).toMatchObject([
       { step: 'selfie' },
-      { step: 'sign', terms_version: '2026-10-19' },
+      { step: 'sign', terms_version: '2026-11-03' },
     ]);
     await user.click(within(done).getByRole('button', { name: 'Done' }));
     const wallet = await screen.findByTestId('wallet-screen');
@@ -749,7 +738,7 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     expect(thriftPlusMockControls.finished()).toEqual([]);
   });
 
-  it('only the steps left are asked: a selfie on file goes straight to "Step 1 of 1", the signature', async () => {
+  it('only the steps left are asked: a selfie on file goes straight to "Step 1 of 1", the terms', async () => {
     await mockApi.sendCode('robin@example.com', 'Robin', 'Lee');
     await mockApi.checkCode('robin@example.com', lastCode());
     await mockApi.uploadSelfie(new Blob(['jpg'], { type: 'image/jpeg' }));

@@ -911,7 +911,7 @@ def pending_person(person: Person) -> dict:
         'last_name': person.last_name, 'email': person.email, 'joined_at': person.account.created_at,
         'code_last4': card[-4:] if card else None, 'qr': f'TP{card}' if card else None,
         'photo_url': person.photo.url if person.photo else None, 'selfie': bool(person.photo),
-        'signed': bool(person.signature), 'contact': contact(person),
+        'signed': agreed(person), 'contact': contact(person),
     }
 
 
@@ -1031,10 +1031,10 @@ def code_member(query: str) -> dict | None:
     return {'status': status, 'first_name': person.first_name}
 
 
-# J5: the words the customer signs under, and the terms version they cover (ecothrift.us/terms, "Version: October 15,
-# 2026"). A new terms version changes this.
+# J5: the words the customer agrees to (a tap since 2026-11-03), and the terms version they cover (ecothrift.us/terms,
+# "Version: November 3, 2026"). A new terms version changes this.
 SIGNATURE_WORDS = 'I agree to the Thrift+ terms and photo release. I can read them at ecothrift.us/terms.'
-TERMS_VERSION = '2026-10-19'  # the terms as of J17 (selfie and signature in the app, sign-in codes by text)
+TERMS_VERSION = '2026-11-03'  # the terms as of J5's change (a tap on I agree, no signature)
 SIGNATURE_MAX_BYTES = 1_000_000
 
 
@@ -1048,18 +1048,27 @@ def _check_signature(signature) -> None:
         raise RegisterError('SIGNATURE_BAD', 'The signature did not save. Clear it and sign again.')
 
 
+def agreed(person: Person) -> bool:
+    """J5: they agreed to the terms. Since 2026-11-03 (owner) a tap on "I agree" (``signed_at`` with no drawing);
+    before that a drawn signature."""
+    return person.signed_at is not None or bool(person.signature)
+
+
 def from_app(person: Person) -> bool:
-    """Join v2 (owner 2026-10-19): the selfie and the signature were both taken in the app before the register."""
-    return bool(person.photo) and bool(person.signature)
+    """Join v2 (owner 2026-10-19): the selfie and the terms were both done in the app before the register."""
+    return bool(person.photo) and agreed(person)
 
 
 def finish_join(person_id, *, phone: str = '', id_checked: bool = False, verified_18: bool = False, photo=None,
-                signature=None, require_signature: bool = False, face_matches: bool = False, user=None) -> Person:
+                signature=None, require_signature: bool = False, face_matches: bool = False, agree: bool = False,
+                user=None) -> Person:
     """Finish joining at the register (J8): the ID check, 18+ and the photo as at a register sign-up; the membership
     becomes active. ``phone`` is optional (Join v2): when typed, the 10 digits the cashier read back (unique among
     active and pending people), verified in person (who and when).
 
     ``signature`` (J5, owner 2026-10-16): a PNG of the customer's signature, stored with when and the terms version.
+    ``agree`` (J5, owner 2026-11-03): the customer tapped "I agree" on the staff phone instead; stored the same way
+    with no drawing.
     ``require_signature`` (Finalize Thrift+ on a phone):
     - the selfie and the signature already taken in the app (``from_app``, Join v2): only the ID check and
       ``face_matches`` (the face matches the selfie) are needed; a new ``photo`` (Retake) replaces the selfie;
@@ -1088,8 +1097,8 @@ def finish_join(person_id, *, phone: str = '', id_checked: bool = False, verifie
         # screen takes one when there is none; the signature only when they didn't sign in the app.
         if require_signature and person.photo and not photo and not face_matches:
             raise RegisterError('FACE_NEEDED', 'Check that their face matches the photo.')
-        if require_signature and not person.signature and not signature:
-            raise RegisterError('SIGNATURE_NEEDED', 'The customer signs before you finish.')
+        if require_signature and not agreed(person) and not signature and not agree:
+            raise RegisterError('SIGNATURE_NEEDED', 'The customer taps I agree before you finish.')
         if digits:
             taken = Person.objects.filter(
                 phone=digits, removed_at__isnull=True,
@@ -1112,12 +1121,14 @@ def finish_join(person_id, *, phone: str = '', id_checked: bool = False, verifie
             signature.name = f'person-{person.pk}-{now:%Y%m%d%H%M%S}.png'
             person.signature = signature
             person.signed_at, person.signed_terms_version = now, TERMS_VERSION
+        elif agree and not agreed(person):
+            person.signed_at, person.signed_terms_version = now, TERMS_VERSION
         person.save()
         account = person.account
         account.status = Account.STATUS_ACTIVE
         account.save(update_fields=['status', 'updated_at'])
         members.log('finished_joining', account=account, person=person, actor=user, id_checked=person.id_checked,
-                    verified_18=person.verified_18, photo=bool(photo), signed=bool(signature), from_app=app,
+                    verified_18=person.verified_18, photo=bool(photo), signed=bool(signature) or bool(agree), from_app=app,
                     face_matches=bool(face_matches), phone=bool(digits))
         members.member_code(person, user=user)
     return person

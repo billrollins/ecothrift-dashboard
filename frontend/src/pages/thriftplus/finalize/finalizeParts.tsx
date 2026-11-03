@@ -1,11 +1,42 @@
+import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import { Box, Button, Dialog, Stack, Typography } from '@mui/material';
 import { useEffect, useRef } from 'react';
 import QrSvg from '../../../components/thriftplus/QrSvg';
 // The terms the customer signs under, word for word from the public site's copy (one source, J5).
 import { THRIFT_PLUS_TERMS_EN as TERMS } from '../../../../../frontend-public/src/data/thriftPlusTerms.en';
 
-/** J5: the words the customer signs under. The terms open in a popup, never a link (J13). */
+/** J5: the words the customer agrees to. The terms open in a popup, never a link (J13). */
 export const SIGNATURE_WORDS = 'I agree to the Thrift+ terms and photo release. I can read them at ecothrift.us/terms.';
+
+/** J5 (owner 2026-11-03): the button the customer taps, in place of a finger signature. */
+export const AGREE_WORDS = 'I agree to the Thrift+ terms and photo release';
+
+/**
+ * The customer's own tap on "I agree" (owner 2026-11-03: a tap is the deliberate act, no finger signature). Staff
+ * hand them the phone or screen; a second tap takes it back before Done.
+ */
+export function AgreeButton({ agreed, onAgree, disabled, testId }: {
+  agreed: boolean;
+  onAgree: (agreed: boolean) => void;
+  disabled?: boolean;
+  testId?: string;
+}) {
+  return (
+    <Button
+      variant={agreed ? 'contained' : 'outlined'}
+      color={agreed ? 'success' : 'primary'}
+      size="large"
+      aria-pressed={agreed}
+      startIcon={agreed ? <CheckCircleRounded /> : undefined}
+      onClick={() => onAgree(!agreed)}
+      disabled={disabled}
+      sx={{ minHeight: 64, fontSize: '1.1rem', fontWeight: 800, textTransform: 'none', borderRadius: 3 }}
+      data-testid={testId}
+    >
+      {AGREE_WORDS}
+    </Button>
+  );
+}
 
 /** ecothrift.us/join: the customer starts on their own phone (J8), then a cashier finishes them here. */
 export const JOIN_URL = 'https://ecothrift.us/join';
@@ -69,7 +100,7 @@ export function JoinQrDialog({ open, onClose }: { open: boolean; onClose: () => 
           {JOIN_SHOWN}
         </Typography>
         <Typography color="text.secondary" sx={{ maxWidth: 420 }}>
-          Join on your phone. Then two quick steps in the app: a selfie and your signature. Show your QR here and we
+          Join on your phone. Then two quick steps in the app: a selfie and I agree. Show your QR here and we
           check your photo ID.
         </Typography>
       </Stack>
@@ -81,7 +112,7 @@ export function JoinQrDialog({ open, onClose }: { open: boolean; onClose: () => 
 }
 
 /**
- * The Thrift+ terms in a popup over the signature (owner 2026-10-16): the customer reads them on this screen, with no
+ * The Thrift+ terms in a popup over "I agree" (owner 2026-10-16; a signature until 11-03): the customer reads them on this screen, with no
  * link that leaves the page. The full terms, as on ecothrift.us/terms.
  */
 export function TermsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -136,7 +167,7 @@ export function TermsDialog({ open, onClose }: { open: boolean; onClose: () => v
       </Box>
       <Box sx={{ px: 2, pt: 1.5, pb: 'calc(env(safe-area-inset-bottom, 0px) + 16px)', borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
         <Button variant="contained" fullWidth size="large" onClick={onClose} sx={done} data-testid="finalize-terms-done">
-          Back to signing
+          Back to I agree
         </Button>
       </Box>
     </Dialog>

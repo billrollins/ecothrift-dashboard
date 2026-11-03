@@ -137,8 +137,8 @@ describe('Join v2 client (owner 2026-10-19)', () => {
     expect(url).toBe('/me/selfie/');
     expect(body).toBeInstanceOf(FormData);
     expect((body as FormData).get('photo')).toBeInstanceOf(Blob);
-    await scanner.signTerms('data:image/png;base64,cG5n', '2026-10-15');
-    expect(http.post).toHaveBeenLastCalledWith('/me/signature/', { signature: 'data:image/png;base64,cG5n', terms_version: '2026-10-15' });
+    await scanner.signTerms('2026-10-15');
+    expect(http.post).toHaveBeenLastCalledWith('/me/signature/', { agree: true, terms_version: '2026-10-15' });
   });
 
   it("carries the server's words for a bad contact and a bad Google token", async () => {
@@ -162,7 +162,7 @@ describe('Join v2 client (owner 2026-10-19)', () => {
     expect(await words(() => scanner.uploadSelfie(jpeg), 400, { code: 'PHOTO_NEEDED' })).toBe('Take your selfie first.');
     expect(await words(() => scanner.uploadSelfie(jpeg), 400, { code: 'PHOTO_BAD' })).toBe("That photo didn't work. Take your selfie again.");
     expect(await words(() => scanner.uploadSelfie(jpeg), 400, { code: 'PHOTO_TOO_BIG' })).toBe('That photo is too big. Take your selfie again.');
-    expect(await words(() => scanner.signTerms('x', 'v'), 400, { code: 'SIGNATURE_BAD' })).toBe('The signature did not save. Clear it and sign again.');
+    expect(await words(() => scanner.signTerms('v'), 400, { code: 'NOT_PENDING' })).toBe('Your membership is already finished. Ask at the register to change it.');
     expect(await words(() => scanner.sendCode('a@b.co'), 429, { code: 'TOO_MANY', retry_after: 600 })).toBe('Too many codes. Try again in 10 minutes.');
     expect(await words(() => scanner.sendCode('a@b.co'), 429, { code: 'LOCKED', retry_after: 60 })).toBe('Too many tries. Try again in a minute.');
     expect(await words(() => scanner.checkCode('a@b.co', '123456'), 429, { code: 'LOCKED', retry_after: 900 })).toBe('Too many tries. Try again in 15 minutes.');

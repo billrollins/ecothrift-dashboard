@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.249.0] -->
-<!-- Last reviewed: 2026-11-03 (2.249.0) -->
+<!-- Line 1 release: ## [2.250.0] -->
+<!-- Last reviewed: 2026-11-03 (2.250.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.250.0] - 2026-11-03
+
+User-facing theme: **Thrift+ for customers without a smartphone: Assisted join, and a tap on I agree instead of a signature (Bill, 2026-11-03; Dash Updates #33).**
+
+### Added
+- Thrift+ Staff app → Find → **No smartphone? Assisted join** (rulebook J22). Staff type the first and last name, then either **Text them a code** (their flip phone gets our join code; staff type the 6 digits on the store phone) or **No phone: check their ID** (the name must match the photo ID). Then the usual Finalize screen: photo, the customer taps I agree, the ID check, Done. No card is printed; a no-phone member is found at the register by name and photo, and can add a phone later. API: `register/assist/send/`, `assist/check/`, `assist/no-phone/` (staff only).
+
+### Changed
+- Thrift+ terms are agreed with a **tap on "I agree to the Thrift+ terms and photo release"**, not a finger signature (rulebook J5), in the member app's Finish joining, on Finalize and on the register's member card. Terms §1.3–1.4 (English and Spanish) say "tap I agree"; terms version November 3, 2026. Earlier signatures stay; nobody is asked again. `me/signature/` takes `{agree: true}` (a drawing still works for apps not yet reloaded); `register/finish/` takes `agree`.
+
+### Removed
+- The Thrift+ signature pad (`ThriftSignaturePad.tsx`).
 
 ## [2.249.0] - 2026-11-03
 
