@@ -6,6 +6,7 @@ import {
   Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Table, TableBody, TableCell, TableHead, TableRow,
   Typography,
 } from '@mui/material';
+import CashLabel from './CashLabel';
 import type { CountCheck } from '../../types/pos.types';
 
 function money(value: string | number): string {
@@ -61,7 +62,7 @@ export default function CountCheckDialog({ check, title, onClose }: Props) {
                     const diff = typeof row.difference === 'string' ? parseFloat(row.difference) : row.difference;
                     return (
                       <TableRow key={row.key}>
-                        <TableCell>{row.label}</TableCell>
+                        <TableCell><CashLabel k={row.key} label={row.label} /></TableCell>
                         <TableCell align="right">{isMoney ? money(row.counted) : row.counted}</TableCell>
                         <TableCell align="right">{isMoney ? money(row.expected) : row.expected}</TableCell>
                         <TableCell align="right" sx={{ fontWeight: diff ? 800 : 400, color: diff ? 'error.main' : undefined }}>

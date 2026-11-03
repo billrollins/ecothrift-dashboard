@@ -9,7 +9,7 @@ import {
   Box, Button, Dialog, DialogContent, IconButton, Stack, Typography, useMediaQuery, useTheme,
 } from '@mui/material';
 import CashCountPad from './CashCountPad';
-import { CASH_DENOMINATIONS, countCents, type CashCount, type CashKey } from '../../utils/cashCounts';
+import { countCents, padKeys, type CashCount, type CashKey } from '../../utils/cashCounts';
 import type { CountCheck } from '../../types/pos.types';
 import { tp } from '../../i18n/pos';
 
@@ -106,10 +106,7 @@ export default function CountWindow({
   const inFlight = useRef(false); // a double tap posts once
   const shownCheck = result ?? check;
   // Only what the pad shows counts (a handover counts the bills).
-  const shown = only || keys
-    ? CASH_DENOMINATIONS.filter((d) => (!only || (only === 'bills') === d.bill) && (!keys || keys.includes(d.key)))
-      .map((d) => d.key)
-    : null;
+  const shown = only || keys ? padKeys(only, keys) : null;
   const counted: CashCount = shown ? Object.fromEntries(shown.filter((k) => count[k]).map((k) => [k, count[k]])) : count;
   const totalCents = countCents(counted) + extraCents;
   useEffect(() => {

@@ -238,7 +238,7 @@ class DrawerInputTests(_CashPathFixtures, TestCase):
         self._bad(self.client.post(url, {'register': self.reg2.id, 'opening_count': COUNT_120,
                                          'opening_total': '100.00'}, format='json'), 'does not match')
         self._bad(self.client.post(url, {'register': self.reg2.id, 'opening_total': 'abc'}, format='json'))
-        self._bad(self.client.post(url, {'register': self.reg2.id, 'opening_count': {'twos': 1}}, format='json'),
+        self._bad(self.client.post(url, {'register': self.reg2.id, 'opening_count': {'threes': 1}}, format='json'),
                   'not a bill or coin')
         self._bad(self.client.post(url, {'register': self.reg2.id, 'opening_count': {'ones': -3}}, format='json'))
         self._bad(self.client.post(url, {'register': self.reg2.id, 'opening_count': {'ones': 1.5}}, format='json'))

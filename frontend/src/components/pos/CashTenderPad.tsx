@@ -3,13 +3,15 @@
  * buttons to click with finger and EASY way to adjust a mistake"). Tap a tile for one more; a tapped tile has a wide
  * minus edge that takes one of it off. Undo takes back the last tap, Clear empties it. Keys work while the pad has focus
  * (Q W E R T Y for $100 to $1, A S D F for 25¢ to 1¢; Shift takes one back; Backspace undoes). Dash shows what to give
- * back from what the drawer holds, as pieces.
+ * back from what the drawer holds, as pieces. Each tile wears its note's colour (2026-11-03); the Oddballs button at the
+ * end of the coin row opens the $2 bill, 50¢ and $1 coin in a pop-up, so nothing on the pad moves.
  */
 import { useRef, useState, type KeyboardEvent } from 'react';
 import Remove from '@mui/icons-material/Remove';
-import { Alert, Box, Button, Chip, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, Popover, Stack, Typography } from '@mui/material';
 import {
   CASH_DENOMINATIONS,
+  ODDBALLS,
   addCounts,
   countCents,
   hasPieces,
@@ -43,9 +45,9 @@ export function ChangePieces({ give }: { give: CashCount }) {
       {CASH_DENOMINATIONS.filter((d) => (give[d.key] ?? 0) > 0).map((d) => (
         <Chip
           key={d.key}
-          color="success"
           label={`${give[d.key]} × ${d.label}`}
-          sx={{ fontSize: '1.15rem', fontWeight: 800, height: 44, px: 0.5 }}
+          data-tone={d.key}
+          sx={{ fontSize: '1.15rem', fontWeight: 800, height: 44, px: 0.5, bgcolor: d.tone.bg, color: d.tone.fg }}
         />
       ))}
     </Stack>
@@ -54,7 +56,9 @@ export function ChangePieces({ give }: { give: CashCount }) {
 
 export default function CashTenderPad({ received, onChange, dueCents, drawerContents, split, disabled, lang }: Props) {
   const [history, setHistory] = useState<CashCount[]>([]);
+  const [oddAt, setOddAt] = useState<HTMLElement | null>(null);
   const padRef = useRef<HTMLDivElement>(null);
+  const oddCount = ODDBALLS.reduce((sum, d) => sum + (received[d.key] ?? 0), 0);
   const tendered = countCents(received);
   // A split that the cash covers goes as cash, so its change shows too.
   const asCash = !split || tendered >= dueCents;
@@ -83,7 +87,7 @@ export default function CashTenderPad({ received, onChange, dueCents, drawerCont
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (disabled || e.altKey || e.ctrlKey || e.metaKey) return;
-    const d = CASH_DENOMINATIONS.find((x) => x.hotkey === e.key.toUpperCase());
+    const d = CASH_DENOMINATIONS.find((x) => x.hotkey && x.hotkey === e.key.toUpperCase());
     if (d) {
       e.preventDefault();
       bump(d, e.shiftKey ? -1 : 1);
@@ -100,7 +104,6 @@ export default function CashTenderPad({ received, onChange, dueCents, drawerCont
         <Button
           fullWidth
           variant={n ? 'contained' : 'outlined'}
-          color={d.bill ? 'success' : 'primary'}
           disabled={disabled}
           onClick={(e) => bump(d, e.shiftKey ? -1 : 1)}
           onContextMenu={(e) => {
@@ -109,12 +112,17 @@ export default function CashTenderPad({ received, onChange, dueCents, drawerCont
           }}
           aria-label={`${d.label}${n ? `, ${n}` : ''}`}
           data-testid={`cash-${d.key}`}
+          data-tone={d.key}
           sx={{
             minHeight: { xs: 72, sm: 84 },
             pl: n ? 6 : 1,
             pr: 1,
-            borderWidth: 2,
-            '&:hover': { borderWidth: 2 },
+            // Its note's colour: a solid fill once tapped, a coloured edge and band before (the label always shows).
+            border: `3px solid ${d.tone.bg}`,
+            boxShadow: n ? 'none' : `inset 0 8px 0 ${d.tone.bg}`,
+            bgcolor: n ? d.tone.bg : 'background.paper',
+            color: n ? d.tone.fg : 'text.primary',
+            '&:hover': { border: `3px solid ${d.tone.bg}`, bgcolor: n ? d.tone.bg : 'action.hover' },
             borderRadius: 2,
             flexDirection: 'column',
             textTransform: 'none',
@@ -143,7 +151,7 @@ export default function CashTenderPad({ received, onChange, dueCents, drawerCont
               position: 'absolute', left: 0, top: 0, bottom: 0, width: 48,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               border: 0, borderRight: '1px solid rgba(255,255,255,0.45)', borderRadius: '8px 0 0 8px',
-              bgcolor: 'rgba(0,0,0,0.18)', color: 'common.white', cursor: 'pointer', p: 0,
+              bgcolor: 'rgba(0,0,0,0.18)', color: d.tone.fg, cursor: 'pointer', p: 0,
               '&:hover': { bgcolor: 'rgba(0,0,0,0.3)' },
             }}
           >
@@ -164,11 +172,55 @@ export default function CashTenderPad({ received, onChange, dueCents, drawerCont
       sx={{ outline: 'none' }}
     >
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(6, 1fr)' }, gap: 1, mb: 1 }}>
-        {CASH_DENOMINATIONS.filter((d) => d.bill).map(tile)}
+        {CASH_DENOMINATIONS.filter((d) => d.bill && !d.odd).map(tile)}
       </Box>
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
-        {CASH_DENOMINATIONS.filter((d) => !d.bill).map(tile)}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(4, 1fr)', sm: 'repeat(6, 1fr)' }, gap: 1 }}>
+        {CASH_DENOMINATIONS.filter((d) => !d.bill && !d.odd).map(tile)}
+        {/* The coin row's empty end; its size never changes with the count. */}
+        <Button
+          variant="outlined"
+          color="inherit"
+          disabled={disabled}
+          onClick={(e) => setOddAt(e.currentTarget)}
+          aria-haspopup="dialog"
+          data-testid="cash-oddballs"
+          sx={{
+            gridColumn: { xs: '1 / -1', sm: 'span 2' },
+            minHeight: { xs: 56, sm: 84 },
+            borderWidth: oddCount ? 3 : 2,
+            '&:hover': { borderWidth: oddCount ? 3 : 2 },
+            bgcolor: oddCount ? 'action.selected' : undefined,
+            borderRadius: 2,
+            textTransform: 'none',
+            fontWeight: 800,
+            fontSize: { xs: '1.15rem', sm: '1.3rem' },
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {tp('oddballs', lang)}{oddCount ? ` × ${oddCount}` : ''}
+        </Button>
       </Box>
+      <Popover
+        open={Boolean(oddAt)}
+        anchorEl={oddAt}
+        onClose={() => {
+          setOddAt(null);
+          padRef.current?.focus();
+        }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        slotProps={{ paper: { sx: { p: 1.5, width: { xs: 'calc(100vw - 32px)', sm: 420 }, maxWidth: 420 } } }}
+      >
+        <Box data-testid="cash-oddballs-pop">
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>{ODDBALLS.map(tile)}</Box>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>{tp('oddballsNote', lang)}</Typography>
+            <Button variant="contained" size="large" onClick={() => setOddAt(null)} sx={{ minHeight: 48, minWidth: 96 }}>
+              {tp('done', lang)}
+            </Button>
+          </Stack>
+        </Box>
+      </Popover>
       <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
         <Button
           variant="outlined"

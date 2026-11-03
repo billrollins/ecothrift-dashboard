@@ -12,6 +12,8 @@ const STRINGS = {
   undo: { en: 'Undo', es: 'Deshacer' },
   clear: { en: 'Clear', es: 'Borrar' },
   takeOne: { en: 'Take one off', es: 'Quitar uno' },
+  oddballs: { en: 'Oddballs', es: 'Especiales' },
+  oddballsNote: { en: 'Never given as change', es: 'Nunca se dan de cambio' },
   giveBack: { en: 'Give back', es: 'Dar cambio' },
   noChange: { en: 'No change', es: 'Sin cambio' },
   drawerShort: {

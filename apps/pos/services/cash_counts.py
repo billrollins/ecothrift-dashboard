@@ -18,7 +18,12 @@ DENOMINATIONS = (
     ('dimes', Decimal('0.10')),
     ('nickels', Decimal('0.05')),
     ('pennies', Decimal('0.01')),
+    # Oddballs (Bill 2026-11-03: "AT LEAST: $2, 50 cent pieces or Dollar Coins"): taken and counted, never given back.
+    ('twos', Decimal('2')),
+    ('halves', Decimal('0.50')),
+    ('dollar_coins', Decimal('1')),
 )
+ODDBALLS = ('twos', 'halves', 'dollar_coins')
 _VALUES = dict(DENOMINATIONS)
 MAX_PIECES = 100_000
 
@@ -65,17 +70,18 @@ def clean_amount(raw, label: str, *, required: bool = False) -> Decimal | None:
 
 
 _CENTS = {k: int(v * 100) for k, v in DENOMINATIONS}
+_CHANGE_CENTS = {k: c for k, c in _CENTS.items() if k not in ODDBALLS}
 
 
 def make_change(amount: Decimal, available: dict | None = None) -> tuple[dict, bool]:
     """Which bills and coins to give back for ``amount`` (2026-10-21, cash by denomination): the fewest pieces the
-    drawer has (``available``, a count; None means any). Answers (count, short): ``short`` is True when the drawer
+    drawer has (``available``, a count; None means any), never an oddball. Answers (count, short): ``short`` is True when the drawer
     cannot make it exactly, and the count is then the fewest pieces from any bills and coins."""
     cents = int((amount * 100).quantize(Decimal('1')))
     if cents <= 0:
         return {}, False
     if available is not None:
-        have = {k: max(0, int(available.get(k) or 0)) for k in _CENTS}
+        have = {k: max(0, int(available.get(k) or 0)) for k in _CHANGE_CENTS}
         found = _fewest(cents, have)
         if found is not None:
             return found, False
@@ -88,7 +94,7 @@ def _fewest(cents: int, have: dict | None) -> dict | None:
     Largest first is right for US money whenever it lands exactly; only a drawer short of some coin (30¢ with no
     nickels: 3 dimes, not a quarter) needs the exact search."""
     left, out = cents, {}
-    for key, value in _CENTS.items():
+    for key, value in _CHANGE_CENTS.items():
         take = left // value if have is None else min(have[key], left // value)
         if take:
             out[key] = take
@@ -103,7 +109,7 @@ def _fewest(cents: int, have: dict | None) -> dict | None:
 def _fewest_exact(cents: int, have: dict) -> dict | None:
     # Bounded knapsack, each denomination split into items of 1, 2, 4, ... pieces; one decision row per item.
     items = []  # (key, pieces, value in cents)
-    for key, value in _CENTS.items():
+    for key, value in _CHANGE_CENTS.items():
         limit = min(have[key], cents // value)
         step = 1
         while limit > 0:
@@ -130,7 +136,7 @@ def _fewest_exact(cents: int, have: dict) -> dict | None:
             key, pieces, value = items[index]
             out[key] = out.get(key, 0) + pieces
             total -= value
-    return {k: out[k] for k in _CENTS if out.get(k)}
+    return {k: out[k] for k in _CHANGE_CENTS if out.get(k)}
 
 
 def add_counts(a: dict | None, b: dict | None, sign: int = 1) -> dict:
@@ -143,7 +149,8 @@ def add_counts(a: dict | None, b: dict | None, sign: int = 1) -> dict:
 def describe(count: dict) -> str:
     """'1 × $5, 2 × quarters' for a count, largest first."""
     names = {'hundreds': '$100', 'fifties': '$50', 'twenties': '$20', 'tens': '$10', 'fives': '$5', 'ones': '$1',
-             'quarters': 'quarters', 'dimes': 'dimes', 'nickels': 'nickels', 'pennies': 'pennies'}
+             'quarters': 'quarters', 'dimes': 'dimes', 'nickels': 'nickels', 'pennies': 'pennies',
+             'twos': '$2 bills', 'halves': '50¢ pieces', 'dollar_coins': '$1 coins'}
     return ', '.join(f'{count[k]} × {names[k]}' for k in _CENTS if count.get(k))
 
 

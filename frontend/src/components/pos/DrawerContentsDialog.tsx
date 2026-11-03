@@ -4,6 +4,7 @@
  * only. A count below 0 means the drawer drifted from what Dash knows; the next count shows it.
  */
 import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
+import CashLabel from './CashLabel';
 import { CASH_DENOMINATIONS, countCents, hasPieces, type CashCount } from '../../utils/cashCounts';
 import { tp } from '../../i18n/pos';
 
@@ -65,11 +66,12 @@ export function DrawerContentsGrid({
           data-testid="drawer-contents"
           sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', columnGap: 2, rowGap: 0.75, alignItems: 'baseline' }}
         >
-          {CASH_DENOMINATIONS.filter((d) => !hideZero || (contents?.[d.key] ?? 0) !== 0).map((d) => {
+          {/* Oddballs only when there are some. */}
+          {CASH_DENOMINATIONS.filter((d) => (!hideZero && !d.odd) || (contents?.[d.key] ?? 0) !== 0).map((d) => {
             const n = contents?.[d.key] ?? 0;
             return (
               <Box key={d.key} sx={{ display: 'contents', color: n ? (n < 0 ? 'error.main' : 'text.primary') : 'text.disabled' }}>
-                <Typography fontWeight={800} fontSize="1.15rem">{d.label}</Typography>
+                <Box><CashLabel k={d.key} label={d.label} sx={{ fontSize: '1.05rem', opacity: n ? 1 : 0.55 }} /></Box>
                 <Typography fontSize="1.15rem" data-testid={`drawer-${d.key}`}>× {n}</Typography>
                 <Typography textAlign="right">{money(n * d.cents)}</Typography>
               </Box>

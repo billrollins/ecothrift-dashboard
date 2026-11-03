@@ -38,6 +38,21 @@ describe('CountWindow (Retail 4, 2026-11-02)', () => {
     expect(result).not.toHaveTextContent('$20');
   });
 
+  it('oddballs sit behind one Oddballs row and are counted with the rest (2026-11-03)', async () => {
+    const user = userEvent.setup();
+    const submit = vi.fn(async () => null);
+    setup(submit);
+    await user.click(screen.getByTestId('count-oddballs'));
+    await screen.findByTestId('count-oddballs-pop');
+    await user.click(screen.getByRole('button', { name: '+ $1 coin' }));
+    await user.click(screen.getByRole('button', { name: '+ 50¢' }));
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.getByTestId('count-oddballs')).toHaveTextContent('Oddballs × 2');
+    expect(screen.getByTestId('count-total')).toHaveTextContent('$1.50');
+    await user.click(screen.getByTestId('count-submit'));
+    expect(submit).toHaveBeenCalledWith({ dollar_coins: 1, halves: 1 });
+  });
+
   it('a double tap posts once; an error keeps the count', async () => {
     const user = userEvent.setup();
     let fail: (e: unknown) => void = () => undefined;

@@ -14,19 +14,22 @@ from decimal import Decimal, InvalidOperation
 
 from django.db.models import Sum
 
-from apps.pos.services.cash_counts import DENOMINATIONS, add_counts, count_total
+from apps.pos.services.cash_counts import DENOMINATIONS, ODDBALLS, add_counts, count_total
 
 BILLS = ('hundreds', 'fifties', 'twenties', 'tens', 'fives', 'ones')
 COINS = ('quarters', 'dimes', 'nickels', 'pennies')
+# Counted by hand with the bills (2026-11-03): the bills and the oddballs; the coin counter takes only COINS.
+BY_HAND = BILLS + ODDBALLS
 _LABELS = {'hundreds': '$100', 'fifties': '$50', 'twenties': '$20', 'tens': '$10', 'fives': '$5', 'ones': '$1',
-           'quarters': '25¢', 'dimes': '10¢', 'nickels': '5¢', 'pennies': '1¢'}
+           'quarters': '25¢', 'dimes': '10¢', 'nickels': '5¢', 'pennies': '1¢',
+           'twos': '$2', 'halves': '50¢', 'dollar_coins': '$1 coin'}
 LABELS = _LABELS
 SETTING_KEY_CLOSE_NOTE_OVER = 'pos.close_note_over'
 DEFAULT_CLOSE_NOTE_OVER = Decimal('5.00')
 
 
 def bills_of(count: dict | None) -> dict:
-    return {k: v for k, v in (count or {}).items() if k in BILLS and v}
+    return {k: v for k, v in (count or {}).items() if k in BY_HAND and v}
 
 
 def coins_of(count: dict | None) -> dict:
@@ -48,9 +51,9 @@ def expected_cash(drawer) -> Decimal:
 def count_check(counted: dict, expected: dict, *, coins_total: Decimal | None = None, bills_only: bool = False) -> dict:
     """Counted beside expected, by bill and coin, after a blind count. ``coins_total``: the coin counter gave one total,
     so the coins are one row. ``bills_only``: a handoff (no coin rows)."""
-    keys = [k for k, _v in DENOMINATIONS if not bills_only or k in BILLS]
+    keys = [k for k, _v in DENOMINATIONS if not bills_only or k in BY_HAND]
     if coins_total is not None:
-        keys = [k for k in keys if k in BILLS]
+        keys = [k for k in keys if k in BY_HAND]
     rows = []
     for key in keys:
         c, e = int(counted.get(key) or 0), int(expected.get(key) or 0)
@@ -133,7 +136,7 @@ def close_out(counted: dict, till: dict | None, till_total: Decimal, closing_tot
     if not till:
         return out
     by_piece = coins_total is None
-    keys = [k for k, _v in DENOMINATIONS if by_piece or k in BILLS]
+    keys = [k for k, _v in DENOMINATIONS if by_piece or k in BY_HAND]
     have = {k: int(counted.get(k) or 0) for k in keys}
     want = {k: int(till.get(k) or 0) for k in keys}
     out['keep'] = {k: v for k, v in till.items() if v}

@@ -1,4 +1,5 @@
 import { Box, TextField, Typography, Paper, Divider, Chip } from '@mui/material';
+import CashLabel from '../pos/CashLabel';
 import type { DenominationBreakdown } from '../../types/pos.types';
 
 const DENOMINATIONS: { key: keyof DenominationBreakdown; label: string; value: number }[] = [
@@ -58,7 +59,7 @@ export default function DenominationCounter({
           const denomTotal = qty * d.value;
           return (
             <Box key={d.key}>
-              <Typography variant="caption" color="text.secondary">{d.label}</Typography>
+              <CashLabel k={d.key} label={d.label} sx={{ fontSize: '0.85rem', mb: 0.5 }} />
               <TextField
                 size="small"
                 type="number"

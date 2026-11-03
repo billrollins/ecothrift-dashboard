@@ -30,6 +30,26 @@ describe('CashTenderPad (2026-10-21; big tiles 2026-11-02)', () => {
     expect(screen.getByTestId('give-back-pieces')).toHaveTextContent('2 × $12 × 25¢1 × 10¢');
   });
 
+  it('each tile wears its note colour; Oddballs opens a pop-up, counts toward received and never comes back as change', async () => {
+    const user = userEvent.setup();
+    render(<Harness due={350} />);
+    expect(screen.getByTestId('cash-twenties')).toHaveStyle({ borderColor: '#2e7d32' });
+    expect(screen.getByTestId('cash-hundreds')).toHaveStyle({ borderColor: '#1565c0' });
+    const odd = screen.getByTestId('cash-oddballs');
+    expect(odd).toHaveTextContent(/^Oddballs$/);
+    await user.click(odd);
+    const pop = await screen.findByTestId('cash-oddballs-pop');
+    expect(pop).toHaveTextContent('Never given as change');
+    await user.click(screen.getByTestId('cash-twos'));
+    await user.click(screen.getByTestId('cash-twos'));
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.getByTestId('cash-oddballs')).toHaveTextContent('Oddballs × 2');
+    expect(screen.getByTestId('state')).toHaveTextContent('{"twos":2}');
+    expect(screen.getByTestId('cash-summary')).toHaveTextContent('Received $4.00');
+    expect(screen.getByTestId('give-back-pieces')).toHaveTextContent('2 × 25¢');
+    expect(screen.getByTestId('give-back-pieces')).not.toHaveTextContent('$2');
+  });
+
   it('a wrong bill is one tap from a fix: the minus edge takes one of it off; Undo and Clear', async () => {
     const user = userEvent.setup();
     render(<Harness />);

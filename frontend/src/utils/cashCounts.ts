@@ -5,7 +5,8 @@
  */
 export type CashKey =
   | 'hundreds' | 'fifties' | 'twenties' | 'tens' | 'fives' | 'ones'
-  | 'quarters' | 'dimes' | 'nickels' | 'pennies';
+  | 'quarters' | 'dimes' | 'nickels' | 'pennies'
+  | 'twos' | 'halves' | 'dollar_coins';
 
 export type CashCount = Partial<Record<CashKey, number>>;
 
@@ -16,22 +17,46 @@ export interface CashDenomination {
   name: string;
   cents: number;
   bill: boolean;
-  /** Keyboard key on the tap pad (Shift + the key takes one back). */
+  /** Keyboard key on the tap pad (Shift + the key takes one back); none for the oddballs. */
   hotkey: string;
+  /** Oddballs (2026-11-03): taken and counted, never given as change; behind the Oddballs button. */
+  odd?: boolean;
+  /** Its colour (2026-11-03, Bill: "color code the denominations"): the real note's colour, coins in metal. */
+  tone: { bg: string; fg: string };
 }
 
+// Readable on light and dark: a solid fill with its own text colour.
+const SILVER = { bg: '#b0bec5', fg: '#102027' };
+
 export const CASH_DENOMINATIONS: CashDenomination[] = [
-  { key: 'hundreds', label: '$100', name: '$100', cents: 10000, bill: true, hotkey: 'Q' },
-  { key: 'fifties', label: '$50', name: '$50', cents: 5000, bill: true, hotkey: 'W' },
-  { key: 'twenties', label: '$20', name: '$20', cents: 2000, bill: true, hotkey: 'E' },
-  { key: 'tens', label: '$10', name: '$10', cents: 1000, bill: true, hotkey: 'R' },
-  { key: 'fives', label: '$5', name: '$5', cents: 500, bill: true, hotkey: 'T' },
-  { key: 'ones', label: '$1', name: '$1', cents: 100, bill: true, hotkey: 'Y' },
-  { key: 'quarters', label: '25¢', name: 'quarters', cents: 25, bill: false, hotkey: 'A' },
-  { key: 'dimes', label: '10¢', name: 'dimes', cents: 10, bill: false, hotkey: 'S' },
-  { key: 'nickels', label: '5¢', name: 'nickels', cents: 5, bill: false, hotkey: 'D' },
-  { key: 'pennies', label: '1¢', name: 'pennies', cents: 1, bill: false, hotkey: 'F' },
+  { key: 'hundreds', label: '$100', name: '$100', cents: 10000, bill: true, hotkey: 'Q', tone: { bg: '#1565c0', fg: '#fff' } },
+  { key: 'fifties', label: '$50', name: '$50', cents: 5000, bill: true, hotkey: 'W', tone: { bg: '#c2185b', fg: '#fff' } },
+  { key: 'twenties', label: '$20', name: '$20', cents: 2000, bill: true, hotkey: 'E', tone: { bg: '#2e7d32', fg: '#fff' } },
+  { key: 'tens', label: '$10', name: '$10', cents: 1000, bill: true, hotkey: 'R', tone: { bg: '#e65100', fg: '#fff' } },
+  { key: 'fives', label: '$5', name: '$5', cents: 500, bill: true, hotkey: 'T', tone: { bg: '#6a1b9a', fg: '#fff' } },
+  { key: 'ones', label: '$1', name: '$1', cents: 100, bill: true, hotkey: 'Y', tone: { bg: '#616161', fg: '#fff' } },
+  { key: 'quarters', label: '25¢', name: 'quarters', cents: 25, bill: false, hotkey: 'A', tone: SILVER },
+  { key: 'dimes', label: '10¢', name: 'dimes', cents: 10, bill: false, hotkey: 'S', tone: SILVER },
+  { key: 'nickels', label: '5¢', name: 'nickels', cents: 5, bill: false, hotkey: 'D', tone: SILVER },
+  { key: 'pennies', label: '1¢', name: 'pennies', cents: 1, bill: false, hotkey: 'F', tone: { bg: '#a0522d', fg: '#fff' } },
+  { key: 'twos', label: '$2', name: '$2 bills', cents: 200, bill: true, hotkey: '', odd: true, tone: { bg: '#00695c', fg: '#fff' } },
+  { key: 'halves', label: '50¢', name: '50¢ pieces', cents: 50, bill: false, hotkey: '', odd: true, tone: SILVER },
+  { key: 'dollar_coins', label: '$1 coin', name: '$1 coins', cents: 100, bill: false, hotkey: '', odd: true, tone: { bg: '#c9a227', fg: '#1a1400' } },
 ];
+
+export const ODDBALLS = CASH_DENOMINATIONS.filter((d) => d.odd);
+export const TONES = Object.fromEntries(CASH_DENOMINATIONS.map((d) => [d.key, d.tone])) as Record<CashKey, CashDenomination['tone']>;
+
+/**
+ * The bills and coins a counter counts: `only` the bills (a handover, the close's hand count; the oddballs go with
+ * them) or only the coins (the coin count; no oddballs), and `keys` to narrow it (a spot check). Undefined is all.
+ */
+export function padKeys(only?: 'bills' | 'coins', keys?: CashKey[]): CashKey[] {
+  return CASH_DENOMINATIONS.filter((d) => {
+    const fits = !only || (d.odd ? only === 'bills' : (only === 'bills') === d.bill);
+    return fits && (!keys || keys.includes(d.key));
+  }).map((d) => d.key);
+}
 
 export function countCents(count: CashCount | null | undefined): number {
   return CASH_DENOMINATIONS.reduce((sum, d) => sum + (count?.[d.key] ?? 0) * d.cents, 0);
@@ -59,7 +84,7 @@ export function describeCount(count: CashCount | null | undefined): string {
 
 /**
  * What to give back for `cents`: the fewest pieces from `available` (a count; undefined means any). `short` when the
- * drawer can't make it exactly; the count is then the fewest pieces from any bills and coins.
+ * drawer can't make it exactly (never from oddballs); the count is then the fewest pieces from any bills and coins.
  */
 export function makeChange(cents: number, available?: CashCount | null): { give: CashCount; short: boolean } {
   if (cents <= 0) return { give: {}, short: false };
@@ -73,10 +98,13 @@ export function makeChange(cents: number, available?: CashCount | null): { give:
   return { give: fewest(cents, null) ?? {}, short: Boolean(available) };
 }
 
+// Change is never given in oddballs.
+const CHANGE = CASH_DENOMINATIONS.filter((d) => !d.odd);
+
 function fewest(cents: number, have: Record<CashKey, number> | null): CashCount | null {
   let left = cents;
   const out: CashCount = {};
-  for (const d of CASH_DENOMINATIONS) {
+  for (const d of CHANGE) {
     const can = Math.floor(left / d.cents);
     const take = have ? Math.min(have[d.key], can) : can;
     if (take) {
@@ -90,7 +118,7 @@ function fewest(cents: number, have: Record<CashKey, number> | null): CashCount 
 
 function fewestExact(cents: number, have: Record<CashKey, number>): CashCount | null {
   const items: { key: CashKey; pieces: number; value: number }[] = [];
-  for (const d of CASH_DENOMINATIONS) {
+  for (const d of CHANGE) {
     let limit = Math.min(have[d.key], Math.floor(cents / d.cents));
     let step = 1;
     while (limit > 0) {

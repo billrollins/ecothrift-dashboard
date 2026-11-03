@@ -34,7 +34,11 @@ function Pieces({ count, coins, lang }: { count: CashCount | null; coins?: strin
   return (
     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 0.75 }}>
       {shown.map((d) => (
-        <Chip key={d.key} label={`${count?.[d.key]} × ${d.label}`} sx={{ fontWeight: 800, fontSize: '1rem', height: 38 }} />
+        <Chip
+          key={d.key}
+          label={`${count?.[d.key]} × ${d.label}`}
+          sx={{ fontWeight: 800, fontSize: '1rem', height: 38, bgcolor: d.tone.bg, color: d.tone.fg }}
+        />
       ))}
       {some(coins) && <Chip label={`${money(coins ?? 0)} ${tp('coinsDollars', lang)}`} sx={{ fontWeight: 800, fontSize: '1rem', height: 38 }} />}
     </Stack>

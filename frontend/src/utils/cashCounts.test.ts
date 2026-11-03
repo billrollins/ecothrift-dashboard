@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addCounts, countCents, describeCount, makeChange, type CashCount } from './cashCounts';
+import { addCounts, countCents, describeCount, makeChange, padKeys, type CashCount } from './cashCounts';
 
 const FULL: CashCount = {
   hundreds: 2, fifties: 2, twenties: 10, tens: 10, fives: 10, ones: 30, quarters: 40, dimes: 50, nickels: 40, pennies: 50,
@@ -26,5 +26,16 @@ describe('cashCounts (the same answers as the server)', () => {
     expect(countCents({ twenties: 2, quarters: 3 })).toBe(4075);
     expect(addCounts({ ones: 2 }, { ones: 2 }, -1)).toEqual({});
     expect(describeCount({ quarters: 2, fives: 1 })).toBe('1 × $5, 2 × quarters');
+  });
+
+  it('oddballs count toward the total but are never given back (2026-11-03)', () => {
+    expect(countCents({ twos: 1, halves: 1, dollar_coins: 1 })).toBe(350);
+    expect(makeChange(250, { twos: 9, halves: 9, dollar_coins: 9, ones: 5, quarters: 8 }))
+      .toEqual({ give: { ones: 2, quarters: 2 }, short: false });
+    expect(makeChange(200, { twos: 4 })).toEqual({ give: { ones: 2 }, short: true });
+    // Counted by hand with the bills; the coin count has none.
+    expect(padKeys('bills')).toContain('twos');
+    expect(padKeys('bills')).toContain('dollar_coins');
+    expect(padKeys('coins')).not.toContain('halves');
   });
 });

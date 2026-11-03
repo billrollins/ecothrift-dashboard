@@ -7,7 +7,7 @@ from django.test import SimpleTestCase, TestCase
 
 from apps.inventory.models import Item
 from apps.pos.models import Cart, Drawer, Register
-from apps.pos.services.cash_counts import add_counts, describe, make_change
+from apps.pos.services.cash_counts import add_counts, count_total, describe, make_change
 
 from .pin_helpers import manager_ok
 from .test_cart_card_surcharge import _CartCardSurchargeFixtures
@@ -42,6 +42,14 @@ class MakeChangeTests(SimpleTestCase):
         self.assertEqual(add_counts({'ones': 2}, {'ones': 2}, -1), {})
         self.assertEqual(add_counts({}, {'quarters': 1}, -1), {'quarters': -1})  # drift shows at the count
         self.assertEqual(describe({'quarters': 2, 'fives': 1}), '1 × $5, 2 × quarters')
+
+    def test_oddballs_are_taken_but_never_given_back(self):
+        # 2026-11-03: a $2 bill, 50¢ pieces and $1 coins count toward what is paid; change never uses them.
+        drawer = {'twos': 10, 'halves': 10, 'dollar_coins': 10, 'ones': 5, 'quarters': 8}
+        self.assertEqual(make_change(D('2.50'), drawer), ({'ones': 2, 'quarters': 2}, False))
+        self.assertEqual(make_change(D('2.00'), {'twos': 4}), ({'ones': 2}, True))
+        self.assertEqual(count_total({'twos': 1, 'halves': 1, 'dollar_coins': 1}), D('3.50'))
+        self.assertEqual(describe({'twos': 1, 'halves': 2}), '1 × $2 bills, 2 × 50¢ pieces')
 
 
 class RegisterCashTests(_CartCardSurchargeFixtures, TestCase):
@@ -84,7 +92,7 @@ class RegisterCashTests(_CartCardSurchargeFixtures, TestCase):
         cid = self._cart('10.00')
         r = self._complete(cid, {'payment_method': 'cash', 'cash_received': {'tens': 1}, 'cash_tendered': '20.00'})
         self.assertEqual((r.status_code, r.json()['code']), (400, 'CASH_MISMATCH'))
-        r = self._complete(cid, {'payment_method': 'cash', 'cash_received': {'twos': 1}})
+        r = self._complete(cid, {'payment_method': 'cash', 'cash_received': {'threes': 1}})
         self.assertEqual((r.status_code, r.json()['code']), (400, 'INVALID_COUNT'))
         r = self._complete(cid, {'payment_method': 'cash', 'cash_received': {'fives': 1}})
         self.assertEqual((r.status_code, r.json()['code']), (400, 'CASH_SHORT'))

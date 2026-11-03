@@ -1,10 +1,11 @@
-v2.246.1 — Tidier Cashier menu
+v2.247.0 — Colour-coded cash and an Oddballs button
 
-User-facing theme: **A tidier Cashier menu now that the retail windows open everywhere (Bill, 2026-11-02; Dash Updates #49).**
+User-facing theme: **Colour-coded cash and an Oddballs button (Bill, 2026-11-03; Dash Updates #52).**
+
+### Added
+- Oddballs: a $2 bill, 50¢ pieces and $1 coins. On the register's cash window, the button sits at the end of the coin row and opens a small pop-up; on drawer counts it is one row at the end. The button shows the count ("Oddballs × 2") and never changes size. Oddballs count toward what is paid and what is counted, but are never given as change. At a close they get their own line and always go with the drop (the till never keeps them).
 
 ### Changed
-- Cashier menu: Terminal, Thrift+ Staff, Transactions, Returns, Drawers, Cash. Thrift+ members left the menu (it was the same find as Thrift+ Staff; a member opens as the Member window); /pos/members still works.
-- Cash management is now Cash, for managers and the owner only (menu, page and the Register window's link); a cashier's drops stay on Drawers.
-- Returns: after the credit, the member's window opens.
+- Each bill wears the colour of the real note ($100 blue, $50 pink, $20 green, $10 orange, $5 purple, $1 grey); coins are in metal tones (penny copper, the rest silver). The label is always written on it. This applies on every counter: the register's cash window and its give-back pieces, the opening, handover, spot-check and closing counts, the counted-vs-expected table, the close-out guide, the drawer's contents, deposits and safe swaps, and the till-fund and Cash page counters.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

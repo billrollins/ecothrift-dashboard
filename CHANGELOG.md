@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.246.1] -->
-<!-- Last reviewed: 2026-11-02 (2.246.1) -->
+<!-- Line 1 release: ## [2.247.0] -->
+<!-- Last reviewed: 2026-11-03 (2.247.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.247.0] - 2026-11-03
+
+User-facing theme: **Colour-coded cash and an Oddballs button (Bill, 2026-11-03; Dash Updates #52).**
+
+### Added
+- Oddballs: a $2 bill, 50¢ pieces and $1 coins. On the register's cash window, the button sits at the end of the coin row and opens a small pop-up; on drawer counts it is one row at the end. The button shows the count ("Oddballs × 2") and never changes size. Oddballs count toward what is paid and what is counted, but are never given as change. At a close they get their own line and always go with the drop (the till never keeps them).
+
+### Changed
+- Each bill wears the colour of the real note ($100 blue, $50 pink, $20 green, $10 orange, $5 purple, $1 grey); coins are in metal tones (penny copper, the rest silver). The label is always written on it. This applies on every counter: the register's cash window and its give-back pieces, the opening, handover, spot-check and closing counts, the counted-vs-expected table, the close-out guide, the drawer's contents, deposits and safe swaps, and the till-fund and Cash page counters.
 
 ## [2.246.1] - 2026-11-02
 

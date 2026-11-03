@@ -122,6 +122,17 @@ class CloseTests(_LifeFixtures, TestCase):
         self.drawer.refresh_from_db()
         self.assertEqual(self.drawer.close_out, out)
 
+    def test_oddballs_get_their_own_line_and_go_with_the_drop(self):
+        # 2026-11-03: the till never holds oddballs, so every one goes to the office with the drop.
+        Register.objects.filter(pk=self.register.pk).update(starting_breakdown={'tens': 2, 'fives': 2, 'ones': 15})
+        r = self.client.post(self._url('close'), {'closing_count': {**self.BILLS, 'twos': 3, 'halves': 2},
+                                                  'coins_total': '2.00', 'note': 'Over'}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        body = r.json()
+        self.assertIn(('twos', 3), [(row['key'], row['counted']) for row in body['count_check']['rows']])
+        self.assertEqual({k: v for k, v in body['close_out']['drop'].items() if k in ('twos', 'halves')},
+                         {'twos': 3, 'halves': 2})
+
     def test_coins_from_the_counter_go_by_dollars_and_a_short_count_says_so(self):
         Register.objects.filter(pk=self.register.pk).update(starting_breakdown={'twenties': 5, 'quarters': 40})
         r = self.client.post(self._url('close'), {'closing_count': self.BILLS, 'coins_total': '4.00', 'note': 'Short'},
