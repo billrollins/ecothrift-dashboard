@@ -227,6 +227,10 @@ function Track({ span, store, bars, actuals, step, height = 26, onCommit, onOpen
   const place = (from: number, to: number) => ({ left: `${pct(from)}%`, width: `${Math.max(pct(to) - pct(from), 0)}%` });
   const strip = big ? 3 : 2;
   const barH = height - strip - 2;
+  // One hover text for the bar and the line: the clocked times that day ('' = none, so no hover).
+  const actualText = actuals
+    .map((t) => `${tr('clocked')} ${clock(t.start)}-${t.end ? clock(t.end) : tr('stillIn')}`)
+    .join(' · ');
 
   const begin = (e: ReactPointerEvent, bar: Bar, edge: 'start' | 'end') => {
     if (!onCommit || !ref.current) return;
@@ -289,11 +293,19 @@ function Track({ span, store, bars, actuals, step, height = 26, onCommit, onOpen
         const live = drag?.id === bar.id ? drag : null;
         const from = live?.start ?? minutes(bar.start_time);
         const to = live?.end ?? endMinutes(bar);
+        // The bar shows the scheduled times already; hovering it (like the line under it) says the clocked times, at
+        // once (Bill, 2026-11-04). No clock-in that day: no hover.
         return (
-          <Box
+          <Tooltip
             key={bar.id}
+            title={actualText}
+            enterDelay={0}
+            enterNextDelay={0}
+            disableInteractive
+            placement="bottom"
+          >
+          <Box
             data-testid={`bar-${bar.id}`}
-            title={bar.title}
             onClick={onOpen ? (e) => { e.stopPropagation(); onOpen(bar); } : undefined}
             sx={{
               position: 'absolute', top: 0, height: barH, ...place(from, to),
@@ -320,6 +332,7 @@ function Track({ span, store, bars, actuals, step, height = 26, onCommit, onOpen
               </>
             ) : null}
           </Box>
+          </Tooltip>
         );
       })}
       {actuals.map((t) => {
@@ -329,7 +342,7 @@ function Track({ span, store, bars, actuals, step, height = 26, onCommit, onOpen
         return (
           <Tooltip
             key={`${t.start}-${t.employee}`}
-            title={`${tr('clocked')} ${clock(t.start)}-${t.end ? clock(t.end) : tr('stillIn')}`}
+            title={actualText}
             enterDelay={0}
             enterNextDelay={0}
             disableInteractive

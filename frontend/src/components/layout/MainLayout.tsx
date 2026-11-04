@@ -101,8 +101,8 @@ export default function MainLayout() {
           under it meets the line under the top bar (Bill, Dash Updates #32). */}
       <Box
         sx={{
-          height: isPhoneShell ? 56 : { xs: 56, sm: 64 }, flexShrink: 0, px: 2,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 0,
+          height: isPhoneShell ? 56 : { xs: 56, sm: 64 }, flexShrink: 0, px: 1,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 0, overflow: 'hidden',
         }}
       >
         <ButtonBase
@@ -114,7 +114,14 @@ export default function MainLayout() {
           }}
           sx={{ maxWidth: '100%', borderRadius: 1 }}
         >
-          <img src={logo} alt="Eco-Thrift" style={{ display: 'block', maxWidth: '100%', height: 44, width: 'auto' }} />
+          {/* The PNG has a clear band above and below the art (16 of 120 px each), so it is drawn taller than the
+              block and the clear bands overflow, hidden: the logo fills the block without making it taller. */}
+          <Box
+            component="img"
+            src={logo}
+            alt="Eco-Thrift"
+            sx={{ display: 'block', maxWidth: '100%', width: 'auto', height: isPhoneShell ? 64 : { xs: 64, sm: 72 } }}
+          />
         </ButtonBase>
       </Box>
       <Divider />

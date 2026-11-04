@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.259.0] -->
-<!-- Last reviewed: 2026-11-04 (2.259.0) -->
+<!-- Line 1 release: ## [2.259.1] -->
+<!-- Last reviewed: 2026-11-04 (2.259.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.259.1] - 2026-11-04
+
+User-facing theme: **Schedule hover shows the clocked times, and a bigger sidebar logo (Bill, 2026-11-04).**
+
+> **For staff:** On the Schedule, point at a shift bar or the purple line under it and the clocked times pop up at once ("Clocked 8:55 am-3:10 pm"). The bar already shows the scheduled times. The Eco-Thrift logo at the top of the side menu is bigger; the header is the same height.
+
+### Changed
+- Schedule: the shift bar's hover (it was the browser's slow tooltip with the scheduled times) and the clock line's hover both show the day's clocked times, with no delay; no clock-in that day, no hover.
+- Sidebar logo: drawn taller with the PNG's clear bands cropped, so the art fills the 64px block (about 53px tall instead of 32); side padding halved. Header height unchanged.
 
 ## [2.259.0] - 2026-11-04
 

@@ -115,6 +115,17 @@ describe('SchedulePage', () => {
     expect(screen.getByTestId('actual-hours-5')).toHaveTextContent('/ 6.3');
   });
 
+  it('hovering the shift bar shows the clocked times, not the scheduled ones', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId('schedule-row-5');
+    const cell = screen.getByTestId('cell-5-2026-10-20');
+    const bar = within(cell).getAllByTestId(/^bar-/)[0];
+    expect(bar).not.toHaveAttribute('title');
+    await user.hover(bar);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Clocked 8:55 am-3:10 pm');
+  });
+
   it('adds a shift on an empty day', async () => {
     const user = userEvent.setup();
     renderPage();
