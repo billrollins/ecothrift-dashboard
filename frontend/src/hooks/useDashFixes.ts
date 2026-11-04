@@ -5,6 +5,7 @@ import {
   addDashFixNote,
   createDashFix,
   declineDashFix,
+  deleteDashFix,
   finishDashFix,
   getDashFixCount,
   getDashFixes,
@@ -76,7 +77,8 @@ export type DashFixOwnerAction =
   | { kind: 'working'; id: number }
   | { kind: 'done'; id: number; version: string }
   | { kind: 'private'; id: number; value: boolean }
-  | { kind: 'answer'; id: number; answer: string };
+  | { kind: 'answer'; id: number; answer: string }
+  | { kind: 'delete'; id: number };
 
 export function useDashFixOwnerAction() {
   const client = useQueryClient();
@@ -90,6 +92,7 @@ export function useDashFixOwnerAction() {
         case 'done': return (await finishDashFix(action.id, action.version)).data;
         case 'private': return (await setDashFixPrivate(action.id, action.value)).data;
         case 'answer': return (await answerDashFix(action.id, action.answer)).data;
+        case 'delete': await deleteDashFix(action.id); return null;
       }
     },
     onSuccess: () => {

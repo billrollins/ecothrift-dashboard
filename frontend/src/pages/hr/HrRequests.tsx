@@ -6,6 +6,7 @@
  * (hr.schedule:write), the owner for time changes (hr.mod_requests:triage), People at Manage for questions.
  * Swapping a shift with someone is not built (it needs the other person's yes); picking up a day is "New times" and
  * dropping one is "Day off". English and Spanish.
+ * Documents to sign (#62): anything sent to them to e-sign (apps/esign) shows on top, signed here while signed in.
  */
 import { useState, type ReactNode } from 'react';
 import {
@@ -45,6 +46,7 @@ import {
 } from '../../api/hr.api';
 import { AskDialog, DecideRow, useRequestCopy } from '../people/ScheduleRequests';
 import { errorText } from '../people/scheduleLayout';
+import MyEsignDocuments from '../esign/MyEsignDocuments';
 
 const COPY = {
   askChange: { en: 'Ask for a day off or new times', es: 'Pedir un día libre u otro horario' },
@@ -274,6 +276,7 @@ export default function HrRequests() {
       <Typography variant="caption" color="text.secondary">{t('noSwap')}</Typography>
       {loading ? <LinearProgress /> : null}
       {failed ? <Alert severity="warning">{t('loadFailed')}</Alert> : null}
+      <MyEsignDocuments />
 
       {answersSomething ? (
         <Section title={waiting ? `${t('waitingOnYou')} (${waiting})` : t('waitingOnYou')}>

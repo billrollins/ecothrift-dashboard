@@ -436,6 +436,28 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     roles: ['Admin'],
     need: ['keys:manage', 'admin:full'],
   },
+  contractors: {
+    id: 'contractors',
+    path: '/admin/contractors',
+    label: 'Contractors',
+    // Contractor agreements to e-sign, and their templates (apps/esign, #21). Owner only; contractors have no Dash
+    // account, so it stays off the staff side. Listed on the Owner page.
+    icon: 'documents',
+    superuserOnly: true,
+    // The server's check is the superuser alone (apps/core/esign_host.py); the page also sends anyone else away.
+    need: ['owner.page', 'admin:full'],
+  },
+  hrDocuments: {
+    id: 'hrDocuments',
+    path: '/hr/requests/documents',
+    label: 'HR documents',
+    // Documents sent to staff to e-sign (apps/esign, #62): HR > Requests > Documents. Owner only; staff sign theirs in
+    // HR > Requests.
+    icon: 'documents',
+    superuserOnly: true,
+    // The server's check is the superuser alone (apps/core/esign_host.py); the page also sends anyone else away.
+    need: ['owner.page', 'admin:full'],
+  },
   superRequests: {
     id: 'superRequests',
     path: '/owner/approvals',

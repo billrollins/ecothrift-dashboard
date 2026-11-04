@@ -25,10 +25,14 @@ describe('HR tabs', () => {
     const tabs = hrTabsFor({ role: 'Admin', is_superuser: true, access: [] });
     expect(tabs).toHaveLength(7);
     expect(tabs.find((t) => t.key === 'payroll')?.sections.map((s) => s.key)).toEqual(['periods', 'deductions']);
+    // HR documents to e-sign (#62) are the owner's section of Requests.
+    expect(tabs.find((t) => t.key === 'requests')?.sections.map((s) => s.key)).toEqual(['all', 'documents']);
   });
 
   it('builds each tab URL', () => {
     expect(hrPath('requests')).toBe('/hr');
+    expect(hrPath('requests', 'all')).toBe('/hr');
+    expect(hrPath('requests', 'documents')).toBe('/hr/requests/documents');
     expect(hrPath('me')).toBe('/hr/me');
     expect(hrPath('hiring')).toBe('/hr/hiring');
     expect(hrPath('hiring', 'jobs')).toBe('/hr/hiring/jobs');

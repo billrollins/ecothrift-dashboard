@@ -1,0 +1,37 @@
+from django.urls import path
+
+from . import views
+
+urlpatterns = [
+    path('meta/', views.meta),
+    path('templates/', views.templates),
+    path('templates/<int:pk>/', views.template_detail),
+    path('versions/<int:pk>/', views.version_detail),
+    path('preview/', views.preview),
+    path('envelopes/', views.envelopes),
+    path('envelopes/pdf/', views.envelope_pdf_create),
+    path('envelopes/<int:pk>/', views.envelope_detail),
+    path('envelopes/<int:pk>/fields/', views.envelope_boxes),
+    path('envelopes/<int:pk>/source/', views.envelope_source),
+    path('envelopes/<int:pk>/delete/', views.envelope_delete),
+    path('envelopes/<int:pk>/restore/', views.envelope_restore),
+    path('envelopes/<int:pk>/purge/', views.envelope_purge),
+    path('purge-log/', views.purge_log),
+    path('batches/', views.batch_list),
+    path('batches/<int:pk>/', views.batch_detail),
+    path('everyone/', views.everyone),
+    path('envelopes/<int:pk>/preview/', views.envelope_preview),
+    path('envelopes/<int:pk>/send/', views.envelope_send),
+    path('envelopes/<int:pk>/notice/', views.envelope_notice),
+    path('envelopes/<int:pk>/void/', views.envelope_void),
+    path('envelopes/<int:pk>/pdf/', views.envelope_pdf),
+    path('envelopes/<int:pk>/w9/', views.envelope_upload),
+    path('mine/', views.mine),
+    path('mine/<int:pk>/', views.mine_detail),
+    path('mine/<int:pk>/source/', views.mine_source),
+    path('mine/<int:pk>/sign/', views.mine_sign),
+    path('public/document/', views.public_document),
+    path('public/source/', views.public_source),
+    path('public/sign/', views.public_sign),
+    path('public/upload/', views.public_upload),
+]

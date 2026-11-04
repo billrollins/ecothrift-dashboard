@@ -54,6 +54,8 @@ urlpatterns = [
     path('api/labels/', include('apps.labels.urls')),
     path('api/routines/', include('apps.routines.urls')),
     path('api/documents/', include('apps.documents.urls')),
+    # E-sign (apps/esign, D22): owner pages, a signed-in signer's own documents, and the public single-use link.
+    path('api/esign/', include('apps.esign.urls')),
     path('api/thriftplus/', include('apps.thriftplus.urls')),
     path('api/texting/', include('apps.texting.urls')),  # Twilio's STOP / HELP webhook (Phase 4)
     path('api/qa/', include('apps.qa.urls')),

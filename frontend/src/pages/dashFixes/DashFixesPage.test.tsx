@@ -80,7 +80,7 @@ describe('Dash Updates page', () => {
     renderPage();
     expect(screen.getByTestId('fix-section-line')).toHaveTextContent('In line (3)');
     expect(screen.getByTestId('fix-section-waiting')).toHaveTextContent('Waiting for Bill (1)');
-    expect(screen.getByTestId('fix-section-hold')).toHaveTextContent('On hold (1)');
+    expect(screen.getByTestId('fix-section-hold')).toHaveTextContent('Parked (1)');
     expect(screen.getByTestId('fix-status-3')).toHaveTextContent('Working on it');
     expect(screen.getByTestId('fix-status-5')).toHaveTextContent('Done in v2.240.0');
     expect(screen.getByTestId('fix-status-6')).toHaveTextContent('Not doing: Too big');
@@ -89,11 +89,11 @@ describe('Dash Updates page', () => {
     expect(screen.getByTestId('fix-next-1')).toBeInTheDocument();
   });
 
-  it('collapses Done after 10', async () => {
+  it('collapses Done after the last 3', async () => {
     state.rows = Array.from({ length: 12 }, (_, i) =>
       fix({ id: 100 + i, status: 'done', rank: 0, done_at: `2026-11-${10 + i}T12:00:00Z` }));
     renderPage();
-    expect(screen.getByTestId('fix-done-list').children).toHaveLength(10);
+    expect(screen.getByTestId('fix-done-list').children).toHaveLength(3);
     await userEvent.click(screen.getByTestId('fix-done-toggle'));
     expect(screen.getByTestId('fix-done-list').children).toHaveLength(12);
   });
@@ -114,6 +114,9 @@ describe('Dash Updates page', () => {
     expect(screen.getAllByLabelText(/Move up/).length).toBeGreaterThan(0);
     await userEvent.click(within(screen.getByTestId('fix-row-1')).getByRole('button', { name: 'First task' }));
     expect(screen.getByTestId('fix-owner-controls')).toBeInTheDocument();
+    // Delete asks first, on the page.
+    await userEvent.click(screen.getByTestId('fix-delete'));
+    expect(screen.getByTestId('fix-delete-sure')).toHaveTextContent('for good');
   });
 });
 

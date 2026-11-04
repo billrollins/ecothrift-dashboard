@@ -51,6 +51,7 @@ export function DashFixDrawer({ fix, lang, isOwner, appVersion, onClose }: DashF
   const act = useDashFixOwnerAction();
   const [note, setNote] = useState('');
   const [declining, setDeclining] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [reason, setReason] = useState('');
   const [finishing, setFinishing] = useState(false);
   const [version, setVersion] = useState('');
@@ -60,6 +61,7 @@ export function DashFixDrawer({ fix, lang, isOwner, appVersion, onClose }: DashF
   useEffect(() => {
     setNote('');
     setDeclining(false);
+    setDeleting(false);
     setReason('');
     setFinishing(false);
     setVersion(versionLabel(appVersion));
@@ -197,7 +199,27 @@ export function DashFixDrawer({ fix, lang, isOwner, appVersion, onClose }: DashF
                       {t('fxDecline', lang)}
                     </Button>
                   ) : null}
+                  <Button color="error" onClick={() => setDeleting(true)} data-testid="fix-delete">
+                    {t('fxDelete', lang)}
+                  </Button>
                 </Stack>
+                {deleting ? (
+                  <Stack spacing={1} sx={{ mt: 1.5 }} data-testid="fix-delete-sure">
+                    <Typography sx={{ fontSize: 14 }}>{t('fxDeleteSure', lang)}</Typography>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        color="error"
+                        variant="contained"
+                        disabled={act.isPending}
+                        onClick={() => run({ kind: 'delete', id: fix.id }, onClose)}
+                        data-testid="fix-delete-confirm"
+                      >
+                        {t('fxDelete', lang)}
+                      </Button>
+                      <Button onClick={() => setDeleting(false)}>{t('fxCancel', lang)}</Button>
+                    </Stack>
+                  </Stack>
+                ) : null}
                 {declining ? (
                   <Stack spacing={1} sx={{ mt: 1.5 }}>
                     <TextField

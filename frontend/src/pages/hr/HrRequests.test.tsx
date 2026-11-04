@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within } from '@testing-library/react';
 import { SnackbarProvider } from 'notistack';
+import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import HrRequests from './HrRequests';
 
@@ -13,6 +14,12 @@ const schedRow = (id: number, employee: number, status: string) => ({
   end_date: '2026-11-10', start_time: null, end_time: null, note: 'Dentist', status, reply: status === 'approved' ? 'OK' : '',
   decided_by_name: status === 'approved' ? 'Mandy M' : '', decided_at: null, created_at: `2026-11-0${id}T10:00:00Z`,
 });
+const esign = vi.hoisted(() => ({ mine: [] as unknown[] }));
+vi.mock('@/esign/api', () => ({
+  listMine: vi.fn(async () => esign.mine),
+  downloadSignedPdf: vi.fn(),
+  errText: (_e: unknown, fallback: string) => fallback,
+}));
 vi.mock('../../api/schedule.api', () => ({
   getScheduleRequests: vi.fn(async () => ({ data: [schedRow(1, 1, 'approved'), schedRow(2, 2, 'pending')] })),
 }));
@@ -37,7 +44,9 @@ vi.mock('../../api/hr.api', () => ({
 function renderIt() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={client}><SnackbarProvider><HrRequests /></SnackbarProvider></QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={client}><SnackbarProvider><HrRequests /></SnackbarProvider></QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -66,5 +75,28 @@ describe('HR Requests', () => {
     renderIt();
     expect(await screen.findByText('Waiting on you (3)')).toBeInTheDocument();
     expect(screen.getByTestId('timechange-7')).toBeInTheDocument();
+  });
+
+  it('documents sent to me to e-sign show on top: mine to sign, then signed with the copy (#62)', async () => {
+    auth.user = { id: 1, role: 'Employee', is_superuser: false, access: [] };
+    const doc = { envelope: 3, title: 'Handbook acknowledgment', status_label: '', waiting_on: null, sent_at: '2026-11-04T10:00:00Z',
+      signed_at: null, completed_at: null, has_pdf: false };
+    esign.mine = [
+      { ...doc, party: 11, status: 'out', my_status: 'ready', my_turn: true },
+      { ...doc, party: 12, envelope: 4, title: 'Phone policy', status: 'signed', my_status: 'signed', my_turn: false,
+        signed_at: '2026-11-01T10:00:00Z', completed_at: '2026-11-01T10:00:00Z', has_pdf: true },
+    ];
+    renderIt();
+    expect(await screen.findByText('Documents to sign (1)')).toBeInTheDocument();
+    expect(within(screen.getByTestId('esign-11')).getByRole('button', { name: 'Read and sign' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('esign-12')).getByRole('button', { name: 'Signed copy' })).toBeInTheDocument();
+    esign.mine = [];
+  });
+
+  it('nothing sent to e-sign: no documents card', async () => {
+    auth.user = { id: 1, role: 'Employee', is_superuser: false, access: [] };
+    renderIt();
+    await screen.findByTestId('my-t7');
+    expect(screen.queryByTestId('my-esign')).toBeNull();
   });
 });

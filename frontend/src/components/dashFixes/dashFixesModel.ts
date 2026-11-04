@@ -4,7 +4,7 @@ import type { DashFixDTO, DashFixKind } from '../../types/dashFixes.types';
 export const DASH_FIXES_PATH = '/dash-updates';
 /** The old address; it redirects to DASH_FIXES_PATH. */
 export const OLD_DASH_FIXES_PATH = '/dash-fixes';
-export const VISIBLE_DONE = 10;
+export const VISIBLE_DONE = 3;
 
 export interface DashFixSections {
   /** Working first, then accepted by rank. */

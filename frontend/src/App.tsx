@@ -39,6 +39,13 @@ const SchedulePage = lazy(() => import('./pages/people/SchedulePage'));
 const MyCheckInsPage = lazy(() => import('./pages/people/MyCheckInsPage'));
 const MePage = lazy(() => import('./pages/me/MePage'));
 const HrPage = lazy(() => import('./pages/hr/HrPage'));
+// E-sign (apps/esign from {master}/packages/esign, D22): contractor agreements (#21, owner only), HR documents (#62),
+// and the signing screens (a single-use link with no login, or a signed-in signer).
+const ContractorsPage = lazy(() => import('./pages/esign/ContractorsPage'));
+const EsignTemplateEditor = lazy(() => import('./pages/esign/TemplateEditorPage'));
+const EsignBoxEditor = lazy(() => import('./pages/esign/PdfBoxEditor'));
+const LinkSignPage = lazy(() => import('./pages/esign/SignPages').then((m) => ({ default: m.LinkSignPage })));
+const InAppSignPage = lazy(() => import('./pages/esign/SignPages').then((m) => ({ default: m.InAppSignPage })));
 const MessagesPage = lazy(() => import('./pages/messages/MessagesPage'));
 const FloorplanListPage = lazy(() => import('./pages/floorplan/FloorplanListPage'));
 
@@ -81,6 +88,8 @@ const LegacyWorkbenchRedirect = lazy(() =>
 );
 const ProductPage = lazy(() => import('./pages/inventory/ProductPage'));
 import { landingPath } from './utils/landing';
+import { EsignOwnerRoute } from './pages/esign/OwnerRoute';
+import { CONTRACTOR_SCOPE, HR_SCOPE } from './pages/esign/scope';
 const TerminalPage = lazy(() => import('./pages/pos/TerminalPage'));
 const TestTerminalPage = lazy(() => import('./pages/pos/TestTerminalPage'));
 const DrawerListPage = lazy(() => import('./pages/pos/DrawerListPage'));
@@ -236,6 +245,16 @@ function AppRoutes() {
         }
       />
 
+      {/* E-sign: the signer's single-use link (a contractor, anyone outside Dash). No login, no sidebar. */}
+      <Route
+        path="/sign"
+        element={
+          <Suspense fallback={<LoadingScreen message="Loading…" />}>
+            <LinkSignPage />
+          </Suspense>
+        }
+      />
+
       {/* Staff routes */}
       <Route
         element={
@@ -311,6 +330,16 @@ function AppRoutes() {
         {/* Hours & pay live on Today; /pay opens it expanded. */}
         <Route path="/pay" element={<Navigate to="/dashboard?tab=myday&hours=1" replace />} />
         <Route path="/hr/sick-leave" element={<Navigate to="/dashboard" replace />} />
+        {/* E-sign: a signed-in signer (HR > Requests), and the owner's pages. Contractors stay off the staff side. */}
+        <Route path="/hr/sign/:partyId" element={<Suspense fallback={<LoadingScreen message="Loading…" />}><InAppSignPage /></Suspense>} />
+        {([['/admin/contractors', <ContractorsPage />],
+          ['/admin/contractors/templates/:id', <EsignTemplateEditor scope={CONTRACTOR_SCOPE} />],
+          ['/admin/contractors/:id/boxes', <EsignBoxEditor scope={CONTRACTOR_SCOPE} />],
+          ['/admin/documents/templates/:id', <EsignTemplateEditor scope={HR_SCOPE} />],
+          ['/admin/documents/:id/boxes', <EsignBoxEditor scope={HR_SCOPE} />],
+        ] as const).map(([path, page]) => (
+          <Route key={path} path={path} element={<EsignOwnerRoute><Suspense fallback={<LoadingScreen message="Loading…" />}>{page}</Suspense></EsignOwnerRoute>} />
+        ))}
         <Route path="/inventory/vendors" element={<VendorListPage />} />
         <Route path="/inventory/vendors/:id" element={<VendorDetailPage />} />
         <Route path="/inventory/orders" element={<OrderListPage />} />

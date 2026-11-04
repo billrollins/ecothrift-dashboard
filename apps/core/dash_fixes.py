@@ -248,6 +248,14 @@ class DashFixViewSet(viewsets.GenericViewSet):
     def retrieve(self, request, pk=None):
         return self._out(self.get_object())
 
+    def destroy(self, request, pk=None):
+        """The owner removes an update for good, with its notes and photos (Bill, 2026-11-04: "Not doing" items)."""
+        self._owner_only()
+        row = self.get_object()
+        row.delete()
+        _repack_line()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=False, methods=['get'])
     def counts(self, request):
         return Response({'count': dash_fix_counts(request.user)})

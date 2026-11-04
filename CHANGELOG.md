@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.259.1] -->
-<!-- Last reviewed: 2026-11-04 (2.259.1) -->
+<!-- Line 1 release: ## [2.260.0] -->
+<!-- Last reviewed: 2026-11-04 (2.260.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,28 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.260.0] - 2026-11-04
+
+User-facing theme: **Contractor agreements and documents to sign in Dash (e-sign), and a tidier Dash Updates list (Bill, 2026-11-04; Dash Updates #21, #62).**
+
+> **For staff:** documents sent to you to sign now show at the top of **HR → Requests** under **Documents to sign**. Tap **Read and sign**; once everyone has signed, the **Signed copy** is there too.
+
+### Added
+- Host adapter `apps/core/esign_host.py` (`ESIGN_HOST_ADAPTER`): the owner is the superuser alone; signers are current staff logins (active, employee record not ended); mail through the store's mailbox (`apps.hiring.emails`); private files under `documents/esign/`; links on `https://STAFF_DASHBOARD_HOST` (or `ESIGN_PUBLIC_BASE_URL`); kinds Contractor agreement, Handbook, Policy, Onboarding, Agreement, Other; in-app signing at `/hr/sign/<party>`. Tests: `apps/core/tests/test_esign_host.py`.
+- `apps.esign` in `INSTALLED_APPS`, `/api/esign/` routes, `pypdf` in requirements; `manage.py purge_esign` (daily: purges documents whose 90-day delete wait is over).
+- **Contractors** (`/admin/contractors`, owner only, on the Owner page's links): contractor agreements from a versioned template; the contractor signs by an emailed single-use link (no Dash account), the owner countersigns ("Countersign now"); optional W-9 upload (owner-only download); Record notice (ends 14 days out); templates, purge log.
+- **HR → Requests → Documents** (owner): send documents to staff (one person, or Send to everyone), templates, uploaded PDFs with placed boxes, purge log. **Documents to sign** on HR → Requests for everyone (English and Spanish).
+- Owner pages adapted from Dark Horse's (`frontend/src/pages/esign/`); `@/` alias (Vite and tsconfig) and `src/services/api.ts`, the seam the shared client imports.
+- The owner pages use the package's own calls: `requires_w9` on create, `downloadW9`, and Send's `emailed`. The sender sees the private link only when the email did not go; when it went, no link is shown.
+
+> **For the owner:** Dash Updates says **Parked** instead of On hold, Done shows only the last 3 (Show all for the rest), and an update's panel has **Delete**, which asks first and removes it for good.
+
+### Changed
+- Dash Updates: "On hold" reads "Parked" (English and Spanish; the stored status stays `hold`); Done shows the last 3.
+
+### Added
+- Dash Updates: the owner can delete an update with its notes and screenshots (`DELETE /api/core/dash-fixes/<id>/`, superuser only; the line closes up). Asks on the page first.
 
 ## [2.259.1] - 2026-11-04
 

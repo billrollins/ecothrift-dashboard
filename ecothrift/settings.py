@@ -126,6 +126,7 @@ INSTALLED_APPS = [
     'apps.marketing',
     'apps.keys',
     'apps.supplies',
+    'apps.esign',  # shared e-sign app, vendored from {master}/packages/esign (D22); host seam: apps/core/esign_host.py
 ]
 
 MIDDLEWARE = [
@@ -169,6 +170,12 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'ecothrift.wsgi.application'
+
+# E-sign (apps/esign, D22): everything Eco-Thrift-specific comes through this one adapter. Links last 14 days, a
+# contractor's notice is 14 days, a deleted document is purged after 90 (the package's defaults).
+ESIGN_HOST_ADAPTER = 'apps.core.esign_host.EcoThriftHost'
+# Where signing links point; blank = https://STAFF_DASHBOARD_HOST. Local runs set the Vite address.
+ESIGN_PUBLIC_BASE_URL = config('ESIGN_PUBLIC_BASE_URL', default='').strip()
 
 # ── Database ──────────────────────────────────────────────────────────────────
 DATABASES = {

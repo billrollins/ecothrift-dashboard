@@ -3,6 +3,7 @@
  * around the HR pages Dash already has, each with its own URL (/hr/<tab>/<section>). A tab or section shows when the
  * person can open its page (the same permission dials as the sidebar), so staff see Me and Schedule, managers also
  * People, Hiring and Onboarding, and the owner Time & payroll. Requests (#59) is first: every HR request in one place.
+ * Its Documents section (#62, the owner) sends documents to staff to e-sign; staff sign theirs on Requests.
  */
 import { Box, LinearProgress, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 'react';
@@ -11,6 +12,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { resolveNavItems, type NavAccessUser } from '../../navigation/navResolve';
 
 const HrRequests = lazy(() => import('./HrRequests'));
+const HrDocumentsPage = lazy(() => import('../esign/HrDocumentsPage'));
 const MePage = lazy(() => import('../me/MePage'));
 const SchedulePage = lazy(() => import('../people/SchedulePage'));
 const UsersPage = lazy(() => import('../admin/users/UsersPage'));
@@ -35,7 +37,14 @@ type HrTab = { key: string; label: string; sections: Section[] };
 
 /** Every tab and its sections, in reading order. */
 export const HR_TABS: HrTab[] = [
-  { key: 'requests', label: 'Requests', sections: [{ key: 'all', label: 'Requests', page: HrRequests }] },
+  {
+    key: 'requests',
+    label: 'Requests',
+    sections: [
+      { key: 'all', label: 'Requests', page: HrRequests },
+      { key: 'documents', label: 'Documents', item: 'hrDocuments', page: HrDocumentsPage },
+    ],
+  },
   { key: 'me', label: 'Me', sections: [{ key: 'me', label: 'Me', page: MePage }] },
   { key: 'schedule', label: 'Schedule', sections: [{ key: 'week', label: 'Schedule', page: SchedulePage }] },
   {
@@ -82,8 +91,9 @@ export function hrTabsFor(user: NavAccessUser): HrTab[] {
   })).filter((tab) => tab.sections.length > 0);
 }
 
-/** The first tab (Requests) is plain /hr. */
-export const hrPath = (tab: string, section?: string) => (tab === 'requests' ? '/hr' : `/hr/${tab}${section ? `/${section}` : ''}`);
+/** The first tab's first section (Requests) is plain /hr. */
+export const hrPath = (tab: string, section?: string) =>
+  (tab === 'requests' && (!section || section === 'all') ? '/hr' : `/hr/${tab}${section ? `/${section}` : ''}`);
 
 export default function HrPage() {
   const { user } = useAuth();

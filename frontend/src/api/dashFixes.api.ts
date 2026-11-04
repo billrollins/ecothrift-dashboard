@@ -34,6 +34,8 @@ export const setDashFixPrivate = (id: number, value: boolean) =>
   api.post<DashFixDTO>(`${BASE}/${id}/private/`, { private: value });
 export const answerDashFix = (id: number, answer: string) =>
   api.post<DashFixDTO>(`${BASE}/${id}/answer/`, { answer });
+/** Owner only: removes the update for good. */
+export const deleteDashFix = (id: number) => api.delete(`${BASE}/${id}/`);
 export const reorderDashFixes = (ids: number[]) => api.post<DashFixDTO[]>(`${BASE}/reorder/`, { ids });
 
 export interface DashFixCheck {

@@ -513,3 +513,22 @@ class CoderApiTests(DashFixBase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual([(r['id'], r['blocked_by']) for r in res.data], [(first.id, []), (second.id, [first.id])])
         self.assertEqual(self.c_ann.get('/api/core/dash-updates/coder/').status_code, 403)
+
+
+class DeleteTests(DashFixBase):
+    """The owner deletes an update for good (Bill, 2026-11-04); staff never can."""
+
+    def test_owner_deletes_and_the_line_closes_up(self):
+        a = self.make(status='accepted', rank=1)
+        gone = self.make(status='accepted', rank=2)
+        c = self.make(status='accepted', rank=3)
+        res = self.c_owner.delete(f'{BASE}{gone.id}/')
+        self.assertEqual(res.status_code, 204)
+        self.assertFalse(DashFix.objects.filter(pk=gone.pk).exists())
+        self.assertEqual([DashFix.objects.get(pk=a.pk).rank, DashFix.objects.get(pk=c.pk).rank], [1, 2])
+
+    def test_staff_cannot_delete(self):
+        fix = self.make(self.ann, 'declined')
+        res = self.c_ann.delete(f'{BASE}{fix.id}/')
+        self.assertEqual(res.status_code, 403)
+        self.assertTrue(DashFix.objects.filter(pk=fix.pk).exists())

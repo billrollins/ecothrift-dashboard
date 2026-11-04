@@ -18,6 +18,7 @@ python-barcode==0.15.1
 qrcode==8.0
 openpyxl==3.1.5
 reportlab==4.2.5
+pypdf==6.21.4  # apps/esign (packages/esign, D22): uploaded PDFs, flattened; BSD
 pymupdf==1.28.2
 anthropic==1.15.0
 openai==3.35.1

@@ -58,6 +58,8 @@ function publicSiteUrlHint() {
 // Load `.env` from repo root (same file as Django) so VITE_* vars live alongside the backend.
 export default defineConfig({
   envDir: path.resolve(frontendDir, '..'),
+  // `@/` is src/: the shared e-sign client (src/esign, from {master}/packages/esign) imports the host's API as @/services/api.
+  resolve: { alias: { '@': path.resolve(frontendDir, 'src') } },
   define: { __APP_VERSION__: JSON.stringify(appVersion) },
   plugins: [
     react(),
