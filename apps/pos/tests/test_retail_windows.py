@@ -151,11 +151,11 @@ class DrawerCardTests(_CartCardSurchargeFixtures, TestCase):
         from django.contrib.auth.models import Group
         self.user.groups.add(Group.objects.get_or_create(name='Manager')[0])
 
-    def test_a_cashier_sees_the_cash_now_and_what_was_counted_but_no_expected_while_open(self):
+    def test_a_cashier_sees_what_was_counted_but_no_cash_now_or_expected_while_open(self):
         c = self._card()
         self.assertEqual((c['status'], c['blind'], c['register']['code']), ('open', True, self.register.code))
-        self.assertEqual(c['cash_now'], {'count': {'twenties': 3, 'ones': 10, 'quarters': 8}, 'coins_total': None,
-                                         'total': '72.00'})
+        # Dash Update #36 (Bill 2026-11-03): Cash now equals what Dash expects, so it is blind too.
+        self.assertIsNone(c['cash_now'])
         opening, handoff = c['counts']
         self.assertEqual((opening['kind'], opening['counted_total'], opening['expected_total']), ('opening', '50.00', None))
         self.assertEqual((handoff['kind'], handoff['bills_only'], handoff['difference']), ('handoff', True, None))
@@ -164,6 +164,25 @@ class DrawerCardTests(_CartCardSurchargeFixtures, TestCase):
         self.assertIsNone(c['variance'])
         drop = next(e for e in c['journey'] if e['kind'] == 'drop')
         self.assertEqual((drop['amount'], drop['note']), ('100.00', 'Big bills'))
+
+    def test_a_manager_sees_the_cash_now(self):
+        self._manager()
+        self.assertEqual(self._card()['cash_now'], {'count': {'twenties': 3, 'ones': 10, 'quarters': 8},
+                                                    'coins_total': None, 'total': '72.00'})
+
+    def test_the_drawer_api_leaves_the_running_cash_out_for_a_cashier_while_open(self):
+        Drawer.objects.filter(pk=self.drawer.pk).update(expected_cash=Decimal('72'), cash_sales_total=Decimal('10'))
+        d = self.client.get(f'/api/pos/drawers/{self.drawer.id}/').json()
+        self.assertEqual([d[k] for k in ('contents', 'expected_cash', 'cash_sales_total', 'variance')], [None] * 4)
+        self.assertEqual({k: d['handoffs'][0][k] for k in ('expected_total', 'expected_count', 'variance')},
+                         dict.fromkeys(('expected_total', 'expected_count', 'variance')))
+        self.assertEqual(d['handoffs'][0]['counted_total'], '60.00')
+        listed = self.client.get('/api/pos/drawers/').json()
+        rows = listed['results'] if isinstance(listed, dict) else listed
+        self.assertIsNone(next(r for r in rows if r['id'] == self.drawer.id)['contents'])
+        self._manager()
+        d = self.client.get(f'/api/pos/drawers/{self.drawer.id}/').json()
+        self.assertEqual((d['contents']['twenties'], d['expected_cash']), (3, '72.00'))
 
     def test_a_manager_sees_expected_and_the_difference_by_bill(self):
         self._manager()

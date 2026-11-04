@@ -6,13 +6,13 @@ from datetime import timedelta
 
 from django.utils import timezone
 from rest_framework import serializers, status, viewsets
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsTeamMember
 
-from .models import CallIn, ScheduledShift
+from .models import CallIn, ScheduledShift, ScheduleRequest
 from .services import schedule
 
 
@@ -119,6 +119,80 @@ class CallInViewSet(viewsets.ModelViewSet):
         return Response([schedule.call_in_payload(row) for row in self.get_queryset()])
 
 
+class ScheduleRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ScheduleRequest
+        fields = ['kind', 'date', 'end_date', 'start_time', 'end_time', 'note']
+        extra_kwargs = {'end_date': {'required': False}}
+
+    def validate(self, attrs):
+        if attrs['date'] < timezone.localdate():
+            raise serializers.ValidationError({'date': 'Pick today or a later day.'})
+        if attrs['kind'] == ScheduleRequest.KIND_OFF:
+            attrs['end_date'] = attrs.get('end_date') or attrs['date']
+            if attrs['end_date'] < attrs['date']:
+                raise serializers.ValidationError({'end_date': 'The last day off comes after the first.'})
+            if (attrs['end_date'] - attrs['date']).days > 60:
+                raise serializers.ValidationError({'end_date': 'Ask for 60 days or fewer at a time.'})
+            attrs['start_time'] = attrs['end_time'] = None
+        else:
+            attrs['end_date'] = attrs['date']
+            start, end = attrs.get('start_time'), attrs.get('end_time')
+            if not start or not end or start == end:
+                raise serializers.ValidationError({'end_time': 'Say the start and end you are asking for.'})
+        return attrs
+
+
+class ScheduleRequestViewSet(viewsets.GenericViewSet):
+    """Ask a manager for days off or new times (anyone on the team, for themselves); withdraw your own while it waits.
+    Managers (``hr.schedule:write``) see everyone's and answer them at ``decide``. ``?status=pending`` filters."""
+    permission_classes = [IsTeamMember]
+    serializer_class = ScheduleRequestSerializer
+    pagination_class = None
+
+    def _manager(self):
+        return IsManagerOrAdmin().has_permission(self.request, self)
+
+    def get_queryset(self):
+        qs = ScheduleRequest.objects.select_related('employee', 'decided_by')
+        if not self._manager():
+            qs = qs.filter(employee=self.request.user)
+        status_ = self.request.query_params.get('status')
+        return qs.filter(status=status_) if status_ else qs
+
+    def list(self, request):
+        return Response([schedule.request_payload(r) for r in self.get_queryset()])
+
+    def create(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        row = serializer.save(employee=request.user)
+        row = ScheduleRequest.objects.select_related('employee', 'decided_by').get(pk=row.pk)
+        return Response(schedule.request_payload(row), status=status.HTTP_201_CREATED)
+
+    def destroy(self, request, pk=None):
+        """Withdraw: only your own, only while it waits. The row stays, marked withdrawn."""
+        row = self.get_queryset().filter(pk=pk, employee=request.user).first()
+        if row is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if row.status != ScheduleRequest.PENDING:
+            return Response({'detail': 'That request has already been answered.'}, status=status.HTTP_400_BAD_REQUEST)
+        row.status = ScheduleRequest.WITHDRAWN
+        row.save(update_fields=['status'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
+    def decide(self, request, pk=None):
+        """``{approve: true|false, reply}``."""
+        row = ScheduleRequest.objects.select_related('employee', 'decided_by').filter(pk=pk).first()
+        if row is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if not isinstance(request.data.get('approve'), bool):
+            return Response({'detail': 'Say approve true or false.'}, status=status.HTTP_400_BAD_REQUEST)
+        schedule.decide_request(row, request.data['approve'], str(request.data.get('reply') or ''), request.user)
+        return Response(schedule.request_payload(row))
+
+
 @api_view(['GET'])
 @permission_classes([IsTeamMember])
 def schedule_week_view(request):
@@ -126,7 +200,7 @@ def schedule_week_view(request):
     Managers also get the week's call-ins and the call-in counts (30 and 90 days) and can edit."""
     manager = IsManagerOrAdmin().has_permission(request, None)
     return Response(schedule.week(schedule.parse_day(request.query_params.get('start')) or timezone.localdate(),
-                                  manager=manager))
+                                  manager=manager, viewer_id=request.user.pk))
 
 
 @api_view(['POST'])

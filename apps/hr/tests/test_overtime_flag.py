@@ -1,18 +1,30 @@
 """Owner 2026-10-20: a weekly overtime allowance per person (0 = none; Ashley is cleared for 5 over 40). Past 40 plus
-the allowance is a big red flag on the kiosk, on People, and in the morning brief."""
+the allowance is a big red flag on People, and in the morning brief."""
 from datetime import datetime, time, timedelta
 from decimal import Decimal
 
+from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.accounts.models import User
+from apps.accounts.models import EmployeeProfile, User
 from apps.hr.models import TimeEntry
 from apps.hr.services.time_clock_utils import (
     over_hours_flag, overtime_allowance_for, week_hours_by_user, weekly_status_for_employee,
 )
-from apps.hr.tests import test_kiosk as tk
+
+
+def _staff(email, first, last, role='Employee'):
+    group, _ = Group.objects.get_or_create(name=role)
+    user = User.objects.create_user(
+        email=email, first_name=first, last_name=last, password='pw', is_staff=True,
+    )
+    user.groups.add(group)
+    EmployeeProfile.objects.create(
+        user=user, employee_number=EmployeeProfile.generate_employee_number(), hire_date=timezone.localdate(),
+    )
+    return user
 
 
 def add_hours(user, hours, *, day=None):
@@ -35,7 +47,7 @@ def noon():
 
 class WeeklyStatusTests(TestCase):
     def setUp(self):
-        self.user = tk._staff('worker@example.com', 'Wanda', 'Worker')
+        self.user = _staff('worker@example.com', 'Wanda', 'Worker')
 
     def test_forty_exactly_is_at_the_limit_not_over_it(self):
         add_hours(self.user, 40)
@@ -66,7 +78,7 @@ class WeeklyStatusTests(TestCase):
         self.assertEqual(flag['text'], 'Over their hours: 45.5 of 45. Forgot to clock out? Fix the time entry.')
 
     def test_forty_three_is_fine_for_someone_cleared_and_flagged_for_someone_not(self):
-        cleared = tk._staff('ashley@example.com', 'Ashley', 'Cleared')
+        cleared = _staff('ashley@example.com', 'Ashley', 'Cleared')
         cleared.employee.overtime_allowance_hours = Decimal('5')
         cleared.employee.save()
         add_hours(cleared, 43)
@@ -77,32 +89,12 @@ class WeeklyStatusTests(TestCase):
         self.assertIsNotNone(over_hours_flag(week[self.user.pk], self.user.employee.overtime_allowance_hours))
 
 
-class KioskFlagTests(tk.KioskBase):
-    def test_kiosk_shows_a_big_red_flag_over_forty_and_the_amber_note_at_the_limit(self):
-        add_hours(self.maria, 40)
-        warnings = tk.svc.preview(self.maria, now=noon())['warnings']
-        self.assertEqual((warnings['overtime'], warnings['over_hours']), (True, None))
-        add_hours(self.maria, '2.5')
-        warnings = tk.svc.preview(self.maria, now=noon())['warnings']
-        self.assertEqual((warnings['overtime'], warnings['over_hours']), (False, {'hours': '42.5', 'limit': '40'}))
-
-    def test_a_cleared_person_is_flagged_only_past_their_allowance(self):
-        self.maria.employee.overtime_allowance_hours = Decimal('5')
-        self.maria.employee.save()
-        add_hours(self.maria, 44)
-        warnings = tk.svc.preview(self.maria, now=noon())['warnings']
-        self.assertEqual((warnings['overtime'], warnings['over_hours']), (False, None))
-        add_hours(self.maria, 2)
-        warnings = tk.svc.preview(self.maria, now=noon())['warnings']
-        self.assertEqual(warnings['over_hours'], {'hours': '46', 'limit': '45'})
-
-
 class PeopleAndBriefTests(TestCase):
     def setUp(self):
-        self.admin = tk._staff('owner@example.com', 'Owner', 'Admin', role='Admin')
-        self.over = tk._staff('over@example.com', 'Olive', 'Over')
-        self.fine = tk._staff('fine@example.com', 'Finn', 'Fine')
-        self.cleared = tk._staff('ashley@example.com', 'Ashley', 'Cleared')
+        self.admin = _staff('owner@example.com', 'Owner', 'Admin', role='Admin')
+        self.over = _staff('over@example.com', 'Olive', 'Over')
+        self.fine = _staff('fine@example.com', 'Finn', 'Fine')
+        self.cleared = _staff('ashley@example.com', 'Ashley', 'Cleared')
         self.cleared.employee.overtime_allowance_hours = Decimal('5')
         self.cleared.employee.save()
         add_hours(self.over, '43.2')

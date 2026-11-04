@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.256.0] -->
-<!-- Last reviewed: 2026-11-03 (2.256.0) -->
+<!-- Line 1 release: ## [2.257.0] -->
+<!-- Last reviewed: 2026-11-03 (2.257.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,40 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.257.0] - 2026-11-03
+
+User-facing theme: **Schedule requests and drag-to-change times, the time kiosk removed, blind drawer counts and disputed items on the truck claim (Bill, 2026-11-03; Dash Updates #57, #60, #61, #64, #36, #1).**
+
+> **For staff:** The purple line under a shift on the Schedule is when that person actually clocked in and out, so you can see early or late at a glance (you see your own; managers see everyone's). Hrs now reads scheduled / actual, like "34 / 31.5". Every department has a coverage row, Sunday is a full day, and every section can be folded. On a phone the Schedule shows one day at a time: tap a day at the top to see everyone's shifts as bars. Managers can drag the end of a bar to change the times, or tap it to open the day bigger.
+>
+> **Ask for a change:** on the Schedule, tap one of your own days (today or later) to ask your manager for a day off or different times, with a note. A run of days off is one ask. Days off are unpaid. **My requests** at the top shows what you asked and your manager's answer, and you can withdraw an ask while it waits. A day you asked about has a dashed blue frame. Managers: **Requests** at the top shows everything waiting; approve or decline with a reply, there or from the day itself. Approving changes the schedule for you.
+
+### Added
+- Schedule requests (Dash Updates #60, #61): anyone asks for unpaid days off (one day or a run, up to 60) or new times on one day (a different start or end, or a day they don't usually work), with a note; staff tap their own day today or later, or use **My requests**. Managers (`hr.schedule:write`) see every waiting request under **Requests (n)** and on the day (a dashed blue frame, the ask on hover) and approve or decline with a reply. Approving a day off removes those shifts; approving new times changes that day's shift, or adds one in their home department. Staff see only their own requests and can withdraw one that waits. New model `ScheduleRequest` (migration hr 0019), built to be listed later in the HR Requests tab (#59). API: `/api/hr/schedule/requests/` (list, ask, withdraw) and `/api/hr/schedule/requests/<id>/decide/`; the week also returns `requests`. Swapping a shift with someone is not built.
+- Schedule: managers drag either end of a shift bar to change its times (snaps to 15 minutes; saves on release, the bar holds still until the week reloads). A tap on a bar opens the day enlarged: the shift on a wide timeline with its start and end above it, drag in 5-minute steps, the clocked times under it, and the same department, times and note fields as before.
+- Actual times: each clock-in to clock-out is a thin bright purple line under the scheduled bar; hovering it shows the clocked times at once (a punch still open runs to now; one left open since before yesterday is a forgotten clock-out and is not drawn). Hrs shows scheduled / actual. Managers see everyone's; staff see only their own.
+- Coverage for every department: Retail keeps its Floor coverage across store hours with red gaps and amber single coverage; Processing, Restoration and Office show how many are on and when, without flags (Office has one person).
+- Phone (below desktop width): one day at a time, a section per department, everyone's bars across the screen with hour marks, scheduled / actual hours and that section's coverage. Bars drag and open there too.
+
+### Changed
+- Sunday is always a full-width day (no narrow columns). Retail folds like every other section. Flexible rows draw today as bars (so the clock strip has something to sit under), and any day someone clocked in.
+- The week API (`/api/hr/schedule/week/`) also returns `actual` (clock-in spans) and `actual_hours` per person; the week view passes the reader so staff get only their own.
+
+### Removed
+- The kiosk pages (`/kiosk` and the public `/clock`), the Kiosk menu item, and the "Scan your card" button on the sign-in page. Old `/kiosk` and `/clock` links now open the Dashboard.
+- Kiosk cards: the Kiosk card block on the employee drawer (issue, reprint, revoke, print) and the card fields on the employee profile. The print server is unchanged (the card printed through its generic image route).
+- The "Kiosk badge issued" onboarding item, from the checklist and from open onboardings. The handbook draft default now says "Clock in on Dash" and no longer asks for a badge back; the published handbook is unchanged until it is republished.
+- Behind the scenes: the kiosk API (`/api/hr/kiosk/*`, `/api/hr/clock/*`), the kiosk audit log (`KioskEvent`), and `/api/auth/verify-password/` (only the kiosk used it). `apps/hr/kiosk_service.py` keeps only the clock-in rules the Wi-Fi clock pilot reads (staff roles, open punch, stale punch, the clock-in gate); the routine "Ask why when missed" switch stays for the same reason.
+
+### Migration
+- `accounts/0020_remove_kiosk_card` drops the card columns; `hr/0020_remove_kiosk_event` drops `hr_kioskevent`; `hiring/0021_remove_kiosk_badge` (data) removes the badge item from the stored careers checklist and deletes its onboarding tasks.
+
+### Changed
+- **Drawer counts stay blind** (Bill, 2026-11-03; Dash Updates #36): while a drawer is open, cashiers no longer see **Cash now** (the bills and coins in it), its cash sales, or what Dash expects, in the Drawer window, on the terminal's Drawer chip and cash window, or on the Drawers page. Dash does not send those numbers to a cashier at all. Managers and the owner (anyone with manager approvals at the register or Cashier at Manage) still see everything. A cashier sees Expected beside Counted right after their own count, and everyone sees the whole drawer once it closes. The training register's practice drawer is unchanged.
+- **Disputed items count toward the truck claim** (Bill, 2026-11-03; Dash Updates #1): an item marked disputed in Processing (cosmetic damage, missing pieces and so on) adds its "% of value lost" of the manifest price to the B-Stock claim and the expected refund. The Truck page shows **Disputed: N items, $X value lost** and a Disputed column; the Order window shows **Disputed: N items, $X toward the claim**; the B-Stock dispute page and Excel list them as "Damaged (partial)". Broken items still count in full, once.
+- Wi-Fi clock pilot email and its test: "12:10 to 12:45" instead of a dash (house no-dashes rule).
+- Migration `hr/0019_schedule_requests` adds `ScheduleRequest`.
 
 ## [2.256.0] - 2026-11-03
 

@@ -113,7 +113,7 @@ The careers page, applications, and the People workspace. Design and phases: [`i
   - `Handbook` (numbered versions) and `HandbookSignature`.
 - **Service:** `apps/hiring/onboarding.py`.
   - `start` copies `careers.onboarding.items` with `due_date_for` (before_day1 = start − 1; day1; i9 = 3 business days; week1 = +6; week3 = +21; day20 = +20; day30, day60, day90), makes the I-9 record, and sends `first_day`.
-  - `refresh` ticks the items Dash can see (`auto_state`) and finishes the onboarding when nothing is open. It reopens an auto item it had ticked when the fact goes away, e.g. a revoked badge.
+  - `refresh` ticks the items Dash can see (`auto_state`) and finishes the onboarding when nothing is open. It reopens an auto item it had ticked when the fact goes away, e.g. shifts taken off the schedule.
   - `set_task`: tick and count kinds only (and the hand-tickable autos: `first_day_email`, `checkin_N`); a new hire only their own tick items; anything can be "Not needed".
   - `password_link`: the set-password link for a new hire (Employee role; an Admin for anyone). Nothing is emailed.
   - The I-9: `i9_upload` (PDF, JPEG, PNG or HEIC, 20 MB, S3 `hiring/i9`), `i9_delete_file` (only before Section 2), and `i9_section2` (needs a form file and "documents seen").

@@ -1,7 +1,8 @@
 /**
  * The Drawer window (Retail 2 step 1, Bill 2026-11-02): who has the drawer, when it opened, the cash in it now by bill
  * and coin, every count with what Dash expected, and the day's journey. Built like the Register window. Counts are
- * blind: while the drawer is open a cashier sees what was counted, never what was expected (the server leaves it out).
+ * blind: while the drawer is open a cashier sees what was counted, never what was expected or the cash in it now (#36;
+ * the server leaves them out).
  * Opens with `openObject({ type: 'drawer', id })` from the Drawers page, the Register window and the terminal.
  */
 import { useState } from 'react';
@@ -52,7 +53,8 @@ export interface DrawerCardData {
   closed_by: string | null;
   closed_at: string | null;
   variance: string | null;
-  cash_now: { count: CashCount; coins_total?: string | null; total: string };
+  /** Null for a cashier while the drawer is open: it equals what Dash expects (blind, Dash Update #36). */
+  cash_now: { count: CashCount; coins_total?: string | null; total: string } | null;
   counts: DrawerCount[];
   close_out: CloseOut | null;
   sales: RegisterCardData['sales'];
@@ -171,15 +173,17 @@ export function DrawerWindow({ id }: { id: number }) {
 
       <Box sx={{ display: 'grid', gap: 2, alignItems: 'start', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) minmax(0, 1.15fr)' } }}>
         <Stack spacing={2} sx={{ minWidth: 0 }}>
-          <Section title={tr(open ? 'cashNow' : 'cashAtClose')}>
-            <DrawerContentsGrid
-              contents={c.cash_now.count}
-              lang={lang}
-              hideZero
-              coinsCents={c.cash_now.coins_total ? Math.round(Number.parseFloat(c.cash_now.coins_total) * 100) : null}
-              totalCents={Math.round(Number.parseFloat(c.cash_now.total) * 100)}
-            />
-          </Section>
+          {c.cash_now && (
+            <Section title={tr(open ? 'cashNow' : 'cashAtClose')}>
+              <DrawerContentsGrid
+                contents={c.cash_now.count}
+                lang={lang}
+                hideZero
+                coinsCents={c.cash_now.coins_total ? Math.round(Number.parseFloat(c.cash_now.coins_total) * 100) : null}
+                totalCents={Math.round(Number.parseFloat(c.cash_now.total) * 100)}
+              />
+            </Section>
+          )}
           <Section title={tr('now')}>
             <Facts
               rows={[

@@ -389,7 +389,7 @@ class DrawerViewSet(viewsets.ModelViewSet):
                 {'detail': 'A drawer is already open for this register today.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        data = DrawerSerializer(drawer).data
+        data = DrawerSerializer(drawer, context={'request': request}).data
         if till:
             data['count_check'] = drawer_life.count_check(opening_count, till)
         return Response(data, status=status.HTTP_201_CREATED)
@@ -442,7 +442,7 @@ class DrawerViewSet(viewsets.ModelViewSet):
             Drawer.objects.filter(pk=drawer.pk).update(status='open')
             drawer.refresh_from_db()
         return Response(
-            DrawerSerializer(drawer).data,
+            DrawerSerializer(drawer, context={'request': request}).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
@@ -555,7 +555,7 @@ class DrawerViewSet(viewsets.ModelViewSet):
         drawer.save(update_fields=['current_cashier', 'contents'])
         cover_service.end_all(drawer, DrawerCover.END_HANDOFF)
 
-        data = DrawerSerializer(drawer).data
+        data = DrawerSerializer(drawer, context={'request': request}).data
         if sent is not None:
             data['count_check'] = drawer_life.count_check(count, expected_bills, bills_only=True)
         return Response(data)
@@ -650,7 +650,7 @@ class DrawerViewSet(viewsets.ModelViewSet):
             drawer_life.post_to_office('drawer_close', drawer, closing_count, closing_total, request.user, sign=1,
                                        note=f'Closed {drawer.register.code}' + (f': {note[:200]}' if note else ''))
 
-        data = DrawerSerializer(drawer).data
+        data = DrawerSerializer(drawer, context={'request': request}).data
         data['count_check'] = drawer_life.count_check(closing_count, drawer.contents or {}, coins_total=coins_total)
         data['count_check']['difference_total'] = str(variance)
         data['close_out'] = drawer.close_out
@@ -683,7 +683,7 @@ class DrawerViewSet(viewsets.ModelViewSet):
         drawer.status = 'open'
         drawer.save(update_fields=['status', 'current_cashier'])
 
-        return Response(DrawerSerializer(drawer).data)
+        return Response(DrawerSerializer(drawer, context={'request': request}).data)
 
     def _move_cash(self, request, kind):
         drawer = self.get_object()
@@ -727,7 +727,7 @@ class DrawerViewSet(viewsets.ModelViewSet):
 
     def _drawer_now(self, drawer):
         """The drawer's payload, read again so its cover is current."""
-        return DrawerSerializer(self.get_queryset().get(pk=drawer.pk)).data
+        return DrawerSerializer(self.get_queryset().get(pk=drawer.pk), context=self.get_serializer_context()).data
 
     @action(detail=True, methods=['post'])
     def cover(self, request, pk=None):

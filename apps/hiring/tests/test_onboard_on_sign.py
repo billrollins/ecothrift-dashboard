@@ -226,7 +226,7 @@ class ChecklistTests(SignBase):
     def test_the_default_checklist_is_the_owners_list_in_order_then_the_rest(self):
         keys = [i['key'] for i in careers.DEFAULT_ONBOARDING['items']]
         self.assertEqual(keys[:len(self.ORDER)], self.ORDER)
-        self.assertEqual(keys[len(self.ORDER):], ['emergency_contact', 'time_clock', 'kiosk_badge', 'first_clock_in',
+        self.assertEqual(keys[len(self.ORDER):], ['emergency_contact', 'time_clock', 'first_clock_in',
                                                   'team_intro', 'trained', 'new_hire_report'])
         by_key = {i['key']: i for i in careers.DEFAULT_ONBOARDING['items']}
         self.assertEqual(by_key['shirts']['label'], 'Got 2 T-shirts')

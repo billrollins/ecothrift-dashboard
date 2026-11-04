@@ -170,7 +170,7 @@ class ShadowLogicTests(APITestCase):
         wc.observe(self.bill, True, now=at(12, 45))
         q = WifiPilotEvent.objects.get(kind=WifiPilotEvent.KIND_BREAK)
         self.assertEqual((q.gap_start, q.gap_end), (at(12, 10), at(12, 45)))
-        self.assertEqual(mail.outbox[-1].subject, 'You were off the Wi-Fi 12:10–12:45. Was this a break?')
+        self.assertEqual(mail.outbox[-1].subject, 'You were off the Wi-Fi 12:10 to 12:45. Was this a break?')
         html = mail.outbox[-1].alternatives[0][0]
         self.assertIn('>Yes<', html)
         self.assertIn('>No<', html)

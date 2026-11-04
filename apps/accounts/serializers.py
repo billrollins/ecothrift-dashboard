@@ -14,8 +14,6 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
     termination_type_display = serializers.CharField(
         source='get_termination_type_display', read_only=True, default='',
     )
-    # Kiosk card: none | active | revoked. The hash never leaves the server.
-    badge_status = serializers.CharField(read_only=True)
 
     class Meta:
         model = EmployeeProfile
@@ -25,11 +23,9 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
             'termination_date', 'termination_type', 'termination_type_display',
             'termination_notes', 'work_location', 'work_location_name',
             'emergency_name', 'emergency_phone', 'notes', 'created_at',
-            'badge_status', 'badge_issued_at', 'badge_revoked_at',
         ]
         read_only_fields = [
             'id', 'employee_number', 'created_at',
-            'badge_status', 'badge_issued_at', 'badge_revoked_at',
         ]
 
     def validate_overtime_allowance_hours(self, value):

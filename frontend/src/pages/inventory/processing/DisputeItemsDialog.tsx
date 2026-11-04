@@ -1,7 +1,7 @@
 /**
  * Mark checked-in items as disputed (Ashley, Dash Updates #1): from a Prior check-ins row, pick the item(s), what is
- * wrong and how much of its value is lost. It marks the item (the "Disputed N%" chip); it does not file a claim with
- * the supplier (the truck claim counts broken and missing only, until Bill says otherwise). Saves through the item's
+ * wrong and how much of its value is lost. It marks the item (the "Disputed N%" chip) and counts toward the order's
+ * truck claim at that % (Bill 2026-11-03); filing the claim stays on the Truck page. Saves through the item's
  * processing patch, which leaves status and price alone. Only items on the shelf can take it.
  */
 import { useEffect, useState } from 'react';
@@ -21,7 +21,7 @@ export const DISPUTE_COPY = {
   pct: 'Value lost',
   pctHelp: '% of its value lost (0 to 100)',
   description: 'Describe it',
-  note: 'This marks the item. It does not file a claim with the supplier.',
+  note: 'This marks the item and adds its % of value lost to the truck claim (filed from the Truck page).',
   cancel: 'Cancel',
   save: 'Mark disputed',
   clear: 'Clear dispute',

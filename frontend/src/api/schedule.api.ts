@@ -57,6 +57,43 @@ export interface StoreDay {
   end: string;
 }
 
+/** One clock-in to clock-out (local 'HH:MM'); `end` is null while still clocked in. */
+export interface ActualSpan {
+  employee: number;
+  date: string;
+  start: string;
+  end: string | null;
+  open: boolean;
+}
+
+/** Someone asks a manager for days off or new times (Dash Updates #60 and #61). */
+export interface ScheduleRequest {
+  id: number;
+  employee: number;
+  employee_name: string;
+  kind: 'off' | 'times';
+  date: string;
+  /** Last day off; the same as `date` for new times. */
+  end_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  note: string;
+  status: 'pending' | 'approved' | 'declined' | 'withdrawn';
+  reply: string;
+  decided_by_name: string;
+  decided_at: string | null;
+  created_at: string;
+}
+
+export interface ScheduleRequestInput {
+  kind: ScheduleRequest['kind'];
+  date: string;
+  end_date?: string;
+  start_time?: string;
+  end_time?: string;
+  note: string;
+}
+
 export type NowState = 'on_shift' | 'on_break' | 'late' | 'off';
 
 export interface ScheduleWeek {
@@ -73,11 +110,17 @@ export interface ScheduleWeek {
     fixed: boolean;
     usual: UsualShift[];
     hours: number;
+    /** Clocked hours this week: everyone's for managers, only their own for staff (else null). */
+    actual_hours?: number | null;
     /** Managers only (Dash Updates #6): staff get the week without call-ins. */
     call_ins?: CallInCounts;
   }>;
   shifts: ScheduledShift[];
   call_ins: CallIn[];
+  /** Clock-ins this week: everyone's for managers, only the reader's own for staff. */
+  actual: ActualSpan[];
+  /** Requests touching this week: everyone's for managers, only the reader's own for staff. */
+  requests?: ScheduleRequest[];
   fixed_departments: string[];
   /** Manager or Admin: may change the week. */
   can_edit: boolean;
@@ -114,3 +157,10 @@ export const recordCallIn = (data: {
   reason: string;
 }) => api.post<CallIn>('/hr/call-ins/', data);
 export const deleteCallIn = (id: number) => api.delete(`/hr/call-ins/${id}/`);
+
+export const getScheduleRequests = (status?: ScheduleRequest['status']) =>
+  api.get<ScheduleRequest[]>('/hr/schedule/requests/', { params: status ? { status } : {} });
+export const askScheduleChange = (data: ScheduleRequestInput) => api.post<ScheduleRequest>('/hr/schedule/requests/', data);
+export const withdrawScheduleRequest = (id: number) => api.delete(`/hr/schedule/requests/${id}/`);
+export const decideScheduleRequest = (id: number, approve: boolean, reply: string) =>
+  api.post<ScheduleRequest>(`/hr/schedule/requests/${id}/decide/`, { approve, reply });

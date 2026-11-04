@@ -157,10 +157,6 @@ class EmployeeProfile(models.Model):
     emergency_name = models.CharField(max_length=150, blank=True, default='')
     emergency_phone = models.CharField(max_length=30, blank=True, default='')
     notes = models.TextField(blank=True, default='')
-    # Kiosk card. HMAC-SHA256(SECRET_KEY, token) hex; the token itself is shown once.
-    badge_token_hash = models.CharField(max_length=64, unique=True, null=True, blank=True)
-    badge_issued_at = models.DateTimeField(null=True, blank=True)
-    badge_revoked_at = models.DateTimeField(null=True, blank=True)
     # Wi-Fi time clock (D23): the phone's fixed Wi-Fi address on the store network, aa:bb:cc:dd:ee:ff.
     # Personal data: kept here only, never logged. Blank = not opted in.
     wifi_mac = models.CharField(max_length=17, blank=True, default='')
@@ -171,14 +167,6 @@ class EmployeeProfile(models.Model):
 
     def __str__(self):
         return f'{self.employee_number} - {self.user.full_name}'
-
-    @property
-    def badge_status(self) -> str:
-        if not self.badge_token_hash:
-            return 'none'
-        if self.badge_revoked_at:
-            return 'revoked'
-        return 'active'
 
     @staticmethod
     def generate_employee_number():

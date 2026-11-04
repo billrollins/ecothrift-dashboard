@@ -5,7 +5,6 @@ from .views import (
     ShiftViewSet, ShiftAssignmentViewSet,
     pay_period_numbers_view, pay_period_close_view, pay_period_reopen_view,
 )
-from . import kiosk_views as kiosk
 from . import schedule_views as sched
 from . import wifi_views as wifi
 
@@ -17,6 +16,7 @@ router.register(r'shifts', ShiftViewSet, basename='shift')
 router.register(r'shift-assignments', ShiftAssignmentViewSet, basename='shiftassignment')
 # The week schedule and call-ins (owner 2026-10-21).
 router.register(r'schedule/shifts', sched.ScheduledShiftViewSet, basename='scheduledshift')
+router.register(r'schedule/requests', sched.ScheduleRequestViewSet, basename='schedulerequest')
 router.register(r'call-ins', sched.CallInViewSet, basename='callin')
 
 urlpatterns = [
@@ -28,23 +28,6 @@ urlpatterns = [
     path('schedule/copy-week/', sched.schedule_copy_week_view, name='schedule-copy-week'),
     path('schedule/fill-usual/', sched.schedule_fill_usual_view, name='schedule-fill-usual'),
     path('schedule/my-week/', sched.my_week_view, name='schedule-my-week'),
-    # Hosted kiosk: staff JWT host, hr.kiosk:use
-    path('kiosk/board/', kiosk.KioskBoardView.as_view(), name='kiosk-board'),
-    path('kiosk/identify/', kiosk.KioskIdentifyView.as_view(), name='kiosk-identify'),
-    path('kiosk/clock-in/', kiosk.KioskClockInView.as_view(), name='kiosk-clock-in'),
-    path('kiosk/clock-out/', kiosk.KioskClockOutView.as_view(), name='kiosk-clock-out'),
-    path('kiosk/break/', kiosk.KioskBreakView.as_view(), name='kiosk-break'),
-    path('kiosk/set-shift/', kiosk.KioskSetShiftView.as_view(), name='kiosk-set-shift'),
-    path('kiosk/request-edit/', kiosk.KioskRequestEditView.as_view(), name='kiosk-request-edit'),
-    path('kiosk/fix-stale/', kiosk.KioskFixStaleView.as_view(), name='kiosk-fix-stale'),
-    path('kiosk/exit/', kiosk.KioskExitView.as_view(), name='kiosk-exit'),
-    # Public clock: AllowAny, card only
-    path('clock/board/', kiosk.ClockBoardView.as_view(), name='clock-board'),
-    path('clock/identify/', kiosk.ClockIdentifyView.as_view(), name='clock-identify'),
-    path('clock/clock-in/', kiosk.ClockClockInView.as_view(), name='clock-clock-in'),
-    path('clock/clock-out/', kiosk.ClockClockOutView.as_view(), name='clock-clock-out'),
-    path('clock/break/', kiosk.ClockBreakView.as_view(), name='clock-break'),
-    path('clock/fix-stale/', kiosk.ClockFixStaleView.as_view(), name='clock-fix-stale'),
     # Wi-Fi time clock pilot (D23): store PC helper (device token), email answers, setup request
     path('wifi-clock/phones/', wifi.WifiPhonesView.as_view(), name='wifi-clock-phones'),
     path('wifi-clock/heartbeat/', wifi.WifiHeartbeatView.as_view(), name='wifi-clock-heartbeat'),

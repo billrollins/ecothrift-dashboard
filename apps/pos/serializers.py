@@ -109,6 +109,21 @@ class DrawerSerializer(serializers.ModelSerializer):
         # which check every count. Nothing is written through the drawer record itself.
         read_only_fields = fields
 
+    def to_representation(self, obj):
+        data = super().to_representation(obj)
+        # Blind while open (Dash Update #36): a cashier is not sent the running cash or what Dash expects. The training
+        # register's practice money stays visible.
+        request = self.context.get('request')
+        if request is not None and obj.status == 'open' and not obj.register.is_training:
+            from apps.pos.services.drawer_life import BLIND_DRAWER_FIELDS, BLIND_HANDOFF_FIELDS, sees_running_cash
+            if not sees_running_cash(request.user):
+                for f in BLIND_DRAWER_FIELDS:
+                    data[f] = None
+                for h in data.get('handoffs') or []:
+                    for f in BLIND_HANDOFF_FIELDS:
+                        h[f] = None
+        return data
+
     def get_cover(self, obj):
         from apps.pos.services.cover import peek
         return peek(obj)

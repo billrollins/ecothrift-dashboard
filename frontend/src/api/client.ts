@@ -21,8 +21,7 @@ const api = axios.create({
   withCredentials: true, // Always send cookies (refresh token)
 });
 
-/** Public API client for endpoints that don't require auth (e.g. itemLookup, /clock).
- *  Sends cookies so the public clock's device cookie rides along. No interceptors. */
+/** Public API client for endpoints that don't require auth (e.g. itemLookup). No interceptors. */
 export const apiPublic = axios.create({
   baseURL: '/api',
   headers: {
@@ -33,11 +32,9 @@ export const apiPublic = axios.create({
 
 /**
  * Sent on the refresh call so the server picks the idle sign-out limit (house standard D16, T69). A register (this
- * computer's saved POS device type) and the time kiosk may keep the longer named setting; every other screen gets
- * the staff limit (4 hours by default). It only chooses a limit; it grants nothing.
+ * computer's saved POS device type) may keep the longer named setting; every other screen gets the staff limit (4 hours by default). It only chooses a limit; it grants nothing.
  */
 export function deviceKindHeaders(pathname: string = window.location.pathname): Record<string, string> {
-  if (pathname === '/kiosk' || pathname.startsWith('/kiosk/')) return { 'X-Device-Kind': 'register' };
   try {
     const raw = localStorage.getItem('pos_device_config');
     if (raw && (JSON.parse(raw) as { deviceType?: unknown }).deviceType === 'register') {
@@ -77,26 +74,6 @@ export function clearIdleSignOut(): void {
   } catch {
     // Nothing to clear.
   }
-}
-
-/** Fired on window when the staff refresh fails while the kiosk owns the screen. */
-export const KIOSK_HOST_EXPIRED_EVENT = 'kiosk:host-expired';
-
-/**
- * The hosted kiosk must never bounce to /login: a tablet on the wall shows an
- * overlay and waits for a manager instead. Everywhere else, a dead refresh
- * means sign in again.
- */
-export function shouldRedirectToLogin(pathname: string): boolean {
-  return !(pathname === '/kiosk' || pathname.startsWith('/kiosk/'));
-}
-
-/**
- * A kiosk mutation answers 401 when the card is bad. That is not a dead JWT,
- * so the refresh interceptor must leave it alone.
- */
-export function isCardRejection(data: unknown): boolean {
-  return Boolean(data && typeof data === 'object' && (data as { code?: unknown }).code === 'card');
 }
 
 // Request interceptor: add Bearer token from memory
@@ -145,7 +122,6 @@ api.interceptors.response.use(
       error.response?.status === 401
       && originalRequest
       && !originalRequest._retry
-      && !isCardRejection(error.response.data)
     ) {
       if (isRefreshing) {
         // Queue this request until refresh completes
@@ -183,11 +159,7 @@ api.interceptors.response.use(
         processQueue(refreshError, null);
         accessToken = null;
         rememberIdleSignOut((refreshError as AxiosError).response?.data);
-        if (shouldRedirectToLogin(window.location.pathname)) {
-          window.location.href = '/login';
-        } else {
-          window.dispatchEvent(new CustomEvent(KIOSK_HOST_EXPIRED_EVENT));
-        }
+        window.location.href = '/login';
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

@@ -14,9 +14,6 @@ const AnnouncementEditorPage = lazy(() => import('./pages/announcements/Announce
 
 // Full-screen floorplan editor - lazy so the SVG editor bundle stays out of the main chunk.
 const FloorplanEditorPage = lazy(() => import('./pages/floorplan/FloorplanEditorPage'));
-// Time kiosk: hosted (/kiosk, staff JWT) and public (/clock, no login). Both own the window.
-const KioskPage = lazy(() => import('./pages/kiosk/KioskPage'));
-const ClockPage = lazy(() => import('./pages/kiosk/ClockPage'));
 // Thrift+ price scanner: the customer web app (mock). Public, its own sign-in, owns the window.
 const ThriftPlusScannerPage = lazy(() => import('./pages/thriftplus/scanner/ThriftPlusScannerPage'));
 // Thrift+ Staff (owner 2026-10-16): the store phones' app at /staff (Finalize, Members, Scan, Join QR).
@@ -225,15 +222,9 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
-      {/* Public clock: the door tablet. No login, no sidebar, card is the only identity. */}
-      <Route
-        path="/clock"
-        element={
-          <Suspense fallback={<LoadingScreen message="Loading…" />}>
-            <ClockPage />
-          </Suspense>
-        }
-      />
+      {/* The time kiosk was removed (Dash Update #64); old links land on the dashboard. */}
+      <Route path="/clock/*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/kiosk/*" element={<Navigate to="/dashboard" replace />} />
 
       {/* Thrift+ price scanner (customer app, mock). /scan is the address on signs. */}
       <Route
@@ -794,20 +785,6 @@ function AppRoutes() {
       {/* Social Studio on a phone (owner 2026-10-22): staff, Employee and up. Full screen, outside MainLayout, so it
           installs as its own home-screen app (scope /social/). Post, Photos, Scan, Schedule and Me on its bottom bar. */}
       <Route path="/social/*" element={<SocialAppGate />} />
-
-      {/* Hosted time kiosk - full-bleed, keeps the host's staff JWT, outside MainLayout. */}
-      <Route
-        path="/kiosk"
-        element={
-          <ProtectedRoute>
-            <StaffRoute>
-              <Suspense fallback={<LoadingScreen message="Loading kiosk…" />}>
-                <KioskPage />
-              </Suspense>
-            </StaffRoute>
-          </ProtectedRoute>
-        }
-      />
 
       {/* Floorplan editor - full-screen (no dashboard chrome) so the canvas owns the window */}
       <Route

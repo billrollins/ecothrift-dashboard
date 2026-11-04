@@ -90,9 +90,11 @@ export default function CashWindow({
             {tp('due', lang)} {money(dueCents)}
           </Typography>
         </Box>
-        <Button onClick={onShowDrawer} sx={{ textTransform: 'none', fontWeight: 700 }} data-testid="cash-show-drawer">
-          {tp('drawer', lang)}
-        </Button>
+        {drawerContents != null && (
+          <Button onClick={onShowDrawer} sx={{ textTransform: 'none', fontWeight: 700 }} data-testid="cash-show-drawer">
+            {tp('drawer', lang)}
+          </Button>
+        )}
         <IconButton onClick={onCancel} aria-label={tp('close', lang)} size="large">
           <Close />
         </IconButton>

@@ -16,12 +16,6 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     // Routines and Hours & pay open inside Today.
     pathAliases: ['/routines', '/pay'],
   },
-  kiosk: {
-    id: 'kiosk',
-    path: '/kiosk',
-    label: 'Kiosk',
-    icon: 'timeClock',
-  },
   routines: {
     id: 'routines',
     path: '/routines',

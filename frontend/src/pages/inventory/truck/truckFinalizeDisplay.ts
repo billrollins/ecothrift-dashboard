@@ -28,5 +28,5 @@ export function unitsText(n: number | null | undefined): string {
 export function refundRuleText(rate: number, deductible: number): string {
   const r = Math.round(rate * 1000) / 10;
   const d = Math.round(deductible * 1000) / 10;
-  return `Sellers refund ${r}% of the sale price (no fees, no shipping) for missing and broken goods, after the first ${d}% of the manifest retail, which is never refunded.`;
+  return `Sellers refund ${r}% of the sale price (no fees, no shipping) for missing, broken and disputed goods, after the first ${d}% of the manifest retail, which is never refunded.`;
 }

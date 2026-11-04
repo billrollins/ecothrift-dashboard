@@ -12,6 +12,12 @@
 - **At a glance** (Bill, Dash Updates #55, 2026-11-03). The week also carries each person's usual weekly shifts (so
   flexible departments show only the days that differ) and the store hours per day (the Retail timeline and floor
   coverage). Store hours come from the online-sales hours setting and its overrides, never hard-coded.
+- **Actual** (Bill, Dash Updates #55 part A, 2026-11-03). Each clock-in to clock-out in the week, drawn under the
+  scheduled bar, and the actual hours beside the scheduled ones. Managers see everyone's; staff see only their own.
+- **Requests** (Bill, Dash Updates #60 and #61, 2026-11-03). Anyone asks a manager for unpaid days off (one day or a
+  run of days) or new times on one day (a different start or end, or a day they don't usually work), with a note.
+  Managers (``hr.schedule:write``) approve or decline with a reply; approving a day off removes those shifts, and
+  approving new times changes (or adds) that day's shift. Staff see their own requests; managers see everyone's.
 - **Right now** (Bill, Dash Updates #6, 2026-11-02). Everyone sees the week, and next to each person their state now from
   the time clock: on shift, on break, late (a shift that has started, not clocked in, no call-in) or off.
 """
@@ -183,8 +189,76 @@ def store_hours(days) -> list[dict]:
     return out
 
 
-def week(start: date, *, manager: bool = True) -> dict:
-    from apps.hr.models import CallIn, ScheduledShift
+def actual_times(start: date, end: date, ids) -> tuple[list[dict], dict[int, float]]:
+    """Clock-ins in the week: ([{employee, date, start, end, open}], {person id: hours}). An open punch runs to now
+    (its hours less any break so far); one left open since before yesterday is a forgotten clock-out and is skipped."""
+    from apps.hr.models import TimeEntry
+
+    now = timezone.now()
+    spans: list[dict] = []
+    hours: dict[int, float] = {}
+    rows = TimeEntry.objects.filter(employee_id__in=list(ids), date__gte=start, date__lte=end).order_by('clock_in')
+    for e in rows:
+        if e.clock_out is None and e.clock_in < now - timedelta(hours=16):
+            continue
+        cin = timezone.localtime(e.clock_in)
+        cout = timezone.localtime(e.clock_out) if e.clock_out else None
+        spans.append({'employee': e.employee_id, 'date': e.date.isoformat(), 'start': cin.strftime('%H:%M'),
+                      'end': cout.strftime('%H:%M') if cout and cout.date() == cin.date() else ('23:59' if cout else None),
+                      'open': cout is None})
+        if e.total_hours is not None:
+            worked = float(e.total_hours)
+        elif cout is None:
+            worked = max((now - e.clock_in).total_seconds() / 3600 - (e.break_minutes or 0) / 60, 0)
+        else:
+            worked = 0
+        hours[e.employee_id] = round(hours.get(e.employee_id, 0) + worked, 2)
+    return spans, hours
+
+
+def request_payload(row) -> dict:
+    return {
+        'id': row.pk, 'employee': row.employee_id, 'employee_name': row.employee.full_name, 'kind': row.kind,
+        'date': row.date.isoformat(), 'end_date': row.end_date.isoformat(),
+        'start_time': row.start_time.strftime('%H:%M') if row.start_time else None,
+        'end_time': row.end_time.strftime('%H:%M') if row.end_time else None,
+        'note': row.note, 'status': row.status, 'reply': row.reply,
+        'decided_by_name': row.decided_by.full_name if row.decided_by_id else '',
+        'decided_at': row.decided_at.isoformat() if row.decided_at else None,
+        'created_at': row.created_at.isoformat(),
+    }
+
+
+def decide_request(row, approve: bool, reply: str, actor) -> None:
+    """Approve or decline a waiting request. Approving a day off removes the person's shifts on those days; approving
+    new times changes that day's shift, or adds one in their home department when they had none."""
+    from apps.hr.models import ScheduledShift, ScheduleRequest
+
+    if row.status != ScheduleRequest.PENDING:
+        raise ValidationError({'detail': 'That request has already been answered.'})
+    if approve:
+        shifts = ScheduledShift.objects.filter(employee_id=row.employee_id)
+        if row.kind == ScheduleRequest.KIND_OFF:
+            shifts.filter(date__gte=row.date, date__lte=row.end_date).delete()
+        else:
+            day = shifts.filter(date=row.date).order_by('start_time').first()
+            if day is None:
+                emp = getattr(row.employee, 'employee', None)
+                ScheduledShift.objects.create(employee_id=row.employee_id, date=row.date,
+                                              department_id=emp.department_id if emp else None,
+                                              start_time=row.start_time, end_time=row.end_time, created_by=actor)
+            else:
+                day.start_time, day.end_time = row.start_time, row.end_time
+                day.save(update_fields=['start_time', 'end_time', 'updated_at'])
+    row.status = ScheduleRequest.APPROVED if approve else ScheduleRequest.DECLINED
+    row.reply = (reply or '')[:300]
+    row.decided_by = actor
+    row.decided_at = timezone.now()
+    row.save(update_fields=['status', 'reply', 'decided_by', 'decided_at'])
+
+
+def week(start: date, *, manager: bool = True, viewer_id: int | None = None) -> dict:
+    from apps.hr.models import CallIn, ScheduledShift, ScheduleRequest
 
     start = week_start(start)
     end = start + timedelta(days=6)
@@ -200,7 +274,12 @@ def week(start: date, *, manager: bool = True) -> dict:
         hours[s.employee_id] = round(hours.get(s.employee_id, 0) + shift_hours(s), 2)
     today = timezone.localdate()
     usual = usual_shifts(ids, fixed)
+    actual, actual_hours = actual_times(start, end, ids if manager else ({viewer_id} if viewer_id else set()))
     days = [start + timedelta(days=n) for n in range(7)]
+    requests = (ScheduleRequest.objects.filter(date__lte=end, end_date__gte=start)
+                .exclude(status=ScheduleRequest.WITHDRAWN).select_related('employee', 'decided_by'))
+    if not manager:  # Staff see their own requests only.
+        requests = requests.filter(employee_id=viewer_id)
     payload = {
         'start': start.isoformat(), 'end': end.isoformat(),
         'days': [d.isoformat() for d in days],
@@ -210,11 +289,14 @@ def week(start: date, *, manager: bool = True) -> dict:
              'department': p.employee.department_id, 'department_name': p.employee.department.name if p.employee.department_id else '',
              'fixed': bool(p.employee.department_id and p.employee.department.slug in fixed),
              'usual': usual.get(p.pk, []),
-             'hours': hours.get(p.pk, 0), 'call_ins': counts.get(p.pk, {'d30': 0, 'd90': 0, 'no_show_90': 0})}
+             'hours': hours.get(p.pk, 0), 'actual_hours': actual_hours.get(p.pk),
+             'call_ins': counts.get(p.pk, {'d30': 0, 'd90': 0, 'no_show_90': 0})}
             for p in people
         ],
         'shifts': [shift_payload(s, fixed) for s in shifts],
         'call_ins': [call_in_payload(c) for c in call_ins],
+        'actual': actual,
+        'requests': [request_payload(r) for r in requests],
         'fixed_departments': sorted(fixed),
         'can_edit': manager,
         'now': {str(k): v for k, v in now_states(ids).items()} if start <= today <= end else {},

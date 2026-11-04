@@ -36,6 +36,8 @@ export interface OrderCardData {
     returned: number; gone: number; disputed: number; pallets: number | null;
   };
   claim: { status: string; status_label: string; refund_expected: string | null; refund_received: string | null } | null;
+  /** Disputed items (not broken) and the manifest retail they add to the truck claim (Dash Update #1). */
+  disputed_claim?: { items: number; retail: string | null } | null;
   disputes: { kind: string; status: string; title: string }[];
   journey: { kind: string; at: string | null }[];
 }
@@ -131,12 +133,15 @@ function CardView({ c, onEdit }: { c: OrderCardData; onEdit: () => void }) {
               ['Disputed', u.disputed ? String(u.disputed) : null],
             ]} />
           </Section>
-          {c.claim || c.disputes.length || c.notes ? (
+          {c.claim || c.disputed_claim || c.disputes.length || c.notes ? (
             <Section title="Notes and claims">
               <Facts rows={[
                 ['Truck claim', c.claim ? [c.claim.status_label,
                   c.claim.refund_expected ? `expected ${itemCardMoney(c.claim.refund_expected)}` : '',
                   c.claim.refund_received ? `received ${itemCardMoney(c.claim.refund_received)}` : ''].filter(Boolean).join(' · ') : null],
+                ['Disputed', c.disputed_claim
+                  ? `${c.disputed_claim.items} ${c.disputed_claim.items === 1 ? 'item' : 'items'}, ${itemCardMoney(c.disputed_claim.retail)} toward the claim`
+                  : null],
                 ...c.disputes.map((d, i) => [`Dispute ${i + 1}`, `${d.title} (${d.status})`] as [string, string]),
                 ['Notes', c.notes ? <Box component="span" sx={{ whiteSpace: 'pre-wrap' }}>{c.notes}</Box> : null],
               ] as [string, ReactNode][]} />

@@ -21,7 +21,10 @@ export function DrawerChip({
       onClick={onClick}
       color={practice ? 'warning' : 'default'}
       variant="outlined"
-      label={`${tp(practice ? 'drawerPractice' : 'drawer', lang)} ${money(countCents(contents))}`}
+      // No contents: blind for a cashier while the drawer is open (Dash Update #36), so the name alone.
+      label={contents == null
+        ? tp(practice ? 'drawerPractice' : 'drawer', lang)
+        : `${tp(practice ? 'drawerPractice' : 'drawer', lang)} ${money(countCents(contents))}`}
       data-testid="drawer-chip"
       sx={{ fontWeight: 700, height: 36 }}
     />

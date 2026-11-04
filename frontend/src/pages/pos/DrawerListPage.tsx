@@ -381,7 +381,7 @@ export default function DrawerListPage() {
                       <Typography variant="body2" color="text.secondary">
                         Opening: {formatCurrency(drawer.opening_total)}
                         {/* Counts are blind (2026-10-21): a cashier does not see the running cash total. */}
-                        {(isManager || !isOpen) && <> · Cash sales: {formatCurrency(drawer.cash_sales_total)}</>}
+                        {(isManager || !isOpen) && drawer.cash_sales_total != null && <> · Cash sales: {formatCurrency(drawer.cash_sales_total)}</>}
                       </Typography>
                       {drawer.drops && drawer.drops.length > 0 && (
                         <Typography variant="body2" color="text.secondary">

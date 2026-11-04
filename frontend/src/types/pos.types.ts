@@ -114,11 +114,12 @@ export interface Drawer {
   closed_at: string | null;
   closing_count: DenominationBreakdown | null;
   closing_total: string | null;
-  cash_sales_total: string;
+  /** Null for a cashier while the drawer is open (blind, Dash Update #36), as are expected_cash, variance and contents. */
+  cash_sales_total: string | null;
   expected_cash: string | null;
   variance: string | null;
   /** What should be in the drawer by bill and coin (2026-10-21): opening count + cash taken in - change - drops. */
-  contents?: Partial<Record<keyof DenominationBreakdown, number>>;
+  contents?: Partial<Record<keyof DenominationBreakdown, number>> | null;
   /** Blind counts (2026-10-21): the till fund expected at opening, the contents expected at close, the coin counter's
    * total when coins were not counted by coin, and the close note. */
   opening_expected?: Partial<Record<keyof DenominationBreakdown, number>> | null;

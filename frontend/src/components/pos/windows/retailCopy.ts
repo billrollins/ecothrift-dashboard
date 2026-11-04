@@ -85,7 +85,7 @@ export const COPY = {
   expected: { en: 'Expected', es: 'Esperado' },
   offBy: { en: 'Off', es: 'Diferencia' },
   bills: { en: 'bills', es: 'billetes' },
-  blindNote: { en: 'Expected shows when the drawer closes.', es: 'Lo esperado se ve al cerrar la caja.' },
+  blindNote: { en: 'Cash now and expected show when the drawer closes.', es: 'El efectivo actual y lo esperado se ven al cerrar la caja.' },
   drawerSales: { en: "This drawer's sales", es: 'Ventas de este cajón' },
   registerBtn: { en: 'Register', es: 'Caja' },
   closeOut: { en: 'Close-out', es: 'Cierre' },

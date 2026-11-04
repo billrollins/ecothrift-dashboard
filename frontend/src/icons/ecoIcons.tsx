@@ -71,7 +71,7 @@ export interface IconNote {
 export const NOTES = {
   overview: { kind: 'page', use: 'Dashboard', metaphor: 'A board of four rounded tiles; the top-right tile is kraft.' },
   today: { kind: 'page', use: 'Today (my shift)', metaphor: 'CALENDAR with a check mark in the day area; the check is kraft.' },
-  timeClock: { kind: 'page', use: 'Kiosk (clock in and out)', metaphor: 'CLOCK face with hands; the short hand is kraft.' },
+  timeClock: { kind: 'page', use: 'Time clock (clock in and out)', metaphor: 'CLOCK face with hands; the short hand is kraft.' },
   routine: { kind: 'page', use: 'Routines; Admin > Routines', metaphor: 'CLIPBOARD with two ticked lines; the clip is kraft.' },
   documents: { kind: 'page', use: 'Documents', metaphor: 'PAGE with a second sheet peeking out behind its left edge; the fold is kraft.' },
   purchaseOrder: { kind: 'page', use: 'Orders (buying)', metaphor: 'A shopping cart carrying a small carton; the carton is kraft.' },

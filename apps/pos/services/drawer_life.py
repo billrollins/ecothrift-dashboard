@@ -26,6 +26,17 @@ _LABELS = {'hundreds': '$100', 'fifties': '$50', 'twenties': '$20', 'tens': '$10
 LABELS = _LABELS
 SETTING_KEY_CLOSE_NOTE_OVER = 'pos.close_note_over'
 DEFAULT_CLOSE_NOTE_OVER = Decimal('5.00')
+# What a blind viewer is not sent about an open drawer (Dash Update #36, Bill 2026-11-03): the cash in it now, what Dash
+# expects and the differences. Its counts' answers come back once, right after the count (``count_check``).
+BLIND_DRAWER_FIELDS = ('contents', 'cash_sales_total', 'expected_cash', 'variance')
+BLIND_HANDOFF_FIELDS = ('expected_total', 'expected_count', 'variance')
+
+
+def sees_running_cash(user) -> bool:
+    """Managers and the owner see an open drawer's cash now and what Dash expects (Bill 2026-11-03: "hide 'Cash now'
+    from cashiers during a blind count; managers still see it"). The same rule as the Drawers page's manager view."""
+    from apps.accounts.services.access import holds, manager_or
+    return manager_or(user, 'pos.override:use') or holds(user, 'cashier:manage')
 
 
 def bills_of(count: dict | None) -> dict:

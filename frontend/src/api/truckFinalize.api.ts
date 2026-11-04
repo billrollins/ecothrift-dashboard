@@ -1,6 +1,7 @@
 import api from './client';
 
-export type TruckMeasure = 'manifest' | 'unfulfilled' | 'expected' | 'received' | 'missing' | 'over' | 'broken';
+/** `disputed`: items disputed in Processing, each counted as its % of value lost (Dash Update #1). */
+export type TruckMeasure = 'manifest' | 'unfulfilled' | 'expected' | 'received' | 'missing' | 'over' | 'broken' | 'disputed';
 
 export interface TruckFinalizeLineDTO {
   manifest_row_id: number;
@@ -42,6 +43,8 @@ export interface TruckTotalsDTO {
   lines_without_retail: number;
   units: Record<TruckMeasure, number>;
   retail: Record<TruckMeasure, string | null>;
+  /** Items disputed in Processing (not broken) that count toward the claim. */
+  disputed_items: number;
   added_units: number;
   added_retail: string | null;
   missing_pct: number | null;

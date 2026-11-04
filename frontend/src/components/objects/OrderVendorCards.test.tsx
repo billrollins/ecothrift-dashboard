@@ -21,9 +21,9 @@ const ORDER = {
 const VENDOR = { id: 3, name: 'Costco', code: 'CST', vendor_type: 'liquidation', contact_name: 'Pat', contact_email: '', contact_phone: '', address: '', notes: '', is_active: true, created_at: '' };
 const METRICS = { period: '12m', start: '2025-11-02', metrics: { orders: 9, spent: '24179.97', landed_pct: '19', recovery_actual: '149', days_to_sell: 7.2, items_checked_in: 1905, items_sold: 1407 } };
 
-function serve() {
+function serve(order: Record<string, unknown> = ORDER) {
   client.get.mockImplementation((url: string) => Promise.resolve({
-    data: url.endsWith('/orders/12/card/') ? ORDER
+    data: url.endsWith('/orders/12/card/') ? order
       : url.endsWith('/vendors/3/metrics/') ? METRICS
         : url.endsWith('/vendors/3/') ? VENDOR
           : { count: 1, results: [{ id: 12, order_number: 'CSTCO-12', ordered_date: '2026-10-13', description: 'kitchen', total_cost: '2005.65' }] },
@@ -41,6 +41,14 @@ function wrap(ui: React.ReactNode) {
 }
 
 describe('Order and Vendor windows (Dash Updates #12, #13)', () => {
+  it('the Order window says what disputed items add to the truck claim (Dash Update #1)', async () => {
+    serve({ ...ORDER, units: { ...ORDER.units, disputed: 2 }, disputed_claim: { items: 2, retail: '80.00' } });
+    wrap(<ObjectLink type="order" id={12} label="CSTCO-12" />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'CSTCO-12' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText('2 items, $80.00 toward the claim')).toBeInTheDocument();
+  });
+
   it('the Order window shows cost against retail and recovered; its vendor opens the Vendor window; Edit shows the page', async () => {
     serve();
     const user = userEvent.setup();

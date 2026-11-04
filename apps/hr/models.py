@@ -469,39 +469,44 @@ class CallIn(models.Model):
         return f'{self.employee_id} {self.shift_date} {self.kind}'
 
 
-class KioskEvent(models.Model):
-    """Audit row for the time kiosk. Never stores the card token."""
+class ScheduleRequest(models.Model):
+    """Someone asks a manager for a change to their schedule, with a note; a manager (``hr.schedule:write``) approves or
+    declines it, with a reply, and approving changes the week (Bill, Dash Updates #60 and #61, 2026-11-03: changes are
+    a conversation with a manager). Kinds: unpaid days off (``date`` through ``end_date``; no balances, no sick leave)
+    and new times on one day (a different start or end, or picking up a day they don't work). Built to be listed with
+    the other requests in the HR Requests tab (#59): who, what, when asked, status, who answered."""
 
-    ROUTE_KIOSK = 'kiosk'
-    ROUTE_CLOCK = 'clock'
-    ROUTE_CHOICES = [(ROUTE_KIOSK, 'Hosted kiosk'), (ROUTE_CLOCK, 'Public clock')]
+    KIND_OFF = 'off'
+    KIND_TIMES = 'times'
+    KIND_CHOICES = [(KIND_OFF, 'Day off'), (KIND_TIMES, 'New times')]
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    DECLINED = 'declined'
+    WITHDRAWN = 'withdrawn'
+    STATUS_CHOICES = [(PENDING, 'Waiting'), (APPROVED, 'Approved'), (DECLINED, 'Declined'), (WITHDRAWN, 'Withdrawn')]
 
-    ACTIONS = (
-        'identify_ok', 'identify_fail', 'cooldown', 'clock_in', 'clock_out',
-        'break_start', 'break_end', 'set_shift', 'request_edit', 'fix_stale',
-        'gate_cleared', 'unmatched_shift', 'exit',
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='schedule_requests',
     )
-
-    at = models.DateTimeField(default=timezone.now, db_index=True)
-    route = models.CharField(max_length=8, choices=ROUTE_CHOICES)
-    host = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='kiosk_events_hosted',
+    kind = models.CharField(max_length=8, choices=KIND_CHOICES)
+    date = models.DateField(db_index=True)
+    end_date = models.DateField(help_text='Last day off (the same as the first for one day).')
+    start_time = models.TimeField(null=True, blank=True, help_text='New times only.')
+    end_time = models.TimeField(null=True, blank=True)
+    note = models.CharField(max_length=300, blank=True, default='')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=PENDING, db_index=True)
+    reply = models.CharField(max_length=300, blank=True, default='', help_text="The manager's answer.")
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
     )
-    subject = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='kiosk_events',
-    )
-    action = models.CharField(max_length=20)
-    shift = models.CharField(max_length=20, blank=True, default='')
-    ip = models.CharField(max_length=45, blank=True, default='')
-    meta = models.JSONField(default=dict, blank=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-at', '-id']
+        ordering = ['date', 'created_at']
 
     def __str__(self):
-        return f'{self.route} {self.action} {self.at:%Y-%m-%d %H:%M}'
+        return f'{self.employee_id} {self.date} {self.kind} {self.status}'
 
 
 def _weekday_list(raw) -> list[int]:

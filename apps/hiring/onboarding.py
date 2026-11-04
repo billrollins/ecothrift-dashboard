@@ -2,8 +2,8 @@
 
 The checklist is copied from the careers file (``onboarding.items``) when onboarding starts, with due dates worked
 out from the start date. Some items finish themselves from what Dash already knows: the emergency contact on the
-profile, a password set and a first sign-in, the first clock-in, shifts on the schedule, a kiosk badge, the handbook
-signature and the I-9. The I-9 is Admin only and kept apart from the employee record (decision 12). The handbook is
+profile, a password set and a first sign-in, the first clock-in, shifts on the schedule, the handbook signature and
+the I-9. The I-9 is Admin only and kept apart from the employee record (decision 12). The handbook is
 signed in Dash the way an offer is: a tick, a typed name, a finger signature, and a PDF with an audit trail.
 """
 from __future__ import annotations
@@ -191,8 +191,6 @@ def auto_state(onboarding: Onboarding, task: OnboardingTask) -> bool | None:
         return TimeEntry.objects.filter(employee=user, deleted_at__isnull=True).exists()
     if task.auto == 'schedule':
         return ShiftAssignment.objects.filter(employee=user).exists()
-    if task.auto == 'kiosk_badge':
-        return bool(profile and profile.badge_issued_at and not profile.badge_revoked_at)
     if task.auto == 'first_day_email':  # the email went out and there is a start (orientation) day
         return bool(onboarding.first_day_email_sent_at and onboarding.start_date)
     if task.auto.startswith('checkin_'):  # that check-in was signed, or skipped with a reason

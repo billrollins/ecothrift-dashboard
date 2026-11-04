@@ -21,7 +21,7 @@ describe('Mark as disputed (Dash Updates #1)', () => {
       />,
     );
     expect(screen.getByRole('checkbox', { name: /ITM3/ })).toBeDisabled();
-    expect(screen.getByText('This marks the item. It does not file a claim with the supplier.')).toBeInTheDocument();
+    expect(screen.getByText('This marks the item and adds its % of value lost to the truck claim (filed from the Truck page).')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Mark disputed' }));
     expect(screen.getByText('Pick at least one item.')).toBeInTheDocument();
     await user.click(screen.getByRole('checkbox', { name: /ITM1/ }));

@@ -549,7 +549,7 @@ export function RoutineSettingsFields({
             <Box sx={{ gridColumn: '1 / -1' }}>
               <Toggle
                 label="Ask why when missed"
-                hint="The kiosk asks the owner for a reason before their next clock-in. Superuser only."
+                hint="Checked before the owner's next clock-in (Wi-Fi clock pilot, notes only). Superuser only."
                 checked={value.gateOnMiss}
                 onChange={(gateOnMiss) => onChange({ gateOnMiss })}
               />

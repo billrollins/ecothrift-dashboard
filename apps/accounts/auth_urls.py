@@ -1,7 +1,6 @@
 from django.urls import path
 from .views import (
     login_view, refresh_view, logout_view, me_view, capabilities_view, change_password_view,
-    verify_password_view,
     forgot_password_view, reset_password_view,
     magic_link_request_view, magic_link_consume_view,
     customer_lookup_view, customer_register_view, customer_set_password_view,
@@ -23,7 +22,6 @@ urlpatterns = [
     path('view-as/stop/', view_as_stop_view, name='auth-view-as-stop'),
     path('capabilities/', capabilities_view, name='auth-capabilities'),
     path('change-password/', change_password_view, name='auth-change-password'),
-    path('verify-password/', verify_password_view, name='auth-verify-password'),
     path('forgot-password/', forgot_password_view, name='auth-forgot-password'),
     path('reset-password/', reset_password_view, name='auth-reset-password'),
     path('magic-link/request/', magic_link_request_view, name='auth-magic-link-request'),

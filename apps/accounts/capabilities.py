@@ -146,7 +146,7 @@ ITEMS: tuple[Item, ...] = (
          ('accounts/pay-levels/', 'pos/staff-purchases/')),
     Item('people.permissions:read', 'people', MANAGE, 'See the Permissions page', ('accounts/access/',)),
     Item('people.pay:owner', 'people', FULL, 'Staff purchase settings', ('pos/staff-purchases/settings/',)),
-    Item('users.staff:manage', 'people', FULL, 'Staff accounts: add, edit, badges, register PINs and password links',
+    Item('users.staff:manage', 'people', FULL, 'Staff accounts: add, edit, register PINs and password links',
          ('accounts/users/',)),
     Item('hiring:owner', 'people', FULL,
          'Hiring owner steps: open I-9 files, publish the handbook, password links for managers', ('hiring/',)),
@@ -189,7 +189,7 @@ ITEM_BY_ID = {item.id: item for item in ITEMS}
 
 # Every staff login has these, on no dial, so nobody loses the basics by accident.
 BASICS: tuple[str, ...] = (
-    'Clock in and out; the time kiosk',
+    'Clock in and out',
     'Today, the Dashboard and the Me page',
     'Staff messages',
     'Their assigned routines and documents',

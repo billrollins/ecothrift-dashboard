@@ -1,6 +1,6 @@
 """Idle sign-out for Dash logins (house standard D16, T69).
 
-A staff login is signed out after ``staff`` hours with no activity (default 4). A register or the time kiosk may
+A staff login is signed out after ``staff`` hours with no activity (default 4). A register may
 keep a longer named setting (``register``, default 24) so a till left overnight is still signed in next morning.
 
 * **Setting.** ``AppSetting`` key ``auth.idle_hours`` = ``{"staff": 4, "register": 24}``. A missing row or a bad
@@ -10,7 +10,7 @@ keep a longer named setting (``register``, default 24) so a till left overnight 
 * **Enforcement.** ``refresh_view`` (the only way a Dash browser gets a new access token) refuses the refresh cookie
   when the last activity is older than the limit: ``401`` with ``code: IDLE``, cookie cleared, token blacklisted.
   Access tokens last 30 minutes, so a session cannot outlive the limit by more than that.
-* **Which limit.** The browser says it is a register or the kiosk with the ``X-Device-Kind: register`` header on the
+* **Which limit.** The browser says it is a register with the ``X-Device-Kind: register`` header on the
   refresh call (it reads this computer's saved POS device type). That header only picks the longer limit; it
   grants nothing the person did not already have.
 * **Customers.** Only Dash logins (``is_staff_login``) are timed out. A customer's website session and the Thrift+
@@ -39,7 +39,7 @@ def _hours(value, fallback: float) -> float:
 
 
 def idle_hours(device_kind: str | None = None) -> float:
-    """Hours of no activity before sign-out: the register limit for a register or kiosk, else the staff limit."""
+    """Hours of no activity before sign-out: the register limit for a register, else the staff limit."""
     from apps.core.models import AppSetting
 
     row = AppSetting.objects.filter(key=SETTING_KEY).first()

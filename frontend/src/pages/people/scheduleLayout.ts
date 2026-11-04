@@ -4,6 +4,8 @@
  * - Usual pattern: each person's usual weekly shifts said once ("Mon-Fri 9-5"); a flexible row only draws a day that
  *   differs from usual (day off, call-in, extra or changed shift).
  * - Floor coverage: how many fixed (Retail) shifts are on the floor through store hours, with gaps and single coverage.
+ * - Part A (Bill, 2026-11-03): coverage for every department (only fixed ones flag gaps), drag snapping (15 minutes on
+ *   the week, 5 in the enlarged day).
  */
 import type { CallIn, ScheduledShift, ScheduleWeek, UsualShift } from '../../api/schedule.api';
 
@@ -50,6 +52,21 @@ export function short(mins: number): string {
   const h12 = ((h + 11) % 12) + 1;
   return m ? `${h12}:${String(m).padStart(2, '0')}` : String(h12);
 }
+
+/** Minutes → '08:30' (what the API takes). */
+export const toHHMM = (mins: number) => {
+  const m = Math.max(0, Math.min(24 * 60 - 1, Math.round(mins)));
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+};
+
+/** Round to the nearest step (15 on the week, 5 enlarged). */
+export const snap = (mins: number, step: number) => Math.round(mins / step) * step;
+
+/** A shift's end in minutes; one that runs past midnight ends at midnight on this timeline. */
+export const endMinutes = (s: { start_time: string; end_time: string }) => {
+  const e = minutes(s.end_time);
+  return e <= minutes(s.start_time) ? 24 * 60 : e;
+};
 
 export const range = (start: string, end: string) => `${short(minutes(start))}-${short(minutes(end))}`;
 
@@ -144,4 +161,35 @@ export function timelineWindow(hours: Array<{ open: boolean; start: string; end:
   })];
   if (!starts.length) return [9 * 60, 18 * 60];
   return [Math.floor(Math.min(...starts) / 60) * 60, Math.ceil(Math.max(...ends) / 60) * 60];
+}
+
+export interface SectionCoverage {
+  /** Null when there is nothing to judge (a closed day nobody works). */
+  window: [number, number] | null;
+  segments: Segment[];
+  /** Gaps and single coverage are flagged (fixed departments on an open day). */
+  flagged: boolean;
+}
+
+/**
+ * Coverage for one section on one day. Fixed departments are judged across store hours; on a day the store is closed,
+ * and for flexible departments, across the span the shifts themselves cover, without flags.
+ */
+export function sectionCoverage(shifts: Array<{ start_time: string; end_time: string }>, store: { open: boolean; start: string; end: string } | undefined, fixed: boolean): SectionCoverage {
+  if (fixed && store?.open) {
+    return { window: [minutes(store.start), minutes(store.end)], segments: coverage(shifts, store.start, store.end), flagged: true };
+  }
+  if (!shifts.length) return { window: null, segments: [], flagged: false };
+  const a = Math.min(...shifts.map((s) => minutes(s.start_time)));
+  const b = Math.max(...shifts.map(endMinutes));
+  return { window: [a, b], segments: coverage(shifts, toHHMM(a), toHHMM(b)), flagged: false };
+}
+
+/** The server's reason, or the fallback: `{detail}` or the first field's first message. */
+export function errorText(err: unknown, fallback: string): string {
+  const data = (err as { response?: { data?: Record<string, unknown> } })?.response?.data;
+  if (!data) return fallback;
+  if (typeof data.detail === 'string') return data.detail;
+  const first = Object.values(data)[0];
+  return Array.isArray(first) ? String(first[0]) : typeof first === 'string' ? first : fallback;
 }

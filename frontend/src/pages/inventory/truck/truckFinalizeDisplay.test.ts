@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { TruckFinalizeDTO } from '../../../api/truckFinalize.api';
 import { finalizeWarnings, pctText, refundRuleText, unitsText } from './truckFinalizeDisplay';
 
-const zero = { manifest: 0, unfulfilled: 0, expected: 0, received: 0, missing: 0, over: 0, broken: 0 };
+const zero = { manifest: 0, unfulfilled: 0, expected: 0, received: 0, missing: 0, over: 0, broken: 0, disputed: 0 };
 const zeroMoney = {
   manifest: '0.00', unfulfilled: '0.00', expected: '0.00', received: '0.00', missing: '0.00', over: '0.00', broken: '0.00',
+  disputed: '0.00',
 };
 
 const base = (over: Partial<TruckFinalizeDTO> = {}): TruckFinalizeDTO => ({
@@ -15,7 +16,7 @@ const base = (over: Partial<TruckFinalizeDTO> = {}): TruckFinalizeDTO => ({
   finalized: { at: null, by: '', snapshot: {} },
   totals: {
     lines: 2, lines_without_retail: 0, units: zero, retail: zeroMoney, added_units: 0, added_retail: '0.00',
-    missing_pct: 0, adjusted_refund: '0.00',
+    disputed_items: 0, missing_pct: 0, adjusted_refund: '0.00',
   },
   refund: {
     sale_price: '200.00', rate: 0.95, deductible: 0.05, claimed_retail: '0.00', claimed_pct: 0,

@@ -5,9 +5,10 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin
+from apps.accounts.permissions import IsEmployee
 
 from . import drawer_card, register_card, sale_card
+from .services.drawer_life import sees_running_cash
 from .models import Cart, Drawer, Register
 
 
@@ -16,7 +17,7 @@ from .models import Cart, Drawer, Register
 def register_card_view(request, pk: int):
     """The Register window: GET /api/pos/registers/<id>/card/."""
     register = get_object_or_404(Register.objects.select_related('location'), pk=pk)
-    manager = IsManagerOrAdmin().has_permission(request, None)
+    manager = sees_running_cash(request.user)
     return Response(register_card.card(register, manager=manager))
 
 
@@ -27,7 +28,7 @@ def drawer_card_view(request, pk: int):
     drawer = get_object_or_404(
         Drawer.objects.select_related('register', 'current_cashier', 'opened_by', 'closed_by'), pk=pk,
     )
-    manager = IsManagerOrAdmin().has_permission(request, None)
+    manager = sees_running_cash(request.user)
     # A cashier sees today's drawers (as on the Drawers page); past drawers, their drops and notes are managers'.
     if not manager and drawer.date != timezone.localdate():
         return Response({'detail': 'Only a manager sees a past drawer.'}, status=403)

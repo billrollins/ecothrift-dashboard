@@ -79,7 +79,7 @@ class DisplayNameMigrationTests(APITestCase):
         self.assertEqual(Shift.objects.get(punch_code='retail_day').name, 'Retail Mid')
         self.assertEqual(Shift.objects.get(punch_code='retail_close').name, 'Retail Close')
 
-    def test_kiosk_preview_suggests_retail_open(self):
+    def test_clock_tiles_suggest_retail_open(self):
         apply_shift_set()
         self.client.force_authenticate(_manager())
         response = self.client.get('/api/hr/shifts/clock_tiles/', {'date': '2026-09-16'})

@@ -2,7 +2,7 @@
 
 Who has it, when it opened, the cash in it now by bill and coin, every count with what Dash expected, the day's
 sales and the day's journey (drops, paid in/out, covers with who and why). Read-only. Counts are blind (2026-10-21): while the drawer is open a non-manager sees
-what was counted, never what Dash expected or the difference.
+what was counted, never what Dash expected, the difference or the cash in it now (#36).
 """
 from decimal import Decimal
 
@@ -58,10 +58,11 @@ def card(drawer: Drawer, *, manager: bool = True) -> dict:
     if drawer.status == 'open':
         live = drawer.covers.filter(ended_at__isnull=True).select_related('user').first()
         cover = name(live.user) if live else None
-    # The cash in it now: the live contents while open, the closing count once closed. Shown to cashiers too, as the
-    # terminal's Drawer chip does (Bill 2026-11-02: "see the Drawer denominations for a drawer count EASY on the
-    # screen"); only what a count expected and its difference are blind.
+    # The cash in it now: the live contents while open, the closing count once closed. While open it equals what Dash
+    # expects, so it is blind too (Dash Update #36, Bill 2026-11-03: "hide 'Cash now' from cashiers during a blind
+    # count; managers still see it"). The training register's practice money stays visible.
     now = (drawer.contents if drawer.status == 'open' else drawer.closing_count) or {}
+    hide_cash = blind and not register.is_training
     return {
         'id': drawer.pk,
         'register': {'id': register.pk, 'name': register.name, 'code': register.code,
@@ -77,7 +78,7 @@ def card(drawer: Drawer, *, manager: bool = True) -> dict:
         'closed_by': name(drawer.closed_by),
         'closed_at': drawer.closed_at.isoformat() if drawer.closed_at else None,
         'variance': None if blind or drawer.variance is None else money(drawer.variance),
-        'cash_now': {
+        'cash_now': None if hide_cash else {
             'count': {k: v for k, v in now.items() if v},
             # Closed with the coin counter: the coins are one total, so the total is the closing total.
             'coins_total': None if open_ or drawer.coin_counter_total is None else money(drawer.coin_counter_total),

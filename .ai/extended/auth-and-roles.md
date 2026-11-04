@@ -84,7 +84,7 @@ to their website `User`.
 |-------|----------|---------|
 | Access | 30 minutes | In-memory (frontend) |
 | Refresh | 7 days | httpOnly cookie, path `/api/auth/` |
-| Idle limit | 4 hours (staff), 24 hours (register / kiosk) | AppSetting `auth.idle_hours`; see Idle sign-out |
+| Idle limit | 4 hours (staff), 24 hours (register) | AppSetting `auth.idle_hours`; see Idle sign-out |
 | Blacklist | On logout and on an idle refusal | Spent refresh tokens are refused |
 
 ### Idle sign-out (4 hours, D16)
@@ -96,10 +96,10 @@ Code: `apps/accounts/services/idle.py`, `apps/accounts/authentication.py`. Tests
 | Activity | `User.last_active_at`. Stamped at login, at every refresh, and on any request with a good access token (`IdleStampJWTAuthentication`, at most one UPDATE per 5 minutes). One time per account, not per device. |
 | Enforced | On the server, at refresh. Access tokens last 30 minutes, so a session cannot outlive the limit by more than that. |
 | Limit | AppSetting `auth.idle_hours` = `{"staff": 4, "register": 24}` (Admin only; a missing or bad value falls back to these). |
-| Registers and the kiosk | The browser sends `X-Device-Kind: register` on refresh when this computer's saved POS device type is `register` or the page is `/kiosk` (`deviceKindHeaders()` in `client.ts`). That picks the longer `register` limit (never below the staff limit). The kiosk also pings refresh while it waits, which counts as activity. |
+| Registers | The browser sends `X-Device-Kind: register` on refresh when this computer's saved POS device type is `register` (`deviceKindHeaders()` in `client.ts`). That picks the longer `register` limit (never below the staff limit). |
 | Thrift+ Staff (`/staff`, store phones) | Same Dash sign-in, so the 4-hour staff limit. |
 | Not touched | Customers (website session) and the Thrift+ Member app (`tp_session`): only `is_staff_login` accounts are timed out. A session with no `last_active_at` yet (started before this shipped) is let in and stamped. |
-| Browser | A refused refresh stores the message (`rememberIdleSignOut`), sends the person to `/login`, and the sign-in page shows it once (`login-idle-notice`). The kiosk shows its manager overlay instead. |
+| Browser | A refused refresh stores the message (`rememberIdleSignOut`), sends the person to `/login`, and the sign-in page shows it once (`login-idle-notice`). |
 
 ---
 
@@ -195,7 +195,7 @@ One page, `/people/permissions` (People workspace; `/admin/permissions` redirect
 | Areas | The 10 sidebar workspaces: Buying, Processing, Restoration, Inventory, Cashier, Deliveries, Online Sales, Studios, People, Admin. |
 | Dial | One per area: None 0 · View 1 · Work 2 · Manage 3 · Full 4. Each step includes the ones below it. |
 | Items | `apps/accounts/capabilities.py` `ITEMS`: each sits on one step of one area (ids are the old capability ids). An item's step follows today's gate (View/Work = any staff, Manage = `IsManagerOrAdmin`, Full = owner). `locked` items (change permissions, View as, the Dash Updates line) are the owner's alone. `paths` = the API paths a single tick of that item opens. |
-| Basics | On no dial, every staff login: clock and kiosk, Today / Dashboard / Me, messages, assigned routines and documents, Dash Updates report. |
+| Basics | On no dial, every staff login: the time clock, Today / Dashboard / Me, messages, assigned routines and documents, Dash Updates report. |
 | Layers | **Level** (Employee, Manager; the Owner = superuser, locked at Full) sets the base → **Department** adds (a higher dial or single items; never takes away) → **Exception** for one person has the last word (a dial up or down, items added, items taken away; a personal "no" beats everything; optional end date and note). |
 | Day one | `LEVEL_DEFAULTS` = exactly what each level had before #53: Employee Work in Buying, Processing, Restoration, Inventory, Cashier, Deliveries, Studios and None in Online Sales, People, Admin; Manager Manage everywhere. Department presets start empty. The retired Admin group counts as Manager; the old Admin-only things are Owner (Full). |
 | Store | `AccessSet` (one row per layer: `level:Employee`, `department:<id>`, `person:<id>`; `areas` JSON `{area: {step, add, remove, until, note}}`) and `AccessEvent` (History: who, when, what, area, the change in words, note). A level with no row uses the defaults. |
@@ -235,13 +235,6 @@ User's `roles` property: returns **all** group names as a list (e.g. `['Employee
 | `IsOwner` | Django superuser only, never by a grant: changing permissions |
 
 `IsManager` (Manager only) was unused and has been removed. Django's `Permission` table is not consulted. What each level, department and person can do: § Staff permissions above.
-
-### Time kiosk (`/kiosk` hosted, `/clock` public)
-
-- **Card token.** `EmployeeProfile.badge_token_hash` is `HMAC-SHA256(SECRET_KEY, token)` of a 10-char opaque Code 128 token; `badge_issued_at` / `badge_revoked_at`; `badge_status` = `none` / `active` / `revoked`. The plain token is returned exactly once by `POST /api/accounts/users/:id/badge/` (issue) or `.../badge/reprint/` (rotates; the old card dies at once); `.../badge/revoke/` sets `badge_revoked_at`. Admin only (`UserViewSet`). Employee number, PIN, and typed passwords are never accepted at the kiosk.
-- **Hosted kiosk host.** `/api/hr/kiosk/*` requires a staff JWT with `hr.kiosk:use` (every staff role has it). The host is meant to be a dedicated **Employee** account left signed in on the tablet; `/kiosk` warns when a Manager or Admin is the host. Every punch acts as the *scanned card's* user, never the host; `KioskEvent` records host, subject, action, ip. Exit takes no password: the Exit button (or Esc) leaves to `/dashboard`, and `POST /api/hr/kiosk/exit/` still writes the audit row. `POST /api/auth/verify-password/` (throttle scope `auth_verify_password`) is still served, but nothing in the frontend calls it now. The sign-in page's **Scan your card** button punches through the public `/api/hr/clock/*` API with no JWT, so scanning there never signs anyone in. The axios interceptor never redirects `/kiosk` to `/login` on refresh failure; it fires `kiosk:host-expired` and the page shows a manager sign-in overlay. A `401` with `code: card` is a bad card, not a dead host session, so it does not refresh.
-- **Public clock.** `/api/hr/clock/*` is `AllowAny`. Identity is the card token only; a `clock_device` HTTP-only cookie plus IP key the throttle (10 failed identifies per 10 min, then 5 min lock); `AppSetting kiosk.public_allowed_ips` (JSON list of exact IP strings, empty = any) fences the surface. Board and preview are redacted (`name` "Maria R." only, no punch times, no break state, no Called in). Punch mutations on `/clock` are clock-in, clock-out, break, fix-stale; time edits stay hosted.
-- **Identify throttle (hosted).** 20 failed identifies per host per 10 min, then 5 min cooldown; every failure returns the same generic message and is logged as `identify_fail` / `cooldown`. A successful identify clears that counter.
 
 ---
 

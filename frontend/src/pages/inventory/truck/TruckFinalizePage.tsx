@@ -143,7 +143,7 @@ export default function TruckFinalizePage() {
       ) : null}
 
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(8, 1fr)' }, gap: 2 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(9, 1fr)' }, gap: 2 }}>
           {SUMMARY.map((s) => (
             <Box key={s.key}>
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: '0.62rem' }}>
@@ -158,6 +158,17 @@ export default function TruckFinalizePage() {
               </Typography>
             </Box>
           ))}
+          <Box title="Disputed in Processing (not broken): each counts toward the claim at its % of value lost">
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: '0.62rem' }}>
+              Disputed
+            </Typography>
+            <Typography sx={{ fontSize: 20, fontWeight: 900 }} data-testid="truck-disputed-items">
+              {t.disputed_items ?? 0} {(t.disputed_items ?? 0) === 1 ? 'item' : 'items'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {formatCurrencyWhole(t.retail.disputed)} value lost
+            </Typography>
+          </Box>
           <Box>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: '0.62rem' }}>
               Added
@@ -181,7 +192,7 @@ export default function TruckFinalizePage() {
         </Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'baseline' }}>
           <Fact label="Sale price" value={formatCurrency(data.refund.sale_price)} />
-          <Fact label="Claimed (missing + broken)" value={`${formatCurrency(data.refund.claimed_retail)} · ${pctText(data.refund.claimed_pct)}`} />
+          <Fact label="Claimed (missing + broken + disputed)" value={`${formatCurrency(data.refund.claimed_retail)} · ${pctText(data.refund.claimed_pct)}`} />
           <Fact label="Not refunded (first part)" value={formatCurrency(data.refund.not_refunded_retail)} />
           <Fact label="Refundable share of sale" value={`${data.refund.refundable_share.toFixed(2)}%`} />
           <Fact label="Expect back" value={formatCurrency(data.refund.amount)} strong />
@@ -295,6 +306,7 @@ export default function TruckFinalizePage() {
                 <TableCell align="right">Received</TableCell>
                 <TableCell align="right">Missing</TableCell>
                 <TableCell align="right">Broken</TableCell>
+                <TableCell align="right">Disputed</TableCell>
                 <TableCell align="right">Over</TableCell>
                 <TableCell align="right">Missing $</TableCell>
               </TableRow>
@@ -302,7 +314,7 @@ export default function TruckFinalizePage() {
             <TableBody>
               {data.lines.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} sx={{ color: 'text.secondary' }}>
+                  <TableCell colSpan={12} sx={{ color: 'text.secondary' }}>
                     No problems: every expected unit was checked in.
                   </TableCell>
                 </TableRow>
@@ -322,6 +334,7 @@ export default function TruckFinalizePage() {
                       {l.units.missing ? unitsText(l.units.missing) : '-'}
                     </TableCell>
                     <TableCell align="right">{l.units.broken ? unitsText(l.units.broken) : '-'}</TableCell>
+                    <TableCell align="right">{l.units.disputed ? unitsText(l.units.disputed) : '-'}</TableCell>
                     <TableCell align="right">{l.units.over ? unitsText(l.units.over) : '-'}</TableCell>
                     <TableCell align="right">{l.units.missing ? formatCurrency(l.retail.missing) : '-'}</TableCell>
                   </TableRow>
@@ -357,6 +370,7 @@ function LineCard({ line: l }: { line: TruckFinalizeDTO['lines'][number] }) {
     l.units.unfulfilled ? `Unfulfilled ${unitsText(l.units.unfulfilled)}` : '',
     `Received ${unitsText(l.units.received)}`,
     l.units.broken ? `Broken ${unitsText(l.units.broken)}` : '',
+    l.units.disputed ? `Disputed ${unitsText(l.units.disputed)}` : '',
     l.units.over ? `Over ${unitsText(l.units.over)}` : '',
   ].filter(Boolean);
   return (

@@ -349,7 +349,7 @@ DEFAULT_OFFER = {
 ONBOARDING_OWNERS = ('new_hire', 'manager', 'owner')
 ONBOARDING_DUES = ('before_day1', 'day1', 'i9', 'week1', 'week3', 'day20', 'day30', 'day60', 'day90')
 ONBOARDING_KINDS = ('tick', 'count', 'i9', 'handbook', 'auto')
-ONBOARDING_AUTO = ('emergency_contact', 'dash_login', 'first_clock_in', 'schedule', 'kiosk_badge', 'first_day_email')
+ONBOARDING_AUTO = ('emergency_contact', 'dash_login', 'first_clock_in', 'schedule', 'first_day_email')
 CHECKIN_AUTO = re.compile(r'^checkin_\d{1,3}$')  # "checkin_30": done when that check-in is signed or skipped
 
 # The owner's list, in his order (2026-10-20), then the rest we keep.
@@ -391,8 +391,6 @@ DEFAULT_ONBOARDING = {
         {'key': 'emergency_contact', 'label': 'Emergency contact (ICE) on their profile', 'owner': 'new_hire',
          'due': 'day1', 'kind': 'auto', 'auto': 'emergency_contact'},
         {'key': 'time_clock', 'label': 'Time clock explained', 'owner': 'manager', 'due': 'day1', 'kind': 'tick'},
-        {'key': 'kiosk_badge', 'label': 'Kiosk badge issued', 'owner': 'manager', 'due': 'day1', 'kind': 'auto',
-         'auto': 'kiosk_badge'},
         {'key': 'first_clock_in', 'label': 'First clock-in', 'owner': 'new_hire', 'due': 'day1', 'kind': 'auto',
          'auto': 'first_clock_in'},
         {'key': 'team_intro', 'label': 'Introduced to the team', 'owner': 'manager', 'due': 'day1', 'kind': 'tick'},
@@ -449,7 +447,7 @@ DEFAULT_HANDBOOK = {
         '- Your schedule is in Dash (Me, My week). Check it every week; your manager posts the next week ahead.\n'
         '- Retail shifts are fixed times. Other areas flex: the times are the plan. On a slow day you may go home '
         'early, and on a busy one you may be asked to come in early or stay late. Your manager decides.\n'
-        '- Clock in at the kiosk when you start working and clock out when you stop, including for meal breaks. '
+        '- Clock in on Dash when you start working and clock out when you stop, including for meal breaks. '
         'Clock in no more than 5 minutes before your shift, and out no more than 5 minutes after it.\n'
         '- Never work off the clock, and never clock in or out for someone else.\n'
         '- Forgot, or made a mistake? Send a time change request in Dash the same day.\n'
@@ -513,8 +511,7 @@ DEFAULT_HANDBOOK = {
         "manager, or you'd rather not go to them, tell Bill directly. You won't be punished for reporting in good "
         'faith, and every report is looked into.\n\n'
         '## Leaving\n'
-        'Please give at least two weeks of notice if you can (four weeks for a lead), and hand in your kiosk badge on '
-        'your last day.'
+        'Please give at least two weeks of notice if you can (four weeks for a lead).'
     ),
     'acknowledgment': (
         'I have read this handbook. I understand it is not a contract, that my job is at will, and that Eco-Thrift '

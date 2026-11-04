@@ -4,7 +4,8 @@ B-Stock's dispute form asks the buyer to mark every issue on its on-screen manif
 unit, total MSRP, UPC) and to attach 1-4 photos per pallet, a truck photo and the BOL (owner's walkthrough,
 ``.ai/reference/bstock-disputes/``). Dash already holds all of it; this module presents it:
 
-- ``dispute_payload``: order facts, totals and the affected lines (missing = "Not received", broken = "Damaged"), live
+- ``dispute_payload``: order facts, totals and the affected lines (missing = "Not received", broken = "Damaged",
+  disputed in Processing = "Damaged (partial)" at its % of value lost; Dash Update #1), live
   from truck finalize while the dispute is a draft, frozen in ``BStockDispute.snapshot`` once filed.
 - The public page ``/dispute/<token>/`` (``views_public_dispute.py``) shows it with the receiving photos, and offers
   Excel, CSV and a photos zip. Every view and download is logged (``BStockDisputeEvent``) so we learn what B-Stock
@@ -38,6 +39,7 @@ from apps.inventory.services.truck_pallets import short_label
 
 ISSUE_MISSING = 'Not received'
 ISSUE_BROKEN = 'Damaged'
+ISSUE_DISPUTED = 'Damaged (partial)'
 _CENT = Decimal('0.01')
 _SIDE_ORDER = {'front': 0, 'right': 1, 'back': 2, 'left': 3}
 
@@ -56,8 +58,9 @@ def _condition_label(code: str) -> str:
 
 
 def affected_lines(order: PurchaseOrder) -> list[dict[str, Any]]:
-    """One row per (manifest line, issue): units missing are "Not received", units broken are "Damaged"."""
-    lines = [line for line in truck_lines(order) if line['units']['missing'] > 0 or line['units']['broken'] > 0]
+    """One row per (manifest line, issue): units missing are "Not received", units broken are "Damaged", disputed
+    units (each its % of value lost) are "Damaged (partial)"."""
+    lines = [line for line in truck_lines(order) if any(line['units'][k] > 0 for k in ('missing', 'broken', 'disputed'))]
     meta = {
         mr['id']: mr
         for mr in ManifestRow.objects.filter(pk__in=[line['manifest_row_id'] for line in lines]).values(
@@ -69,7 +72,7 @@ def affected_lines(order: PurchaseOrder) -> list[dict[str, Any]]:
         m = meta.get(line['manifest_row_id'], {})
         ids = m.get('identifiers') or {}
         tracking = m.get('tracking') or {}
-        for issue, key in ((ISSUE_MISSING, 'missing'), (ISSUE_BROKEN, 'broken')):
+        for issue, key in ((ISSUE_MISSING, 'missing'), (ISSUE_BROKEN, 'broken'), (ISSUE_DISPUTED, 'disputed')):
             units = line['units'][key]
             if units <= 0:
                 continue
@@ -117,6 +120,9 @@ def _payload_live(order: PurchaseOrder) -> dict[str, Any]:
             'missing_retail': rep['totals']['retail']['missing'],
             'broken_units': rep['totals']['units']['broken'],
             'broken_retail': rep['totals']['retail']['broken'],
+            'disputed_items': rep['totals']['disputed_items'],
+            'disputed_units': rep['totals']['units']['disputed'],
+            'disputed_retail': rep['totals']['retail']['disputed'],
             'claimed_units': _whole(Decimal(str(claimed_units))),
             'claimed_retail': _money(claimed_retail),
             'claimed_pct': (
@@ -338,6 +344,8 @@ def workbook_bytes(dispute: BStockDispute, payload: dict[str, Any], link: str) -
         ('Not received retail', float(t['missing_retail'] or 0)),
         ('Damaged units', t['broken_units']),
         ('Damaged retail', float(t['broken_retail'] or 0)),
+        ('Disputed items (partial damage)', t.get('disputed_items') or 0),
+        ('Disputed retail (% of value lost)', float(t.get('disputed_retail') or 0)),
         ('Claimed retail', float(t['claimed_retail'] or 0)),
         ('Claimed % of manifest retail', t['claimed_pct']),
         ('Photos and BOL', link),
@@ -348,14 +356,14 @@ def workbook_bytes(dispute: BStockDispute, payload: dict[str, Any], link: str) -
 
     m = wb.create_sheet('Full manifest')
     m.append(['Line', 'Item', 'Pallet ID', 'MSRP per unit', 'Manifest units', 'Unfulfilled', 'Received',
-              'Not received', 'Damaged', 'Over'])
+              'Not received', 'Damaged', 'Damaged (partial)', 'Over'])
     for line in truck_lines(dispute.purchase_order):
         u = line['units']
         m.append([
             line['row_number'], line['title'], line['pallet_code'],
             float(line['unit_retail']) if line['unit_retail'] is not None else None,
             _whole(u['manifest']), _whole(u['unfulfilled']), _whole(u['received']), _whole(u['missing']),
-            _whole(u['broken']), _whole(u['over']),
+            _whole(u['broken']), _whole(u['disputed']), _whole(u['over']),
         ])
     for cell in m[1]:
         cell.font = Font(bold=True)

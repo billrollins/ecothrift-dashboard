@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ScheduledShift, UsualShift } from '../../api/schedule.api';
-import { coverage, dayKind, dayRuns, groupSections, summarize, timelineWindow, usualText, type Person } from './scheduleLayout';
+import { coverage, dayKind, dayRuns, groupSections, sectionCoverage, snap, summarize, timelineWindow, toHHMM, usualText, type Person } from './scheduleLayout';
 
 const NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const usual = (days: number[], start = '09:00', end = '17:00'): UsualShift[] =>
@@ -67,5 +67,30 @@ describe('floor coverage', () => {
     const hours = [{ open: true, start: '09:00', end: '18:00' }, { open: false, start: '09:00', end: '18:00' }];
     expect(timelineWindow(hours, [shift('08:30', '14:30'), shift('10:30', '18:30')])).toEqual([480, 1140]);
     expect(timelineWindow(hours, [])).toEqual([540, 1080]);
+  });
+});
+
+describe('part A helpers', () => {
+  it('snaps drags and writes times the API takes', () => {
+    expect(snap(8 * 60 + 37, 15)).toBe(8 * 60 + 30);
+    expect(snap(8 * 60 + 38, 15)).toBe(8 * 60 + 45);
+    expect(snap(8 * 60 + 38, 5)).toBe(8 * 60 + 40);
+    expect(toHHMM(8 * 60 + 5)).toBe('08:05');
+    expect(toHHMM(24 * 60)).toBe('23:59');
+  });
+
+  it('judges coverage per section: fixed across store hours, flexible across its own shifts', () => {
+    const open = { open: true, start: '09:00', end: '18:00' };
+    const retail = sectionCoverage([shift('10:00', '18:00')], open, true);
+    expect(retail.window).toEqual([540, 1080]);
+    expect(retail.flagged).toBe(true);
+    expect(summarize(retail.segments).gaps).toEqual([{ from: 540, to: 600, count: 0 }]);
+    const flex = sectionCoverage([shift('09:00', '17:00'), shift('08:00', '16:00')], open, false);
+    expect(flex.flagged).toBe(false);
+    expect(flex.window).toEqual([480, 1020]);
+    expect(summarize(flex.segments).peak).toBe(2);
+    // A closed day: Retail is judged on who works it, without flags; nobody working means nothing to judge.
+    expect(sectionCoverage([shift('09:00', '13:00')], { ...open, open: false }, true).flagged).toBe(false);
+    expect(sectionCoverage([], { ...open, open: false }, true).window).toBeNull();
   });
 });

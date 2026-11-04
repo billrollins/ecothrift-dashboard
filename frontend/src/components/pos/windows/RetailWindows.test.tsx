@@ -137,9 +137,9 @@ describe('retail windows', () => {
     expect(within(dialog).getByRole('button', { name: "This drawer's sales" })).toBeInTheDocument();
   });
 
-  it('a blind drawer shows what was counted, never what was expected', async () => {
+  it('a blind drawer shows what was counted, never the cash now or what was expected', async () => {
     drawer = {
-      ...DRAWER, blind: true,
+      ...DRAWER, blind: true, cash_now: null,
       counts: DRAWER.counts.map((c) => ({ ...c, expected_total: null, difference: null,
         rows: c.rows.map(({ key, label, counted }) => ({ key, label, counted })) })),
     } as unknown as typeof DRAWER;
@@ -149,7 +149,8 @@ describe('retail windows', () => {
     const dialog = await screen.findByRole('dialog');
     expect(await within(dialog).findByTestId('count-handoff')).toHaveTextContent('Counted $60.00');
     expect(within(dialog).queryByText(/Expected \$/)).not.toBeInTheDocument();
-    expect(within(dialog).getByText('Expected shows when the drawer closes.')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Cash now')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Cash now and expected show when the drawer closes.')).toBeInTheDocument();
   });
 
   it('the Transaction window: lines with SKU links, the returned line, history and links', async () => {

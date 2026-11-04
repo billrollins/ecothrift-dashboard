@@ -98,6 +98,37 @@ class TruckReportTests(TruckFinalizeBase):
         self.assertEqual(rep['refund']['sale_price'], '200.00')
         self.assertEqual([line['row_number'] for line in rep['lines']], [1, 2])
 
+    def test_disputed_items_count_toward_the_claim_at_their_loss(self):
+        # Dash Update #1 (Bill 2026-11-03): disputed items count toward the truck claim, each at its % of value lost.
+        from apps.inventory.models import Item
+        self._check_in(0, 10)
+        self._check_in(1, 5)
+        two = list(Item.objects.filter(purchase_order=self.order, manifest_row=self.rows[1][0]).order_by('pk')[:2])
+        Item.objects.filter(pk=two[0].pk).update(dispute_type='cosmetic_damage', dispute_pct_loss=30)
+        Item.objects.filter(pk=two[1].pk).update(dispute_type='missing_pieces', dispute_pct_loss=50)
+        rep = truck_report(self.order)
+        t = rep['totals']
+        self.assertEqual(t['disputed_items'], 2)
+        self.assertEqual(t['units']['disputed'], 0.8)
+        self.assertEqual(t['retail']['disputed'], '80.00')  # 30% + 50% of a $100 unit
+        self.assertEqual(rep['refund']['claimed_retail'], '80.00')
+        self.assertEqual([line['row_number'] for line in rep['lines']], [2])
+
+        from apps.inventory.services.bstock_disputes import ISSUE_DISPUTED, affected_lines
+        line, = affected_lines(self.order)
+        self.assertEqual((line['issue'], line['units'], line['total_retail']), (ISSUE_DISPUTED, 0.8, '80.00'))
+
+        from apps.inventory.services.order_card import order_card
+        self.assertEqual(order_card(self.order.pk)['disputed_claim'], {'items': 2, 'retail': '80.00'})
+
+    def test_a_broken_dispute_counts_once(self):
+        from apps.inventory.models import Item
+        self._check_in(1, 5)
+        it = Item.objects.filter(purchase_order=self.order, manifest_row=self.rows[1][0]).first()
+        Item.objects.filter(pk=it.pk).update(dispute_type='broken', dispute_pct_loss=40)
+        t = truck_report(self.order)['totals']
+        self.assertEqual((t['units']['broken'], t['units']['disputed'], t['disputed_items']), (1, 0, 0))
+
     def test_unfulfilled_is_not_missing(self):
         self._check_in(0, 8)
         self._check_in(1, 5)

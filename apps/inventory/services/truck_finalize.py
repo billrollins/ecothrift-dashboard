@@ -8,12 +8,14 @@ Per manifest line (from ``truck_pallets.manifest_line_accounting``):
 - **Expected** = manifest - unfulfilled. **Received** = the line's received share in manifest units.
   **Missing** = expected - received (never below 0). **Over** = received above expected.
 - **Broken** = units received broken (scrapped, disputed broken, or salvage condition), in manifest units.
+- **Disputed** = other items disputed in Processing (cosmetic, missing pieces, ...), each counted as its % of value
+  lost, in manifest units (Dash Update #1, Bill 2026-11-03: disputed items count toward the claim).
 - **Added** = items checked in with no manifest line (units and their own retail).
 
 All $ are at the manifest unit retail. Lines with no unit retail count in units only (flagged).
 
 **What we can expect back** follows B-Stock's rule: the seller refunds ``truck_refund_rate`` (95%) of the sale
-price (the hammer price: no fees, no shipping) for the share of manifest retail claimed (missing + broken), after
+price (the hammer price: no fees, no shipping) for the share of manifest retail claimed (missing + broken + disputed), after
 the first ``truck_refund_deductible`` (5%) of manifest retail, which is never refunded:
 
     refund = rate x sale price x max(0, claimed $ - deductible x manifest $) / manifest $
@@ -38,7 +40,7 @@ DEFAULT_DEDUCTIBLE = Decimal('0.05')
 _ZERO = Decimal('0')
 _CENT = Decimal('0.01')
 _TOTAL_KEYS = (
-    'manifest', 'unfulfilled', 'expected', 'received', 'missing', 'over', 'broken',
+    'manifest', 'unfulfilled', 'expected', 'received', 'missing', 'over', 'broken', 'disputed',
 )
 
 
@@ -119,6 +121,10 @@ def truck_lines(order: PurchaseOrder) -> list[dict[str, Any]]:
             min(m_units, m_units * Decimal(line['broken_units']) / Decimal(exp_proc))
             if exp_proc else Decimal(line['broken_units'])
         )
+        disputed = (
+            min(m_units - broken, m_units * line['disputed_units'] / Decimal(exp_proc))
+            if exp_proc else line['disputed_units']
+        )
         ur = line['unit_retail']
 
         def dollars(u: Decimal) -> Decimal | None:
@@ -132,13 +138,14 @@ def truck_lines(order: PurchaseOrder) -> list[dict[str, Any]]:
             'unit_retail': ur,
             'units': {
                 'manifest': m_units, 'unfulfilled': unf, 'expected': expected, 'received': received,
-                'missing': missing, 'over': over, 'broken': broken,
+                'missing': missing, 'over': over, 'broken': broken, 'disputed': disputed,
             },
             'retail': {
                 'manifest': dollars(m_units), 'unfulfilled': dollars(unf), 'expected': dollars(expected),
                 'received': dollars(received), 'missing': dollars(missing), 'over': dollars(over),
-                'broken': dollars(broken),
+                'broken': dollars(broken), 'disputed': dollars(disputed),
             },
+            'disputed_items': line['disputed_items'],
             'adjusted_refund': adj_refunds.get(line['manifest_row_id']),
         })
     return out
@@ -158,7 +165,7 @@ def _line_out(line: dict[str, Any]) -> dict[str, Any]:
 
 def _has_problem(line: dict[str, Any]) -> bool:
     u = line['units']
-    return any(u[k] > Decimal('0.05') for k in ('unfulfilled', 'missing', 'over', 'broken'))
+    return any(u[k] > Decimal('0.05') for k in ('unfulfilled', 'missing', 'over', 'broken', 'disputed'))
 
 
 def _adjustments_out(order: PurchaseOrder) -> list[dict[str, Any]]:
@@ -187,7 +194,9 @@ def truck_report(order: PurchaseOrder, *, all_lines: bool = False) -> dict[str, 
     retail = {k: _ZERO for k in _TOTAL_KEYS}
     lines_without_retail = 0
     adjusted_refund = _ZERO
+    disputed_items = 0
     for line in lines:
+        disputed_items += line['disputed_items']
         for k in _TOTAL_KEYS:
             units[k] += line['units'][k]
             if line['retail'][k] is not None:
@@ -205,7 +214,7 @@ def truck_report(order: PurchaseOrder, *, all_lines: bool = False) -> dict[str, 
     refund = expected_refund(
         sale_price=order.purchase_cost,
         manifest_retail=retail['manifest'],
-        claimed_retail=retail['missing'] + retail['broken'],
+        claimed_retail=retail['missing'] + retail['broken'] + retail['disputed'],
         rate=settings['rate'],
         deductible=settings['deductible'],
     )
@@ -235,6 +244,7 @@ def truck_report(order: PurchaseOrder, *, all_lines: bool = False) -> dict[str, 
             'lines_without_retail': lines_without_retail,
             'units': {k: _units(v) for k, v in units.items()},
             'retail': {k: _money(v) for k, v in retail.items()},
+            'disputed_items': disputed_items,
             'added_units': int(added['n'] or 0),
             'added_retail': _money(added['retail'] or _ZERO),
             'missing_pct': (

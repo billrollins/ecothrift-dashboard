@@ -24,7 +24,7 @@ from decimal import Decimal
 from typing import Any
 
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.utils import timezone
 
 from apps.inventory.models import (
@@ -310,22 +310,28 @@ def manifest_line_accounting(order: PurchaseOrder) -> list[dict[str, Any]]:
     received: dict[int, int] = defaultdict(int)
     broken: dict[int, int] = defaultdict(int)
     lost: dict[int, int] = defaultdict(int)
+    # Disputed in Processing (Dash Update #1, Bill 2026-11-03: they count toward the truck claim): received, not already
+    # broken, marked with a dispute and its % of value lost. Counted as that share of a unit.
+    disputed_n: dict[int, int] = defaultdict(int)
+    disputed_pct: dict[int, int] = defaultdict(int)
+    is_broken = Q(status='scrapped') | Q(dispute_type='broken') | Q(condition='salvage')
+    is_disputed = ~Q(status__in=_NOT_RECEIVED_STATUSES) & ~is_broken & ~Q(dispute_type='')
     for row in (
         Item.objects.filter(purchase_order=order, manifest_row_id__isnull=False)
         .values('manifest_row_id')
         .annotate(
             here=Count('pk', filter=~Q(status__in=_NOT_RECEIVED_STATUSES)),
-            broken=Count(
-                'pk',
-                filter=~Q(status__in=_NOT_RECEIVED_STATUSES)
-                & (Q(status='scrapped') | Q(dispute_type='broken') | Q(condition='salvage')),
-            ),
+            broken=Count('pk', filter=~Q(status__in=_NOT_RECEIVED_STATUSES) & is_broken),
             lost=Count('pk', filter=Q(status='lost')),
+            disputed=Count('pk', filter=is_disputed),
+            disputed_pct=Sum('dispute_pct_loss', filter=is_disputed),
         )
     ):
         received[row['manifest_row_id']] = row['here']
         broken[row['manifest_row_id']] = row['broken']
         lost[row['manifest_row_id']] = row['lost']
+        disputed_n[row['manifest_row_id']] = row['disputed']
+        disputed_pct[row['manifest_row_id']] = row['disputed_pct'] or 0
 
     out = []
     for mr in ManifestRow.objects.filter(purchase_order=order).values(
@@ -354,6 +360,8 @@ def manifest_line_accounting(order: PurchaseOrder) -> list[dict[str, Any]]:
             'over_units': max(0, got - exp),
             'broken_units': broken.get(mr['id'], 0),
             'lost_units': lost.get(mr['id'], 0),
+            'disputed_items': disputed_n.get(mr['id'], 0),
+            'disputed_units': Decimal(disputed_pct.get(mr['id'], 0)) / 100,
         })
     return out
 

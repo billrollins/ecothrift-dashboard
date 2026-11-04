@@ -4,7 +4,7 @@
 ## Project summary
 
 Full-stack business management for Eco-Thrift, a thrift store in Omaha, NE. It covers:
-- HR: time clock, kiosk, the week schedule and call-ins, pay numbers for QuickBooks
+- HR: time clock, the week schedule and call-ins, pay numbers for QuickBooks
 - inventory: vendors, POs, item processing, product intelligence
 - POS: registers, drawers, carts, receipts
 - Thrift+ member rewards, consignment, and buying (B-Stock)

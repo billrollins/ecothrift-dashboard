@@ -235,12 +235,6 @@ function Panel({ id, onClose }: { id: number; onClose: () => void }) {
                   Show the set password code
                 </Button>
               );
-            if (task.auto === 'kiosk_badge' && task.status === 'open')
-              return (
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                  An Admin issues it: Admin → Users → {o.user.name} → Badge.
-                </Typography>
-              );
             if (task.auto === 'schedule' && task.status === 'open')
               return (
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>

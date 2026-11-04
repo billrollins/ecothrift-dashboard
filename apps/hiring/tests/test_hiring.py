@@ -1235,14 +1235,11 @@ class OnboardingTests(Base):
         ice = self.me.post('/api/hiring/me/emergency-contact/', {'name': 'Pat Miles', 'phone': '402-555-0123'},
                            format='json').data
         self.assertEqual(self.task('emergency_contact', ice['onboarding'])['status'], 'done')
-        # Clock-in, badge, sign-in and schedule come from the rest of Dash.
+        # Clock-in, sign-in and schedule come from the rest of Dash.
         from django.utils import timezone
 
         from apps.hr.models import Department, Shift, ShiftAssignment, TimeEntry
         TimeEntry.objects.create(employee=self.new_hire, date=timezone.localdate(), clock_in=timezone.now())
-        profile = self.new_hire.employee
-        profile.badge_issued_at = timezone.now()
-        profile.save(update_fields=['badge_issued_at'])
         self.new_hire.set_password('a-long-pass-123')
         self.new_hire.last_login = timezone.now()
         self.new_hire.save()
@@ -1251,7 +1248,7 @@ class OnboardingTests(Base):
                                      weekdays=[5])
         ShiftAssignment.objects.create(employee=self.new_hire, shift=shift, weekdays=[5])
         data = self.detail()
-        for key in ('first_clock_in', 'kiosk_badge', 'dash_login', 'schedule'):
+        for key in ('first_clock_in', 'dash_login', 'schedule'):
             self.assertEqual((key, self.task(key, data)['status'], self.task(key, data)['done_by']), (key, 'done', 'Dash'))
 
     def test_the_i9_is_admin_only_and_section_2_needs_the_form(self):

@@ -232,7 +232,7 @@ class Command(BaseCommand):
         tick(harper, ['quickbooks_added', 'time_clock', 'team_intro', 'shirts'])
         _, jordan = hire('Jordan', 'Thirty', j(1), started_days_ago=31)
         tick(jordan, ['quickbooks_added', 'i9_section1', 'quickbooks_setup', 'time_clock', 'team_intro', 'shirts',
-                      'trained', 'new_hire_report', 'i9_section2', 'handbook', 'kiosk_badge', 'schedule'])
+                      'trained', 'new_hire_report', 'i9_section2', 'handbook', 'schedule'])
         _, morgan = hire('Morgan', 'Ninety', j(2), started_days_ago=92)
         for c in morgan.checkins.filter(day__lt=90).order_by('day'):
             sign_checkin(c, going_well=f'Settled in well by day {c.day}.', rating='Doing well')

@@ -311,7 +311,7 @@ def compose(event: WifiPilotEvent) -> tuple[str, list[str], bool] | None:
                 [f'Your phone was last seen on the store Wi-Fi at {_t(event.at)}. Your pilot shift ends at '
                  f'{_t(event.shift_end)}.'], False)
     if kind == WifiPilotEvent.KIND_BREAK:
-        span = f'{_t(event.gap_start)}–{_t(event.gap_end)}'
+        span = f'{_t(event.gap_start)} to {_t(event.gap_end)}'
         return f'You were off the Wi-Fi {span}. Was this a break?', [f'You were off the Wi-Fi {span}. Was this a break?'], True
     if kind == WifiPilotEvent.KIND_LEFT:
         when = _t(event.gap_start)

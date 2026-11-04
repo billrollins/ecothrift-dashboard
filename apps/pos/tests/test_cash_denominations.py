@@ -129,7 +129,9 @@ class RegisterCashTests(_CartCardSurchargeFixtures, TestCase):
         r = self.client.post('/api/pos/drawers/', {'register': reg.id, 'opening_count': {'ones': 50, 'quarters': 40}},
                              format='json')
         self.assertEqual(r.status_code, 201, r.content)
-        self.assertEqual(r.json()['contents'], {'ones': 50, 'quarters': 40})
+        # A cashier's answer leaves the running cash out while open (blind, Dash Update #36); the record has it.
+        self.assertIsNone(r.json()['contents'])
+        self.assertEqual(Drawer.objects.get(pk=r.json()['id']).contents, {'ones': 50, 'quarters': 40})
 
     def test_the_training_register_shows_change_and_touches_no_drawer(self):
         Register.objects.filter(pk=self.register.pk).update(is_training=True)

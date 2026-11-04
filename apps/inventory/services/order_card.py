@@ -6,7 +6,8 @@ GET /api/inventory/orders/<id>/card/
 What it cost and what it was worth (cost as a share of retail: Bill buys at about 20% landed), what has sold so far,
 where its units are (checked in, on the shelf, sold, gone, disputed), its truck claim, and its journey from ordered
 to closed. Counts and sums are one aggregate over its items, so a 2,000-unit truck costs the same as a small one.
-"Sold" is status ``sold`` (the Item and Product windows' meaning). Read-only.
+"Sold" is status ``sold`` (the Item and Product windows' meaning). Read-only. Disputed items count toward the truck claim
+(Dash Update #1): when there are any, ``disputed_claim`` gives the count and the $ from the truck finalize lines.
 """
 from __future__ import annotations
 
@@ -29,6 +30,18 @@ def _pct(part, whole) -> float | None:
     if part is None or not whole:
         return None
     return round(float(Decimal(part) / Decimal(whole) * 100), 1)
+
+
+def _disputed_claim(po: PurchaseOrder) -> dict | None:
+    """Items disputed in Processing (not broken) and the manifest retail they add to the truck claim (each at its % of
+    value lost), the same numbers as the Truck page."""
+    from apps.inventory.services.truck_finalize import truck_lines
+    lines = truck_lines(po)
+    items = sum(line['disputed_items'] for line in lines)
+    if not items:
+        return None
+    retail = sum((line['retail']['disputed'] for line in lines if line['retail']['disputed'] is not None), Decimal('0'))
+    return {'items': items, 'retail': _money(retail)}
 
 
 def order_card(order_id: int) -> dict | None:
@@ -91,6 +104,7 @@ def order_card(order_id: int) -> dict | None:
         'claim': {'status': claim.status, 'status_label': claim.get_status_display(),
                   'refund_expected': _money(claim.refund_expected), 'refund_received': _money(claim.refund_received)}
         if claim else None,
+        'disputed_claim': _disputed_claim(po) if stats['disputed'] else None,
         'disputes': disputes,
         'journey': journey,
     }

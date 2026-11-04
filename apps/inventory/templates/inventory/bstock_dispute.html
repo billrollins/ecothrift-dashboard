@@ -80,6 +80,7 @@
       <div class="fact"><div class="s">Received</div><div class="v">{{ p.totals.received_units|floatformat:"-1g" }} units</div></div>
       <div class="fact claim"><div class="s">Not received</div><div class="v">{{ p.totals.missing_units|floatformat:"-1g" }} units</div><div class="s">{{ p.totals.missing_retail|money }} retail</div></div>
       <div class="fact claim"><div class="s">Damaged</div><div class="v">{{ p.totals.broken_units|floatformat:"-1g" }} units</div><div class="s">{{ p.totals.broken_retail|money }} retail</div></div>
+      {% if p.totals.disputed_items %}<div class="fact claim"><div class="s">Damaged (partial)</div><div class="v">{{ p.totals.disputed_items }} item{{ p.totals.disputed_items|pluralize }}</div><div class="s">{{ p.totals.disputed_retail|money }} retail lost</div></div>{% endif %}
       <div class="fact claim"><div class="s">Claimed</div><div class="v">{{ p.totals.claimed_retail|money }}</div><div class="s">{% if p.totals.claimed_pct is not None %}{{ p.totals.claimed_pct }}% of manifest retail{% endif %}</div></div>
     </div>
     {% if dispute.note %}<p class="note">{{ dispute.note }}</p>{% endif %}
@@ -98,7 +99,7 @@
             <td class="n">{{ l.row_number }}</td>
             <td>{{ l.title }}</td>
             <td>{{ l.condition|default:"-" }}</td>
-            <td class="issue {% if l.issue == 'Damaged' %}broken{% else %}missing{% endif %}">{{ l.issue }}</td>
+            <td class="issue {% if l.issue != 'Not received' %}broken{% else %}missing{% endif %}">{{ l.issue }}</td>
             <td class="n">{{ l.units|floatformat:"-1g" }}</td>
             <td class="n">{{ l.unit_retail|money }}</td>
             <td class="n">{{ l.total_retail|money }}</td>
