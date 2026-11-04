@@ -7,6 +7,7 @@ from .views import (
 )
 from . import schedule_views as sched
 from . import wifi_views as wifi
+from . import question_views
 
 router = DefaultRouter()
 router.register(r'departments', DepartmentViewSet, basename='department')
@@ -18,6 +19,8 @@ router.register(r'shift-assignments', ShiftAssignmentViewSet, basename='shiftass
 router.register(r'schedule/shifts', sched.ScheduledShiftViewSet, basename='scheduledshift')
 router.register(r'schedule/requests', sched.ScheduleRequestViewSet, basename='schedulerequest')
 router.register(r'call-ins', sched.CallInViewSet, basename='callin')
+# HR questions in the HR app's Requests tab (#59).
+router.register(r'questions', question_views.HrQuestionViewSet, basename='hrquestion')
 
 urlpatterns = [
     # Pay numbers for QuickBooks and the period lock (superuser): ?date_from= any day in the period.

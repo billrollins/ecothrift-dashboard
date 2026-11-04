@@ -462,3 +462,22 @@ export function updateRosterAssignment(id: number, data: Partial<RosterAssignmen
 export function deleteRosterAssignment(id: number) {
   return api.delete(`/hr/shift-assignments/${id}/`);
 }
+
+// HR questions (Dash Updates #59): anyone asks; People at Manage answers.
+export interface HrQuestion {
+  id: number;
+  employee: number;
+  employee_name: string;
+  question: string;
+  status: 'open' | 'answered';
+  answer: string;
+  answered_by_name: string;
+  answered_at: string | null;
+  created_at: string;
+}
+
+export const getHrQuestions = (status?: HrQuestion['status']) =>
+  api.get<HrQuestion[]>('/hr/questions/', { params: status ? { status } : {} });
+export const askHrQuestion = (question: string) => api.post<HrQuestion>('/hr/questions/', { question });
+export const answerHrQuestion = (id: number, answer: string) =>
+  api.post<HrQuestion>(`/hr/questions/${id}/answer/`, { answer });

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-03 (HR app on the avatar menu, #56) -->
+<!-- Last updated: 2026-11-03 (HR Requests tab, #59) -->
 # Eco-Thrift Dashboard — App Map for Navigation Consultation
 
 **Purpose:** Hand this document to a consulting AI (or UX reviewer) to evaluate whether the staff navbar, workspaces, and page grouping can be organized more clearly.
@@ -143,7 +143,7 @@ Grouped the way the **current navbar** presents them. Paths are staff SPA routes
 |------|------|----------------|
 | **Dashboard** | `/dashboard` | Store pulse: sales run-rate / weekly book, department cards (Buying, Processing, Restoration, Retail), who’s working. Manager-facing home. |
 
-**HR** (`/hr`, #56) is first on the account menu: one page with tabs (Me, Schedule, People, Hiring, Onboarding, Time & payroll) around the existing HR pages, each tab and section shown only when that person can open its page.
+**HR** (`/hr`, #56) is first on the account menu: one page with tabs (Requests, Me, Schedule, People, Hiring, Onboarding, Time & payroll) around the existing HR pages, each tab and section shown only when that person can open its page. **Requests** (#59, `/hr`) is every HR request in one place: days off and new times, time changes and questions to HR; each person sees their own, and whoever answers a kind sees everyone's waiting ones.
 
 Time clock and Routines are on the **account menu** (avatar), not the sidebar. The name at the top of that menu opens **Me** (`/me`, every staff login: details, password and register PIN, Hours & pay, shifts, onboarding and check-ins, sign out on all devices); Thrift+ Staff has it as its **Me** tab. Documents is unwired until a later UI tune.
 

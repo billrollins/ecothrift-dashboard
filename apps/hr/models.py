@@ -524,6 +524,31 @@ def _weekday_list(raw) -> list[int]:
 # ── Wi-Fi time clock pilot (D23, {master}/standards/time-clock.md) ─────────────
 # Shadow mode: these rows record what the Wi-Fi clock would have done. They never write a TimeEntry.
 
+class HrQuestion(models.Model):
+    """Someone asks HR a question in the HR app's Requests tab; anyone with People at Manage answers it (Bill, Dash
+    Updates #59, 2026-11-03: one place for every HR request). One question, one answer: a longer talk is Messages."""
+
+    OPEN = 'open'
+    ANSWERED = 'answered'
+    STATUS_CHOICES = [(OPEN, 'Waiting'), (ANSWERED, 'Answered')]
+
+    employee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='hr_questions')
+    question = models.CharField(max_length=1000)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=OPEN, db_index=True)
+    answer = models.CharField(max_length=1000, blank=True, default='')
+    answered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    answered_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.employee_id} {self.status} {self.question[:40]}'
+
+
 class WifiClockDevice(models.Model):
     """The store PC helper that reports which registered phones are on the Wi-Fi. Only the token's hash is kept."""
 

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.257.0] -->
-<!-- Last reviewed: 2026-11-03 (2.257.0) -->
+<!-- Line 1 release: ## [2.258.0] -->
+<!-- Last reviewed: 2026-11-03 (2.258.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.258.0] - 2026-11-03
+
+User-facing theme: **HR → Requests: every HR request in one place (Bill, 2026-11-03; Dash Updates #59, HR command center step 2).**
+
+> **For staff:** HR now opens on **Requests**. Ask for a day off or new times, or **Ask HR a question**, right there. **My requests** lists everything you asked: days off, new times, time changes and questions, each with its answer. Managers see **Waiting on you** and answer each one in place. To pick up a shift, ask for new times that day; to drop one, ask for the day off.
+
+### Added
+- HR → **Requests** tab, first and at `/hr` (Me moved to `/hr/me`): ask for a day off or new times (the Schedule's requests) or ask HR a question; **My requests** merges your schedule requests, time-change requests and questions, newest first, with who answered and what they said. **Waiting on you** shows the waiting ones to whoever answers that kind; approvers are unchanged: schedule asks `hr.schedule:write`, time changes the owner (`hr.mod_requests:triage`), questions People at Manage.
+- HR questions: model `hr.HrQuestion` (migration hr 0021), API `/api/hr/questions/` (ask and list your own; `answer` for People at Manage, who see everyone's), new permission item `hr.questions:answer` (People, Manage).
+- Shift swaps with another person are not built (they need the other person's yes); noted on the tab.
 
 ## [2.257.0] - 2026-11-03
 

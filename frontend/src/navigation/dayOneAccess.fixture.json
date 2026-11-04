@@ -67,6 +67,7 @@
   "announcements:manage",
   "hiring:manage",
   "hr.schedule:write",
+  "hr.questions:answer",
   "people.pay:read",
   "people.permissions:read",
   "settings:write",
