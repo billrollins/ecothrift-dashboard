@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.258.0] -->
-<!-- Last reviewed: 2026-11-03 (2.258.0) -->
+<!-- Line 1 release: ## [2.259.0] -->
+<!-- Last reviewed: 2026-11-04 (2.259.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,27 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.259.0] - 2026-11-04
+
+User-facing theme: **Tags print retail again after a check-in quantity change, and Wi-Fi clock-in turns on from the Staff app (Bill, 2026-11-04; Dash Updates #65, #63).**
+
+> **For staff:** If you raised the quantity on a check-in after the first units printed, the extra tags left off "Retail $x". New tags print it again. Units already on the shelf are fixed too: reprint a tag that is missing its retail from Inventory search.
+
+### Fixed
+- Units added by a check-in edit (raising the quantity) now carry the retail check: they copy the answer from a checked unit with the same retail, or run the check; a flag nobody answered stays unchecked (no retail printed), as before (Dash Update #65, reported by Ashley). 653 units since 10-22 had no check.
+- New command `backfill_added_retail_check` (dry run by default, `--apply`) gives those units their check.
+
+> **For staff:** Nothing changes for you yet. In the pilot, the owner turns on auto clock-in from the installed Thrift+ Staff app: Me → Auto clock-in → "I'm on the store Wi-Fi". No phone settings to change.
+
+### Added
+- Me → **Auto clock-in** card in Thrift+ Staff (pilot people only, installed app only, not a browser tab): the button gets a one-time code from Dash (`/api/hr/wifi-clock/me/`, 5 minutes, one use) and opens the store PC helper on the Wi-Fi; the helper reads that one phone's address from the PC's neighbour table and claims the code (`POST /api/hr/wifi-clock/claim/`, device token). The card shows On and has Turn off. Replaces reading a MAC aloud.
+- The helper always beats (even with no phones yet) and reports where phones reach it (`WifiClockDevice.lan_address`, private IPv4 only); its join listener runs as the base `python.exe` with no window. Migration `hr/0022_wifi_clock_join`.
+> **For the owner:** Staff app → Me → **Auto clock-in** turns on the Wi-Fi clock pilot for your phone: tap it while on the store Wi-Fi and the store PC learns the phone by itself. No Wi-Fi address to read out. Pilot people only, installed app only; still shadow mode (no punches).
+
+### Added
+- Wi-Fi clock join (Dash Update #63): `GET /api/hr/wifi-clock/me/` and `POST /api/hr/wifi-clock/claim/` give a one-time code; the store PC helper reads that one phone's address from its neighbour table and claims it. The helper also reports its LAN address on every beat. `WifiClockCard` on the Me page (compact view).
+- Migration `hr/0022_wifi_clock_join` (`WifiClockDevice.lan_address`).
 
 ## [2.258.0] - 2026-11-03
 

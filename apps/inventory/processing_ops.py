@@ -58,6 +58,25 @@ from apps.inventory.services.processing_workspace import (
 _SKU_ALLOC_LOCK_KEY = 728_173
 
 
+def _added_unit_retail_check(template, product, row, manifest_row, retail, price, *, retail_typed: bool):
+    """Retail check for units added by a check-in edit (Dash Update #65): copy the sibling's answer when the retail
+    is the same, otherwise run the check. A flag here has nobody to answer it, so it stays unchecked (no retail
+    printed), as before."""
+    from apps.inventory.services import tag_retail
+
+    if template is not None and template.retail_check and retail == template.retail:
+        return template.retail_check, template.retail_source or ''
+    manifest_unit = manifest_row.unit_retail if manifest_row is not None else None
+    manifest_retail = (
+        scale_row_amount_for_product_link(manifest_unit, product.id, row) if row and product else manifest_unit
+    )
+    found = tag_retail.assess(
+        product.id if product else None, retail, price, manifest_retail=manifest_retail, typed=retail_typed,
+    )
+    status = found['status'] if found['status'] != 'flagged' else tag_retail.CHECK_NONE
+    return status, found['source']
+
+
 def _bulk_create_checked_in_items(items: list[Item]) -> list[Item]:
     """Persist freshly-built Items in ONE INSERT instead of N ``item.save()`` calls.
 
@@ -1653,6 +1672,9 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
                 else:
                     loc_val = 'on_shelf'
                 notes_val = updates.get('notes', template.notes if template else '')
+                check_val, check_source = _added_unit_retail_check(
+                    template, product, row, row_manifest, retail_val, price_val, retail_typed='retail' in updates,
+                )
                 unit_cost = order.compute_item_cost(retail_val)
                 added_items = _bulk_create_checked_in_items([
                     Item(
@@ -1663,6 +1685,8 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
                         pallet_id=check_in.pallet_id,
                         price=price_val,
                         retail=retail_val,
+                        retail_check=check_val,
+                        retail_source=check_source,
                         cost=unit_cost,
                         source='purchased',
                         status=status_val,

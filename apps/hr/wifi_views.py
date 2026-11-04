@@ -4,6 +4,8 @@
 - ``POST heartbeat/``  helper, ``X-Device-Token``: ``{"seen": {"<user id>": true|false}}``. Only ids, never addresses.
 - ``GET|POST answer/<token>/``  the Yes / No buttons in the emails. GET shows a confirm button (mail scanners open
   links), POST records the answer.
+- ``POST claim/``      helper, ``X-Device-Token``: a join code and the one phone that opened it.
+- ``GET|POST me/``      signed in: my status; ``start`` (join URL on the helper) or ``off``.
 - ``POST stage-setup/`` owner or coder token: stages ``hr.wifi_clock_pilot`` on Superuser → Requests. The body
   carries the phone's address, so it never goes on a command line or into a log.
 """
@@ -50,7 +52,44 @@ class WifiHeartbeatView(APIView):
         seen = request.data.get('seen') if isinstance(request.data, dict) else None
         if not isinstance(seen, dict):
             return Response({'detail': 'Send {"seen": {"<id>": true|false}}.'}, status=400)
-        return Response({'ok': True, 'processed': wifi_clock.heartbeat(device, seen)})
+        return Response({'ok': True, 'processed': wifi_clock.heartbeat(device, seen, lan=request.data.get('lan'))})
+
+
+class WifiClaimView(APIView):
+    """Helper: ``{"code": "<join code>", "mac": "<that one phone>"}``."""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        if _device(request) is None:
+            return Response({'detail': 'Unknown device.'}, status=403)
+        data = request.data if isinstance(request.data, dict) else {}
+        try:
+            user = wifi_clock.claim(str(data.get('code') or ''), str(data.get('mac') or ''))
+        except ValueError as exc:
+            return Response({'ok': False, 'detail': str(exc)}, status=400)
+        return Response({'ok': True, 'name': user.first_name or user.full_name})
+
+
+class WifiMeView(APIView):
+    """Thrift+ Staff, signed in: GET my status; POST ``{"action": "start"}`` → join URL; ``{"action": "off"}``."""
+
+    def get(self, request):
+        return Response(wifi_clock.status_for(request.user))
+
+    def post(self, request):
+        action = (request.data or {}).get('action') if isinstance(request.data, dict) else None
+        if not wifi_clock.is_eligible(request.user):
+            return Response({'detail': 'Auto clock-in is not open for you yet.'}, status=403)
+        if action == 'off':
+            wifi_clock.turn_off(request.user)
+            return Response(wifi_clock.status_for(request.user))
+        if action == 'start':
+            try:
+                return Response({'join_url': wifi_clock.start_join(request.user)})
+            except ValueError as exc:
+                return Response({'detail': str(exc)}, status=409)
+        return Response({'detail': 'Say "start" or "off".'}, status=400)
 
 
 class WifiStageSetupView(APIView):

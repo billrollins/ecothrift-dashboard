@@ -250,3 +250,82 @@ class SetupRequestTests(APITestCase):
     def test_stage_needs_owner(self):
         res = self.client.post('/api/hr/wifi-clock/stage-setup/', {}, format='json')
         self.assertIn(res.status_code, (401, 403))
+
+
+class JoinFromPhoneTests(APITestCase):
+    """Owner 2026-11-04: the installed Staff app turns it on; the helper sees which phone opened the join link."""
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.bill = _staff('bill@example.com', superuser=True)
+        WifiPilotShift.objects.create(employee=self.bill, weekday=0, start=time(9), end=time(17), punch_code='office')
+        self.device = WifiClockDevice.objects.create(name='Bench', token_hash=wc.hash_device_token(TOKEN))
+
+    def beat(self, lan='192.168.1.145:8765'):
+        return self.client.post('/api/hr/wifi-clock/heartbeat/', {'seen': {}, 'lan': lan}, format='json',
+                                HTTP_X_DEVICE_TOKEN=TOKEN)
+
+    def test_heartbeat_keeps_only_a_private_lan_address(self):
+        self.beat()
+        self.device.refresh_from_db()
+        self.assertEqual(self.device.lan_address, '192.168.1.145:8765')
+        self.beat('8.8.8.8:80')
+        self.device.refresh_from_db()
+        self.assertEqual(self.device.lan_address, '')
+
+    def test_start_claim_then_on(self):
+        self.client.force_authenticate(self.bill)
+        self.assertEqual(self.client.get('/api/hr/wifi-clock/me/').json(),
+                         {'eligible': True, 'on': False, 'helper_ready': False})
+        self.assertEqual(self.client.post('/api/hr/wifi-clock/me/', {'action': 'start'}, format='json').status_code, 409)
+        self.beat()
+        url = self.client.post('/api/hr/wifi-clock/me/', {'action': 'start'}, format='json').json()['join_url']
+        self.assertTrue(url.startswith('http://192.168.1.145:8765/join?code='))
+        code = url.split('code=', 1)[1]
+        self.client.force_authenticate(None)
+        res = self.client.post('/api/hr/wifi-clock/claim/', {'code': code, 'mac': MAC.upper()}, format='json',
+                               HTTP_X_DEVICE_TOKEN=TOKEN)
+        self.assertEqual(res.json(), {'ok': True, 'name': 'Bill'})
+        self.bill.employee.refresh_from_db()
+        self.assertEqual(self.bill.employee.wifi_mac, MAC)
+        again = self.client.post('/api/hr/wifi-clock/claim/', {'code': code, 'mac': OTHER}, format='json',
+                                 HTTP_X_DEVICE_TOKEN=TOKEN)
+        self.assertEqual(again.status_code, 400)  # one use
+        self.bill.employee.refresh_from_db()
+        self.assertEqual(self.bill.employee.wifi_mac, MAC)
+        self.client.force_authenticate(self.bill)
+        self.assertTrue(self.client.get('/api/hr/wifi-clock/me/').json()['on'])
+        self.assertFalse(self.client.post('/api/hr/wifi-clock/me/', {'action': 'off'}, format='json').json()['on'])
+
+    def test_claim_needs_the_device_and_a_good_code(self):
+        res = self.client.post('/api/hr/wifi-clock/claim/', {'code': 'x', 'mac': MAC}, format='json')
+        self.assertEqual(res.status_code, 403)
+        res = self.client.post('/api/hr/wifi-clock/claim/', {'code': 'junk', 'mac': MAC}, format='json',
+                               HTTP_X_DEVICE_TOKEN=TOKEN)
+        self.assertEqual(res.status_code, 400)
+
+    def test_not_in_the_pilot_cannot_start(self):
+        other = _staff('staff@example.com', role='Employee')
+        self.client.force_authenticate(other)
+        self.assertFalse(self.client.get('/api/hr/wifi-clock/me/').json()['eligible'])
+        self.assertEqual(self.client.post('/api/hr/wifi-clock/me/', {'action': 'start'}, format='json').status_code, 403)
+
+
+class HelperJoinTests(APITestCase):
+    def test_only_a_phone_on_the_store_wifi_with_a_code(self):
+        import ipaddress
+        net = ipaddress.ip_network('192.168.1.0/24')
+        self.assertFalse(helper.handle_join('10.0.0.5', 'c', net, find_mac=lambda ip: MAC)[0])
+        self.assertFalse(helper.handle_join('192.168.1.20', '', net, find_mac=lambda ip: MAC)[0])
+        self.assertFalse(helper.handle_join('192.168.1.20', 'c', net, find_mac=lambda ip: '')[0])
+        sent = []
+        real = helper._call
+        helper._call = lambda method, path, body=None: sent.append((path, body)) or {'name': 'Bill'}
+        try:
+            ok, text = helper.handle_join('192.168.1.20', 'c', net, find_mac=lambda ip: MAC)
+        finally:
+            helper._call = real
+        self.assertTrue(ok)
+        self.assertIn('Bill', text)
+        self.assertEqual(sent, [('/api/hr/wifi-clock/claim/', {'code': 'c', 'mac': MAC})])

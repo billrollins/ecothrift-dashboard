@@ -234,7 +234,7 @@ def observe(user, seen: bool, *, now: datetime | None = None, helper_gap: bool =
     return made
 
 
-def heartbeat(device: WifiClockDevice, seen: dict, *, now: datetime | None = None) -> int:
+def heartbeat(device: WifiClockDevice, seen: dict, *, now: datetime | None = None, lan: str | None = None) -> int:
     """``seen``: {user id: bool} from the helper. Ids that are not registered phones are ignored, never stored."""
     now = now or timezone.now()
     helper_gap = bool(device.last_heartbeat_at and now - device.last_heartbeat_at > HELPER_QUIET)
@@ -244,7 +244,11 @@ def heartbeat(device: WifiClockDevice, seen: dict, *, now: datetime | None = Non
             gap_end=now, meta={'device': device.name},
         )
     device.last_heartbeat_at = now
-    device.save(update_fields=['last_heartbeat_at'])
+    fields = ['last_heartbeat_at']
+    if lan is not None:
+        device.lan_address = clean_lan(lan)
+        fields.append('lan_address')
+    device.save(update_fields=fields)
     wanted = {}
     for key, value in (seen or {}).items():
         try:
@@ -363,3 +367,84 @@ def record_answer(event: WifiPilotEvent, answer: str, *, now: datetime | None = 
     event.answered_at = now
     event.save(update_fields=['answer', 'answered_at', 'meta'])
     return event
+
+
+# ── Turn on from the phone (owner 2026-11-04) ─────────────────────────────────
+# A web page can't read its phone's Wi-Fi address, and Dash only sees the store's one public IP. So the installed
+# Thrift+ Staff app sends the phone to the helper on the store Wi-Fi with a one-time code; the helper reads that one
+# phone's address from the PC's neighbour table (the phone just connected, so it is there) and claims the code.
+
+JOIN_SALT = 'hr.wifi_clock.join'
+JOIN_MAX_AGE = 300
+HELPER_FRESH = timedelta(minutes=3)
+_LAN = re.compile(r'^(10|172|192)\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{2,5}$')
+
+
+def clean_lan(raw) -> str:
+    """Only a private IPv4 address and port (where phones reach the helper), else ''."""
+    text = str(raw or '').strip()
+    if not _LAN.match(text):
+        return ''
+    import ipaddress
+    try:
+        return text if ipaddress.ip_address(text.rsplit(':', 1)[0]).is_private else ''
+    except ValueError:
+        return ''
+
+
+def is_eligible(user) -> bool:
+    """The pilot (D23 § 3): only people with a pilot schedule can turn it on."""
+    return can_use(user) and hasattr(user, 'employee') and WifiPilotShift.objects.filter(employee=user).exists()
+
+
+def ready_helper(now: datetime | None = None) -> WifiClockDevice | None:
+    now = now or timezone.now()
+    return (WifiClockDevice.objects.filter(is_active=True, last_heartbeat_at__gte=now - HELPER_FRESH)
+            .exclude(lan_address='').order_by('-last_heartbeat_at').first())
+
+
+def status_for(user) -> dict:
+    eligible = is_eligible(user)
+    return {
+        'eligible': eligible,
+        'on': bool(eligible and normalize_mac(user.employee.wifi_mac)),
+        'helper_ready': bool(eligible and ready_helper()),
+    }
+
+
+def start_join(user) -> str:
+    """The helper's join address with a one-time code for this person."""
+    import secrets
+    device = ready_helper()
+    if device is None:
+        raise ValueError('The store PC is not answering right now. Try again in a minute.')
+    code = signing.dumps({'u': user.pk, 'n': secrets.token_hex(8)}, salt=JOIN_SALT, compress=True)
+    return f'http://{device.lan_address}/join?code={code}'
+
+
+def claim(code: str, mac: str) -> object:
+    """The helper found the phone behind a join code. Puts its address on that person's profile; returns the user."""
+    from django.core.cache import cache
+    from apps.accounts.models import User
+    try:
+        data = signing.loads(code or '', salt=JOIN_SALT, max_age=JOIN_MAX_AGE)
+    except signing.BadSignature as exc:
+        raise ValueError('That link is old. Tap the button in the app again.') from exc
+    mac = normalize_mac(mac)
+    if not mac:
+        raise ValueError('The store PC could not see this phone. Check it is on the store Wi-Fi.')
+    if not cache.add(f'wifi_clock_join:{data.get("n")}', 1, JOIN_MAX_AGE + 60):
+        raise ValueError('That link was already used. Tap the button in the app again.')
+    user = User.objects.filter(pk=data.get('u')).first()
+    if user is None or not is_eligible(user):
+        raise ValueError('Auto clock-in is not open for you yet.')
+    profile = user.employee
+    profile.wifi_mac = mac
+    profile.save(update_fields=['wifi_mac'])
+    return user
+
+
+def turn_off(user) -> None:
+    if hasattr(user, 'employee') and user.employee.wifi_mac:
+        user.employee.wifi_mac = ''
+        user.employee.save(update_fields=['wifi_mac'])

@@ -34,6 +34,8 @@ urlpatterns = [
     # Wi-Fi time clock pilot (D23): store PC helper (device token), email answers, setup request
     path('wifi-clock/phones/', wifi.WifiPhonesView.as_view(), name='wifi-clock-phones'),
     path('wifi-clock/heartbeat/', wifi.WifiHeartbeatView.as_view(), name='wifi-clock-heartbeat'),
+    path('wifi-clock/claim/', wifi.WifiClaimView.as_view(), name='wifi-clock-claim'),
+    path('wifi-clock/me/', wifi.WifiMeView.as_view(), name='wifi-clock-me'),
     path('wifi-clock/answer/<str:token>/', wifi.wifi_answer_view, name='wifi-clock-answer'),
     path('wifi-clock/stage-setup/', wifi.WifiStageSetupView.as_view(), name='wifi-clock-stage-setup'),
     path('', include(router.urls)),

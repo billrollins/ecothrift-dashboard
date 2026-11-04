@@ -556,6 +556,8 @@ class WifiClockDevice(models.Model):
     token_hash = models.CharField(max_length=64, unique=True)
     is_active = models.BooleanField(default=True)
     last_heartbeat_at = models.DateTimeField(null=True, blank=True)
+    # Where phones reach the helper on the store Wi-Fi to turn on auto clock-in: '192.168.1.145:8765'.
+    lan_address = models.CharField(max_length=40, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

@@ -210,6 +210,7 @@ Defined in `.env` (local values) and `.envprod` (mirror of Heroku Config Vars, w
 | `WIFI_CLOCK_TOKEN` | **Store PC only** (user env var, not `.env` / Heroku): the Wi-Fi clock helper's device token, made by `scripts/wifi_clock/install.ps1`. Dash keeps only its sha256 (`hr.WifiClockDevice`, set by the `hr.wifi_clock_pilot` request) | — |
 | `WIFI_CLOCK_URL` | **Store PC only**: where the helper posts | `https://dash.ecothrift.us` |
 | `WIFI_CLOCK_SUBNET` | **Store PC only**, optional: the subnet to sweep when the PC's own /24 is wrong | the PC's /24 |
+| `WIFI_CLOCK_PORT` | **Store PC only**, optional: the helper's join listener port (phones open it from Thrift+ Staff) | `8765` |
 | `BSTOCK_AUTH_TOKEN` | Last-resort JWT, after the handed-over `BStockToken` row and `workspace/.bstock_token` (from `python manage.py bstock_token` or DevTools) | — |
 | `BUYING_REQUEST_DELAY_SECONDS` | Minimum delay between scraper HTTP requests | `2.0` |
 | `BSTOCK_MAX_RETRIES` | Retries after HTTP 429 | `3` |

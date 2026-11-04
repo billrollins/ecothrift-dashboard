@@ -150,6 +150,28 @@ class CheckInRetailTests(TagRetailBase):
         self.assertEqual((item.retail, item.retail_check, item.retail_source), (Decimal('99.00'), 'fixed', 'typed'))
         self.assertEqual(item.check_in.defaults_snapshot['retail_check']['result'], 'fixed')
 
+    def test_units_added_by_a_check_in_edit_keep_the_retail_on_the_tag(self):
+        # Dash Update #65: raising the quantity later made units with no retail check, so no retail printed.
+        from apps.inventory.processing_ops import update_item_check_in
+
+        r = self._check_in(self._row(1, '30.00'))
+        self.assertEqual(r.status_code, 200, r.data)
+        batch = Item.objects.get().check_in
+        update_item_check_in(self.user, self.order, batch.id, {'quantity': 3})
+        added = Item.objects.order_by('id')[1:]
+        self.assertEqual(len(added), 2)
+        for item in added:
+            self.assertEqual(item.retail_check, 'passed')
+            self.assertEqual(tag_retail.tag_retail_text(item), 'Retail $30.00')
+
+    def test_an_old_unchecked_batch_runs_the_check_for_added_units(self):
+        from apps.inventory.processing_ops import update_item_check_in
+
+        r = self._check_in(self._row(1, '30.00'))
+        Item.objects.update(retail_check='', retail_source='')  # a batch from before the retail check
+        update_item_check_in(self.user, self.order, Item.objects.get().check_in_id, {'quantity': 2})
+        self.assertEqual(Item.objects.order_by('id').last().retail_check, 'passed')
+
     def test_no_retail_answer_keeps_the_figure_but_not_on_the_tag(self):
         r = self._check_in(self._row(1, '999.00'), retail_check='none')
         self.assertEqual(r.status_code, 200, r.data)
