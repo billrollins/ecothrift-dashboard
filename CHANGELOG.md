@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.260.0] -->
-<!-- Last reviewed: 2026-11-04 (2.260.0) -->
+<!-- Line 1 release: ## [2.260.1] -->
+<!-- Last reviewed: 2026-11-04 (2.260.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.260.1] - 2026-11-04
+
+User-facing theme: **The sidebar logo has room to breathe (Bill, 2026-11-04).**
+
+### Changed
+- Sidebar logo a little smaller (art 48px tall in the 64px block, 8px above and below; it was 53px); header height unchanged.
 
 ## [2.260.0] - 2026-11-04
 

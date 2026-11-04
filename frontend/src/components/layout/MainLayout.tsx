@@ -120,7 +120,7 @@ export default function MainLayout() {
             component="img"
             src={logo}
             alt="Eco-Thrift"
-            sx={{ display: 'block', maxWidth: '100%', width: 'auto', height: isPhoneShell ? 64 : { xs: 64, sm: 72 } }}
+            sx={{ display: 'block', maxWidth: '100%', width: 'auto', height: isPhoneShell ? 58 : { xs: 58, sm: 66 } }}
           />
         </ButtonBase>
       </Box>
