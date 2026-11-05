@@ -115,7 +115,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   quickReprice: {
     id: 'quickReprice',
     path: '/inventory/pr-fixit',
-    navSearch: 'tab=reprice',
+    query: 'tab=reprice',
     label: 'Quick reprice',
     icon: 'reprice',
     area: 'inventory',
@@ -293,7 +293,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   customers: {
     id: 'customers',
     path: '/admin/users',
-    navSearch: 'tab=members',
+    query: 'tab=members',
     label: 'Customers',
     icon: 'thriftPlus',
     roles: ['Manager', 'Admin'],
@@ -380,7 +380,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     path: '/studios/social',
     label: 'Social Studio',
     icon: 'listing',
-    navSearch: 'facebook post photos marketing',
+    keywords: 'facebook post photos marketing',
   },
   announcements: {
     id: 'announcements',
@@ -551,7 +551,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Applicants',
     icon: 'applicant',
     roles: ['Manager', 'Admin'],
-    navSearch: 'hiring applications candidates resumes careers',
+    keywords: 'hiring applications candidates resumes careers',
     need: ['hiring:manage', 'people:manage'],
   },
   /** Booked interviews, the weekly interview hours, extra openings and blocks, scorecards. */
@@ -561,7 +561,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Interviews',
     icon: 'interview',
     roles: ['Manager', 'Admin'],
-    navSearch: 'hiring interview calendar schedule scorecard',
+    keywords: 'hiring interview calendar schedule scorecard',
     need: ['hiring:manage', 'people:manage'],
   },
   /** Every hiring email: one version for all roles, or a role's own version; AI help on each. */
@@ -572,7 +572,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Onboarding',
     icon: 'onboarding',
     roles: ['Manager', 'Admin'],
-    navSearch: 'onboarding new hire checklist i9 i-9 handbook first day quickbooks',
+    keywords: 'onboarding new hire checklist i9 i-9 handbook first day quickbooks',
     need: ['hiring:manage', 'people:manage'],
   },
   /** The week's schedule: everyone reads it (Dash Updates #6), managers edit it on the page. In HR for all (#67). */
@@ -590,7 +590,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Check-ins',
     icon: 'checkIn',
     roles: ['Manager', 'Admin'],
-    navSearch: 'check-ins checkin 30 60 90 day review new hire meeting',
+    keywords: 'check-ins checkin 30 60 90 day review new hire meeting',
     need: ['hiring:manage', 'people:manage'],
   },
   /** Staff purchases by payroll deduction, per pay period, to enter in QuickBooks Payroll. */
@@ -600,7 +600,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Payroll deductions',
     icon: 'deductions',
     roles: ['Manager', 'Admin'],
-    navSearch: 'payroll deduction staff purchases quickbooks paycheck',
+    keywords: 'payroll deduction staff purchases quickbooks paycheck',
     need: ['people.pay:read', 'people:manage'],
   },
   hiringEmails: {
@@ -609,7 +609,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Emails',
     icon: 'email',
     roles: ['Manager', 'Admin'],
-    navSearch: 'hiring emails templates auto-reply not now interview reminder',
+    keywords: 'hiring emails templates auto-reply not now interview reminder',
     need: ['hiring:manage', 'people:manage'],
   },
   /** The roles, the careers page, the form and the hiring emails (one YAML / JSON file). */
@@ -619,7 +619,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Jobs & careers page',
     icon: 'jobPost',
     roles: ['Manager', 'Admin'],
-    navSearch: 'hiring job postings careers page roles',
+    keywords: 'hiring job postings careers page roles',
     need: ['hiring:manage', 'people:manage'],
   },
 };

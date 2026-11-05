@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.265.0] -->
-<!-- Last reviewed: 2026-11-05 (2.265.0) -->
+<!-- Line 1 release: ## [2.265.1] -->
+<!-- Last reviewed: 2026-11-05 (2.265.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.265.1] - 2026-11-05
+
+User-facing theme: **Side-menu links light up again on HR and Studios pages (Dash Update #69).**
+
+> **For staff:** Applicants, Interviews, Onboarding, Check-ins, Payroll deductions, Emails, Jobs and Social Studio now show as the page you are on, and their addresses no longer carry extra words.
+
+### Fixed
+- Eight menu entries kept their search words in the link's query field, so each link opened with a junk `?query` and never showed as active. Search words now have their own field (`keywords`); the link query is `query` (Quick reprice, Customers). A new test opens every catalog link and checks it lights up and has no spaces in its address.
 
 ## [2.265.0] - 2026-11-05
 

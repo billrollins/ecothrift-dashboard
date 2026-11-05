@@ -217,7 +217,7 @@ describe('Studios, Admin, HR and Retail placement (#67)', () => {
     expect(NAV_ITEM_CATALOG.tagErrors).toMatchObject({ path: '/inventory/tag-errors', label: 'Tag errors' });
     // PR Fix-it is archived (its address still opens); Quick reprice is its reprice tab.
     expect(SLOT_C_NAV_GROUPS.some((g) => [...g.itemIds, ...(g.guestItemIds ?? [])].includes('prFixit'))).toBe(false);
-    expect(NAV_ITEM_CATALOG.quickReprice).toMatchObject({ path: '/inventory/pr-fixit', navSearch: 'tab=reprice' });
+    expect(NAV_ITEM_CATALOG.quickReprice).toMatchObject({ path: '/inventory/pr-fixit', query: 'tab=reprice' });
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'essentials')).toBeUndefined();
     for (const id of ['dashboard', 'reports']) {
       expect(SLOT_C_NAV_GROUPS.some((g) => g.itemIds.includes(id) || g.guestItemIds?.includes(id))).toBe(false);

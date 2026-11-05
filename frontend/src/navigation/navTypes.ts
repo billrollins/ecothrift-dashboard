@@ -13,7 +13,10 @@ export interface NavItemDef {
   label: string;
   icon: NavIconKey;
   roles?: UserRole[];
-  navSearch?: string;
+  /** The link's query string (`tab=members`): it opens with it and lights up only with it. */
+  query?: string;
+  /** Words people might type to find this page (a menu search); never part of the link (#69). */
+  keywords?: string;
   navigateHash?: string;
   inactiveWhenHash?: string;
   legacy?: boolean;

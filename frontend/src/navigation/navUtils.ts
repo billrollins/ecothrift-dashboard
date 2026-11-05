@@ -28,10 +28,10 @@ export function navItemIsActive(
   pathname: string,
   search: string,
   hash: string,
-  item: Pick<NavItemDef, 'path' | 'pathAliases' | 'navSearch' | 'navigateHash' | 'inactiveWhenHash'>,
+  item: Pick<NavItemDef, 'path' | 'pathAliases' | 'query' | 'navigateHash' | 'inactiveWhenHash'>,
 ): boolean {
-  if (item.navSearch != null && item.navSearch !== '') {
-    const canon = item.navSearch.startsWith('?') ? item.navSearch : `?${item.navSearch}`;
+  if (item.query != null && item.query !== '') {
+    const canon = item.query.startsWith('?') ? item.query : `?${item.query}`;
     return pathname === item.path && search === canon;
   }
   const candidates = [item.path, ...(item.pathAliases ?? [])];
@@ -67,8 +67,8 @@ export function navigateForNavItem(
 
   const navOptions = options?.fromSidebar ? { state: { navFromSidebar: true } } : undefined;
 
-  if (item.navSearch != null && item.navSearch !== '') {
-    const canon = item.navSearch.startsWith('?') ? item.navSearch : `?${item.navSearch}`;
+  if (item.query != null && item.query !== '') {
+    const canon = item.query.startsWith('?') ? item.query : `?${item.query}`;
     navigateFn({ pathname: item.path, search: canon, hash: '' }, navOptions);
     return;
   }
