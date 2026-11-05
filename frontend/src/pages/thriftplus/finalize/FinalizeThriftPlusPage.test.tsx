@@ -11,7 +11,7 @@ vi.setConfig({ testTimeout: 60_000 });
 
 const api = vi.hoisted(() => ({
   findPendingOrMember: vi.fn(), finishThriftJoin: vi.fn(), textSignInLink: vi.fn(),
-  assistSendCode: vi.fn(), assistCheckCode: vi.fn(), assistNoPhone: vi.fn(),
+  assistSendCode: vi.fn(), assistCheckCode: vi.fn(), assistNoPhone: vi.fn(), finishInStore: vi.fn(),
 }));
 vi.mock('../../../api/thriftplusRegister.api', async (orig) => ({
   ...(await orig<typeof import('../../../api/thriftplusRegister.api')>()),
@@ -21,6 +21,7 @@ vi.mock('../../../api/thriftplusRegister.api', async (orig) => ({
   assistSendCode: api.assistSendCode,
   assistCheckCode: api.assistCheckCode,
   assistNoPhone: api.assistNoPhone,
+  finishInStore: api.finishInStore,
 }));
 
 // jsdom has no camera: the test plays the decoder, handing the page what the camera "read".
@@ -518,5 +519,74 @@ describe('Finalize Thrift+', () => {
       await user.click(screen.getByRole('button', { name: 'Back' }));
       expect(screen.getByRole('button', { name: 'Scan their member QR' })).toBeInTheDocument();
     });
+  });
+});
+describe('Finish here: a stuck join on their own phone (owner 2026-11-05, Dash Update #79)', () => {
+  // The 11-05 case: joined by Google on his own phone; the app would not finish.
+  const STUCK: ThriftPendingPerson = {
+    ...CARA, person_id: 574, account_id: 572, first_name: 'Carlos', last_name: 'Martinez', status: 'pending',
+    assisted: false, phone_last4: '0177', phone_verified: true,
+  };
+
+  beforeEach(() => {
+    api.finishInStore.mockReset().mockResolvedValue({ ...STUCK, status: 'active', signed: true });
+  });
+
+  it('a phone not confirmed yet: no Finish here; the sheet says to Edit name or phone first', async () => {
+    const user = userEvent.setup();
+    api.findPendingOrMember.mockResolvedValue({ people: [{ ...STUCK, phone_verified: false, phone_last4: null }] });
+    renderPage();
+    await user.click(await screen.findByText('Carlos Martinez'));
+    expect(await screen.findByTestId('finalize-sheet-stuck')).toHaveTextContent('Edit name or phone first');
+    expect(screen.queryByTestId('person-finish-here')).not.toBeInTheDocument();
+  });
+
+  it('never for an Assisted join (that is Check their ID)', async () => {
+    const user = userEvent.setup();
+    api.findPendingOrMember.mockResolvedValue({ people: [{ ...STUCK, assisted: true }] });
+    renderPage();
+    await user.click(await screen.findByText('Carlos Martinez'));
+    await screen.findByRole('button', { name: 'Check their ID now' });
+    expect(screen.queryByTestId('person-finish-here')).not.toBeInTheDocument();
+  });
+
+  it('confirmed phone: the customer takes their own selfie, and their tap on I agree finishes it (no ID check)', async () => {
+    const user = userEvent.setup();
+    api.findPendingOrMember.mockResolvedValue({ people: [STUCK] });
+    renderPage();
+    await user.click(await screen.findByText('Carlos Martinez'));
+    await user.click(await screen.findByTestId('person-finish-here'));
+    expect(await screen.findByTestId('finalize-store-finish')).toBeInTheDocument();
+    expect(screen.getByTestId('store-finish-hand')).toHaveTextContent('Hand this phone to Carlos');
+    expect(screen.queryByRole('checkbox', { name: 'Name matches' })).not.toBeInTheDocument();
+    const agreeButton = screen.getByTestId('store-finish-agree');
+    expect(agreeButton).toBeDisabled(); // the selfie first
+    const selfie = new File(['jpg'], 'selfie.jpg', { type: 'image/jpeg' });
+    await user.upload(screen.getByTestId('store-finish-input'), selfie);
+    await waitFor(() => expect(agreeButton).toBeEnabled());
+    await user.click(agreeButton);
+    await screen.findByTestId('finalize-done');
+    expect(api.finishInStore).toHaveBeenCalledTimes(1);
+    expect(api.finishInStore.mock.calls[0][0]).toBe(574);
+    expect(api.finishInStore.mock.calls[0][1]).toMatchObject({ agree: true });
+    expect(api.finishInStore.mock.calls[0][1].photo).toBeTruthy();
+    expect(api.finishThriftJoin).not.toHaveBeenCalled();
+    expect(screen.getByTestId('finalize-done')).toHaveTextContent('Carlos is a Thrift+ member.');
+  });
+
+  it('a refusal stays on the screen with the message', async () => {
+    const user = userEvent.setup();
+    api.findPendingOrMember.mockResolvedValue({ people: [{ ...STUCK, photo_url: '/media/carlos.jpg' }] });
+    api.finishInStore.mockRejectedValueOnce({ response: { data: { detail: 'Confirm their mobile number first: Edit name or phone, and read it back to them.' } } });
+    renderPage();
+    await user.click(await screen.findByText('Carlos Martinez'));
+    await user.click(await screen.findByTestId('person-finish-here'));
+    // A photo on file never stands in for their own selfie.
+    expect(screen.getByTestId('store-finish-agree')).toBeDisabled();
+    await user.upload(screen.getByTestId('store-finish-input'), new File(['jpg'], 'selfie.jpg', { type: 'image/jpeg' }));
+    await waitFor(() => expect(screen.getByTestId('store-finish-agree')).toBeEnabled());
+    await user.click(screen.getByTestId('store-finish-agree'));
+    expect(await screen.findByTestId('store-finish-error')).toHaveTextContent('Confirm their mobile number first');
+    expect(screen.getByTestId('finalize-store-finish')).toBeInTheDocument();
   });
 });

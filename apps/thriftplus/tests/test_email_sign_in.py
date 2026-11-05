@@ -366,7 +366,7 @@ class FinishJoiningTests(MailMixin, RegisterBase):
         cart = self._cart()
         expected = {
             'code': 'MEMBER_PENDING', 'person_id': self.cara.pk, 'account_id': self.cara.account_id,
-            'detail': 'Not finished joining yet. They finish in the Thrift+ app on their phone (a selfie and I agree).',
+            'detail': register.PENDING_TEXT,
             'first_name': 'Cara', 'last_name': 'Joyner', 'email': 'cara@example.com', 'code_last4': self.cara_code[-4:],
             # The terminal shows their QR for the Finalize phone to scan (owner 2026-10-16).
             'qr': f'TP{self.cara_code}',

@@ -47,6 +47,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import AiManifestComparisonStrip from '../../components/buying/AiManifestComparisonStrip';
 import ManifestAnalysisCard from '../../components/buying/ManifestAnalysisCard';
+import ManifestRequestLine from '../../components/buying/ManifestRequestLine';
 import AuctionOutcomeCard from '../../components/buying/AuctionOutcomeCard';
 import AuctionDecisionHeader from '../../components/buying/decision/AuctionDecisionHeader';
 import AuctionKpiCards from '../../components/buying/decision/AuctionKpiCards';
@@ -413,6 +414,8 @@ export default function AuctionDetailPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = canAccess(user, ['buying.valuation:override', 'buying:full']);
+  // Get manifest uses the owner's B-Stock login: superusers only (design A10).
+  const isSuperuser = Boolean(user?.is_superuser);
 
   const auctionId = useMemo(() => {
     const n = Number(rawId);
@@ -972,6 +975,13 @@ export default function AuctionDetailPage() {
                       pointerEvents: uploadMutation.isPending ? 'none' : 'auto',
                     }}
                   >
+                    {isSuperuser && detail.manifest_pull_eligible ? (
+                      <ManifestRequestLine
+                        auctionId={detail.id}
+                        bstockUrl={detail.url}
+                        onPulled={invalidateAuctionAndManifest}
+                      />
+                    ) : null}
                     <Typography variant="h6" align="center" color="text.secondary" sx={{ fontWeight: 600 }}>
                       Drop manifest CSV here
                     </Typography>
@@ -986,7 +996,9 @@ export default function AuctionDetailPage() {
                             : ''
                         }: ${detail.manifest_pull_error}`
                         : detail.manifest_pull_eligible
-                          ? 'The daily manifest pull gets this if it ends soon. Watch it to pull it first.'
+                          ? isSuperuser
+                            ? ''
+                            : 'The daily manifest pull gets this if it ends soon. Watch it to pull it first.'
                           : 'The daily manifest pull skips this listing; upload the CSV.'}
                     </Typography>
                     <Stack spacing={0.75} alignItems="center">

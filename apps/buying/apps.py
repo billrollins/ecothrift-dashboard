@@ -5,3 +5,7 @@ class BuyingConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'apps.buying'
     verbose_name = 'Buying'
+
+    def ready(self):
+        # Superuser → Requests kinds (apps/core/services/approval_requests.py).
+        from apps.buying import approval_kinds  # noqa: F401

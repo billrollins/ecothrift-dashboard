@@ -213,7 +213,7 @@ function SelfieStep() {
         {photo ? (
           <>
             <BigButton primary onClick={() => void use()} disabled={finish.selfie.isPending} testId="selfie-use">
-              {finish.selfie.isPending ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : 'Use this photo'}
+              {finish.selfie.isPending ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : <span>Use this photo</span>}
             </BigButton>
             <BigButton onClick={open} disabled={finish.selfie.isPending} testId="selfie-retake">Retake</BigButton>
           </>
@@ -270,7 +270,7 @@ function SignStep() {
       {err && <ErrorLine>{err}</ErrorLine>}
       <Box sx={{ mt: u(30), display: 'flex' }}>
         <BigButton primary onClick={() => void agree()} disabled={finish.sign.isPending} testId="sign-submit">
-          {finish.sign.isPending ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : AGREE_WORDS}
+          {finish.sign.isPending ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : <span>{AGREE_WORDS}</span>}
         </BigButton>
       </Box>
     </Box>

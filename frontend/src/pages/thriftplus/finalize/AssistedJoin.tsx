@@ -96,7 +96,7 @@ export default function AssistedJoin({ onReady }: { onReady: (person: ThriftPend
           {!sent ? (
             <Button variant="contained" size="large" onClick={() => void send()} disabled={busy || phone.replace(/\D/g, '').length < 10} sx={big}
               data-testid="assist-send">
-              {busy ? <CircularProgress size={24} color="inherit" /> : 'Send the code'}
+              {busy ? <CircularProgress size={24} color="inherit" /> : <span>Send the code</span>}
             </Button>
           ) : (
             <>
@@ -105,7 +105,7 @@ export default function AssistedJoin({ onReady }: { onReady: (person: ThriftPend
                 slotProps={{ htmlInput: { inputMode: 'numeric', autoComplete: 'one-time-code', 'data-testid': 'assist-code' } }} />
               <Button variant="contained" color="success" size="large" onClick={() => void check()}
                 disabled={busy || code.replace(/\D/g, '').length !== 6} sx={big} data-testid="assist-check">
-                {busy ? <CircularProgress size={24} color="inherit" /> : 'Check the code'}
+                {busy ? <CircularProgress size={24} color="inherit" /> : <span>Check the code</span>}
               </Button>
               <Button onClick={() => setSent(false)} disabled={busy} data-testid="assist-resend">Wrong number? Send again</Button>
             </>
@@ -120,7 +120,7 @@ export default function AssistedJoin({ onReady }: { onReady: (person: ThriftPend
           </Alert>
           <Button variant="contained" color="success" size="large" onClick={() => void noPhone()} disabled={busy || !named} sx={big}
             data-testid="assist-id-ok">
-            {busy ? <CircularProgress size={24} color="inherit" /> : 'Name matches their ID'}
+            {busy ? <CircularProgress size={24} color="inherit" /> : <span>Name matches their ID</span>}
           </Button>
         </Stack>
       ) : null}

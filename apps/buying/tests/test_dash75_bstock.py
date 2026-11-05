@@ -331,6 +331,33 @@ class SlipFixTests(TestCase):
         self.assertEqual(AuctionSnapshot.objects.filter(auction=a).order_by('captured_at').last().price, Decimal('10400.00'))
 
 
+    def test_request_kind_stages_applies_and_undoes_the_frozen_plan(self):
+        from apps.accounts.models import User
+        from apps.core.services import approval_requests as ar
+
+        owner = User.objects.create_user(email='slip@example.com', first_name='O', last_name='W', password='pw-123456')
+        owner.is_superuser = True
+        owner.save()
+        a = Auction.objects.create(marketplace=_mp(), external_id='S2', title='x', current_price=Decimal('104.00'))
+        t = timezone.now()
+        for i, (p, b) in enumerate(((9500, 30), (104, 32))):
+            s = AuctionSnapshot.objects.create(auction=a, price=Decimal(str(p)), bid_count=b)
+            AuctionSnapshot.objects.filter(pk=s.pk).update(captured_at=t + timedelta(minutes=i))
+        req = ar.stage('buying.fix_price_slip', title='Fix the price slip')
+        self.assertEqual(req.preview['counts']['Snapshots fixed'], 1)
+        self.assertEqual(req.preview['counts']['Closing prices fixed'], 1)
+        a.refresh_from_db()
+        self.assertEqual(a.current_price, Decimal('104.00'))  # staging changes nothing
+        ar.approve(req, owner, start=False)
+        ar.run(req.pk)
+        a.refresh_from_db()
+        self.assertEqual(a.current_price, Decimal('10400.00'))
+        req.refresh_from_db()
+        ar.undo(req, owner)
+        a.refresh_from_db()
+        self.assertEqual(a.current_price, Decimal('104.00'))
+        self.assertEqual(AuctionSnapshot.objects.filter(auction=a).order_by('captured_at').last().price, Decimal('104.00'))
+
 class CallsEndpointTests(TestCase):
     def test_superuser_only(self):
         from django.contrib.auth import get_user_model

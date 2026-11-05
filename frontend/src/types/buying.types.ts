@@ -584,6 +584,17 @@ export interface BuyingBstockTokenStatus {
 }
 
 /** The B-Stock login handed over from bstock.com. The token itself never comes back. */
+/** Get manifest (Dash #76): the newest request on one auction and what to say now. */
+export interface ManifestRequestState {
+  id: number;
+  status: 'requested' | 'pulling' | 'pulled' | 'failed';
+  requested_at: string;
+  finished_at: string | null;
+  /** Why it waits (no login, paused) or why it failed; '' when there is nothing to add. */
+  note: string;
+  login_live: boolean;
+}
+
 export interface BstockLoginStatus {
   connected: boolean;
   expires_at: string | null;

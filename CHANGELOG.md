@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.261.0] -->
-<!-- Last reviewed: 2026-11-05 (2.261.0) -->
+<!-- Line 1 release: ## [2.262.0] -->
+<!-- Last reviewed: 2026-11-05 (2.262.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,28 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.262.0] - 2026-11-05
+
+User-facing theme: **Thrift+ no longer crashes when Chrome translates it, and staff can finish a stuck online join in the store (Dash #80, #79); Buying: Get manifest on any live lot (Dash #76) and the price-slip fix as a Request.**
+
+> **For staff:** a customer whose Thrift+ app won't let them finish joining: open them in the Thrift+ Staff app's **Find**, tap **Edit name or phone** and read their mobile number back to them, then **Finish here: their selfie and I agree** and hand them the store phone. They take their own selfie and tap I agree themselves; never tap it for them. No ID check.
+>
+> **For Bill:** on an auction with no manifest, tap **Get manifest**. With your B-Stock login on, the rows arrive in about a minute. If it is off, tap **Connect B-Stock**, then your Send to Eco-Thrift bookmark on B-Stock: that is the only tap (no more "Send?").
+
+### Added
+- #79: **Finish here** on a person's sheet in the Thrift+ Staff app (J8, J13, J19): a stuck join on their own phone with both names and a confirmed phone is finished on the store phone with the customer's own selfie and their own tap on I agree (no ID check, never an Assisted join). `members.finish_in_store`, `POST /api/thriftplus/people/<id>/finish-in-store/` (logged `finished_in_store`), `finalize/StoreFinish.tsx`. Edit name or phone now also confirms a number already on file that was never confirmed, when staff type it again; the customer's selfie is always taken new on this screen. The register's not-finished words point staff to it. Tests: `apps/thriftplus/tests/test_finish_in_store.py`, `FinalizeThriftPlusPage.test.tsx`.
+- `ManifestRequest` (`buying/0039`, also `ManifestPullJob.kind` shortlist / requests, with a database default) and `GET`/`POST /api/buying/auctions/{id}/manifest-request/` (superuser) in `services/manifest_requests.py`. Requested lots skip the 36 h window, freshness and retry wait, never the hard checks; refused with the reason otherwise. Every running pull takes waiting requests before its own list. The tap, a login hand-over, a job ending `done` and the 10-minute `pull_shortlist_manifests` (backstop) start a requests job off the request thread; a silent requests job is taken over after 3 minutes. Tests: `apps/buying/tests/test_manifest_requests.py`.
+- One ceiling for every signed-in manifest pull: kill switch, #75's back-off (a 429 on the manifest host now starts it), and `buying_manifest_calls_per_hour` (200) / `buying_manifest_calls_per_day` (600) from `ManifestPullLog.api_calls`. Waiting requests say why.
+- Auction page (no-manifest card, superuser): **Get manifest** and one line (waiting for the login with **Connect B-Stock** / paused, why / pulling / failed, reason + Retry); the rows load in place. `components/buying/ManifestRequestLine.tsx` + test.
+- Request kind `buying.fix_price_slip` (`apps/buying/approval_kinds.py`, Dash #75 follow-up): the slip plan is frozen at staging, applies only where the price still equals the old value, with an undo.
+
+### Changed
+- B-Stock login hand-off (`/routines/bstock-login`): sends by itself for the signed-in owner, then closes or shows the page he came from. Stated cost: any page opening that link with a B-Stock login could swap in that login (it only changes whose account pulls manifests). No password is stored; the app never signs in to B-Stock.
+
+### Fixed
+- Edit name or phone in the Thrift+ Staff app: saving only a name sent a blank phone, which removed the number on file (the form says "Leave blank to keep it"). Blank now keeps it.
+- #80: the member app (/scan) and the Staff app crashed ("Something went wrong" / "Algo salió mal") when Chrome translated the page: tapping Send my code on Add your mobile number swapped the button's words for a spinner and React lost the translated text node (`removeChild` NotFoundError; 7 crashes for one member on 11-05). A guard in `frontend/src/utils/translateGuard.ts`, installed before the first render, makes `removeChild` and `insertBefore` forgiving of nodes the translator moved; translation stays on. Words that swap with a spinner or a button are wrapped in a `<span>` (member app Primary, Finish joining, Account buttons, the code step's resend line; Finalize, Assisted join and the person sheet), so no translated words are left behind. Test: `translateGuard.test.tsx` reproduces the crash without the guard.
 
 ## [2.261.0] - 2026-11-05
 

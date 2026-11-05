@@ -845,7 +845,22 @@ class ManifestPullJob(models.Model):
     ]
     LIVE_STATUSES = (STATUS_QUEUED, STATUS_RUNNING)
 
+    KIND_SHORTLIST = 'shortlist'
+    KIND_REQUESTS = 'requests'
+    KIND_CHOICES = [
+        (KIND_SHORTLIST, 'Shortlist (the daily Pull)'),
+        (KIND_REQUESTS, 'Requested manifests (Get manifest)'),
+    ]
+
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_QUEUED)
+    kind = models.CharField(
+        max_length=10,
+        choices=KIND_CHOICES,
+        default=KIND_SHORTLIST,
+        # In the database too, so code from before #76 (another checkout, a rolling deploy) can still insert.
+        db_default=KIND_SHORTLIST,
+        help_text='Shortlist = the daily Pull; requests = only lots someone tapped Get manifest on (Dash #76).',
+    )
     requested_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -887,6 +902,53 @@ class ManifestPullJob(models.Model):
 
     def __str__(self) -> str:
         return f'manifest pull {self.pk} {self.status} {self.done_count}/{self.total}'
+
+
+class ManifestRequest(models.Model):
+    """A Get manifest tap on one auction (Dash #76). Pulled by a requests job while the login is live."""
+
+    STATUS_REQUESTED = 'requested'
+    STATUS_PULLING = 'pulling'
+    STATUS_PULLED = 'pulled'
+    STATUS_FAILED = 'failed'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_CHOICES = [
+        (STATUS_REQUESTED, 'Requested'),
+        (STATUS_PULLING, 'Pulling'),
+        (STATUS_PULLED, 'Pulled'),
+        (STATUS_FAILED, 'Failed'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+    OPEN_STATUSES = (STATUS_REQUESTED, STATUS_PULLING)
+
+    auction = models.ForeignKey(Auction, on_delete=models.CASCADE, related_name='manifest_requests')
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    requested_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_REQUESTED)
+    error = models.CharField(max_length=300, blank=True, default='')
+    job = models.ForeignKey(
+        ManifestPullJob, on_delete=models.SET_NULL, null=True, blank=True, related_name='requests'
+    )
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-requested_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['auction'],
+                condition=models.Q(status__in=['requested', 'pulling']),
+                name='buying_one_open_manifest_request',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f'manifest request {self.pk} auction {self.auction_id} {self.status}'
 
 
 class WatchlistEntry(models.Model):

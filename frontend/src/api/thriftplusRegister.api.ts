@@ -104,6 +104,8 @@ export interface ThriftPendingPerson {
   /** Finalize only (owner 2026-10-16): the card's line and the panel. */
   code_display?: string;
   phone_last4?: string | null;
+  /** Finalize only: the phone is confirmed (a texted code, or read back by staff in person, J19). */
+  phone_verified?: boolean;
   email_verified?: boolean;
   id_checked?: boolean;
   verified_18?: boolean;
@@ -475,6 +477,19 @@ export async function setPersonDetails(
   body: { first_name: string; last_name: string; phone: string },
 ): Promise<ThriftPendingPerson> {
   const { data } = await api.post<ThriftPendingPerson>(`/thriftplus/people/${personId}/details/`, body);
+  return data;
+}
+
+/**
+ * Finish here (owner 2026-11-05, Dash Update #79): a join on their own phone that got stuck, finished on the store phone.
+ * The customer's own selfie, taken now, and their own tap on I agree; needs a phone staff confirmed in
+ * person. Answers Find's row (status `active`).
+ */
+export async function finishInStore(personId: number, body: { photo: Blob; agree: true }): Promise<ThriftPendingPerson> {
+  const form = new FormData();
+  form.append('photo', body.photo, body.photo instanceof File ? body.photo.name : 'photo.jpg');
+  form.append('agree', 'true');
+  const { data } = await api.post<ThriftPendingPerson>(`/thriftplus/people/${personId}/finish-in-store/`, form, multipart);
   return data;
 }
 

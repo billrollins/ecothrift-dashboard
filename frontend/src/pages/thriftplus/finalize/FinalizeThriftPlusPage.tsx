@@ -38,6 +38,7 @@ import { useQrCamera } from '../scanner/useQrCamera';
 import { AgreeButton, JoinQrDialog, SIGNATURE_WORDS, TermsDialog, useStayOnPage } from './finalizeParts';
 import { PersonCard, PersonSheet } from './finalizePeople';
 import AssistedJoin from './AssistedJoin';
+import StoreFinish from './StoreFinish';
 import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../contexts/AuthContext';
 
@@ -47,7 +48,7 @@ export { SIGNATURE_WORDS };
  * `verify`: the one screen for a selfie and a signature from the app (Join v2, owner 2026-10-19). Otherwise the store
  * phone takes them: the ID, a photo and the signature. No phone number is asked here since Join v2 (it is optional).
  */
-type Step = 'find' | 'assist' | 'verify' | 'done' | 'add';
+type Step = 'find' | 'assist' | 'verify' | 'store' | 'done' | 'add';
 
 
 export { codeMemberMessage };
@@ -305,7 +306,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
     void search('');
   }
 
-  const back: Partial<Record<Step, Step>> = { assist: 'find', verify: 'find', add: 'done' };
+  const back: Partial<Record<Step, Step>> = { assist: 'find', verify: 'find', store: 'find', add: 'done' };
   const joinButton = (
     <Button variant="outlined" size="large" startIcon={<QrCode2Rounded />} onClick={() => setJoinQr(true)} sx={big} data-testid="finalize-show-join">
       Not joined yet? Show the Join QR
@@ -342,7 +343,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
             Back
           </Button>
         ) : null}
-        <Typography variant="h5" fontWeight={800} sx={{ flex: 1 }}>{step === 'find' ? 'Find' : step === 'assist' ? 'Assisted join' : 'Check their ID'}</Typography>
+        <Typography variant="h5" fontWeight={800} sx={{ flex: 1 }}>{step === 'find' ? 'Find' : step === 'assist' ? 'Assisted join' : step === 'store' ? 'Finish here' : 'Check their ID'}</Typography>
         {/* In a browser tab (not the home-screen app), the way back to Dash: only before anyone is picked. */}
         {step === 'find' && !isStandalone() ? (
           <Button size="small" onClick={() => navigate('/dashboard')} sx={{ minHeight: 44 }}>Dash</Button>
@@ -454,7 +455,7 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
               sx={{ ...big, minHeight: 72, fontSize: '1.3rem' }}
               data-testid="finalize-done-button"
             >
-              {busy ? <CircularProgress size={26} color="inherit" /> : 'Done'}
+              {busy ? <CircularProgress size={26} color="inherit" /> : <span>Done</span>}
             </Button>
             {!(person.photo_url || newSelfie) ? (
               <Typography variant="body2" color="text.secondary" textAlign="center">Take their photo first.</Typography>
@@ -463,6 +464,19 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
             ) : null}
           </SelfieCheck>
         </Box>
+      ) : null}
+
+      {/* Owner 2026-11-05 (Dash Update #79): a stuck join on their own phone; their selfie and their own tap on I agree. */}
+      {step === 'store' && person ? (
+        <StoreFinish
+          person={person}
+          onBusy={setBusy}
+          onReadTerms={() => setTerms(true)}
+          onDone={(p) => {
+            setPerson(p);
+            setStep('done');
+          }}
+        />
       ) : null}
 
       {step === 'done' ? (
@@ -501,6 +515,11 @@ export default function FinalizeThriftPlusPage({ onMidway }: { onMidway?: (midwa
         owner={canAccess(user, ['thriftplus:owner', 'cashier:full'])}
         onClose={() => setInfo(null)}
         onFinish={pick}
+        onFinishHere={(p) => {
+          setPerson(p);
+          setScanning(false);
+          setStep('store');
+        }}
         onDeleted={() => void search(searched)}
         onChanged={(p) => {
           setInfo(p);

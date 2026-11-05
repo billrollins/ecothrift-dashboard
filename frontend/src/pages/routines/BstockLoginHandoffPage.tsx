@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Box, Button, CircularProgress, Stack, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { postBstockLogin } from '../../api/buying.api';
@@ -34,9 +34,13 @@ function expiryLabel(token: string): string | null {
 /**
  * Where the Send-to-Eco-Thrift bookmarklet lands, in a new tab. The token was
  * moved out of the address bar into sessionStorage before the app rendered.
- * Nothing is saved until the owner taps Send, so a link from anywhere else
- * cannot quietly replace the login. Afterwards the tab the owner started from
- * hears about it and refreshes; this tab can simply be closed.
+ *
+ * One tap (Dash #76): when the owner is signed in here, the login is sent by
+ * itself, then this tab closes (or shows the page he came from). Cost, stated:
+ * any page that opens this link with a B-Stock login could swap in that login;
+ * it only changes whose B-Stock account pulls manifests into our Dash and reads
+ * nothing of ours. The server still takes only a clean, unexpired B-Stock JWT.
+ * The tab the owner started from hears about it and refreshes.
  */
 export default function BstockLoginHandoffPage() {
   const navigate = useNavigate();
@@ -46,6 +50,8 @@ export default function BstockLoginHandoffPage() {
   const [closeFailed, setCloseFailed] = useState(false);
   const expires = useMemo(() => (token ? expiryLabel(token) : null), [token]);
   const isOwner = canAccess(user, ['buying.purchase', 'buying:full']);
+  // Sent once by itself; StrictMode's second effect run keeps this ref.
+  const autoSent = useRef(false);
 
   useEffect(() => {
     // Someone else's session: the owner's login must not linger in this tab.
@@ -70,7 +76,7 @@ export default function BstockLoginHandoffPage() {
     else openHere();
   }
 
-  async function send() {
+  async function send(auto = false) {
     if (!token) return;
     setPhase({ kind: 'sending' });
     try {
@@ -78,6 +84,8 @@ export default function BstockLoginHandoffPage() {
       clearPendingBstockToken();
       announceBstockLogin();
       setPhase({ kind: 'sent', minutes: minutesLeft(status.seconds_left) });
+      // Sent by itself: go back without a second tap, after a moment to read it.
+      if (auto) window.setTimeout(back, 900);
     } catch (err) {
       const e = err as { response?: { status?: number; data?: { detail?: string } } };
       if (e.response?.status === 400) {
@@ -89,6 +97,14 @@ export default function BstockLoginHandoffPage() {
       }
     }
   }
+
+  useEffect(() => {
+    if (!token || !user || !isOwner || autoSent.current) return;
+    autoSent.current = true;
+    void send(true);
+    // send reads the latest state; it must run once per page, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, user, isOwner]);
 
   function cancel() {
     clearPendingBstockToken();
@@ -124,14 +140,16 @@ export default function BstockLoginHandoffPage() {
   } else if (phase.kind === 'confirm' || phase.kind === 'sending') {
     body = (
       <>
-        <Typography variant="h6">Send this B-Stock login?</Typography>
+        <Typography variant="h6">
+          {phase.kind === 'sending' ? 'Sending your B-Stock login…' : 'Send this B-Stock login?'}
+        </Typography>
         <Typography color="text.secondary">
           The app uses it to pull manifests for you{expires ? ` until about ${expires}` : ''}. Only send one you just
           took from B-Stock yourself.
         </Typography>
         <Stack direction="row" spacing={1} justifyContent="center">
           <Button variant="outlined" onClick={cancel} disabled={phase.kind === 'sending'}>Cancel</Button>
-          <Button variant="contained" onClick={send} disabled={phase.kind === 'sending'}>
+          <Button variant="contained" onClick={() => void send()} disabled={phase.kind === 'sending'}>
             {phase.kind === 'sending' ? <CircularProgress size={18} color="inherit" /> : 'Send'}
           </Button>
         </Stack>
@@ -163,7 +181,7 @@ export default function BstockLoginHandoffPage() {
         <Alert severity="error">{phase.message}</Alert>
         <Stack direction="row" spacing={1} justifyContent="center">
           <Button variant="outlined" onClick={cancel}>Cancel</Button>
-          <Button variant="contained" onClick={send}>Retry</Button>
+          <Button variant="contained" onClick={() => void send()}>Retry</Button>
         </Stack>
       </>
     );

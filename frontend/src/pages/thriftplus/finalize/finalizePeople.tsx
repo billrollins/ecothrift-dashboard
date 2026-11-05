@@ -14,6 +14,7 @@ import { compressImageToJpeg } from '../../../services/receiving/receivingClient
 import { pendingName } from '../../../components/pos/ThriftPlusPendingFind';
 import QrSvg from '../../../components/thriftplus/QrSvg';
 import { readyToVerify } from '../../../components/thriftplus/SelfieCheck';
+import { canFinishHere } from './StoreFinish';
 
 function when(iso: string | null | undefined, long = false): string {
   if (!iso) return '';
@@ -204,7 +205,7 @@ function DetailsForm({ person, onSaved, onCancel }: {
       <Stack direction="row" spacing={1}>
         <Button onClick={onCancel} sx={{ flex: 1, minHeight: 48 }}>Cancel</Button>
         <Button variant="contained" disabled={busy || !first.trim() || !last.trim()} onClick={() => void save()} sx={{ flex: 1, minHeight: 48 }}>
-          {busy ? <CircularProgress size={22} color="inherit" /> : 'Save'}
+          {busy ? <CircularProgress size={22} color="inherit" /> : <span>Save</span>}
         </Button>
       </Stack>
     </Stack>
@@ -217,11 +218,13 @@ function DetailsForm({ person, onSaved, onCancel }: {
  * email while they're to finish; the owner alone may Delete and start over (anything gone
  * wrong: they join again from the beginning).
  */
-export function PersonSheet({ person, owner, onClose, onFinish, onDeleted, onChanged }: {
+export function PersonSheet({ person, owner, onClose, onFinish, onFinishHere, onDeleted, onChanged }: {
   person: ThriftPendingPerson | null;
   owner: boolean;
   onClose: () => void;
   onFinish: (p: ThriftPendingPerson) => void;
+  /** Owner 2026-11-05 (Dash Update #79): a stuck join on their own phone, finished on this phone (their selfie, I agree). */
+  onFinishHere?: (p: ThriftPendingPerson) => void;
   onDeleted: () => void;
   /** A quick fix saved (owner 2026-10-20): the person as they are now. */
   onChanged?: (p: ThriftPendingPerson) => void;
@@ -353,6 +356,9 @@ export function PersonSheet({ person, owner, onClose, onFinish, onDeleted, onCha
           {!done && !person.assisted ? (
             <Alert severity="info" sx={{ mt: 2 }} data-testid="finalize-sheet-in-app">
               They finish in the Thrift+ app on their phone: a selfie and I agree. No ID check here.
+              <Box component="span" sx={{ display: 'block', mt: 0.5 }} data-testid="finalize-sheet-stuck">
+                {canFinishHere(person) ? 'Stuck? Finish here on this phone.' : 'Stuck? Edit name or phone first (read the number back), then Finish here.'}
+              </Box>
             </Alert>
           ) : null}
           {note ? <Alert severity={note.ok ? 'success' : 'error'} sx={{ mt: 2 }} data-testid="finalize-sheet-note">{note.text}</Alert> : null}
@@ -362,6 +368,12 @@ export function PersonSheet({ person, owner, onClose, onFinish, onDeleted, onCha
             {!done && person.assisted ? (
               <Button variant="contained" size="large" onClick={() => { close(); onFinish(person); }} sx={{ ...big, minHeight: 64 }}>
                 Check their ID now
+              </Button>
+            ) : null}
+            {onFinishHere && canFinishHere(person) ? (
+              <Button variant="contained" size="large" onClick={() => { close(); onFinishHere(person); }} sx={{ ...big, minHeight: 64 }}
+                data-testid="person-finish-here">
+                Finish here: their selfie and I agree
               </Button>
             ) : null}
             {/* Quick fixes (owner 2026-10-20): any staff member, with the customer in front of them. */}
@@ -375,7 +387,7 @@ export function PersonSheet({ person, owner, onClose, onFinish, onDeleted, onCha
               </Button>
             ) : null}
             <Button variant="outlined" size="large" disabled={busy} onClick={() => photoInput.current?.click()} sx={big} data-testid="person-retake-photo">
-              {busy && !confirm ? <CircularProgress size={22} /> : person.photo_url ? 'Retake photo' : 'Take their photo'}
+              {busy && !confirm ? <CircularProgress size={22} /> : <span>{person.photo_url ? 'Retake photo' : 'Take their photo'}</span>}
             </Button>
             <input
               ref={photoInput}
@@ -425,7 +437,7 @@ export function PersonSheet({ person, owner, onClose, onFinish, onDeleted, onCha
                 <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
                   <Button onClick={() => { setConfirm(false); setTyped(''); }} sx={{ flex: 1, minHeight: 48 }}>Keep</Button>
                   <Button variant="contained" color="error" disabled={busy || !typed.trim()} onClick={() => void remove()} sx={{ flex: 1, minHeight: 48 }}>
-                    {busy ? <CircularProgress size={22} color="inherit" /> : 'Delete'}
+                    {busy ? <CircularProgress size={22} color="inherit" /> : <span>Delete</span>}
                   </Button>
                 </Stack>
               </Box>

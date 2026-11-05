@@ -84,6 +84,8 @@ PENDING_MAPPING_BATCHES = 3
 # The heartbeat moves after every page, mapping batch (60 s AI timeout, SDK retries), and
 # auction; this much silence means the thread or dyno died and the job may be resumed.
 STALE_JOB_AFTER = timedelta(minutes=8)
+# A requests job (Get manifest) is taken over sooner: someone is waiting on it.
+STALE_REQUESTS_JOB_AFTER = timedelta(minutes=3)
 # A queued job should start within seconds; one still queued after this was never picked up.
 QUEUED_STALL_AFTER = timedelta(minutes=1)
 
@@ -156,9 +158,15 @@ def _advisory_lock(key: int) -> None:
         cursor.execute('SELECT pg_advisory_xact_lock(%s)', [key])
 
 
-def _needs_pull_q(now) -> Q:
-    """Filters an auction must pass at claim time (the shortlist adds the window and freshness)."""
+def _needs_pull_q(now, *, requested: bool = False) -> Q:
+    """
+    Filters an auction must pass at claim time (the shortlist adds the window and freshness).
+    A requested lot (Get manifest, Dash #76) skips the retry wait, never the hard checks.
+    """
     retry_before = now - timedelta(hours=get_manifest_pull_retry_hours())
+    retry_ok = Q(manifest_pull_attempted_at__isnull=True) | Q(manifest_pull_attempted_at__lt=retry_before)
+    if requested:
+        retry_ok = Q()
     return (
         Q(
             marketplace__is_active=True,
@@ -171,7 +179,7 @@ def _needs_pull_q(now) -> Q:
         & ~Q(lot_id='')
         & ~Q(listing_type__iexact=Auction.LISTING_TYPE_CONTRACT)
         & ~Exists(ManifestRow.objects.filter(auction_id=OuterRef('pk')))
-        & (Q(manifest_pull_attempted_at__isnull=True) | Q(manifest_pull_attempted_at__lt=retry_before))
+        & retry_ok
     )
 
 
@@ -375,7 +383,9 @@ def map_categories_and_value(
     return count_distinct_unmapped_keys_after_rows(auction)
 
 
-def _claim_auction(auction_id: int, now, *, force: bool) -> tuple[Auction | None, object]:
+def _claim_auction(
+    auction_id: int, now, *, force: bool, requested: bool = False
+) -> tuple[Auction | None, object]:
     """
     Lock the auction, re-check it still needs a pull, and stamp the attempt. Returns the
     auction (None when it no longer qualifies) and the previous stamp, to restore if the
@@ -384,7 +394,7 @@ def _claim_auction(auction_id: int, now, *, force: bool) -> tuple[Auction | None
     with transaction.atomic():
         qs = Auction.objects.select_for_update(of=('self',)).select_related('marketplace').filter(pk=auction_id)
         if not force:
-            qs = qs.filter(_needs_pull_q(now))
+            qs = qs.filter(_needs_pull_q(now, requested=requested))
         auction = qs.first()
         if auction is None:
             return None, None
@@ -419,6 +429,7 @@ def pull_manifest_for_auction(
     touch: Callable[[], None] = _noop,
     deadline: float | None = None,
     force: bool = False,
+    requested: bool = False,
 ) -> PullResult:
     """
     Claim, download, save, map, and value one auction's manifest with the owner's login
@@ -433,11 +444,12 @@ def pull_manifest_for_auction(
     will never give (``blocked``), or a transient failure that waits for the retry window.
 
     ``force`` (the command's ``--auction-id``) skips the needs-a-pull check and replaces rows.
+    ``requested`` (a Get manifest tap) skips the retry wait.
     """
     if page_delay_seconds is None:
         page_delay_seconds = get_manifest_pull_page_delay_seconds()
     started = timezone.now()
-    claimed, previous = _claim_auction(auction.pk, started, force=force)
+    claimed, previous = _claim_auction(auction.pk, started, force=force, requested=requested)
     if claimed is None:
         return PullResult(auction_id=auction.pk, ok=False, skipped=True, error='No longer needs a pull.')
     auction = claimed
@@ -577,9 +589,14 @@ def _log_attempt(auction: Auction, started, result: PullResult, fetch_seconds: f
 
 
 def _claimable_q(now) -> Q:
-    return Q(status=ManifestPullJob.STATUS_QUEUED) | Q(
-        status=ManifestPullJob.STATUS_RUNNING,
-        heartbeat_at__lt=now - STALE_JOB_AFTER,
+    return (
+        Q(status=ManifestPullJob.STATUS_QUEUED)
+        | Q(status=ManifestPullJob.STATUS_RUNNING, heartbeat_at__lt=now - STALE_JOB_AFTER)
+        | Q(
+            status=ManifestPullJob.STATUS_RUNNING,
+            kind=ManifestPullJob.KIND_REQUESTS,
+            heartbeat_at__lt=now - STALE_REQUESTS_JOB_AFTER,
+        )
     )
 
 
@@ -696,7 +713,13 @@ def run_job(job_id: int, *, deadline: float | None = None) -> ManifestPullJob | 
             logger.exception('could not mark manifest pull job %s failed', job_id)
     finally:
         session.close()
-    return ManifestPullJob.objects.filter(pk=job_id).first()
+    job = ManifestPullJob.objects.filter(pk=job_id).first()
+    if job is not None and job.status == ManifestPullJob.STATUS_DONE and job.runner == token:
+        # A request tapped just as this job ran out of work: start the next one (Dash #76).
+        from apps.buying.services import manifest_requests
+
+        manifest_requests.kick(background=deadline is None)
+    return job
 
 
 def _release_in_flight(job: ManifestPullJob, remaining: list[int]) -> None:
@@ -723,16 +746,20 @@ def _unblame(auction_ids: list[int]) -> None:
 
 
 def _run_claimed(runner: _Runner, session: requests.Session, deadline: float | None) -> None:
+    from apps.buying.services import manifest_requests as mr
+
     job = ManifestPullJob.objects.get(pk=runner.job_id)
+    is_requests = job.kind == ManifestPullJob.KIND_REQUESTS
     _finish_pending_mapping(runner, deadline)
     if not current_token():
         runner.finish(ManifestPullJob.STATUS_FAILED, LOGIN_EXPIRED)
         return
+    mr.tidy()
     results = list(job.results)
     finished = {row.get('auction_id') for row in results}
     if job.auction_ids:
         _release_in_flight(job, [pk for pk in job.auction_ids if pk not in finished])
-    else:
+    elif not is_requests:
         # Only a Pull the owner started (no deadline): the Scheduler's resume budget is for
         # manifests, and its heartbeat would stop the job before the list is fixed.
         if deadline is None:
@@ -743,15 +770,33 @@ def _run_claimed(runner: _Runner, session: requests.Session, deadline: float | N
         runner.write(auction_ids=ids, total=len(ids))
         job.auction_ids, job.total = ids, len(ids)
 
-    remaining = [pk for pk in job.auction_ids if pk not in finished]
+    own_list = [pk for pk in job.auction_ids if pk not in finished]
     delay = get_manifest_pull_page_delay_seconds()
+    cap = get_manifest_pull_max_per_run()
     failures_in_a_row = 0
     refused_in_a_row: list[int] = []
-    for index, auction_id in enumerate(remaining):
+    index = 0
+    while True:
         if deadline is not None and time.monotonic() >= deadline:
             runner.finish(ManifestPullJob.STATUS_QUEUED)
             return
         _refresh_connection()
+        # Waiting Get manifest requests go before the job's own list (Dash #76).
+        auction_id = None
+        requested = False
+        if len(results) < cap or is_requests:
+            auction_id = mr.next_request_auction(skip=finished)
+            requested = auction_id is not None
+        if auction_id is None:
+            own_list = [pk for pk in own_list if pk not in finished]
+            if not own_list:
+                break
+            auction_id = own_list[0]
+        # One ceiling for every signed-in pull: kill switch, #75's back-off, hourly and daily calls.
+        paused = mr.paused_reason()
+        if paused:
+            runner.finish(ManifestPullJob.STATUS_FAILED, paused)
+            return
         runner.touch()
         login = current_token()
         if not login:
@@ -759,6 +804,13 @@ def _run_claimed(runner: _Runner, session: requests.Session, deadline: float | N
             return
         if index and delay > 0:
             time.sleep(delay)
+        index += 1
+        finished.add(auction_id)
+        if requested:
+            mr.mark_pulling(auction_id, runner.job_id)
+            if auction_id not in job.auction_ids:
+                job.auction_ids = [*job.auction_ids, auction_id]
+                runner.write(auction_ids=job.auction_ids, total=len(job.auction_ids))
         auction = Auction.objects.select_related('marketplace').filter(pk=auction_id).first()
         if auction is None:
             result = PullResult(auction_id=auction_id, ok=False, skipped=True, error='Auction is gone.')
@@ -771,13 +823,22 @@ def _run_claimed(runner: _Runner, session: requests.Session, deadline: float | N
                     session=session,
                     touch=runner.touch,
                     deadline=deadline,
+                    requested=requested,
                 )
             except scraper.BStockAuthError as e:
                 _unblame(refused_in_a_row)
+                mr.back_to_waiting([auction_id], LOGIN_EXPIRED)
+                mr.reopen(refused_in_a_row, LOGIN_EXPIRED)
                 clear_token(login)
                 runner.finish(ManifestPullJob.STATUS_FAILED, str(e) or LOGIN_REFUSED)
                 return
             except scraper.BStockUnavailable as e:
+                if 'rate limit' in str(e).lower():
+                    # The signed-in host said slow down: every B-Stock call waits (#75's back-off).
+                    from apps.buying.services import bstock_calls
+
+                    bstock_calls.start_backoff()
+                mr.fail_open(auction_id, f'B-Stock is not answering ({e}). Tap Retry in a few minutes.')
                 runner.finish(
                     ManifestPullJob.STATUS_FAILED,
                     f'B-Stock is not answering ({e}). Pull again in a few minutes.',
@@ -786,6 +847,7 @@ def _run_claimed(runner: _Runner, session: requests.Session, deadline: float | N
             except JobLost as e:
                 done = getattr(e, 'result', None)
                 if done is not None:
+                    mr.record_result(auction_id, done)
                     results.append(_result_row(auction_id, auction, done))
                     try:
                         runner.record(
@@ -795,7 +857,10 @@ def _run_claimed(runner: _Runner, session: requests.Session, deadline: float | N
                         )
                     except JobLost:
                         pass
+                else:
+                    mr.back_to_waiting([auction_id])
                 raise
+        mr.record_result(auction_id, result)
         results.append(_result_row(auction_id, auction, result))
         runner.record(
             results=results,
@@ -806,6 +871,7 @@ def _run_claimed(runner: _Runner, session: requests.Session, deadline: float | N
             refused_in_a_row.append(auction_id)
             if len(refused_in_a_row) >= REFUSALS_MEAN_LOGIN:
                 _unblame(refused_in_a_row)
+                mr.reopen(refused_in_a_row, LOGIN_REFUSED)
                 clear_token(login)
                 runner.finish(ManifestPullJob.STATUS_FAILED, LOGIN_REFUSED)
                 return
@@ -813,7 +879,9 @@ def _run_claimed(runner: _Runner, session: requests.Session, deadline: float | N
             refused_in_a_row = []
         counts_as_failure = not (result.ok or result.skipped or result.blocked or result.refused)
         failures_in_a_row = failures_in_a_row + 1 if counts_as_failure else 0
-        more_to_go = index < len(remaining) - 1
+        more_to_go = bool([pk for pk in own_list if pk not in finished]) or bool(
+            mr.next_request_auction(skip=finished)
+        )
         if failures_in_a_row >= MAX_CONSECUTIVE_FAILURES and more_to_go:
             runner.finish(
                 ManifestPullJob.STATUS_FAILED,
@@ -881,12 +949,15 @@ def _start_thread(job_id: int) -> None:
     ).start()
 
 
-def start_job(*, user=None, background: bool = True) -> ManifestPullJob:
+def start_job(
+    *, user=None, background: bool = True, kind: str = ManifestPullJob.KIND_SHORTLIST
+) -> ManifestPullJob:
     """
     Start a pull, resume one whose runner died, or return the one already running.
 
     Serialized with an advisory lock so two taps (desk and phone) never make two jobs.
-    ``background=False`` leaves the job for the caller to ``run_job``.
+    ``background=False`` leaves the job for the caller to ``run_job``. ``kind`` is used only when a
+    new job is made: any live job already takes waiting requests first.
     """
     with transaction.atomic():
         _advisory_lock(_JOB_LOCK_KEY)
@@ -899,7 +970,7 @@ def start_job(*, user=None, background: bool = True) -> ManifestPullJob:
         )
         if live is not None and not ManifestPullJob.objects.filter(pk=live.pk).filter(_claimable_q(now)).exists():
             return live
-        job = live or ManifestPullJob.objects.create(requested_by=user)
+        job = live or ManifestPullJob.objects.create(requested_by=user, kind=kind)
         if background:
             transaction.on_commit(lambda: _start_thread(job.pk))
     return job

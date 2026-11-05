@@ -52,7 +52,7 @@ function ConfirmRow({
       <Box sx={{ fontSize: u(29), color: sc.ink, lineHeight: 1.35 }}>{prompt}</Box>
       <Box sx={{ display: 'flex', gap: u(16), mt: u(18) }}>
         <ButtonBase onClick={onYes} disabled={busy} sx={{ px: u(30), py: u(16), borderRadius: 99, bgcolor: sc.badText, color: '#fff', fontWeight: 700, fontSize: u(29) }}>
-          {busy ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : action}
+          {busy ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : <span>{action}</span>}
         </ButtonBase>
         <ButtonBase onClick={onNo} disabled={busy} sx={{ px: u(30), py: u(16), borderRadius: 99, color: sc.ink2, fontSize: u(29) }}>
           {keep}

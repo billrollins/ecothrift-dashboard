@@ -34,13 +34,10 @@ describe('BstockLoginHandoffPage', () => {
     window.localStorage.clear();
   });
 
-  it('sends nothing until the owner taps Send, then sends once', async () => {
+  it('sends by itself once for the signed-in owner (one tap), then goes back', async () => {
     pending();
     api.postBstockLogin.mockResolvedValue({ connected: true, seconds_left: 45 * 60, expires_at: null, saved_at: null });
     renderPage();
-    expect(screen.getByText('Send this B-Stock login?')).toBeTruthy();
-    expect(api.postBstockLogin).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     expect(await screen.findByText(/B-Stock connected · 45 min left/)).toBeTruthy();
     expect(api.postBstockLogin).toHaveBeenCalledTimes(1);
     expect(window.sessionStorage.getItem('bstock.pendingToken')).toBeNull();
@@ -51,16 +48,16 @@ describe('BstockLoginHandoffPage', () => {
     pending();
     api.postBstockLogin.mockRejectedValue({ response: { status: 503 } });
     renderPage();
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     expect(await screen.findByRole('button', { name: 'Retry' })).toBeTruthy();
     expect(window.sessionStorage.getItem('bstock.pendingToken')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(api.postBstockLogin).toHaveBeenCalledTimes(2));
   });
 
   it('drops a refused login', async () => {
     pending();
     api.postBstockLogin.mockRejectedValue({ response: { status: 400, data: { detail: 'That login has expired.' } } });
     renderPage();
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     expect(await screen.findByText('That login has expired.')).toBeTruthy();
     expect(window.sessionStorage.getItem('bstock.pendingToken')).toBeNull();
   });
@@ -79,13 +76,13 @@ describe('BstockLoginHandoffPage', () => {
     expect(screen.getByText(/Nothing to send/)).toBeTruthy();
   });
 
-  it('closes itself when the routine is open in another tab, and says so if it cannot', async () => {
+  it('closes itself after sending when the page he came from is open, and says so if it cannot', async () => {
     pending();
+    api.postBstockLogin.mockResolvedValue({ connected: true, seconds_left: 45 * 60, expires_at: null, saved_at: null });
     window.localStorage.setItem('bstock.runnerOpenAt', String(Date.now()));
     const close = vi.spyOn(window, 'close').mockImplementation(() => undefined);
     renderPage();
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(close).toHaveBeenCalled();
+    await waitFor(() => expect(close).toHaveBeenCalled(), { timeout: 3000 });
     expect(await screen.findByText(/could not close itself/)).toBeTruthy();
     close.mockRestore();
   });

@@ -158,7 +158,7 @@ export function Primary({ busy, label, disabled = false }: { busy: boolean; labe
         '&.Mui-disabled': { opacity: busy ? 1 : 0.45 },
       }}
     >
-      {busy ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : label}
+      {busy ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : <span>{label}</span>}
     </ButtonBase>
   );
 }

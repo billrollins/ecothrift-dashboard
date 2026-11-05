@@ -124,6 +124,47 @@ def finish_on_phone(person: Person) -> bool:
     return True
 
 
+def finish_in_store(person: Person, *, agree: bool, photo=None, user=None) -> Person:
+    """Owner 2026-11-05 (Dash Update #79; J8, J13, J19): a join on the customer's own phone that is stuck (their app
+    would not let them finish) is finished in the store on the Thrift+ Staff app. Staff first confirm the phone in
+    person (Edit name or phone, J19: staff-verified), then hand the store phone to the customer, who takes **their own
+    selfie** and taps **I agree** themselves (J5; the agreement stays the customer's own act). No ID check (that stays
+    Assisted join's, J22). ``agree`` comes only from the customer's tap on the hand-over screen (``StoreFinish.tsx``);
+    staff never tap it for them, and the staff member who handed the phone over is logged. ``photo`` is always new (a
+    photo on file never stands in for their selfie). Finishes the membership as the app does (``finish_on_phone``)."""
+    from apps.thriftplus.services.register import TERMS_VERSION, agreed
+
+    with transaction.atomic():
+        person = Person.objects.select_for_update().select_related('account').get(pk=person.pk)
+        account = person.account
+        if person.removed_at is not None or account.status != Account.STATUS_PENDING:
+            raise MemberError('They already finished joining, or this membership is not active.')
+        if account.is_practice:
+            raise MemberError('This is a practice member.')
+        if assisted(account):
+            raise MemberError('An Assisted join finishes on Check their ID.')
+        if not (person.first_name or '').strip() or not (person.last_name or '').strip():
+            raise MemberError('Type their first and last name first (Edit name or phone).')
+        if person.phone_verified_at is None:
+            raise MemberError('Confirm their mobile number first: Edit name or phone, and read it back to them.')
+        if not photo:  # their own selfie, taken now on the store phone (J5); a photo on file never stands in
+            raise MemberError('They take their selfie first.')
+        if not agree and not agreed(person):
+            raise MemberError('The customer taps I agree before it finishes.')
+        person.photo = photo
+        fields = ['updated_at', 'photo']
+        if agree and not agreed(person):
+            person.signed_at, person.signed_terms_version = timezone.now(), TERMS_VERSION
+            fields += ['signed_at', 'signed_terms_version']
+        person.save(update_fields=fields)
+        log('finished_in_store', account=account, person=person, actor=user, photo=True, agreed=bool(agree),
+            phone_by_staff=person.phone_verified_by_id is not None)
+        if not finish_on_phone(person):
+            raise MemberError('Could not finish. Find them again and try once more.')
+    person.refresh_from_db()
+    return person
+
+
 def log(action: str, *, account=None, person=None, card=None, actor=None, **detail) -> Event:
     return Event.objects.create(action=action, account=account, person=person, card=card, actor=actor, detail=detail)
 
@@ -369,7 +410,8 @@ def remove_second_adult(person: Person, *, removed_by: str, user=None) -> Person
 @transaction.atomic
 def set_details(person: Person, *, first_name: str, last_name: str, phone: str, user=None) -> Person:
     """A quick fix on the Thrift+ Staff app (owner 2026-10-20): the name and the mobile number, typed by staff with the
-    customer in front of them. A new number counts as checked in person (J8) and must not be on another membership."""
+    customer in front of them. A typed number counts as checked in person (J8, J19) and must not be on another
+    membership; a blank phone keeps the one on file (2026-11-05)."""
     from apps.accounts.services.names import clean_name
 
     if not (first_name or '').strip() or not (last_name or '').strip():
@@ -379,6 +421,11 @@ def set_details(person: Person, *, first_name: str, last_name: str, phone: str, 
     if digits and len(digits) != 10:
         raise MemberError('Type the 10-digit mobile number.')
     person = Person.objects.select_for_update().select_related('account').get(pk=person.pk)
+    # Blank keeps the number on file, as the form says ("Leave blank to keep it"); a name-only Save never wipes it
+    # (Dash Update #79). Only a number typed again counts as read back.
+    typed = bool(digits)
+    if not typed:
+        digits = person.phone
     if digits and digits != person.phone:
         taken = Person.objects.filter(
             phone=digits, removed_at__isnull=True, account__status__in=(Account.STATUS_ACTIVE, Account.STATUS_PENDING),
@@ -388,7 +435,8 @@ def set_details(person: Person, *, first_name: str, last_name: str, phone: str, 
     before = {'first_name': person.first_name, 'last_name': person.last_name, 'phone': person.phone[-4:] if person.phone else ''}
     person.first_name, person.last_name = first, last
     fields = ['first_name', 'last_name', 'updated_at']
-    if digits != person.phone:
+    # A number already on file but never confirmed counts as confirmed once staff type it again (read back, #79).
+    if digits != person.phone or (typed and person.phone_verified_at is None):
         person.phone = digits
         person.phone_verified_at = timezone.now() if digits else None
         person.phone_verified_by = user if digits else None

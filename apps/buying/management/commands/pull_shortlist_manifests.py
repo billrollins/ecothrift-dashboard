@@ -7,7 +7,7 @@ import time
 from django.core.management.base import BaseCommand
 
 from apps.buying.models import Auction
-from apps.buying.services import scraper
+from apps.buying.services import manifest_requests, scraper
 from apps.buying.services.bstock_token_store import current_token
 from apps.buying.services.buying_settings import get_manifest_pull_max_per_run
 from apps.buying.services.manifest_pull import (
@@ -58,7 +58,15 @@ class Command(BaseCommand):
         pruned = prune_auto_manifests()
         if pruned:
             self.stdout.write(f'Pruned auto-pulled rows from {pruned} ended auction(s).')
-        jobs = resume_claimable_jobs(deadline=deadline)
+        # Get manifest requests waiting with a live login (a dyno restart killed their thread,
+        # or one was tapped as a job ended): queue a requests job and run it here.
+        jobs = []
+        for _ in range(5):
+            manifest_requests.kick(background=False)
+            ran = resume_claimable_jobs(deadline=deadline)
+            jobs += ran
+            if not ran or time.monotonic() >= deadline:
+                break
         if not jobs:
             self.stdout.write('No pull to resume.')
         for job in jobs:

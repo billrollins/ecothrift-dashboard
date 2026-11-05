@@ -410,7 +410,8 @@ class PersonViewSet(viewsets.GenericViewSet):
 
     @action(detail=True, methods=['post'])
     def details(self, request, pk=None):
-        """Thrift+ Staff quick fix (owner 2026-10-20): ``{first_name, last_name, phone}``; a blank phone removes it."""
+        """Thrift+ Staff quick fix (owner 2026-10-20): ``{first_name, last_name, phone}``; a blank phone keeps the one on
+        file (2026-11-05: a name-only Save wiped it)."""
         try:
             person = members.set_details(self.get_object(), first_name=str(request.data.get('first_name') or ''),
                                          last_name=str(request.data.get('last_name') or ''),
@@ -454,6 +455,18 @@ class PersonViewSet(viewsets.GenericViewSet):
         if not upload:
             return _error(MemberError('Attach a photo.'))
         return Response(register.finalize_row(members.set_photo(self.get_object(), upload, user=request.user)))
+
+    @action(detail=True, methods=['post'], url_path='finish-in-store', parser_classes=[MultiPartParser, FormParser])
+    def finish_in_store(self, request, pk=None):
+        """Thrift+ Staff "Finish here" (owner 2026-11-05, Dash Update #79): a stuck join on the customer's own phone,
+        finished on the store phone. ``photo`` (the customer's own selfie, taken now; required) and
+        ``agree=true`` (the customer's own tap on I agree). Needs a phone staff confirmed in person. Answers Find's row."""
+        try:
+            person = members.finish_in_store(self.get_object(), agree=_truthy(request.data.get('agree')),
+                                             photo=request.FILES.get('photo'), user=request.user)
+        except MemberError as exc:
+            return _error(exc)
+        return Response(register.finalize_row(person))
 
     @action(detail=True, methods=['post'], url_path='issue-card')
     def issue_card(self, request, pk=None):

@@ -678,6 +678,27 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(
         detail=True,
+        methods=['get', 'post'],
+        url_path='manifest-request',
+        permission_classes=[IsAuthenticated, IsSuperAdmin],
+    )
+    def manifest_request(self, request, pk=None):
+        """
+        Get manifest (Dash #76). GET: this lot's newest request and what to say now (reads only).
+        POST: request it (also Retry); the pull starts off the request thread within seconds when
+        the login is live. 400 with the reason when the lot can never be pulled.
+        """
+        from apps.buying.services import manifest_requests
+
+        auction = self.get_object()
+        if request.method == 'POST':
+            _, why = manifest_requests.request_manifest(auction, user=request.user)
+            if why:
+                return Response({'detail': why, 'code': 'not_pullable'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'request': manifest_requests.payload(auction)})
+
+    @action(
+        detail=True,
         methods=['post'],
         url_path='shipping-quote',
         permission_classes=[IsAuthenticated, IsSuperAdmin],
@@ -1031,6 +1052,10 @@ class BstockLoginView(APIView):
             save_token(str(data.get('token') or ''), user=request.user)
         except TokenRejected as e:
             return Response({'detail': str(e), 'code': 'token_rejected'}, status=400)
+        # Get manifest requests waiting for this login start now (Dash #76).
+        from apps.buying.services import manifest_requests
+
+        manifest_requests.kick(user=request.user)
         return Response(token_status().as_dict())
 
     def delete(self, request):

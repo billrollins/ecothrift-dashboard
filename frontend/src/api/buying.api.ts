@@ -21,6 +21,7 @@ import type {
   BuyingSweepResponse,
   BuyingBstockTokenStatus,
   BstockLoginStatus,
+  ManifestRequestState,
   ManifestPullState,
   BuyingValuationInputsPatch,
   BuyingWatchlistAuctionItem,
@@ -421,6 +422,23 @@ export async function fetchBuyingBstockTokenStatus(): Promise<BuyingBstockTokenS
 }
 
 /** Superuser: store the B-Stock login the bookmarklet handed over. */
+/** Superuser: this lot's newest Get manifest request (null when never asked). */
+export async function fetchManifestRequest(auctionId: number): Promise<ManifestRequestState | null> {
+  const { data } = await api.get<{ request: ManifestRequestState | null }>(
+    `/buying/auctions/${auctionId}/manifest-request/`,
+  );
+  return data.request;
+}
+
+/** Superuser: Get manifest (also Retry). 400 carries the reason a lot can never be pulled. */
+export async function postManifestRequest(auctionId: number): Promise<ManifestRequestState | null> {
+  const { data } = await api.post<{ request: ManifestRequestState | null }>(
+    `/buying/auctions/${auctionId}/manifest-request/`,
+    {},
+  );
+  return data.request;
+}
+
 export async function postBstockLogin(token: string): Promise<BstockLoginStatus> {
   const { data } = await api.post<BstockLoginStatus>('/buying/bstock-login/', { token });
   return data;

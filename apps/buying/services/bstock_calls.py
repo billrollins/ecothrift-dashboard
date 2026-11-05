@@ -136,6 +136,11 @@ def _start_backoff() -> None:
     logger.warning('B-Stock refused a call: all anonymous calls paused %s min (step %s).', int(wait.total_seconds() // 60), step)
 
 
+def start_backoff() -> None:
+    """A signed-in call (manifest pull) was rate limited: pause every B-Stock call the same way."""
+    _start_backoff()
+
+
 def _clear_backoff() -> None:
     from apps.core.models import AppSetting
 

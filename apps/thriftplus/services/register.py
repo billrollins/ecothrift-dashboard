@@ -65,7 +65,8 @@ RERING_WINDOW = timedelta(minutes=30)
 BUCKS_TAG = 'bucks'
 BUCKS_LABEL = 'ThriftBucks used'
 ERROR_TEXT = 'Thrift+ could not work out this sale. It is priced as a non-member sale; call a manager.'
-PENDING_TEXT = 'Not finished joining yet. They finish in the Thrift+ app on their phone (a selfie and I agree).'
+PENDING_TEXT = ('Not finished joining yet. They finish in the Thrift+ app on their phone (a selfie and I agree). '
+                'Stuck? Thrift+ Staff, Find: finish it on the store phone.')  # Dash Update #79
 # J22: an Assisted join is the one join staff finish, on the member card's Finalize.
 PENDING_ASSISTED_TEXT = 'Assisted join, not finished. Finalize it first: check their photo ID against their photo.'
 PHONE_TAKEN_TEXT = 'That phone number is on another membership. Check the ID and ask a manager.'

@@ -12,6 +12,10 @@ import { AppErrorBoundary } from './components/feedback/AppErrorBoundary';
 import theme from './theme';
 import App from './App';
 import { captureBstockTokenFromHash } from './pages/routines/runners/bstockHandoff';
+import { installTranslateGuard } from './utils/translateGuard';
+
+// Before the first render: browser translation must not crash React (Dash Update #80).
+installTranslateGuard();
 
 // Before routing: a login bounce would drop the #t= hash the B-Stock bookmarklet sends.
 captureBstockTokenFromHash();

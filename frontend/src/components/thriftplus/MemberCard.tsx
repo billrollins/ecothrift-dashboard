@@ -188,7 +188,7 @@ export default function MemberCard({
         <Alert severity="warning">Assisted join. Check their photo ID to finish: they collect and use nothing until then.</Alert>
       ) : person.standing === 'pending' ? (
         <Alert severity="warning" data-testid="member-card-in-app">
-          Not finished yet. They finish in the Thrift+ app on their phone (a selfie and I agree), then show their member QR.
+          Not finished yet. They finish in the Thrift+ app on their phone (a selfie and I agree), then show their member QR. Stuck? Thrift+ Staff, Find: finish it on the store phone.
         </Alert>
       ) : null}
       {person.standing === 'off' ? (

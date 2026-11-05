@@ -149,7 +149,7 @@ export function CheckCode({ sent, onChange, onSignedIn, onResent, own }: {
         <Box component="span" data-testid="sent-line">
           Enter the 6-digit code we sent to{' '}
           <Box component="span" data-testid="sent-to" sx={{ fontWeight: 700, color: sc.ink, overflowWrap: 'anywhere' }}>{maskContact(sent.contact)}</Box>.
-          {byText ? '' : ' Or tap the link in the email on this phone.'}
+          {byText ? null : <span> Or tap the link in the email on this phone.</span>}
         </Box>{' '}
         <SmallLink label="Change" onClick={onChange} sx={{ fontSize: u(29), verticalAlign: 'baseline' }} />
       </Sub>
@@ -182,9 +182,9 @@ export function CheckCode({ sent, onChange, onSignedIn, onResent, own }: {
       <Primary busy={auth.check.isPending || checking} disabled={code.length !== 6} label={own ? own.label : sent.kind === 'join' ? 'Continue' : 'Sign in'} />
       <Box data-testid="resend" sx={{ mt: u(26), textAlign: 'center', fontSize: u(28), color: sc.ink2, lineHeight: 1.4 }}>
         {sends >= MAX_SENDS ? (
-          'Still nothing? Ask at any register.'
+          <span>Still nothing? Ask at any register.</span>
         ) : left > 0 ? (
-          `Didn't get it? ${byText ? 'Send' : 'Check spam, or send'} again in ${clock(left)}`
+          <span>{`Didn't get it? ${byText ? 'Send' : 'Check spam, or send'} again in ${clock(left)}`}</span>
         ) : (
           <ButtonBase
             type="button"
