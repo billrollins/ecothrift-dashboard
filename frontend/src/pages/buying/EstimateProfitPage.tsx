@@ -26,6 +26,7 @@ import { useMutation } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { useEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { patchBuyingValuationInputs, postEstimateProfit } from '../../api/buying.api';
+import EstimateScores from '../../components/buying/EstimateScores';
 import { IconClose } from '../../icons/ecoIcons';
 import type { EstimateCategory, EstimateResponse, EstimateResult } from '../../types/buying.types';
 import { formatCurrencyWhole } from '../../utils/format';
@@ -39,10 +40,12 @@ const when = (iso: string) => format(parseISO(iso), 'EEE MMM d, h:mm a');
 
 /** What each tag means, said once on hover. */
 const TAG_TIP: Record<string, string> = {
+  'first 90 days of selling':
+    "Each rate is what this seller's past trucks sold in the 90 days after their first sale, divided by their whole manifest retail. Unsold, missing and damaged units count as zero.",
   'sold items only': 'Each rate is what we sold that seller category for, divided by its retail. Unsold items, shrink and returns are not counted, so it runs high.',
   'weak estimate': 'Over 30% of this lot is in categories with no rate of their own; they use the whole-truck rate.',
   'whole truck, no manifest': "No manifest, so the whole retail is priced at the seller's average of what sold.",
-  'wide range': 'The whole-truck band runs from 24% to 40% of retail.',
+  'wide range': 'No manifest, so the band is wide: see Whole truck under Rules used.',
   'contract, no bidding': 'A contract lot: priced at its contract price.',
   'freight not included': 'No freight typed and no formula for this lot, so the profit is left out. Type the freight to see it.',
   'check retail': 'B-Stock lists far more retail a pallet than our Target trucks carry; the numbers rest on that retail.',
@@ -221,7 +224,11 @@ function RulesCard({ r }: { r: EstimateResult }) {
         <Row
           label="Whole truck"
           value={rates(r.whole_truck_rates)}
-          sub={`${r.seller} average of ${r.seller_sold_items.toLocaleString()} sold items; drop the manifest for categories`}
+          sub={
+            r.rates_source === 'recovery'
+              ? `${r.seller} trucks in their first 90 days of selling; drop the manifest for categories`
+              : `${r.seller} average of ${r.seller_sold_items.toLocaleString()} sold items; drop the manifest for categories`
+          }
         />
       ) : null}
       {r.seasons.map((s) => (
@@ -240,7 +247,15 @@ function RulesCard({ r }: { r: EstimateResult }) {
         />
       ) : null}
       {r.method === 'manifest' ? (
-        <Row label="Share with no rate of its own" value={pct(r.fill_in_share)} sub={`under 5 sold; priced at the ${r.seller} average (${pct(r.seller_average)})`} />
+        <Row
+          label="Share with no rate of its own"
+          value={pct(r.fill_in_share)}
+          sub={
+            r.rates_source === 'recovery'
+              ? `category on under 3 scored trucks; priced at the ${r.seller} whole-truck rate (${pct(r.seller_average)})`
+              : `under 5 sold; priced at the ${r.seller} average (${pct(r.seller_average)})`
+          }
+        />
       ) : null}
     </Card>
   );
@@ -378,6 +393,9 @@ function Result({ data }: { data: EstimateResponse }) {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
         <b>How sure:</b> {data.miss_line}
       </Typography>
+      {data.rates_source === 'recovery' && data.seller_slug ? (
+        <EstimateScores seller={data.seller_slug} sellerName={data.seller} />
+      ) : null}
       <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, mb: 1.5 }}>
         <CostCard r={data} />
         <RulesCard r={data} />

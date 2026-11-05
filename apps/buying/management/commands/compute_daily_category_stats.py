@@ -97,6 +97,7 @@ class Command(BaseCommand):
         if skip_re:
             self.stdout.write('Skipped full recompute (--skip-recompute-open).')
             self._inventory_weeks(options, db)
+            self._recovery_fit(db)
             return
 
         stats = load_category_stats_dict(using=db)
@@ -116,6 +117,18 @@ class Command(BaseCommand):
             n += 1
         self.stdout.write(self.style.SUCCESS(f'Full recompute for {n} open/closing auction(s).'))
         self._inventory_weeks(options, db)
+        self._recovery_fit(db)
+
+    def _recovery_fit(self, db: str) -> None:
+        """Dash #77: the nightly 90-day recovery fit Estimate Profit reads; a failure never breaks the stats."""
+        if db != 'default':
+            return
+        try:
+            from django.core.management import call_command
+
+            call_command('fit_recovery_rates', stdout=self.stdout, stderr=self.stderr)
+        except Exception as exc:  # never block the daily stats
+            self.stderr.write(f'Recovery fit skipped: {exc}')
 
     def _inventory_weeks(self, options, db: str) -> None:
         """The weekly inventory rollup rides on this daily job (inventory review); a failure never breaks the stats."""

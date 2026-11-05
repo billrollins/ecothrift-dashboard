@@ -30,6 +30,7 @@ import type {
   BuyingWatchlistPostBody,
   EstimateRequest,
   EstimateResponse,
+  EstimateScores,
 } from '../types/buying.types';
 import api from './client';
 
@@ -486,6 +487,12 @@ export async function postBuyingWatchlistUpdateNow(): Promise<Record<string, unk
 }
 
 /** Estimate Profit (Dash Update #73, ship 1): a pasted lot link and/or a dropped manifest CSV. */
+/** Dash #77: how good the estimate is for one seller (the nightly fit's blind scores). */
+export async function fetchEstimateScores(seller: string): Promise<EstimateScores> {
+  const { data } = await api.get<EstimateScores>('/buying/estimate-scores/', { params: { seller } });
+  return data;
+}
+
 export async function postEstimateProfit(req: EstimateRequest): Promise<EstimateResponse> {
   const form = new FormData();
   if (req.link) form.append('link', req.link);

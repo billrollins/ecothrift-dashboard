@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.264.0] -->
-<!-- Last reviewed: 2026-11-05 (2.264.0) -->
+<!-- Line 1 release: ## [2.265.0] -->
+<!-- Last reviewed: 2026-11-05 (2.265.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.265.0] - 2026-11-05
+
+User-facing theme: **Buying: Estimate Profit scored against what our trucks really sold (Dash Update #77).**
+
+> **For Bill:** Estimate Profit now says what a lot brings in during its **first 90 days of selling**, from what this seller's past trucks really sold (unsold and missing counted as zero), and how far off that has been: "Blind test on 8 Target trucks: usually off 7.3 points of retail". Tap **How good is it?** to see each past truck (e.g. PO 318: sold 36.2% in 90 days, blind estimate 24.6%).
+
+### Added
+- `services/recovery_fit.py`, `RecoveryFit` and `EstimateLog` (`buying/0040`): 90-day recovery per seller and seller category from 2026 POs, a blind leave-one-truck-out score of every scored truck, fitted nightly at the end of `compute_daily_category_stats` (and `manage.py fit_recovery_rates [--dry-run]`). Flags per truck: sold dollars with no manifest row, $0-retail rows. Every estimate is saved and gets a forward score once its lot becomes a PO and sells 90 days. `GET /api/buying/estimate-scores/?seller=` (staff). Tests: `apps/buying/tests/test_recovery_fit.py`.
+- "How good is it?" on each Estimate Profit result (`components/buying/EstimateScores.tsx` + test): the blind test, each scored truck with its flags, seller categories, the last fit on the same trucks, the forward test.
+
+### Changed
+- Estimate Profit reads the newest fit (switch `buying_estimate_rates`: `recovery` default, `sold` = the #73 sold-items rates, to be removed next buying ship). Its "How sure" line is the blind test in points and in dollars on the lot. Local copy: Target blind median miss 7.3 points on 8 trucks (A3's 4.9 used sold-to-date on mixed ages).
 
 ## [2.264.0] - 2026-11-05
 

@@ -943,6 +943,9 @@ export interface EstimateResult {
   lines: number;
   miss_line: string;
   horizon: string;
+  /** Dash #77: 'recovery' = 90-day recovery rates from the nightly fit; 'sold' = the #73 sold-items rates. */
+  rates_source?: 'recovery' | 'sold';
+  fit_id?: number | null;
   your_number: number | null;
 }
 
@@ -955,4 +958,57 @@ export interface EstimateRequest {
   price?: string;
   freight?: string;
   close_date?: string;
+}
+
+/** Dash #77: one scored truck in the nightly fit (blind: predicted from a fit without it). */
+export interface TruckScore {
+  po: number;
+  predicted: number;
+  whole_predicted: number;
+  actual: number;
+  retail: number;
+  miss: number;
+  whole_miss: number;
+  fill_in_share: number;
+  ordered: string;
+  first_sale: string;
+  age_days: number;
+  zero_retail_rows: number;
+  unlinked_sold: number;
+}
+
+export interface RecoveryRateRow {
+  low: number;
+  likely: number;
+  high: number;
+  retail: number;
+  trucks: number;
+  band: string;
+}
+
+export interface SellerFit {
+  status: 'ok' | 'not_yet';
+  scored_trucks: number;
+  young_trucks: number;
+  rates?: { whole: RecoveryRateRow; categories: Record<string, RecoveryRateRow> };
+  scores?: TruckScore[];
+  summary?: {
+    trucks: number;
+    median_miss: number;
+    whole_median_miss: number;
+    worst_miss: number;
+    within_4: number;
+    mean_signed: number;
+    thin: boolean;
+  };
+  categories?: Record<string, { retail: number; actual: number; trucks: number }>;
+  previous?: { fit_id: number; fitted_at: string; trucks: number; median_miss_then: number; median_miss_now: number } | null;
+}
+
+export interface EstimateScores {
+  seller: string;
+  fit_id: number | null;
+  fitted_at: string | null;
+  fit: SellerFit | null;
+  forward: { po: number; estimated_at: string; predicted_rate: number; actual_rate: number; miss: number }[];
 }

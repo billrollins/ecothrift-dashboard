@@ -1122,3 +1122,50 @@ class BStockCall(models.Model):
 
     def __str__(self) -> str:
         return f'{self.at:%Y-%m-%d %H:%M:%S} {self.kind} {self.status}'
+
+
+class RecoveryFit(models.Model):
+    """
+    One nightly fit of 90-day recovery rates per seller and seller category, with the blind
+    (leave one truck out) score of every scored truck (Dash #77, ``services/recovery_fit.py``).
+    The estimate reads the newest one; each saved estimate names the fit it used.
+    """
+
+    fitted_at = models.DateTimeField(auto_now_add=True)
+    sellers = models.JSONField(
+        default=dict,
+        help_text='{seller slug: {status, rates, scores, summary, categories, scored_trucks, young_trucks}}.',
+    )
+
+    class Meta:
+        ordering = ['-fitted_at', '-pk']
+
+    def __str__(self) -> str:
+        return f'recovery fit {self.pk} {self.fitted_at:%Y-%m-%d %H:%M}'
+
+
+class EstimateLog(models.Model):
+    """Every Estimate Profit tap (Dash #77): scored forward once the lot becomes a PO and its truck matures."""
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    auction = models.ForeignKey(
+        Auction, on_delete=models.SET_NULL, null=True, blank=True, related_name='estimate_logs'
+    )
+    seller = models.CharField(max_length=40, blank=True, default='')
+    method = models.CharField(max_length=20, blank=True, default='')
+    rates = models.CharField(max_length=10, blank=True, default='', help_text='recovery or sold')
+    fit = models.ForeignKey(RecoveryFit, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    retail = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    low = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    likely = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    high = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at', '-pk']
+
+    def __str__(self) -> str:
+        return f'estimate {self.pk} {self.seller} {self.likely}'

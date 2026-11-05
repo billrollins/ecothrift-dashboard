@@ -1210,14 +1210,64 @@ class EstimateProfitView(APIView):
             elif auction is not None:
                 lines = lines_from_auction(auction) or None
                 source = 'manifest stored on the lot' if lines else ''
-            return Response(
-                build_estimate(
-                    auction=auction, lines=lines, manifest_source=source, seller=seller,
-                    price=price, freight=freight, close_date=close,
-                )
+            result = build_estimate(
+                auction=auction, lines=lines, manifest_source=source, seller=seller,
+                price=price, freight=freight, close_date=close,
             )
+            self._log(request, auction, result)
+            return Response(result)
         except EstimateError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @staticmethod
+    def _log(request, auction, result) -> None:
+        """Every estimate is saved (Dash #77) so it can be scored once the lot is a PO and has sold 90 days."""
+        if not result.get('supported'):
+            return
+        from apps.buying.models import EstimateLog
+
+        brings = result.get('brings_in') or {}
+        try:
+            EstimateLog.objects.create(
+                created_by=request.user if request.user.is_authenticated else None,
+                auction=auction,
+                seller=result.get('seller_slug') or '',
+                method=result.get('method') or '',
+                rates=result.get('rates_source') or '',
+                fit_id=result.get('fit_id'),
+                retail=(result.get('retail') or {}).get('used'),
+                low=brings.get('low'),
+                likely=brings.get('likely'),
+                high=brings.get('high'),
+                price=result.get('price'),
+            )
+        except Exception:
+            logger.exception('estimate-profit: could not save the estimate log')
+
+
+class EstimateScoresView(APIView):
+    """
+    GET ?seller=<slug>: how good the estimate is (Dash #77). The newest recovery fit for that seller: blind score per
+    truck, rates per seller category, the last fit on the same trucks, and forward scores of saved estimates.
+    """
+
+    permission_classes = [IsAuthenticated, IsStaff]
+
+    def get(self, request):
+        from apps.buying.services.recovery_fit import forward_scores, latest_fit
+
+        slug = str(request.query_params.get('seller') or '').strip().lower()
+        if slug not in SELLERS:
+            return Response({'detail': 'Pick a seller.'}, status=status.HTTP_400_BAD_REQUEST)
+        fit = latest_fit(build_if_missing=False)
+        block = (fit.sellers or {}).get(slug) if fit else None
+        return Response({
+            'seller': slug,
+            'fit_id': fit.pk if fit else None,
+            'fitted_at': fit.fitted_at.isoformat() if fit else None,
+            'fit': block,
+            'forward': forward_scores(slug, fit) if fit else [],
+        })
 class BstockCallsView(APIView):
     """GET (superuser): the B-Stock call gate now (kill switch, cap, back-off) and the daily call log."""
 

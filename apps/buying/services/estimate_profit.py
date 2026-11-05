@@ -148,6 +148,76 @@ class SellerRates:
         n = row[1] if row else 0
         return band(self.average), f'{n} sold: {self.name} average' if n else f'no sales yet: {self.name} average', True
 
+    def whole_band(self) -> tuple[float, float, float]:
+        return band(self.average)
+
+
+@dataclass
+class RecoveryRates(SellerRates):
+    """90-day recovery rates from the newest ``RecoveryFit`` (Dash #77): stored bands, no live query."""
+
+    bands: dict[str, tuple[float, float, float]] = None  # sc -> (low, likely, high)
+    whole: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    whole_basis: str = ''
+    fit_id: int | None = None
+    block: dict[str, Any] = None
+
+    def for_category(self, sc: str) -> tuple[tuple[float, float, float], str, bool]:
+        got = (self.bands or {}).get(sc)
+        if got:
+            row = self.block['rates']['categories'][sc]
+            return got, f"90-day recovery, {row['trucks']} trucks, ${row['retail']:,.0f} retail", False
+        return self.whole, f'{self.name} whole truck (category on under 3 scored trucks)', True
+
+    def whole_band(self) -> tuple[float, float, float]:
+        return self.whole
+
+
+def recovery_rates(slug: str) -> tuple[RecoveryRates | None, str]:
+    """The seller's rates from the newest fit, or (None, why not)."""
+    from apps.buying.services.recovery_fit import MIN_SELLER_TRUCKS, latest_fit
+
+    name = SELLERS.get(slug, ('', slug))[1]
+    # Never fit inside a request (about 30 s): the nightly job does it.
+    fit = latest_fit(build_if_missing=False)
+    block = (fit.sellers or {}).get(slug) if fit else None
+    if not block:
+        return None, 'no_fit'
+    if block.get('status') != 'ok':
+        n = block.get('scored_trucks', 0)
+        return None, (
+            f'Not yet for {name}: {n} of our {name} trucks have 90 days of selling '
+            f'({MIN_SELLER_TRUCKS} needed to test an estimate).'
+        )
+    r = block['rates']
+    w = r['whole']
+    return RecoveryRates(
+        slug=slug,
+        name=name,
+        by_category={sc: (c['likely'], c['trucks'], c['retail']) for sc, c in r['categories'].items()},
+        average=w['likely'],
+        sold_items=0,
+        sold_retail=w['retail'],
+        bands={sc: (c['low'], c['likely'], min(c['high'], 0.95)) for sc, c in r['categories'].items()},
+        whole=(w['low'], w['likely'], min(w['high'], 0.95)),
+        whole_basis=w['band'],
+        fit_id=fit.pk,
+        block=block,
+    ), ''
+
+
+def recovery_miss_line(rates: RecoveryRates, retail: float) -> str:
+    """One line: the blind test, in points and in dollars on this lot, and which way it leans."""
+    sm = rates.block['summary']
+    med = sm['median_miss']
+    lean = sm['mean_signed']
+    runs = 'runs high' if lean > 1.5 else 'runs low' if lean < -1.5 else 'neither high nor low on average'
+    thin = ' Thin: under 5 trucks.' if sm.get('thin') else ''
+    return (
+        f"Blind test on {sm['trucks']} {rates.name} trucks: usually off {med:.1f} points of retail "
+        f"(about ${retail * med / 100:,.0f} on this lot: {med:.1f}% of ${retail:,.0f}), {runs}.{thin}"
+    )
+
 
 def seller_rates(slug: str, *, use_cache: bool = True) -> SellerRates | None:
     """Sale price / retail of every sold item from this seller, per seller category (cached an hour)."""
@@ -410,9 +480,27 @@ def build_estimate(
     slug = auction.marketplace.slug if auction else seller
     if not slug:
         raise EstimateError('Which seller is this manifest from? Pick it under Seller.')
-    rates = seller_rates(slug)
+    from apps.buying.services.recovery_fit import rates_source
+
+    source = rates_source()
+    no_fit_yet = False
     seller_name = SELLERS.get(slug, ('', auction.marketplace.name if auction else slug))[1]
-    if rates is None or rates.sold_items < MIN_SELLER_SOLD:
+    if source == 'recovery':
+        rates, why = recovery_rates(slug) if slug in SELLERS else (None, f'Not yet for {seller_name}.')
+        if why == 'no_fit':
+            # Before the first nightly fit: the #73 rates, said so.
+            source = 'sold'
+            no_fit_yet = True
+        elif rates is None:
+            return {
+                'supported': False,
+                'seller': seller_name,
+                'message': why,
+                'lot': lot_info(auction) if auction else None,
+            }
+    if source == 'sold':
+        rates = seller_rates(slug)
+    if source == 'sold' and (rates is None or rates.sold_items < MIN_SELLER_SOLD):
         n = rates.sold_items if rates else 0
         return {
             'supported': False,
@@ -455,7 +543,7 @@ def build_estimate(
         m = None
         retail = bstock_retail
         method = 'whole_truck'
-        lo, li, hi = band(rates.average)
+        lo, li, hi = rates.whole_band()
         brings = {'low': retail * lo, 'likely': retail * li, 'high': retail * hi}
 
     # Landed and freight.
@@ -511,7 +599,9 @@ def build_estimate(
         for pct in BID_LANDED_PCTS
     ]
 
-    tags = ['sold items only']
+    if no_fit_yet:
+        notes.append('The 90-day recovery rates arrive with the first nightly fit; these are the sold-items rates.')
+    tags = ['first 90 days of selling'] if source == 'recovery' else ['sold items only']
     if method == 'whole_truck':
         tags.append('whole truck, no manifest')
         tags.append('wide range')
@@ -575,7 +665,7 @@ def build_estimate(
         'close_basis': close_basis,
         'lead_days': LEAD_DAYS,
         'shelf_date': shelf.isoformat(),
-        'whole_truck_rates': list(band(rates.average)),
+        'whole_truck_rates': list(rates.whole_band()),
         'seller_average': round(rates.average, 4),
         'seller_sold_items': rates.sold_items,
         'fill_in_share': round(m['fill_in_share'], 4) if m else None,
@@ -584,8 +674,14 @@ def build_estimate(
         'seasons': m['seasons'] if m else [],
         'categories': m['categories'] if m else [],
         'lines': m['lines'] if m else 0,
-        'miss_line': MISS_LINES.get(slug) or MISS_LINE_UNMEASURED.format(seller=seller_name),
-        'horizon': HORIZON,
+        'miss_line': (
+            recovery_miss_line(rates, retail)
+            if source == 'recovery'
+            else MISS_LINES.get(slug) or MISS_LINE_UNMEASURED.format(seller=seller_name)
+        ),
+        'horizon': 'first 90 days of selling' if source == 'recovery' else HORIZON,
+        'rates_source': source,
+        'fit_id': getattr(rates, 'fit_id', None),
         'your_number': _r(float(auction.revenue_override)) if auction and auction.revenue_override is not None else None,
     }
 
