@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.263.0] -->
-<!-- Last reviewed: 2026-11-05 (2.263.0) -->
+<!-- Line 1 release: ## [2.264.0] -->
+<!-- Last reviewed: 2026-11-05 (2.264.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.264.0] - 2026-11-05
+
+User-facing theme: **The menus are sorted by position: Retail, Facilities and HR, and the avatar menu is Home (Bill, 2026-11-04; Dash Update #67, Mobile app step 2).**
+
+> **For staff:** Cashier is now **Retail** (key 4): Register (was Terminal), Transactions, Customers, and the floor's pages too: Search, Run count, Review, Tag errors, Quick reprice. Manager pages sit under a line, captioned Managers, in every workspace. **HR** (key 0) is for everyone: your Requests, Schedule and Profile. **Supplies** moved to the new **Facilities** (key 8). Your avatar menu is the Home list: Store, Today, Schedule, Profile, Requests, Messages. "My day" is now called "Today" everywhere. Nothing you could open before is gone, and old links still work.
+
+### Changed
+- Workspaces (keys): 1 Buying, 2 Processing, 3 Restoration, 4 Retail (was Cashier), 5 Online Sales, 6 Deliveries, 7 Studios, 8 Facilities (new: Supplies, Keys), 9 Admin (Owner page, Approvals, Contractors, Routines, Settings), 0 HR (replaces People: My HR for everyone, HR Admin for managers, now also Departments, Shifts, Time & payroll and, for the owner, HR documents).
+- Inventory is no longer a workspace: its pages are shortcuts in Retail (Search also in Processing and Restoration) and keep the Inventory permission dial. PR Fix-it is off the menu (its address still opens); its Quick reprice tab is a Retail link.
+- Retail (Bill): Register (was Terminal), Transactions, Customers (the Users page's Members tab), then Returns, Drawers, Thrift+ Staff and Quick reprice until they fold into Register and Cash Drops; managers: Command Center (from Admin), Cash Drops (was Cash; same page until its redesign), POS setup, Thrift+, Inventories. The owner's "Requests" in Admin is named Approvals.
+- Every workspace draws its manager pages after a line under a "Managers" caption (HR's is "HR Admin"); Studios' Label Studio, Floorplans, Announcements and Blog studio and Facilities' Keys sit there.
+- Avatar menu: Store, Today, Schedule, Profile, Requests, Messages, then Dash Updates and Ask for an update, then Owner (owner only). HR and Supplies left it (both are in the side menu for everyone).
+- Permissions page dial names: Cashier → Retail, People → HR (same ids and grants).
+- "My day" is "Today" everywhere: the Dashboard tab, the phone button and the avatar menu.
+- Saved workspaces move over: Inventory → Retail, People → HR.
 
 ## [2.263.0] - 2026-11-05
 

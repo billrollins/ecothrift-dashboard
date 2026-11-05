@@ -58,6 +58,8 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     path: '/inventory/search',
     label: 'Search',
     icon: 'findItem',
+    // Inventory left the workspace list (#67): its pages are shortcuts in the workspaces that use them.
+    area: 'inventory',
   },
   // Weekly numbers per category: in, out, on hand, supply, stale, recovery, flags (inventory review, owner 2026-10-22).
   inventoryReview: {
@@ -65,6 +67,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     path: '/inventory/review',
     label: 'Review',
     icon: 'reports',
+    area: 'inventory',
   },
   floorplans: {
     id: 'floorplans',
@@ -80,6 +83,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     path: '/inventory/count',
     label: 'Run count',
     icon: 'count',
+    area: 'inventory',
   },
   // Every inventory with its numbers; each opens to Summary / Shrinkage / Order estimates / Sessions
   // (inventory_effort Phase 6, owner 2026-10-06).
@@ -107,11 +111,14 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'productReview',
     area: 'inventory',
   },
+  // The reprice tab of PR Fix-it, its own link in Retail since PR Fix-it left the menu (#67).
   quickReprice: {
     id: 'quickReprice',
-    path: '/inventory/quick-reprice',
+    path: '/inventory/pr-fixit',
+    navSearch: 'tab=reprice',
     label: 'Quick reprice',
     icon: 'reprice',
+    area: 'inventory',
   },
   vendors: {
     id: 'vendors',
@@ -122,7 +129,8 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   posTerminal: {
     id: 'posTerminal',
     path: '/pos/terminal',
-    label: 'Terminal',
+    // "Register" (Bill 2026-11-04, #67); it will hold checkout and returns.
+    label: 'Register',
     icon: 'register',
   },
   posTestTerminal: {
@@ -144,7 +152,8 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   posCash: {
     id: 'posCash',
     path: '/pos/cash',
-    label: 'Cash',
+    // "Cash Drops" (Bill 2026-11-04, #67): the drops, the safe and the bank deposit; its redesign is its own update.
+    label: 'Cash Drops',
     icon: 'cash',
     roles: ['Manager', 'Admin'],
     need: ['pos.cash:manage', 'cashier:manage'],
@@ -275,10 +284,20 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   users: {
     id: 'users',
     path: '/admin/users',
-    label: 'Users',
+    label: 'Staff',
     icon: 'staff',
     roles: ['Manager', 'Admin'],
     need: ['users.staff:manage', 'users.customers:manage', 'people:manage'],
+  },
+  // The Users page's Members tab, in Retail (#67: customers live in Retail). The same people who open it today.
+  customers: {
+    id: 'customers',
+    path: '/admin/users',
+    navSearch: 'tab=members',
+    label: 'Customers',
+    icon: 'thriftPlus',
+    roles: ['Manager', 'Admin'],
+    need: ['users.customers:manage', 'people:manage'],
   },
   departments: {
     id: 'departments',
@@ -406,13 +425,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     pathAliases: ['/brief'],
     need: ['owner.page', 'admin:full'],
   },
-  // Supply lists, the weekly count and (owner) the order (owner, 2026-10-26). Every staff login counts.
+  // Supply lists, the weekly count and (owner) the order (owner, 2026-10-26). Every staff login counts, so the
+  // Facilities link is for everyone (it was on everyone's avatar menu before #67).
   supplies: {
     id: 'supplies',
     path: '/supplies',
     label: 'Supplies',
     icon: 'purchaseOrder',
-    need: ['supplies:manage', 'admin:manage'],
   },
   reports: {
     id: 'reports',
@@ -468,7 +487,8 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   superRequests: {
     id: 'superRequests',
     path: '/owner/approvals',
-    label: 'Requests',
+    // "Approvals" (#67) so the only "Requests" is Home's.
+    label: 'Approvals',
     // The Owner page's Approvals tab since Dash Updates #5 (2026-11-02); /admin/requests redirects.
     pathAliases: ['/admin/requests'],
     // Routine data work staged in production for the owner to approve (data_platform Phase 1).
@@ -509,6 +529,21 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     roles: ['Manager', 'Admin'],
     need: ['retail_qa:manage', 'admin:manage'],
   },
+  // My HR (#67, Bill 2026-11-04): every request kind in one place (/hr) and my profile & PIN. Every staff login.
+  hrRequests: {
+    id: 'hrRequests',
+    // /hr/requests is the HR page's first tab; plain /hr would light up on every HR tab.
+    path: '/hr/requests',
+    label: 'Requests',
+    icon: 'requests',
+  },
+  profile: {
+    id: 'profile',
+    path: '/me',
+    pathAliases: ['/hr/me'],
+    label: 'Profile',
+    icon: 'checkIn',
+  },
   /** Hiring: everyone who applied at ecothrift.us/careers, plus walk-ins. */
   applicants: {
     id: 'applicants',
@@ -540,16 +575,15 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     navSearch: 'onboarding new hire checklist i9 i-9 handbook first day quickbooks',
     need: ['hiring:manage', 'people:manage'],
   },
-  /** 30, 60 and 90-day check-ins: due this week, coming up, done (filled in a meeting, signed by both). */
+  /** The week's schedule: everyone reads it (Dash Updates #6), managers edit it on the page. In HR for all (#67). */
   schedule: {
     id: 'schedule',
     path: '/people/schedule',
+    pathAliases: ['/hr/schedule'],
     label: 'Schedule',
     icon: 'calendar',
-    roles: ['Manager', 'Admin'],
-    navSearch: 'schedule week shifts call-ins call in no show who works',
-    need: ['hr.schedule:write', 'people:manage'],
   },
+  /** 30, 60 and 90-day check-ins: due this week, coming up, done (filled in a meeting, signed by both). */
   checkins: {
     id: 'checkins',
     path: '/people/checkins',

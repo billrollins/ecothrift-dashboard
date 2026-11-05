@@ -46,15 +46,15 @@ function renderNav(path = '/dashboard?tab=store') {
   );
 }
 
-describe('FloorNav (Store | My day)', () => {
+describe('FloorNav (Store | Today)', () => {
   beforeEach(() => {
     authState.role = 'Employee';
     localStorage.clear();
   });
 
-  it('renders Store then My day, and no Settings tab for anyone', () => {
+  it('renders Store then Today, and no Settings tab for anyone', () => {
     renderNav();
-    expect(screen.getAllByRole('tab').map((node) => node.getAttribute('aria-label'))).toEqual(['Store', 'My day']);
+    expect(screen.getAllByRole('tab').map((node) => node.getAttribute('aria-label'))).toEqual(['Store', 'Today']);
     authState.role = 'Manager';
     renderNav();
     expect(screen.queryByRole('tab', { name: 'Settings' })).not.toBeInTheDocument();
@@ -63,12 +63,12 @@ describe('FloorNav (Store | My day)', () => {
   it('marks Store as selected on ?tab=store', () => {
     renderNav('/dashboard?tab=store');
     expect(screen.getByRole('tab', { name: 'Store' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'My day' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: 'Today' })).toHaveAttribute('aria-selected', 'false');
   });
 
-  it('defaults to My day for an Employee and Store for a Manager when nothing is remembered', () => {
+  it('defaults to Today for an Employee and Store for a Manager when nothing is remembered', () => {
     renderNav('/dashboard');
-    expect(screen.getByRole('tab', { name: 'My day' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Today' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('defaults to Store for a Manager', () => {
@@ -81,16 +81,16 @@ describe('FloorNav (Store | My day)', () => {
     authState.role = 'Manager';
     localStorage.setItem('ecothrift.dashboard.tab.v1.1', 'myday');
     renderNav('/dashboard');
-    expect(screen.getByRole('tab', { name: 'My day' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Today' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('treats a routine or the hours panel in the URL as My day', () => {
+  it('treats a routine or the hours panel in the URL as Today', () => {
     authState.role = 'Manager';
     renderNav('/dashboard?run=12');
-    expect(screen.getByRole('tab', { name: 'My day' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Today' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('shows the due-today count on My day', () => {
+  it('shows the due-today count on Today', () => {
     renderNav();
     expect(screen.getByLabelText('2 waiting')).toBeInTheDocument();
   });
@@ -98,7 +98,7 @@ describe('FloorNav (Store | My day)', () => {
   it('opens the other tab and remembers it for this user', async () => {
     const user = userEvent.setup();
     renderNav('/dashboard?tab=store');
-    await user.click(screen.getByRole('tab', { name: 'My day' }));
+    await user.click(screen.getByRole('tab', { name: 'Today' }));
     expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=myday');
     expect(localStorage.getItem('ecothrift.dashboard.tab.v1.1')).toBe('myday');
   });

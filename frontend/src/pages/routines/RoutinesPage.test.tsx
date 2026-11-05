@@ -77,7 +77,7 @@ function renderPage(path = '/routines') {
             <Route path="/routines" element={<RoutinesPage />} />
             <Route path="/routines/catalog" element={<RoutinesPage />} />
             <Route path="/routines/run/:id" element={<RoutinesPage />} />
-            <Route path="/dashboard" element={<div>My day</div>} />
+            <Route path="/dashboard" element={<div>Today</div>} />
           </Routes>
           <PathProbe />
         </MemoryRouter>
@@ -92,9 +92,9 @@ describe('RoutinesPage', () => {
     setDesk(true);
   });
 
-  it('sends staff from the bare routines list to My day (one place)', () => {
+  it('sends staff from the bare routines list to Today (one place)', () => {
     renderPage('/routines');
-    expect(screen.getByText('My day')).toBeInTheDocument();
+    expect(screen.getByText('Today')).toBeInTheDocument();
     expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=myday');
   });
 
@@ -103,9 +103,9 @@ describe('RoutinesPage', () => {
     expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=myday');
   });
 
-  it('opens an old run link on My day, beside the list', () => {
+  it('opens an old run link on Today, beside the list', () => {
     renderPage('/routines?run=5');
-    expect(screen.getByText('My day')).toBeInTheDocument();
+    expect(screen.getByText('Today')).toBeInTheDocument();
     expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=myday&run=5');
   });
 

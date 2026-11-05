@@ -11,17 +11,22 @@ export interface SlotCWorkspaceMeta {
   shortcutColor: string;
   /**
  * Digit pressed in the open switcher. Same key always opens this workspace
- * when the user can see it. 1-8 are lifecycle + Studios; 9 is People (hiring); 0 is Admin.
+ * when the user can see it. 1-7 are lifecycle + Studios; 8 is Facilities, 9 Admin, 0 HR (#67).
    */
   shortcutDigit?: number;
 }
 
 /** Lifecycle order: source → prep → ingest → restore → records → floor → sell → deliver → online → manage. */
 export const SLOT_C_DEFAULT_WORKSPACE_ID = 'buying';
-/** A computer set up as a register starts here (critic review 2026-10-21: cashiers start in Cashier, not Buying). */
+/** A computer set up as a register starts here (critic review 2026-10-21: cashiers start in Retail, not Buying). */
 export const SLOT_C_REGISTER_WORKSPACE_ID = 'storeSales';
 
-/** Workspace-first groups for staff sidebar (presentation only). */
+/**
+ * Workspace-first groups for staff sidebar (presentation only).
+ * #67 (Bill 2026-11-04): a workspace is the position someone works that day, and its pages become its phone buttons.
+ * Inventory is not a workspace (its pages are shortcuts where they are used), Cashier is Retail, HR replaces People
+ * for everyone, Facilities is new, Admin is the owner's tools. No page anyone can open today left the menu.
+ */
 export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'buying',
@@ -32,33 +37,29 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'processing',
     label: 'Processing',
     itemIds: ['receiving', 'processing'],
-    guestItemIds: ['restorations'],
+    guestItemIds: ['restorations', 'inventoryWorkbench'],
   },
   {
     id: 'restoration',
     label: 'Restoration',
     itemIds: ['restorationQueue', 'tars', 'restorationPartsRequests', 'restorationTracking'],
-  },
-  {
-    id: 'retailFloor',
-    label: 'Inventory',
-    itemIds: ['inventoryWorkbench', 'inventoryReview', 'inventoryCount', 'inventories'],
-    guestItemIds: ['prFixit', 'tagErrors'],
+    guestItemIds: ['inventoryWorkbench'],
   },
   {
     id: 'storeSales',
-    label: 'Cashier',
+    label: 'Retail',
     // Every shift on top; practice, printing and setup below (owner, 2026-10-19: "the cashier workspace is messy").
     // Retail windows (#49, 2026-11-02): a member opens as the Member window from anywhere, so Thrift+ members (the same
     // find as Thrift+ Staff) left the list; /pos/members still works.
-    itemIds: ['posTerminal', 'thriftPlusFinalize', 'posTransactions', 'posReturns', 'posDrawers', 'posCash'],
-    setupItemIds: ['posTestTerminal', 'posPrintables', 'posSetup', 'thriftPlus'],
-    guestItemIds: ['retailQa'],
-  },
-  {
-    id: 'deliveries',
-    label: 'Deliveries',
-    itemIds: ['deliverySchedule', 'deliveryTable'],
+    // #67 (Bill 2026-11-04): Register, Transactions, Customers; managers: Command Center and Cash Drops. Returns and
+    // Drawers stay until they fold into Register and Cash Drops (their own updates). The floor's inventory pages are
+    // shortcuts. PR Fix-it is archived (its address still opens); Quick reprice is its reprice tab.
+    itemIds: [
+      'posTerminal', 'posTransactions', 'customers', 'posReturns', 'posDrawers', 'thriftPlusFinalize', 'quickReprice',
+    ],
+    setupItemIds: ['posTestTerminal', 'posPrintables'],
+    managerItemIds: ['retailQa', 'posCash', 'posSetup', 'thriftPlus', 'inventories'],
+    guestItemIds: ['inventoryWorkbench', 'inventoryCount', 'inventoryReview', 'tagErrors'],
   },
   {
     id: 'onlineSales',
@@ -71,39 +72,64 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     ],
   },
   {
+    id: 'deliveries',
+    label: 'Deliveries',
+    itemIds: ['deliverySchedule', 'deliveryTable'],
+  },
+  {
     id: 'studios',
     label: 'Studios',
     // No group gate: Social Studio is for every staff login; each other studio carries its own roles.
-    itemIds: ['socialStudio', 'labelStudio', 'floorplans', 'announcements', 'blogStudio'],
+    itemIds: ['socialStudio'],
+    managerItemIds: ['labelStudio', 'floorplans', 'announcements', 'blogStudio'],
   },
   {
-    id: 'people',
-    label: 'People',
-    roles: ['Manager', 'Admin'],
-    // Staff start to finish (owner, 2026-10-07): Users moved here from Admin.
-    // Permissions (Dash Update #53): levels, departments and each person, in plain words.
-    itemIds: ['users', 'permissions', 'schedule', 'applicants', 'interviews', 'onboarding', 'checkins'],
-    setupItemIds: ['payrollDeductions', 'jobs', 'hiringEmails'],
+    id: 'facilities',
+    label: 'Facilities',
+    // The building and its gear (#67): Supplies for everyone, Keys for the owner and Admins. Service vendors,
+    // maintenance and fire-extinguisher checks (as routines) and the cameras link join when they exist.
+    itemIds: ['supplies'],
+    managerItemIds: ['keys'],
   },
   {
     id: 'admin',
     label: 'Admin',
+    // The owner's tools (#67). Settings stays: managers who open it today still find it here.
     roles: ['Manager', 'Admin'],
-    itemIds: ['departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'supplies', 'keys', 'settings'],
+    // Contractors (#21) is the owner's, off the staff side.
+    itemIds: ['owner', 'superRequests', 'contractors', 'adminRoutines', 'settings'],
     guestItemIds: ['icons'],
+  },
+  {
+    id: 'hr',
+    label: 'HR',
+    // Two surfaces (Bill 2026-11-04): My HR for every staff login, HR Admin for managers (each page by its own dial).
+    itemsLabel: 'My HR',
+    itemIds: ['hrRequests', 'schedule', 'profile'],
+    managerLabel: 'HR Admin',
+    managerItemIds: [
+      'users', 'permissions', 'applicants', 'interviews', 'onboarding', 'checkins',
+      'departments', 'shifts', 'payrollHours', 'payrollDeductions', 'jobs', 'hiringEmails',
+      // Documents to e-sign (#62): the owner sends them; staff sign theirs in Requests.
+      'hrDocuments',
+    ],
   },
 ];
 
 /** Stale bake-off / renamed workspace ids → lifecycle ids. */
 export const SLOT_C_WORKSPACE_ID_MIGRATION: Record<string, string> = {
   inbound: 'processing',
-  catalog: 'retailFloor',
-  inventory: 'retailFloor',
-  floor: 'retailFloor',
+  catalog: 'storeSales',
+  inventory: 'storeSales',
+  floor: 'storeSales',
   store: 'storeSales',
-  floorOps: 'retailFloor',
+  floorOps: 'storeSales',
   cashier: 'storeSales',
   mail: 'onlineSales',
+  // #67: Inventory's pages moved to Retail; People became HR.
+  retailFloor: 'storeSales',
+  retail: 'storeSales',
+  people: 'hr',
 };
 
 export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
@@ -135,21 +161,21 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     shortcutDigit: 3,
   },
   {
-    id: 'retailFloor',
-    label: 'Inventory',
-    shortLabel: 'Inventory',
-    helper: 'Search, counts, and quick fixes',
-    icon: 'salesFloor',
-    shortcutColor: '#DB2777',
+    id: 'storeSales',
+    label: 'Retail',
+    shortLabel: 'Retail',
+    helper: 'Register, sales, drawers, customers, Thrift+ and the floor',
+    icon: 'register',
+    shortcutColor: '#CA8A04',
     shortcutDigit: 4,
   },
   {
-    id: 'storeSales',
-    label: 'Cashier',
-    shortLabel: 'Cashier',
-    helper: 'Register, sales, drawers, and Thrift+',
-    icon: 'register',
-    shortcutColor: '#CA8A04',
+    id: 'onlineSales',
+    label: 'Online Sales',
+    shortLabel: 'Online Sales',
+    helper: 'List, reserve, message, and hand off at the register',
+    icon: 'webStore',
+    shortcutColor: '#0284C7',
     shortcutDigit: 5,
   },
   {
@@ -162,39 +188,39 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     shortcutDigit: 6,
   },
   {
-    id: 'onlineSales',
-    label: 'Online Sales',
-    shortLabel: 'Online Sales',
-    helper: 'List, reserve, message, and hand off at the register',
-    icon: 'webStore',
-    shortcutColor: '#0284C7',
-    shortcutDigit: 7,
-  },
-  {
     id: 'studios',
     label: 'Studios',
     shortLabel: 'Studios',
     helper: 'Social posts, labels, floorplans, announcements, and the blog',
     icon: 'studio',
     shortcutColor: '#C026D3',
-    shortcutDigit: 8,
+    shortcutDigit: 7,
   },
   {
-    id: 'people',
-    label: 'People',
-    shortLabel: 'People',
-    helper: 'Staff and hiring: users, applicants, interviews, onboarding, check-ins and jobs',
-    icon: 'people',
-    shortcutColor: '#7C3AED',
-    shortcutDigit: 9,
+    id: 'facilities',
+    label: 'Facilities',
+    shortLabel: 'Facilities',
+    helper: 'Supplies and keys',
+    icon: 'workbench',
+    shortcutColor: '#DB2777',
+    shortcutDigit: 8,
   },
   {
     id: 'admin',
     label: 'Admin',
     shortLabel: 'Admin',
-    helper: 'Departments, shifts, routines, payroll, keys, and settings',
+    helper: 'Owner page, approvals, routines, and settings',
     icon: 'settings',
     shortcutColor: '#1E293B',
+    shortcutDigit: 9,
+  },
+  {
+    id: 'hr',
+    label: 'HR',
+    shortLabel: 'HR',
+    helper: 'My requests, schedule and profile; staff and hiring',
+    icon: 'people',
+    shortcutColor: '#7C3AED',
     shortcutDigit: 0,
   },
 ];
@@ -216,7 +242,7 @@ export function resolveWorkspaceForRoute(
   }
   // Divider-only pages with no native home (none today).
   // Guest shortcuts that already have a home (Restoration under Processing,
-  // Command Center under Cashiers) stay with that home from the first pass.
+  // Command Center under Retail) stay with that home from the first pass.
   for (const meta of workspaceOrder) {
     const group = workspaceGroups.find((g) => g.id === meta.id);
     if (group?.guestItems.some((item) => isActive(item))) {
@@ -230,7 +256,7 @@ export function resolveWorkspaceForRoute(
  * Map a digit key onto a workspace by its assigned `shortcutDigit`.
  *
  * The same key always opens the same workspace. If that workspace is not in
- * `visible` (role-filtered out), the key does nothing. 0 is Admin.
+ * `visible` (role-filtered out), the key does nothing. 0 is HR.
  */
 export function workspaceIdForDigit(
   visible: SlotCWorkspaceMeta[],
@@ -283,14 +309,14 @@ function pathsOverlap(a: NavItemDef, b: NavItemDef): boolean {
  */
 export function glowColorForNavItem(itemId: string): string | undefined {
   for (const group of SLOT_C_NAV_GROUPS) {
-    if (group.itemIds.includes(itemId) || group.setupItemIds?.includes(itemId)) {
+    if (group.itemIds.includes(itemId) || group.setupItemIds?.includes(itemId) || group.managerItemIds?.includes(itemId)) {
       return shortcutColorForWorkspace(group.id);
     }
   }
   const def = NAV_ITEM_CATALOG[itemId];
   if (!def) return undefined;
   for (const group of SLOT_C_NAV_GROUPS) {
-    const nativeHome = [...group.itemIds, ...(group.setupItemIds ?? [])].some((id) => {
+    const nativeHome = [...group.itemIds, ...(group.setupItemIds ?? []), ...(group.managerItemIds ?? [])].some((id) => {
       const native = NAV_ITEM_CATALOG[id];
       return native != null && pathsOverlap(def, native);
     });

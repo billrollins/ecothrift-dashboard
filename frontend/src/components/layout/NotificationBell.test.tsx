@@ -124,7 +124,7 @@ describe('NotificationBell', () => {
     expect(screen.getByTestId('notification-bell-badge').querySelector('.MuiBadge-badge')).toHaveClass('MuiBadge-invisible');
   });
 
-  it('opens Messages, My day, and Requests from their rows', async () => {
+  it('opens Messages, Today, and Requests from their rows', async () => {
     const user = userEvent.setup();
     state.superuser = true;
     state.unread = 1;

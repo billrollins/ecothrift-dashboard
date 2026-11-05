@@ -51,39 +51,39 @@ describe('PhoneTabBar', () => {
     localStorage.clear();
   });
 
-  it('renders Store and My day, nothing else', () => {
+  it('renders Store and Today, nothing else', () => {
     renderBar();
     const labels = screen.getAllByRole('button').map((node) => node.textContent?.replace(/^\d+/, '').trim());
-    expect(labels).toEqual(['Store', 'My day']);
+    expect(labels).toEqual(['Store', 'Today']);
     expect(screen.queryByRole('button', { name: /settings/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /routines/i })).not.toBeInTheDocument();
   });
 
   it('marks the tab from the URL', () => {
     renderBar('/dashboard?tab=myday');
-    expect(screen.getByRole('button', { name: /my day/i })).toHaveClass('Mui-selected');
+    expect(screen.getByRole('button', { name: /today/i })).toHaveClass('Mui-selected');
     expect(screen.getByRole('button', { name: /store/i })).not.toHaveClass('Mui-selected');
   });
 
-  it('keeps My day selected for old Today and routine links', () => {
+  it('keeps Today selected for old Today and routine links', () => {
     renderBar('/today?hours=1');
-    expect(screen.getByRole('button', { name: /my day/i })).toHaveClass('Mui-selected');
+    expect(screen.getByRole('button', { name: /today/i })).toHaveClass('Mui-selected');
   });
 
-  it('uses the role default with nothing remembered: My day for an Employee, Store for an Admin', () => {
+  it('uses the role default with nothing remembered: Today for an Employee, Store for an Admin', () => {
     renderBar('/dashboard');
-    expect(screen.getByRole('button', { name: /my day/i })).toHaveClass('Mui-selected');
+    expect(screen.getByRole('button', { name: /today/i })).toHaveClass('Mui-selected');
   });
 
   it('opens the other tab and remembers the choice per user', async () => {
     const user = userEvent.setup();
     renderBar('/dashboard?tab=store');
-    await user.click(screen.getByRole('button', { name: /my day/i }));
+    await user.click(screen.getByRole('button', { name: /today/i }));
     expect(screen.getByTestId('where')).toHaveTextContent('/dashboard?tab=myday');
     expect(localStorage.getItem('ecothrift.dashboard.tab.v1.1')).toBe('myday');
   });
 
-  it('shows the due-today count on My day', () => {
+  it('shows the due-today count on Today', () => {
     renderBar();
     expect(screen.getByLabelText('2 waiting')).toBeInTheDocument();
   });
@@ -92,6 +92,6 @@ describe('PhoneTabBar', () => {
     authState.language = 'es';
     renderBar();
     expect(screen.getByRole('button', { name: /tienda/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /mi dia/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /hoy/i })).toBeInTheDocument();
   });
 });

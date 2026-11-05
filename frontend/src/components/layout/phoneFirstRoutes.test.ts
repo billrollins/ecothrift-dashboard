@@ -77,15 +77,15 @@ describe('phoneShellTitle', () => {
   it('labels the slim top bar from the route', () => {
     expect(phoneShellTitle('/dashboard')).toBe('Dashboard');
     expect(phoneShellTitle('/dashboard', 'en', 'store')).toBe('Dashboard');
-    expect(phoneShellTitle('/dashboard', 'en', 'myday')).toBe('My day');
-    expect(phoneShellTitle('/today')).toBe('My day');
+    expect(phoneShellTitle('/dashboard', 'en', 'myday')).toBe('Today');
+    expect(phoneShellTitle('/today')).toBe('Today');
     expect(phoneShellTitle('/routines')).toBe('Routines');
   });
 
   it('translates titles when the language is Spanish', () => {
     expect(phoneShellTitle('/dashboard', 'es')).toBe('Tablero');
-    expect(phoneShellTitle('/dashboard', 'es', 'myday')).toBe('Mi dia');
-    expect(phoneShellTitle('/today', 'es')).toBe('Mi dia');
+    expect(phoneShellTitle('/dashboard', 'es', 'myday')).toBe('Hoy');
+    expect(phoneShellTitle('/today', 'es')).toBe('Hoy');
     expect(phoneShellTitle('/routines', 'es')).toBe('Rutinas');
   });
 });

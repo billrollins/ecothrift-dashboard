@@ -14,15 +14,16 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import BadgeOutlined from '@mui/icons-material/BadgeOutlined';
+import AssignmentOutlined from '@mui/icons-material/AssignmentOutlined';
 import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined';
 import BuildCircleOutlined from '@mui/icons-material/BuildCircleOutlined';
 import FeedbackOutlined from '@mui/icons-material/FeedbackOutlined';
-import Inventory2Outlined from '@mui/icons-material/Inventory2Outlined';
+import MailOutline from '@mui/icons-material/MailOutline';
 import LockReset from '@mui/icons-material/LockReset';
 import Logout from '@mui/icons-material/Logout';
 import Person from '@mui/icons-material/Person';
 import SpaceDashboardOutlined from '@mui/icons-material/SpaceDashboardOutlined';
+import StorefrontOutlined from '@mui/icons-material/StorefrontOutlined';
 import StarOutlineRounded from '@mui/icons-material/StarOutlineRounded';
 import TranslateOutlined from '@mui/icons-material/TranslateOutlined';
 import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
@@ -72,8 +73,9 @@ function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 /**
- * The avatar menu is "me" (the HR side): the HR app (#56), who I am, my day, my schedule, my PIN, my requests, and
- * for the owner the Owner page (its tabs hold Reports, Approvals and Dash Updates). Language, View as and sign out close it.
+ * The avatar menu is Home (#67, Bill 2026-11-04): Store, Today, Schedule, Profile, Requests, Messages, the same list the
+ * phone app's Home will show. Then Dash Updates, and for the owner the Owner page. Language, View as and sign out close
+ * it. HR is workspace 0 for everyone and Supplies is in Facilities, so neither is lost from the menu.
  */
 export function AccountMenu() {
   const { user, logout, setLanguage, viewAs, stopViewAs } = useAuth();
@@ -93,13 +95,12 @@ export function AccountMenu() {
     close();
     navigate(path);
   };
-  const goMyDay = () => {
-    saveDashboardTab(user.id, 'myday');
-    go(dashboardTabHref('myday'));
+  const goDashboardTab = (tab: 'store' | 'myday') => {
+    saveDashboardTab(user.id, tab);
+    go(dashboardTabHref(tab));
   };
 
-  // Everyone sees the week's Schedule (Dash Updates #6; the People sidebar entry stays Manager / Admin).
-  // Owner is the owner's (Reports is one of its tabs).
+  // Everyone sees the week's Schedule (Dash Updates #6). Owner is the owner's (Reports is one of its tabs).
   const schedule = NAV_ITEM_CATALOG.schedule;
   const ownerItems = resolveNavItems(user, ['owner']);
   const ownerPage = ownerItems.find((item) => item.id === 'owner');
@@ -171,14 +172,14 @@ export function AccountMenu() {
           ) : null}
         </Box>
 
-        <SectionLabel key="sec-me">{t('sectionMe', lang)}</SectionLabel>
-        <MenuItem key="hr" data-testid="account-menu-hr" onClick={() => go('/hr')}>
-          <ListItemIcon><BadgeOutlined fontSize="small" /></ListItemIcon>
-          <ListItemText primary={t('hr', lang)} />
+        <SectionLabel key="sec-home">{t('sectionHome', lang)}</SectionLabel>
+        <MenuItem key="store" data-testid="account-menu-store" onClick={() => goDashboardTab('store')}>
+          <ListItemIcon><StorefrontOutlined fontSize="small" /></ListItemIcon>
+          <ListItemText primary={t('store', lang)} />
         </MenuItem>
-        <MenuItem key="my-day" data-testid="account-menu-my-day" onClick={goMyDay}>
+        <MenuItem key="today" data-testid="account-menu-my-day" onClick={() => goDashboardTab('myday')}>
           <ListItemIcon><SpaceDashboardOutlined fontSize="small" /></ListItemIcon>
-          <ListItemText primary={t('myDay', lang)} />
+          <ListItemText primary={t('today', lang)} />
         </MenuItem>
         <MenuItem key="schedule" data-testid="account-menu-schedule" onClick={() => go(schedule.path)}>
           <ListItemIcon><CalendarMonthOutlined fontSize="small" /></ListItemIcon>
@@ -186,14 +187,18 @@ export function AccountMenu() {
         </MenuItem>
         <MenuItem key="me" data-testid="account-menu-me" onClick={() => go('/me')}>
           <ListItemIcon><Person fontSize="small" /></ListItemIcon>
-          <ListItemText primary={t('myProfilePin', lang)} />
+          <ListItemText primary={t('profile', lang)} />
+        </MenuItem>
+        <MenuItem key="requests" data-testid="account-menu-requests" onClick={() => go('/hr')}>
+          <ListItemIcon><AssignmentOutlined fontSize="small" /></ListItemIcon>
+          <ListItemText primary={t('requests', lang)} />
+        </MenuItem>
+        <MenuItem key="messages" data-testid="account-menu-messages" onClick={() => go('/messages')}>
+          <ListItemIcon><MailOutline fontSize="small" /></ListItemIcon>
+          <ListItemText primary={t('messages', lang)} />
         </MenuItem>
 
-        <SectionLabel key="sec-requests">{t('sectionMyRequests', lang)}</SectionLabel>
-        <MenuItem key="supplies" data-testid="account-menu-supplies" onClick={() => go('/supplies')}>
-          <ListItemIcon><Inventory2Outlined fontSize="small" /></ListItemIcon>
-          <ListItemText primary={t('supplies', lang)} />
-        </MenuItem>
+        <Divider key="div-dash" component="li" sx={{ my: 0.5 }} />
         <MenuItem key="dash-fixes" data-testid="account-menu-dash-fixes" onClick={() => go('/dash-updates')}>
           <ListItemIcon><BuildCircleOutlined fontSize="small" /></ListItemIcon>
           <ListItemText primary={t('dashFixes', lang)} />

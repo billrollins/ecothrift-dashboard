@@ -12,7 +12,9 @@ export type NavAccessUser = (Parameters<typeof canAccessNav>[0] & { access?: str
 const ITEM_AREA: Record<string, string> = Object.fromEntries(
   SLOT_C_NAV_GROUPS.flatMap((group) => {
     const area = WORKSPACE_AREA[group.id];
-    return area ? [...group.itemIds, ...(group.setupItemIds ?? [])].map((id) => [id, area]) : [];
+    return area
+      ? [...group.itemIds, ...(group.setupItemIds ?? []), ...(group.managerItemIds ?? [])].map((id) => [id, area])
+      : [];
   }),
 );
 
@@ -54,11 +56,16 @@ export function resolveNavGroups(user: NavAccessUser, defs: NavGroupDef[]): Reso
     .filter((group) => Array.isArray(user?.access) || canAccessNav(user, group.roles))
     .map((group) => {
       const setupItems = resolveNavItems(user, group.setupItemIds ?? []);
+      const managerItems = resolveNavItems(user, group.managerItemIds ?? []);
       return {
         id: group.id,
         label: group.label,
-        items: [...resolveNavItems(user, group.itemIds), ...setupItems],
+        items: [...resolveNavItems(user, group.itemIds), ...setupItems, ...managerItems],
         setupItems,
+        setupLabel: group.setupLabel,
+        itemsLabel: group.itemsLabel,
+        managerItems,
+        managerLabel: group.managerLabel,
         guestItems: resolveNavItems(user, group.guestItemIds ?? []),
       };
     })

@@ -60,11 +60,12 @@ AREAS: tuple[Area, ...] = (
     Area('processing', 'Processing', 'Receive and process inbound orders'),
     Area('restoration', 'Restoration', 'Test, assemble, repair, salvage'),
     Area('inventory', 'Inventory', 'Search, counts, and quick fixes'),
-    Area('cashier', 'Cashier', 'Register, sales, drawers, cash and Thrift+'),
+    # #67: the Cashier workspace is Retail and People is HR; the ids (and every grant) stay.
+    Area('cashier', 'Retail', 'Register, sales, drawers, cash, customers and Thrift+'),
     Area('deliveries', 'Deliveries', 'Schedule days and every delivery'),
     Area('online_sales', 'Online Sales', 'List, reserve, message, and hand off at the register'),
     Area('studios', 'Studios', 'Social posts, labels, floorplans, announcements, and the blog'),
-    Area('people', 'People', 'Staff and hiring: users, schedule, applicants, onboarding and check-ins'),
+    Area('people', 'HR', 'HR Admin: staff, permissions, hiring, onboarding and check-ins'),
     Area('admin', 'Admin', 'Departments, shifts, routines, Retail QA, payroll, supplies, keys, and settings'),
 )
 AREA_IDS = tuple(a.id for a in AREAS)

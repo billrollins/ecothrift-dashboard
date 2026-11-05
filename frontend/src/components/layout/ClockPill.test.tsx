@@ -160,12 +160,12 @@ describe('ClockPill', () => {
     expect(state.clockOut).not.toHaveBeenCalled();
   });
 
-  it('a forgotten punch is fixed in My day, not clocked out from the pill', async () => {
+  it('a forgotten punch is fixed in Today, not clocked out from the pill', async () => {
     const user = userEvent.setup();
     state.entry = entry({ stale: { since: 'x', suggested_clock_out: 'y' } });
     renderPill();
     await user.click(screen.getByTestId('clock-pill'));
-    expect(screen.getByRole('button', { name: 'Fix it in My day' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fix it in Today' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Clock out' })).not.toBeInTheDocument();
   });
 });

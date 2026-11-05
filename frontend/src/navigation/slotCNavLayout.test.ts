@@ -22,16 +22,17 @@ describe('workspaceIdForDigit', () => {
     expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '3')).toBe('restoration');
   });
 
-  it('maps 0 to Admin', () => {
-    expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '0')).toBe('admin');
+  it('maps 0 to HR', () => {
+    expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '0')).toBe('hr');
   });
 
-  it('maps 8 to Studios', () => {
-    expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '8')).toBe('studios');
+  it('maps 7 to Studios and 8 to Facilities', () => {
+    expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '7')).toBe('studios');
+    expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '8')).toBe('facilities');
   });
 
-  it('maps 9 to People (hiring)', () => {
-    expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '9')).toBe('people');
+  it('maps 9 to Admin', () => {
+    expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '9')).toBe('admin');
   });
 
   it('refuses a digit past the list rather than wrapping', () => {
@@ -43,21 +44,20 @@ describe('workspaceIdForDigit', () => {
   });
 
   it('numbers the role-filtered list, not the full catalog', () => {
-    const employeeSees = SLOT_C_WORKSPACES.filter(
-      (w) => w.id !== 'onlineSales' && w.id !== 'admin' && w.id !== 'studios' && w.id !== 'people',
-    );
-    expect(employeeSees).toHaveLength(6);
-    expect(workspaceIdForDigit(employeeSees, '5')).toBe('storeSales');
+    const employeeSees = SLOT_C_WORKSPACES.filter((w) => w.id !== 'onlineSales' && w.id !== 'admin');
+    expect(employeeSees).toHaveLength(8);
+    expect(workspaceIdForDigit(employeeSees, '4')).toBe('storeSales');
     expect(workspaceIdForDigit(employeeSees, '6')).toBe('deliveries');
     expect(workspaceIdForDigit(employeeSees, '9')).toBeNull();
-    expect(workspaceIdForDigit(employeeSees, '7')).toBeNull();
+    expect(workspaceIdForDigit(employeeSees, '5')).toBeNull();
   });
 });
 
 describe('workspaceShortcutLetter', () => {
   it('is the first letter of the short name, uppercased', () => {
     expect(workspaceShortcutLetter(SLOT_C_WORKSPACES[0]!)).toBe('B');
-    expect(workspaceShortcutLetter(SLOT_C_WORKSPACES.find((w) => w.id === 'retailFloor')!)).toBe('I');
+    expect(workspaceShortcutLetter(SLOT_C_WORKSPACES.find((w) => w.id === 'storeSales')!)).toBe('R');
+    expect(workspaceShortcutLetter(SLOT_C_WORKSPACES.find((w) => w.id === 'hr')!)).toBe('H');
   });
 
   it('gives every workspace its own letter color', () => {
@@ -73,10 +73,12 @@ describe('workspaceIdForKey', () => {
 
   it('maps a letter to the workspace whose short name starts with it', () => {
     expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'r')).toBe('restoration');
-    expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'R')).toBe('restoration');
-    expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'i')).toBe('retailFloor');
+    expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'R')).toBe('restoration'); // before Retail, which is 4
+    expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'f')).toBe('facilities');
+    expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'h')).toBe('hr');
     expect(workspaceIdForKey(SLOT_C_WORKSPACES, 's')).toBe('studios');
     expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'a')).toBe('admin');
+    expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'i')).toBeNull();
     expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'l')).toBeNull();
   });
 
@@ -96,7 +98,7 @@ describe('workspaceIdForKey', () => {
       SLOT_C_WORKSPACES.find((w) => w.id === 'storeSales')!,
       SLOT_C_WORKSPACES.find((w) => w.id === 'admin')!,
     ];
-    // Store Sales is "Sales"; if Admin were also "Setup" it would lose. Force it.
+    // Force a shared first letter: the earlier row wins.
     const forced = [
       { ...collision[0]!, shortLabel: 'Sales' },
       { ...collision[1]!, shortLabel: 'Setup' },
@@ -134,53 +136,44 @@ describe('Processing workspace pages', () => {
     expect(NAV_ITEM_CATALOG.disputes).toBeUndefined();
   });
 
-  it('pins Restoration overview behind the out-of-workspace divider, without the plural s', () => {
-    expect(processing?.guestItemIds).toEqual(['restorations']);
+  it('pins Restoration overview and Search behind the out-of-workspace divider', () => {
+    expect(processing?.guestItemIds).toEqual(['restorations', 'inventoryWorkbench']);
     expect(NAV_ITEM_CATALOG.restorations?.label).toBe('Restoration');
     expect(NAV_ITEM_CATALOG.restorations?.path).toBe('/restoration/overview');
   });
 
   it('opens Floorplans in Studios, its only home (owner, 2026-10-02)', () => {
-    const groups = resolveNavGroups(
-      { role: 'Admin', is_superuser: true },
-      SLOT_C_NAV_GROUPS,
-    );
-    const workspaces = groups;
+    const groups = resolveNavGroups({ role: 'Admin', is_superuser: true }, SLOT_C_NAV_GROUPS);
     const isActive = (item: { path: string; pathAliases?: string[] }) =>
       navItemIsActive('/floor-ops/floorplans', '', '', item);
-    expect(resolveWorkspaceForRoute(workspaces, SLOT_C_WORKSPACES, isActive)).toBe('studios');
+    expect(resolveWorkspaceForRoute(groups, SLOT_C_WORKSPACES, isActive)).toBe('studios');
   });
 
   it('does not let that shortcut steal Overview away from the Restoration workspace', () => {
-    const groups = resolveNavGroups(
-      { role: 'Admin', is_superuser: true },
-      SLOT_C_NAV_GROUPS,
-    );
-    const workspaces = groups;
+    const groups = resolveNavGroups({ role: 'Admin', is_superuser: true }, SLOT_C_NAV_GROUPS);
     const isActive = (item: { path: string; pathAliases?: string[] }) =>
       navItemIsActive('/restoration/overview', '', '', item);
-    expect(resolveWorkspaceForRoute(workspaces, SLOT_C_WORKSPACES, isActive)).toBe('restoration');
+    expect(resolveWorkspaceForRoute(groups, SLOT_C_WORKSPACES, isActive)).toBe('restoration');
   });
 });
 
-describe('Studios and Admin placement', () => {
+describe('Studios, Admin, HR and Retail placement (#67)', () => {
   const admin = SLOT_C_NAV_GROUPS.find((g) => g.id === 'admin');
   const studios = SLOT_C_NAV_GROUPS.find((g) => g.id === 'studios');
-  const retailFloor = SLOT_C_NAV_GROUPS.find((g) => g.id === 'retailFloor');
   const onlineSales = SLOT_C_NAV_GROUPS.find((g) => g.id === 'onlineSales');
 
-  it('keeps Admin as Departments, Shifts, Routines, Command Center, Time & payroll, Requests, Keys, and Settings', () => {
-    expect(admin?.itemIds).toEqual([
-      'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'supplies', 'keys', 'settings',
-    ]);
-    expect(NAV_ITEM_CATALOG.superRequests?.superuserOnly).toBe(true);
+  it('keeps Admin to the owner page, approvals, routines and settings', () => {
+    expect(admin?.itemIds).toEqual(['owner', 'superRequests', 'contractors', 'adminRoutines', 'settings']);
+    expect(NAV_ITEM_CATALOG.contractors?.superuserOnly).toBe(true);
+    expect(NAV_ITEM_CATALOG.superRequests).toMatchObject({ label: 'Approvals', superuserOnly: true });
     expect(NAV_ITEM_CATALOG.adminRoutines?.superuserOnly).toBe(true);
-    expect(admin?.guestItemIds).toEqual(['icons']);  // owner-only tool, under the line
+    expect(admin?.guestItemIds).toEqual(['icons']); // owner-only tool, under the line
     expect(NAV_ITEM_CATALOG.icons?.superuserOnly).toBe(true);
   });
 
   it('puts every studio under Studios', () => {
-    expect(studios?.itemIds).toEqual(['socialStudio', 'labelStudio', 'floorplans', 'announcements', 'blogStudio']);
+    expect(studios?.itemIds).toEqual(['socialStudio']);
+    expect(studios?.managerItemIds).toEqual(['labelStudio', 'floorplans', 'announcements', 'blogStudio']);
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'library')).toBeUndefined();
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'mail')).toBeUndefined();
   });
@@ -193,36 +186,86 @@ describe('Studios and Admin placement', () => {
       .toEqual(['socialStudio', 'labelStudio', 'floorplans', 'announcements']);
   });
 
-  it('puts hiring in its own People workspace, for managers', () => {
-    const people = SLOT_C_NAV_GROUPS.find((g) => g.id === 'people');
-    expect(people?.itemIds).toEqual(['users', 'permissions', 'schedule', 'applicants', 'interviews', 'onboarding', 'checkins']);
-    expect(people?.setupItemIds).toEqual(['payrollDeductions', 'jobs', 'hiringEmails']);
-    expect(people?.roles).toEqual(['Manager', 'Admin']);
+  it('makes HR one workspace: My HR for everyone, HR Admin for managers', () => {
+    const hr = SLOT_C_NAV_GROUPS.find((g) => g.id === 'hr');
+    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'people')).toBeUndefined();
+    expect(hr?.itemIds).toEqual(['hrRequests', 'schedule', 'profile']);
+    expect(hr?.itemsLabel).toBe('My HR');
+    expect(hr?.managerLabel).toBe('HR Admin');
+    expect(hr?.roles).toBeUndefined();
+    const employee = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS);
+    expect(employee.find((g) => g.id === 'hr')?.items.map((i) => i.id)).toEqual(['hrRequests', 'schedule', 'profile']);
+    const manager = resolveNavGroups({ role: 'Manager', is_superuser: false }, SLOT_C_NAV_GROUPS);
+    expect(manager.find((g) => g.id === 'hr')?.managerItems.map((i) => i.id)).toEqual([
+      'users', 'permissions', 'applicants', 'interviews', 'onboarding', 'checkins',
+      'departments', 'shifts', 'payrollDeductions', 'jobs', 'hiringEmails',
+    ]);
     expect(NAV_ITEM_CATALOG.applicants?.path).toBe('/people/applicants');
+    // HR documents (#62) is the owner's, under HR Admin.
+    expect(hr?.managerItemIds).toContain('hrDocuments');
+    expect(manager.find((g) => g.id === 'hr')?.managerItems.map((i) => i.id)).not.toContain('hrDocuments');
   });
 
-  it('keeps Floorplans out of Retail Floor (Studios only) and Messages on Online Sales', () => {
-    expect(retailFloor?.itemIds).toEqual(['inventoryWorkbench', 'inventoryReview', 'inventoryCount', 'inventories']);
-    expect(retailFloor?.guestItemIds).toEqual(['prFixit', 'tagErrors']);   // under a line
+  it('has no Inventory workspace: its pages are Retail shortcuts and keep the Inventory dial', () => {
+    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'retailFloor')).toBeUndefined();
+    const retail = SLOT_C_NAV_GROUPS.find((g) => g.id === 'storeSales');
+    expect(retail?.guestItemIds).toEqual(['inventoryWorkbench', 'inventoryCount', 'inventoryReview', 'tagErrors']);
+    expect(retail?.managerItemIds).toContain('inventories');
+    for (const id of ['inventoryWorkbench', 'inventoryCount', 'inventoryReview', 'tagErrors', 'quickReprice']) {
+      expect(NAV_ITEM_CATALOG[id]?.area, id).toBe('inventory');
+    }
     expect(NAV_ITEM_CATALOG.tagErrors).toMatchObject({ path: '/inventory/tag-errors', label: 'Tag errors' });
-    expect(NAV_ITEM_CATALOG.tagErrors?.roles).toBeUndefined();
-    expect(retailFloor?.label).toBe('Inventory');
-    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'studios')?.itemIds).toContain('floorplans');
-    // Phase 1 redesign: no Essentials group. Dashboard is the logo; Owner and Reports live in the avatar menu.
+    // PR Fix-it is archived (its address still opens); Quick reprice is its reprice tab.
+    expect(SLOT_C_NAV_GROUPS.some((g) => [...g.itemIds, ...(g.guestItemIds ?? [])].includes('prFixit'))).toBe(false);
+    expect(NAV_ITEM_CATALOG.quickReprice).toMatchObject({ path: '/inventory/pr-fixit', navSearch: 'tab=reprice' });
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'essentials')).toBeUndefined();
-    for (const id of ['dashboard', 'owner', 'reports']) {
+    for (const id of ['dashboard', 'reports']) {
       expect(SLOT_C_NAV_GROUPS.some((g) => g.itemIds.includes(id) || g.guestItemIds?.includes(id))).toBe(false);
     }
     expect(NAV_ITEM_CATALOG.reports?.superuserOnly).toBe(true);
     expect(NAV_ITEM_CATALOG.owner).toMatchObject({ path: '/owner', superuserOnly: true, pathAliases: ['/brief'] });
     expect(onlineSales?.itemIds).toContain('onlineSalesCustomers');
   });
+
+  it('opens Retail for the Customers list and HR for the Staff list', () => {
+    const groups = resolveNavGroups({ role: 'Admin', is_superuser: true }, SLOT_C_NAV_GROUPS);
+    const at = (search: string) => resolveWorkspaceForRoute(groups, SLOT_C_WORKSPACES,
+      (item) => navItemIsActive('/admin/users', search, '', item));
+    expect(at('?tab=members')).toBe('storeSales');
+    expect(at('')).toBe('hr');
+  });
+});
+
+describe('Retail and the Managers section (Bill 2026-11-04)', () => {
+  const retail = SLOT_C_NAV_GROUPS.find((g) => g.id === 'storeSales');
+
+  it('opens with Register, Transactions, Customers; managers get Command Center and Cash Drops first', () => {
+    expect(retail?.itemIds.slice(0, 3)).toEqual(['posTerminal', 'posTransactions', 'customers']);
+    expect(NAV_ITEM_CATALOG.posTerminal?.label).toBe('Register');
+    expect(retail?.managerItemIds?.slice(0, 2)).toEqual(['retailQa', 'posCash']);
+    expect(NAV_ITEM_CATALOG.posCash?.label).toBe('Cash Drops');
+  });
+
+  it('shows an Employee no Managers section, and a Manager the pages their dials open', () => {
+    const employee = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS);
+    expect(employee.flatMap((g) => g.managerItems).map((i) => i.id)).toEqual([]);
+    const manager = resolveNavGroups({ role: 'Manager', is_superuser: false }, SLOT_C_NAV_GROUPS);
+    expect(manager.find((g) => g.id === 'storeSales')?.managerItems.map((i) => i.id))
+      .toEqual(['retailQa', 'posCash', 'posSetup', 'inventories']);
+  });
+
+  it('lists every page once per workspace', () => {
+    for (const g of SLOT_C_NAV_GROUPS) {
+      const ids = [...g.itemIds, ...(g.setupItemIds ?? []), ...(g.managerItemIds ?? []), ...(g.guestItemIds ?? [])];
+      expect(new Set(ids).size, g.id).toBe(ids.length);
+    }
+  });
 });
 
 describe('Finalize Thrift+ placement', () => {
-  it('sits in Cashier right after Terminal, for every staff role', () => {
+  it('sits in Retail for every staff role', () => {
     const storeSales = SLOT_C_NAV_GROUPS.find((g) => g.id === 'storeSales');
-    expect(storeSales?.itemIds.slice(0, 2)).toEqual(['posTerminal', 'thriftPlusFinalize']);
+    expect(storeSales?.itemIds).toContain('thriftPlusFinalize');
     expect(NAV_ITEM_CATALOG.thriftPlusFinalize).toMatchObject({ path: '/staff/find', label: 'Thrift+ Staff' });
     expect(NAV_ITEM_CATALOG.thriftPlusFinalize?.roles).toBeUndefined();
     expect(NAV_ITEM_CATALOG.thriftPlusFinalize?.superuserOnly).toBeUndefined();
@@ -233,41 +276,27 @@ describe('Finalize Thrift+ placement', () => {
 
 describe('Command Center placement', () => {
   const storeSales = SLOT_C_NAV_GROUPS.find((g) => g.id === 'storeSales');
-  const admin = SLOT_C_NAV_GROUPS.find((g) => g.id === 'admin');
 
-  it('sits in Cashiers behind the divider, and in Admin after Routines', () => {
-    expect(storeSales?.guestItemIds).toEqual(['retailQa']);
-    expect(storeSales?.itemIds).not.toContain('retailQa');
-    expect(admin?.itemIds).toEqual([
-      'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'supplies', 'keys', 'settings',
-    ]);
+  it('is a Retail page now that Admin is the owner tools (#67)', () => {
+    expect(storeSales?.managerItemIds).toContain('retailQa');
+    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'admin')?.itemIds).not.toContain('retailQa');
     expect(NAV_ITEM_CATALOG.retailQa?.label).toBe('Command Center');
     expect(NAV_ITEM_CATALOG.retailQa?.roles).toEqual(['Manager', 'Admin']);
     expect(NAV_ITEM_CATALOG.retailQa?.path).toBe('/admin/retail-qa');
   });
 
-  it('shows a Manager the page after the Cashier list', () => {
-    const groups = resolveNavGroups({ role: 'Manager', is_superuser: false }, SLOT_C_NAV_GROUPS);
-    const group = groups.find((g) => g.id === 'storeSales');
-    expect(group?.guestItems.map((item) => item.id)).toEqual(['retailQa']);
+  it('shows a Manager the page in Retail and not an Employee', () => {
+    const managers = resolveNavGroups({ role: 'Manager', is_superuser: false }, SLOT_C_NAV_GROUPS);
+    expect(managers.find((g) => g.id === 'storeSales')?.items.map((item) => item.id)).toContain('retailQa');
+    const employees = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS);
+    expect(employees.find((g) => g.id === 'storeSales')?.items.map((item) => item.id)).not.toContain('retailQa');
   });
 
-  it('leaves an Employee neither the page nor the divider above it', () => {
-    const groups = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS);
-    const group = groups.find((g) => g.id === 'storeSales');
-    expect(group?.items.map((item) => item.id)).not.toContain('retailQa');
-    expect(group?.guestItems).toEqual([]);
-  });
-
-  it('opens Admin when the Command Center URL is entered', () => {
-    const groups = resolveNavGroups(
-      { role: 'Admin', is_superuser: true },
-      SLOT_C_NAV_GROUPS,
-    );
-    const workspaces = groups;
+  it('opens Retail when the Command Center URL is entered', () => {
+    const groups = resolveNavGroups({ role: 'Admin', is_superuser: true }, SLOT_C_NAV_GROUPS);
     const isActive = (item: { path: string; pathAliases?: string[] }) =>
       navItemIsActive('/admin/retail-qa', '', '', item);
-    expect(resolveWorkspaceForRoute(workspaces, SLOT_C_WORKSPACES, isActive)).toBe('admin');
+    expect(resolveWorkspaceForRoute(groups, SLOT_C_WORKSPACES, isActive)).toBe('storeSales');
   });
 });
 
@@ -283,9 +312,9 @@ describe('Dash Updates placement', () => {
     }
   });
 
-  it('leaves Restoration without a guest page', () => {
+  it('gives Restoration only the Search shortcut', () => {
     const groups = resolveNavGroups({ role: 'Admin', is_superuser: true }, SLOT_C_NAV_GROUPS);
-    expect(groups.find((g) => g.id === 'restoration')?.guestItems).toEqual([]);
+    expect(groups.find((g) => g.id === 'restoration')?.guestItems.map((i) => i.id)).toEqual(['inventoryWorkbench']);
   });
 });
 
@@ -298,7 +327,7 @@ describe('glowColorForNavItem', () => {
     expect(glowColorForNavItem('receiving')).toBe(processing);
     expect(glowColorForNavItem('auctions')).toBe(buying);
     expect(glowColorForNavItem('retailQa')).toBe(
-      SLOT_C_WORKSPACES.find((w) => w.id === 'admin')!.shortcutColor,
+      SLOT_C_WORKSPACES.find((w) => w.id === 'storeSales')!.shortcutColor,
     );
   });
 
@@ -309,41 +338,61 @@ describe('glowColorForNavItem', () => {
 
   it('gives pages in no workspace no letter colour', () => {
     expect(glowColorForNavItem('dashboard')).toBeUndefined();
-    expect(glowColorForNavItem('owner')).toBeUndefined();
     expect(glowColorForNavItem('dashFixes')).toBeUndefined();
     expect(glowColorForNavItem('pay')).toBeUndefined();
     expect(glowColorForNavItem('routines')).toBeUndefined();
     expect(glowColorForNavItem('documents')).toBeUndefined();
   });
 
-  it('glows Supplies in the Admin colour now that it lives there', () => {
-    expect(glowColorForNavItem('supplies')).toBe('#1E293B');
+  it('glows Supplies in the Facilities colour now that it lives there', () => {
+    expect(glowColorForNavItem('supplies')).toBe('#DB2777');
   });
 });
 
 describe('Sidebar = the workspace you are in (phase 1 redesign)', () => {
-  const admin = SLOT_C_NAV_GROUPS.find((g) => g.id === 'admin');
-
-  it('has exactly the ten workspaces with the same digits, 0 = Admin', () => {
+  it('has exactly the ten workspaces with the same digits, 0 = HR', () => {
     expect(SLOT_C_NAV_GROUPS.map((g) => g.id)).toEqual(SLOT_C_WORKSPACES.map((w) => w.id));
     expect(SLOT_C_WORKSPACES.map((w) => w.shortcutDigit)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
+    expect(SLOT_C_WORKSPACES.map((w) => w.label)).toEqual([
+      'Buying', 'Processing', 'Restoration', 'Retail', 'Online Sales', 'Deliveries', 'Studios', 'Facilities', 'Admin', 'HR',
+    ]);
   });
 
-  it('moves Supplies into Admin, with no role gate of its own', () => {
-    expect(admin?.itemIds).toContain('supplies');
-    expect(NAV_ITEM_CATALOG.supplies?.roles).toBeUndefined();
-    expect(NAV_ITEM_CATALOG.supplies?.superuserOnly).toBeUndefined();
-  });
-
-  it('shows Supplies to a Manager in Admin and to an Employee nowhere in the sidebar', () => {
-    const manager = resolveNavGroups({ role: 'Manager', is_superuser: false }, SLOT_C_NAV_GROUPS);
-    expect(manager.find((g) => g.id === 'admin')?.items.map((i) => i.id)).toContain('supplies');
+  it('gives every staff login Supplies in Facilities, and Keys to the owner and Admins (#67)', () => {
+    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'facilities')?.itemIds).toEqual(['supplies']);
+    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'facilities')?.managerItemIds).toEqual(['keys']);
+    expect(NAV_ITEM_CATALOG.supplies?.need).toBeUndefined();
     const employee = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS);
-    expect(employee.flatMap((g) => g.items).map((i) => i.id)).not.toContain('supplies');
+    expect(employee.find((g) => g.id === 'facilities')?.items.map((i) => i.id)).toEqual(['supplies']);
   });
 
-  it('keeps Owner and Reports owner-only in the catalog (reached from the avatar menu)', () => {
+  it('keeps Owner and Reports owner-only in the catalog', () => {
     expect(NAV_ITEM_CATALOG.owner?.superuserOnly).toBe(true);
     expect(NAV_ITEM_CATALOG.reports?.superuserOnly).toBe(true);
+  });
+});
+
+describe('No hiding from staff (#67)', () => {
+  // Every page each level saw in the sidebar before #67 (v2.259.0). PR Fix-it was archived by Bill (2026-11-04).
+  const EMPLOYEE_BEFORE = [
+    'wishlist', 'auctions', 'watchlist', 'reportCards', 'vendors', 'orders', 'preprocessing', 'receiving', 'processing',
+    'restorations', 'restorationQueue', 'tars', 'restorationPartsRequests', 'restorationTracking', 'inventoryWorkbench',
+    'inventoryReview', 'inventoryCount', 'tagErrors', 'posTerminal', 'thriftPlusFinalize', 'posTransactions',
+    'posReturns', 'posDrawers', 'posTestTerminal', 'posPrintables', 'deliverySchedule', 'deliveryTable', 'socialStudio',
+  ];
+  const MANAGER_BEFORE = [
+    ...EMPLOYEE_BEFORE,
+    'posCash', 'posSetup', 'retailQa', 'inventories', 'onlineSalesListings', 'onlineSalesHolds', 'onlineSalesCustomers',
+    'labelStudio', 'floorplans', 'announcements', 'users', 'permissions', 'schedule', 'applicants', 'interviews',
+    'onboarding', 'checkins', 'payrollDeductions', 'jobs', 'hiringEmails', 'departments', 'shifts', 'supplies', 'settings',
+  ];
+
+  it('leaves every level every page it could open before', () => {
+    for (const [role, before] of [['Employee', EMPLOYEE_BEFORE], ['Manager', MANAGER_BEFORE]] as const) {
+      const seen = resolveNavGroups({ role, is_superuser: false }, SLOT_C_NAV_GROUPS)
+        .flatMap((g) => [...g.items, ...g.guestItems])
+        .map((i) => i.id);
+      for (const id of before) expect(seen, `${role} ${id}`).toContain(id);
+    }
   });
 });

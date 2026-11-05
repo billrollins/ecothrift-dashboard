@@ -15,7 +15,7 @@ const owner = { id: 4, role: 'Employee', is_superuser: true };
 describe('dashboard tabs', () => {
   beforeEach(() => localStorage.clear());
 
-  it('defaults to Store for Manager, Admin and the owner, and My day for an Employee', () => {
+  it('defaults to Store for Manager, Admin and the owner, and Today for an Employee', () => {
     expect(defaultDashboardTab(manager)).toBe('store');
     expect(defaultDashboardTab(admin)).toBe('store');
     expect(defaultDashboardTab(owner)).toBe('store');
@@ -46,14 +46,14 @@ describe('dashboard tabs', () => {
     expect(resolveDashboardTab('/dashboard', '?tab=store', manager)).toBe('store');
   });
 
-  it('treats a routine, a draft or the hours panel as My day', () => {
+  it('treats a routine, a draft or the hours panel as Today', () => {
     saveDashboardTab(2, 'store');
     expect(resolveDashboardTab('/dashboard', '?run=12', manager)).toBe('myday');
     expect(resolveDashboardTab('/dashboard', '?routine=3&draft=9', manager)).toBe('myday');
     expect(resolveDashboardTab('/dashboard', '?hours=1', manager)).toBe('myday');
   });
 
-  it('keeps /today, /routines and /pay on My day', () => {
+  it('keeps /today, /routines and /pay on Today', () => {
     saveDashboardTab(2, 'store');
     expect(resolveDashboardTab('/today', '', manager)).toBe('myday');
     expect(resolveDashboardTab('/routines/catalog', '', manager)).toBe('myday');

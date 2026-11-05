@@ -110,22 +110,22 @@ describe('DashboardPage (desk)', () => {
   });
 });
 
-describe('DashboardPage tabs (Store | My day)', () => {
+describe('DashboardPage tabs (Store | Today)', () => {
   beforeEach(() => localStorage.clear());
 
-  it('shows the store numbers on ?tab=store and not My day', () => {
+  it('shows the store numbers on ?tab=store and not Today', () => {
     renderPage('/dashboard?tab=store');
     expect(screen.getAllByRole('region').map((s) => s.getAttribute('aria-label'))).toEqual(['Sales', 'Departments']);
     expect(screen.queryByText('my day content')).not.toBeInTheDocument();
   });
 
-  it('shows the My day page (what /today was) inside the tab', async () => {
+  it('shows the Today page (what /today was) inside the tab', async () => {
     renderPage('/dashboard?tab=myday');
     await waitFor(() => expect(screen.getByText('my day content')).toBeInTheDocument());
     expect(screen.queryByRole('region', { name: 'Sales' })).not.toBeInTheDocument();
   });
 
-  it('opens My day for an Employee with no tab chosen, then follows the remembered tab', async () => {
+  it('opens Today for an Employee with no tab chosen, then follows the remembered tab', async () => {
     renderPage('/dashboard');
     await waitFor(() => expect(screen.getByText('my day content')).toBeInTheDocument());
   });

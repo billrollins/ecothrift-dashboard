@@ -15,8 +15,9 @@ describe('Test terminal in the Cashier nav (2026-10-16)', () => {
     const group = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS)
       .find((g) => g.id === 'storeSales');
     expect(group?.setupItems.map((item) => item.id)).toEqual(['posTestTerminal', 'posPrintables']);
+    // Register, Transactions, Customers (Bill 2026-11-04, #67); Customers is a manager's, so staff see Returns next.
     expect(cashierItems('Employee').slice(0, 5)).toEqual(
-      ['posTerminal', 'thriftPlusFinalize', 'posTransactions', 'posReturns', 'posDrawers']);
+      ['posTerminal', 'posTransactions', 'posReturns', 'posDrawers', 'thriftPlusFinalize']);
   });
 
   it('shows for Employee and up, not below', () => {
@@ -36,6 +37,6 @@ describe('Test terminal in the Cashier nav (2026-10-16)', () => {
     expect(cashierItems('Employee')).not.toContain('thriftPlusMembers');
     expect(cashierItems('Employee')).not.toContain('posCash');
     expect(cashierItems('Manager')).toContain('posCash');
-    expect(NAV_ITEM_CATALOG.posCash?.label).toBe('Cash');
+    expect(NAV_ITEM_CATALOG.posCash?.label).toBe('Cash Drops'); // #67; same page until its redesign
   });
 });

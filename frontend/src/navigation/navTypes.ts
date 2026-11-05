@@ -49,6 +49,17 @@ export interface NavGroupDef {
    * caption after the daily pages, so the pages used every shift sit on top (owner, 2026-10-19).
    */
   setupItemIds?: string[];
+  /** The caption over the set-apart pages; "Setup" when left out (HR's is "HR Admin", Bill 2026-11-04). */
+  setupLabel?: string;
+  /** A caption over the daily pages too, when the two parts are two audiences (HR: "My HR"). */
+  itemsLabel?: string;
+  /**
+   * The workspace's manager pages: always under the daily pages, after a line, captioned "Managers" (Bill
+   * 2026-11-04, #67). Each still shows only to whoever its dial lets in.
+   */
+  managerItemIds?: string[];
+  /** The caption over the manager pages; "Managers" when left out (HR's is "HR Admin"). */
+  managerLabel?: string;
   roles?: UserRole[];
 }
 
@@ -59,9 +70,14 @@ export interface ResolvedNavItem extends NavItemDef {
 export interface ResolvedNavGroup {
   id: string;
   label: string | null;
-  /** Every page the workspace owns: the daily ones, then its setup pages. */
+  /** Every page the workspace owns: the daily ones, its setup pages, then its manager pages. */
   items: ResolvedNavItem[];
   /** The tail of ``items`` drawn under the "Setup" caption. */
   setupItems: ResolvedNavItem[];
+  setupLabel?: string;
+  itemsLabel?: string;
+  /** The tail of ``items`` drawn under the line and the "Managers" caption. */
+  managerItems: ResolvedNavItem[];
+  managerLabel?: string;
   guestItems: ResolvedNavItem[];
 }

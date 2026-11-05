@@ -179,19 +179,34 @@ function WorkspacePanel({
   group: ResolvedNavGroup;
   renderRow: (item: ResolvedNavItem) => ReactNode;
 }) {
+  const caption = (text: string, top: number) => (
+    <Typography
+      variant="overline"
+      component="div"
+      sx={{ px: 2.25, mt: top, mb: 0.25, lineHeight: 1.6, fontSize: '0.65rem', letterSpacing: '0.08em', color: 'text.disabled' }}
+    >
+      {text}
+    </Typography>
+  );
+  const line = (
+    <Box aria-hidden sx={{ mx: 2.25, mt: 1.15, mb: 0.85, height: '1px', bgcolor: '#E2E8F0' }} />
+  );
+  const dailyItems = group.items.filter((item) => !group.setupItems.includes(item) && !group.managerItems.includes(item));
   return (
     <List component="div" disablePadding>
-      {group.items.filter((item) => !group.setupItems.includes(item)).map(renderRow)}
+      {group.itemsLabel && dailyItems.length > 0 && group.managerItems.length > 0 ? caption(group.itemsLabel, 0) : null}
+      {dailyItems.map(renderRow)}
       {group.setupItems.length > 0 ? (
         <>
-          <Typography
-            variant="overline"
-            component="div"
-            sx={{ px: 2.25, mt: 1, mb: 0.25, lineHeight: 1.6, fontSize: '0.65rem', letterSpacing: '0.08em', color: 'text.disabled' }}
-          >
-            Setup
-          </Typography>
+          {caption(group.setupLabel ?? 'Setup', 1)}
           {group.setupItems.map(renderRow)}
+        </>
+      ) : null}
+      {group.managerItems.length > 0 ? (
+        <>
+          {dailyItems.length + group.setupItems.length > 0 ? line : null}
+          {caption(group.managerLabel ?? 'Managers', 0)}
+          {group.managerItems.map(renderRow)}
         </>
       ) : null}
       {group.guestItems.length > 0 ? (

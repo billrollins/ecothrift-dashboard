@@ -20,13 +20,13 @@ export const WORKSPACE_AREA: Record<string, AreaId> = {
   buying: 'buying',
   processing: 'processing',
   restoration: 'restoration',
-  retailFloor: 'inventory',
   storeSales: 'cashier',
   deliveries: 'deliveries',
   onlineSales: 'online_sales',
   studios: 'studios',
-  people: 'people',
   admin: 'admin',
+  // HR and Facilities (#67) have no area of their own: each page carries its own need (HR Admin pages keep
+  // People's), so My HR and Supplies open for every staff login. Inventory pages carry area 'inventory'.
 };
 
 /** What a page, menu entry or button needs: an item id, a dial step (`admin:manage`), or any one of a list. */
