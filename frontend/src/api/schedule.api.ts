@@ -146,6 +146,9 @@ export const copyScheduleWeek = (from: string, to: string) =>
   api.post<{ made: number }>('/hr/schedule/copy-week/', { from, to });
 export const fillScheduleFromUsual = (start: string) =>
   api.post<{ made: number }>('/hr/schedule/fill-usual/', { start });
+/** Empty the week's schedule (Dash Updates #74); the page asks the manager to type to confirm first. */
+export const clearScheduleWeek = (start: string) =>
+  api.post<{ cleared: number }>('/hr/schedule/clear-week/', { start });
 export const getMyWeek = () =>
   api.get<{ start: string; end: string; shifts: ScheduledShift[] }>('/hr/schedule/my-week/');
 

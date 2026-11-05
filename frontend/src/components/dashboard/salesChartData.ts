@@ -10,6 +10,8 @@ export interface SalesChartPoint {
 }
 
 export interface SalesChartRow {
+  /** Day position (0, 1, 2 ...; goal crossings fall between days), so a number axis spaces the days evenly. */
+  x: number;
   date: string;
   day: string;
   weekStart: string;
@@ -54,6 +56,7 @@ export function buildSalesChartData(
     over: goalAmount != null && v >= goalAmount ? v : null,
   });
   const makeRow = (
+    x: number,
     date: string,
     day: string,
     weekStart: string,
@@ -63,6 +66,7 @@ export function buildSalesChartData(
     const r = split(rolling);
     const a = split(avg);
     return {
+      x,
       date,
       day,
       weekStart,
@@ -78,7 +82,7 @@ export function buildSalesChartData(
   const rows: SalesChartRow[] = [];
   for (let i = 0; i < dailyPoints.length; i += 1) {
     const p = dailyPoints[i];
-    rows.push(makeRow(p.date, p.day, p.weekStart, p.rolling, p.avg));
+    rows.push(makeRow(i, p.date, p.day, p.weekStart, p.rolling, p.avg));
     if (goalAmount == null || i === dailyPoints.length - 1) continue;
 
     const n = dailyPoints[i + 1];
@@ -97,7 +101,7 @@ export function buildSalesChartData(
       let avgV = p.avg + (n.avg - p.avg) * c.t;
       if (c.series === 'rolling') rollingV = goalAmount;
       else avgV = goalAmount;
-      rows.push(makeRow('', '', p.weekStart, rollingV, avgV));
+      rows.push(makeRow(i + c.t, '', '', p.weekStart, rollingV, avgV));
     }
   }
   return rows;
@@ -140,4 +144,20 @@ export function salesChartMax(
     0,
   );
   return Math.ceil(Math.max(highestDataPoint, goalAmount ?? 0) * 1.08);
+}
+
+/** Y-axis gridlines every $5K (owner 2026-11-05), from 0 to just above the highest line or the goal. */
+export function salesFiveKTicks(chartMax: number): number[] {
+  const top = Math.max(5000, Math.ceil(chartMax / 5000) * 5000);
+  return Array.from({ length: top / 5000 + 1 }, (_, i) => i * 5000);
+}
+
+/** The days shown: `weeks` weeks ending `backWeeks` weeks before the last day. */
+export function salesTrendWindow(
+  daily: SalesDailyMetric[],
+  weeks: number,
+  backWeeks: number,
+): SalesDailyMetric[] {
+  const end = Math.max(0, daily.length - backWeeks * 7);
+  return daily.slice(Math.max(0, end - weeks * 7), end);
 }

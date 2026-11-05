@@ -1,13 +1,12 @@
 /**
  * Schedule at a glance (Bill, Dash Updates #55, 2026-11-03): the pure logic behind the page.
  * - Sections: one per home department, fixed (Retail) first, then the server's department order.
- * - Usual pattern: each person's usual weekly shifts said once ("Mon-Fri 9-5"); a flexible row only draws a day that
- *   differs from usual (day off, call-in, extra or changed shift).
+ * - Hours (Dash Updates #74, 2026-11-05): planned for the week, planned so far against worked so far, and the pace.
  * - Floor coverage: how many fixed (Retail) shifts are on the floor through store hours, with gaps and single coverage.
  * - Part A (Bill, 2026-11-03): coverage for every department (only fixed ones flag gaps), drag snapping (15 minutes on
  *   the week, 5 in the enlarged day).
  */
-import type { CallIn, ScheduledShift, ScheduleWeek, UsualShift } from '../../api/schedule.api';
+import type { ScheduleWeek } from '../../api/schedule.api';
 
 export type Person = ScheduleWeek['people'][number];
 
@@ -70,46 +69,54 @@ export const endMinutes = (s: { start_time: string; end_time: string }) => {
 
 export const range = (start: string, end: string) => `${short(minutes(start))}-${short(minutes(end))}`;
 
-/** Weekday runs: [0,1,2,3,4] → 'Mon-Fri', [0,2,3] → 'Mon, Wed-Thu'. `names` is Monday first. */
-export function dayRuns(days: number[], names: string[]): string {
-  const sorted = [...new Set(days)].sort((a, b) => a - b);
-  const parts: string[] = [];
-  for (let i = 0; i < sorted.length;) {
-    let j = i;
-    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] + 1) j += 1;
-    parts.push(j === i ? names[sorted[i]] : `${names[sorted[i]]}-${names[sorted[j]]}`);
-    i = j + 1;
-  }
-  return parts.join(', ');
+export interface Pace {
+  /** Scheduled for the whole week. */
+  planned: number;
+  /** Scheduled up to now: past days whole, today's shift up to this minute. */
+  toDate: number;
+  /** Clocked so far (null when the reader may not see it). */
+  worked: number | null;
+  /** Worked minus scheduled so far; null when there is nothing to compare yet. */
+  delta: number | null;
+  /** What the week ends at if the rest goes as planned. */
+  pace: number | null;
 }
 
-/** The usual week once: 'Mon-Fri 9-5' or 'Mon-Fri 9-5 · Sat 8:30-4:30'; '' when there is none. */
-export function usualText(usual: UsualShift[], names: string[]): string {
-  const groups = new Map<string, number[]>();
-  for (const u of usual) {
-    const key = range(u.start_time, u.end_time);
-    groups.set(key, [...(groups.get(key) ?? []), u.weekday]);
-  }
-  return [...groups.entries()]
-    .sort((a, b) => Math.min(...a[1]) - Math.min(...b[1]))
-    .map(([times, days]) => `${dayRuns(days, names)} ${times}`)
-    .join(' · ');
-}
+/** Within this many hours of plan counts as on track. */
+export const ON_TRACK = 0.5;
 
-export type DayKind = 'none' | 'usual' | 'off' | 'extra' | 'changed' | 'callin';
+const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /**
- * What a flexible row shows on one day (weekday 0 = Monday). A call-in always wins and replaces the shift. A usual day
- * with no shift is a day off, but only once the week has been built (`weekBuilt`), so an empty week is not all "Off".
+ * Hours for one person this week (Bill, Dash Updates #74): planned for the week, planned so far against worked so far,
+ * and where the week lands at this pace. `today` is 'yyyy-MM-dd'; a week wholly past counts every day, a future one none.
  */
-export function dayKind(usual: UsualShift[], weekday: number, shifts: ScheduledShift[], calls: CallIn[], weekBuilt: boolean): DayKind {
-  if (calls.length) return 'callin';
-  const today = usual.filter((u) => u.weekday === weekday);
-  if (!shifts.length) return today.length && weekBuilt ? 'off' : 'none';
-  if (!today.length) return 'extra';
-  const same = shifts.length === today.length
-    && shifts.every((s) => today.some((u) => u.start_time === s.start_time && u.end_time === s.end_time));
-  return same ? 'usual' : 'changed';
+export function hoursPace(shifts: Array<{ date: string; start_time: string; end_time: string; hours: number }>, worked: number | null | undefined, today: string, nowMinutes: number): Pace {
+  let planned = 0;
+  let toDate = 0;
+  for (const s of shifts) {
+    planned += s.hours;
+    if (s.date < today) toDate += s.hours;
+    else if (s.date === today) {
+      const from = minutes(s.start_time);
+      const to = endMinutes(s);
+      // Today counts up to this minute, the same way clocked time does (Bill, 2026-11-05: both through now).
+      const done = Math.min(Math.max(nowMinutes - from, 0), to - from);
+      toDate += to > from ? s.hours * (done / (to - from)) : 0;
+    }
+  }
+  const started = shifts.some((s) => s.date <= today) || (worked ?? 0) > 0;
+  // Every number is rounded before it is compared, so what shows adds up.
+  const w = worked == null ? null : round1(worked);
+  const p = round1(planned);
+  const d = round1(toDate);
+  return {
+    planned: p,
+    toDate: d,
+    worked: w,
+    delta: w == null || !started ? null : round1(w - d),
+    pace: w == null || !started ? null : round1(w + p - d),
+  };
 }
 
 export interface Segment { from: number; to: number; count: number }

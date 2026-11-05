@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { ScheduledShift, UsualShift } from '../../api/schedule.api';
-import { coverage, dayKind, dayRuns, groupSections, sectionCoverage, snap, summarize, timelineWindow, toHHMM, usualText, type Person } from './scheduleLayout';
+import type { ScheduledShift } from '../../api/schedule.api';
+import { coverage, groupSections, hoursPace, sectionCoverage, snap, summarize, timelineWindow, toHHMM, type Person } from './scheduleLayout';
 
-const NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const usual = (days: number[], start = '09:00', end = '17:00'): UsualShift[] =>
-  days.map((weekday) => ({ weekday, start_time: start, end_time: end, department: 2, department_name: 'Processing', flexible: true }));
 const shift = (start_time: string, end_time: string, id = 1) => ({ id, start_time, end_time } as ScheduledShift);
 const person = (id: number, department: number | null, department_name: string, fixed = false) =>
   ({ id, name: `P${id}`, department, department_name, fixed, usual: [], hours: 0 } as Person);
@@ -23,23 +20,22 @@ describe('groupSections', () => {
   });
 });
 
-describe('usual pattern', () => {
-  it('says the usual week once', () => {
-    expect(usualText(usual([0, 1, 2, 3, 4]), NAMES)).toBe('Mon-Fri 9-5');
-    expect(usualText([...usual([0, 1, 3, 4]), ...usual([5], '08:30', '16:30')], NAMES)).toBe('Mon-Tue, Thu-Fri 9-5 · Sat 8:30-4:30');
-    expect(usualText([], NAMES)).toBe('');
-    expect(dayRuns([4, 0, 2], NAMES)).toBe('Mon, Wed, Fri');
+describe('hours pace', () => {
+  const day = (date: string, start_time = '09:00', end_time = '17:00', hours = 8) => ({ date, start_time, end_time, hours });
+  const week = [day('2026-10-19'), day('2026-10-20'), day('2026-10-21'), day('2026-10-22')];
+
+  it('sets worked so far against planned so far, today up to this minute', () => {
+    // Wednesday 1 pm: Mon + Tue whole (16) and half of today's 9-5 (4) planned so far.
+    expect(hoursPace(week, 18.5, '2026-10-21', 13 * 60)).toEqual({ planned: 32, toDate: 20, worked: 18.5, delta: -1.5, pace: 30.5 });
   });
 
-  it('shows a day only when it differs from usual', () => {
-    const u = usual([0, 1, 2, 3, 4]);
-    expect(dayKind(u, 0, [shift('09:00', '17:00')], [], true)).toBe('usual');
-    expect(dayKind(u, 0, [shift('10:00', '14:00')], [], true)).toBe('changed');
-    expect(dayKind(u, 5, [shift('09:00', '13:00')], [], true)).toBe('extra');
-    expect(dayKind(u, 1, [], [], true)).toBe('off');
-    expect(dayKind(u, 1, [], [], false)).toBe('none'); // an unbuilt week is not all "Off"
-    expect(dayKind(u, 6, [], [], true)).toBe('none');
-    expect(dayKind(u, 0, [shift('09:00', '17:00')], [{ id: 1 } as never], true)).toBe('callin');
+  it('a past week counts every day; a future one has nothing to compare yet', () => {
+    expect(hoursPace(week, 33, '2026-10-26', 0)).toMatchObject({ toDate: 32, delta: 1, pace: 33 });
+    expect(hoursPace(week, 0, '2026-10-12', 600)).toMatchObject({ planned: 32, toDate: 0, delta: null, pace: null });
+  });
+
+  it('without clock times (staff seeing others) it is the plan only', () => {
+    expect(hoursPace(week, null, '2026-10-21', 600)).toMatchObject({ planned: 32, worked: null, delta: null });
   });
 });
 

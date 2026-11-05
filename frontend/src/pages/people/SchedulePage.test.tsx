@@ -14,6 +14,7 @@ const api = vi.hoisted(() => ({
   deleteScheduledShift: vi.fn(),
   copyScheduleWeek: vi.fn(),
   fillScheduleFromUsual: vi.fn(),
+  clearScheduleWeek: vi.fn(),
   recordCallIn: vi.fn(),
   getScheduleRequests: vi.fn(),
   askScheduleChange: vi.fn(),
@@ -83,36 +84,45 @@ describe('SchedulePage', () => {
     setWide(true);
   });
 
-  it('groups by department, Retail first, and shows only what differs from usual', async () => {
+  it('groups by department, Retail first, and every department draws green bars', async () => {
     renderPage();
     const carrie = await screen.findByTestId('schedule-row-5');
     const sections = screen.getAllByTestId(/^section-/).map((el) => el.dataset.testid);
     expect(sections).toEqual(['section-1', 'section-2']);
-    // Retail: a bar on the timeline; a call-in replaces the shift; call-ins this week, not "2 / 3".
-    expect(within(carrie).getByTestId('bar-11')).toHaveTextContent('9-3');
-    expect(within(screen.getByTestId('cell-5-2026-10-22')).getByTestId('callin-cell')).toHaveTextContent('Called in9-3');
-    expect(within(screen.getByTestId('cell-5-2026-10-22')).queryByTestId('bar-14')).toBeNull();
-    expect(carrie).toHaveTextContent('1 call-in this week');
+    // Retail: a bar on the timeline with its times inside; a call-in keeps the bar and adds a red line (Bill 11-05).
+    expect(within(carrie).getByTestId('bar-label-11')).toHaveTextContent('9-3');
+    const thu = screen.getByTestId('cell-5-2026-10-22');
+    expect(within(thu).getByTestId('bar-14')).toBeInTheDocument();
+    expect(within(thu).getByTestId('callin-mark-14')).toHaveAttribute('aria-label', 'Called in: Sick');
+    expect(within(thu).queryByTestId('callin-cell')).toBeNull();
+    expect(within(carrie).getByTestId('callins-5')).toHaveAttribute('aria-label', expect.stringContaining('2 call-ins in 30 days'));
     expect(carrie).not.toHaveTextContent('2 / 3');
-    // Processing: the usual week once; Wed changed, Thu is usual (nothing drawn), Mon/Tue/Fri are days off.
+    // Processing (Dash Updates #74): bars like Retail on every day with a shift, even one that matches the usual week;
+    // a day without a shift is empty (no "Off" chips, no usual-week line).
     const dave = screen.getByTestId('schedule-row-6');
-    expect(screen.getByTestId('usual-6')).toHaveTextContent('Mon-Fri 9-5');
-    expect(screen.getByTestId('cell-6-2026-10-21')).toHaveTextContent('8-4');
-    expect(screen.getByTestId('cell-6-2026-10-22')).toHaveTextContent('');
-    expect(screen.getByTestId('cell-6-2026-10-19')).toHaveTextContent('Off');
+    expect(screen.queryByTestId('usual-6')).toBeNull();
+    expect(within(screen.getByTestId('cell-6-2026-10-21')).getByTestId('bar-label-12')).toHaveTextContent('8-4');
+    expect(within(screen.getByTestId('cell-6-2026-10-22')).getByTestId('bar-label-13')).toHaveTextContent('9-5');
+    expect(screen.getByTestId('cell-6-2026-10-19')).toHaveTextContent('');
     expect(screen.getByTestId('cell-6-2026-10-24')).toHaveTextContent('');
     expect(dave).not.toHaveTextContent('call-in');
     // Coverage: Carrie called in Thursday, so nobody is on the floor; Tuesday she covers 9-3 alone.
     expect(screen.getByTestId('coverage-1-2026-10-22')).toHaveTextContent('Gap 9-6');
-    expect(screen.getByTestId('coverage-1-2026-10-20')).toHaveTextContent('Gap 3-6');
+    expect(screen.getByTestId('coverage-1-2026-10-20')).toHaveTextContent('Gap 3-6 +1');
     expect(screen.getByTestId('coverage-1-2026-10-19')).toHaveTextContent('Gap 9-6');
-    expect(screen.getByTestId('coverage-row-1')).toHaveTextContent('Closed');
+    expect(screen.getByTestId('section-1')).toHaveTextContent('Closed');
     // Part A: every department has coverage (no flags outside Retail); Sunday is a full day.
-    expect(screen.getByTestId('coverage-2-2026-10-21')).toHaveTextContent('1 on 8-4');
-    expect(within(screen.getByTestId('section-1')).getAllByRole('columnheader').map((th) => th.textContent)).toContain('Sun 25');
-    // Actual clock times: a grey strip under the bar, and scheduled / actual hours.
+    // Lean (11-05): a count without a thin spot is the strip, its words on hover; the day names are said once.
+    expect(screen.getByTestId('coverage-2-2026-10-21')).toHaveAttribute('aria-label', '1 on 8-4');
+    expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toContain('Sun 25');
+    // Actual clock times: a purple strip under the bar.
     expect(within(screen.getByTestId('cell-5-2026-10-20')).getByTestId('actual-strip')).toBeInTheDocument();
-    expect(screen.getByTestId('actual-hours-5')).toHaveTextContent('/ 6.3');
+    // Hours on one line (11-05): worked / planned, amber with how far off the plan so far (a past week: all of it).
+    // Worked | Due | Week (Bill 11-05: labelled columns); a past week is due in full.
+    expect(within(screen.getByTestId('hours-5')).getAllByText(/./).map((el) => el.textContent)).toEqual(['6.3', '12', '12']);
+    expect(screen.getByTestId('hours-5')).toHaveAttribute('aria-label', expect.stringContaining('Worked 6.3 of 12 h so far: 5.7 h behind'));
+    expect(screen.getByTestId('hours-6')).toHaveTextContent('––16'); // no clock times to compare
+    expect(screen.getByTestId('so-far-6')).toHaveTextContent('–');
   });
 
   it('hovering the shift bar shows the clocked times, not the scheduled ones', async () => {
@@ -154,7 +164,14 @@ describe('SchedulePage', () => {
     fireEvent.pointerDown(handle, { clientX: 100 });
     window.dispatchEvent(new MouseEvent('pointermove', { clientX: 140 })); // +26.7 min → snaps to +30
     window.dispatchEvent(new MouseEvent('pointerup', { clientX: 140 }));
+    // The change waits, orange, until Save (Bill 11-05): nothing is sent yet.
+    const bar = await screen.findByTestId('save-bar');
+    expect(bar).toHaveTextContent('1 change not saved');
+    expect(api.updateScheduledShift).not.toHaveBeenCalled();
+    expect(screen.getByTestId('bar-label-11')).toHaveTextContent('9-3:30');
+    fireEvent.click(within(bar).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(api.updateScheduledShift).toHaveBeenCalledWith(11, { start_time: '09:00', end_time: '15:30' }));
+    await waitFor(() => expect(screen.queryByTestId('save-bar')).not.toBeInTheDocument());
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     vi.restoreAllMocks();
   });
@@ -178,7 +195,7 @@ describe('SchedulePage', () => {
     expect(within(screen.getByTestId('schedule-card-5')).getByTestId('bar-11')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Wed\s*21/ }));
     expect(within(screen.getByTestId('schedule-card-6')).getByTestId('bar-12')).toBeInTheDocument();
-    expect(screen.getByTestId('coverage-2-2026-10-21')).toHaveTextContent('1 on 8-4');
+    expect(screen.getByTestId('coverage-2-2026-10-21')).toHaveAttribute('aria-label', '1 on 8-4');
   });
 
   it('collapses a flexible department', async () => {
@@ -205,6 +222,74 @@ describe('SchedulePage', () => {
     // UTC, so a week with a clock change (Nov 1) is still 7 days.
     expect(new Date(`${to}T12:00Z`).getTime() - new Date(`${from}T12:00Z`).getTime()).toBe(7 * 86_400_000);
   });
+
+  it('clears the week only after the manager types the word', async () => {
+    // Dash Updates #74: no browser confirm(); the dialog says what goes and waits for "clear".
+    api.clearScheduleWeek.mockResolvedValue({ data: { cleared: 4 } });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId('schedule-row-5');
+    await user.click(screen.getByRole('button', { name: 'Clear week' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('removes all 4 shifts');
+    const go = within(dialog).getByRole('button', { name: 'Clear week' });
+    expect(go).toBeDisabled();
+    await user.type(within(dialog).getByTestId('clear-week-confirm'), 'clea');
+    expect(go).toBeDisabled();
+    await user.type(within(dialog).getByTestId('clear-week-confirm'), 'r');
+    await user.click(go);
+    await waitFor(() => expect(api.clearScheduleWeek).toHaveBeenCalledWith('2026-10-19'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+});
+
+describe('two weeks in one scroll (Bill, Dash Updates #74, 2026-11-05)', () => {
+  const NEXT_DAYS = ['2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31', '2026-11-01'];
+  const NEXT: ScheduleWeek = {
+    ...WEEK, start: '2026-10-26', end: '2026-11-01',
+    days: NEXT_DAYS,
+    store_hours: WEEK.store_hours.map((h, i) => ({ ...h, date: NEXT_DAYS[i] })),
+    people: WEEK.people.map((p) => ({ ...p, actual_hours: null })),
+    shifts: [{ ...WEEK.shifts[0], id: 41, date: '2026-10-27', start_time: '10:00', end_time: '16:00', text: '10am-4pm' }],
+    actual: [], call_ins: [], requests: [],
+  };
+  beforeEach(() => {
+    localStorage.clear();
+    Object.values(api).forEach((fn) => fn.mockReset());
+    api.getScheduleWeek.mockImplementation((start: string) => Promise.resolve({ data: start === '2026-10-26' ? NEXT : WEEK }));
+    api.getScheduleRequests.mockResolvedValue({ data: [] });
+    setWide(true);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 20, 10, 0));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('runs on into next week; the header and hours follow once next Monday is reached', async () => {
+    renderPage();
+    expect(await screen.findByTestId('cell-5-2026-10-27')).toBeInTheDocument(); // next Tuesday, same scroll
+    expect(screen.getByTestId('schedule-week-label')).toHaveTextContent('Oct 19-25');
+    expect(screen.getByTestId('so-far-5')).toHaveTextContent('6.3');
+    const scroller = screen.getByTestId('schedule-scroll');
+    scroller.scrollLeft = 7 * 220;
+    fireEvent.scroll(scroller);
+    expect(await screen.findByText('Oct 26-Nov 1')).toBeInTheDocument();
+    expect(screen.getByTestId('hours-5')).toHaveTextContent(/6$/); // next week: 6 planned
+  });
+
+  it('Cancel drops every unsaved change', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 900 } as DOMRect);
+    renderPage();
+    const handle = within(await screen.findByTestId('cell-5-2026-10-20')).getByTestId('handle-end-11');
+    fireEvent.pointerDown(handle, { clientX: 100 });
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 140 }));
+    window.dispatchEvent(new MouseEvent('pointerup', { clientX: 140 }));
+    const bar = await screen.findByTestId('save-bar');
+    fireEvent.click(within(bar).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByTestId('save-bar')).toBeNull();
+    expect(screen.getByTestId('bar-label-11')).toHaveTextContent('9-3');
+    expect(api.updateScheduledShift).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
 });
 
 describe('schedule helpers', () => {
@@ -226,6 +311,7 @@ describe('schedule helpers', () => {
     expect(within(carrie).getByTestId('now-late')).toHaveAttribute('aria-label', 'Late');
     expect(within(screen.getByTestId('schedule-row-6')).getByTestId('now-on_shift')).toHaveAttribute('aria-label', 'On shift');
     expect(screen.queryByText('Copy last week')).not.toBeInTheDocument();
+    expect(screen.queryByText('Clear week')).not.toBeInTheDocument();
     expect(screen.queryByText('Call-ins')).not.toBeInTheDocument();
     expect(screen.queryByTestId('callin-cell')).toBeNull();
     await userEvent.click(carrie.querySelectorAll('td')[2]);

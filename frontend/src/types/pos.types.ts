@@ -482,6 +482,10 @@ export interface SalesMetrics {
   today_thriftplus_revenue?: string;
   goal: DashboardSalesGoal | null;
   daily_last_90_days: SalesDailyMetric[];
+  /** Every day since 2026-01-01 (older days cached on the server), for the scrollable trend. */
+  daily_history?: SalesDailyMetric[];
+  /** Last week's sales from Monday through the same weekday as today. */
+  last_week_to_date?: string;
   weekly_last_14_weeks: SalesWeeklyRow[];
 }
 

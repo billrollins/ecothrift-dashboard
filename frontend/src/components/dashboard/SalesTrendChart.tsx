@@ -57,6 +57,15 @@ export interface SalesTrendChartProps {
   goalAmount: number | null;
   goalLabel?: string | null;
   yAxisWidth?: number;
+  /** Fixed gridlines (the desktop card uses $5K steps); recharts picks them when left out. */
+  yTicks?: number[];
+  /** The desktop card (owner 2026-11-05): $5K and $20K labels, a softer gold glow, room for the line's end. */
+  desktop?: boolean;
+}
+
+/** "$0", "$5K", "$20K". */
+export function salesAxisDollars(v: number): string {
+  return v === 0 ? '$0' : `$${Math.round(v / 1000)}K`;
 }
 
 export function SalesTrendChart({
@@ -67,10 +76,24 @@ export function SalesTrendChart({
   goalAmount,
   goalLabel,
   yAxisWidth = 44,
+  yTicks,
+  desktop = false,
 }: SalesTrendChartProps) {
+  // Desktop: a number axis on the day position, so goal-crossing points don't widen their week.
+  const xOf = new Map<string, number>();
+  const dateOf = new Map<number, string>();
+  if (desktop) {
+    for (const row of data) {
+      if (!row.date) continue;
+      xOf.set(row.date, row.x);
+      dateOf.set(row.x, row.date);
+    }
+  }
+  const xKey = (date: string): string | number => (desktop ? xOf.get(date) ?? 0 : date);
+  const lastX = data.length ? data[data.length - 1].x : 0;
   return (
     <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50} initialDimension={CHART_INITIAL_DIMENSION}>
-      <ComposedChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+      <ComposedChart data={data} margin={{ top: desktop ? 8 : 4, right: desktop ? 14 : 8, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={dashboardPalette.green} stopOpacity={0.3} />
@@ -85,28 +108,46 @@ export function SalesTrendChart({
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(99, 112, 102, 0.22)" />
+        {/* Desktop leaves the alternating week shading out: the Monday dates mark the weeks. */}
         {weekBands
-          .filter((b) => b.shaded)
+          .filter((b) => b.shaded && !desktop)
           .map((b) => (
             <ReferenceArea
               key={b.x1}
-              x1={b.x1}
-              x2={b.x2}
+              x1={xKey(b.x1)}
+              x2={xKey(b.x2)}
               fill="currentColor"
               fillOpacity={0.035}
             />
           ))}
-        <XAxis
+        {desktop ? (
+          <XAxis
+            dataKey="x"
+            type="number"
+            domain={[0, lastX]}
+            allowDataOverflow
+            ticks={ticks.map((d) => xOf.get(d) ?? 0)}
+            tickFormatter={(v: number) => shortDate(dateOf.get(v) ?? '')}
+            tick={{ fontSize: 11, fontWeight: 600, fill: dashboardPalette.muted }}
+            tickLine={{ stroke: 'rgba(99, 112, 102, 0.35)' }}
+            axisLine={{ stroke: 'rgba(99, 112, 102, 0.35)' }}
+            interval={0}
+          />
+        ) : <XAxis
           dataKey="date"
           ticks={ticks}
           tickFormatter={shortDate}
           tick={{ fontSize: 11, fontWeight: 600, fill: dashboardPalette.muted }}
           interval={0}
-        />
+        />}
         <YAxis
           domain={[0, chartMax]}
-          tickFormatter={(v) => `$${Math.round(v / 1000)}k`}
+          ticks={yTicks}
+          interval={yTicks ? 0 : undefined}
+          tickFormatter={desktop ? salesAxisDollars : (v) => `$${Math.round(v / 1000)}k`}
           tick={{ fontSize: 10, fill: dashboardPalette.muted }}
+          tickLine={!desktop}
+          axisLine={desktop ? { stroke: 'rgba(99, 112, 102, 0.35)' } : true}
           width={yAxisWidth}
         />
         <RechartsTooltip content={<ChartTooltip />} />
@@ -135,6 +176,7 @@ export function SalesTrendChart({
           stroke="none"
           fill="url(#salesFill)"
           name="7-day total"
+          isAnimationActive={!desktop}
         />
         <Line
           type="monotone"
@@ -161,7 +203,7 @@ export function SalesTrendChart({
         />
         {goalAmount != null && (
           <>
-            <Line
+            {!desktop && <Line
               type="monotone"
               dataKey="rollingOver"
               stroke="#ffe08a"
@@ -173,12 +215,12 @@ export function SalesTrendChart({
               legendType="none"
               isAnimationActive={false}
               tooltipType="none"
-            />
+            />}
             <Line
               type="monotone"
               dataKey="rollingOver"
-              stroke="url(#goldHighlight)"
-              strokeWidth={3}
+              stroke={desktop ? dashboardPalette.gold : 'url(#goldHighlight)'}
+              strokeWidth={desktop ? 2 : 3}
               strokeLinecap="round"
               dot={false}
               connectNulls={false}
@@ -189,8 +231,8 @@ export function SalesTrendChart({
             <Line
               type="monotone"
               dataKey="avgOver"
-              stroke="url(#goldHighlight)"
-              strokeWidth={3}
+              stroke={desktop ? dashboardPalette.greenDark : 'url(#goldHighlight)'}
+              strokeWidth={desktop ? 2 : 3}
               strokeDasharray="5 5"
               strokeLinecap="butt"
               dot={false}

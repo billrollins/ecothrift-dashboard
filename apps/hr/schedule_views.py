@@ -224,6 +224,16 @@ def schedule_fill_usual_view(request):
     return Response({'made': schedule.fill_from_usual(target, request.user)})
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsManagerOrAdmin])
+def schedule_clear_week_view(request):
+    """``{start}``: empty that week's schedule (Dash Updates #74). The page asks the manager to type to confirm."""
+    target = schedule.parse_day(request.data.get('start'))
+    if not target:
+        return Response({'detail': 'Say which week.'}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({'cleared': schedule.clear_week(target)})
+
+
 @api_view(['GET'])
 @permission_classes([IsTeamMember])
 def my_week_view(request):

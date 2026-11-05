@@ -367,3 +367,13 @@ def fill_from_usual(target: date, actor) -> int:
             taken.add((assignment.employee_id, day))
             made += 1
     return made
+
+
+def clear_week(target: date) -> int:
+    """Empty one week's schedule (Dash Updates #74): every scheduled shift Monday to Sunday is removed.
+    Call-ins and requests stay (a call-in only loses its link to the shift); clock times are not touched."""
+    from apps.hr.models import ScheduledShift
+
+    target = week_start(target)
+    deleted, _ = ScheduledShift.objects.filter(date__gte=target, date__lte=target + timedelta(days=6)).delete()
+    return deleted

@@ -1,23 +1,33 @@
-v2.262.0 — Thrift+: no crash under Chrome translate, staff finish a stuck join; Buying: Get manifest
+v2.263.0 — Schedule much better; desktop Weekly Sales card rebuilt
 
-User-facing theme: **Thrift+ no longer crashes when Chrome translates it, and staff can finish a stuck online join in the store (Dash #80, #79); Buying: Get manifest on any live lot (Dash #76) and the price-slip fix as a Request.**
+User-facing theme: **Schedule much better (clear a week, green bars for every department, hours that show who is on track; Dash #74) and the desktop Weekly Sales card rebuilt (12/36-week trend back to Jan 1, Today first, $5K gridlines).**
 
-> **For staff:** a customer whose Thrift+ app won't let them finish joining: open them in the Thrift+ Staff app's **Find**, tap **Edit name or phone** and read their mobile number back to them, then **Finish here: their selfie and I agree** and hand them the store phone. They take their own selfie and tap I agree themselves; never tap it for them. No ID check.
->
-> **For Bill:** on an auction with no manifest, tap **Get manifest**. With your B-Stock login on, the rows arrive in about a minute. If it is off, tap **Connect B-Stock**, then your Send to Eco-Thrift bookmark on B-Stock: that is the only tap (no more "Send?").
+> **For managers:** **Clear week** (top right, beside Copy last week) empties the week shown once you type *clear*. Every department now shows its shifts as green bars, like Retail. **Hours** shows the week's plan on top and, under it, hours worked of the hours planned so far: a green check is on track, an amber number is how far behind (−) or ahead (+).
 
 ### Added
-- #79: **Finish here** on a person's sheet in the Thrift+ Staff app (J8, J13, J19): a stuck join on their own phone with both names and a confirmed phone is finished on the store phone with the customer's own selfie and their own tap on I agree (no ID check, never an Assisted join). `members.finish_in_store`, `POST /api/thriftplus/people/<id>/finish-in-store/` (logged `finished_in_store`), `finalize/StoreFinish.tsx`. Edit name or phone now also confirms a number already on file that was never confirmed, when staff type it again; the customer's selfie is always taken new on this screen. The register's not-finished words point staff to it. Tests: `apps/thriftplus/tests/test_finish_in_store.py`, `FinalizeThriftPlusPage.test.tsx`.
-- `ManifestRequest` (`buying/0039`, also `ManifestPullJob.kind` shortlist / requests, with a database default) and `GET`/`POST /api/buying/auctions/{id}/manifest-request/` (superuser) in `services/manifest_requests.py`. Requested lots skip the 36 h window, freshness and retry wait, never the hard checks; refused with the reason otherwise. Every running pull takes waiting requests before its own list. The tap, a login hand-over, a job ending `done` and the 10-minute `pull_shortlist_manifests` (backstop) start a requests job off the request thread; a silent requests job is taken over after 3 minutes. Tests: `apps/buying/tests/test_manifest_requests.py`.
-- One ceiling for every signed-in manifest pull: kill switch, #75's back-off (a 429 on the manifest host now starts it), and `buying_manifest_calls_per_hour` (200) / `buying_manifest_calls_per_day` (600) from `ManifestPullLog.api_calls`. Waiting requests say why.
-- Auction page (no-manifest card, superuser): **Get manifest** and one line (waiting for the login with **Connect B-Stock** / paused, why / pulling / failed, reason + Retry); the rows load in place. `components/buying/ManifestRequestLine.tsx` + test.
-- Request kind `buying.fix_price_slip` (`apps/buying/approval_kinds.py`, Dash #75 follow-up): the slip plan is frozen at staging, applies only where the price still equals the old value, with an undo.
+- `POST /api/hr/schedule/clear-week/ {start}` (Manager+): removes every scheduled shift Monday to Sunday of that week; call-ins (they lose only the link to the shift), requests and clock times stay. Schedule page: **Clear week** button with a type-*clear*-to-confirm dialog (no browser confirm). Tests in `apps/hr/tests/test_schedule.py`, `SchedulePage.test.tsx`.
 
 ### Changed
-- B-Stock login hand-off (`/routines/bstock-login`): sends by itself for the signed-in owner, then closes or shows the page he came from. Stated cost: any page opening that link with a B-Stock login could swap in that login (it only changes whose account pulls manifests). No password is stored; the app never signs in to B-Stock.
-
-### Fixed
-- Edit name or phone in the Thrift+ Staff app: saving only a name sent a blank phone, which removed the number on file (the form says "Leave blank to keep it"). Blank now keeps it.
-- #80: the member app (/scan) and the Staff app crashed ("Something went wrong" / "Algo salió mal") when Chrome translated the page: tapping Send my code on Add your mobile number swapped the button's words for a spinner and React lost the translated text node (`removeChild` NotFoundError; 7 crashes for one member on 11-05). A guard in `frontend/src/utils/translateGuard.ts`, installed before the first render, makes `removeChild` and `insertBefore` forgiving of nodes the translator moved; translation stays on. Words that swap with a spinner or a button are wrapped in a `<span>` (member app Primary, Finish joining, Account buttons, the code step's resend line; Finalize, Assisted join and the person sheet), so no translated words are left behind. Test: `translateGuard.test.tsx` reproduces the crash without the guard.
+- Schedule lean pass (Bill, 2026-11-05: "bloated", "busy, smooshed"):
+  - One table for every department, with the day names once at the top. They stick to the top of the page and slide with the days.
+  - No scrollbars and no inner scroll box. The normal mouse wheel over the days steps one day per notch; over the names, or past the first or last day, the page scrolls. ‹ › arrows step a day, and **Today** puts today at the far left.
+  - Each department is a shaded band that carries its coverage: a full-width strip on the bars' timeline, grey where nobody is on, with words only on a short day or Closed.
+  - Thin lines between days. Weekends shaded; today is a green outline with a green pill on its name (no fill).
+  - Bars sit on white with the full times inside, or just beside a short shift. A called-in shift is a red bar. Bar-end grips show on the hovered day. The clocked line is faint when on plan.
+  - Hours are three labelled columns, **Worked | Due | Week**, in a muted band, on desk and phone. Worked is green on track and amber when off.
+  - Call-ins show as a small count beside the name.
+  - On the phone the week tools fold into **Week tools**.
+- Schedule round 2 (Bill, 2026-11-05):
+  - One sideways scroll for every department across this week and next. Names and hours stay put, the week buttons land on a Monday, and the header, hours and week buttons follow once next Monday is reached.
+  - Saturday and Sunday are shaded, with a line before each Monday. Coverage rows are their own band.
+  - Days are wider, with each shift's times inside its bar in bigger type.
+  - Dragged times turn orange and wait for **Save** / **Cancel**, so several can be changed at once.
+  - A call-in keeps the shift's bar, with a red line under it and the reason on hover. Call-in counts moved under the name; the Call-ins column is gone.
+  - "Worked of planned so far" counts today through now on both sides.
+- Schedule: every department draws its shifts as the green timeline bars Retail uses; the flexible "only what differs from usual" chips and the usual-week line under each name (Dash Updates #55) are gone. Call-ins, notes, request marks, the purple clock line, drag-to-edit and coverage rows stay (only Retail flags gaps). Each shift's times sit on one line just above its bar, so they are never cut off; phone rows show first name and last initial. Coverage: a count that changes over its span reads as a range ("2-3 on 9-5"), several gaps as a count ("1 only ×2", the hover lists them).
+- Schedule **Planned · worked** column (was Hrs): planned for the week; under it worked of planned so far (today counted in whole quarter hours) with a green check within half an hour or the amber difference; the hover says it in full with where the week ends at this pace (`hoursPace` in `scheduleLayout.ts`).
+- Desktop Weekly Sales card (`SalesOverviewSection.tsx`): one title line like the department cards; **Today** big with **Last <same weekday>** beside it and today's Returns and Thrift+ with it; **This week** with **Last wk to date** in the same shape, smaller; **Rolling 7 days** and **Weekly goal** side by side. Rolling 7 is decorated by the goal (gold with a trophy at or over, green from 80%, red under 80%); hovering it shows "% of goal" inside the box. The goal box is the plain reference (click opens the goal dialog). On a wide card (1920) the week line shares a row with the two boxes, and Returns / Thrift+ sit in today's row over them. Phone dashboard unchanged.
+- Trend chart: 12 weeks by default, **36 wk** zoom, scroll back to 2026-01-01 with ‹ › (4 weeks), **Now**, and the mouse wheel (a week a notch); gridlines every $5K ($0, $5K ... labels); a legend under the chart replaces the in-chart goal label; on desktop the dates are evenly spaced (goal-crossing points no longer widen their week), no week shading, no gold glow. `apps/pos/services/dashboard_metrics.py`: `daily_history` since 2026-01-01 (older days cached 6 h) and `last_week_to_date`.
+- Tests: `SalesOverviewSection.test.tsx` (layout, the three Rolling 7 tones, the hover, ‹ / Now / wheel, 36 wk). Critic cycle 5 + 2: 7 rounds, B+ to A (trail in `workspace/critic/sales-card/`).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

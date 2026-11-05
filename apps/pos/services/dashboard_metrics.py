@@ -21,6 +21,10 @@ from apps.pos.models import (
 )
 from apps.pos.services import sales_numbers
 DASHBOARD_CACHE_SECONDS = 45
+# The sales trend scrolls back to here (owner 2026-11-05). Days older than the live window are cached, since they
+# rarely change; the live window (about 4 months) is always fresh.
+SALES_HISTORY_START = date(2026, 1, 1)
+SALES_HISTORY_CACHE_SECONDS = 6 * 60 * 60
 QUICK_REPRICE_NOTE = 'Quick reprice'
 DEFAULT_DEPARTMENT_WEEKS = 8
 MIN_DEPARTMENT_WEEKS = 2
@@ -143,6 +147,37 @@ def _day_payload(
     }
 
 
+def _trend_point(day: date, revenue_by_day: dict[date, Decimal]) -> dict[str, Any]:
+    """One day on the trend chart: the trailing 7-day total and the 4-week weekly average."""
+    week_start = _week_start_sunday(day)
+    week_sum = sum((revenue_by_day.get(day - timedelta(days=back), Decimal('0')) for back in range(7)), Decimal('0'))
+    four_week_sum = sum(
+        (revenue_by_day.get(day - timedelta(days=back), Decimal('0')) for back in range(28)), Decimal('0'),
+    )
+    return {
+        'date': day.isoformat(),
+        'day': day.strftime('%A'),
+        'rolling_week_total': _str_dec(week_sum),
+        'four_week_weekly_avg': _str_dec(four_week_sum / Decimal('4')),
+        'week_start': week_start.isoformat(),
+        'is_week_start': day == week_start,
+    }
+
+
+def _older_revenue_by_day(live_start: date, today: date) -> dict[date, Decimal]:
+    """Net item sales by day from 4 weeks before the history start up to the live window, cached for hours."""
+    start = SALES_HISTORY_START - timedelta(days=27)
+    end = live_start - timedelta(days=1)
+    if end < start:
+        return {}
+    key = f'dashboard:sales-history:{start.isoformat()}:{end.isoformat()}'
+    cached = cache.get(key)
+    if cached is None:
+        cached = {day.isoformat(): str(n['net_item_sales']) for day, n in sales_numbers.by_day(start, end).items()}
+        cache.set(key, cached, SALES_HISTORY_CACHE_SECONDS)
+    return {date.fromisoformat(day): Decimal(value) for day, value in cached.items()}
+
+
 def build_sales_metrics(today: date | None = None) -> dict[str, Any]:
     today = today or timezone.localdate()
     yesterday = today - timedelta(days=1)
@@ -159,26 +194,22 @@ def build_sales_metrics(today: date | None = None) -> dict[str, Any]:
     items_by_day = _daily_items_sold_series(revenue_start, today)
     surcharge_by_day = _daily_surcharge_series(revenue_start, today)
 
-    daily_last_90_days = []
-    for offset in range(89, -1, -1):
-        day = today - timedelta(days=offset)
-        week_start = _week_start_sunday(day)
-        week_sum = sum(
-            (revenue_by_day.get(day - timedelta(days=back), Decimal('0')) for back in range(7)),
-            Decimal('0'),
-        )
-        four_week_sum = sum(
-            (revenue_by_day.get(day - timedelta(days=back), Decimal('0')) for back in range(28)),
-            Decimal('0'),
-        )
-        daily_last_90_days.append({
-            'date': day.isoformat(),
-            'day': day.strftime('%A'),
-            'rolling_week_total': _str_dec(week_sum),
-            'four_week_weekly_avg': _str_dec(four_week_sum / Decimal('4')),
-            'week_start': week_start.isoformat(),
-            'is_week_start': day == week_start,
-        })
+    daily_last_90_days = [_trend_point(today - timedelta(days=offset), revenue_by_day) for offset in range(89, -1, -1)]
+
+    # Since the start of 2026 for the scrollable trend: older days from a cache, the live window from above.
+    history_revenue = {**_older_revenue_by_day(revenue_start, today), **revenue_by_day}
+    first_day = min(SALES_HISTORY_START, ninety_start)
+    daily_history = [
+        _trend_point(first_day + timedelta(days=i), history_revenue)
+        for i in range((today - first_day).days + 1)
+    ]
+    # Last week through the same weekday as today, to set against this week so far.
+    last_monday = this_monday - timedelta(weeks=1)
+    last_week_to_date = sum(
+        (revenue_by_day.get(last_monday + timedelta(days=i), Decimal('0'))
+         for i in range((today - this_monday).days + 1)),
+        Decimal('0'),
+    )
 
     # Mon-Sun weeks, the week holding today first. Keyed by Monday so a Sunday stays in its own week (the Sunday
     # bucket put Sunday's sales in "1 Week Ago" under an empty "This Week") and the dates match the days shown.
@@ -228,6 +259,8 @@ def build_sales_metrics(today: date | None = None) -> dict[str, Any]:
             'description': goal.description,
         } if goal else None,
         'daily_last_90_days': daily_last_90_days,
+        'daily_history': daily_history,
+        'last_week_to_date': _str_dec(last_week_to_date),
         'weekly_last_14_weeks': weekly_last_14_weeks,
     }
 

@@ -135,6 +135,29 @@ class ScheduleWeekTests(APITestCase):
         self.assertEqual(self.client.post('/api/hr/schedule/fill-usual/', {'start': '2026-10-19'},
                                           format='json').json()['made'], 0)
 
+    def test_clear_week_empties_only_that_week_and_keeps_call_ins(self):
+        # Dash Updates #74: a manager empties the shown week; other weeks, call-ins and staff rights stay.
+        monday = ScheduledShift.objects.create(employee=self.carrie, date=MONDAY, start_time=time(9), end_time=time(15))
+        ScheduledShift.objects.create(employee=self.dave, date=MONDAY + timedelta(days=6), start_time=time(8),
+                                      end_time=time(16))
+        ScheduledShift.objects.create(employee=self.carrie, date=MONDAY + timedelta(days=7), start_time=time(9),
+                                      end_time=time(15))
+        ScheduledShift.objects.create(employee=self.carrie, date=MONDAY - timedelta(days=1), start_time=time(9),
+                                      end_time=time(15))
+        call_in = CallIn.objects.create(employee=self.carrie, shift_date=MONDAY, scheduled_shift=monday,
+                                        reason='Sick', recorded_by=self.manager)
+        self.client.force_authenticate(self.carrie)
+        self.assertEqual(self.client.post('/api/hr/schedule/clear-week/', {'start': '2026-10-21'},
+                                          format='json').status_code, 403)
+        self.client.force_authenticate(self.manager)
+        self.assertEqual(self.client.post('/api/hr/schedule/clear-week/', {}, format='json').status_code, 400)
+        res = self.client.post('/api/hr/schedule/clear-week/', {'start': '2026-10-21'}, format='json')
+        self.assertEqual(res.json(), {'cleared': 2})
+        self.assertEqual(sorted(ScheduledShift.objects.values_list('date', flat=True)),
+                         [MONDAY - timedelta(days=1), MONDAY + timedelta(days=7)])
+        call_in.refresh_from_db()
+        self.assertIsNone(call_in.scheduled_shift)
+
     def test_the_week_carries_usual_shifts_and_store_hours(self):
         # Dash Updates #55: flexible rows show only days that differ from usual; Retail draws a timeline on store hours.
         usual = Shift.objects.create(name='Test Flex', department=self.processing, time_in=time(9),

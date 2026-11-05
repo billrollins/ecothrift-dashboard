@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.262.0] -->
-<!-- Last reviewed: 2026-11-05 (2.262.0) -->
+<!-- Line 1 release: ## [2.263.0] -->
+<!-- Last reviewed: 2026-11-05 (2.263.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,38 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.263.0] - 2026-11-05
+
+User-facing theme: **Schedule much better (clear a week, green bars for every department, hours that show who is on track; Dash #74) and the desktop Weekly Sales card rebuilt (12/36-week trend back to Jan 1, Today first, $5K gridlines).**
+
+> **For managers:** **Clear week** (top right, beside Copy last week) empties the week shown once you type *clear*. Every department now shows its shifts as green bars, like Retail. **Hours** shows the week's plan on top and, under it, hours worked of the hours planned so far: a green check is on track, an amber number is how far behind (−) or ahead (+).
+
+### Added
+- `POST /api/hr/schedule/clear-week/ {start}` (Manager+): removes every scheduled shift Monday to Sunday of that week; call-ins (they lose only the link to the shift), requests and clock times stay. Schedule page: **Clear week** button with a type-*clear*-to-confirm dialog (no browser confirm). Tests in `apps/hr/tests/test_schedule.py`, `SchedulePage.test.tsx`.
+
+### Changed
+- Schedule lean pass (Bill, 2026-11-05: "bloated", "busy, smooshed"):
+  - One table for every department, with the day names once at the top. They stick to the top of the page and slide with the days.
+  - No scrollbars and no inner scroll box. The normal mouse wheel over the days steps one day per notch; over the names, or past the first or last day, the page scrolls. ‹ › arrows step a day, and **Today** puts today at the far left.
+  - Each department is a shaded band that carries its coverage: a full-width strip on the bars' timeline, grey where nobody is on, with words only on a short day or Closed.
+  - Thin lines between days. Weekends shaded; today is a green outline with a green pill on its name (no fill).
+  - Bars sit on white with the full times inside, or just beside a short shift. A called-in shift is a red bar. Bar-end grips show on the hovered day. The clocked line is faint when on plan.
+  - Hours are three labelled columns, **Worked | Due | Week**, in a muted band, on desk and phone. Worked is green on track and amber when off.
+  - Call-ins show as a small count beside the name.
+  - On the phone the week tools fold into **Week tools**.
+- Schedule round 2 (Bill, 2026-11-05):
+  - One sideways scroll for every department across this week and next. Names and hours stay put, the week buttons land on a Monday, and the header, hours and week buttons follow once next Monday is reached.
+  - Saturday and Sunday are shaded, with a line before each Monday. Coverage rows are their own band.
+  - Days are wider, with each shift's times inside its bar in bigger type.
+  - Dragged times turn orange and wait for **Save** / **Cancel**, so several can be changed at once.
+  - A call-in keeps the shift's bar, with a red line under it and the reason on hover. Call-in counts moved under the name; the Call-ins column is gone.
+  - "Worked of planned so far" counts today through now on both sides.
+- Schedule: every department draws its shifts as the green timeline bars Retail uses; the flexible "only what differs from usual" chips and the usual-week line under each name (Dash Updates #55) are gone. Call-ins, notes, request marks, the purple clock line, drag-to-edit and coverage rows stay (only Retail flags gaps). Each shift's times sit on one line just above its bar, so they are never cut off; phone rows show first name and last initial. Coverage: a count that changes over its span reads as a range ("2-3 on 9-5"), several gaps as a count ("1 only ×2", the hover lists them).
+- Schedule **Planned · worked** column (was Hrs): planned for the week; under it worked of planned so far (today counted in whole quarter hours) with a green check within half an hour or the amber difference; the hover says it in full with where the week ends at this pace (`hoursPace` in `scheduleLayout.ts`).
+- Desktop Weekly Sales card (`SalesOverviewSection.tsx`): one title line like the department cards; **Today** big with **Last <same weekday>** beside it and today's Returns and Thrift+ with it; **This week** with **Last wk to date** in the same shape, smaller; **Rolling 7 days** and **Weekly goal** side by side. Rolling 7 is decorated by the goal (gold with a trophy at or over, green from 80%, red under 80%); hovering it shows "% of goal" inside the box. The goal box is the plain reference (click opens the goal dialog). On a wide card (1920) the week line shares a row with the two boxes, and Returns / Thrift+ sit in today's row over them. Phone dashboard unchanged.
+- Trend chart: 12 weeks by default, **36 wk** zoom, scroll back to 2026-01-01 with ‹ › (4 weeks), **Now**, and the mouse wheel (a week a notch); gridlines every $5K ($0, $5K ... labels); a legend under the chart replaces the in-chart goal label; on desktop the dates are evenly spaced (goal-crossing points no longer widen their week), no week shading, no gold glow. `apps/pos/services/dashboard_metrics.py`: `daily_history` since 2026-01-01 (older days cached 6 h) and `last_week_to_date`.
+- Tests: `SalesOverviewSection.test.tsx` (layout, the three Rolling 7 tones, the hover, ‹ / Now / wheel, 36 wk). Critic cycle 5 + 2: 7 rounds, B+ to A (trail in `workspace/critic/sales-card/`).
 
 ## [2.262.0] - 2026-11-05
 
