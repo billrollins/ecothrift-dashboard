@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from django.conf import settings
@@ -26,6 +26,7 @@ from apps.buying.services.listing_mapping import (
     _parse_end_time,
     _price_to_dollars,
     _to_int,
+    apply_closed_inference,
     map_listing_raw_to_auction_fields,
 )
 
@@ -68,7 +69,7 @@ def merge_auction_state_into_fields(
         if d is not None:
             fields['starting_price'] = d
     bn = _first(state, 'buyNowPrice', 'buyItNowPrice', 'binPrice')
-    if bn is None and isinstance(state.get('buyNow'), dict):
+    if bn is None and isinstance(state.get('buyNow'), dict) and state['buyNow'].get('enabled') is not False:
         bn = _first(state['buyNow'], 'price', 'amount')
     if bn is not None:
         d = _price_to_dollars(bn)
@@ -90,19 +91,10 @@ def merge_auction_state_into_fields(
     st = _first(state, 'status', 'auctionStatus', 'state')
     if st is not None:
         fields['status'] = _normalize_status(st)
-
-
-def apply_closed_inference(fields: dict[str, Any], now: datetime) -> None:
-    """If auction has clearly ended, set status to closed (does not change WatchlistEntry)."""
-    et = fields.get('end_time')
-    if et is not None:
-        if timezone.is_naive(et):
-            et = timezone.make_aware(et, timezone.get_current_timezone())
-        if et <= now:
-            fields['status'] = Auction.STATUS_CLOSED
-            return
-    tr = fields.get('time_remaining_seconds')
-    if tr is not None and tr == 0:
+    # Anonymous auction state (2026-11-05) has no status field but says closed / canceled.
+    if state.get('canceled') is True:
+        fields['status'] = Auction.STATUS_CANCELLED
+    elif state.get('closed') is True:
         fields['status'] = Auction.STATUS_CLOSED
 
 
@@ -329,6 +321,7 @@ def run_discovery(
 
     with transaction.atomic():
         sweep_result = sweep_upsert.run_sweep_upsert_for_batches(sweep_batches, now)
+    closed_n = close_ended_auctions()
     # Distances for new seller cities (shipping formula): one Google call, never fails the sweep.
     _ensure_origin_miles_for(sweep_result.get('auction_ids') or [])
 
@@ -368,7 +361,27 @@ def run_discovery(
         'by_marketplace': by_marketplace_out,
         'inserted': inserted,
         'updated': updated,
+        'closed_ended': closed_n,
     }
+
+
+CLOSE_GRACE = sweep_upsert.CLOSE_GRACE
+
+
+def close_ended_auctions(now: datetime | None = None) -> int:
+    """
+    Every open or closing lot whose end time has passed becomes closed (Dash #75). Search has no
+    status field, so before this a lot stayed "open" forever unless it was watched (prod
+    2026-11-05: 7,710 open, 188 with a future end time). Runs after each sweep and quick check.
+    An hour's grace: a watched lot keeps being polled past its end (popcorn bidding moves the end
+    a few minutes at a time) and reads its own final state; a lot the search still lists with a
+    new end time is reopened by the upsert anyway.
+    """
+    now = now or timezone.now()
+    return Auction.objects.filter(
+        status__in=[Auction.STATUS_OPEN, Auction.STATUS_CLOSING],
+        end_time__lte=now - CLOSE_GRACE,
+    ).update(status=Auction.STATUS_CLOSED)
 
 
 def _auction_to_merge_fields(auction: Auction) -> dict[str, Any]:
@@ -458,6 +471,7 @@ def run_watch_poll(
     *,
     force: bool = False,
     dry_run: bool = False,
+    background: bool = False,
 ) -> dict[str, Any]:
     """
     Poll auction.bstock.com for watched auctions (JWT required), write snapshots,
@@ -508,7 +522,7 @@ def run_watch_poll(
     listing_ids = [a.external_id for a in candidates]
     states: dict[str, dict[str, Any]] = {}
     try:
-        states = scraper.get_auction_states_batch(listing_ids)
+        states = scraper.get_auction_states_batch(listing_ids, background=background)
     except scraper.BStockAuthError:
         raise
 
@@ -571,6 +585,12 @@ def refresh_auction_from_bstock(auction: Auction) -> dict[str, Any]:
     lid = (auction.external_id or '').strip()
     if not lid:
         return {'ok': False, 'code': 'missing_listing_id', 'detail': 'Auction has no external_id.'}
+    from apps.buying.services import bstock_calls
+
+    try:
+        bstock_calls.check()
+    except bstock_calls.CallsPaused as e:
+        return {'ok': False, 'code': 'bstock_calls_paused', 'detail': str(e)}
     states = scraper.get_auction_states_batch([lid])
     state = states.get(lid)
     if not state:

@@ -72,6 +72,12 @@ class Command(BaseCommand):
         ids = summary.get('upserted_auction_ids') or []
         ai_est = run_ai_estimate_for_swept_auctions(ids)
         self.stdout.write(self.style.SUCCESS(f'ai_estimate={ai_est!r}'))
+        try:
+            from apps.buying.services import bstock_calls
+
+            bstock_calls.prune()
+        except Exception:  # noqa: BLE001 - housekeeping never fails the sweep
+            logger.exception('B-Stock call log prune failed')
         n = recompute_active_auctions_lightweight()
         self.stdout.write(self.style.SUCCESS(f'lightweight_recomputed={n}'))
         logger.info('scheduled_sweep lightweight_recomputed=%s summary=%s', n, summary)

@@ -171,6 +171,10 @@ export interface BuyingAuctionDetail extends BuyingAuctionListItem {
   listing_type: string;
   starting_price: string | null;
   buy_now_price: string | null;
+  /** When B-Stock's Buy Now window closes; Buy Now is live only before it. */
+  buy_now_ends_at?: string | null;
+  /** Last time a B-Stock search listed this lot (sweep or quick check). */
+  last_listed_at?: string | null;
   manifest_row_count: number;
   /** Sum of Coalesce(qty,1)×retail_value over manifest rows (for list % column). */
   manifest_extended_retail_total?: string | null;
@@ -837,4 +841,107 @@ export interface AuctionDecision {
   };
   units: number;
   retail: string | null;
+}
+
+/** Estimate Profit, ship 1 (Dash Update #73): POST /buying/estimate-profit/. */
+export type Band = { low: number; likely: number; high: number };
+
+export interface EstimateLot {
+  id: number;
+  title: string;
+  url: string;
+  marketplace: string;
+  status: string;
+  listing_type: string;
+  end_time: string | null;
+  current_price: number | null;
+  bid_count: number | null;
+  pallet_count: number | null;
+  has_manifest: boolean;
+  last_updated_at: string | null;
+}
+
+export interface EstimateCategory {
+  seller_category: string;
+  retail: number;
+  units: number;
+  share: number;
+  likely: number;
+  missing_pieces_retail: number;
+  basis: string;
+  evidence: string;
+  rates: [number, number, number];
+  rule: string;
+}
+
+export interface EstimateSeason {
+  rule: string;
+  retail: number;
+  lines: number;
+  rates: [number, number, number];
+}
+
+export interface EstimateUnsupported {
+  supported: false;
+  not_found?: boolean;
+  seller?: string;
+  message: string;
+  lot?: EstimateLot;
+}
+
+export interface EstimateResult {
+  supported: true;
+  seller: string;
+  lot: EstimateLot | null;
+  method: 'manifest' | 'whole_truck';
+  manifest_source: string;
+  retail: { used: number; source: 'manifest' | 'B-Stock'; manifest: number | null; bstock: number | null };
+  brings_in: Band;
+  brings_in_pct: Band;
+  price: number | null;
+  price_basis: string;
+  fee_rate: number;
+  fee: number | null;
+  freight: {
+    used: number | null;
+    basis: 'typed' | 'formula' | 'none';
+    reason: string;
+    formula: { amount: number; low: number; high: number; mode: string; pallets: number; miles: number; city: string } | null;
+  };
+  landed: number | null;
+  landed_pct: number | null;
+  profit: Band | null;
+  multiple: { low: number | null; likely: number | null; high: number | null } | null;
+  bid_up_to: { landed_pct: number; landed: number; bid: number; freight_included: boolean }[];
+  tags: string[];
+  notes: string[];
+  retail_doubt: boolean;
+  close_date: string;
+  close_basis: string;
+  lead_days: number;
+  shelf_date: string;
+  whole_truck_rates: [number, number, number];
+  seller_slug: string;
+  seller_average: number;
+  seller_sold_items: number;
+  fill_in_share: number | null;
+  missing_pieces_share: number | null;
+  missing_pieces_effect: number | null;
+  seasons: EstimateSeason[];
+  categories: EstimateCategory[];
+  lines: number;
+  miss_line: string;
+  horizon: string;
+  your_number: number | null;
+}
+
+export type EstimateResponse = EstimateResult | EstimateUnsupported;
+
+export interface EstimateRequest {
+  link?: string;
+  file?: File | null;
+  seller?: string;
+  price?: string;
+  freight?: string;
+  close_date?: string;
 }

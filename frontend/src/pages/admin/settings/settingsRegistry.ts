@@ -277,6 +277,18 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'buying',
     kind: 'count',
   },
+  buying_bstock_calls_off: {
+    label: 'B-Stock calls off',
+    help: 'Buying: the kill switch. On stops every public B-Stock call (hourly sweep, quick check, Refresh) until it is turned off again.',
+    tab: 'buying',
+    kind: 'switch',
+  },
+  buying_bstock_calls_per_hour: {
+    label: 'B-Stock calls - most per hour',
+    help: 'Buying: the most public B-Stock calls in any hour (default 300; a normal hour uses under 200). A 429 or refusal also pauses calls on its own, 5 minutes doubling to 2 hours.',
+    tab: 'buying',
+    kind: 'count',
+  },
   buying_manifest_pull_max_per_run: {
     label: 'Manifest pull - most per run',
     help: 'Buying: the most manifests one Pull fetches (default 40; at least 1). Watchlisted, then highest priority, go first.',

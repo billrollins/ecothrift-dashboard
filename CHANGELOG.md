@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.260.1] -->
-<!-- Last reviewed: 2026-11-04 (2.260.1) -->
+<!-- Line 1 release: ## [2.261.0] -->
+<!-- Last reviewed: 2026-11-05 (2.261.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,25 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.261.0] - 2026-11-05
+
+User-facing theme: **Buying: Estimate Profit for a B-Stock lot (Dash Update #73, ship 1); real Buy Now prices, lots that really are open, and a safe quick check of B-Stock (Dash Update #75); print server 1.9.13 starts on any PC.**
+
+> **For Bill:** open **Buying → Estimate Profit**, paste a B-Stock lot link (or drop its manifest CSV anywhere on the page) and tap **Estimate**. You get brings in (low / likely / high), profit, and the most to bid at 20% and 23% landed. Auctions now show the real Buy Now price while it is live, and ended lots close on their own.
+
+### Added
+- `apps/buying/services/estimate_profit.py` and `POST /api/buying/estimate-profit/` (staff; multipart `link`, `file`, `seller`, `price`, `freight`, `close_date`; read-only). **Rates (Bill 11-05):** per seller + seller category, sum(sale price) / sum(retail) over every sold item linked to a manifest row (sold_for > 0, retail $0.01-$9,999), band x0.7 / x1.3; under 5 sold items uses the seller's average ("weak estimate" over 30% of retail); a seller with under 50 sold items gets "not yet" (Wayfair today). Whole truck with no manifest = retail x the seller's average ("wide range"). Seller from the lot link, else the CSV's columns (TCIN Target, ASIN/LPN Amazon, HMD Home Depot, Inventory Source/Warehouse Walmart), else the Seller box. Target season rule (Halloween / Christmas, hand-set, shelf date = close + 21 days) and the missing-pieces rule (likely = low rate). Landed = price + 5% fee + freight (typed, else the shipping formula with the city at the end of the title; says why when none); bid up to `(retail x pct - freight) / 1.05` at 20% and 23%. Measured on the 8 Apr-Jul Target trucks (`workspace/b73/loo_sold.py`): median 15.7 points of retail above sold-so-far, worst 29.7, shown on every Target result. Also: a stored manifest more than 25% off B-Stock's retail is set aside (whole truck, warning); an ended lot's last bid is never the price; very high retail a pallet greys the numbers ("check retail"). Tests: `apps/buying/tests/test_estimate_profit.py`.
+- Page `/buying/estimate` (**Buying → Estimate Profit**): link, CSV drop (anywhere on the page), Seller, price and freight; tags, four headline numbers, how sure, Cost, Rules used, Your number (saves to the lot's "your revenue", `revenue_override`, admins), by seller category (folded). Test: `EstimateProfitPage.test.tsx`. Critic cycle: 7 rounds, C+ to A (trail in `workspace/critic/estimate-profit/`).
+- Safe B-Stock calls: kill switch (`buying_bstock_calls_off`), cap per hour (`buying_bstock_calls_per_hour`, 300), back-off on a 429 or 403 (5 min doubling to 2 h, no retry in place), one background call at a time with a random 4-12 s gap, and a call log with daily totals (`GET /api/buying/bstock-calls/`, `manage.py bstock_calls`). The hourly sweep now searches sellers one after another instead of all at once.
+- `manage.py bstock_quick_check`: one public search of every seller, newest first (about 2 calls), plus one state call for watched lots. Heroku Scheduler every 10 minutes with `--burst` (**add the line at deploy**): from :00 to :04 and :30 to :34, when most lots go live, it checks every 60-90 s, so new and Buy Now lots show within 1-2 minutes; at other times once per 10 minutes. About $5 a month of dyno time; no always-on worker.
+- `Auction.last_listed_at` (written only by search results) and `Auction.buy_now_ends_at` (migration `buying/0038`, also seeds the two settings).
+
+### Fixed
+- B-Stock prices of $10,000 or more were stored at 1/100 (a $10,750 Buy Now read $107.50): B-Stock sends whole dollars, never cents. `fix_bstock_price_slip` (dry run by default) repairs the history: 23 lots, 74 price snapshots on prod (11-05); apply only as an approved Dash request.
+- Lots no longer stay "open" forever: an ended lot (end time over an hour ago) closes after every sweep; auction state's closed / canceled are read. The first sweep after deploy closes the ~7,500 stale ones.
+- Buy Now: read from B-Stock's `buyNow` flag and window (`buyNowEndTime`); while the window is open the shown price is the Buy Now price, not a bid. The auction page shows "Buy now $X until 3:00 PM" only while it is live, and "Listed on B-Stock: N min ago / No longer listed".
+- Print server 1.9.13: the build packs `mfc140u.dll` (the MFC runtime `win32ui` needs), so PCs without the Visual C++ runtime no longer crash on start ("DLL load failed while importing win32ui", register 2, 11-05). Already published on S3 and the Settings download on 11-05.
 
 ## [2.260.1] - 2026-11-04
 

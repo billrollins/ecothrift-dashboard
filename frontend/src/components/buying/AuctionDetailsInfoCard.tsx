@@ -14,6 +14,32 @@ function formatEndTime(iso: string | null): string {
   }
 }
 
+/** "Buy now" words: the price only while B-Stock's Buy Now window is open (Dash #75). */
+export function buyNowText(price: string | null, endsAt: string | null | undefined, now = new Date()): string {
+  if (!price || !endsAt) return '-';
+  try {
+    const ends = parseISO(endsAt);
+    if (ends <= now) return 'Ended';
+    return `${formatCurrency(price)} until ${format(ends, 'h:mm a')}`;
+  } catch {
+    return '-';
+  }
+}
+
+/** "Listed" words from last_listed_at: live within 3 hours, else no longer listed (Dash #75). */
+export function listedText(lastListedAt: string | null | undefined, now = new Date()): string {
+  if (!lastListedAt) return 'Not seen yet';
+  try {
+    const mins = Math.max(0, Math.round((now.getTime() - parseISO(lastListedAt).getTime()) / 60000));
+    if (mins > 180) return 'No longer listed';
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins} min ago`;
+    return `${Math.floor(mins / 60)} h ${mins % 60} min ago`;
+  } catch {
+    return '-';
+  }
+}
+
 const LISTING_TYPE_TOOLTIPS: Record<string, string> = {
   SPOT: 'Spot auction - standard single-lot listing on B-Stock.',
   CONTRACT: 'Contract-style listing on B-Stock (terms may differ from spot).',
@@ -87,6 +113,14 @@ export default function AuctionDetailsInfoCard({ detail }: Props) {
         </Box>
         <Box>
           <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
+            Listed on B-Stock
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 0.2 }}>
+            {listedText(detail.last_listed_at)}
+          </Typography>
+        </Box>
+        <Box>
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
             Lot size
           </Typography>
           {lotSize != null ? (
@@ -151,7 +185,7 @@ export default function AuctionDetailsInfoCard({ detail }: Props) {
             Buy now
           </Typography>
           <Typography variant="body2" fontWeight={700} sx={{ mt: 0.2, fontVariantNumeric: 'tabular-nums' }}>
-            {formatCurrency(detail.buy_now_price)}
+            {buyNowText(detail.buy_now_price, detail.buy_now_ends_at)}
           </Typography>
         </Box>
         <Box>

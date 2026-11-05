@@ -27,6 +27,8 @@ import type {
   BuyingWatchlistEntry,
   BuyingWatchlistParams,
   BuyingWatchlistPostBody,
+  EstimateRequest,
+  EstimateResponse,
 } from '../types/buying.types';
 import api from './client';
 
@@ -462,5 +464,26 @@ export async function postBuyingAuctionRefreshFromBstock(auctionId: number): Pro
 /** JWT: poll all due watchlist rows (same as ``run_watch_poll``). */
 export async function postBuyingWatchlistUpdateNow(): Promise<Record<string, unknown>> {
   const { data } = await api.post<Record<string, unknown>>('/buying/watchlist/update_now/', {});
+  return data;
+}
+
+/** Estimate Profit (Dash Update #73, ship 1): a pasted lot link and/or a dropped manifest CSV. */
+export async function postEstimateProfit(req: EstimateRequest): Promise<EstimateResponse> {
+  const form = new FormData();
+  if (req.link) form.append('link', req.link);
+  if (req.file) form.append('file', req.file);
+  if (req.seller) form.append('seller', req.seller);
+  if (req.price) form.append('price', req.price);
+  if (req.freight) form.append('freight', req.freight);
+  if (req.close_date) form.append('close_date', req.close_date);
+  const { data } = await api.post<EstimateResponse>('/buying/estimate-profit/', form, {
+    // Default axios Content-Type: application/json breaks multipart; the browser sets the boundary.
+    transformRequest: [
+      (body, headers) => {
+        if (body instanceof FormData) delete headers['Content-Type'];
+        return body;
+      },
+    ],
+  });
   return data;
 }

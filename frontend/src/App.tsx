@@ -123,6 +123,7 @@ const AuctionDetailPage = lazy(() => import('./pages/buying/AuctionDetailPage'))
 const WatchlistPage = lazy(() => import('./pages/buying/WatchlistPage'));
 const WishListPage = lazy(() => import('./pages/buying/WishListPage'));
 const ReportCardsPage = lazy(() => import('./pages/buying/ReportCardsPage'));
+const EstimateProfitPage = lazy(() => import('./pages/buying/EstimateProfitPage'));
 const QAPage = lazy(() => import('./pages/admin/QAPage'));
 const ThriftPlusPage = lazy(() => import('./pages/thriftplus/ThriftPlusPage'));
 const OwnerPage = lazy(() => import('./pages/owner/OwnerPage'));
@@ -447,6 +448,7 @@ function AppRoutes() {
         <Route path="/buying/watchlist" element={<WatchlistPage />} />
         <Route path="/buying/wishlist" element={<WishListPage />} />
         <Route path="/buying/report-cards" element={<ReportCardsPage />} />
+        <Route path="/buying/estimate" element={<EstimateProfitPage />} />
         <Route path="/restoration" element={<RestorationLayout />}>
           <Route index element={<Navigate to="/restoration/overview" replace />} />
           <Route path="overview" element={<RestorationQueuePage />} />

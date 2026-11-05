@@ -372,8 +372,19 @@ class Auction(models.Model):
         blank=True,
     )
     ai_score_data = models.JSONField(default=dict, blank=True)
+    buy_now_ends_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When B-Stock's Buy Now window closes (search buyNowEndTime). Buy Now is live only before it.",
+    )
     first_seen_at = models.DateTimeField(null=True, blank=True)
     last_updated_at = models.DateTimeField(null=True, blank=True)
+    last_listed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text='Last time a B-Stock search listed this lot. Written only by search results (sweep, quick check).',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     # Phase 5 - auction valuation (computed fields populated in later steps)
@@ -1026,3 +1037,26 @@ class Outcome(models.Model):
 
     def __str__(self) -> str:
         return f'Outcome {self.auction_id}'
+
+
+class BStockCall(models.Model):
+    """One anonymous B-Stock call (search or auction state): the call log behind the hourly cap
+    and the daily totals. Kept 14 days (``bstock_calls.prune``)."""
+
+    KIND_SWEEP = 'sweep'
+    KIND_QUICK = 'quick'
+    KIND_STATE = 'state'
+    KIND_OTHER = 'other'
+
+    at = models.DateTimeField(db_index=True)
+    kind = models.CharField(max_length=20)
+    status = models.CharField(max_length=10, help_text='HTTP status, or ERR when B-Stock did not answer.')
+    ms = models.PositiveIntegerField(default=0)
+    rows = models.PositiveIntegerField(null=True, blank=True)
+    note = models.CharField(max_length=200, blank=True, default='')
+
+    class Meta:
+        ordering = ['-at']
+
+    def __str__(self) -> str:
+        return f'{self.at:%Y-%m-%d %H:%M:%S} {self.kind} {self.status}'

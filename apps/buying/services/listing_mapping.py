@@ -88,18 +88,19 @@ def _retail_value_from_listing(raw: dict[str, Any]) -> Decimal | None:
 
 def _price_to_dollars(val: Any) -> Decimal | None:
     """
-    Map B-Stock money fields to dollar Decimal for Auction model.
+    Map a B-Stock money field (search ``winningBidAmount``, auction-state ``startPrice``,
+    ``buyNow.price``...) to a dollar Decimal.
 
-    Search and auction APIs mix floats (dollars), integers (often whole dollars), and
-    large integers (cents). Values >= 10_000 as integers are treated as cents.
+    Both APIs send whole dollars (``bidPrecision`` 1), integer or float: measured 2026-11-05
+    (Dash #75). Integers are NOT cents: the old ">= 10,000 is cents" rule stored every price of
+    $10,000 or more at 1/100 (lot 677978: Buy Now $10,750 stored as $107.50). Manifest retail is
+    the one cents field, and it has its own path (``normalize``, ``whole_numbers_are_cents``).
     """
-    if val is None or val == '':
+    if val is None or val == '' or isinstance(val, bool):
         return None
     d = _to_decimal(val)
     if d is None:
         return None
-    if isinstance(val, int) and abs(val) >= 10_000:
-        return (d / Decimal('100')).quantize(Decimal('0.01'))
     return d.quantize(Decimal('0.01'))
 
 
@@ -237,9 +238,20 @@ def map_listing_raw_to_auction_fields(
         _first(raw, 'startingPrice', 'startPrice', 'openingBid', 'minBid')
     )
     buy_now_price = _price_to_dollars(
-        _first(raw, 'buyNowPrice', 'buyItNow', 'binPrice', 'buyNowAmount')
+        _first(raw, 'buyNowPrice', 'binPrice', 'buyNowAmount')
     )
-
+    buy_now_ends_at = None
+    if raw.get('buyNow') is True:
+        # Search sends Buy Now as a flag. While its window is open (before buyNowEndTime, when
+        # bidding starts) the shown price, winningBidAmount, IS the Buy Now price, not a bid:
+        # 11 of 11 lots matched auction state buyNow.price on 2026-11-05. After the window it is
+        # a real bid again, so it is read as Buy Now only inside the window, with no bids.
+        buy_now_ends_at = _parse_end_time({'endTime': raw.get('buyNowEndTime')})
+        bids = _to_int(_first(raw, 'numberOfBids', 'bidCount'))
+        if buy_now_ends_at is not None and buy_now_ends_at > timezone.now() and not bids:
+            if buy_now_price is None:
+                buy_now_price = current_price
+            current_price = None  # no bid yet: the lot opens for bids at its start price
     bid_count = _to_int(_first(raw, 'bidCount', 'bids', 'numberOfBids'))
 
     time_remaining_seconds = _to_int(
@@ -281,9 +293,28 @@ def map_listing_raw_to_auction_fields(
         'current_price': current_price,
         'starting_price': starting_price,
         'buy_now_price': buy_now_price,
+        'buy_now_ends_at': buy_now_ends_at,
         'bid_count': bid_count,
         'time_remaining_seconds': time_remaining_seconds,
         'end_time': end_time,
         'status': status,
         'has_manifest': has_manifest,
     }
+
+
+def apply_closed_inference(fields: dict[str, Any], now: datetime, *, grace=None) -> None:
+    """If the auction has clearly ended, set status to closed (does not change WatchlistEntry).
+
+    ``grace`` (a timedelta): the end time must be at least this long ago; the sweep uses the same
+    hour as ``pipeline.close_ended_auctions`` so a watched lot still gets its final poll.
+    """
+    et = fields.get('end_time')
+    if et is not None:
+        if timezone.is_naive(et):
+            et = timezone.make_aware(et, timezone.get_current_timezone())
+        if et <= (now - grace if grace else now):
+            fields['status'] = Auction.STATUS_CLOSED
+            return
+    tr = fields.get('time_remaining_seconds')
+    if tr is not None and tr == 0:
+        fields['status'] = Auction.STATUS_CLOSED

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from decimal import Decimal
@@ -12,29 +12,32 @@ from django.db import connection
 from psycopg.types.json import Json
 
 from apps.buying.models import AuctionSnapshot
-from apps.buying.services.listing_mapping import map_listing_raw_to_auction_fields
+from apps.buying.services.listing_mapping import apply_closed_inference, map_listing_raw_to_auction_fields
 
 logger = logging.getLogger(__name__)
+
+# Same grace as pipeline.close_ended_auctions (kept here: pipeline imports this module).
+CLOSE_GRACE = timedelta(hours=1)
 
 UPSERT_SQL = """
 INSERT INTO buying_auction (
     marketplace_id, external_id, lot_id, group_id, auction_ext_id, seller_id,
     title, description, url, category, condition_summary, lot_size, listing_type,
     pallet_count, origin_city, origin_zip, shipment_type,
-    total_retail_value, current_price, starting_price, buy_now_price,
+    total_retail_value, current_price, starting_price, buy_now_price, buy_now_ends_at,
     bid_count, time_remaining_seconds, end_time, status, has_manifest,
     ai_score_data,
     priority, priority_override,
-    first_seen_at, last_updated_at, created_at
+    first_seen_at, last_updated_at, last_listed_at, created_at
 ) VALUES (
     %s, %s, %s, %s, %s, %s,
     %s, %s, %s, %s, %s, %s, %s,
     %s, %s, %s, %s,
-    %s, %s, %s, %s,
+    %s, %s, %s, %s, %s,
     %s, %s, %s, %s, %s,
     %s,
     %s, %s,
-    %s, %s, %s
+    %s, %s, %s, %s
 )
 ON CONFLICT (marketplace_id, external_id) DO UPDATE SET
     lot_id = EXCLUDED.lot_id,
@@ -55,14 +58,16 @@ ON CONFLICT (marketplace_id, external_id) DO UPDATE SET
     total_retail_value = EXCLUDED.total_retail_value,
     current_price = EXCLUDED.current_price,
     starting_price = EXCLUDED.starting_price,
-    buy_now_price = EXCLUDED.buy_now_price,
+    buy_now_price = COALESCE(EXCLUDED.buy_now_price, buying_auction.buy_now_price),
+    buy_now_ends_at = COALESCE(EXCLUDED.buy_now_ends_at, buying_auction.buy_now_ends_at),
     bid_count = EXCLUDED.bid_count,
     time_remaining_seconds = EXCLUDED.time_remaining_seconds,
     end_time = EXCLUDED.end_time,
-    status = EXCLUDED.status,
+    status = CASE WHEN buying_auction.status = 'cancelled' THEN buying_auction.status ELSE EXCLUDED.status END,
     has_manifest = EXCLUDED.has_manifest,
     first_seen_at = COALESCE(buying_auction.first_seen_at, EXCLUDED.first_seen_at),
-    last_updated_at = EXCLUDED.last_updated_at
+    last_updated_at = EXCLUDED.last_updated_at,
+    last_listed_at = EXCLUDED.last_listed_at
 RETURNING id, (xmax = 0) AS inserted
 """
 
@@ -110,6 +115,8 @@ def upsert_listings_raw(
             if not ext:
                 skipped += 1
                 continue
+            # Search has no status field: an ended lot must not stay "open" (Dash #75).
+            apply_closed_inference(fields, now, grace=CLOSE_GRACE)
 
             row_vals = (
                 marketplace_id,
@@ -133,6 +140,7 @@ def upsert_listings_raw(
                 fields['current_price'],
                 fields['starting_price'],
                 fields['buy_now_price'],
+                fields.get('buy_now_ends_at'),
                 fields['bid_count'],
                 fields['time_remaining_seconds'],
                 fields['end_time'],
@@ -141,6 +149,7 @@ def upsert_listings_raw(
                 Json({}),
                 50,
                 False,
+                now,
                 now,
                 now,
                 now,

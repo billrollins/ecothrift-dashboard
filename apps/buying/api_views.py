@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.utils import timezone
@@ -70,6 +70,14 @@ from apps.buying.services.manifest_pull import (
 )
 from apps.buying.services.category_need import build_category_need_payload
 from apps.buying.services.shipping_quote import refresh_shipping_quote
+from apps.buying.services.estimate_profit import (
+    SELLERS,
+    EstimateError,
+    build_estimate,
+    find_auction,
+    lines_from_auction,
+    lines_from_csv,
+)
 from apps.buying.pagination import ManifestRowsPagination, SnapshotPagination
 from ecothrift.pagination import ConfigurablePageSizePagination
 from apps.buying.serializers import (
@@ -1110,6 +1118,90 @@ class ReportCardsView(APIView):
         from apps.buying.services.won_to_po import report_cards
 
         return Response(report_cards())
+
+
+class EstimateProfitView(APIView):
+    """
+    POST (multipart): Estimate Profit for a B-Stock lot (Dash Update #73, ship 1).
+
+    Fields: ``link`` (B-Stock lot link), ``file`` (its manifest CSV), ``seller`` (for a CSV without a link), ``price``, ``freight``,
+    ``close_date`` (all optional, but a link or a file is needed). Read-only: nothing is stored.
+    """
+
+    permission_classes = [IsAuthenticated, IsStaff]
+    parser_classes = [MultiPartParser, FormParser]
+
+    @staticmethod
+    def _money(raw):
+        if raw is None or str(raw).strip() == '':
+            return None
+        try:
+            v = float(str(raw).strip().lstrip('$').replace(',', ''))
+        except ValueError:
+            raise EstimateError(f'"{raw}" is not a dollar amount.')
+        if v < 0:
+            raise EstimateError('Amounts cannot be negative.')
+        return v
+
+    def post(self, request):
+        link = (request.data.get('link') or '').strip()
+        upload = request.FILES.get('file')
+        try:
+            if not link and not upload:
+                raise EstimateError('Paste a B-Stock lot link or drop its manifest CSV.')
+            price = self._money(request.data.get('price'))
+            freight = self._money(request.data.get('freight'))
+            close_raw = (request.data.get('close_date') or '').strip()
+            close = None
+            if close_raw:
+                try:
+                    close = date.fromisoformat(close_raw[:10])
+                except ValueError:
+                    raise EstimateError('Close date must look like 2026-11-20.')
+            auction = None
+            if link:
+                auction = find_auction(link)
+                if auction is None:
+                    logger.warning('estimate-profit: lot not found for link %r', link[:300])
+                    return Response(
+                        {
+                            'supported': False,
+                            'not_found': True,
+                            'message': 'This lot is not in our list yet. The sweep runs hourly; try again later, '
+                            'or drop its manifest CSV.',
+                        }
+                    )
+            lines = None
+            source = ''
+            seller = (request.data.get('seller') or '').strip().lower()
+            if seller and seller not in SELLERS:
+                raise EstimateError(f'"{seller}" is not a seller we know.')
+            if upload:
+                if upload.size > 20 * 1024 * 1024:
+                    raise EstimateError('That file is over 20 MB.')
+                lines, from_columns = lines_from_csv(upload.read())
+                seller = seller or from_columns
+                source = 'your CSV'
+            elif auction is not None:
+                lines = lines_from_auction(auction) or None
+                source = 'manifest stored on the lot' if lines else ''
+            return Response(
+                build_estimate(
+                    auction=auction, lines=lines, manifest_source=source, seller=seller,
+                    price=price, freight=freight, close_date=close,
+                )
+            )
+        except EstimateError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+class BstockCallsView(APIView):
+    """GET (superuser): the B-Stock call gate now (kill switch, cap, back-off) and the daily call log."""
+
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+
+    def get(self, request):
+        from apps.buying.services import bstock_calls
+
+        return Response({**bstock_calls.status_now(), 'days': bstock_calls.daily_totals()})
 
 
 class BuyingNagsView(APIView):

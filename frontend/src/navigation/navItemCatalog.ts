@@ -205,6 +205,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     // The morning list: auctions worth bidding on, each with a buy-at-or-under max.
     icon: 'wishlist',
   },
+  estimateProfit: {
+    id: 'estimateProfit',
+    path: '/buying/estimate',
+    label: 'Estimate Profit',
+    // Paste a B-Stock link or drop its manifest: what a Target lot brings in, and the most to bid.
+    icon: 'assumptions',
+  },
   auctions: {
     id: 'auctions',
     path: '/buying/auctions',

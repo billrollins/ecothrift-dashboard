@@ -5,6 +5,13 @@ Ship: `.ai/protocols/ship-print-server.md`. Script: `python printserver/distribu
 
 ---
 
+## [1.9.13] — 2026-11-05 (install on register 2 and any PC where the print server will not start)
+
+Owner 2026-11-05: register 2's print server crashed on start with "DLL load failed while importing win32ui".
+
+- The build now packs `mfc140u.dll` (Microsoft's MFC runtime, which `win32ui` needs) inside the exe. PCs without
+  the Visual C++ runtime installed no longer fail to start. Printing is unchanged.
+
 ## [1.9.12] — 2026-11-03 (install on the processing label PCs and every PC that prints price tags)
 
 Owner 2026-10-29: "Always update print server, do not do that shortcut of making an image to print." The new price

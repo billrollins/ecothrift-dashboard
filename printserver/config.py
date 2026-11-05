@@ -1,6 +1,6 @@
-VERSION = "1.9.12"
+VERSION = "1.9.13"
 RELEASE_NOTES = (
-    'The new price tag and the Thrift+ Perks price tag are drawn by the print server and fit the label.'
+    'Starts on PCs without the Microsoft Visual C++ runtime (the MFC file it needs now comes inside it).'
 )
 
 # Default URL for the public version-check endpoint on the dashboard backend.
@@ -8,6 +8,13 @@ RELEASE_NOTES = (
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.9.13] — 2026-11-05 (install on register 2 and any PC where the print server will not start)
+
+Owner 2026-11-05: register 2's print server crashed on start with "DLL load failed while importing win32ui".
+
+- The build now packs `mfc140u.dll` (Microsoft's MFC runtime, which `win32ui` needs) inside the exe. PCs without
+  the Visual C++ runtime installed no longer fail to start. Printing is unchanged.
+
 ## [1.9.12] — 2026-11-03 (install on the processing label PCs and every PC that prints price tags)
 
 Owner 2026-10-29: "Always update print server, do not do that shortcut of making an image to print." The new price

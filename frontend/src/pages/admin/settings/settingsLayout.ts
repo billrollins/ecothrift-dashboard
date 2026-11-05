@@ -159,6 +159,12 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
         ],
       },
       {
+        id: 'bstock-calls',
+        title: 'B-Stock calls',
+        help: 'Public B-Stock search and auction state: the kill switch and the hourly cap.',
+        keys: ['buying_bstock_calls_off', 'buying_bstock_calls_per_hour'],
+      },
+      {
         id: 'manifest-pull',
         title: 'Manifest pull',
         help: 'The daily B-Stock manifest download.',

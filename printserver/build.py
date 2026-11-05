@@ -105,6 +105,12 @@ def build() -> None:
     if logo.exists():
         # Windows: source;dest inside bundle (extracted to _MEIPASS/assets/)
         cmd.extend(["--add-data", f"{logo};assets"])
+    # win32ui.pyd needs Microsoft's MFC runtime; pywin32 no longer ships it, so PCs without the
+    # Visual C++ runtime crash on start. Pack it next to win32ui.pyd and at the bundle root.
+    mfc = Path(r"C:\Windows\System32\mfc140u.dll")
+    if not mfc.exists():
+        raise SystemExit(f"Missing {mfc}: install the Visual C++ runtime on the build PC first.")
+    cmd.extend(["--add-binary", f"{mfc};pythonwin", "--add-binary", f"{mfc};."])
     cmd.extend([
         "--paths",
         str(ROOT),

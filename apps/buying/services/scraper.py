@@ -34,7 +34,6 @@ import json
 import logging
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -44,6 +43,7 @@ from typing import Any
 import requests
 from django.apps import apps as django_apps
 from django.conf import settings
+from apps.buying.services import bstock_calls
 from urllib.parse import quote, urlparse
 
 logger = logging.getLogger(__name__)
@@ -307,6 +307,7 @@ def _request_json(
     session: requests.Session | None = None,
     raise_errors: bool = False,
     bearer: str | None = None,
+    call_kind: str = 'other',
 ) -> Any | None:
     """
     Perform one HTTP request and return parsed JSON.
@@ -321,8 +322,25 @@ def _request_json(
     5xx, rate limit after retries, empty or non-JSON body) or ``BStockHTTPError`` (any
     other non-2xx, including 401 on an anonymous call). ``proxies={}`` forces a direct call.
     ``bearer``: send exactly this token (implies ``auth``) instead of resolving one.
+
+    Anonymous search and auction-state calls (Dash #75, ``bstock_calls``) pass the gate first (kill switch,
+    back-off, hourly cap: a "no" logs and returns None or raises ``BStockUnavailable``), are written
+    to the call log as ``call_kind``, and never retry a 429 in place: the back-off takes over.
     """
+    from apps.buying.services import bstock_calls
+
     max_retries = int(getattr(settings, 'BSTOCK_MAX_RETRIES', 3))
+    # The public calls this app makes without a login: search and auction state.
+    anonymous = not auth and not bearer and url.startswith((SEARCH_LISTINGS_URL, AUCTION_STATE_URL))
+    if anonymous:
+        try:
+            bstock_calls.check()
+        except bstock_calls.CallsPaused as e:
+            logger.warning('B-Stock call not sent (%s): %s', call_kind, e)
+            if raise_errors:
+                raise BStockUnavailable(str(e)) from e
+            return None
+        max_retries = 0
     if bearer:
         auth = True
         headers = _headers_for_request(method, False)
@@ -366,6 +384,8 @@ def _request_json(
             _log_bstock_request(
                 method, prepared_url, auth=auth, status_code='ERR', elapsed_ms=elapsed_ms
             )
+            if anonymous:
+                bstock_calls.record(call_kind, 'ERR', ms=elapsed_ms, note=type(e).__name__)
             detail = type(e).__name__ if redact else str(e)
             logger.error('B-Stock request error %s %s: %s', method, url[:160], detail)
             if raise_errors:
@@ -381,6 +401,8 @@ def _request_json(
             status_code=resp.status_code,
             elapsed_ms=elapsed_ms,
         )
+        if anonymous:
+            bstock_calls.record(call_kind, resp.status_code, ms=elapsed_ms)
 
         if resp.status_code == 401:
             if auth:
@@ -643,21 +665,24 @@ def _socks5_dev_audit_maybe_egress(proxies: dict[str, str] | None) -> None:
 
 
 def _search_post_paginate(
-    storefront: str,
+    storefront: str | list[str],
     *,
     page_limit: int,
     max_pages: int | None,
     log_full_first_response: bool,
     slug_for_log: str = '',
     bearer: str | None = None,
+    call_kind: str = 'sweep',
+    sort_newest: bool = False,
 ) -> tuple[list[dict[str, Any]], str | None, float]:
     """
     POST all pages for one storeFrontId. Returns (rows, error_or_none, total_elapsed_ms).
 
     ``bearer``: search as the owner (a signed-in-only seller such as Costco), direct, never
-    through SOCKS5. Anonymous otherwise.
+    through SOCKS5. Anonymous otherwise: each page takes a ``bstock_calls.slot`` (one call at a
+    time, a random gap); a paused gate ends the search with its reason as the error.
 
-    Runs in the calling thread (sequential caller or one ThreadPoolExecutor worker).
+    ``sort_newest``: newest listings first (``startTime`` desc), for the quick check.
     """
     all_rows: list[dict[str, Any]] = []
     offset = 0
@@ -677,24 +702,30 @@ def _search_post_paginate(
         body = {
             'limit': page_limit,
             'offset': offset,
-            'sortBy': 'recommended',
-            'sortOrder': 'asc',
-            'storeFrontId': [storefront],
+            'sortBy': 'startTime' if sort_newest else 'recommended',
+            'sortOrder': 'desc' if sort_newest else 'asc',
+            # A list searches several sellers in one call (the quick check).
+            'storeFrontId': list(storefront) if isinstance(storefront, (list, tuple)) else [storefront],
         }
 
         t0 = time.perf_counter()
         try:
-            data = _request_json(
-                'POST',
-                SEARCH_LISTINGS_URL,
-                json_body=body,
-                auth=False,
-                timeout=120,
-                bearer=bearer,
-                proxies={} if bearer else None,
-            )
+            if bearer:
+                data = _request_json(
+                    'POST', SEARCH_LISTINGS_URL, json_body=body, auth=False, timeout=120,
+                    bearer=bearer, proxies={},
+                )
+            else:
+                with bstock_calls.slot(call_kind):
+                    t0 = time.perf_counter()
+                    data = _request_json(
+                        'POST', SEARCH_LISTINGS_URL, json_body=body, auth=False, timeout=120,
+                        bearer=None, proxies=None, call_kind=call_kind,
+                    )
         except BStockAuthError:
             return all_rows, 'B-Stock refused the login for this search.', http_ms_total
+        except bstock_calls.CallsPaused as e:
+            return all_rows, str(e), http_ms_total
         http_ms_total += (time.perf_counter() - t0) * 1000.0
 
         if data is None:
@@ -734,7 +765,8 @@ def _search_post_paginate(
             break
 
         offset += page_limit
-        _delay_between_requests()
+        if bearer:
+            _delay_between_requests()
 
     return all_rows, None, http_ms_total
 
@@ -816,10 +848,8 @@ def discover_auctions_parallel(
     marketplace_slug: str | None = None,
 ) -> list[MarketplaceSearchBatch]:
     """
-    POST search for one or all active marketplaces in parallel (ThreadPoolExecutor).
-
-    Each task paginates one storefront. No Django ORM inside worker threads beyond
-    the initial queryset read on the main thread.
+    POST search for one or all active marketplaces, one seller after another (the name is
+    historical: it ran a thread pool until Dash #75). Each task paginates one storefront.
     """
     Marketplace = django_apps.get_model('buying', 'Marketplace')
     qs = Marketplace.objects.filter(is_active=True).order_by('slug')
@@ -862,9 +892,6 @@ def discover_auctions_parallel(
             bearer = login
         tasks.append((mp.slug, mp.name, sid, bearer))
 
-    max_workers = int(getattr(settings, 'BUYING_SWEEP_MAX_WORKERS', 8))
-    max_workers = max(1, min(max_workers, len(tasks) or 1))
-
     def _work(item: tuple[str, str, str, str | None]) -> MarketplaceSearchBatch:
         slug, name, storefront, bearer = item
         rows, err, ms = _search_post_paginate(
@@ -884,15 +911,10 @@ def discover_auctions_parallel(
             http_ms=ms,
         )
 
-    if len(tasks) == 1:
-        b = _work(tasks[0])
+    # One seller after another (Dash #75): no burst of parallel searches; each page waits its slot.
+    for t in tasks:
+        b = _work(t)
         results_by_slug[b.slug] = b
-    elif tasks:
-        with ThreadPoolExecutor(max_workers=max_workers) as ex:
-            futs = {ex.submit(_work, t): t[0] for t in tasks}
-            for fut in as_completed(futs):
-                b = fut.result()
-                results_by_slug[b.slug] = b
 
     return [results_by_slug[s] for s in slug_order if s in results_by_slug]
 
@@ -946,6 +968,7 @@ def get_auction_states_batch(
     *,
     chunk_size: int = 25,
     auth: bool = False,
+    background: bool = False,
 ) -> dict[str, dict[str, Any]]:
     """
     GET auction.bstock.com/v1/auctions with comma-separated listingId (batch).
@@ -975,7 +998,18 @@ def get_auction_states_batch(
         chunk = seen[i : i + chunk_size]
         listing_param = ','.join(chunk)
         params: dict[str, Any] = {'listingId': listing_param, 'limit': 100}
-        data = _request_json('GET', AUCTION_STATE_URL, params=params, auth=auth)
+        if background and not auth:
+            # Quick check / scheduled watch poll: one call at a time with a random gap (Dash #75).
+            from apps.buying.services import bstock_calls
+
+            try:
+                with bstock_calls.slot(bstock_calls.KIND_STATE):
+                    data = _request_json('GET', AUCTION_STATE_URL, params=params, call_kind='state')
+            except bstock_calls.CallsPaused as e:
+                logger.warning('Batch auction state not sent: %s', e)
+                break
+        else:
+            data = _request_json('GET', AUCTION_STATE_URL, params=params, auth=auth, call_kind='state')
         if data is None:
             logger.warning(
                 'Batch auction state returned no data for chunk starting %s', chunk[:1]

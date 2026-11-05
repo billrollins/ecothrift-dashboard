@@ -331,6 +331,8 @@ class AuctionDetailSerializer(_ShrinkMixin, serializers.ModelSerializer):
             'current_price',
             'starting_price',
             'buy_now_price',
+            'buy_now_ends_at',
+            'last_listed_at',
             'bid_count',
             'end_time',
             'time_remaining_seconds',

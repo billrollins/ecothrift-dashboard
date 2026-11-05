@@ -14,3 +14,10 @@ def _no_signed_in_search():
     """
     with patch('apps.buying.services.scraper.login_for_signed_in_sellers', return_value=''):
         yield
+
+
+@pytest.fixture(autouse=True)
+def _no_call_gap():
+    """No random 4-12 s gap between B-Stock calls in tests (``bstock_calls.slot``)."""
+    with patch("apps.buying.services.bstock_calls.GAP_SECONDS", (0.0, 0.0)):
+        yield
