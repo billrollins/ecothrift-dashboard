@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.265.1] -->
-<!-- Last reviewed: 2026-11-05 (2.265.1) -->
+<!-- Line 1 release: ## [2.265.2] -->
+<!-- Last reviewed: 2026-11-05 (2.265.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.265.2] - 2026-11-05
+
+User-facing theme: **Staff mobile app scope written down (Dash Update #68).**
+
+### Docs
+- Staff mobile app scope (Dash Update #68): every workspace app's bottom buttons, More, desk-only pages and the build order, in `.ai/extended/mobile-app-decisions.md` (with the #66 decisions it builds on). Page for Bill: https://claude.ai/artifact/BRmz1MVxkiCAdJem5A9iMt . No app change.
 
 ## [2.265.1] - 2026-11-05
 

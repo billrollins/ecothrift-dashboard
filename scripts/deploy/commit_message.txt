@@ -1,10 +1,8 @@
-v2.265.1 — Side-menu links light up again on HR and Studios pages
+v2.265.2 — Staff mobile app scope written down (docs)
 
-User-facing theme: **Side-menu links light up again on HR and Studios pages (Dash Update #69).**
+User-facing theme: **Staff mobile app scope written down (Dash Update #68).**
 
-> **For staff:** Applicants, Interviews, Onboarding, Check-ins, Payroll deductions, Emails, Jobs and Social Studio now show as the page you are on, and their addresses no longer carry extra words.
-
-### Fixed
-- Eight menu entries kept their search words in the link's query field, so each link opened with a junk `?query` and never showed as active. Search words now have their own field (`keywords`); the link query is `query` (Quick reprice, Customers). A new test opens every catalog link and checks it lights up and has no spaces in its address.
+### Docs
+- Staff mobile app scope (Dash Update #68): every workspace app's bottom buttons, More, desk-only pages and the build order, in `.ai/extended/mobile-app-decisions.md` (with the #66 decisions it builds on). Page for Bill: https://claude.ai/artifact/BRmz1MVxkiCAdJem5A9iMt . No app change.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
