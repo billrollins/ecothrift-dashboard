@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.265.2] -->
-<!-- Last reviewed: 2026-11-05 (2.265.2) -->
+<!-- Line 1 release: ## [2.266.0] -->
+<!-- Last reviewed: 2026-11-05 (2.266.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.266.0] - 2026-11-05
+
+User-facing theme: **Buying: AI routing (Dash Update #78): no AI in the estimate, Spark for volume mapping, a monthly Opus review of the misses.**
+
+> **For Bill:** the estimate stays instant table math with no AI. Manifest category mapping now runs on Spark Contributor (cheap). Once a month, when new trucks have been scored, Opus 5.5 reads the misses and writes a short review with any proposed rate changes, at the bottom of **How good is it?** It is advice only and never changes a rate.
+
+### Added
+- `MissReview` (`buying/0041`) and `services/miss_review.py`: the monthly miss review (purpose `BUYING_MISS_REVIEW`, Opus 5.5 medium), run at the end of `compute_daily_category_stats` only when 28+ days have passed and the fit shows something new; forced tool output, at most 5 proposals, stored with its cost; a failed call is stored and tried the next night. `GET /api/buying/estimate-scores/` carries `review`. Tests: `apps/buying/tests/test_ai_routing.py` (also a guard that Estimate Profit and the lightweight valuation make no AI call).
+- The review block at the bottom of "How good is it?" (`EstimateScores.tsx` + test).
+
+### Changed
+- `buying/0042`: KEY_MAPPING, CATEGORY_AI and TITLE_CATEGORY_ESTIMATE move to Spark Contributor at low effort where no model was picked (all three were blank in prod, on the env fallback gemini-3.5-flash-lite); labels say "volume: Spark". Spark measured on KEY_MAPPING: 6-11 s a batch, 40 of 50 keys matching the stored mapping.
 
 ## [2.265.2] - 2026-11-05
 

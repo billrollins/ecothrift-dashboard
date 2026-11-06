@@ -170,6 +170,10 @@ class MapFastCatBatchTests(TestCase):
 
     @override_settings(ANTHROPIC_API_KEY='', AI_MODEL='claude-sonnet-4-6')
     def test_map_one_batch_no_api_key(self) -> None:
+        from apps.core.models import AiAction
+
+        # No model picked in Settings > AI: the env fallback (an Anthropic model with no key) applies.
+        AiAction.objects.filter(purpose='KEY_MAPPING').update(model=None)
         ManifestRow.objects.create(
             auction=self.auction,
             row_number=1,

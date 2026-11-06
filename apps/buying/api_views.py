@@ -1254,6 +1254,7 @@ class EstimateScoresView(APIView):
     permission_classes = [IsAuthenticated, IsStaff]
 
     def get(self, request):
+        from apps.buying.services import miss_review
         from apps.buying.services.recovery_fit import forward_scores, latest_fit
 
         slug = str(request.query_params.get('seller') or '').strip().lower()
@@ -1267,6 +1268,8 @@ class EstimateScoresView(APIView):
             'fitted_at': fit.fitted_at.isoformat() if fit else None,
             'fit': block,
             'forward': forward_scores(slug, fit) if fit else [],
+            # Dash #78: the latest monthly miss review (advice only) and when the next one comes.
+            'review': miss_review.payload(),
         })
 class BstockCallsView(APIView):
     """GET (superuser): the B-Stock call gate now (kill switch, cap, back-off) and the daily call log."""

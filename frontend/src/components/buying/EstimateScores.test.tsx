@@ -55,6 +55,27 @@ describe('EstimateScores', () => {
     expect(screen.getByText(/Forward test: none yet/)).toBeTruthy();
   });
 
+  it('shows the monthly review as advice, with its proposals and when the next one comes', async () => {
+    api.fetchEstimateScores.mockResolvedValue({
+      ...ok,
+      review: {
+        review: {
+          created_at: '2026-11-06T08:06:00Z', model: 'claude-opus-5-5', effort: 'medium',
+          text: 'Target runs even; bedding is too thin to split.',
+          proposals: [{ seller: 'target', category: 'WHOLE TRUCK', rate_now: 0.279, proposed: 0.27, why: 'Two bedding trucks ran high.', trucks: [321, 367] }],
+        },
+        next: 'Next review on or after Dec 4.',
+      },
+    });
+    renderIt();
+    fireEvent.click(screen.getByRole('button', { name: 'How good is it?' }));
+    expect(await screen.findByText(/Target runs even/)).toBeTruthy();
+    expect(screen.getByText(/Opus 5.5 \(medium\). Advice only/)).toBeTruthy();
+    expect(screen.getByText(/27.9% → 27.0%/)).toBeTruthy();
+    expect(screen.getByText(/POs 321, 367/)).toBeTruthy();
+    expect(screen.getByText('Next review on or after Dec 4.')).toBeTruthy();
+  });
+
   it('says not yet for a seller without three scored trucks', async () => {
     api.fetchEstimateScores.mockResolvedValue({ ...ok, fit: { status: 'not_yet', scored_trucks: 1, young_trucks: 2 } });
     renderIt();

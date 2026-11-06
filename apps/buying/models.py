@@ -1169,3 +1169,29 @@ class EstimateLog(models.Model):
 
     def __str__(self) -> str:
         return f'estimate {self.pk} {self.seller} {self.likely}'
+
+
+class MissReview(models.Model):
+    """
+    The monthly miss review (Dash #78): Opus 5.5 at medium reads a recovery fit's blind misses and proposes rate
+    changes. Advice only: nothing here changes a rate.
+    """
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    fit = models.ForeignKey(RecoveryFit, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    model = models.CharField(max_length=160, blank=True, default='')
+    effort = models.CharField(max_length=10, blank=True, default='')
+    text = models.TextField(blank=True, default='')
+    proposals = models.JSONField(default=list, blank=True)
+    seen = models.JSONField(
+        default=dict, blank=True,
+        help_text='What this review was shown: {seller: {trucks: [po], categories: [sc], forward: [po]}}.',
+    )
+    cost_usd = models.DecimalField(max_digits=10, decimal_places=4, default=0)
+    error = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-created_at', '-pk']
+
+    def __str__(self) -> str:
+        return f'miss review {self.pk} {self.created_at:%Y-%m-%d}'

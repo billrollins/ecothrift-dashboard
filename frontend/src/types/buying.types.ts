@@ -1011,4 +1011,15 @@ export interface EstimateScores {
   fitted_at: string | null;
   fit: SellerFit | null;
   forward: { po: number; estimated_at: string; predicted_rate: number; actual_rate: number; miss: number }[];
+  /** Dash #78: the latest monthly miss review (Opus 5.5 medium; advice only) and when the next one comes. */
+  review?: {
+    review: {
+      created_at: string;
+      model: string;
+      effort: string;
+      text: string;
+      proposals: { seller: string; category: string; rate_now: number; proposed: number; why: string; trucks?: number[] }[];
+    } | null;
+    next: string;
+  };
 }

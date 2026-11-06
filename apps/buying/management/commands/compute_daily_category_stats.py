@@ -129,6 +129,16 @@ class Command(BaseCommand):
             call_command('fit_recovery_rates', stdout=self.stdout, stderr=self.stderr)
         except Exception as exc:  # never block the daily stats
             self.stderr.write(f'Recovery fit skipped: {exc}')
+            return
+        # Dash #78: the monthly miss review (Opus 5.5 medium), only when due and something is new.
+        try:
+            from apps.buying.services import miss_review
+
+            review = miss_review.run()
+            if review is not None:
+                self.stdout.write(f'Miss review {review.pk}: {"failed, " + review.error[:120] if review.error else "stored"}.')
+        except Exception as exc:  # never block the daily stats
+            self.stderr.write(f'Miss review skipped: {exc}')
 
     def _inventory_weeks(self, options, db: str) -> None:
         """The weekly inventory rollup rides on this daily job (inventory review); a failure never breaks the stats."""

@@ -147,6 +147,40 @@ function Body({ q, sellerName }: { q: UseQueryResult<Scores>; sellerName: string
               .join(', ')}.`
           : 'Forward test: none yet. It starts when a lot estimated here is bought and has sold for 90 days.'}
       </Typography>
+      {data.review ? <Review review={data.review} /> : null}
     </Stack>
+  );
+}
+
+const MODEL_NAME: Record<string, string> = { 'claude-opus-5-5': 'Opus 5.5' };
+
+function Review({ review }: { review: NonNullable<Scores['review']> }) {
+  const r = review.review;
+  return (
+    <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 1.25 }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Monthly review</Typography>
+      {r ? (
+        <>
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+            {day(r.created_at)}, {MODEL_NAME[r.model] || r.model}
+            {r.effort && r.effort !== 'off' ? ` (${r.effort})` : ''}. Advice only: it never changes a rate.
+          </Typography>
+          <Typography variant="body2" sx={{ whiteSpace: 'pre-line' }}>{r.text}</Typography>
+          {r.proposals.length ? (
+            <Box component="ul" sx={{ m: 0, mt: 0.75, pl: 2.5 }}>
+              {r.proposals.map((p, i) => (
+                <Typography component="li" variant="body2" key={i}>
+                  {p.seller} {p.category.toLowerCase()}: {pct(p.rate_now)} → {pct(p.proposed)}. {p.why}
+                  {p.trucks?.length ? ` (POs ${p.trucks.join(', ')})` : ''}
+                </Typography>
+              ))}
+            </Box>
+          ) : (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>No rate changes proposed.</Typography>
+          )}
+        </>
+      ) : null}
+      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>{review.next}</Typography>
+    </Box>
   );
 }
