@@ -1,26 +1,13 @@
-v2.267.0 — Retail redesign: returns on the Register, Transactions with returns, Cash Drops part 1
+v2.268.0 — Buying: the auction list rebuilt (your max, profit at max); old buying pages under Legacy
 
-User-facing theme: **Retail redesign: returns on the Register (#71), Transactions with returns (#72) and Cash Drops part 1 (#70); receipt numbers use the store's date.**
+User-facing theme: **Buying: the auction list rebuilt (step 1 of the buying rebuild); old buying pages under Legacy.**
 
-### Changed (Retail redesign phase 1, Dash Update #71: Register with returns)
-- **Returns are on the Register.** A **Return** button sits first in the Register's header (any drawer state) and opens the Return window: find the receipt, tick the items, summary, Confirm, then the member's window opens. Same rules as before: the 3 days, AS IS and the Settings rules, 80% back as Thrift+ credit, ThriftBucks taken back and given back, a manager's own PIN and a reason past the 3 days (a mark against Retail), the training register writes nothing. The window keeps one height on every step.
-- Owner page: "Late returns taken" opens Transactions → Returns, late only; "Returned items waiting for staff" opens Thrift+ → Register, where they are handled.
+> **For Bill:** **Buying → Auctions** now lists every live lot with **Your max** (the most to bid at 20% landed) and the **profit at your max** from what the seller's past trucks really sold in 90 days. Ending soon first; lots already over your max sit at the bottom. Get manifest is one tap on the row. The old list, Today's best, Watchlist and Report cards are under **Legacy** in the sidebar.
 
-### Changed (Retail redesign phase 2, Dash Update #72: Transactions with returns)
-- **Transactions has two tabs: Checkouts and Returns.** Returns lists every Thrift+ return on the day it came back (item, member, credit, who took it), with the same search, dates and cashier filters, and "Late returns only". Late ones carry a Late chip; managers also see why, the cashier it counts against and who allowed it. A row opens its sale. It replaces the managers' Late returns list.
+### Added
+- `GET /api/buying/live-lots/` (`services/live_lots.py`) and the new `/buying/auctions` page (`LiveLotsPage.tsx`): live lots (listed in the last 3 h), brings in from the newest recovery fit, your max at 20% landed, where the price stands, profit at max with its multiple; sorts Ending soon / Best x / Most profit; contract lots apart; clean titles. Tests: `apps/buying/tests/test_live_lots.py`, `LiveLotsPage.test.tsx`. Critic cycle: 3 rounds (trail in `workspace/critic/auctions-list/`).
 
-### Changed (Retail redesign phase 3, Dash Update #70: Cash Drops, first part)
-- **Cash Drops** (was Cash, Retail → Managers) shows where the day's cash ends up: the **cash drop box** (every envelope waiting for the bank, each with its bills, to check at the deposit), the safe, the **office drawer** (a recount) and the bank history.
-- **Cover:** the person stepping in ticks that they take the drawer while they cover. When the cashier taps Back they see the cash sales, drops and paid in / out made meanwhile, count the bills and coins that changed, and tap **Accept the drawer** (logged on the drawer).
-- **Handover:** the count can include the coins too (or skip them, as before).
-
-### Removed
-- The Returns page and its Retail menu item. `/pos/returns` opens the Register's Return window (`?practice=1` the test terminal's).
-- The register's old one-line return dialog (unused since 2026-10-20) and its two frontend API calls.
-- Cash page: the free-hand Draw and Return buttons (they let the office drawer's bills drift from its total), the bank transaction Edit and Delete, and the dead "new bank transaction" form.
-
-### Fixed
-- Receipt numbers carry the store's date: after 6 PM they had tomorrow's (the server's clock is UTC), so a ticket's short number found nothing in the evening. Numbers already printed keep theirs.
-- Returns: finding by a date lists the whole day (up to 100 tickets, was 30, so morning sales were out of reach) and says when it stops there.
+### Changed
+- Buying sidebar (Bill 2026-11-06): Auctions (rebuilt) and Estimate Profit on top with the intake tools (Vendors, Orders, Preprocessing); pages not yet rebuilt (Today's best, Auctions (old) at `/buying/auctions-old`, Watchlist, Report cards) under a "Legacy" caption. Nothing is hidden; every page still opens.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -218,6 +218,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     id: 'auctions',
     path: '/buying/auctions',
     label: 'Auctions',
+    // Rebuilt (Bill 2026-11-06): live lots, what each brings in, bid up to at 20% landed, room left.
+    icon: 'auction',
+  },
+  auctionsOld: {
+    id: 'auctionsOld',
+    path: '/buying/auctions-old',
+    label: 'Auctions (old)',
     icon: 'auction',
   },
   watchlist: {

@@ -1023,3 +1023,48 @@ export interface EstimateScores {
     next: string;
   };
 }
+
+/** Rebuilt auction list (buying rebuild step 1): one live lot. */
+export interface LiveLot {
+  id: number;
+  seller: string;
+  seller_slug: string;
+  title: string;
+  url: string;
+  retail: number | null;
+  retail_source: 'manifest' | 'B-Stock';
+  price: number | null;
+  price_basis: 'current bid' | 'Buy Now' | 'contract price';
+  bids: number;
+  ends: string | null;
+  pallets: number | null;
+  city: string;
+  manifest: 'yes' | 'none' | 'requested' | 'pulling' | 'pulled' | 'failed';
+  manifest_eligible: boolean;
+  watched: boolean;
+  method: 'manifest' | 'whole truck' | '';
+  estimate_note: string;
+  brings_in: { low: number; likely: number; high: number } | null;
+  freight: number | null;
+  freight_basis: string;
+  landed: number | null;
+  landed_pct: number | null;
+  bid_up_to: number | null;
+  room: number | null;
+  room_pct: number | null;
+  /** Profit if he wins at his max (landed then 20% of retail): brings in (likely) minus 20% of retail. */
+  profit_at_max: number | null;
+  /** Price now against his max: over, under (has bids), no_bids, buy_now; '' when there is no max. */
+  reach: 'over' | 'under' | 'no_bids' | 'buy_now' | '';
+  short_title: string;
+  units: number | null;
+}
+
+export interface LiveLots {
+  generated_at: string;
+  last_listed_at: string | null;
+  landed_pct: number;
+  fit_id: number | null;
+  lots: LiveLot[];
+  contract: LiveLot[];
+}

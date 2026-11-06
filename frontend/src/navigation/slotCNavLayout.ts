@@ -31,7 +31,11 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'buying',
     label: 'Buying',
-    itemIds: ['wishlist', 'estimateProfit', 'auctions', 'watchlist', 'reportCards', 'vendors', 'orders', 'preprocessing'],
+    // Bill 2026-11-06: every buying page not yet fully rebuilt sits under a "Legacy" caption until its rebuild
+    // ships. Vendors, Orders and Preprocessing are intake tools (not part of the auctions rebuild) and stay on top.
+    itemIds: ['auctions', 'estimateProfit', 'vendors', 'orders', 'preprocessing'],
+    setupItemIds: ['wishlist', 'auctionsOld', 'watchlist', 'reportCards'],
+    setupLabel: 'Legacy',
   },
   {
     id: 'processing',

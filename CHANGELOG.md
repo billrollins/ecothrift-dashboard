@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.267.0] -->
-<!-- Last reviewed: 2026-11-05 (2.267.0) -->
+<!-- Line 1 release: ## [2.268.0] -->
+<!-- Last reviewed: 2026-11-06 (2.268.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.268.0] - 2026-11-06
+
+User-facing theme: **Buying: the auction list rebuilt (step 1 of the buying rebuild); old buying pages under Legacy.**
+
+> **For Bill:** **Buying → Auctions** now lists every live lot with **Your max** (the most to bid at 20% landed) and the **profit at your max** from what the seller's past trucks really sold in 90 days. Ending soon first; lots already over your max sit at the bottom. Get manifest is one tap on the row. The old list, Today's best, Watchlist and Report cards are under **Legacy** in the sidebar.
+
+### Added
+- `GET /api/buying/live-lots/` (`services/live_lots.py`) and the new `/buying/auctions` page (`LiveLotsPage.tsx`): live lots (listed in the last 3 h), brings in from the newest recovery fit, your max at 20% landed, where the price stands, profit at max with its multiple; sorts Ending soon / Best x / Most profit; contract lots apart; clean titles. Tests: `apps/buying/tests/test_live_lots.py`, `LiveLotsPage.test.tsx`. Critic cycle: 3 rounds (trail in `workspace/critic/auctions-list/`).
+
+### Changed
+- Buying sidebar (Bill 2026-11-06): Auctions (rebuilt) and Estimate Profit on top with the intake tools (Vendors, Orders, Preprocessing); pages not yet rebuilt (Today's best, Auctions (old) at `/buying/auctions-old`, Watchlist, Report cards) under a "Legacy" caption. Nothing is hidden; every page still opens.
 
 ## [2.267.0] - 2026-11-05
 

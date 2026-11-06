@@ -118,6 +118,7 @@ const SettingsPage = lazy(() => import('./pages/admin/SettingsPage'));
 const LabelStudioPage = lazy(() => import('./pages/admin/labelStudio/LabelStudioPage'));
 const LabelDesignerPage = lazy(() => import('./pages/admin/labelStudio/LabelDesignerPage'));
 const AuctionListPage = lazy(() => import('./pages/buying/AuctionListPage'));
+const LiveLotsPage = lazy(() => import('./pages/buying/LiveLotsPage'));
 const AuctionDetailPage = lazy(() => import('./pages/buying/AuctionDetailPage'));
 const WatchlistPage = lazy(() => import('./pages/buying/WatchlistPage'));
 const WishListPage = lazy(() => import('./pages/buying/WishListPage'));
@@ -449,7 +450,9 @@ function AppRoutes() {
           <Route path="schedule/:dayId" element={<FieldDayDetailPage />} />
           <Route path="table" element={<FieldTotalDeliveriesPage />} />
         </Route>
-        <Route path="/buying/auctions" element={<AuctionListPage />} />
+        <Route path="/buying/auctions" element={<LiveLotsPage />} />
+        {/* The old list (Legacy), until it is retired. */}
+        <Route path="/buying/auctions-old" element={<AuctionListPage />} />
         <Route path="/buying/auctions/:id" element={<AuctionDetailPage />} />
         <Route path="/buying/watchlist" element={<WatchlistPage />} />
         <Route path="/buying/wishlist" element={<WishListPage />} />

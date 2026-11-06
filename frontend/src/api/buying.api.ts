@@ -31,6 +31,7 @@ import type {
   EstimateRequest,
   EstimateResponse,
   EstimateScores,
+  LiveLots,
 } from '../types/buying.types';
 import api from './client';
 
@@ -487,6 +488,12 @@ export async function postBuyingWatchlistUpdateNow(): Promise<Record<string, unk
 }
 
 /** Estimate Profit (Dash Update #73, ship 1): a pasted lot link and/or a dropped manifest CSV. */
+/** The rebuilt auction list: every live lot with its estimate, bid-up-to and room. */
+export async function fetchLiveLots(fresh = false): Promise<LiveLots> {
+  const { data } = await api.get<LiveLots>('/buying/live-lots/', { params: fresh ? { fresh: 1 } : undefined });
+  return data;
+}
+
 /** Dash #77: how good the estimate is for one seller (the nightly fit's blind scores). */
 export async function fetchEstimateScores(seller: string): Promise<EstimateScores> {
   const { data } = await api.get<EstimateScores>('/buying/estimate-scores/', { params: { seller } });

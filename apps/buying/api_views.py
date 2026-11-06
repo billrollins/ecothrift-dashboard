@@ -1245,6 +1245,20 @@ class EstimateProfitView(APIView):
             logger.exception('estimate-profit: could not save the estimate log')
 
 
+class LiveLotsView(APIView):
+    """
+    GET: the rebuilt auction list (buying rebuild step 1): every live lot with what it should bring in during its
+    first 90 days, landed now, the most to bid at 20% landed and the room left. Staff. Table math, cached a minute.
+    """
+
+    permission_classes = [IsAuthenticated, IsStaff]
+
+    def get(self, request):
+        from apps.buying.services.live_lots import live_lots
+
+        return Response(live_lots(use_cache=request.query_params.get('fresh') != '1'))
+
+
 class EstimateScoresView(APIView):
     """
     GET ?seller=<slug>: how good the estimate is (Dash #77). The newest recovery fit for that seller: blind score per

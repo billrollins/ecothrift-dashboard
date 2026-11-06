@@ -397,3 +397,12 @@ describe('No hiding from staff (#67)', () => {
     }
   });
 });
+
+describe('Buying legacy pages (Bill 2026-11-06)', () => {
+  it('puts every buying page not yet rebuilt under a Legacy caption, rebuilt ones on top', () => {
+    const buying = SLOT_C_NAV_GROUPS.find((g) => g.id === 'buying')!;
+    expect(buying.itemIds.slice(0, 2)).toEqual(['auctions', 'estimateProfit']);
+    expect(buying.setupLabel).toBe('Legacy');
+    expect(buying.setupItemIds).toEqual(['wishlist', 'auctionsOld', 'watchlist', 'reportCards']);
+  });
+});
