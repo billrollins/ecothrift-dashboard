@@ -78,7 +78,13 @@ vi.mock('../../api/thriftplusRegister.api', async (importOriginal) => ({
 }));
 
 import TerminalPage from './TerminalPage';
+import { useLocation } from 'react-router-dom';
 import { ObjectModalProvider } from '../../components/objects/ObjectModal';
+
+function Where() {
+  const l = useLocation();
+  return <div data-testid="where">{l.pathname}{l.search}</div>;
+}
 
 function block(over: Partial<ThriftPlusCartBlock> = {}): ThriftPlusCartBlock {
   return {
@@ -107,15 +113,16 @@ function cartWith(thrift: ThriftPlusCartBlock | null, over: Partial<Cart> = {}):
   } as unknown as Cart;
 }
 
-function renderTerminal() {
+function renderTerminal(url = '/pos/terminal') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <ThemeProvider theme={createTheme()}>
         <SnackbarProvider>
-          <MemoryRouter>
+          <MemoryRouter initialEntries={[url]}>
             <ObjectModalProvider>
               <TerminalPage />
+              <Where />
             </ObjectModalProvider>
           </MemoryRouter>
         </SnackbarProvider>
@@ -158,6 +165,25 @@ describe('The register\'s Thrift+ button (owner 2026-10-20)', () => {
     renderTerminal();
     await user.click(await screen.findByTestId('thrift-member-open'));
     expect(await screen.findByTestId('member-card-name')).toHaveTextContent('Ana Bell');
+  });
+});
+
+describe('Returns on the Register (#71, Bill 2026-11-04)', () => {
+  it('a Return button opens the Return window, and closing it puts the cursor back in the scan box', async () => {
+    const user = userEvent.setup();
+    renderTerminal();
+    await user.click(await screen.findByTestId('register-return'));
+    const win = await screen.findByTestId('return-window');
+    expect(within(win).getByText('Return')).toBeInTheDocument();
+    expect(within(win).getByTestId('returns-search')).toHaveFocus();
+    await user.click(within(win).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByTestId('return-window')).not.toBeInTheDocument());
+  });
+
+  it('?return=1 (the old /pos/returns address) opens it, and the address is tidied', async () => {
+    renderTerminal('/pos/terminal?return=1');
+    expect(await screen.findByTestId('return-window')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/pos\/terminal$/));
   });
 });
 

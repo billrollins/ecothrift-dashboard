@@ -1,5 +1,5 @@
 """
-The Returns page's Find and receipt (owner 2026-10-20): one box finds the receipt by ANY of
+The Return window's Find and receipt (owner 2026-10-20; on the Register since #71): one box finds the receipt by ANY of
 
 - the person: their member QR, member #, phone, email or name (then their recent tickets, newest first);
 - the ticket: the receipt # as printed (``R-20261020-014``, or just ``14`` for today's), a date, or the total;
@@ -23,6 +23,7 @@ from apps.thriftplus.services import cards, ledger, register, returns
 
 TICKET_LIMIT = 15
 PEOPLE_LIMIT = 8
+DAY_LIMIT = 100  # a whole day's tickets (a busy Saturday is under this; #71 found 30 cut the morning off)
 WORDS_DAYS = 30  # words from an item's description: sales of the last 30 days
 AMOUNT_DAYS = 90  # a total or a date: sales of the last 90 days
 RECEIPT_RE = re.compile(r'^(?:R|TRAIN)-\d{8}(?:-\d+)?$', re.I)
@@ -94,8 +95,17 @@ def _answer(kind: str, *, tickets=None, people=None, person=None, message: str =
     return body
 
 
+def _day_note(tickets: list, none: str) -> str:
+    """A day's list: say so when it is empty, and when it stops at the limit (the earliest tickets are left out)."""
+    if not tickets:
+        return none
+    if len(tickets) >= DAY_LIMIT:
+        return f'The newest {DAY_LIMIT} tickets that day. For an earlier one, type its total, the name or scan an item.'
+    return ''
+
+
 def find(q: str = '', *, person=None, training: bool = False) -> dict:
-    """The Returns page's Find. ``person`` (an id, picked from an earlier answer) lists that member's tickets."""
+    """The Return window's Find. ``person`` (an id, picked from an earlier answer) lists that member's tickets."""
     q = (q or '').strip()
     today = timezone.localdate()
     if person not in (None, ''):
@@ -124,8 +134,8 @@ def find(q: str = '', *, person=None, training: bool = False) -> dict:
         found = list(_carts(training).filter(receipt__receipt_number=receipt_no)[:1])
         if not found and re.fullmatch(r'(?:R|TRAIN)-\d{8}', receipt_no):  # a whole day's tickets
             found = []
-            tickets = [ticket_row(c) for c in _carts(training).filter(receipt__receipt_number__startswith=f'{receipt_no}-')[:30]]
-            return _answer('ticket', tickets=tickets, message='' if tickets else 'No tickets that day.', training=training)
+            tickets = [ticket_row(c) for c in _carts(training).filter(receipt__receipt_number__startswith=f'{receipt_no}-')[:DAY_LIMIT]]
+            return _answer('ticket', tickets=tickets, message=_day_note(tickets, 'No tickets that day.'), training=training)
         if found:
             return _answer('ticket', tickets=[ticket_row(found[0])], training=training)
         return _answer('none', message=f'No ticket {receipt_no}. Check the number on the receipt.')
@@ -147,8 +157,8 @@ def find(q: str = '', *, person=None, training: bool = False) -> dict:
     when = _parse_date(q)
     if when is not None:
         start = timezone.make_aware(datetime.combine(when, datetime.min.time()))
-        tickets = [ticket_row(c) for c in _carts(training).filter(completed_at__gte=start, completed_at__lt=start + timedelta(days=1))[:30]]
-        return _answer('date', tickets=tickets, training=training, message='' if tickets else 'No sales that day.')
+        tickets = [ticket_row(c) for c in _carts(training).filter(completed_at__gte=start, completed_at__lt=start + timedelta(days=1))[:DAY_LIMIT]]
+        return _answer('date', tickets=tickets, training=training, message=_day_note(tickets, 'No sales that day.'))
 
     # 5. A total ($12.34, 12.34 or $12).
     if AMOUNT_RE.match(q):

@@ -125,14 +125,6 @@ export function getSupplemental(): Promise<{ data: unknown }> {
   return api.get('/pos/supplemental/');
 }
 
-export function drawFromSupplemental(data: Record<string, unknown>): Promise<{ data: unknown }> {
-  return api.post('/pos/supplemental/draw/', data);
-}
-
-export function returnToSupplemental(data: Record<string, unknown>): Promise<{ data: unknown }> {
-  return api.post('/pos/supplemental/return/', data);
-}
-
 export function auditSupplemental(data: Record<string, unknown>): Promise<{ data: unknown }> {
   return api.post('/pos/supplemental/audit/', data);
 }
@@ -149,18 +141,6 @@ export function bootstrapSupplemental(data?: { location?: number }): Promise<{ d
 // Bank transactions
 export function getBankTransactions(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<unknown> }> {
   return api.get<PaginatedResponse<unknown>>('/pos/bank-transactions/', { params });
-}
-
-export function createBankTransaction(data: Record<string, unknown>): Promise<{ data: unknown }> {
-  return api.post('/pos/bank-transactions/', data);
-}
-
-export function updateBankTransaction(id: number, data: Record<string, unknown>): Promise<{ data: unknown }> {
-  return api.patch(`/pos/bank-transactions/${id}/`, data);
-}
-
-export function deleteBankTransaction(id: number): Promise<{ data: void }> {
-  return api.delete(`/pos/bank-transactions/${id}/`);
 }
 
 export function completeBankTransaction(id: number): Promise<{ data: unknown }> {
@@ -750,9 +730,28 @@ export function logOpenDrawer(drawerId: number, body: { cart?: number; reason?: 
   return api.post(`/pos/drawers/${drawerId}/open-drawer/`, body);
 }
 
-/** Cover (2026-10-22): the person stepping in types their own register PIN; answers the drawer with its `cover`. */
+/** Cover (2026-10-22): the person stepping in types their own register PIN and takes the drawer on (`accept`, Cash
+ * Drops #70); answers the drawer with its `cover`. */
 export function coverDrawer(drawerId: number, pin: string): Promise<{ data: Drawer }> {
-  return api.post<Drawer>(`/pos/drawers/${drawerId}/cover/`, { pin });
+  return api.post<Drawer>(`/pos/drawers/${drawerId}/cover/`, { pin, accept: true });
+}
+
+/** What happened while someone covered (Cash Drops #70): shown to the cashier on Back, before they accept the drawer. */
+export interface CoverReport {
+  cover: number;
+  covered_by: string;
+  started_at: string;
+  ended_at: string;
+  sales: { at: string; receipt: string; total: string; cash: string; change: string }[];
+  drops: { at: string; total: string; reason: string }[];
+  movements: { at: string; kind: 'paid_in' | 'paid_out'; total: string; reason: string }[];
+  /** Net by bill and coin: what to count. */
+  changed: Record<string, number>;
+}
+
+/** The cashier accepts the drawer back after a cover (logged once). */
+export function acceptCover(drawerId: number, cover: number): Promise<{ data: { accepted_at: string; by: string } }> {
+  return api.post(`/pos/drawers/${drawerId}/cover-accept/`, { cover });
 }
 
 /** Back: the drawer's own cashier types their PIN and the cover ends. */

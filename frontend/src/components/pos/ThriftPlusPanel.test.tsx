@@ -1,30 +1,25 @@
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SnackbarProvider } from 'notistack';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Cart, ThriftPlusCartBlock } from '../../types/pos.types';
 import ThriftPlusPanel from './ThriftPlusPanel';
-import ThriftPlusReturnDialog from './ThriftPlusReturnDialog';
 import ThriftPlusSignupDialog from './ThriftPlusSignupDialog';
 
 const calls = vi.hoisted(() => ({
   choice: [] as string[],
   bucks: [] as Array<[number, boolean]>,
   here: [] as number[],
-  returned: [] as unknown[],
-  lookups: [] as unknown[],
   phones: [] as string[],
   attached: [] as Array<[number, number]>,
   rerung: [] as Array<[number, number]>,
   created: [] as unknown[],
-  training: false,
-  owner: false,
 }));
 
-vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { is_superuser: calls.owner } }) }));
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { is_superuser: false } }) }));
 
 /** Two adults on one membership share a phone (owner 2026-10-14: find them by phone, pick by the photo). */
 const PEOPLE = vi.hoisted(() => [
@@ -71,45 +66,15 @@ vi.mock('../../api/thriftplusRegister.api', () => ({
     return {};
   },
   thriftErrorMessage: () => 'error',
-  lookupThriftReturns: async (who: unknown) => {
-    calls.lookups.push(who);
-    return {
-    member: { name: 'Ana', account_id: 1, photo_url: null, banked: '0.00', credit: '0.00' },
-    lines: [
-      {
-        cart_line: 7, cart: 3, sku: 'ITM1', title: 'Brass lamp', mark: '3-day return', refund: '68.48', bucks_back: '0.00',
-        bucks_take: '28.00', sold_at: '2026-10-21T15:00:00Z', deadline: '2026-10-24', photos: [], ok: true, problem: '',
-      },
-      {
-        cart_line: 8, cart: 3, sku: 'ITM2', title: 'Wool sweater', mark: 'AS IS', refund: '0.00', bucks_back: '0.00',
-        bucks_take: '0.00', sold_at: '2026-10-21T15:00:00Z', deadline: '2026-10-24', photos: [], ok: false,
-        problem: 'Sold AS IS: no 3-day return.',
-      },
-      {
-        cart_line: 9, cart: 2, sku: 'ITM3', title: 'Oak chair', mark: '3-day return', refund: '20.00', bucks_back: '0.00',
-        bucks_take: '0.00', sold_at: '2026-10-16T15:00:00Z', deadline: '2026-10-19', photos: [], ok: false,
-        problem: 'The 3-day return window closed Oct 19.', late_only: true,
-      },
-    ],
-    };
-  },
-  returnThriftItem: async (body: unknown) => {
-    calls.returned.push(body);
-    return { id: calls.training ? null : 1, credit: '68.48', bucks_back: '0.00', bucks_taken: '28.00', shortfall: '0.00', training: calls.training };
-  },
 }));
 
 beforeEach(() => {
   calls.choice = [];
   calls.bucks = [];
-  calls.returned = [];
-  calls.lookups = [];
   calls.phones = [];
   calls.attached = [];
   calls.rerung = [];
   calls.created = [];
-  calls.training = false;
-  calls.owner = false;
 });
 
 /** Owner 2026-10-14: there is no Thrift+ card. No Thrift+ screen at the register says "card". */
@@ -274,75 +239,6 @@ describe('Thrift+ at the register', () => {
     expect(screen.getByText('Not using ThriftBucks today')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Use 35.00 ThriftBucks' }));
     expect(calls.bucks).toEqual([[3, true]]);
-  });
-
-  it('takes a Thrift+ 3-day return: no reason asked, 80% back as Thrift+ credit, the register code passed', async () => {
-    const user = userEvent.setup();
-    wrap(<ThriftPlusReturnDialog open onClose={() => undefined} registerCode="R1" />);
-    expect(screen.getByText('Thrift+ 3-day return')).toBeInTheDocument();
-    expectNoCardWords();
-    await user.type(screen.getByLabelText('Scan the QR in their Thrift+ app'), 'TP100000000008');
-    await user.click(screen.getByRole('button', { name: 'Look up' }));
-    expect(await screen.findByText('Ana')).toBeInTheDocument();
-    expect(screen.getByText('Sold AS IS: no 3-day return.')).toBeInTheDocument();
-    await user.click(screen.getByText(/Brass lamp/));
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
-    expect(screen.getByText('ThriftBucks back 0.00 · taken back 28.00')).toBeInTheDocument();
-    expectNoCardWords();
-    await user.click(screen.getByRole('button', { name: 'Give $68.48 Thrift+ credit' }));
-    expect(calls.lookups).toEqual([{ code: '100000000008' }]);
-    expect(calls.returned).toEqual([{ code: '100000000008', cart_line: 7, register: 'R1' }]);
-  });
-
-  it('past the 3 days only the owner can allow it: Owner OK and a note (owner 2026-10-20, closed Sun-Mon)', async () => {
-    const user = userEvent.setup();
-    const { unmount } = wrap(<ThriftPlusReturnDialog open onClose={() => undefined} registerCode="R1" />);
-    await user.type(screen.getByLabelText('Scan the QR in their Thrift+ app'), 'TP100000000008');
-    await user.click(screen.getByRole('button', { name: 'Look up' }));
-    expect((await screen.findByText(/Oak chair/)).closest('[role="button"]')).toHaveAttribute('aria-disabled', 'true'); // a cashier
-    unmount();
-
-    calls.owner = true;
-    wrap(<ThriftPlusReturnDialog open onClose={() => undefined} registerCode="R1" />);
-    await user.type(screen.getByLabelText('Scan the QR in their Thrift+ app'), 'TP100000000008');
-    await user.click(screen.getByRole('button', { name: 'Look up' }));
-    await user.click(await screen.findByText(/Oak chair/));
-    expect(screen.getByTestId('thrift-return-late')).toHaveTextContent('The 3-day return window closed Oct 19. Only the owner can allow it.');
-    const give = screen.getByRole('button', { name: 'Give $20.00 Thrift+ credit' });
-    expect(give).toBeDisabled();
-    await user.click(screen.getByRole('checkbox', { name: 'Owner OK: late return' }));
-    expect(give).toBeDisabled(); // and why
-    await user.type(screen.getByLabelText('Why it is allowed (required)'), 'Closed Sun and Mon');
-    await user.click(give);
-    expect(calls.returned).toEqual([{ code: '100000000008', cart_line: 9, register: 'R1', note: 'Closed Sun and Mon', late_ok: true }]);
-  });
-
-  it('takes a return for a member found by phone', async () => {
-    const user = userEvent.setup();
-    wrap(<ThriftPlusReturnDialog open onClose={() => undefined} registerCode="R1" />);
-    await user.type(screen.getByLabelText('Phone number'), '4025550101');
-    await user.click(screen.getByRole('button', { name: 'Find' }));
-    await user.click(within(await screen.findByTestId('thrift-phone-people')).getByText('Ana D.'));
-    await user.click(await screen.findByText(/Brass lamp/));
-    await user.click(screen.getByRole('button', { name: 'Give $68.48 Thrift+ credit' }));
-    expect(calls.lookups).toEqual([{ person: 5 }]);
-    expect(calls.returned).toEqual([{ person: 5, cart_line: 7, register: 'R1' }]);
-  });
-
-  it('shows the training result and gives nothing on the training register', async () => {
-    calls.training = true;
-    const user = userEvent.setup();
-    wrap(<ThriftPlusReturnDialog open onClose={() => undefined} registerCode="TRAIN" training />);
-    expect(screen.getByText('Thrift+ 3-day return (practice)')).toBeInTheDocument();
-    await user.type(screen.getByLabelText('Scan the QR in their Thrift+ app'), 'TP100000000008');
-    await user.click(screen.getByRole('button', { name: 'Look up' }));
-    await user.click(await screen.findByText(/Brass lamp/));
-    await user.click(screen.getByRole('button', { name: 'Give $68.48 Thrift+ credit' }));
-    const result = await screen.findByTestId('thrift-return-practice');
-    expect(result).toHaveTextContent('THIS IS JUST A TEST: nothing was given.');
-    expect(result).toHaveTextContent('Thrift+ credit $68.48');
-    expect(result).toHaveTextContent('ThriftBucks taken back 28.00');
-    expect(calls.returned).toEqual([{ code: '100000000008', cart_line: 7, register: 'TRAIN' }]);
   });
 });
 

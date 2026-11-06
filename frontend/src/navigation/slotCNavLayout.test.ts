@@ -373,12 +373,13 @@ describe('Sidebar = the workspace you are in (phase 1 redesign)', () => {
 });
 
 describe('No hiding from staff (#67)', () => {
-  // Every page each level saw in the sidebar before #67 (v2.259.0). PR Fix-it was archived by Bill (2026-11-04).
+  // Every page each level saw in the sidebar before #67 (v2.259.0). PR Fix-it was archived by Bill (2026-11-04). Returns
+  // folded into the Register's Return window (#71); /pos/returns opens it.
   const EMPLOYEE_BEFORE = [
     'wishlist', 'auctions', 'watchlist', 'reportCards', 'vendors', 'orders', 'preprocessing', 'receiving', 'processing',
     'restorations', 'restorationQueue', 'tars', 'restorationPartsRequests', 'restorationTracking', 'inventoryWorkbench',
     'inventoryReview', 'inventoryCount', 'tagErrors', 'posTerminal', 'thriftPlusFinalize', 'posTransactions',
-    'posReturns', 'posDrawers', 'posTestTerminal', 'posPrintables', 'deliverySchedule', 'deliveryTable', 'socialStudio',
+    'posDrawers', 'posTestTerminal', 'posPrintables', 'deliverySchedule', 'deliveryTable', 'socialStudio',
   ];
   const MANAGER_BEFORE = [
     ...EMPLOYEE_BEFORE,

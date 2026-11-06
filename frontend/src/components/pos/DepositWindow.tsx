@@ -116,11 +116,12 @@ export default function DepositWindow({ open, bags, onClose, lang }: {
         </ToggleButtonGroup>
         <Typography variant="h6" fontWeight={800}>{tp('toBank', lang)}</Typography>
         <CashCountPad value={count} onChange={setCount} disabled={busy} lang={lang} />
-        {chosen.length > 0 && (
-          <Typography sx={{ mt: 1.5 }} color={counted === bagsCents ? 'success.main' : 'error.main'} fontWeight={700}
-            data-testid="deposit-vs-bags">
+        {chosen.length > 0 && counted > 0 && (
+          // While counting it says what is left (no red mid-count); red only once the count is over the envelopes.
+          <Typography sx={{ mt: 1.5 }} color={counted === bagsCents ? 'success.main' : counted > bagsCents ? 'error.main' : 'text.secondary'}
+            fontWeight={700} data-testid="deposit-vs-bags">
             {tp('bagsSay', lang)} {money(bagsCents)} · {tp('counted', lang)} {money(counted)}
-            {counted !== bagsCents ? ` · ${tp(counted > bagsCents ? 'over' : 'short', lang)} ${money(Math.abs(counted - bagsCents))}` : ' ✓'}
+            {counted === bagsCents ? ' ✓' : counted > bagsCents ? ` · ${tp('over', lang)} ${money(counted - bagsCents)}` : ` · ${money(bagsCents - counted)} ${tp('leftToCount', lang)}`}
           </Typography>
         )}
         {noteNeeded && (

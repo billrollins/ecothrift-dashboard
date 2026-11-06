@@ -1,4 +1,4 @@
-import type { Cart, ThriftPlusLineMark } from '../types/pos.types';
+import type { Cart } from '../types/pos.types';
 import api from './client';
 
 /**
@@ -260,76 +260,6 @@ export function thriftErrorMessage(err: unknown, fallback = 'Thrift+ could not d
 /** Whether Thrift+ is live at this register (before any sale exists). */
 export async function getThriftRegisterStatus(registerCode: string): Promise<{ live: boolean }> {
   const { data } = await api.get<{ live: boolean }>('/thriftplus/register/status/', { params: { register: registerCode } });
-  return data;
-}
-
-/** One line the member bought, for a Thrift+ 3-day return (W1-W7). Money in dollars; ThriftBucks as numbers. */
-export interface ThriftReturnLine {
-  cart_line: number;
-  cart: number;
-  sku: string;
-  title: string;
-  /** The line's mark at the sale: only '3-day return' lines can come back. */
-  mark?: ThriftPlusLineMark;
-  /** Thrift+ credit back: 80% of what was paid, tax included. */
-  refund?: string;
-  /** ThriftBucks back: 80% of the ThriftBucks used on it, with a fresh 30 days. */
-  bucks_back?: string;
-  /** ThriftBucks taken back: 80% of the ThriftBucks it collected (the member keeps 20%). */
-  bucks_take?: string;
-  /** Older servers: what was paid. */
-  paid?: string;
-  sold_at: string;
-  /** ISO date: the last day it can come back (sale day + 3). */
-  deadline: string;
-  photos: string[];
-  ok: boolean;
-  /** Why it can't come back ('' when it can). */
-  problem?: string;
-  /** Older servers: the reasons as a list. */
-  problems?: string[];
-  /** Only the 3 days stand in the way: the owner may allow it (O1). */
-  late_only?: boolean;
-}
-
-export interface ThriftReturnLookup {
-  member: {
-    name: string;
-    account_id: number;
-    photo_url: string | null;
-    banked?: string;
-    available?: string;
-    credit?: string;
-  };
-  lines: ThriftReturnLine[];
-}
-
-/** Who a return is for: their member QR scanned (`code`) or the person found by phone (`person`). */
-export type ThriftReturnWho = { code: string } | { person: number };
-
-export async function lookupThriftReturns(who: ThriftReturnWho | string): Promise<ThriftReturnLookup> {
-  const params = typeof who === 'string' ? { code: who } : who;
-  const { data } = await api.get<ThriftReturnLookup>('/thriftplus/returns/lookup/', { params });
-  return data;
-}
-
-/** What a Thrift+ 3-day return gave. ``training``: the training register worked it out and wrote nothing. */
-export interface ThriftReturnResult {
-  id: number | null;
-  /** Thrift+ credit (dollars). */
-  credit: string;
-  bucks_back: string;
-  bucks_taken: string;
-  /** ThriftBucks to take back that were already spent: the credit was cut by this much. */
-  shortfall: string;
-  training: boolean;
-}
-
-/** Take one line back as Thrift+ credit. ``register``: this terminal's code (the training register writes nothing). */
-export async function returnThriftItem(
-  body: ThriftReturnWho & { cart_line: number; note?: string; register: string; late_ok?: boolean },
-): Promise<ThriftReturnResult> {
-  const { data } = await api.post<ThriftReturnResult>('/thriftplus/returns/', body);
   return data;
 }
 

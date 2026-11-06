@@ -160,7 +160,7 @@ describe('Drawers page: a drawer\'s life (2026-10-21)', () => {
     await user.click(within(dialog).getByTestId('count-submit'));
     await waitFor(() => expect(m.handoff).toHaveBeenCalledTimes(2));
     const sent = m.handoff.mock.calls[1][0] as { data: { incoming_cashier: number; count: Record<string, number> } };
-    expect(sent.data).toEqual({ incoming_cashier: 4, count: { twenties: 10 } });
+    expect(sent.data).toEqual({ incoming_cashier: 4, count: { twenties: 10 }, with_coins: false }); // coins skipped (they may be counted too, #70)
     const result = await screen.findByTestId('count-result');
     expect(result).toHaveTextContent('Short $20.00');
     expect(result).toHaveTextContent('$20Short 1');

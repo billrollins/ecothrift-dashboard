@@ -134,10 +134,24 @@ def _tender_fields(payment_method, amount_due, cash_tendered, change_given, card
     return None, None, None  # payroll or Thrift+: nothing in the drawer, nothing on a card
 
 
-def _bills_from_count(contents, count):
+def _bills_from_count(contents, count, with_coins=False):
     """The drawer after a handoff count (2026-11-02, the drawer knows its bills): the bills are what was counted, the
-    coins what Dash already had (coins are counted at the office close)."""
+    coins what Dash already had (coins are counted at the office close), or the coins counted too when the count has
+    them (Cash Drops #70, Bill 2026-11-04: "coins can be skipped")."""
+    if with_coins:
+        return {**drawer_life.bills_of(count), **drawer_life.coins_of(count)}
     return {**drawer_life.coins_of(contents), **drawer_life.bills_of(count)}
+
+
+def _truthy(value) -> bool:
+    return str(value).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def _expected_for(contents, with_coins):
+    """What a handoff count is checked against: the drawer's bills, or all of it when the coins were counted too."""
+    if with_coins:
+        return {**drawer_life.bills_of(contents), **drawer_life.coins_of(contents)}
+    return drawer_life.bills_of(contents)
 
 
 def _cash_count_error(exc):
@@ -450,16 +464,20 @@ class DrawerViewSet(viewsets.ModelViewSet):
         """Expected cash in drawer: opening + cash sales - drops + paid in - paid out."""
         return drawer_life.expected_cash(drawer)
 
-    def _bills_count(self, request, label):
-        """A handoff count (Bill, 2026-10-21): the bills only. Coins are counted at the end of the day in the office."""
+    def _handoff_count(self, request, label):
+        """
+        A handoff or takeover count: the bills (Bill, 2026-10-21), and the coins too when they are counted (Cash Drops
+        #70, Bill 2026-11-04: "a count at every handoff; coins can be skipped"). ``with_coins`` (or any coin in the
+        count) says the coins were counted: none of a coin then means none in the drawer. Answers (count, total,
+        with_coins).
+        """
         count = clean_count(request.data.get('count'), label)
-        if drawer_life.coins_of(count):
-            raise CashCountError('A handoff counts the bills only. Coins are counted at the end of the day in the office.')
+        with_coins = _truthy(request.data.get('with_coins')) or bool(drawer_life.coins_of(count))
         sent = clean_amount(request.data.get('counted_total'), f'{label} total')
         total = count_total(count)
         if count and sent is not None and sent != total:
-            raise CashCountError(f'{label} total ${sent} does not match the bills counted (${total}).')
-        return count, (total if count else sent)
+            raise CashCountError(f'{label} total ${sent} does not match the count (${total}).')
+        return count, (total if count else sent), with_coins and bool(count)
 
     @action(detail=True, methods=['post'])
     def handoff(self, request, pk=None):
@@ -483,13 +501,13 @@ class DrawerViewSet(viewsets.ModelViewSet):
             )
         incoming_cashier_id = incoming.pk
         try:
-            count, counted_total = self._bills_count(request, 'Handoff count')
+            count, counted_total, with_coins = self._handoff_count(request, 'Handoff count')
         except CashCountError as exc:
             return _cash_count_error(exc)
         if counted_total is None:
             return _cash_count_error(CashCountError('Count the bills in the drawer.'))
 
-        expected_bills = drawer_life.bills_of(drawer.contents)
+        expected_bills = _expected_for(drawer.contents, with_coins)
         expected = count_total(expected_bills)
         variance = counted_total - expected
 
@@ -503,18 +521,18 @@ class DrawerViewSet(viewsets.ModelViewSet):
             expected_total=expected,
             variance=variance,
             notes=request.data.get('notes', ''),
-            bills_only=True,
+            bills_only=not with_coins,
             expected_count=expected_bills,
         )
 
         drawer.current_cashier_id = incoming_cashier_id
         if count:  # counted by bill (a total alone leaves the bills as Dash knew them)
-            drawer.contents = _bills_from_count(drawer.contents, count)
+            drawer.contents = _bills_from_count(drawer.contents, count, with_coins)
         drawer.save(update_fields=['current_cashier', 'contents'])
         cover_service.end_all(drawer, DrawerCover.END_HANDOFF)
 
         data = DrawerHandoffSerializer(handoff).data
-        data['count_check'] = drawer_life.count_check(count, expected_bills, bills_only=True)
+        data['count_check'] = drawer_life.count_check(count, expected_bills, bills_only=not with_coins)
         return Response(data)
 
     @action(detail=True, methods=['post'])
@@ -527,10 +545,10 @@ class DrawerViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
-            count, sent = self._bills_count(request, 'Takeover count')
+            count, sent, with_coins = self._handoff_count(request, 'Takeover count')
         except CashCountError as exc:
             return _cash_count_error(exc)
-        expected_bills = drawer_life.bills_of(drawer.contents)
+        expected_bills = _expected_for(drawer.contents, with_coins)
         expected = count_total(expected_bills)
         counted_total = sent if sent is not None else expected
         variance = counted_total - expected
@@ -545,19 +563,19 @@ class DrawerViewSet(viewsets.ModelViewSet):
             expected_total=expected,
             variance=variance,
             notes=request.data.get('notes', '') or 'Takeover',
-            bills_only=True,
+            bills_only=not with_coins,
             expected_count=expected_bills,
         )
 
         drawer.current_cashier = request.user
         if count:
-            drawer.contents = _bills_from_count(drawer.contents, count)
+            drawer.contents = _bills_from_count(drawer.contents, count, with_coins)
         drawer.save(update_fields=['current_cashier', 'contents'])
         cover_service.end_all(drawer, DrawerCover.END_HANDOFF)
 
         data = DrawerSerializer(drawer, context={'request': request}).data
         if sent is not None:
-            data['count_check'] = drawer_life.count_check(count, expected_bills, bills_only=True)
+            data['count_check'] = drawer_life.count_check(count, expected_bills, bills_only=not with_coins)
         return Response(data)
 
     @action(detail=True, methods=['post'])
@@ -738,6 +756,10 @@ class DrawerViewSet(viewsets.ModelViewSet):
         if drawer.status != 'open':
             return Response({'detail': 'This drawer is closed.', 'code': 'DRAWER_CLOSED'},
                             status=status.HTTP_400_BAD_REQUEST)
+        # The one covering takes the drawer on (Cash Drops #70, Bill 2026-11-04: "accept responsibility for it").
+        if not _truthy(request.data.get('accept')):
+            return Response({'detail': 'Tick that you take the drawer while you cover.', 'code': 'ACCEPT_NEEDED'},
+                            status=status.HTTP_400_BAD_REQUEST)
         try:
             cover_service.start(drawer, str(request.data.get('pin') or ''), request=request)
         except PinError as exc:
@@ -753,11 +775,35 @@ class DrawerViewSet(viewsets.ModelViewSet):
         except PinError as exc:
             return Response(exc.payload(), status=exc.http)
         data = self._drawer_now(drawer)
-        # The spot check (Retail 4 step 4): which bills and coins the cover moved, so the cashier can count just those.
-        moved = {} if drawer.register.is_training or not drawer.contents else cover_service.changed(cover)
-        if moved:
-            data['spot_check'] = {'cover': cover.pk, 'covered_by': cover.user.full_name, 'changed': moved}
+        # The cashier's drawer back (Cash Drops #70): the cash moved while covered, the bills and coins it changed (to
+        # count just those, Retail 4 step 4), then Accept (``cover-accept``). Not on the training register.
+        if not drawer.register.is_training:
+            cover.refresh_from_db()
+            back_report = cover_service.report(cover)
+            if not drawer.contents:
+                back_report['changed'] = {}
+            data['cover_report'] = back_report
         return Response(data)
+
+    @action(detail=True, methods=['post'], url_path='cover-accept')
+    def cover_accept(self, request, pk=None):
+        """The drawer's cashier accepts the drawer back after a cover (``cover``; Cash Drops #70): logged once on the
+        drawer's timeline, after any spot check."""
+        drawer = self.get_object()
+        if request.user.pk != drawer.current_cashier_id and not IsManagerOrAdmin().has_permission(request, self):
+            return Response({'detail': "Only the drawer's cashier or a manager accepts it."}, status=403)
+        try:
+            cover = drawer.covers.select_related('user').get(pk=int(request.data.get('cover') or 0))
+        except (TypeError, ValueError, OverflowError, DrawerCover.DoesNotExist):
+            return Response({'detail': 'That cover is not on this drawer.', 'code': 'INVALID_COVER'}, status=400)
+        if cover.ended_at is None:
+            return Response({'detail': 'This cover is still on: tap Back first.', 'code': 'STILL_COVERED'}, status=400)
+        event, _made = RegisterEvent.objects.get_or_create(
+            kind=RegisterEvent.KIND_COVER_ACCEPTED, cover=cover,
+            defaults={'drawer': drawer, 'register_code': drawer.register.code, 'user': request.user,
+                      'note': f'Accepted back from {cover.user.full_name}'[:300]},
+        )
+        return Response({'id': event.pk, 'accepted_at': event.created_at, 'by': event.user.full_name})
 
     @action(detail=True, methods=['post'], url_path='spot-check')
     def spot_check(self, request, pk=None):

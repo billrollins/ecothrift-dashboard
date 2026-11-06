@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-05 (Schedule row, Dash Updates #74) -->
+<!-- Last updated: 2026-11-05 (Schedule row, #74; Returns folded into the Register, #71) -->
 # Eco-Thrift Dashboard — App Map for Navigation Consultation
 
 **Purpose:** Hand this document to a consulting AI (or UX reviewer) to evaluate whether the staff navbar, workspaces, and page grouping can be organized more clearly.
@@ -205,9 +205,8 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 
 | Page | Path | What it does |
 |------|------|----------------|
-| **Terminal** | `/pos/terminal` | Live POS register: cart, tender, discounts, delivery lines, checkout. Idle registers are asked for a work cycle after a few minutes with no cart. |
-| **Transactions** | `/pos/transactions` | Historical completed sales / lookups. |
-| **Returns** | `/pos/returns` | Thrift+ 3-day returns (owner 2026-10-20): Find the receipt, tick lines, summary, a manager's own PIN past the 3 days (since 10-21); **Late returns** tab for managers. `?practice=1` = training. |
+| **Terminal** (Register) | `/pos/terminal` | Live POS register: cart, tender, discounts, delivery lines, checkout. Idle registers are asked for a work cycle after a few minutes with no cart. **Return** in the header (#71) opens the Return window: Thrift+ 3-day returns (find the receipt, tick lines, summary, a manager's own PIN past the 3 days); `?return=1` opens it; the old `/pos/returns` redirects here (`?practice=1` to `/pos/test`). |
+| **Transactions** | `/pos/transactions` | **Checkouts** (completed and voided sales) and **Returns** (#72: every Thrift+ return on the day it came back, late ones marked; the mark, why and who allowed it, for managers). Same filters on both; a row opens its Sale window. `?show=returns&late=1` = late only (Owner page link). |
 | **Deliveries** | `/pos/deliveries` | Entry redirect into **Delivery Desk** (desktop) or **Delivery Field** (mobile) Days. |
 | **Delivery Desk** | `/pos/deliveries/desk/schedule`, `/desk/table`, `/desk/schedule/:dayId` | Office planning/review + live run/route/ETA monitor on day detail; never renders the Field driver wizard. |
 | **Delivery Field** | `/pos/deliveries/field/schedule`, `/field/table`, `/field/schedule/:dayId` | Mobile full-day run: Contact → Load → Routes → Deliveries → Finish; Routes API ETAs; sticky timer + step rail. |

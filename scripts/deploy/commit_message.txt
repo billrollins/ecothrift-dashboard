@@ -1,14 +1,26 @@
-v2.266.0 — Buying: AI routing (no AI in the estimate, Spark for mapping, monthly Opus miss review)
+v2.267.0 — Retail redesign: returns on the Register, Transactions with returns, Cash Drops part 1
 
-User-facing theme: **Buying: AI routing (Dash Update #78): no AI in the estimate, Spark for volume mapping, a monthly Opus review of the misses.**
+User-facing theme: **Retail redesign: returns on the Register (#71), Transactions with returns (#72) and Cash Drops part 1 (#70); receipt numbers use the store's date.**
 
-> **For Bill:** the estimate stays instant table math with no AI. Manifest category mapping now runs on Spark Contributor (cheap). Once a month, when new trucks have been scored, Opus 5.5 reads the misses and writes a short review with any proposed rate changes, at the bottom of **How good is it?** It is advice only and never changes a rate.
+### Changed (Retail redesign phase 1, Dash Update #71: Register with returns)
+- **Returns are on the Register.** A **Return** button sits first in the Register's header (any drawer state) and opens the Return window: find the receipt, tick the items, summary, Confirm, then the member's window opens. Same rules as before: the 3 days, AS IS and the Settings rules, 80% back as Thrift+ credit, ThriftBucks taken back and given back, a manager's own PIN and a reason past the 3 days (a mark against Retail), the training register writes nothing. The window keeps one height on every step.
+- Owner page: "Late returns taken" opens Transactions → Returns, late only; "Returned items waiting for staff" opens Thrift+ → Register, where they are handled.
 
-### Added
-- `MissReview` (`buying/0041`) and `services/miss_review.py`: the monthly miss review (purpose `BUYING_MISS_REVIEW`, Opus 5.5 medium), run at the end of `compute_daily_category_stats` only when 28+ days have passed and the fit shows something new; forced tool output, at most 5 proposals, stored with its cost; a failed call is stored and tried the next night. `GET /api/buying/estimate-scores/` carries `review`. Tests: `apps/buying/tests/test_ai_routing.py` (also a guard that Estimate Profit and the lightweight valuation make no AI call).
-- The review block at the bottom of "How good is it?" (`EstimateScores.tsx` + test).
+### Changed (Retail redesign phase 2, Dash Update #72: Transactions with returns)
+- **Transactions has two tabs: Checkouts and Returns.** Returns lists every Thrift+ return on the day it came back (item, member, credit, who took it), with the same search, dates and cashier filters, and "Late returns only". Late ones carry a Late chip; managers also see why, the cashier it counts against and who allowed it. A row opens its sale. It replaces the managers' Late returns list.
 
-### Changed
-- `buying/0042`: KEY_MAPPING, CATEGORY_AI and TITLE_CATEGORY_ESTIMATE move to Spark Contributor at low effort where no model was picked (all three were blank in prod, on the env fallback gemini-3.5-flash-lite); labels say "volume: Spark". Spark measured on KEY_MAPPING: 6-11 s a batch, 40 of 50 keys matching the stored mapping.
+### Changed (Retail redesign phase 3, Dash Update #70: Cash Drops, first part)
+- **Cash Drops** (was Cash, Retail → Managers) shows where the day's cash ends up: the **cash drop box** (every envelope waiting for the bank, each with its bills, to check at the deposit), the safe, the **office drawer** (a recount) and the bank history.
+- **Cover:** the person stepping in ticks that they take the drawer while they cover. When the cashier taps Back they see the cash sales, drops and paid in / out made meanwhile, count the bills and coins that changed, and tap **Accept the drawer** (logged on the drawer).
+- **Handover:** the count can include the coins too (or skip them, as before).
+
+### Removed
+- The Returns page and its Retail menu item. `/pos/returns` opens the Register's Return window (`?practice=1` the test terminal's).
+- The register's old one-line return dialog (unused since 2026-10-20) and its two frontend API calls.
+- Cash page: the free-hand Draw and Return buttons (they let the office drawer's bills drift from its total), the bank transaction Edit and Delete, and the dead "new bank transaction" form.
+
+### Fixed
+- Receipt numbers carry the store's date: after 6 PM they had tomorrow's (the server's clock is UTC), so a ticket's short number found nothing in the evening. Numbers already printed keep theirs.
+- Returns: finding by a date lists the whole day (up to 100 tickets, was 30, so morning sales were out of reach) and says when it stops there.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

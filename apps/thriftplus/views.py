@@ -1024,11 +1024,11 @@ class ReturnsViewSet(viewsets.ViewSet):
     - ``create`` ``{code | person, cart_line, note?, register}``: take one back as Thrift+ credit. On the training
       register the result is worked out and nothing is written (``training: true``). ``late_ok`` (the owner signed in or
       the owner PIN as ``pin``, O1; owner 2026-10-20) lets a return past the 3 days through, with the note saying why;
-    - The Returns page (owner 2026-10-20, ``returns_find.py``): ``find`` ``{q | person, register?}`` (a POST, so names stay
+    - The Register's Return window (owner 2026-10-20, on the Register since #71; ``returns_find.py``): ``find`` ``{q | person, register?}`` (a POST, so names stay
       out of the logs), ``receipt`` ``?cart=`` (one ticket, Returnable and AS IS), ``preview`` ``{cart, cart_lines}`` (the
       summary), ``batch`` ``{cart, cart_lines, late?: {reason, note}, pin?}`` (several lines in one go; past the 3 days it
-      needs the owner signed in or ``pin``, a reason, and is marked against Retail) and ``late`` (the Late returns list,
-      managers);
+      needs the owner signed in or ``pin``, a reason, and is marked against Retail);
+    - ``history``: every return, newest first, for Transactions → Returns (#72; it replaced the managers' ``late`` list);
     - ``photo``: the serial and condition photo of a $100+ item at the sale;
     - ``list`` and ``done``: returned items waiting for staff.
     """
@@ -1089,7 +1089,7 @@ class ReturnsViewSet(viewsets.ViewSet):
             return Response(exc.payload(), status=status.HTTP_400_BAD_REQUEST)
         return Response(result, status=status.HTTP_200_OK if training else status.HTTP_201_CREATED)
 
-    # ── The Returns page (owner 2026-10-20) ───────────────────────────────────
+    # ── The Register's Return window (owner 2026-10-20; #71) ──────────────────
 
     @action(detail=False, methods=['post'])
     def find(self, request):
@@ -1167,10 +1167,22 @@ class ReturnsViewSet(viewsets.ViewSet):
             return Response(exc.payload(), status=status.HTTP_400_BAD_REQUEST)
         return Response(result, status=status.HTTP_200_OK if training else status.HTTP_201_CREATED)
 
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
-    def late(self, request):
-        """The Late returns list: marks against Retail, newest first (managers and the owner)."""
-        return Response(returns.late_list())
+    @action(detail=False, methods=['get'])
+    def history(self, request):
+        """Every return, newest first (Transactions → Returns, #72). A late one's mark is shown to managers only."""
+        from django.utils.dateparse import parse_date
+
+        p = request.query_params
+        try:
+            page, size = int(p.get('page') or 1), int(p.get('page_size') or 25)
+        except ValueError:
+            page, size = 1, 25
+        return Response(returns.history(
+            date_from=parse_date(p.get('date_from') or '') if p.get('date_from') else None,
+            date_to=parse_date(p.get('date_to') or '') if p.get('date_to') else None,
+            cashier=p.get('cashier') or None, q=p.get('q') or '', late=_truthy(p.get('late')),
+            managers=IsManagerOrAdmin().has_permission(request, self), page=page, page_size=size,
+        ))
 
     @action(detail=False, methods=['post'])
     def photo(self, request):

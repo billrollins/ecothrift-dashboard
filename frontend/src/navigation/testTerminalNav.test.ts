@@ -15,9 +15,9 @@ describe('Test terminal in the Cashier nav (2026-10-16)', () => {
     const group = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS)
       .find((g) => g.id === 'storeSales');
     expect(group?.setupItems.map((item) => item.id)).toEqual(['posTestTerminal', 'posPrintables']);
-    // Register, Transactions, Customers (Bill 2026-11-04, #67); Customers is a manager's, so staff see Returns next.
-    expect(cashierItems('Employee').slice(0, 5)).toEqual(
-      ['posTerminal', 'posTransactions', 'posReturns', 'posDrawers', 'thriftPlusFinalize']);
+    // Register, Transactions, Customers (Bill 2026-11-04, #67); Customers is a manager's, so staff see Drawers next.
+    // Returns are in the Register (#71).
+    expect(cashierItems('Employee').slice(0, 4)).toEqual(['posTerminal', 'posTransactions', 'posDrawers', 'thriftPlusFinalize']);
   });
 
   it('shows for Employee and up, not below', () => {

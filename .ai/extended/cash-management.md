@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-02 (Cash / Card / Split, the cash window, the drawer view; a handoff count sets the drawer's bills; the opening count window) -->
+<!-- Last updated: 2026-11-05 (Cash Drops #70 first part: the page, cover accept, handover coins optional; earlier 11-02: Cash / Card / Split, the cash window, the drawer view; a handoff count sets the drawer's bills; the opening count window) -->
 
 # Cash Management — Extended Context
 
@@ -56,7 +56,7 @@ Reusable form at `frontend/src/components/forms/DenominationCounter.tsx`:
 - **The count window (Retail 4, 2026-11-02):** `components/pos/CountWindow.tsx` + `CashCountPad.tsx`: one big row per bill and coin (−, the number, +; typing works), the button carries the total ("Open drawer · $160.00"), a double tap posts once, an error keeps the count. After the count the same window shows Right on, or Short / Over and only the bills and coins that are off (`CountResult`). Used for the opening count (terminal and Drawers page) and the handover (Drawers page: who takes it in the window's top slot, bills only, the drawer's cashier cannot be picked); the spot check after a cover (`RegisterCover`: cover-back answers `spot_check` with what the cover moved, from its cash sales, drops and paid in/out, `services/cover.changed`; `POST /pos/drawers/<id>/spot-check/` {cover, count} counts just those keys, worked out on the server, once per cover, the drawer's cashier or a manager, logged as `RegisterEvent` `spot_check` with `cover` and `amount`, blind in the timelines while open); and the close (Drawers page: bills in the pad; coins as the counter total or by coin and the note, NOTE_REQUIRED, in the top slot; set-aside sales still asked first; the result big, Expected beside Counted (#26); then `CloseOutGuide` from `close_out`: `drawer_life.close_out` keeps the whole till for tomorrow, `from_office` the pieces the count lacks, `give_back` the dollars back to the office from the rest, the drop the rest by piece, coins in dollars when from the counter; saved on `Drawer.close_out`, shown in the Drawer window; the office ledger is unchanged).
 
 - **Blind counts.** Opening, handoff and close are counted without seeing what Dash expects. The answer after the count (`count_check` on the response) shows counted, expected and the difference by bill and coin (`components/pos/CountCheckDialog.tsx`). Opening is checked against the register's till fund (`Register.starting_breakdown`; none set, no check). A cashier's Drawers card hides the running cash sales while the drawer is open.
-- **Handoff and takeover count the bills only** (Bill, 10-21): coins in the count are refused; expected = the bills in `Drawer.contents`. The handoff keeps `bills_only` and `expected_count`.
+- **Handoff and takeover count the bills** (Bill, 10-21), and the coins too when counted (#70, see Handover coins); expected = the bills in `Drawer.contents` (all of it with coins). The handoff keeps `bills_only` and `expected_count`.
 - **Expected cash** = opening + cash sales - drops + paid in - paid out.
 - **Paid in / paid out** (`CashMovement`, `POST /pos/drawers/{id}/paid-in/` and `/paid-out/`, `{amount, total, reason}`): money in or out that is not a sale or a drop; a reason is required; the drawer's contents follow. Not on the training register or a closed drawer.
 - **Drops need a reason** (`CashDrop.reason`) and go into the office.
@@ -120,16 +120,23 @@ When closing a drawer (`POST /pos/drawers/{id}/close/`):
 
 Cash drops are taken from the drawer during the shift; the close compares the physical count to opening + sales. The count is blind and goes into the office ledger: see "A drawer's life" above.
 
-## CashManagementPage Layout
+## Cash Drops page (`/pos/cash`, `CashManagementPage.tsx`; #70, Bill 2026-11-04)
 
-`frontend/src/pages/pos/CashManagementPage.tsx`:
+Retail → Managers, managers and the owner. In order:
+- **Cash drop box:** every envelope waiting for the bank (`GET /pos/bank/deposit/` bags: a `CashDrop` or a close-out drop), its register, time, total and bills (`describeCount`); the box's total. Read only: the deposit is made on the safe card.
+- **The safe** (`SafeCard`): swap, count, Bank deposit, change from the bank, Mark deposited.
+- **Office drawer** (the `SupplementalDrawer`): total, last count, **Recount** (`CountWindow` → `supplemental/audit/`), the last 10 ledger lines in plain words.
+- **Bank history:** read only. The old Draw / Return buttons (they moved `current_total` but not `current_balance`), the bank Edit / Delete and the dead create form are gone; `supplemental/draw|return` and the bank CRUD stay on the server, unused by any screen.
 
-- **Supplemental status card**: Current total, location name, recent supplemental transactions (last 10)
-- **Bank transactions card**: List of deposits/change pickups with status
-- **New Bank Transaction** button: Opens dialog with type (deposit/change pickup) and `DenominationCounter` for amount
-- Hooks: `useSupplemental`, `useSupplementalTransactions`, `useBankTransactions`, `useCreateBankTransaction`
+### Still to build (#70 later part; it changes how cash is booked, so it waits for the owner's review)
+The plan in `cash-drops-decisions.md` (main checkout `.ai/extended/`) also has: the office drawer only swapping with the safe at a fixed total (today opening, drops and the close post into it), the close's exchange with the office recorded (today `CloseOutGuide` is advice only), the close-out drop as an envelope of its own, the deposit split ($20s and $10s to the bank, small bills to the safe), a count on the terminal's Take over, and the counting parts of Drawers moving here.
 
-Draw/return/audit forms: API and hooks exist (`useDrawFromSupplemental`, `useReturnToSupplemental`, `useAuditSupplemental`) but are not yet wired into the CashManagementPage UI.
+### Cover: take it on, and accept it back (#70)
+- `POST drawers/{id}/cover/` needs `accept: true` (400 `ACCEPT_NEEDED`): the one covering ticks "I take this drawer while I cover".
+- `cover-back` answers `cover_report` (`services/cover.report`): the cash sales finished under the cover, the drops and paid in / out meanwhile, and `changed` by bill and coin. `RegisterCover` shows them; with something changed the blind spot check counts just those, then **Accept the drawer**; with nothing changed, a window with Accept only. It cannot be dismissed. `POST drawers/{id}/cover-accept/` {cover} logs `RegisterEvent` `cover_accepted` once (the drawer's cashier or a manager; `pos.0051`).
+
+### Handover coins (#70)
+- A handoff or takeover count may include the coins (`with_coins`, or any coin in the count): then it is checked against the whole drawer, `bills_only` is false and the coins become the drawer's coins (`_handoff_count`, `_expected_for`). Without coins, as before. The Drawers page's handover window has "Count the coins too (you can skip them)".
 
 ## Permissions
 

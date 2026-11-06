@@ -55,7 +55,7 @@ const STANDING = {
  * you: Add a 2nd person to a member, and, for an Assisted join still to finish (J22), Finalize: only the ID check (Name
  * matches, Photo matches, 18 or older), then Match. A join on their own phone finishes in their app, with no staff step
  * (owner 2026-11-03, J8). The Members page (/pos/members) and the register's Thrift+ member button
- * show this same card; the Returns page can too.
+ * show this same card; a return on the Register opens it after.
  *
  * ``cartId`` is the open sale at the register: Finalize puts the member on it (``onCart`` gets the sale). ``onFinalized``
  * hears every Match. Tapping another person on the membership shows their card.

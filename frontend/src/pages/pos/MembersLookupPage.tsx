@@ -8,7 +8,7 @@ import MemberFind from '../../components/thriftplus/MemberFind';
 /**
  * Thrift+ member lookup (owner 2026-10-20): Find (a member QR scanned, a name, phone, email or member #), then the
  * member's card: photo, status, ThriftBucks earned, used and left, Thrift+ credit, recent trips and the people on the
- * membership. ``/pos/members?person=<person_id>`` opens that member's card straight away (the Returns page links here).
+ * membership. ``/pos/members?person=<person_id>`` opens that member's card straight away.
  */
 export default function MembersLookupPage() {
   const [params, setParams] = useSearchParams();

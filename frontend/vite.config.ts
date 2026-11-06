@@ -60,6 +60,9 @@ export default defineConfig({
   envDir: path.resolve(frontendDir, '..'),
   // `@/` is src/: the shared e-sign client (src/esign, from {master}/packages/esign) imports the host's API as @/services/api.
   resolve: { alias: { '@': path.resolve(frontendDir, 'src') } },
+  // A worktree shares the main checkout's node_modules (a junction), so its dev server keeps its own dep cache:
+  // two servers writing one node_modules/.vite mix their pre-bundles.
+  ...(process.env.ECOTHRIFT_VITE_CACHE_DIR ? { cacheDir: process.env.ECOTHRIFT_VITE_CACHE_DIR } : {}),
   define: { __APP_VERSION__: JSON.stringify(appVersion) },
   plugins: [
     react(),

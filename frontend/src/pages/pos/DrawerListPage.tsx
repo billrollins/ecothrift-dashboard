@@ -13,6 +13,7 @@ import {
   DialogTitle,
   FormControl,
   FormControlLabel,
+  Switch,
   Grid,
   InputLabel,
   MenuItem,
@@ -116,6 +117,7 @@ export default function DrawerListPage() {
   const [selectedDrawer, setSelectedDrawer] = useState<Drawer | null>(null);
   const [handoffDrawer, setHandoffDrawer] = useState<number | null>(null);
   const [handoffCashier, setHandoffCashier] = useState<string>('');
+  const [handoffCoins, setHandoffCoins] = useState(false);
   const [dropDrawer, setDropDrawer] = useState<number | null>(null);
   const [count, setCount] = useState<DenominationBreakdown>(EMPTY_BREAKDOWN);
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
@@ -208,7 +210,7 @@ export default function DrawerListPage() {
     try {
       const handed = await handoffMutation.mutateAsync({
         id: handoffDrawer,
-        data: { incoming_cashier: Number(handoffCashier), count: bills as DenominationBreakdown },
+        data: { incoming_cashier: Number(handoffCashier), count: bills as DenominationBreakdown, with_coins: handoffCoins },
       });
       enqueueSnackbar(tp('handedOver', lang), { variant: 'success' });
       return (handed as unknown as { count_check?: CountCheck })?.count_check ?? null;
@@ -291,6 +293,7 @@ export default function DrawerListPage() {
     setSelectedDrawer(null);
     setHandoffDrawer(null);
     setHandoffCashier('');
+    setHandoffCoins(false);
     setDropDrawer(null);
     setReopenDrawerId(null);
     setCount(EMPTY_BREAKDOWN);
@@ -621,11 +624,14 @@ export default function DrawerListPage() {
       {/* The handover count (Retail 4 step 2, 2026-11-02): who takes it, the bills, then how it came out, for both. */}
       <CountWindow
         open={openDialog === 'handoff'}
-        title={tp('handoverCount', lang)}
+        title={(() => {
+          const d = drawers.find((x) => x.id === handoffDrawer);
+          return d ? `${tp('handoverCount', lang)} · ${d.register_name}${d.current_cashier_name ? ` (${d.current_cashier_name})` : ''}` : tp('handoverCount', lang);
+        })()}
         submitLabel={tp('handOver', lang)}
         notReadyLabel={tp('pickWho', lang)}
         ready={handoffCashier !== ''}
-        only="bills"
+        only={handoffCoins ? undefined : 'bills'}
         onCancel={resetDialog}
         onSubmit={handleHandoff}
         lang={lang}
@@ -648,7 +654,11 @@ export default function DrawerListPage() {
               ))}
           </Select>
         </FormControl>
-        <Typography variant="body2" color="text.secondary">{tp('billsOnlyNote', lang)}</Typography>
+        <FormControlLabel
+          control={<Switch checked={handoffCoins} onChange={(e) => setHandoffCoins(e.target.checked)} data-testid="handoff-coins" />}
+          label={tp('countCoinsToo', lang)}
+          sx={{ minHeight: 44 }}
+        />
       </CountWindow>
 
       <Dialog open={openDialog === 'drop'} onClose={resetDialog} maxWidth="sm" fullWidth>

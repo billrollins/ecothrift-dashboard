@@ -1,5 +1,5 @@
-"""The Returns page (owner 2026-10-20): Find by person, ticket or item, the open receipt, the summary, several lines
-back in one go, and a late return (marked against Retail). Since 2026-10-21 (Bill) a late return takes a manager's own
+"""The Return window's server (owner 2026-10-20; the Returns page until #71 moved it onto the Register): Find by
+person, ticket or item, the open receipt, the summary, several lines back in one go, and a late return (marked against Retail). Since 2026-10-21 (Bill) a late return takes a manager's own
 register PIN, or the owner signed in; the shared owner PIN is retired."""
 from __future__ import annotations
 
@@ -135,6 +135,18 @@ class FindTests(ReturnsPageBase):
         self.assertEqual([t['cart'] for t in self._find(f'{then.month}/{then.day}')['tickets']], [old['id']])
         self.assertEqual([t['cart'] for t in self._find(f'{then.month}/{then.day}/{then.year}')['tickets']], [old['id']])
         self.assertEqual(self._find('1/2/2020')['tickets'], [])
+
+    def test_a_day_that_runs_past_the_limit_says_the_earliest_are_left_out(self):
+        from apps.thriftplus.services import returns_find
+
+        self._sell('ITMTPLAMP')
+        self._sell('ITMTPVASE')
+        today = timezone.localdate().isoformat()
+        self.assertEqual(self._find(today)['message'], '')
+        with mock.patch.object(returns_find, 'DAY_LIMIT', 2):
+            body = self._find(today)
+        self.assertEqual(len(body['tickets']), 2)
+        self.assertIn('The newest 2 tickets that day', body['message'])
 
     def test_a_total_finds_the_sale(self):
         sale = self._sell('ITMTPLAMP')
@@ -358,23 +370,36 @@ class LateReturnTests(ReturnsPageBase):
         r = self._batch(sale, self._item_lines(sale), late={'reason': 'closed'}, pin=PIN)
         self.assertEqual((r.status_code, r.json()['code']), (403, 'PIN_WRONG'))
 
-    def test_the_late_returns_list_is_for_managers_and_newest_first(self):
-        old, new = self._late_sale(), self._late_sale('ITMTPVASE')
+    def test_transactions_returns_lists_every_return_and_shows_a_late_mark_to_managers_only(self):
+        # #72: Transactions → Returns replaced the managers' Late returns list.
+        self._item('ITMTPCHAIR', 'Oak chair', '40.00', '5.00')
+        on_time, old, new = self._sell('ITMTPCHAIR'), self._late_sale(), self._late_sale('ITMTPVASE')
+        self.assertEqual(self._batch(on_time, self._item_lines(on_time)).status_code, 201)
         self._set_pin()
         self._batch(old, self._item_lines(old), late={'reason': 'closed', 'note': 'storm'}, pin=PIN)
         self._batch(new, self._item_lines(new), late={'reason': 'told_wrong'}, pin=PIN)
-        self.assertEqual(self.api.get('/api/thriftplus/returns/late/').status_code, 403)  # a clerk
+        url = '/api/thriftplus/returns/history/'
+        clerk = self.api.get(url).json()
+        self.assertEqual((clerk['count'], [r['sku'] for r in clerk['results']]), (3, ['ITMTPVASE', 'ITMTPLAMP', 'ITMTPCHAIR']))
+        self.assertEqual([r['late'] for r in clerk['results']], [True, True, False])
+        self.assertIsNone(clerk['results'][1]['mark'])  # the mark is the managers'
+        self.assertEqual(clerk['results'][0]['returned_by'], 'Pat Clerk')
+        self.assertTrue(clerk['results'][0]['receipt_number'].startswith('R-'))
+        self.assertEqual(self.api.get(url, {'late': '1'}).json()['count'], 2)
+        self.assertEqual(self.api.get(url, {'q': 'ITMTPVASE'}).json()['count'], 1)
+        self.assertEqual(self.api.get(url, {'q': 'Ana'}).json()['count'], 3)
+        self.assertEqual(self.api.get(url, {'q': 'nobody'}).json()['count'], 0)
+        today = timezone.localdate()
+        self.assertEqual(self.api.get(url, {'date_from': today.isoformat(), 'date_to': today.isoformat()}).json()['count'], 3)
+        self.assertEqual(self.api.get(url, {'date_to': (today - timedelta(days=1)).isoformat()}).json()['count'], 0)
+        self.assertEqual(self.api.get(url, {'page_size': 2, 'page': 2}).json()['results'][0]['sku'], 'ITMTPCHAIR')
         self.api.force_authenticate(self.manager)
-        rows = self.api.get('/api/thriftplus/returns/late/').json()
-        self.assertEqual([r['sku'] for r in rows], ['ITMTPVASE', 'ITMTPLAMP'])
-        first = rows[1]
-        self.assertEqual((first['reason_label'], first['cashier'], first['entered_by'], first['by_pin'], first['member']),
-                         ('Store was closed', 'Pat Clerk', 'Pat Clerk', True, 'Ana Member'))
-        self.assertEqual(first['approved_by'], self.manager.full_name)
-        self.assertIn('storm', first['note'])
-        self.assertEqual(first['days_late'], 1)
-        self.assertTrue(first['receipt_number'].startswith('R-'))
-        self.assertEqual(first['department'], 'retail')
+        rows = self.api.get(url, {'late': '1'}).json()['results']
+        mark = rows[1]['mark']
+        self.assertEqual((mark['reason_label'], mark['cashier'], mark['by_pin'], mark['days_late']), ('Store was closed', 'Pat Clerk', True, 1))
+        self.assertEqual(mark['approved_by'], self.manager.full_name)
+        self.assertIn('storm', mark['note'])
+        self.assertEqual(self.api.get('/api/thriftplus/returns/late/').status_code, 404)  # the old list is gone
 
     def test_a_late_return_in_training_needs_a_reason_but_no_pin_and_writes_nothing(self):
         sale = self._late_sale()

@@ -93,7 +93,6 @@ import { CONTRACTOR_SCOPE, HR_SCOPE } from './pages/esign/scope';
 const TerminalPage = lazy(() => import('./pages/pos/TerminalPage'));
 const TestTerminalPage = lazy(() => import('./pages/pos/TestTerminalPage'));
 const DrawerListPage = lazy(() => import('./pages/pos/DrawerListPage'));
-const ReturnsPage = lazy(() => import('./pages/pos/ReturnsPage'));
 const CashManagementPage = lazy(() => import('./pages/pos/CashManagementPage'));
 const TransactionListPage = lazy(() => import('./pages/pos/TransactionListPage'));
 const PosPrintablesPage = lazy(() => import('./pages/pos/PosPrintablesPage'));
@@ -191,6 +190,13 @@ function TodayRedirect() {
   const next = new URLSearchParams(params);
   next.set('tab', 'myday');
   return <Navigate to={`/dashboard?${next.toString()}`} replace />;
+}
+
+/** `/pos/returns` (the Returns page until #71): returns are on the Register now, in its Return window. */
+function ReturnsRedirect() {
+  const [params] = useSearchParams();
+  const practice = params.get('practice') === '1';
+  return <Navigate to={`${practice ? '/pos/test' : '/pos/terminal'}?return=1`} replace />;
 }
 
 /** `/` and unknown URLs: a cashier on a register goes to the Terminal, everyone else to the Dashboard. */
@@ -428,7 +434,7 @@ function AppRoutes() {
         <Route path="/pos/cash" element={<AccessRoute need={['pos.cash:manage', 'cashier:manage']}><CashManagementPage /></AccessRoute>} />
         <Route path="/pos/transactions" element={<TransactionListPage />} />
         <Route path="/pos/members" element={<MembersLookupPage />} />
-        <Route path="/pos/returns" element={<ReturnsPage />} />
+        <Route path="/pos/returns" element={<ReturnsRedirect />} />
         <Route path="/pos/printables" element={<PosPrintablesPage />} />
         <Route path="/pos/deliveries" element={<DeliveriesEntryRedirect />} />
         <Route path="/pos/deliveries/schedule" element={<DeliveriesEntryRedirect page="schedule" />} />

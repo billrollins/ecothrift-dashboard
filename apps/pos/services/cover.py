@@ -134,3 +134,27 @@ def changed(cover) -> dict:
             drawer_id=cover.drawer_id, created_at__range=(cover.started_at, until)).values_list('kind', 'amount'):
         net = add_counts(net, amount or {}, 1 if kind == CashMovement.KIND_PAID_IN else -1)
     return net
+
+
+def report(cover) -> dict:
+    """
+    What the returning cashier sees before accepting the drawer back (Cash Drops #70, Bill 2026-11-04: "see the cash
+    transactions and the new count, changed denominations highlighted, and accept it"): the cash sales finished under
+    the cover, the drops and the paid in / out while it was on, and what they moved by bill and coin (``changed``).
+    """
+    from apps.pos.models import Cart, CashDrop, CashMovement
+
+    until = cover.ended_at or timezone.now()
+    sales = []
+    for cart in (Cart.objects.filter(cover=cover, status='completed').select_related('receipt').order_by('completed_at')):
+        if not cart.cash_received and cart.payment_method not in ('cash', 'split'):
+            continue
+        receipt = getattr(cart, 'receipt', None)
+        sales.append({'at': cart.completed_at, 'receipt': receipt.receipt_number if receipt else f'Sale {cart.pk}',
+                      'total': str(cart.total), 'cash': str(cart.cash_tendered or 0), 'change': str(cart.change_given or 0)})
+    drops = [{'at': d.dropped_at, 'total': str(d.total), 'reason': d.reason}
+             for d in CashDrop.objects.filter(drawer_id=cover.drawer_id, dropped_at__range=(cover.started_at, until))]
+    moves = [{'at': m.created_at, 'kind': m.kind, 'total': str(m.total), 'reason': m.reason}
+             for m in CashMovement.objects.filter(drawer_id=cover.drawer_id, created_at__range=(cover.started_at, until))]
+    return {'cover': cover.pk, 'covered_by': cover.user.full_name, 'started_at': cover.started_at, 'ended_at': until,
+            'sales': sales, 'drops': drops, 'movements': moves, 'changed': changed(cover)}

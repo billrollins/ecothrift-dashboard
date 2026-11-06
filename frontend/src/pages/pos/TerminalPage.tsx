@@ -151,7 +151,9 @@ import {
   thriftErrorMessage,
 } from '../../api/thriftplusRegister.api';
 import { thriftCardCode } from '../../utils/thriftPlusCard';
-import { IconConfirm as Check, IconDelete as Delete, IconEdit as Edit, IconRefresh as Refresh, IconSearch as Search } from '../../icons/ecoIcons';
+import { IconConfirm as Check, IconDelete as Delete, IconEdit as Edit, IconRefresh as Refresh, IconSearch as Search, IconUndo } from '../../icons/ecoIcons';
+import ReturnWindow from '../../components/pos/returns/ReturnWindow';
+import { useSearchParams } from 'react-router-dom';
 import { skuFromScan } from '../../utils/scanCode';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -274,6 +276,18 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   const [memberDialog, setMemberDialog] = useState<{ open: boolean; personId: number | null }>({ open: false, personId: null });
   // After a member's sale with a 3-day-return item: the date to say (owner 2026-10-20).
   const [returnsPopup, setReturnsPopup] = useState<{ until: string; note: string } | null>(null);
+  // The Return window (#71): returns are taken here, on the Register. `?return=1` opens it, so the old /pos/returns
+  // address lands on it.
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const asked = searchParams.get('return');
+    if (asked == null) return;
+    setReturnOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('return');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
   const [refreshing, setRefreshing] = useState(false);
   const [openDrawerDialog, setOpenDrawerDialog] = useState(false);
   const [editingLineId, setEditingLineId] = useState<number | null>(null);
@@ -2673,6 +2687,15 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         subtitle={deviceLabel}
         action={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            {/* Always here, whatever the drawer: a return gives Thrift+ credit, never cash. */}
+            <Button
+              variant="outlined"
+              startIcon={<IconUndo />}
+              onClick={() => setReturnOpen(true)}
+              data-testid="register-return"
+            >
+              Return
+            </Button>
             {(terminalState === 'ready' || terminalState === 'active_sale') && registerCover.button}
             {/* The Labor Day sale is retired (owner 2026-10-16): the chip shows only while a sale is actually on, so it
                 can be turned off, never on by accident. */}
@@ -3342,6 +3365,16 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         training={Boolean(todayDrawer?.register_is_training)}
         onFinishJoin={(person) => setMemberDialog({ open: true, personId: person.person_id })}
       />
+      <ReturnWindow
+        open={returnOpen}
+        registerCode={config?.registerCode ?? ''}
+        practice={testMode || Boolean(todayDrawer?.register_is_training)}
+        onClose={() => {
+          setReturnOpen(false);
+          markRegisterActivity(); // a return is the register at work: the idle prompt starts counting again
+          skuInputRef.current?.focus();
+        }}
+      />
       <ReturnsPopup
         until={returnsPopup?.until ?? null}
         note={returnsPopup?.note}
@@ -3428,8 +3461,8 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         />
       )}
 
-      {/* The idle work-cycle prompt starts a real routine: not on the practice terminal. */}
-      {!testMode && (
+      {/* The idle work-cycle prompt starts a real routine: not on the practice terminal, and never over a return. */}
+      {!testMode && !returnOpen && (
         <WorkCyclePromptDialog
           terminalState={terminalState}
           registerId={registerId}

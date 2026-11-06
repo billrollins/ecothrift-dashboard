@@ -20,7 +20,7 @@ Thrift+ 3-day returns (the 10-12 policy, W1-W14; owner answers 2026-10-14): a re
 
 - **Past the 3 days** (owner 2026-10-20; Bill 2026-10-21: managers' own PINs): the owner signed in, or a manager's own
   register PIN (``accounts/services/register_pin.py``; the shared owner PIN is retired), lets it through with a reason; it is recorded as a mark against Retail on the original sale's cashier (``LateReturnMark``)
-  and listed under Late returns. The Returns page (``returns_find.py``) finds the receipt and returns several lines at
+  and listed under Late returns. The Register's Return window (``returns_find.py``) finds the receipt and returns several lines at
   once (``batch``).
 
 Staff decide what happens to the returned item (``ReturnRecord.status``). Its inventory status is not changed here.
@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 
 from django.db import transaction
@@ -407,7 +407,7 @@ def needs_photo(line) -> bool:
     return line.line_kind == 'item' and (line.unit_price or 0) >= PHOTO_OVER and not SalePhoto.objects.filter(cart_line=line).exists()
 
 
-# ── The Returns page: several lines at once, and the Late returns list (owner 2026-10-20) ──────────────────────────
+# ── The Return window: several lines at once (owner 2026-10-20); every return for Transactions (#72) ──────────────
 
 
 def preview(lines: list, account, *, training: bool = False) -> dict:
@@ -465,26 +465,64 @@ def batch(lines: list, code: str = '', *, person=None, note: str = '', user=None
             'account_id': who.account_id, **ledger.balances(who.account)}
 
 
-def late_list(limit: int = 200) -> list[dict]:
-    """The Late returns list (mark against Retail): newest first."""
-    marks = (LateReturnMark.objects.select_related('return_record__person', 'return_record__cart_line__cart__receipt',
-                                                   'return_record__item', 'entered_by', 'approved_by')
-             .order_by('-created_at')[:limit])
-    rows = []
-    for m in marks:
-        record = m.return_record
-        cart = record.cart_line.cart
+def _name(user) -> str:
+    return (user.full_name or user.email) if user else ''
+
+
+def history(*, date_from: date | None = None, date_to: date | None = None, cashier=None, q: str = '',
+            late: bool = False, managers: bool = False, page: int = 1, page_size: int = 25) -> dict:
+    """
+    Every Thrift+ return, newest first: the Returns tab of Transactions (#72, Bill 2026-11-04: "Transactions (checkouts
+    and returns)"). A return is a row of its own on the day it came back; it opens the sale it came from.
+    Filters: the return day (``date_from``/``date_to``, local), who took it (``cashier``), ``q`` (the receipt #, the
+    member's name, or the item's SKU or words) and ``late`` (only those past the 3 days). Every row says whether it was
+    late; a late one's mark (the reason, the note, the cashier it is against, who allowed it) is for ``managers`` only
+    (the old Late returns list was theirs). The training register writes no returns, so none are here.
+    """
+    from django.db.models import Q, Sum
+
+    rows = (ReturnRecord.objects
+            .select_related('person', 'item', 'returned_by', 'cart_line__cart__receipt', 'late_mark__approved_by',
+                            'late_mark__entered_by')
+            .order_by('-created_at', '-pk'))
+    if date_from:
+        rows = rows.filter(created_at__gte=timezone.make_aware(datetime.combine(date_from, datetime.min.time())))
+    if date_to:
+        rows = rows.filter(created_at__lt=timezone.make_aware(datetime.combine(date_to + timedelta(days=1), datetime.min.time())))
+    if cashier not in (None, ''):
+        rows = rows.filter(returned_by_id=cashier)
+    if late:
+        rows = rows.filter(late_mark__isnull=False)
+    q = (q or '').strip()
+    if q:
+        name = Q()
+        for word in q.split()[:3]:
+            name &= Q(person__first_name__icontains=word) | Q(person__last_name__icontains=word)
+        rows = rows.filter(Q(cart_line__cart__receipt__receipt_number__icontains=q) | Q(item__sku__iexact=q)
+                           | Q(cart_line__description__icontains=q) | name)
+    totals = rows.aggregate(credit=Sum('credit'))
+    count = rows.count()
+    page = max(1, int(page or 1))
+    page_size = max(1, min(100, int(page_size or 25)))
+    results = []
+    for r in rows[(page - 1) * page_size:page * page_size]:
+        cart = r.cart_line.cart
         receipt = getattr(cart, 'receipt', None)
-        sold = timezone.localdate(cart.completed_at) if cart.completed_at else None
-        rows.append({
-            'id': m.pk, 'created_at': m.created_at, 'department': m.department,
-            'receipt_number': receipt.receipt_number if receipt else f'Sale {cart.pk}', 'cart': cart.pk,
-            'sold_at': cart.completed_at, 'days_late': (timezone.localdate(m.created_at) - deadline(sold)).days if sold else None,
-            'sku': record.item.sku if record.item_id else '', 'title': record.cart_line.description,
-            'member': f'{record.person.first_name} {record.person.last_name}'.strip(), 'credit': str(record.credit),
-            'cashier': m.cashier_name, 'reason': m.reason, 'reason_label': LATE_REASONS.get(m.reason, m.reason),
-            'note': m.note, 'entered_by': (m.entered_by.full_name or m.entered_by.email) if m.entered_by else '',
-            'approved_by': (m.approved_by.full_name or m.approved_by.email) if m.approved_by else '',
-            'by_pin': m.by_pin,
-        })
-    return rows
+        mark = getattr(r, 'late_mark', None)
+        row = {
+            'id': r.pk, 'created_at': r.created_at, 'cart': cart.pk,
+            'receipt_number': receipt.receipt_number if receipt else f'Sale {cart.pk}', 'sold_at': cart.completed_at,
+            'sku': r.item.sku if r.item_id else '', 'title': r.cart_line.description,
+            'member': f'{r.person.first_name} {r.person.last_name}'.strip(), 'person_id': r.person_id,
+            'credit': str(r.credit), 'bucks_taken': str(r.bucks_taken), 'bucks_back': str(r.bucks_back),
+            'returned_by': _name(r.returned_by), 'late': mark is not None, 'mark': None,
+        }
+        if mark is not None and managers:
+            sold = timezone.localdate(cart.completed_at) if cart.completed_at else None
+            row['mark'] = {
+                'reason_label': LATE_REASONS.get(mark.reason, mark.reason), 'note': mark.note, 'cashier': mark.cashier_name,
+                'approved_by': _name(mark.approved_by) or _name(mark.entered_by), 'by_pin': mark.by_pin,
+                'days_late': (timezone.localdate(mark.created_at) - deadline(sold)).days if sold else None,
+            }
+        results.append(row)
+    return {'count': count, 'credit_total': str(totals['credit'] or Decimal('0.00')), 'results': results}

@@ -586,11 +586,13 @@ class RegisterEvent(models.Model):
     KIND_REPRINT = 'reprint'
     KIND_PRINT_FAILED = 'print_failed'
     KIND_SPOT_CHECK = 'spot_check'
+    KIND_COVER_ACCEPTED = 'cover_accepted'
     KIND_CHOICES = [
         (KIND_OPEN_DRAWER, 'Drawer opened (no sale)'),
         (KIND_REPRINT, 'Receipt reprinted'),
         (KIND_PRINT_FAILED, 'Receipt did not print'),
         (KIND_SPOT_CHECK, 'Spot check after a cover'),
+        (KIND_COVER_ACCEPTED, 'Drawer accepted back after a cover'),
         ('tax_exempt', 'Sale marked tax exempt'),
         ('tax_exempt_off', 'Tax exempt taken off'),
     ]
@@ -630,7 +632,7 @@ class Receipt(models.Model):
     def generate_training_number():
         """A training receipt: TRAIN-20260212-001 (never a real receipt number)."""
         from django.utils import timezone as tz
-        prefix = f'TRAIN-{tz.now().strftime("%Y%m%d")}-'
+        prefix = f'TRAIN-{tz.localdate().strftime("%Y%m%d")}-'
         last = Receipt.objects.filter(receipt_number__startswith=prefix).order_by('-receipt_number').first()
         n = int(last.receipt_number.rsplit('-', 1)[1]) + 1 if last else 1
         return f'{prefix}{n:03d}'
@@ -639,7 +641,10 @@ class Receipt(models.Model):
     def generate_receipt_number():
         """Generate receipt number like R-20260212-001."""
         from django.utils import timezone as tz
-        today = tz.now().strftime('%Y%m%d')
+        # The store's day (2026-11-05): the server's clock is UTC, so after 6 PM in Omaha the number carried tomorrow's
+        # date and "14" (today's ticket 14) found nothing. Numbers already given keep their date; each day's numbers
+        # go on from the highest one, so nothing repeats.
+        today = tz.localdate().strftime('%Y%m%d')
         prefix = f'R-{today}-'
         last = Receipt.objects.filter(
             receipt_number__startswith=prefix,

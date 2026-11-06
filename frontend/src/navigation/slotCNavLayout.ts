@@ -51,11 +51,11 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     // Every shift on top; practice, printing and setup below (owner, 2026-10-19: "the cashier workspace is messy").
     // Retail windows (#49, 2026-11-02): a member opens as the Member window from anywhere, so Thrift+ members (the same
     // find as Thrift+ Staff) left the list; /pos/members still works.
-    // #67 (Bill 2026-11-04): Register, Transactions, Customers; managers: Command Center and Cash Drops. Returns and
-    // Drawers stay until they fold into Register and Cash Drops (their own updates). The floor's inventory pages are
-    // shortcuts. PR Fix-it is archived (its address still opens); Quick reprice is its reprice tab.
+    // #67 (Bill 2026-11-04): Register, Transactions, Customers; managers: Command Center and Cash Drops. Returns folded
+    // into the Register (#71, its Return window; /pos/returns opens it). Drawers stays until it folds into Cash Drops.
+    // The floor's inventory pages are shortcuts. PR Fix-it is archived (its address still opens); Quick reprice is its reprice tab.
     itemIds: [
-      'posTerminal', 'posTransactions', 'customers', 'posReturns', 'posDrawers', 'thriftPlusFinalize', 'quickReprice',
+      'posTerminal', 'posTransactions', 'customers', 'posDrawers', 'thriftPlusFinalize', 'quickReprice',
     ],
     setupItemIds: ['posTestTerminal', 'posPrintables'],
     managerItemIds: ['retailQa', 'posCash', 'posSetup', 'thriftPlus', 'inventories'],

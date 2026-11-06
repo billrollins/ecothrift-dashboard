@@ -516,7 +516,7 @@ class OwnerPin(models.Model):
 class LateReturnMark(models.Model):
     """
     A mark against Retail (owner 2026-10-20): a return taken after the 3 days. It sits on the original sale's cashier
-    with the reason and who entered the PIN, and is listed under Late returns (Returns page).
+    with the reason and who entered the PIN, and is listed under Late returns (the Register's Return window).
     """
 
     REASON_TOLD_WRONG = 'told_wrong'

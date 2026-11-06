@@ -68,9 +68,9 @@ describe('The safe on the Cash page (Retail 5, 2026-11-02)', () => {
     expect(screen.getByTestId('deposit-pending')).toHaveTextContent('Deposit waiting for the bank: $350.00');
     await user.click(screen.getByTestId('deposit-open'));
     const win = await screen.findByTestId('deposit-window');
-    await user.click(within(win).getByLabelText(/Register 1 · drop/));
-    await user.click(within(win).getByLabelText(/Register 2 · close-out/));
-    expect(within(win).getByTestId('deposit-vs-bags')).toHaveTextContent('The bags say $260.00 · Counted $260.00 ✓');
+    await user.click(within(win).getByLabelText(/Register 1 · Cash drop/));
+    await user.click(within(win).getByLabelText(/Register 2 · End of day/));
+    expect(within(win).getByTestId('deposit-vs-bags')).toHaveTextContent('The envelopes say $260.00 · Counted $260.00 ✓');
     await user.click(within(win).getByTestId('deposit-submit'));
     await waitFor(() => expect(m.deposit).toHaveBeenCalledWith(
       [{ kind: 'drop', ref: 5 }, { kind: 'close_out', ref: 9 }], { hundreds: 2, twenties: 3 }, 'office', '',

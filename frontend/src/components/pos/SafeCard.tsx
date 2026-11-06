@@ -20,6 +20,7 @@ import {
 } from '../../hooks/useSafe';
 import { completeBankTransaction } from '../../api/pos.api';
 import DepositWindow from './DepositWindow';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 import { CASH_DENOMINATIONS, countCents, type CashCount } from '../../utils/cashCounts';
 import { tp } from '../../i18n/pos';
 
@@ -105,6 +106,8 @@ export default function SafeCard({ lang }: { lang?: string | null }) {
   const bank = useBankDeposits().data;
   const [depositOpen, setDepositOpen] = useState(false);
   const [changeOpen, setChangeOpen] = useState(false);
+  // Mark deposited, asked once more (the bank took it: it cannot be undone here).
+  const [marking, setMarking] = useState<{ id: number; total: string } | null>(null);
   const [changeInto, setChangeInto] = useState<'office' | 'safe'>('safe');
   const client = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
@@ -167,9 +170,9 @@ export default function SafeCard({ lang }: { lang?: string | null }) {
               : ''}
           </Typography>
           <Button
-            size="small"
             variant="contained"
-            onClick={() => void completeBankTransaction(p.id).then(() => client.invalidateQueries({ queryKey: BANK_KEY }))}
+            sx={{ minHeight: 44 }}
+            onClick={() => setMarking({ id: p.id, total: p.total })}
           >
             {tp('markDeposited', lang)}
           </Button>
@@ -255,6 +258,24 @@ export default function SafeCard({ lang }: { lang?: string | null }) {
           />
         </CountWindow>
       )}
+      <ConfirmDialog
+        open={marking !== null}
+        title={tp('markDeposited', lang)}
+        message={marking ? `${money(Math.round(Number.parseFloat(marking.total) * 100))}: the bank has it?` : ''}
+        confirmLabel={tp('markDeposited', lang)}
+        onCancel={() => setMarking(null)}
+        onConfirm={() => {
+          const row = marking;
+          setMarking(null);
+          if (!row) return;
+          void completeBankTransaction(row.id)
+            .then(() => {
+              enqueueSnackbar('Marked deposited.', { variant: 'success' });
+              return client.invalidateQueries({ queryKey: BANK_KEY });
+            })
+            .catch(() => enqueueSnackbar('That did not save. Try again.', { variant: 'error' }));
+        }}
+      />
     </Paper>
   );
 }

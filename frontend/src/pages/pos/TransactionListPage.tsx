@@ -12,6 +12,8 @@ import {
   MenuItem,
   Select,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material';
@@ -27,6 +29,8 @@ import { useObjectModal } from '../../components/objects/ObjectModal';
 import { SalesNumbersBlock } from '../../components/pos/SalesNumbersBlock';
 import { format, startOfMonth, startOfWeek, subDays } from 'date-fns';
 import { IconSearch as Search } from '../../icons/ecoIcons';
+import { useSearchParams } from 'react-router-dom';
+import ReturnsGrid, { type ReturnsFilters } from '../../components/pos/returns/ReturnsGrid';
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num ?? 0);
@@ -52,8 +56,27 @@ function thriftMoney(value: number): string {
   return value > 0 ? formatCurrency(value) : '';
 }
 
+type Show = 'checkouts' | 'returns';
+
+/**
+ * Transactions (Retail, #72 Bill 2026-11-04: "checkouts and returns"): two tabs on one set of filters. Checkouts are
+ * the sales; Returns are the Thrift+ returns, each on the day it came back (`ReturnsGrid`). `?show=returns` opens the
+ * Returns tab and `&late=1` the late ones only (the Owner page's "Late returns taken" link). A row opens its Sale window.
+ */
 export default function TransactionListPage() {
-  const [dateFrom, setDateFrom] = useState('');
+  const [urlParams, setUrlParams] = useSearchParams();
+  const show: Show = urlParams.get('show') === 'returns' ? 'returns' : 'checkouts';
+  const lateOnly = show === 'returns' && urlParams.get('late') === '1';
+  const setShow = (next: Show, late = false) => {
+    const p = new URLSearchParams(urlParams);
+    if (next === 'returns') p.set('show', 'returns');
+    else p.delete('show');
+    if (late) p.set('late', '1');
+    else p.delete('late');
+    setUrlParams(p, { replace: true });
+  };
+  // `?from=` (the Owner page's "last 7 days") starts the range.
+  const [dateFrom, setDateFrom] = useState(() => urlParams.get('from') ?? '');
   const [dateTo, setDateTo] = useState('');
   const [receiptDraft, setReceiptDraft] = useState('');
   const [committedReceipt, setCommittedReceipt] = useState('');
@@ -80,7 +103,8 @@ export default function TransactionListPage() {
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
 
   const { data: usersData } = useUsers({ page_size: 200 });
-  const users = usersData?.results ?? [];
+  // Staff only: who can ring a sale or take a return (not Thrift+ members or consignors).
+  const users = (usersData?.results ?? []).filter((u: { role?: string | null }) => ['Admin', 'Manager', 'Employee'].includes(u.role ?? ''));
 
   const params = useMemo(() => {
     const p: Record<string, string | number> = {
@@ -126,19 +150,23 @@ export default function TransactionListPage() {
   });
 
   const carts = data?.results ?? [];
+  const returnsFilters: ReturnsFilters = useMemo(
+    () => ({ dateFrom, dateTo, q: committedReceipt, cashier: cashierFilter, late: lateOnly }),
+    [dateFrom, dateTo, committedReceipt, cashierFilter, lateOnly],
+  );
 
   const columns: GridColDef[] = [
     {
       field: 'receipt_number',
       headerName: 'Receipt #',
-      width: 150,
+      width: 135,
       // A sale voided before payment never got a receipt; say so instead of showing its cart number.
       valueGetter: (_, row) => row.receipt?.receipt_number ?? (row.status === 'voided' ? 'Not paid' : `Sale ${row.id}`),
     },
     {
       field: 'status',
       headerName: 'Status',
-      width: 120,
+      width: 105,
       renderCell: ({ row }) =>
         row.status === 'voided' ? (
           <Chip size="small" label="Voided" color="error" variant="outlined" />
@@ -149,7 +177,7 @@ export default function TransactionListPage() {
     {
       field: 'completed_at',
       headerName: 'Date/Time',
-      width: 160,
+      width: 140,
       valueFormatter: (value, row) => {
         const dt = (row as Cart).completed_at ?? (row as Cart).created_at;
         return dt ? format(new Date(dt as string), 'MM/dd/yyyy HH:mm') : '-';
@@ -158,7 +186,8 @@ export default function TransactionListPage() {
     {
       field: 'cashier_name',
       headerName: 'Cashier',
-      width: 200,
+      flex: 1,
+      minWidth: 150,
       // Cover (2026-10-22): sold while stepping in for someone.
       valueGetter: (_value, row) =>
         row.covering_for_name ? `${row.cashier_name ?? '-'} (covering ${row.covering_for_name})` : row.cashier_name,
@@ -166,13 +195,13 @@ export default function TransactionListPage() {
     {
       field: 'payment_method',
       headerName: 'Method',
-      width: 110,
+      width: 90,
       valueFormatter: (value) => paymentMethodLabel(value as string),
     },
     {
       field: 'total',
       headerName: 'Total',
-      width: 110,
+      width: 95,
       align: 'right',
       headerAlign: 'right',
       valueFormatter: (value) => formatCurrency(value ?? 0),
@@ -180,7 +209,8 @@ export default function TransactionListPage() {
     {
       field: 'tp_member',
       headerName: 'Thrift+ member',
-      width: 170,
+      flex: 1,
+      minWidth: 130,
       sortable: false,
       valueGetter: (_, row) => (row as Cart).thrift_row?.member ?? '',
     },
@@ -188,7 +218,7 @@ export default function TransactionListPage() {
       field: 'tp_earned',
       headerName: 'Earned',
       description: "ThriftBucks this sale put in the member's bank",
-      width: 95,
+      width: 80,
       align: 'right',
       headerAlign: 'right',
       sortable: false,
@@ -198,7 +228,7 @@ export default function TransactionListPage() {
       field: 'tp_used',
       headerName: 'Used',
       description: 'Kept ThriftBucks and Thrift+ credit spent on this sale',
-      width: 95,
+      width: 80,
       align: 'right',
       headerAlign: 'right',
       sortable: false,
@@ -211,7 +241,7 @@ export default function TransactionListPage() {
       field: 'tp_instant',
       headerName: 'Instant',
       description: 'ThriftBucks taken off the price right away',
-      width: 95,
+      width: 80,
       align: 'right',
       headerAlign: 'right',
       sortable: false,
@@ -222,16 +252,21 @@ export default function TransactionListPage() {
   if (isLoading && carts.length === 0) return <LoadingScreen message="Loading transactions..." />;
 
   return (
-    <Box>
+    // The page is the screen's height on a desk, so each list ends at the bottom edge with its paging in view.
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: { md: 'calc(100dvh - 112px)' } }}>
       <PageHeader title="Transactions" dense />
+      <Tabs value={show} onChange={(_e, next: Show) => setShow(next)} sx={{ mb: 1.5, minHeight: 40 }}>
+        <Tab value="checkouts" label="Checkouts" sx={{ textTransform: 'none', fontWeight: 700, minHeight: 40 }} data-testid="tx-tab-checkouts" />
+        <Tab value="returns" label="Returns" sx={{ textTransform: 'none', fontWeight: 700, minHeight: 40 }} data-testid="tx-tab-returns" />
+      </Tabs>
 
       <Grid container spacing={2} sx={{ mb: 1 }}>
-        <Grid size={{ xs: 12, md: 2 }}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <TextField
             fullWidth
             size="small"
             label="Search"
-            placeholder="Receipt # or member name"
+            placeholder={show === 'returns' ? 'Receipt, member, item' : 'Receipt or member'}
             value={receiptDraft}
             onChange={(e) => setReceiptDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -258,7 +293,7 @@ export default function TransactionListPage() {
             }}
           />
         </Grid>
-        <Grid size={{ xs: 12, md: 2 }}>
+        <Grid size={{ xs: 6, md: 2 }}>
           <TextField
             fullWidth
             size="small"
@@ -269,7 +304,7 @@ export default function TransactionListPage() {
             slotProps={{ inputLabel: { shrink: true }, input: { inputProps: { max: dateTo || undefined } } }}
           />
         </Grid>
-        <Grid size={{ xs: 12, md: 2 }}>
+        <Grid size={{ xs: 6, md: 2 }}>
           <TextField
             fullWidth
             size="small"
@@ -280,12 +315,12 @@ export default function TransactionListPage() {
             slotProps={{ inputLabel: { shrink: true }, input: { inputProps: { min: dateFrom || undefined } } }}
           />
         </Grid>
-        <Grid size={{ xs: 12, md: 2 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 2 }}>
           <FormControl fullWidth size="small">
-            <InputLabel>Cashier</InputLabel>
+            <InputLabel>{show === 'returns' ? 'Taken by' : 'Cashier'}</InputLabel>
             <Select
               value={cashierFilter}
-              label="Cashier"
+              label={show === 'returns' ? 'Taken by' : 'Cashier'}
               onChange={(e) => setCashierFilter(e.target.value)}
             >
               <MenuItem value="">All</MenuItem>
@@ -297,46 +332,64 @@ export default function TransactionListPage() {
             </Select>
           </FormControl>
         </Grid>
-        <Grid size={{ xs: 12, md: 2 }}>
-          <FormControl fullWidth size="small">
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={statusFilter}
-              label="Status"
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <MenuItem value="all">All</MenuItem>
-              <MenuItem value="completed">Completed</MenuItem>
-              <MenuItem value="voided">Voided</MenuItem>
-            </Select>
-          </FormControl>
-        </Grid>
-        <Grid size={{ xs: 12, md: 2 }}>
-          <FormControl fullWidth size="small">
-            <InputLabel>Payment</InputLabel>
-            <Select
-              value={paymentFilter}
-              label="Payment"
-              onChange={(e) => setPaymentFilter(e.target.value)}
-            >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="cash">Cash</MenuItem>
-              <MenuItem value="card">Card</MenuItem>
-              <MenuItem value="split">Split</MenuItem>
-              <MenuItem value="payroll">Payroll deduction</MenuItem>
-              <MenuItem value="thrift">Thrift+ (paid in full)</MenuItem>
-              <MenuItem value="credit">Credit</MenuItem>
-              <MenuItem value="debit">Debit</MenuItem>
-            </Select>
-          </FormControl>
-        </Grid>
+        {show === 'returns' ? (
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Show</InputLabel>
+              <Select
+                value={lateOnly ? 'late' : 'all'}
+                label="Show"
+                onChange={(e) => setShow('returns', e.target.value === 'late')}
+                data-testid="returns-late-filter"
+              >
+                <MenuItem value="all">All returns</MenuItem>
+                <MenuItem value="late">Late returns only (past the 3 days)</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+        ) : (
+          <>
+          <Grid size={{ xs: 6, md: 1.5 }}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={statusFilter}
+                label="Status"
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <MenuItem value="all">All</MenuItem>
+                <MenuItem value="completed">Completed</MenuItem>
+                <MenuItem value="voided">Voided</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid size={{ xs: 6, md: 1.5 }}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Payment</InputLabel>
+              <Select
+                value={paymentFilter}
+                label="Payment"
+                onChange={(e) => setPaymentFilter(e.target.value)}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="cash">Cash</MenuItem>
+                <MenuItem value="card">Card</MenuItem>
+                <MenuItem value="split">Split</MenuItem>
+                <MenuItem value="payroll">Payroll deduction</MenuItem>
+                <MenuItem value="thrift">Thrift+ (paid in full)</MenuItem>
+                <MenuItem value="credit">Credit</MenuItem>
+                <MenuItem value="debit">Debit</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          </>
+        )}
       </Grid>
 
       <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1, flexWrap: 'wrap', rowGap: 1 }}>
         {datePresets().map((p) => (
           <Chip
             key={p.label}
-            size="small"
             label={p.label}
             clickable
             color={dateFrom === p.from && dateTo === p.to ? 'primary' : 'default'}
@@ -349,10 +402,11 @@ export default function TransactionListPage() {
         ))}
       </Stack>
 
-      {summary && <SalesNumbersBlock summary={summary} />}
+      {show === 'checkouts' && summary ? <SalesNumbersBlock summary={summary} /> : null}
 
-      {/* The table takes the rest of the screen (about 70% of it on a laptop). */}
-      <Box sx={{ height: 'calc(100vh - 300px)', minHeight: 420 }}>
+      {show === 'returns' ? <ReturnsGrid filters={returnsFilters} /> : null}
+      {/* The table takes the rest of the screen. */}
+      <Box sx={{ flex: 1, minHeight: 320, display: show === 'returns' ? 'none' : undefined }}>
         <DataGrid
           rows={carts as GridRowsProp}
           columns={columns}
@@ -364,6 +418,7 @@ export default function TransactionListPage() {
           onPaginationModelChange={setPaginationModel}
           pageSizeOptions={[10, 25, 50, 100]}
           density="compact"
+          localeText={{ noRowsLabel: 'No sales.' }}
           // One window for a sale wherever it opens (Dash Updates #15): the Transaction window.
           onRowClick={({ row }) => openObject({ type: 'sale', id: (row as Cart).id })}
           sx={{

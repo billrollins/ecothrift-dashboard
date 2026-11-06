@@ -157,7 +157,7 @@ class TestTerminalDrawerTests(TestCase):
         cart = self.api_ana.post('/api/pos/carts/', {'drawer': drawer.pk}, format='json').json()
         self.api_ana.post(f"/api/pos/carts/{cart['id']}/add-item/", {'sku': 'ITMTT1'}, format='json')
         # The other computer took -001 after we looked but before we wrote.
-        prefix = f'TRAIN-{timezone.now().strftime("%Y%m%d")}-'
+        prefix = f'TRAIN-{timezone.localdate().strftime("%Y%m%d")}-'
         real_generate = Receipt.generate_training_number
         calls = []
 

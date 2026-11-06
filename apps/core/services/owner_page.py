@@ -261,11 +261,15 @@ def needs_you(now: datetime | None = None) -> dict[str, Any]:
     def returns():
         from apps.thriftplus.models import LateReturnMark, ReturnRecord
 
-        late = LateReturnMark.objects.filter(created_at__gte=now - timedelta(days=7)).count()
+        # The last 7 days as the link lists them: today and the 6 before, from midnight.
+        since = timezone.localdate(now) - timedelta(days=6)
+        late = LateReturnMark.objects.filter(created_at__gte=_midnight(since)).count()
         waiting = ReturnRecord.objects.filter(status=ReturnRecord.STATUS_OPEN).count()
         return [
-            _item('late_returns', 'Late returns taken (last 7 days)', late, '/pos/returns'),
-            _item('returns_waiting', 'Returned items waiting for staff', waiting, '/pos/returns', tone='info'),
+            # Late returns are in Transactions → Returns (#72); waiting items are handled on Thrift+ → Register.
+            _item('late_returns', 'Late returns taken (last 7 days)', late,
+                  f'/pos/transactions?show=returns&late=1&from={since.isoformat()}'),
+            _item('returns_waiting', 'Returned items waiting for staff', waiting, '/thrift-plus?tab=register', tone='info'),
         ]
 
     def offers():

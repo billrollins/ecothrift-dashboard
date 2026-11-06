@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.266.0] -->
-<!-- Last reviewed: 2026-11-05 (2.266.0) -->
+<!-- Line 1 release: ## [2.267.0] -->
+<!-- Last reviewed: 2026-11-05 (2.267.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,31 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.267.0] - 2026-11-05
+
+User-facing theme: **Retail redesign: returns on the Register (#71), Transactions with returns (#72) and Cash Drops part 1 (#70); receipt numbers use the store's date.**
+
+### Changed (Retail redesign phase 1, Dash Update #71: Register with returns)
+- **Returns are on the Register.** A **Return** button sits first in the Register's header (any drawer state) and opens the Return window: find the receipt, tick the items, summary, Confirm, then the member's window opens. Same rules as before: the 3 days, AS IS and the Settings rules, 80% back as Thrift+ credit, ThriftBucks taken back and given back, a manager's own PIN and a reason past the 3 days (a mark against Retail), the training register writes nothing. The window keeps one height on every step.
+- Owner page: "Late returns taken" opens Transactions → Returns, late only; "Returned items waiting for staff" opens Thrift+ → Register, where they are handled.
+
+### Changed (Retail redesign phase 2, Dash Update #72: Transactions with returns)
+- **Transactions has two tabs: Checkouts and Returns.** Returns lists every Thrift+ return on the day it came back (item, member, credit, who took it), with the same search, dates and cashier filters, and "Late returns only". Late ones carry a Late chip; managers also see why, the cashier it counts against and who allowed it. A row opens its sale. It replaces the managers' Late returns list.
+
+### Changed (Retail redesign phase 3, Dash Update #70: Cash Drops, first part)
+- **Cash Drops** (was Cash, Retail → Managers) shows where the day's cash ends up: the **cash drop box** (every envelope waiting for the bank, each with its bills, to check at the deposit), the safe, the **office drawer** (a recount) and the bank history.
+- **Cover:** the person stepping in ticks that they take the drawer while they cover. When the cashier taps Back they see the cash sales, drops and paid in / out made meanwhile, count the bills and coins that changed, and tap **Accept the drawer** (logged on the drawer).
+- **Handover:** the count can include the coins too (or skip them, as before).
+
+### Removed
+- The Returns page and its Retail menu item. `/pos/returns` opens the Register's Return window (`?practice=1` the test terminal's).
+- The register's old one-line return dialog (unused since 2026-10-20) and its two frontend API calls.
+- Cash page: the free-hand Draw and Return buttons (they let the office drawer's bills drift from its total), the bank transaction Edit and Delete, and the dead "new bank transaction" form.
+
+### Fixed
+- Receipt numbers carry the store's date: after 6 PM they had tomorrow's (the server's clock is UTC), so a ticket's short number found nothing in the evening. Numbers already printed keep theirs.
+- Returns: finding by a date lists the whole day (up to 100 tickets, was 30, so morning sales were out of reach) and says when it stops there.
 
 ## [2.266.0] - 2026-11-05
 

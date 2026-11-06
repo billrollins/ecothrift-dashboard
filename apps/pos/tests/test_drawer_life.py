@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.core.models import AppSetting
-from apps.pos.models import CashMovement, Drawer, Register, SupplementalDrawer, SupplementalTransaction
+from apps.pos.models import CashMovement, Drawer, DrawerHandoff, Register, SupplementalDrawer, SupplementalTransaction
 from apps.pos.services.drawer_life import expected_cash
 
 from .test_cart_card_surcharge import _CartCardSurchargeFixtures
@@ -86,11 +86,19 @@ class HandoffTests(_LifeFixtures, TestCase):
         self.drawer.refresh_from_db()
         self.assertEqual(self.drawer.contents, {'twenties': 4, 'ones': 10, 'quarters': 8})
 
-    def test_coins_are_not_counted_at_a_handoff(self):
-        r = self.client.post(self._url('handoff'), {'incoming_cashier': self.manager.id,
-                                                    'count': {'twenties': 3, 'quarters': 8}}, format='json')
-        self.assertEqual(r.status_code, 400)
-        self.assertIn('bills only', r.json()['detail'])
+    def test_a_handoff_may_count_the_coins_too(self):
+        # Cash Drops #70 (Bill 2026-11-04): "a count at every handoff; coins can be skipped". Counted, they are checked
+        # and become the drawer's coins; a coin not in the count is none.
+        before = dict(self.drawer.contents)
+        r = self.client.post(self._url('handoff'), {'incoming_cashier': self.manager.id, 'with_coins': True,
+                                                    'count': {**{k: v for k, v in before.items() if k != 'quarters'}, 'dimes': 3}}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.drawer.refresh_from_db()
+        self.assertEqual(self.drawer.contents.get('dimes'), 3)
+        self.assertFalse(self.drawer.contents.get('quarters'))
+        handoff = DrawerHandoff.objects.latest('id')
+        self.assertFalse(handoff.bills_only)
+        self.assertIn('quarters', [row['key'] for row in r.json()['count_check']['rows']])  # 8 expected, none counted
 
 
 class CloseTests(_LifeFixtures, TestCase):

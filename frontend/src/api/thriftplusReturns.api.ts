@@ -1,9 +1,9 @@
 import api from './client';
 
 /**
- * The Returns page and the owner PIN (owner 2026-10-20). Find by person, ticket or item, one ticket open, a summary,
- * several lines back in one call, and the owner PIN (set in Settings, typed by anyone where it is asked). Server:
- * apps/thriftplus (`returns_find.py`, `returns.py`, `owner_pin.py`). Money is dollars as strings.
+ * The Register's Return window (owner 2026-10-20; #71). Find by person, ticket or item, one ticket open, a summary,
+ * several lines back in one call; past the 3 days a manager's own register PIN (or the owner signed in). Server:
+ * apps/thriftplus (`returns_find.py`, `returns.py`). Money is dollars as strings.
  */
 
 /** One person Find turned up: enough to pick them by their photo and name. */
@@ -164,31 +164,45 @@ export async function confirmReturn(body: {
   return data;
 }
 
-/** One row of the Late returns list (marks against Retail). */
-export interface LateReturnRow {
+/** One return in Transactions → Returns (#72): a row of its own, on the day it came back. */
+export interface ReturnHistoryRow {
   id: number;
   created_at: string;
-  department: string;
-  receipt_number: string;
+  /** The sale it came from (its Sale window opens). */
   cart: number;
+  receipt_number: string;
   sold_at: string | null;
-  days_late: number | null;
   sku: string;
   title: string;
   member: string;
+  person_id: number;
   credit: string;
-  cashier: string;
-  reason: LateReason;
-  reason_label: string;
-  note: string;
-  entered_by: string;
-  /** The manager whose own PIN allowed it, or the owner signed in (2026-10-21; empty on older marks). */
-  approved_by?: string;
-  by_pin: boolean;
+  bucks_taken: string;
+  bucks_back: string;
+  /** Who took it at the register. */
+  returned_by: string;
+  /** Past the 3 days (a mark against Retail). */
+  late: boolean;
+  /** The mark itself: managers and the owner only (null for everyone else and for on-time returns). */
+  mark: {
+    reason_label: string;
+    note: string;
+    /** The cashier who rang the sale: the mark is against them. */
+    cashier: string;
+    approved_by: string;
+    by_pin: boolean;
+    days_late: number | null;
+  } | null;
 }
 
-export async function fetchLateReturns(): Promise<LateReturnRow[]> {
-  const { data } = await api.get<LateReturnRow[]>('/thriftplus/returns/late/');
+export interface ReturnHistoryPage {
+  count: number;
+  credit_total: string;
+  results: ReturnHistoryRow[];
+}
+
+export async function fetchReturnHistory(params: Record<string, string | number>): Promise<ReturnHistoryPage> {
+  const { data } = await api.get<ReturnHistoryPage>('/thriftplus/returns/history/', { params });
   return data;
 }
 
