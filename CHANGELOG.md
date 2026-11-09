@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.268.1] -->
-<!-- Last reviewed: 2026-11-09 (2.268.1) -->
+<!-- Line 1 release: ## [2.268.2] -->
+<!-- Last reviewed: 2026-11-09 (2.268.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.268.2] - 2026-11-09
+
+User-facing theme: **Preprocessing: AI Cleanup no longer dies every few minutes while you watch it.**
+
+> **For Bill:** a long AI Cleanup (like the 1,252-line Walmart truck) kept stalling and saying "picked up again 2x after a server restart". The page itself was causing it: it checked progress every 2 seconds, and the server restarts a worker after 500 requests, which killed the job. Now the page checks every 5 seconds, workers restart after 2,000 requests, and a job that does die is picked up in about 90 seconds instead of over 3 minutes. The product standard count is for the whole order (1248/1252), not just since the last restart.
+
+### Fixed
+- `apps/inventory/services/ai_cleanup_job.py`: `_Beat` (was `_FinishBeat`) beats the heartbeat every 30 s for the whole life of the job thread, not just the finish; `STALE_SECONDS` is now 90 (was 195, which had to outlast a 150 s model call). `standard_total` / `standard_rows` count the whole order, so a restart no longer shows "471/475".
+- `WebAiCleanupPanel.tsx`: polls every 5 s (was 2 s).
+- `Procfile`: gunicorn `--max-requests 2000 --max-requests-jitter 200` (was 500 / 50). Each recycle kills that worker's job threads; on 11-09 the worker recycled about every 8 minutes with one Preprocessing page open. Memory is about 330 MB of 512 MB.
 
 ## [2.268.1] - 2026-11-09
 

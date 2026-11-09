@@ -34,7 +34,8 @@ const CONCURRENCY_CHOICES = [8, 16, 32, 48];
 const DEFAULT_CONCURRENCY = 8;
 const EFFORT_CHOICES: CleanupEffort[] = ['off', 'low', 'medium', 'high', 'max'];
 const EFFORT_WORDS: Record<CleanupEffort, string> = { off: 'Off', low: 'Low', medium: 'Medium', high: 'High', max: 'Max' };
-const POLL_MS = 2000;
+// Every poll is a request, and gunicorn recycles a worker (killing its job thread) after ~2,000.
+const POLL_MS = 5000;
 
 const isActive = (job: CleanupJobState | null | undefined) => job?.status === 'running' || job?.status === 'stopping';
 

@@ -32,6 +32,8 @@ Newest first. One row per ship (`ship.md`) and per deploy (`deploy.md`). A deplo
 
 | Date | Event | Version | Commit | Heroku release | Machine | Session |
 |---|---|---|---|---|---|---|
+| 2026-11-09 | ship | v2.268.2 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-09 | deploy | v2.268.1 | bd90d9ed | v612 | Bench | Eco-Thrift - Mainline |
 | 2026-11-09 | ship | v2.268.1 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
 | 2026-11-05 | deploy | v2.267.0 | 6f889dba | v610 | Bench | Eco-Thrift - Mainline |
 | 2026-11-06 | ship | v2.268.0 | (this version's commit) | — | Bench | Dash #76 Get manifest (heuristic-thompson-cf0947) |

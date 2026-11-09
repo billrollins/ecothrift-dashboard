@@ -133,7 +133,7 @@ class AiCleanupJobTests(TestCase):
                 return {}
             return real_update(order_id, token, **changes)
 
-        with mock.patch.object(job, 'FINISH_BEAT_SECONDS', 0.05), \
+        with mock.patch.object(job, 'BEAT_SECONDS', 0.05), \
                 mock.patch.object(job, 'complete_ai_cleanup', slow_complete), \
                 mock.patch.object(job, '_update', spy_update), self._llm():
             self._start()

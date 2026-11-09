@@ -41,8 +41,11 @@ logger = logging.getLogger(__name__)
 
 # One model call may take this long. Nothing waits on it, so it can be generous.
 JOB_CALL_TIMEOUT_SECONDS = 150.0
-# No heartbeat for this long means the thread is gone (it beats when a batch starts and ends).
-STALE_SECONDS = JOB_CALL_TIMEOUT_SECONDS + 45
+# A side thread beats the heartbeat this often for as long as the job thread lives (see _Beat).
+BEAT_SECONDS = 30.0
+# No heartbeat for this long means the process holding the job is gone. Gunicorn recycles a worker
+# every ~2,000 requests, so this is how long a job sits dead before a poll picks it up again.
+STALE_SECONDS = 3 * BEAT_SECONDS
 # A row that fails or comes back unusable this many times in one job is left for the next run.
 MAX_ATTEMPTS_PER_ROW = 2
 # Batches with the model at one time. Each waits without a database connection (see _one_batch).
@@ -51,9 +54,6 @@ MAX_CONCURRENCY = 48
 # (seconds before each further try) instead of failing.
 RATE_LIMIT_WAITS = (8, 20, 45)
 ACTIVE = ('running', 'stopping')
-# After the last line is cleaned, the product standard and matching run with no batch to beat on.
-# A side thread beats this often meanwhile, so a long finish is never taken for a dead job.
-FINISH_BEAT_SECONDS = 30.0
 
 _write_lock = threading.Lock()
 
@@ -110,8 +110,9 @@ def _executor(concurrency: int, order_id: int):
     return ThreadPoolExecutor(max_workers=concurrency, thread_name_prefix=f'ai-cleanup-{order_id}')
 
 
-class _FinishBeat:
-    """Beats the job's heartbeat every FINISH_BEAT_SECONDS while the finishing steps run."""
+class _Beat:
+    """Beats the job's heartbeat every BEAT_SECONDS while the job thread lives: a slow model call,
+    the product standard or matching is never taken for a dead job, and a dead one is seen fast."""
 
     def __init__(self, order_id: int, token: str):
         self.order_id, self.token = order_id, token
@@ -119,7 +120,7 @@ class _FinishBeat:
         self.thread = threading.Thread(target=self._loop, name=f'ai-cleanup-beat-{order_id}', daemon=True)
 
     def _loop(self) -> None:
-        while not self.done.wait(FINISH_BEAT_SECONDS):
+        while not self.done.wait(BEAT_SECONDS):
             _fresh_db()
             try:
                 _update(self.order_id, self.token, heartbeat_at=_now())
@@ -307,9 +308,10 @@ def _standard_pass(order_id: int, token: str, order: PurchaseOrder, concurrency:
             ids = intake_standard.rows_needing_standard(order)
             if not ids or stop.is_set():
                 break
-            if _round == 0:  # the page shows this as "product standard: done/total lines"
+            if _round == 0:  # the page shows "product standard: done/total lines" over the whole order
+                cleaned = PreprocessingRow.objects.filter(purchase_order=order).exclude(ai_reasoning='').count()
                 _update(order_id, token, heartbeat_at=_now(), phase='standard',
-                        standard_total=len(ids), standard_rows=0, standard_failed=0)
+                        standard_total=cleaned, standard_rows=max(0, cleaned - len(ids)), standard_failed=0)
             with _executor(min(concurrency, intake_standard.MAX_WORKERS), order_id) as pool:
                 futures = [pool.submit(_one_standard_batch, order_id, token, ids[i:i + size], stop, api_key=api_key)
                            for i in range(0, len(ids), size)]
@@ -329,7 +331,13 @@ def _standard_pass(order_id: int, token: str, order: PurchaseOrder, concurrency:
 
 
 def _run(order_id: int, token: str) -> None:
-    """The job thread: clean what is uncleaned, a few batches at a time, until done or told to stop."""
+    """The job thread, with its heartbeat beside it for as long as it lives."""
+    with _Beat(order_id, token):
+        _run_job(order_id, token)
+
+
+def _run_job(order_id: int, token: str) -> None:
+    """Clean what is uncleaned, a few batches at a time, until done or told to stop; then finish."""
     _fresh_db()
     try:
         state = read(order_id)
@@ -401,18 +409,17 @@ def _run(order_id: int, token: str) -> None:
             _update(order_id, token, status='done_with_gaps', finished_at=_now(),
                     message=f'{remaining} row(s) could not be cleaned this run. Run again to retry just those.')
             return
-        with _FinishBeat(order_id, token):
-            if _standard_pass(order_id, token, order, concurrency):
-                # The pass takes minutes: the job may have been replaced, or cleanup undone, meanwhile.
-                if read(order_id).get('token') != token:
-                    return
-                generation = PurchaseOrder.objects.values_list('ai_cleanup_generation', flat=True).get(pk=order_id)
-                if generation != state.get('generation'):
-                    _update(order_id, token, status='cancelled', finished_at=_now(),
-                            message='Cleanup was undone while it ran, so it stopped. Batches in flight were not saved.')
-                    return
-            _update(order_id, token, heartbeat_at=_now(), phase='matching')
-            completion = complete_ai_cleanup(order)
+        if _standard_pass(order_id, token, order, concurrency):
+            # The pass takes minutes: the job may have been replaced, or cleanup undone, meanwhile.
+            if read(order_id).get('token') != token:
+                return
+            generation = PurchaseOrder.objects.values_list('ai_cleanup_generation', flat=True).get(pk=order_id)
+            if generation != state.get('generation'):
+                _update(order_id, token, status='cancelled', finished_at=_now(),
+                        message='Cleanup was undone while it ran, so it stopped. Batches in flight were not saved.')
+                return
+        _update(order_id, token, heartbeat_at=_now(), phase='matching')
+        completion = complete_ai_cleanup(order)
         _update(order_id, token, status='done', finished_at=_now(), message='',
                 match_candidates=completion.get('match_candidates'))
     except Exception as e:  # noqa: BLE001 - the job must always end in a readable state

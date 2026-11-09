@@ -1,11 +1,12 @@
-v2.268.1 — AI Cleanup shows its finishing steps; no false restart
+v2.268.2 — AI Cleanup no longer dies every few minutes
 
-User-facing theme: **Preprocessing: AI Cleanup shows its finishing steps, and a long finish is never restarted by mistake.**
+User-facing theme: **Preprocessing: AI Cleanup no longer dies every few minutes while you watch it.**
 
-> **For Bill:** after the last line is cleaned, the AI Cleanup box now says "All lines cleaned. Finishing 1 of 2: product standard (504/1252 lines)", then "Finishing 2 of 2: matching lines to products", with its own progress bar. Final Decisions opens when that is done. The "~0s left" that looked stuck is gone.
+> **For Bill:** a long AI Cleanup (like the 1,252-line Walmart truck) kept stalling and saying "picked up again 2x after a server restart". The page itself was causing it: it checked progress every 2 seconds, and the server restarts a worker after 500 requests, which killed the job. Now the page checks every 5 seconds, workers restart after 2,000 requests, and a job that does die is picked up in about 90 seconds instead of over 3 minutes. The product standard count is for the whole order (1248/1252), not just since the last restart.
 
 ### Fixed
-- `apps/inventory/services/ai_cleanup_job.py`: the job records a `phase` (`cleaning`, `standard`, `matching`) and the product standard's `standard_total` / `standard_rows` / `standard_failed`. While the finishing steps run (product standard, then `complete_ai_cleanup` matching), a side thread (`_FinishBeat`) beats the heartbeat every 30 s, so a match step longer than the 195 s stale limit is no longer taken for a dead job and started again (WLMRT-O8T-R7L5, 11-09: "picked up again 1x"). Test: `test_matching_runs_as_its_own_phase_and_the_heartbeat_keeps_beating`.
-- `WebAiCleanupPanel.tsx`: shows the finishing step and its progress; rows/s and time left only while lines are being cleaned.
+- `apps/inventory/services/ai_cleanup_job.py`: `_Beat` (was `_FinishBeat`) beats the heartbeat every 30 s for the whole life of the job thread, not just the finish; `STALE_SECONDS` is now 90 (was 195, which had to outlast a 150 s model call). `standard_total` / `standard_rows` count the whole order, so a restart no longer shows "471/475".
+- `WebAiCleanupPanel.tsx`: polls every 5 s (was 2 s).
+- `Procfile`: gunicorn `--max-requests 2000 --max-requests-jitter 200` (was 500 / 50). Each recycle kills that worker's job threads; on 11-09 the worker recycled about every 8 minutes with one Preprocessing page open. Memory is about 330 MB of 512 MB.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
