@@ -9,6 +9,7 @@ import {
   IconButton,
   InputAdornment,
   InputLabel,
+  Link,
   MenuItem,
   Select,
   Stack,
@@ -213,6 +214,25 @@ export default function TransactionListPage() {
       minWidth: 130,
       sortable: false,
       valueGetter: (_, row) => (row as Cart).thrift_row?.member ?? '',
+      // The name opens the member's window (Bill 11-09: wherever a member shows); the rest of the row opens the sale.
+      renderCell: ({ row }) => {
+        const t = (row as Cart).thrift_row;
+        if (!t?.member) return '';
+        if (!t.person_id) return t.member;
+        return (
+          <Link
+            component="button"
+            underline="hover"
+            onClick={(e) => {
+              e.stopPropagation();
+              openObject({ type: 'member', id: t.person_id! });
+            }}
+            sx={{ fontSize: 'inherit', textAlign: 'left' }}
+          >
+            {t.member}
+          </Link>
+        );
+      },
     },
     {
       field: 'tp_earned',

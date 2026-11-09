@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.268.2] -->
-<!-- Last reviewed: 2026-11-09 (2.268.2) -->
+<!-- Line 1 release: ## [2.269.0] -->
+<!-- Last reviewed: 2026-11-09 (2.269.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.269.0] - 2026-11-09
+
+User-facing theme: **Thrift+: Fix a price on any sale (owner), and Make it right on the member window.**
+
+> **For Bill:** open the sale (Transactions, or the member's trip) and tap **Fix a price**: pick the line, type the right price for one, and it shows "Juan gets $21.94 Thrift+ credit ($20.50 + $1.44 tax)" before Save. Members get Thrift+ credit; anyone else cash or a card refund (you hand it over; Dash records it). The sales and sales tax reports count it with returns, on the day you fix it. On a member's window, **Make it right** gives or takes Thrift+ credit or ThriftBucks; only you can set a ThriftBucks use-by date (up to 90 days) or Undo an adjustment. In Transactions, the member's name now opens their window.
+
+### Added
+- `PriceFix` (`thriftplus/0032`, with `LedgerEntry.use_by`) and `apps/thriftplus/services/price_fix.py`: the difference between the rung and the right unit price, in the share the line was paid, at 100% (money + tax; ThriftBucks used on it back in the same share; ThriftBucks the item earned stay). One per line; a returned line can't be fixed; `returns.refund_parts` returns a fixed line on its fixed price. `POST /api/thriftplus/price-fix/` (owner only: `thriftplus:owner` or superuser; without `confirm` it only works it out). Rulebook W16.
+- Reports: `sales_numbers.by_day` / `for_carts` and the Transactions block count price fixes with returns (pre-tax and ThriftBucks back off item sales, tax refunded); the sales tax report adds them to its Thrift+ returns block (`price_fixes` count and amounts) on the day fixed.
+- Sale window: **Fix a price** (owner) with the result before Save, a Price fixes section and "Price fixed" in its history (`PriceFixDialog.tsx`, `sale_card.price_fixes`).
+- Member window: **Make it right** (managers and the owner; cashiers see "ask a manager") opens the member's money with Give or take. Owner only: a use-by date on ThriftBucks given (today to 90 days; `lots`, `expire_lots`, `owed_bucks` and expired-income days read it) and **Undo** on an adjustment (`POST accounts/<id>/undo/`, writes the reversing row).
+- Transactions: the Thrift+ member's name opens their window (`thrift_row.person_id`).
+- Tests: `apps/thriftplus/tests/test_price_fix.py` (5).
 
 ## [2.268.2] - 2026-11-09
 

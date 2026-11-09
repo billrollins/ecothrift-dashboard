@@ -24,7 +24,7 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.utils import timezone
 
 from apps.thriftplus.models import Account, LedgerEntry
@@ -96,7 +96,7 @@ def lots(account: Account) -> list[Lot]:
             found[entry.pk] = Lot(
                 id=entry.pk, amount=entry.amount, collected_on=day,
                 usable_from=day + timedelta(days=1) if entry.reason in NEXT_DAY_REASONS else day,
-                use_by=day + timedelta(days=REWARD_DAYS), reason=entry.reason, cart_id=entry.cart_id,
+                use_by=entry.use_by or day + timedelta(days=REWARD_DAYS), reason=entry.reason, cart_id=entry.cart_id,
                 cart_line_id=entry.cart_line_id, item_id=entry.item_id,
             )
         elif entry.reverses_id in found:  # a void of the sale that collected it, or its expiry
@@ -158,14 +158,19 @@ def _midnight(day: date) -> datetime:
     return timezone.make_aware(datetime.combine(day, time.min), timezone.get_current_timezone())
 
 
+def _past_date(on: date, cutoff: datetime) -> Q:
+    """Lot rows whose use-by date is before ``on``: their own date when the owner set one, else collected + 30 days."""
+    return Q(use_by__isnull=True, created_at__lt=cutoff) | Q(use_by__lt=on)
+
+
 def expire_lots(on: date | None = None) -> dict:
     """Expire every lot past its use-by date (B5): one negative row per lot, linked to it. Safe to run again: a lot
     already expired (or voided) is skipped. Called by the nightly reward run."""
     on = _today(on)
     cutoff = _midnight(on - timedelta(days=REWARD_DAYS))  # collected before this: use-by date before ``on``
     account_ids = (
-        LedgerEntry.objects.filter(kind=LedgerEntry.KIND_BANK, amount__gt=0, created_at__lt=cutoff,
-                                   reversed_by__isnull=True)
+        LedgerEntry.objects.filter(kind=LedgerEntry.KIND_BANK, amount__gt=0, reversed_by__isnull=True)
+        .filter(_past_date(on, cutoff))
         .values_list('account_id', flat=True).distinct()
     )
     count, total = 0, ZERO
@@ -192,7 +197,7 @@ def owed_bucks(on: date | None = None, *, accounts=None) -> Decimal:
     rows = LedgerEntry.objects.filter(kind=LedgerEntry.KIND_BANK, account__in=accounts)
     total = _sum(rows)
     cutoff = _midnight(on - timedelta(days=REWARD_DAYS))
-    stale = (rows.filter(amount__gt=0, created_at__lt=cutoff, reversed_by__isnull=True)
+    stale = (rows.filter(amount__gt=0, reversed_by__isnull=True).filter(_past_date(on, cutoff))
              .values_list('account_id', flat=True).distinct())
     for account in Account.objects.filter(pk__in=list(stale)):  # past their date, the nightly run not yet in
         total -= sum((l.amount for l in lots(account) if l.amount > 0 and l.use_by < on), ZERO)
@@ -203,14 +208,14 @@ def owed_bucks(on: date | None = None, *, accounts=None) -> Decimal:
 
 
 def record(account: Account, kind: str, amount: Decimal, reason: str, *, cart=None, line=None, item=None,
-           actor=None, note: str = '') -> LedgerEntry | None:
-    """One row. Zero amounts are not written."""
+           actor=None, note: str = '', use_by: date | None = None) -> LedgerEntry | None:
+    """One row. Zero amounts are not written. ``use_by``: the owner's own date for ThriftBucks given."""
     if not amount:
         return None
     return LedgerEntry.objects.create(
         account=account, kind=kind, amount=amount, reason=reason, month='',
         cart=cart, cart_line_id=getattr(line, 'pk', None), item=item or getattr(line, 'item', None),
-        actor=actor, note=note[:200],
+        actor=actor, note=note[:200], use_by=use_by if kind == LedgerEntry.KIND_BANK and amount > 0 else None,
     )
 
 

@@ -7,9 +7,15 @@
  * adult), as the Item window's Edit does. Nothing new about the person: no phone, email or ID details.
  */
 import { useState } from 'react';
-import { Avatar, Box, Button, ButtonBase, Chip, CircularProgress, Stack, Typography } from '@mui/material';
+import {
+  Avatar, Box, Button, ButtonBase, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack,
+  Typography,
+} from '@mui/material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getMemberWindow } from '../../../api/thriftplusRegister.api';
+import { canAccess } from '../../../auth/access';
+import { useAuth } from '../../../hooks/useAuth';
+import MemberMoney from '../../../pages/thriftplus/MemberMoney';
 import MemberCard from '../../thriftplus/MemberCard';
 import { tbNumber } from '../../thriftplus/ThriftBucks';
 import { useObjectModal } from '../../objects/ObjectModal';
@@ -44,6 +50,10 @@ export function MemberWindow({ personId }: { personId: number }) {
   const { openObject } = useObjectModal();
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [fixing, setFixing] = useState(false);
+  const { user } = useAuth();
+  // Make it right (Bill 11-09): managers give or take credit and ThriftBucks; the owner also sets use-by and undoes.
+  const canFix = canAccess(user, ['thriftplus:manage', 'cashier:manage', 'thriftplus:owner']);
   const query = useQuery({ queryKey: ['member-window', personId], queryFn: () => getMemberWindow(personId) });
 
   if (editing) {
@@ -111,8 +121,27 @@ export function MemberWindow({ personId }: { personId: number }) {
             </Typography>
           </Stack>
         </Stack>
-        <Button variant="contained" onClick={() => setEditing(true)} sx={{ flexShrink: 0 }}>{tr('memberEdit')}</Button>
+        <Stack spacing={1} sx={{ flexShrink: 0 }}>
+          <Button variant="contained" onClick={() => setEditing(true)}>{tr('memberEdit')}</Button>
+          <Button variant="outlined" color="warning" disabled={!canFix} onClick={() => setFixing(true)}>
+            {canFix ? 'Make it right' : 'Make it right: ask a manager'}
+          </Button>
+        </Stack>
       </Stack>
+
+      <Dialog open={fixing} onClose={() => setFixing(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Make it right: {person.name}</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1.5 }}>
+            Rang at the wrong price? Open the trip below and use <b>Fix a price</b> (owner): it gives back the difference
+            and its tax, and keeps the sales and tax reports right. For anything else, give or take here.
+          </Typography>
+          <MemberMoney accountId={person.account_id} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setFixing(false)}>Done</Button>
+        </DialogActions>
+      </Dialog>
 
       <Box sx={{ display: 'grid', gap: 2, alignItems: 'start', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1.15fr) minmax(0, 1fr)' } }}>
         <Stack spacing={2} sx={{ minWidth: 0 }}>

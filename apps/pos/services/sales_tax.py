@@ -144,20 +144,34 @@ def report(start: date, end: date) -> dict:
 
 
 def _thrift_plus_returns(lo: datetime, hi: datetime) -> dict:
-    """Thrift+ 3-day returns in the period, by return day: the pre-tax part and the tax part of each refund (T4)."""
-    from apps.thriftplus.models import ReturnRecord
+    """Thrift+ 3-day returns in the period, by return day: the pre-tax part and the tax part of each refund (T4). Price
+    fixes (a wrong price made right, owner 11-09) count with them on the day fixed, at 100%."""
+    from collections import defaultdict
+
+    from apps.thriftplus.models import PriceFix, ReturnRecord
 
     rows = ReturnRecord.objects.filter(created_at__gte=lo, created_at__lt=hi).exclude(account__is_practice=True)
+    fixes = PriceFix.objects.filter(created_at__gte=lo, created_at__lt=hi).exclude(account__is_practice=True)
     totals = rows.aggregate(count=Count('id'), taxable_back=Sum('taxable_back'), tax_back=Sum('tax_back'),
                             refund=Sum('paid'), credit=Sum('credit'))
-    days = [
-        {'day': row['day'].isoformat(), 'count': row['count'], 'taxable_back': _money(row['taxable_back']),
-         'tax_back': _money(row['tax_back'])}
-        for row in rows.annotate(day=TruncDate('created_at')).values('day')
-        .annotate(count=Count('id'), taxable_back=Sum('taxable_back'), tax_back=Sum('tax_back')).order_by('day')
-    ]
+    fixed = fixes.aggregate(count=Count('id'), taxable_back=Sum('taxable_back'), tax_back=Sum('tax_back'))
+    by_day: dict = defaultdict(lambda: {'count': 0, 'taxable_back': Decimal('0'), 'tax_back': Decimal('0')})
+    for qs in (rows, fixes):
+        for row in (qs.annotate(day=TruncDate('created_at')).values('day')
+                    .annotate(count=Count('id'), taxable_back=Sum('taxable_back'), tax_back=Sum('tax_back'))):
+            d = by_day[row['day']]
+            d['count'] += row['count']
+            d['taxable_back'] += row['taxable_back'] or 0
+            d['tax_back'] += row['tax_back'] or 0
+    days = [{'day': day.isoformat(), 'count': d['count'], 'taxable_back': _money(d['taxable_back']),
+             'tax_back': _money(d['tax_back'])} for day, d in sorted(by_day.items())]
+    taxable_back = (totals['taxable_back'] or 0) + (fixed['taxable_back'] or 0)
+    tax_back = (totals['tax_back'] or 0) + (fixed['tax_back'] or 0)
     return {
-        'count': totals['count'], 'taxable_back': _money(totals['taxable_back']), 'tax_back': _money(totals['tax_back']),
+        'count': totals['count'] + fixed['count'], 'taxable_back': _money(taxable_back), 'tax_back': _money(tax_back),
         'refund': _money(totals['refund']), 'credit': _money(totals['credit']), 'days': days,
-        'note': 'For the CPA: Thrift+ 3-day returns refund 80% of the price and its tax as Thrift+ credit, on the return day.',
+        'price_fixes': {'count': fixed['count'], 'taxable_back': _money(fixed['taxable_back']),
+                        'tax_back': _money(fixed['tax_back'])},
+        'note': 'For the CPA: Thrift+ 3-day returns refund 80% of the price and its tax as Thrift+ credit, on the return '
+                'day. Price fixes (a wrong price made right) refund the difference and its tax at 100%, on the day fixed.',
     }

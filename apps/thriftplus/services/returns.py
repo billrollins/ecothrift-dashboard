@@ -241,10 +241,11 @@ def _kept_from_ledger(line) -> Decimal:
     return sum((r.amount for r in rows), ZERO)
 
 
-def refund_parts(line, *, rules: Guide | None = None) -> dict:
+def refund_parts(line, *, rules: Guide | None = None, share: Decimal | None = None, after_fix: bool = True) -> dict:
     """Everything a return of this line gives back and takes back, from the line's snapshot at the sale (or worked
-    out from the sale for lines sold before it)."""
-    share = credit_share()
+    out from the sale for lines sold before it). A line whose price was fixed (``PriceFix``) comes back on the fixed
+    price: what the fix already gave back is left out (``after_fix``)."""
+    share = credit_share() if share is None else share
     # An untaxed line (a drink, or a tax-exempt sale) gives no tax back.
     rate = ZERO if (line.tax_exempt or line.cart.tax_exempt_at) else (line.cart.tax_rate or ZERO)
     snap = _snapshot(line)
@@ -262,7 +263,14 @@ def refund_parts(line, *, rules: Guide | None = None) -> dict:
         kept = _kept_from_ledger(line)
         qty = line.quantity or 1
         mark, why = mark_for(line.item, price=line_price(line), reward=(kept / qty).quantize(CENT), rules=rules)
-    refund = (paid * (Decimal('1') + rate) * share).quantize(CENT, rounding=ROUND_HALF_UP)
+    if after_fix:
+        from apps.thriftplus.models import PriceFix
+
+        fix = PriceFix.objects.filter(cart_line_id=line.pk).first()
+        if fix is not None:
+            paid = max(ZERO, paid - fix.taxable_back)
+            bucks_used = max(ZERO, bucks_used - fix.bucks_back)
+    refund =(paid * (Decimal('1') + rate) * share).quantize(CENT, rounding=ROUND_HALF_UP)
     taxable_back = (paid * share).quantize(CENT, rounding=ROUND_HALF_UP)
     return {
         'paid': paid, 'refund': refund, 'taxable_back': taxable_back, 'tax_back': refund - taxable_back,

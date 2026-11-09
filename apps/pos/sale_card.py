@@ -25,7 +25,7 @@ def card(cart: Cart) -> dict:
     except ObjectDoesNotExist:
         member = None
 
-    lines = list(cart.lines.select_related('item', 'thrift_return__returned_by'))
+    lines = list(cart.lines.select_related('item', 'thrift_return__returned_by', 'thrift_price_fix__fixed_by'))
     items = {str(l.pk): {'id': l.item_id, 'sku': l.item.sku} for l in lines if l.item_id and l.item is not None}
     returns = []
     for line in lines:
@@ -40,6 +40,20 @@ def card(cart: Cart) -> dict:
             'status': r.status, 'by': _name(r.returned_by),
         })
 
+    # Price fixes (owner, 11-09): a wrong price made right, on the day fixed.
+    fixes = []
+    for line in lines:
+        try:
+            f = line.thrift_price_fix
+        except ObjectDoesNotExist:
+            continue
+        fixes.append({
+            'line': line.pk, 'description': line.description, 'at': f.created_at.isoformat(),
+            'old_unit_price': _money(f.old_unit_price), 'new_unit_price': _money(f.new_unit_price),
+            'money_back': _money(f.taxable_back + f.tax_back), 'bucks_back': _money(f.bucks_back),
+            'back_as': f.back_as, 'note': f.note, 'by': _name(f.fixed_by),
+        })
+
     ev: list[dict] = [{'kind': 'opened', 'at': cart.created_at, 'who': _name(cart.cashier)}]
     if cart.completed_at:
         ev.append({'kind': 'completed', 'at': cart.completed_at, 'who': _name(cart.cashier)})
@@ -50,6 +64,9 @@ def card(cart: Cart) -> dict:
                    'note': cart.card_type})
     for r in returns:
         ev.append({'kind': 'returned', 'at': r['at'], 'who': r['by'], 'note': r['description']})
+    for f in fixes:
+        ev.append({'kind': 'price_fixed', 'at': f['at'], 'who': f['by'],
+                   'note': f"{f['description']}: ${f['old_unit_price']} -> ${f['new_unit_price']}"})
     if cart.voided_at:
         ev.append({'kind': 'voided', 'at': cart.voided_at, 'who': _name(cart.voided_by), 'note': cart.void_reason})
     for e in ev:
@@ -64,5 +81,6 @@ def card(cart: Cart) -> dict:
         'member': member,
         'items': items,
         'returns': returns,
+        'price_fixes': fixes,
         'journey': ev,
     }

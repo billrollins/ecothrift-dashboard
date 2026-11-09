@@ -313,6 +313,8 @@ export interface MemberMoney {
   credit: string;
   /** Kept ThriftBucks by use-by date, soonest first. */
   lots?: MemberBucksLot[];
+  /** The owner: may set a use-by on ThriftBucks given and undo an adjustment. */
+  can_owner?: boolean;
   entries: {
     id: number;
     /** 'cover' rows are history from before 10-12. */
@@ -325,8 +327,11 @@ export interface MemberMoney {
     note: string;
     actor: string;
     created_at: string;
-    /** A ThriftBucks row's use-by date, when the server sends it. */
+    /** A ThriftBucks row's own use-by date (the owner set it); else collected + 30 days. */
     use_by?: string | null;
+    /** An adjustment the owner undid, and the row that undid it. */
+    undone?: boolean;
+    is_undo?: boolean;
   }[];
 }
 
@@ -336,8 +341,43 @@ export async function fetchMemberMoney(accountId: number): Promise<MemberMoney> 
   return data;
 }
 
-export async function adjustMemberMoney(accountId: number, body: { kind: 'credit' | 'bank'; amount: string; note: string }): Promise<MemberMoney> {
+export async function adjustMemberMoney(
+  accountId: number,
+  body: { kind: 'credit' | 'bank'; amount: string; note: string; use_by?: string },
+): Promise<MemberMoney> {
   const { data } = await api.post<MemberMoney>(`/thriftplus/accounts/${accountId}/adjust/`, body);
+  return data;
+}
+
+/** Owner only (Bill 11-09): undo an adjustment; the reversing row is written, the row stays. */
+export async function undoMemberAdjust(accountId: number, entry: number): Promise<MemberMoney> {
+  const { data } = await api.post<MemberMoney>(`/thriftplus/accounts/${accountId}/undo/`, { entry });
+  return data;
+}
+
+/** What a price fix gives back (owner only, Bill 11-09). Without confirm it only works it out. */
+export interface PriceFixResult {
+  cart_line: number;
+  description: string;
+  old_unit_price: string;
+  new_unit_price: string;
+  taxable_back: string;
+  tax_back: string;
+  money_back: string;
+  bucks_back: string;
+  member: { account_id: number } | null;
+  ok: boolean;
+  problems: string[];
+}
+
+export async function priceFix(body: {
+  cart_line: number;
+  unit_price: string;
+  back_as?: 'credit' | 'cash' | 'card';
+  note?: string;
+  confirm?: boolean;
+}): Promise<PriceFixResult> {
+  const { data } = await api.post<PriceFixResult>('/thriftplus/price-fix/', body);
   return data;
 }
 

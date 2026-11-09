@@ -422,6 +422,8 @@ class LedgerEntry(models.Model):
     item = models.ForeignKey('inventory.Item', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     reverses = models.OneToOneField('self', on_delete=models.PROTECT, null=True, blank=True, related_name='reversed_by')
     note = models.CharField(max_length=200, blank=True, default='')
+    use_by = models.DateField(null=True, blank=True,
+                              help_text='ThriftBucks given by the owner with their own use-by date (else collected + 30 days).')
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
@@ -494,6 +496,42 @@ class ReturnRecord(models.Model):
 
     def __str__(self):
         return f'return of line {self.cart_line_id} ({self.paid})'
+
+
+class PriceFix(models.Model):
+    """A wrong price on a sale, made right on the day it is fixed (owner only, Bill 2026-11-09): the difference and its
+    tax go back, at 100%, the way a 3-day return settles (W11: a new record today, the receipt never changes). A member
+    gets it as Thrift+ credit (ThriftBucks used on the line come back in the same share); anyone else gets it back the
+    way the owner chooses (cash or a card refund), recorded here. One per line."""
+
+    BACK_CREDIT = 'credit'
+    BACK_CASH = 'cash'
+    BACK_CARD = 'card'
+    BACK_CHOICES = [(BACK_CREDIT, 'Thrift+ credit'), (BACK_CASH, 'Cash'), (BACK_CARD, 'Card refund')]
+
+    cart_line = models.OneToOneField('pos.CartLine', on_delete=models.PROTECT, related_name='thrift_price_fix')
+    account = models.ForeignKey(Account, on_delete=models.PROTECT, null=True, blank=True, related_name='price_fixes')
+    item = models.ForeignKey('inventory.Item', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    old_unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    new_unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    taxable_back = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text='Pre-tax money back.')
+    tax_back = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    bucks_back = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+                                     help_text='ThriftBucks used on the line, back in the same share (fresh 30 days).')
+    back_as = models.CharField(max_length=10, choices=BACK_CHOICES, default=BACK_CREDIT)
+    note = models.CharField(max_length=300, blank=True, default='')
+    fixed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    @property
+    def money_back(self):
+        return self.taxable_back + self.tax_back
+
+    def __str__(self):
+        return f'price fix on line {self.cart_line_id}: {self.old_unit_price} -> {self.new_unit_price}'
 
 
 class OwnerPin(models.Model):

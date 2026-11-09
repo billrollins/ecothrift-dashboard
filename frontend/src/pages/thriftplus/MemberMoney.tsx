@@ -20,14 +20,14 @@ import { isAxiosError } from 'axios';
 import { addDays, format, parseISO } from 'date-fns';
 import { useSnackbar } from 'notistack';
 import { useState } from 'react';
-import { adjustMemberMoney, fetchMemberMoney, type MemberMoney as Money } from '../../api/thriftplus.api';
+import { adjustMemberMoney, fetchMemberMoney, undoMemberAdjust, type MemberMoney as Money } from '../../api/thriftplus.api';
 import { TbAmount, tbNumber } from '../../components/thriftplus/ThriftBucks';
 import { formatCurrency } from '../../utils/format';
 
 const KIND: Record<string, string> = { cover: 'Monthly cover (retired)', bank: 'ThriftBucks', credit: 'Thrift+ credit' };
 const REASON: Record<string, string> = {
   sale: 'Sale', void: 'Voided sale', return: '3-day return', rering: 'Re-ring', spend: 'Used', adjust: 'Adjusted',
-  expire: 'Expired',
+  expire: 'Expired', pricefix: 'Price fixed',
 };
 
 function day(iso: string): string {
@@ -50,23 +50,41 @@ export default function MemberMoney({ accountId }: { accountId: number }) {
   const { enqueueSnackbar } = useSnackbar();
   const key = ['thriftplus', 'money', accountId];
   const money = useQuery({ queryKey: key, queryFn: () => fetchMemberMoney(accountId) });
-  const [adjust, setAdjust] = useState<{ kind: 'credit' | 'bank'; amount: string; note: string } | null>(null);
+  const [adjust, setAdjust] = useState<{ kind: 'credit' | 'bank'; amount: string; note: string; use_by: string } | null>(null);
+  const fail = (err: unknown, fallback: string) => {
+    const detail = isAxiosError(err) ? (err.response?.data as { detail?: string } | undefined)?.detail : undefined;
+    enqueueSnackbar(detail ?? fallback, { variant: 'error' });
+  };
   const save = useMutation({
-    mutationFn: () => adjustMemberMoney(accountId, adjust!),
-    onSuccess: (data) => { queryClient.setQueryData(key, data); setAdjust(null); },
-    onError: (err) => {
-      const detail = isAxiosError(err) ? (err.response?.data as { detail?: string } | undefined)?.detail : undefined;
-      enqueueSnackbar(detail ?? 'Could not adjust.', { variant: 'error' });
+    mutationFn: () => adjustMemberMoney(accountId, {
+      kind: adjust!.kind, amount: adjust!.amount, note: adjust!.note,
+      ...(adjust!.use_by ? { use_by: adjust!.use_by } : {}),
+    }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(key, data);
+      setAdjust(null);
+      void queryClient.invalidateQueries({ queryKey: ['member-window'] });
     },
+    onError: (err) => fail(err, 'Could not adjust.'),
+  });
+  const undo = useMutation({
+    mutationFn: (entry: number) => undoMemberAdjust(accountId, entry),
+    onSuccess: (data) => {
+      queryClient.setQueryData(key, data);
+      void queryClient.invalidateQueries({ queryKey: ['member-window'] });
+    },
+    onError: (err) => fail(err, 'Could not undo.'),
   });
   const m = money.data;
   if (!m) return null;
+  const owner = Boolean(m.can_owner);
+  const givingBucks = adjust?.kind === 'bank' && Number(adjust.amount) > 0;
   const lots = (m.lots ?? []).filter((l) => Number(l.amount) > 0);
   return (
     <Paper variant="outlined" sx={{ p: 1.5 }}>
       <Stack direction="row" spacing={1} alignItems="center">
         <Typography variant="subtitle2" sx={{ fontWeight: 800, flex: 1 }}>ThriftBucks and Thrift+ credit</Typography>
-        <Button size="small" onClick={() => setAdjust({ kind: 'credit', amount: '', note: '' })}>Adjust</Button>
+        <Button size="small" onClick={() => setAdjust({ kind: 'credit', amount: '', note: '', use_by: '' })}>Give or take</Button>
       </Stack>
       <Typography variant="body2">
         {`Your ThriftBucks ${tbNumber(m.banked)}`}
@@ -100,7 +118,14 @@ export default function MemberMoney({ accountId }: { accountId: number }) {
                 <TableCell>{KIND[e.kind] ?? e.kind} · {REASON[e.reason] ?? e.reason}</TableCell>
                 <TableCell align="right">{e.kind === 'bank' || e.kind === 'cover' ? <TbAmount bare value={e.amount} sign={Number(e.amount) < 0 ? '-' : undefined} /> : formatCurrency(e.amount)}</TableCell>
                 <TableCell>{rowUseBy(e)}</TableCell>
-                <TableCell>{[e.sku, e.cart ? `sale ${e.cart}` : '', e.note, e.actor ? `by ${e.actor}` : ''].filter(Boolean).join(' · ')}</TableCell>
+                <TableCell>
+                  {[e.sku, e.cart ? `sale ${e.cart}` : '', e.note, e.actor ? `by ${e.actor}` : '', e.undone ? 'undone' : ''].filter(Boolean).join(' · ')}
+                  {owner && e.reason === 'adjust' && !e.undone && !e.is_undo ? (
+                    <Button size="small" color="warning" disabled={undo.isPending} onClick={() => undo.mutate(e.id)} sx={{ ml: 1, minWidth: 0 }}>
+                      Undo
+                    </Button>
+                  ) : null}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -110,7 +135,7 @@ export default function MemberMoney({ accountId }: { accountId: number }) {
       )}
 
       <Dialog open={adjust !== null} onClose={() => setAdjust(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Adjust ThriftBucks or Thrift+ credit</DialogTitle>
+        <DialogTitle>Give or take ThriftBucks or Thrift+ credit</DialogTitle>
         <DialogContent>
           {adjust ? (
             <Stack spacing={1.5} sx={{ mt: 1 }}>
@@ -120,7 +145,23 @@ export default function MemberMoney({ accountId }: { accountId: number }) {
               </TextField>
               <TextField size="small" label="Amount (use - to take away)" value={adjust.amount} onChange={(e) => setAdjust({ ...adjust, amount: e.target.value })} />
               <TextField size="small" label="Why" value={adjust.note} onChange={(e) => setAdjust({ ...adjust, note: e.target.value })} />
-              <Typography variant="caption" color="text.secondary">Managers only. Logged with your name.</Typography>
+              {owner && givingBucks ? (
+                <TextField
+                  size="small"
+                  type="date"
+                  label="Use by (owner; blank = 30 days)"
+                  InputLabelProps={{ shrink: true }}
+                  value={adjust.use_by}
+                  onChange={(e) => setAdjust({ ...adjust, use_by: e.target.value })}
+                  inputProps={{
+                    min: format(new Date(), 'yyyy-MM-dd'),
+                    max: format(addDays(new Date(), 90), 'yyyy-MM-dd'),
+                  }}
+                />
+              ) : null}
+              <Typography variant="caption" color="text.secondary">
+                Managers and the owner. Logged with your name; the member's history shows it.
+              </Typography>
             </Stack>
           ) : null}
         </DialogContent>

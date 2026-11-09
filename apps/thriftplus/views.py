@@ -8,7 +8,7 @@ Dash screens are superuser-only in the nav; the API itself is staff-level, like 
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.shortcuts import get_object_or_404
@@ -145,14 +145,19 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
     def money(self, request, pk=None):
         """The membership's ThriftBucks (with each lot's use-by date) and Thrift+ credit, and its last 50 ledger rows."""
         account = self.get_object()
-        rows = account.ledger.select_related('actor', 'item').order_by('-created_at', '-pk')[:50]
+        rows = list(account.ledger.select_related('actor', 'item').order_by('-created_at', '-pk')[:50])
+        undone = set(LedgerEntry.objects.filter(reverses_id__in=[e.pk for e in rows], reason='adjust')
+                     .values_list('reverses_id', flat=True))
         return Response({
             **ledger.balances(account),
             'lots': ledger.reward_lots(account),
+            'can_owner': owner_or(request.user, 'thriftplus:owner'),
             'entries': [
                 {'id': e.pk, 'kind': e.kind, 'amount': str(e.amount), 'month': e.month, 'reason': e.reason,
                  'cart': e.cart_id, 'sku': e.item.sku if e.item_id else '', 'note': e.note,
-                 'actor': e.actor.full_name if e.actor_id else '', 'created_at': e.created_at}
+                 'actor': e.actor.full_name if e.actor_id else '', 'created_at': e.created_at,
+                 'use_by': e.use_by.isoformat() if e.use_by else None,
+                 'undone': e.pk in undone, 'is_undo': e.reverses_id is not None and e.reason == 'adjust'}
                 for e in rows
             ],
         })
@@ -175,8 +180,45 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
         have = ledger.credit_balance(account) if kind == LedgerEntry.KIND_CREDIT else ledger.bucks_total(account)
         if not amount or have + amount < 0:
             return Response({'detail': 'That would take the balance below zero.'}, status=status.HTTP_400_BAD_REQUEST)
-        ledger.record(account, kind, amount, 'adjust', actor=request.user, note=note)
-        members.log('adjust', account=account, actor=request.user, kind=kind, amount=str(amount), note=note[:200])
+        # Owner only (Bill 11-09): ThriftBucks given with their own use-by date, up to 90 days out.
+        use_by = None
+        raw_use_by = str(request.data.get('use_by') or '').strip()
+        if raw_use_by:
+            if not owner_or(request.user, 'thriftplus:owner'):
+                return Response({'detail': 'Only the owner can set a use-by date.'}, status=status.HTTP_403_FORBIDDEN)
+            try:
+                use_by = date.fromisoformat(raw_use_by)
+            except ValueError:
+                return Response({'detail': 'The use-by date must be a date.'}, status=status.HTTP_400_BAD_REQUEST)
+            today = timezone.localdate()
+            if kind != LedgerEntry.KIND_BANK or amount <= 0:
+                return Response({'detail': 'A use-by date goes only on ThriftBucks given.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not today <= use_by <= today + timedelta(days=90):
+                return Response({'detail': 'Pick a use-by date from today to 90 days out.'}, status=status.HTTP_400_BAD_REQUEST)
+        ledger.record(account, kind, amount, 'adjust', actor=request.user, note=note, use_by=use_by)
+        members.log('adjust', account=account, actor=request.user, kind=kind, amount=str(amount), note=note[:200],
+                    use_by=use_by.isoformat() if use_by else None)
+        return self.money(request, pk)
+
+    @action(detail=True, methods=['post'])
+    def undo(self, request, pk=None):
+        """Owner only (Bill 11-09): undo an adjustment ({entry}). Writes the reversing row; the row itself stays."""
+        if not owner_or(request.user, 'thriftplus:owner'):
+            return Response({'detail': 'Only the owner can undo.'}, status=status.HTTP_403_FORBIDDEN)
+        account = self.get_object()
+        entry = account.ledger.filter(pk=request.data.get('entry'), reason='adjust').first()
+        if entry is None:
+            return Response({'detail': 'Only an adjustment can be undone.'}, status=status.HTTP_400_BAD_REQUEST)
+        if LedgerEntry.objects.filter(reverses=entry).exists():
+            return Response({'detail': 'That was already undone.'}, status=status.HTTP_400_BAD_REQUEST)
+        have = ledger.credit_balance(account) if entry.kind == LedgerEntry.KIND_CREDIT else ledger.bucks_total(account)
+        if have - entry.amount < 0:
+            return Response({'detail': 'Undoing it would take the balance below zero (some was already used).'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        LedgerEntry.objects.create(account=account, kind=entry.kind, amount=-entry.amount, reason='adjust',
+                                   reverses=entry, actor=request.user, note=f'Undo: {entry.note}'[:200])
+        members.log('adjust_undone', account=account, actor=request.user, kind=entry.kind, amount=str(-entry.amount),
+                    entry=entry.pk)
         return self.money(request, pk)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
@@ -1402,3 +1444,26 @@ def staff_tag(request, sku: str):
     if item is None:
         return Response({'status': 'not_found', 'sku': sku})
     return Response({'status': 'found', 'item': scanner.item_card(item)})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsStaff])
+def price_fix(request):
+    """Fix a price on a sale (owner only, Bill 2026-11-09): ``cart_line``, ``unit_price`` (the right price for one),
+    ``back_as`` (credit, cash or card), ``note``. Without ``confirm`` it only works out the result."""
+    from apps.pos.models import CartLine
+    from apps.thriftplus.services import price_fix as fixes
+
+    if not owner_or(request.user, 'thriftplus:owner'):
+        return Response({'detail': 'Only the owner can fix a price.'}, status=status.HTTP_403_FORBIDDEN)
+    line = CartLine.objects.select_related('cart', 'item').filter(pk=request.data.get('cart_line')).first()
+    if line is None:
+        return Response({'detail': 'Pick a line on the sale.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        if not _truthy(request.data.get('confirm')):
+            return Response(fixes.work_out(line, request.data.get('unit_price')))
+        fix = fixes.apply(line, request.data.get('unit_price'), back_as=str(request.data.get('back_as') or ''),
+                          note=str(request.data.get('note') or ''), user=request.user)
+    except register.RegisterError as exc:
+        return _error(exc)
+    return Response(fixes.as_row(fix), status=status.HTTP_201_CREATED)

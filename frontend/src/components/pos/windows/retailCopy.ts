@@ -140,6 +140,7 @@ export const COPY = {
   ev_sale_opened: { en: 'Sale started', es: 'Venta iniciada' },
   ev_completed: { en: 'Paid', es: 'Pagada' },
   ev_card_fixed: { en: 'Card type fixed', es: 'Tipo de tarjeta corregido' },
+  ev_price_fixed: { en: 'Price fixed', es: 'Precio corregido' },
   ev_returned: { en: 'Returned', es: 'Devuelto' },
   ev_voided: { en: 'Voided', es: 'Anulada' },
   // The sale detail (Transactions page and the Sale window).

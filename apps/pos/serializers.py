@@ -314,6 +314,7 @@ class CartSerializer(serializers.ModelSerializer):
         person = member.person
         return {
             'member': f'{person.first_name} {person.last_name}'.strip(),
+            'person_id': person.pk,  # the name opens the member's window (Bill 11-09)
             'earned': str(earned or Decimal('0.00')),
             'used': str(member.bank_used or Decimal('0.00')),
             'credit_used': str(obj.thrift_credit or Decimal('0.00')),

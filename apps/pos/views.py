@@ -1178,26 +1178,27 @@ class CartViewSet(viewsets.ModelViewSet):
         read off a sale: register, cashier, how paid, search); expired ThriftBucks are Thrift+ revenue inside the dates."""
         from apps.pos.filters import CartFilter
         from apps.pos.services import sales_numbers
-        from apps.thriftplus.models import ReturnRecord
+        from apps.thriftplus.models import PriceFix, ReturnRecord
 
         params = self.request.query_params
         lo, hi = parse_date(params.get('date_from') or ''), parse_date(params.get('date_to') or '')
         other = {k: v for k, v in params.items()
                  if k in ('drawer', 'register', 'member', 'cashier', 'payment_method', 'card_type', 'receipt_number', 'q') and v}
-        returns = ReturnRecord.objects.all()
+        returns, fixes = ReturnRecord.objects.all(), PriceFix.objects.all()  # both count on the day they happened
         if lo:
-            returns = returns.filter(created_at__date__gte=lo)
+            returns, fixes = returns.filter(created_at__date__gte=lo), fixes.filter(created_at__date__gte=lo)
         if hi:
-            returns = returns.filter(created_at__date__lte=hi)
+            returns, fixes = returns.filter(created_at__date__lte=hi), fixes.filter(created_at__date__lte=hi)
         if other:
             sold_to = CartFilter(data=other, queryset=Cart.objects.all()).qs
             returns = returns.filter(cart_line__cart__in=sold_to.values('pk'))
+            fixes = fixes.filter(cart_line__cart__in=sold_to.values('pk'))
         expired = None  # ThriftBucks that ran out are the store's, not any one sale's: only when nothing narrows the sales
         if params.get('status') in ('voided', 'open'):
-            returns = returns.none()
+            returns, fixes = returns.none(), fixes.none()
         elif not other:
             expired = (lo or date(2000, 1, 1), hi or timezone.localdate())
-        return sales_numbers.for_carts(qs, returns, expired=expired)
+        return sales_numbers.for_carts(qs, returns, expired=expired, price_fixes=fixes)
 
     def perform_create(self, serializer):
         from apps.core.models import AppSetting

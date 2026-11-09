@@ -5,14 +5,18 @@
  * Item window, totals, how it was paid, Reprint / Fix card type / Void), the lines that came back as Thrift+ returns,
  * its history, and links. A return is not a sale of its own: it shows here, on the sale it came from.
  */
+import { useState } from 'react';
 import { Box, Button, Chip, CircularProgress, Stack, Typography } from '@mui/material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../../api/client';
 import { getCart } from '../../../api/pos.api';
+import { canAccess } from '../../../auth/access';
+import { useAuth } from '../../../hooks/useAuth';
 import type { Cart } from '../../../types/pos.types';
 import { useObjectModal } from '../../objects/ObjectModal';
 import { CopyId, Section, Stat, Timeline, type TimelineRow } from '../../objects/windowParts';
 import { SaleDetail } from '../SaleDetail';
+import { PriceFixDialog } from './PriceFixDialog';
 import { money, useRetailCopy, type CopyKey } from './retailCopy';
 
 interface SaleCardData {
@@ -30,6 +34,18 @@ interface SaleCardData {
     status: 'open' | 'done';
     by: string | null;
   }[];
+  /** Price fixes (owner, 11-09): a wrong price made right on the day fixed. */
+  price_fixes?: {
+    line: number;
+    description: string;
+    at: string;
+    old_unit_price: string;
+    new_unit_price: string;
+    money_back: string;
+    back_as: 'credit' | 'cash' | 'card';
+    note: string;
+    by: string | null;
+  }[];
   journey: { kind: string; at: string; who: string | null; note?: string }[];
 }
 
@@ -45,6 +61,7 @@ const EVENT: Record<string, { key: CopyKey; dot: string }> = {
   opened: { key: 'ev_sale_opened', dot: '#9e9e9e' },
   completed: { key: 'ev_completed', dot: '#2e7d32' },
   card_fixed: { key: 'ev_card_fixed', dot: '#0277bd' },
+  price_fixed: { key: 'ev_price_fixed', dot: '#ef6c00' },
   returned: { key: 'ev_returned', dot: '#ef6c00' },
   voided: { key: 'ev_voided', dot: '#c62828' },
   open_drawer: { key: 'ev_open_drawer', dot: '#c62828' },
@@ -63,6 +80,8 @@ export function SaleWindow({ id }: { id: number }) {
   const { tr, when } = useRetailCopy();
   const qc = useQueryClient();
   const { openObject } = useObjectModal();
+  const { user } = useAuth();
+  const [fixing, setFixing] = useState(false);
   const key = ['sale-window', id];
   const sale = useQuery({ queryKey: key, queryFn: async () => (await getCart(id)).data as unknown as Cart });
   const card = useQuery({
@@ -80,6 +99,8 @@ export function SaleWindow({ id }: { id: number }) {
   const items = (cart.lines ?? []).filter((l) => l.line_kind !== 'discount').reduce((n, l) => n + (l.quantity || 0), 0);
   const saved = num(cart.savings?.total);
   const returned = new Set((c?.returns ?? []).map((r) => r.line));
+  const fixedLines = new Set((c?.price_fixes ?? []).map((f) => f.line));
+  const canFixPrice = cart.status === 'completed' && canAccess(user, ['thriftplus:owner']);
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: key });
     void qc.invalidateQueries({ queryKey: ['sale-card', id] });
@@ -147,6 +168,27 @@ export function SaleWindow({ id }: { id: number }) {
               </Stack>
             </Section>
           ) : null}
+          {c?.price_fixes?.length ? (
+            <Section title="Price fixes">
+              <Stack spacing={1}>
+                {c.price_fixes.map((f) => (
+                  <Box key={f.line}>
+                    <Typography sx={{ fontSize: 14, fontWeight: 700 }}>{f.description}</Typography>
+                    <Typography sx={{ fontSize: 13 }}>
+                      {money(f.old_unit_price)} → {money(f.new_unit_price)} · {money(f.money_back)} back as{' '}
+                      {f.back_as === 'credit' ? 'Thrift+ credit' : f.back_as === 'cash' ? 'cash' : 'a card refund'}
+                    </Typography>
+                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{when(f.at)}{f.by ? ` · ${f.by}` : ''}{f.note ? ` · ${f.note}` : ''}</Typography>
+                  </Box>
+                ))}
+              </Stack>
+            </Section>
+          ) : null}
+          {canFixPrice ? (
+            <Button variant="outlined" color="warning" onClick={() => setFixing(true)} sx={{ alignSelf: 'flex-start' }}>
+              Fix a price
+            </Button>
+          ) : null}
         </Stack>
         <Stack spacing={2} sx={{ minWidth: 0 }}>
           <Section title={tr('historySection')}>
@@ -174,6 +216,20 @@ export function SaleWindow({ id }: { id: number }) {
           ) : null}
         </Stack>
       </Box>
+      {canFixPrice ? (
+        <PriceFixDialog
+          open={fixing}
+          cart={cart}
+          memberName={c?.member?.name ?? null}
+          blocked={new Set([...returned, ...fixedLines])}
+          onClose={() => setFixing(false)}
+          onDone={() => {
+            refresh();
+            void qc.invalidateQueries({ queryKey: ['member-window'] });
+            void qc.invalidateQueries({ queryKey: ['thriftplus', 'money'] });
+          }}
+        />
+      ) : null}
     </Stack>
   );
 }

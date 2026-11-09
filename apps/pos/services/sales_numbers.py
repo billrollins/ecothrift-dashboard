@@ -156,6 +156,17 @@ def _fold_returns(into: dict[str, Decimal], row: dict, share: Decimal) -> None:
     into['tax_refunded'] += _d(row['a_tax_back'])
 
 
+def _fold_price_fixes(into: dict[str, Decimal], row: dict) -> None:
+    """Price fixes (owner, 11-09) on the day fixed: the money and ThriftBucks given back come off item sales with the
+    returns, at 100%; their tax is refunded."""
+    into['returns'] -= _d(row['a_taxable_back']) + _d(row['a_bucks_back'])
+    into['tax_refunded'] += _d(row['a_tax_back'])
+
+
+def _price_fix_aggregates() -> dict[str, Any]:
+    return {'a_taxable_back': Sum('taxable_back'), 'a_bucks_back': Sum('bucks_back'), 'a_tax_back': Sum('tax_back')}
+
+
 def _return_aggregates() -> dict[str, Any]:
     return {
         'a_taxable_back': Sum('taxable_back'), 'a_bucks_back': Sum('bucks_back'), 'a_bucks_taken': Sum('bucks_taken'),
@@ -182,15 +193,17 @@ def expired_bucks_by_day(start: date, end: date) -> dict[date, Decimal]:
     first_lot = start - timedelta(days=EXPIRY_LAG_DAYS + 1)
     last_lot = end - timedelta(days=EXPIRY_LAG_DAYS - 1)
     lot_from, lot_to = _day_bounds(first_lot, first_lot)[0], _day_bounds(last_lot, last_lot)[1]
+    # A lot the owner gave its own use-by date expires the day after that date.
     rows = (
         LedgerEntry.objects.filter(kind=LedgerEntry.KIND_BANK, reason=EXPIRE_REASON, amount__lt=0,
-                                   reverses__created_at__gte=lot_from, reverses__created_at__lt=lot_to,
                                    account__is_practice=False)
-        .values_list('amount', 'reverses__created_at')
+        .filter(Q(reverses__use_by__isnull=True, reverses__created_at__gte=lot_from, reverses__created_at__lt=lot_to)
+                | Q(reverses__use_by__gte=start - timedelta(days=1), reverses__use_by__lte=end))
+        .values_list('amount', 'reverses__created_at', 'reverses__use_by')
     )
     out: dict[date, Decimal] = defaultdict(lambda: ZERO)
-    for amount, lot_at in rows:
-        day = timezone.localtime(lot_at).date() + timedelta(days=EXPIRY_LAG_DAYS)
+    for amount, lot_at, own_use_by in rows:
+        day = (own_use_by + timedelta(days=1)) if own_use_by else timezone.localtime(lot_at).date() + timedelta(days=EXPIRY_LAG_DAYS)
         if start <= day <= end:
             out[day] += -amount
     return dict(out)
@@ -253,7 +266,7 @@ def by_day(start: date, end: date) -> dict[date, dict[str, Any]]:
     """Every number for each day in ``[start, end]`` that has any (the dashboard). A few grouped queries: sales,
     their lines, returns and expiries; no per-sale loops."""
     from apps.pos.models import Cart, CartLine
-    from apps.thriftplus.models import ReturnRecord
+    from apps.thriftplus.models import PriceFix, ReturnRecord
     from apps.thriftplus.services.returns import credit_share
 
     start_dt, end_dt = _day_bounds(start, end)
@@ -269,13 +282,16 @@ def by_day(start: date, end: date) -> dict[date, dict[str, Any]]:
     returns = ReturnRecord.objects.filter(created_at__gte=start_dt, created_at__lt=end_dt)
     for row in returns.order_by().annotate(day=TruncDate('created_at')).values('day').annotate(**_return_aggregates()):
         _fold_returns(raw[row['day']], row, share)
+    fixes = PriceFix.objects.filter(created_at__gte=start_dt, created_at__lt=end_dt)
+    for row in fixes.order_by().annotate(day=TruncDate('created_at')).values('day').annotate(**_price_fix_aggregates()):
+        _fold_price_fixes(raw[row['day']], row)
     for day, amount in expired_bucks_by_day(start, end).items():
         raw[day]['thriftplus_revenue_expired'] += amount
     rate = debit_fee_rate()
     return {day: _finish(values, rate) for day, values in raw.items()}
 
 
-def for_carts(carts, returns=None, *, expired: tuple[date, date] | None = None) -> dict[str, Any]:
+def for_carts(carts, returns=None, *, expired: tuple[date, date] | None = None, price_fixes=None) -> dict[str, Any]:
     """Every number for a filtered set of sales (the Transactions page): ``carts`` is the page's filtered queryset
     (only its completed sales count), ``returns`` the ``ReturnRecord`` rows to count (by return day). ``expired`` is a
     (from, to) range of days whose expired ThriftBucks count as Thrift+ revenue (None: none)."""
@@ -290,6 +306,8 @@ def for_carts(carts, returns=None, *, expired: tuple[date, date] | None = None) 
     _fold_lines(raw, lines.aggregate(**_line_aggregates()))
     if returns is not None:
         _fold_returns(raw, returns.order_by().aggregate(**_return_aggregates()), credit_share())
+    if price_fixes is not None:
+        _fold_price_fixes(raw, price_fixes.order_by().aggregate(**_price_fix_aggregates()))
     if expired:
         raw['thriftplus_revenue_expired'] += sum(expired_bucks_by_day(*expired).values(), ZERO)
     return _finish(raw, debit_fee_rate())
