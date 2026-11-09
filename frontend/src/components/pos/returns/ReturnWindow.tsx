@@ -39,6 +39,7 @@ import {
 import { formatCurrency } from '../../../utils/format';
 import { skuFromScan } from '../../../utils/scanCode';
 import { useObjectModal } from '../../objects/ObjectModal';
+import { MemberName } from '../../thriftplus/MemberName';
 import { tbNumber } from '../../thriftplus/ThriftBucks';
 import StepFrame from './StepFrame';
 import ReturnsSummaryStep from './ReturnsSummaryStep';
@@ -343,7 +344,7 @@ export default function ReturnWindow({ open, onClose, registerCode, practice }: 
               {found?.person ? (
                 <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1 }}>
                   <Avatar src={found.person.photo_url ?? undefined} sx={{ width: 48, height: 48 }}>{found.person.first_name.slice(0, 1)}</Avatar>
-                  <Typography variant="h6" fontWeight={800}>{found.person.name}</Typography>
+                  <Typography variant="h6" fontWeight={800}><MemberName personId={found.person.person_id}>{found.person.name}</MemberName></Typography>
                 </Stack>
               ) : null}
               {found?.people.length && !found.person ? (
@@ -466,7 +467,7 @@ export default function ReturnWindow({ open, onClose, registerCode, practice }: 
                 ) : null}
               </Stack>
               <Typography color="text.secondary">
-                {dayTime(receipt.completed_at)}{receipt.member ? ` · ${receipt.member.name}` : ' · not a Thrift+ member'}
+                {dayTime(receipt.completed_at)}{receipt.member ? <> · <MemberName personId={receipt.member.person_id}>{receipt.member.name}</MemberName></> : ' · not a Thrift+ member'}
                 {receipt.cashier ? ` · rung by ${receipt.cashier}` : ''}
               </Typography>
               {returnable.length === 0 ? (

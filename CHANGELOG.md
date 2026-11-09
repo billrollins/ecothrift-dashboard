@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.269.0] -->
-<!-- Last reviewed: 2026-11-09 (2.269.0) -->
+<!-- Line 1 release: ## [2.269.1] -->
+<!-- Last reviewed: 2026-11-09 (2.269.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.269.1] - 2026-11-09
+
+User-facing theme: **A Thrift+ member's name opens their Member window in more places.**
+
+> **For Bill:** click a member's name to open their window (ThriftBucks, credit, trips, Make it right) from the register's member card, the Return window (the member found and the receipt's "For ..."), the Transactions window, the Users page member drawer, the staff app's Finalize card, and the Thrift+ Members tab ("Open member window").
+
+### Added
+- `components/thriftplus/MemberName.tsx`: a member's name as a link to their Member window; plain text where no window can open.
+- Used in: `MemberCard` (register member dialog and /pos/members), `ReturnWindow` and `ReturnsSummaryStep`, `TransactionsWindow`, `MemberDrawer` (Users page), `finalizePeople` (staff app; the staff app now has the object window), and an "Open member window" button on the Thrift+ Members tab.
+- Not linked yet: the suspended-sale tab (it resumes the sale) and the late returns list (no person on its rows).
 
 ## [2.269.0] - 2026-11-09
 

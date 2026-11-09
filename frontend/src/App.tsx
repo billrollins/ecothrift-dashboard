@@ -5,6 +5,7 @@ import { useAuth } from './contexts/AuthContext';
 import { canAccess, type AccessNeed } from './auth/access';
 import { LoadingScreen } from './components/feedback/LoadingScreen';
 import MainLayout from './components/layout/MainLayout';
+import { ObjectModalProvider } from './components/objects/ObjectModal';
 import { ConsigneeLayout } from './components/layout/ConsigneeLayout';
 
 // Standalone full-screen page (its own window, outside MainLayout). Lazy-loaded so the
@@ -164,7 +165,10 @@ function StaffAppGate() {
     <ProtectedRoute next={`${location.pathname}${location.search}`}>
       <StaffRoute>
         <Suspense fallback={<LoadingScreen message="Loading…" />}>
-          <StaffApp />
+          {/* A member's name opens their Member window here too (Bill 11-09). */}
+          <ObjectModalProvider>
+            <StaffApp />
+          </ObjectModalProvider>
         </Suspense>
       </StaffRoute>
     </ProtectedRoute>

@@ -33,6 +33,7 @@ import { addSecondAdult, setPersonPhoto } from '../../api/thriftplus.api';
 import DeleteForGoodDialog from '../thriftplus/DeleteForGoodDialog';
 import { IdCheckFields, PhotoField } from '../thriftplus/PersonFields';
 import QrSvg from '../thriftplus/QrSvg';
+import { MemberName } from '../thriftplus/MemberName';
 import { DrawerSection, Fact, PersonAvatar, formatWhen, relativeDay } from './userChrome';
 import { IconClose as Close } from '../../icons/ecoIcons';
 
@@ -160,7 +161,9 @@ export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; 
               <PhotoSlots row={row} off={off} busy={busy} onAdd={() => setAdding(true)}
                 onPhoto={(personId, file, name) => void run(() => setPersonPhoto(personId, file), `Photo saved for ${name}`, 'Could not save the photo')} />
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="h6" sx={{ fontWeight: 700 }} noWrap>{row.name}</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700 }} noWrap>
+                  <MemberName personId={row.people?.[0]?.id}>{row.name}</MemberName>
+                </Typography>
                 <Typography variant="body2" color="text.secondary">
                   {row.number}{row.second ? ` · with ${row.second}` : ''}
                 </Typography>

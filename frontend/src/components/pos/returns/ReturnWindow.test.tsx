@@ -17,7 +17,7 @@ vi.mock('../../../api/thriftplusReturns.api', async (orig) => ({
   ...api,
 }));
 const openObject = vi.hoisted(() => vi.fn());
-vi.mock('../../objects/ObjectModal', () => ({ useObjectModal: () => ({ openObject }) }));
+vi.mock('../../objects/ObjectModal', () => ({ useObjectModal: () => ({ openObject }), useOptionalObjectModal: () => ({ openObject }) }));
 const onClose = vi.hoisted(() => vi.fn());
 
 const LAMP = { cart_line: 11, sku: 'ITM100', title: 'Brass lamp', quantity: 1, price: '80.00', mark: '3-day return', refund: '68.48',

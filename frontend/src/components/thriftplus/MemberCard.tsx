@@ -19,6 +19,7 @@ import AddPersonPanel from './AddPersonPanel';
 import { useOptionalObjectModal } from '../objects/ObjectModal';
 import { historyKey } from '../pos/windows/historyScope';
 import SelfieCheck, { NO_CHECKS, checksDone, type FaceChecks } from './SelfieCheck';
+import { MemberName } from './MemberName';
 import { tbNumber } from './ThriftBucks';
 
 const big = { minHeight: 56, fontSize: '1.1rem', fontWeight: 700, borderRadius: 2 } as const;
@@ -168,7 +169,7 @@ export default function MemberCard({
         </Avatar>
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography variant="h5" fontWeight={800} sx={{ overflowWrap: 'anywhere', lineHeight: 1.15 }} data-testid="member-card-name">
-            {person.name}
+            <MemberName personId={person.person_id}>{person.name}</MemberName>
           </Typography>
           <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', rowGap: 0.5, mt: 0.5 }}>
             <Chip size="small" color={standing.color} label={standing.label} data-testid="member-card-status" sx={{ fontWeight: 700 }} />

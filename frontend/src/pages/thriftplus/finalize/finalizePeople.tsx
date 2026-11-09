@@ -13,6 +13,7 @@ import {
 import { compressImageToJpeg } from '../../../services/receiving/receivingClient';
 import { pendingName } from '../../../components/pos/ThriftPlusPendingFind';
 import QrSvg from '../../../components/thriftplus/QrSvg';
+import { MemberName } from '../../../components/thriftplus/MemberName';
 import { readyToVerify } from '../../../components/thriftplus/SelfieCheck';
 import { canFinishHere } from './StoreFinish';
 
@@ -322,7 +323,9 @@ export function PersonSheet({ person, owner, onClose, onFinish, onFinishHere, on
         <Box data-testid="finalize-person-sheet" sx={{ px: 2, pt: 2, pb: 'calc(env(safe-area-inset-bottom, 0px) + 16px)', overflowY: 'auto' }}>
           <Box sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: 'divider', mx: 'auto', mb: 1.5 }} />
           <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-            <Typography variant="h5" fontWeight={800} sx={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{name}</Typography>
+            <Typography variant="h5" fontWeight={800} sx={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
+              <MemberName personId={person?.person_id}>{name}</MemberName>
+            </Typography>
             <Typography fontWeight={800} sx={{ color: done ? 'success.main' : 'warning.dark' }}>{done ? 'Member' : person.assisted ? 'To finish' : 'In their app'}</Typography>
           </Box>
 

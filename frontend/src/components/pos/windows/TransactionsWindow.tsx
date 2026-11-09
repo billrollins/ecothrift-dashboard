@@ -16,6 +16,7 @@ import type { Cart } from '../../../types/pos.types';
 import { IconBack } from '../../../icons/ecoIcons';
 import { useObjectModal } from '../../objects/ObjectModal';
 import { Section, Stat } from '../../objects/windowParts';
+import { MemberName } from '../../thriftplus/MemberName';
 import { parseHistoryKey } from './historyScope';
 import { money, useRetailCopy, type CopyKey } from './retailCopy';
 
@@ -165,7 +166,7 @@ export function TransactionsWindow({ scopeKey }: { scopeKey: string }) {
                   </TableCell>
                   <TableCell>{c.covering_for_name ? `${c.cashier_name ?? ''} (${c.covering_for_name})` : c.cashier_name}</TableCell>
                   <TableCell>{paid(c.payment_method)}</TableCell>
-                  {showMember && <TableCell>{member(c)}</TableCell>}
+                  {showMember && <TableCell><MemberName personId={c.thrift_row?.person_id}>{member(c)}</MemberName></TableCell>}
                   <TableCell align="right" sx={{ fontWeight: 700, textDecoration: c.status === 'voided' ? 'line-through' : undefined }}>
                     {money(c.total)}
                   </TableCell>

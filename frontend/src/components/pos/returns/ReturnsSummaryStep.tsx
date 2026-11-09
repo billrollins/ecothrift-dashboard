@@ -25,6 +25,7 @@ import {
   type ReturnsTotals,
 } from '../../../api/thriftplusReturns.api';
 import { thriftErrorMessage } from '../../../api/thriftplusRegister.api';
+import { MemberName } from '../../thriftplus/MemberName';
 import { tbNumber } from '../../thriftplus/ThriftBucks';
 import { formatCurrency } from '../../../utils/format';
 import StepFrame from './StepFrame';
@@ -196,7 +197,7 @@ export default function ReturnsSummaryStep({ receipt, lines, registerCode, pract
         <Box>
           <Typography variant="h6" fontWeight={800}>Summary</Typography>
           <Typography color="text.secondary" data-testid="summary-who">
-            {receipt.member ? `For ${receipt.member.name}` : 'Not a Thrift+ member'} · ticket{' '}
+            {receipt.member ? <>For <MemberName personId={receipt.member.person_id}>{receipt.member.name}</MemberName></> : 'Not a Thrift+ member'} · ticket{' '}
             <Box component="span" sx={{ whiteSpace: 'nowrap' }}>{receipt.receipt_number}</Box>
           </Typography>
         </Box>

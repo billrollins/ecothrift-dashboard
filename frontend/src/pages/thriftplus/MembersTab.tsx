@@ -48,6 +48,7 @@ import {
 import type { NewMember, ThriftPlusAccount, ThriftPlusPerson } from '../../types/thriftplus.types';
 import DeleteForGoodDialog from '../../components/thriftplus/DeleteForGoodDialog';
 import { canAccess } from '../../auth/access';
+import { useOptionalObjectModal } from '../../components/objects/ObjectModal';
 import { useAuth } from '../../hooks/useAuth';
 import PersonFields from '../../components/thriftplus/PersonFields';
 import MemberMoney from './MemberMoney';
@@ -285,6 +286,7 @@ function AccountDetail({ id, onDeleted }: { id: number; onDeleted: () => void })
   const [revokeReason, setRevokeReason] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const { user } = useAuth();
+  const objects = useOptionalObjectModal();
   const onChanged = (a: ThriftPlusAccount) => {
     queryClient.setQueryData(['thriftplus', 'account', id], a);
     void queryClient.invalidateQueries({ queryKey: ['thriftplus', 'find'] });
@@ -316,6 +318,14 @@ function AccountDetail({ id, onDeleted }: { id: number; onDeleted: () => void })
     <Stack spacing={1.5}>
       <Stack direction="row" spacing={1} alignItems="center">
         <Typography variant="h6" sx={{ fontWeight: 800, flex: 1 }}>Membership #{account.id}</Typography>
+        {(() => {
+          const primary = account.people.find((p) => p.role === 'primary' && !p.removed_at) ?? account.people[0];
+          return primary && objects ? (
+            <Button size="small" variant="outlined" onClick={() => objects.openObject({ type: 'member', id: primary.id })}>
+              Open member window
+            </Button>
+          ) : null;
+        })()}
         {account.status === 'revoked' ? <Chip color="error" label={`Revoked: ${account.revoked_reason}`} /> : null}
         {account.status === 'inactive' ? <Chip label="Deactivated" /> : null}
       </Stack>
