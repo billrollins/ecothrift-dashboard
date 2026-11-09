@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.268.0] -->
-<!-- Last reviewed: 2026-11-06 (2.268.0) -->
+<!-- Line 1 release: ## [2.268.1] -->
+<!-- Last reviewed: 2026-11-09 (2.268.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.268.1] - 2026-11-09
+
+User-facing theme: **Preprocessing: AI Cleanup shows its finishing steps, and a long finish is never restarted by mistake.**
+
+> **For Bill:** after the last line is cleaned, the AI Cleanup box now says "All lines cleaned. Finishing 1 of 2: product standard (504/1252 lines)", then "Finishing 2 of 2: matching lines to products", with its own progress bar. Final Decisions opens when that is done. The "~0s left" that looked stuck is gone.
+
+### Fixed
+- `apps/inventory/services/ai_cleanup_job.py`: the job records a `phase` (`cleaning`, `standard`, `matching`) and the product standard's `standard_total` / `standard_rows` / `standard_failed`. While the finishing steps run (product standard, then `complete_ai_cleanup` matching), a side thread (`_FinishBeat`) beats the heartbeat every 30 s, so a match step longer than the 195 s stale limit is no longer taken for a dead job and started again (WLMRT-O8T-R7L5, 11-09: "picked up again 1x"). Test: `test_matching_runs_as_its_own_phase_and_the_heartbeat_keeps_beating`.
+- `WebAiCleanupPanel.tsx`: shows the finishing step and its progress; rows/s and time left only while lines are being cleaned.
 
 ## [2.268.0] - 2026-11-06
 

@@ -109,6 +109,39 @@ class AiCleanupJobTests(TestCase):
         self.order.refresh_from_db()
         self.assertEqual(self.order.preprocess_status, 'cleaned')
 
+    def test_matching_runs_as_its_own_phase_and_the_heartbeat_keeps_beating(self):
+        """After the last line, matching is shown as a phase, and a long finish is never taken for a dead job."""
+        seen = {}
+        real_complete = job.complete_ai_cleanup
+
+        def slow_complete(order):
+            seen['phase'] = job.read(order.pk).get('phase')
+            started = job.read(order.pk).get('heartbeat_at')
+            beat.wait(2)  # the side thread beats while matching runs
+            seen['beat'] = started
+            return real_complete(order)
+
+        import threading
+        beat = threading.Event()
+        beats = []
+        real_update = job._update
+
+        def spy_update(order_id, token, **changes):
+            if threading.current_thread().name.startswith('ai-cleanup-beat-'):
+                beats.append(changes)  # the beat thread has no view of the test's rows; record only
+                beat.set()
+                return {}
+            return real_update(order_id, token, **changes)
+
+        with mock.patch.object(job, 'FINISH_BEAT_SECONDS', 0.05), \
+                mock.patch.object(job, 'complete_ai_cleanup', slow_complete), \
+                mock.patch.object(job, '_update', spy_update), self._llm():
+            self._start()
+        state = self.client.get(self.url).data
+        self.assertEqual(state['status'], 'done')
+        self.assertEqual(seen['phase'], 'matching')
+        self.assertTrue(beats and all(set(b) == {'heartbeat_at'} for b in beats))
+
     def test_up_to_48_workers_and_no_database_connection_is_held_during_the_model_call(self):
         released = []
         with mock.patch.object(job, '_release_db', lambda: released.append(len(self.calls))), self._llm():

@@ -1,13 +1,11 @@
-v2.268.0 — Buying: the auction list rebuilt (your max, profit at max); old buying pages under Legacy
+v2.268.1 — AI Cleanup shows its finishing steps; no false restart
 
-User-facing theme: **Buying: the auction list rebuilt (step 1 of the buying rebuild); old buying pages under Legacy.**
+User-facing theme: **Preprocessing: AI Cleanup shows its finishing steps, and a long finish is never restarted by mistake.**
 
-> **For Bill:** **Buying → Auctions** now lists every live lot with **Your max** (the most to bid at 20% landed) and the **profit at your max** from what the seller's past trucks really sold in 90 days. Ending soon first; lots already over your max sit at the bottom. Get manifest is one tap on the row. The old list, Today's best, Watchlist and Report cards are under **Legacy** in the sidebar.
+> **For Bill:** after the last line is cleaned, the AI Cleanup box now says "All lines cleaned. Finishing 1 of 2: product standard (504/1252 lines)", then "Finishing 2 of 2: matching lines to products", with its own progress bar. Final Decisions opens when that is done. The "~0s left" that looked stuck is gone.
 
-### Added
-- `GET /api/buying/live-lots/` (`services/live_lots.py`) and the new `/buying/auctions` page (`LiveLotsPage.tsx`): live lots (listed in the last 3 h), brings in from the newest recovery fit, your max at 20% landed, where the price stands, profit at max with its multiple; sorts Ending soon / Best x / Most profit; contract lots apart; clean titles. Tests: `apps/buying/tests/test_live_lots.py`, `LiveLotsPage.test.tsx`. Critic cycle: 3 rounds (trail in `workspace/critic/auctions-list/`).
-
-### Changed
-- Buying sidebar (Bill 2026-11-06): Auctions (rebuilt) and Estimate Profit on top with the intake tools (Vendors, Orders, Preprocessing); pages not yet rebuilt (Today's best, Auctions (old) at `/buying/auctions-old`, Watchlist, Report cards) under a "Legacy" caption. Nothing is hidden; every page still opens.
+### Fixed
+- `apps/inventory/services/ai_cleanup_job.py`: the job records a `phase` (`cleaning`, `standard`, `matching`) and the product standard's `standard_total` / `standard_rows` / `standard_failed`. While the finishing steps run (product standard, then `complete_ai_cleanup` matching), a side thread (`_FinishBeat`) beats the heartbeat every 30 s, so a match step longer than the 195 s stale limit is no longer taken for a dead job and started again (WLMRT-O8T-R7L5, 11-09: "picked up again 1x"). Test: `test_matching_runs_as_its_own_phase_and_the_heartbeat_keeps_beating`.
+- `WebAiCleanupPanel.tsx`: shows the finishing step and its progress; rows/s and time left only while lines are being cleaned.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

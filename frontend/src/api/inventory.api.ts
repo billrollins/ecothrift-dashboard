@@ -751,6 +751,12 @@ export interface CleanupJobState {
   last_error?: string;
   message?: string;
   match_candidates?: MatchCandidatesSummary | null;
+  /** What a running job is doing: cleaning lines, then the product standard, then matching. */
+  phase?: 'cleaning' | 'standard' | 'matching';
+  /** Product standard pass: lines it started with, lines done, calls failed. */
+  standard_total?: number;
+  standard_rows?: number;
+  standard_failed?: number;
 }
 
 export interface StartCleanupJobPayload {

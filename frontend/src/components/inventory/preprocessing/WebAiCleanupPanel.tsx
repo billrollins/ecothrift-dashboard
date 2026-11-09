@@ -164,7 +164,14 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
 
   const atStart = job?.rows_at_start ?? 0;
   const doneThisJob = Math.max(0, atStart - remainingRows);
-  const pct = atStart > 0 ? Math.min(100, Math.round((doneThisJob / atStart) * 100)) : 0;
+  // Once every line is cleaned, the job still runs the product standard and matching before it is done.
+  const phase = running && remainingRows === 0 && totalRows > 0 ? (job?.phase === 'matching' ? 'matching' : 'standard') : 'cleaning';
+  const stdTotal = job?.standard_total ?? 0;
+  const stdDone = Math.min(stdTotal, job?.standard_rows ?? 0);
+  const pct = phase === 'standard'
+    ? (stdTotal > 0 ? Math.min(100, Math.round((stdDone / stdTotal) * 100)) : 0)
+    : atStart > 0 ? Math.min(100, Math.round((doneThisJob / atStart) * 100)) : 0;
+  const barDeterminate = phase === 'standard' ? stdTotal > 0 : phase === 'cleaning' && atStart > 0;
   const elapsed = job?.elapsed_seconds ?? 0;
   const rowsPerSec = running && elapsed > 0 && (job?.rows_saved ?? 0) > 0 ? (job?.rows_saved ?? 0) / elapsed : 0;
   const etaS = rowsPerSec > 0 ? Math.round(remainingRows / rowsPerSec) : null;
@@ -279,7 +286,15 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
 
       {running && job && (
         <Box sx={{ mt: 1.5 }} data-testid="cleanup-job-progress">
-          <LinearProgress variant={atStart > 0 ? 'determinate' : 'indeterminate'} value={pct} sx={{ height: 8, borderRadius: 4 }} />
+          {phase !== 'cleaning' && (
+            <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#1B4332', mb: 0.75, fontFamily: preprocessingFonts.sans }}>
+              {phase === 'standard'
+                ? `All lines cleaned. Finishing 1 of 2: product standard${stdTotal > 0 ? ` (${stdDone}/${stdTotal} lines)` : ''}.`
+                : 'All lines cleaned. Finishing 2 of 2: matching lines to products.'}
+              {' '}Final Decisions opens when this is done.
+            </Typography>
+          )}
+          <LinearProgress variant={barDeterminate ? 'determinate' : 'indeterminate'} value={pct} sx={{ height: 8, borderRadius: 4 }} />
           <Box sx={{ display: 'flex', gap: 2, mt: 0.75, flexWrap: 'wrap' }}>
             <Typography sx={mono}>
               {doneThisJob}/{atStart} rows
@@ -288,7 +303,10 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
             {(job.failed_batches ?? 0) > 0 && (
               <Typography sx={{ ...mono, color: '#c0392b' }}>{job.failed_batches} failed batch(es), will retry</Typography>
             )}
-            {rowsPerSec > 0 && (
+            {phase === 'standard' && (job.standard_failed ?? 0) > 0 && (
+              <Typography sx={{ ...mono, color: '#c0392b' }}>{job.standard_failed} product-standard call(s) failed, will retry</Typography>
+            )}
+            {phase === 'cleaning' && rowsPerSec > 0 && (
               <Typography sx={mono}>
                 {rowsPerSec.toFixed(1)} rows/s{etaS != null ? ` - ~${etaS}s left` : ''}
               </Typography>

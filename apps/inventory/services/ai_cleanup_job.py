@@ -51,6 +51,9 @@ MAX_CONCURRENCY = 48
 # (seconds before each further try) instead of failing.
 RATE_LIMIT_WAITS = (8, 20, 45)
 ACTIVE = ('running', 'stopping')
+# After the last line is cleaned, the product standard and matching run with no batch to beat on.
+# A side thread beats this often meanwhile, so a long finish is never taken for a dead job.
+FINISH_BEAT_SECONDS = 30.0
 
 _write_lock = threading.Lock()
 
@@ -107,6 +110,34 @@ def _executor(concurrency: int, order_id: int):
     return ThreadPoolExecutor(max_workers=concurrency, thread_name_prefix=f'ai-cleanup-{order_id}')
 
 
+class _FinishBeat:
+    """Beats the job's heartbeat every FINISH_BEAT_SECONDS while the finishing steps run."""
+
+    def __init__(self, order_id: int, token: str):
+        self.order_id, self.token = order_id, token
+        self.done = threading.Event()
+        self.thread = threading.Thread(target=self._loop, name=f'ai-cleanup-beat-{order_id}', daemon=True)
+
+    def _loop(self) -> None:
+        while not self.done.wait(FINISH_BEAT_SECONDS):
+            _fresh_db()
+            try:
+                _update(self.order_id, self.token, heartbeat_at=_now())
+            except Exception:  # noqa: BLE001 - a missed beat is retried next time
+                logger.warning('ai_cleanup_job order=%s finish beat failed', self.order_id)
+            finally:
+                _release_db()
+
+    def __enter__(self):
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        self.done.set()
+        self.thread.join(timeout=5)
+        return False
+
+
 def _spawn(order_id: int, token: str) -> None:
     threading.Thread(target=_run, args=(order_id, token), name=f'ai-cleanup-{order_id}', daemon=True).start()
 
@@ -126,7 +157,7 @@ def start(order: PurchaseOrder, *, user, model: str, effort: str, batch_size: in
             return state
         generation = PurchaseOrder.objects.values_list('ai_cleanup_generation', flat=True).get(pk=order.pk)
         state = {
-            'token': token, 'status': 'running', 'stop_requested': False,
+            'token': token, 'status': 'running', 'stop_requested': False, 'phase': 'cleaning',
             'model': model, 'effort': effort, 'batch_size': batch_size, 'concurrency': concurrency,
             'generation': generation,
             'started_at': _now(), 'heartbeat_at': _now(), 'finished_at': None,
@@ -276,6 +307,9 @@ def _standard_pass(order_id: int, token: str, order: PurchaseOrder, concurrency:
             ids = intake_standard.rows_needing_standard(order)
             if not ids or stop.is_set():
                 break
+            if _round == 0:  # the page shows this as "product standard: done/total lines"
+                _update(order_id, token, heartbeat_at=_now(), phase='standard',
+                        standard_total=len(ids), standard_rows=0, standard_failed=0)
             with _executor(min(concurrency, intake_standard.MAX_WORKERS), order_id) as pool:
                 futures = [pool.submit(_one_standard_batch, order_id, token, ids[i:i + size], stop, api_key=api_key)
                            for i in range(0, len(ids), size)]
@@ -367,16 +401,18 @@ def _run(order_id: int, token: str) -> None:
             _update(order_id, token, status='done_with_gaps', finished_at=_now(),
                     message=f'{remaining} row(s) could not be cleaned this run. Run again to retry just those.')
             return
-        if _standard_pass(order_id, token, order, concurrency):
-            # The pass takes minutes: the job may have been replaced, or cleanup undone, meanwhile.
-            if read(order_id).get('token') != token:
-                return
-            generation = PurchaseOrder.objects.values_list('ai_cleanup_generation', flat=True).get(pk=order_id)
-            if generation != state.get('generation'):
-                _update(order_id, token, status='cancelled', finished_at=_now(),
-                        message='Cleanup was undone while it ran, so it stopped. Batches in flight were not saved.')
-                return
-        completion = complete_ai_cleanup(order)
+        with _FinishBeat(order_id, token):
+            if _standard_pass(order_id, token, order, concurrency):
+                # The pass takes minutes: the job may have been replaced, or cleanup undone, meanwhile.
+                if read(order_id).get('token') != token:
+                    return
+                generation = PurchaseOrder.objects.values_list('ai_cleanup_generation', flat=True).get(pk=order_id)
+                if generation != state.get('generation'):
+                    _update(order_id, token, status='cancelled', finished_at=_now(),
+                            message='Cleanup was undone while it ran, so it stopped. Batches in flight were not saved.')
+                    return
+            _update(order_id, token, heartbeat_at=_now(), phase='matching')
+            completion = complete_ai_cleanup(order)
         _update(order_id, token, status='done', finished_at=_now(), message='',
                 match_candidates=completion.get('match_candidates'))
     except Exception as e:  # noqa: BLE001 - the job must always end in a readable state
