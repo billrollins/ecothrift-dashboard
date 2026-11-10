@@ -3,7 +3,7 @@ import type { ItemBrief } from './stocktake.api';
 
 /** Bad tags (retail_tags_and_social Phase 1): a wrong tag found on the floor, traced back, sent to PR Fix-it. */
 export type BadTagReason = 'retail_high' | 'wrong_item' | 'price_high' | 'price_low' | 'missing';
-export type BadTagWhere = 'section_check' | 'cross_check' | 'register' | 'today' | 'fresh_tags';
+export type BadTagWhere = 'section_check' | 'cross_check' | 'register' | 'today' | 'fresh_tags' | 'floor';
 
 export interface BadTagReasonOption {
   key: BadTagReason;

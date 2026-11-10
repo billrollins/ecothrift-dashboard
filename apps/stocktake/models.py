@@ -245,12 +245,14 @@ class BadTag(models.Model):
     WHERE_REGISTER = 'register'
     WHERE_TODAY = 'today'
     WHERE_FRESH_TAGS = 'fresh_tags'
+    WHERE_FLOOR = 'floor'  # Search (Find item) and the item window (Dash Update #84)
     WHERE_CHOICES = [
         (WHERE_SECTION_CHECK, 'Section check'),
         (WHERE_CROSS_CHECK, 'Cross-check'),
         (WHERE_REGISTER, 'Register'),
         (WHERE_TODAY, 'Today'),
         (WHERE_FRESH_TAGS, 'Fresh-tag check'),
+        (WHERE_FLOOR, 'Floor'),
     ]
 
     item = models.ForeignKey('inventory.Item', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')

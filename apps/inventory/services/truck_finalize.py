@@ -146,6 +146,11 @@ def truck_lines(order: PurchaseOrder) -> list[dict[str, Any]]:
                 'broken': dollars(broken), 'disputed': dollars(disputed),
             },
             'disputed_items': line['disputed_items'],
+            # Items a processor marked not received, in manifest units (the Processing header's "so far" count).
+            'marked_missing': min(
+                missing,
+                (m_units * Decimal(line['lost_units']) / Decimal(exp_proc)) if exp_proc else Decimal(line['lost_units']),
+            ),
             'adjusted_refund': adj_refunds.get(line['manifest_row_id']),
         })
     return out

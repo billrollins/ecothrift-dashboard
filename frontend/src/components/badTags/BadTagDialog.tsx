@@ -1,3 +1,4 @@
+import { AddPhoto } from '../photos/AddPhoto';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -19,33 +20,38 @@ import {
 import CameraAltOutlined from '@mui/icons-material/CameraAltOutlined';
 import { useSnackbar } from 'notistack';
 import { useQueryClient } from '@tanstack/react-query';
+import { BAD_TAG_REASONS, type BadTagReason, type BadTagWhere } from '../../api/badTags.api';
 import {
-  BAD_TAG_REASONS,
-  lookupBadTag,
-  recordBadTag,
-  type BadTag,
-  type BadTagLookup,
-  type BadTagReason,
-  type BadTagWhere,
-} from '../../api/badTags.api';
-import { useAuth } from '../../hooks/useAuth';
+  FLOOR_ITEM_REASONS,
+  lookupFloorIssue,
+  reportFloorIssue,
+  type FloorIssueLookup,
+  type FloorIssueReason,
+} from '../../api/floorIssues.api';
+import { useLanguage } from '../../i18n/useLanguage';
 import { apiErrorDetail } from '../../hooks/useProductSearch';
 import { skuFromScan } from '../../utils/scanCode';
 
 const COPY = {
-  title: { en: 'Bad tag', es: 'Etiqueta mala' },
+  title: { en: 'Report a problem', es: 'Reportar un problema' },
   scan: { en: 'Scan or type the tag', es: 'Escanea o escribe la etiqueta' },
   notFound: { en: 'No item has this tag.', es: 'Ningun articulo tiene esta etiqueta.' },
+  waiting: { en: 'Already on its way to Processing', es: 'Ya va en camino a Processing' },
   whatsWrong: { en: 'What is wrong?', es: 'Que esta mal?' },
+  theItem: { en: 'The item', es: 'El articulo' },
+  theTag: { en: 'The tag', es: 'La etiqueta' },
   rightPrice: { en: 'Right price (if you know it)', es: 'Precio correcto (si lo sabes)' },
   rightRetail: { en: 'Right retail (if you know it)', es: 'Precio de lista correcto (si lo sabes)' },
   whatIsIt: { en: 'What is the item?', es: 'Que es el articulo?' },
+  sayWhat: { en: 'What is wrong with it?', es: 'Que tiene de malo?' },
   note: { en: 'Note (optional)', es: 'Nota (opcional)' },
   photo: { en: 'Photo (optional)', es: 'Foto (opcional)' },
   photoTaken: { en: 'Photo taken', es: 'Foto tomada' },
   cancel: { en: 'Cancel', es: 'Cancelar' },
-  save: { en: 'Send to PR Fix-it', es: 'Enviar a PR Fix-it' },
-  saved: { en: 'Bad tag sent to PR Fix-it. Put the item in the PR cart.', es: 'Enviado a PR Fix-it. Pon el articulo en el carrito PR.' },
+  save: { en: 'Send to Processing', es: 'Enviar a Processing' },
+  saved: { en: 'Sent to Processing. Put the item on the PR cart.', es: 'Enviado a Processing. Pon el articulo en el carrito PR.' },
+  savedNoItem: { en: 'Sent to PR Fix-it. Put the item on the PR cart.', es: 'Enviado a PR Fix-it. Pon el articulo en el carrito PR.' },
+  alreadySaved: { en: 'This item is already on its way to Processing.', es: 'Este articulo ya va en camino a Processing.' },
 } as const;
 
 type Lang = 'en' | 'es';
@@ -77,8 +83,11 @@ async function shrinkPhoto(file: File): Promise<string> {
 }
 
 /**
- * Scan a wrong tag, say why, send it to PR Fix-it (retail_tags_and_social Phase 1). Used from Today, the section
- * walks, and the register. The server traces it to who checked the item in, the truck and the manifest row.
+ * Report a problem (Dash Update #84): the one report for anything wrong on the floor. Scan the tag, pick what is
+ * wrong with the item (broken, missing parts, ...) or with its tag (wrong price, wrong item, ...), send it. The item
+ * keeps its status and waits on Processing > Floor issues. A tag problem is still a bad tag, traced to who checked
+ * the item in, the truck and the manifest row (retail_tags_and_social Phase 1).
+ * Used from Today, the section walks, the register, Search and the item window.
  */
 export default function BadTagDialog({
   open,
@@ -92,24 +101,23 @@ export default function BadTagDialog({
   open: boolean;
   where: BadTagWhere;
   onClose: () => void;
-  onSaved?: (bad: BadTag) => void;
+  onSaved?: () => void;
   initialCode?: string;
   initialReason?: BadTagReason;
-  /** Limit the choices (e.g. a "Tag missing" counter offers only that one). */
+  /** Limit the choices to these tag problems (e.g. a "Tag missing" counter offers only that one). */
   reasons?: BadTagReason[];
 }) {
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down('sm'));
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const lang: Lang = user?.language === 'es' ? 'es' : 'en';
+  const lang: Lang = useLanguage();
   const tr = (key: keyof typeof COPY) => COPY[key][lang];
 
   const [code, setCode] = useState(initialCode);
-  const [found, setFound] = useState<BadTagLookup | null>(null);
+  const [found, setFound] = useState<FloorIssueLookup | null>(null);
   const [looking, setLooking] = useState(false);
-  const [reason, setReason] = useState<BadTagReason | ''>(initialReason ?? '');
+  const [reason, setReason] = useState<FloorIssueReason | ''>(initialReason ?? '');
   const [rightPrice, setRightPrice] = useState('');
   const [rightRetail, setRightRetail] = useState('');
   const [detail, setDetail] = useState('');
@@ -135,7 +143,7 @@ export default function BadTagDialog({
     if (!value) return;
     setLooking(true);
     try {
-      setFound(await lookupBadTag(value));
+      setFound(await lookupFloorIssue(value));
     } catch (err) {
       enqueueSnackbar(apiErrorDetail(err, 'Could not look up the tag'), { variant: 'error' });
     } finally {
@@ -143,37 +151,62 @@ export default function BadTagDialog({
     }
   }
 
-  const options = BAD_TAG_REASONS.filter((r) => !reasons || reasons.includes(r.key));
+  // A walk's counter limits the list to its own tag problems; everywhere else the item's problems come first.
+  const itemOptions = reasons ? [] : FLOOR_ITEM_REASONS;
+  const tagOptions = BAD_TAG_REASONS.filter((r) => !reasons || reasons.includes(r.key));
   const missing = reason === 'missing';
+  const other = reason === 'other';
   const needsItem = !missing;
+  const waiting = found?.floor_issue ?? null;
   const canSave =
-    !!reason && !saving && (needsItem ? !!found?.found : !!(found?.found || detail.trim()));
+    !!reason && !saving && !waiting
+    && (needsItem ? !!found?.found : !!(found?.found || detail.trim()))
+    && (!other || !!detail.trim());
 
   async function save() {
     if (!reason) return;
     setSaving(true);
     try {
-      const bad = await recordBadTag({
+      const result = await reportFloorIssue({
         code: found?.found ? found.code : code.trim(),
         reason,
         where,
-        detail: detail.trim() || undefined,
+        note: detail.trim() || undefined,
         right_price: (reason === 'price_high' || reason === 'price_low') && rightPrice ? rightPrice : undefined,
         right_retail: reason === 'retail_high' && rightRetail ? rightRetail : undefined,
         photo: photo ?? undefined,
       });
-      enqueueSnackbar(tr('saved'), { variant: 'success' });
+      if (result.already) enqueueSnackbar(tr('alreadySaved'), { variant: 'info' });
+      else enqueueSnackbar(tr(result.floor_issue ? 'saved' : 'savedNoItem'), { variant: 'success' });
       void queryClient.invalidateQueries({ queryKey: ['stocktake', 'bad-tags'] });
-      onSaved?.(bad);
+      void queryClient.invalidateQueries({ queryKey: ['floor-issues'] });
+      void queryClient.invalidateQueries({ queryKey: ['reentries'] });
+      if (result.floor_issue) void queryClient.invalidateQueries({ queryKey: ['item-card', result.floor_issue.item.id] });
+      onSaved?.();
       onClose();
     } catch (err) {
-      enqueueSnackbar(apiErrorDetail(err, 'Could not save the bad tag'), { variant: 'error' });
+      enqueueSnackbar(apiErrorDetail(err, 'Could not send the report'), { variant: 'error' });
     } finally {
       setSaving(false);
     }
   }
 
   const item = found?.item;
+  const chips = (list: { key: FloorIssueReason; label: string; label_es: string }[]) => (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+      {list.map((r) => (
+        <Chip
+          key={r.key}
+          label={lang === 'es' ? r.label_es : r.label}
+          color={reason === r.key ? 'primary' : 'default'}
+          variant={reason === r.key ? 'filled' : 'outlined'}
+          onClick={() => setReason(r.key)}
+          sx={{ height: 40, fontSize: 14 }}
+        />
+      ))}
+    </Box>
+  );
+  const groupLabel = { fontSize: 12, fontWeight: 700, color: 'text.secondary', mb: 0.5 } as const;
   return (
     <Dialog open={open} onClose={onClose} fullScreen={phone} maxWidth="sm" fullWidth>
       <DialogTitle>{tr('title')}</DialogTitle>
@@ -219,21 +252,23 @@ export default function BadTagDialog({
               )}
             </Box>
           )}
+          {waiting && (
+            <Alert severity="info">
+              {tr('waiting')}: {waiting.reason_label}
+              {waiting.reported_by ? ` (${waiting.reported_by})` : ''}
+            </Alert>
+          )}
 
           <Box>
             <Typography variant="subtitle2" sx={{ mb: 1 }}>{tr('whatsWrong')}</Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {options.map((r) => (
-                <Chip
-                  key={r.key}
-                  label={lang === 'es' ? r.label_es : r.label}
-                  color={reason === r.key ? 'primary' : 'default'}
-                  variant={reason === r.key ? 'filled' : 'outlined'}
-                  onClick={() => setReason(r.key)}
-                  sx={{ height: 40, fontSize: 14 }}
-                />
-              ))}
-            </Box>
+            {itemOptions.length > 0 && (
+              <Box sx={{ mb: 1.5 }}>
+                <Typography sx={groupLabel}>{tr('theItem')}</Typography>
+                {chips(itemOptions)}
+              </Box>
+            )}
+            {itemOptions.length > 0 && <Typography sx={groupLabel}>{tr('theTag')}</Typography>}
+            {chips(tagOptions)}
           </Box>
 
           {(reason === 'price_high' || reason === 'price_low') && (
@@ -255,38 +290,27 @@ export default function BadTagDialog({
             />
           )}
           <TextField
-            label={missing && !found?.found ? tr('whatIsIt') : tr('note')}
+            label={missing && !found?.found ? tr('whatIsIt') : other ? tr('sayWhat') : tr('note')}
             value={detail}
             onChange={(e) => setDetail(e.target.value)}
             multiline
             minRows={1}
             maxRows={4}
           />
-          <Button
-            component="label"
-            variant="outlined"
+          <AddPhoto
             startIcon={<CameraAltOutlined />}
             color={photo ? 'success' : 'inherit'}
             sx={{ alignSelf: 'flex-start' }}
-          >
-            {photo ? tr('photoTaken') : tr('photo')}
-            <input
-              hidden
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                e.target.value = '';
-                if (!file) return;
-                try {
-                  setPhoto(await shrinkPhoto(file));
-                } catch {
-                  enqueueSnackbar('Could not read the photo', { variant: 'warning' });
-                }
-              }}
-            />
-          </Button>
+            label={photo ? tr('photoTaken') : tr('photo')}
+            usedWhere="Bad tag"
+            onPhotos={async ([file]) => {
+              try {
+                setPhoto(await shrinkPhoto(file));
+              } catch {
+                enqueueSnackbar('Could not read the photo', { variant: 'warning' });
+              }
+            }}
+          />
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>

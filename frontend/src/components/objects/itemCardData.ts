@@ -91,6 +91,8 @@ export interface ItemCardFull extends ItemCardLite {
   pallet: string;
   parent_item: { id: number; sku: string } | null;
   dispute: { type: string; pct_loss: number | null; description: string } | null;
+  /** A problem reported from the floor that still waits in Processing (Dash Update #84). */
+  floor_issue?: { id: number; reason_label: string; note: string; reported_by: string; reported_at: string | null } | null;
   last_scan_source: string;
   scan_count: number;
   journey: ItemJourneyEvent[];

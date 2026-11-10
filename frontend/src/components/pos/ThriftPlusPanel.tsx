@@ -1,3 +1,4 @@
+import { AddPhoto } from '../photos/AddPhoto';
 import {
   Alert,
   Avatar,
@@ -220,25 +221,19 @@ export default function ThriftPlusPanel({ cart, onCart, onOpenCard }: Props) {
               return (
                 <Stack key={lineId} direction="row" spacing={1} alignItems="center">
                   <Typography variant="body2" sx={{ flex: 1 }}>{ln?.description ?? `Line ${lineId}`}</Typography>
-                  <Button size="small" component="label" variant="outlined" disabled={busy}>
-                    Photo
-                    <input
-                      hidden
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        e.target.value = '';
-                        if (file) {
-                          void run(async () => {
-                            await uploadThriftSalePhoto(lineId, file);
-                            return refreshCart(cart.id);
-                          });
-                        }
-                      }}
-                    />
-                  </Button>
+                  <AddPhoto
+                    size="small"
+                    startIcon={null}
+                    disabled={busy}
+                    label="Photo"
+                    usedWhere="Register"
+                    onPhotos={([file]) => {
+                      void run(async () => {
+                        await uploadThriftSalePhoto(lineId, file);
+                        return refreshCart(cart.id);
+                      });
+                    }}
+                  />
                 </Stack>
               );
             })}

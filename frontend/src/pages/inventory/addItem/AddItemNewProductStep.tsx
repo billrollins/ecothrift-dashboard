@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PhotoCameraOutlined from '@mui/icons-material/PhotoCameraOutlined';
 import {
   Alert, Box, Button, Chip, CircularProgress, IconButton, MenuItem, Stack, TextField, Typography,
@@ -7,31 +7,20 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   aiFillProduct, getAddItemTaxonomy, type AddItemProduct, type NewProductSpec,
 } from '../../../api/addItem.api';
+import { AddPhoto } from '../../../components/photos/AddPhoto';
 import { apiErrorDetail } from '../../../hooks/useProductSearch';
 import { IconAiAssist, IconClose } from '../../../icons/ecoIcons';
 import { ProductPhoto } from './AddItemFindStep';
 import { newProductProblems, productName, specFromDraft, subcategoriesFor } from './addItemModel';
 
-/** The photo picker: the camera on a phone, a file on a desk. */
+/** The photo picker: the shared Add photo control (take it, the photo drawer, or a file). */
 function PhotoPicker({ photo, onChange, disabled }: { photo: File | null; onChange: (f: File | null) => void; disabled?: boolean }) {
-  const input = useRef<HTMLInputElement>(null);
   const url = useMemo(() => (photo ? URL.createObjectURL(photo) : null), [photo]);
   useEffect(() => () => {
     if (url) URL.revokeObjectURL(url);
   }, [url]);
   return (
     <Box>
-      <input
-        ref={input}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        hidden
-        onChange={(e) => {
-          onChange(e.target.files?.[0] ?? null);
-          e.target.value = '';
-        }}
-      />
       {url ? (
         <Box sx={{ position: 'relative', width: '100%', maxWidth: { xs: 220, md: '100%' } }}>
           <Box component="img" src={url} alt="The item" sx={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 1.5, display: 'block' }} />
@@ -46,16 +35,15 @@ function PhotoPicker({ photo, onChange, disabled }: { photo: File | null; onChan
           </IconButton>
         </Box>
       ) : (
-        <Button
+        <AddPhoto
           fullWidth
-          variant="outlined"
           startIcon={<PhotoCameraOutlined />}
-          onClick={() => input.current?.click()}
+          onPhotos={(files) => onChange(files[0] ?? null)}
+          usedWhere="Add item"
           disabled={disabled}
+          label="Add a photo (optional)"
           sx={{ height: { xs: 56, md: 140 }, borderStyle: 'dashed' }}
-        >
-          Add a photo (optional)
-        </Button>
+        />
       )}
     </Box>
   );

@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from 'react';
-import { Box, Button, Stack, Typography } from '@mui/material';
+import { AddPhoto } from '../../../components/photos/AddPhoto';
+import { useCallback, useState } from 'react';
+import { Box, Stack, Typography } from '@mui/material';
 import PhotoCamera from '@mui/icons-material/PhotoCamera';
 
 function imageFilesFromList(list: FileList | File[] | null): File[] {
@@ -14,7 +15,6 @@ export function ListingPhotoDropzone({
   onFiles: (files: File[]) => void;
   disabled?: boolean;
 }) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
   const [over, setOver] = useState(false);
 
   const take = useCallback(
@@ -48,27 +48,16 @@ export function ListingPhotoDropzone({
     >
       <Stack spacing={1} alignItems="flex-start">
         <Typography variant="body2" color="text.secondary">
-          Drop photos here, or select several at once. Each one opens the framing editor
+          Drop photos here, or add several at once. Each one opens the framing editor
           before it uploads.
         </Typography>
-        <Button
-          startIcon={<PhotoCamera />}
-          variant="outlined"
-          disabled={disabled}
-          onClick={() => inputRef.current?.click()}
-        >
-          Select photos
-        </Button>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
+        <AddPhoto
           multiple
-          hidden
-          onChange={(e) => {
-            take(imageFilesFromList(e.target.files));
-            e.target.value = '';
-          }}
+          startIcon={<PhotoCamera />}
+          disabled={disabled}
+          label="Add photos"
+          usedWhere="Online Sales"
+          onPhotos={take}
         />
       </Stack>
     </Box>

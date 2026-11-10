@@ -27,6 +27,7 @@ Staff decide what happens to the returned item (``ReturnRecord.status``). Its in
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -38,6 +39,8 @@ from django.utils import timezone
 from apps.thriftplus.models import Account, CartMember, LateReturnMark, LedgerEntry, ReturnRecord, SalePhoto
 from apps.thriftplus.services import ledger, members
 from apps.thriftplus.services.register import RegisterError, found, paid_by_line
+
+logger = logging.getLogger(__name__)
 
 ZERO = Decimal('0.00')
 CENT = Decimal('0.01')
@@ -351,6 +354,18 @@ def is_late(line, today: date | None = None) -> bool:
 LATE_REASONS = dict(LateReturnMark.REASON_CHOICES)
 
 
+def _to_processing(record) -> None:
+    """The returned item goes on Processing > Returns, where a processor decides what happens to it (#83). The money
+    is already settled above; a failure here never stops the return (the list picks the return up when it is read)."""
+    try:
+        from apps.inventory.services import reentry
+
+        with transaction.atomic():
+            reentry.report_return(record)
+    except Exception:  # noqa: BLE001
+        logger.exception('return %s: could not put its item on the Returns list', record.pk)
+
+
 def do_return(line, code: str = '', *, person=None, note: str = '', user=None, training: bool = False,
               late_ok: bool = False, late_reason: str = '', by_pin: bool = False, approved_by=None) -> dict:
     """Take the line back (W3, W4, W11): Thrift+ credit for 80% of what was paid, tax included; 80% of the ThriftBucks
@@ -406,6 +421,7 @@ def do_return(line, code: str = '', *, person=None, note: str = '', user=None, t
                 reason=late_reason if late_reason in LATE_REASONS else LateReturnMark.REASON_OWNER, note=note[:500],
                 entered_by=user, approved_by=approved_by, by_pin=by_pin,
             )
+        _to_processing(record)
     return {'id': record.pk, 'credit': str(credit), 'bucks_back': str(parts['bucks_back']), 'bucks_taken': str(taken),
             'shortfall': str(shortfall), 'training': False}
 

@@ -437,7 +437,7 @@ export function SalesOverviewSection({ sales, action }: SalesOverviewSectionProp
   }, []);
 
   const rangeLabel = shownDays.length
-    ? `${shortDate(shownDays[0].date)} – ${shortDate(shownDays[shownDays.length - 1].date)}`
+    ? `${shortDate(shownDays[0].date)} - ${shortDate(shownDays[shownDays.length - 1].date)}`
     : '';
 
   return (

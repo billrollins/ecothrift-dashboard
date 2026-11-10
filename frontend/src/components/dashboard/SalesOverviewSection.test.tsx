@@ -98,7 +98,7 @@ describe('SalesOverviewSection (desktop)', () => {
   it('scrolls back with the arrow and the wheel, and Now returns', () => {
     renderCard(sales('17109'));
     const controls = screen.getByTestId('sales-trend-controls');
-    const range = () => within(controls).getByText(/–/).textContent;
+    const range = () => within(controls).getByText(/ - /).textContent;
     const start = range();
     expect(within(controls).queryByText('Now')).toBeNull();
     fireEvent.click(screen.getByLabelText('Earlier weeks'));
@@ -113,9 +113,9 @@ describe('SalesOverviewSection (desktop)', () => {
   it('zooms out to 36 weeks', () => {
     renderCard(sales('17109', 300));
     const controls = screen.getByTestId('sales-trend-controls');
-    const twelve = within(controls).getByText(/–/).textContent;
+    const twelve = within(controls).getByText(/ - /).textContent;
     fireEvent.click(screen.getByText('36 wk'));
-    expect(within(controls).getByText(/–/).textContent).not.toBe(twelve);
+    expect(within(controls).getByText(/ - /).textContent).not.toBe(twelve);
   });
 });
 

@@ -1,8 +1,8 @@
+import { AddPhoto } from '../photos/AddPhoto';
 import {
   useEffect,
   useRef,
   useState,
-  type ChangeEvent,
   type PointerEvent as ReactPointerEvent,
   type SyntheticEvent,
   type WheelEvent as ReactWheelEvent,
@@ -108,7 +108,6 @@ export function ImageViewerDialog({
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const editImgRef = useRef<HTMLImageElement | null>(null);
-  const replaceInputRef = useRef<HTMLInputElement | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -231,9 +230,7 @@ export function ImageViewerDialog({
     }
   };
 
-  const handleReplacePick = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
+  const handleReplacePick = async (file: File | undefined) => {
     if (!file || !onReplaceFile) return;
     setReplacing(true);
     try {
@@ -609,22 +606,15 @@ export function ImageViewerDialog({
           {downloading ? 'Downloading…' : downloadLabel}
         </Button>
         {!editMode && replaceable ? (
-          <>
-            <Button
-              startIcon={<UploadFile />}
-              onClick={() => replaceInputRef.current?.click()}
-              disabled={replacing || saving || !src}
-            >
-              {replacing ? 'Replacing…' : 'Replace'}
-            </Button>
-            <input
-              ref={replaceInputRef}
-              type="file"
-              accept="image/*"
-              style={{ display: 'none' }}
-              onChange={(ev) => void handleReplacePick(ev)}
-            />
-          </>
+          <AddPhoto
+            variant="text"
+            startIcon={<UploadFile />}
+            disabled={replacing || saving || !src}
+            label={replacing ? 'Replacing…' : 'Replace'}
+            data-testid="image-viewer-replace"
+            fileInputTestId="image-viewer-replace-input"
+            onPhotos={(files) => void handleReplacePick(files[0])}
+          />
         ) : null}
         <Box sx={{ flex: 1 }} />
         {editMode ? (

@@ -1,3 +1,4 @@
+import { AddPhoto } from '../../components/photos/AddPhoto';
 /** "We need ___" (owner, 2026-10-28): anyone on the team asks for a supply: what, which list, an optional link or
  * photo. A manager or the owner answers on Supplies → Requests; the answer shows under My requests. */
 import { useState } from 'react';
@@ -41,11 +42,11 @@ export function WeNeedDialog({ open, onClose, lists }: { open: boolean; onClose:
           <TextField label="Link (optional)" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" />
           <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} multiline minRows={2} />
           <Box>
-            <Button component="label" variant="outlined">
-              {photo ? 'Change photo' : 'Add a photo'}
-              <input hidden type="file" accept="image/*" capture="environment"
-                onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
-            </Button>
+            <AddPhoto
+              label={photo ? 'Change photo' : 'Add a photo'}
+              usedWhere="Supplies"
+              onPhotos={(files) => setPhoto(files[0] ?? null)}
+            />
             {photo && <Typography variant="caption" sx={{ ml: 1 }}>{photo.name}</Typography>}
           </Box>
         </Stack>

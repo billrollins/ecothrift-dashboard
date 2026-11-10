@@ -46,7 +46,7 @@ import {
   DeleteDepartmentDialog,
   DepartmentFormDialog,
 } from './DepartmentDialogs';
-import { DEPARTMENT_SUBTITLE, deleteLockTooltip, errorDetail } from './departmentUi';
+import { DEPARTMENT_SUBTITLE, deleteLockTooltip, errorDetail, startWorkspaceLabel } from './departmentUi';
 import { IconMore as MoreVert } from '../../../icons/ecoIcons';
 
 export default function DepartmentsPage() {
@@ -163,6 +163,7 @@ export default function DepartmentsPage() {
                 <TableCell align="right">Shifts</TableCell>
                 <TableCell align="right">Sections</TableCell>
                 <TableCell>Manager</TableCell>
+                <TableCell>Starts in</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell sx={{ width: 48 }} />
               </TableRow>
@@ -339,6 +340,7 @@ function DepartmentRow({
       <TableCell align="right">{row.shift_count ?? 0}</TableCell>
       <TableCell align="right">{row.section_count ?? 0}</TableCell>
       <TableCell>{row.manager_name || '-'}</TableCell>
+      <TableCell>{startWorkspaceLabel(row.start_workspace)}</TableCell>
       <TableCell>
         <Chip
           size="small"

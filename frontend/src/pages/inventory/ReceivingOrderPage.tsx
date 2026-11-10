@@ -203,7 +203,7 @@ export default function ReceivingOrderPage() {
   );
 
   const onBolTruckPick = useCallback(
-    async (kind: 'bol' | 'truck', files: FileList | null) => {
+    async (kind: 'bol' | 'truck', files: FileList | File[] | null) => {
       const f = files?.[0];
       if (!f) return;
       try {
@@ -216,7 +216,7 @@ export default function ReceivingOrderPage() {
   );
 
   const onPalletPick = useCallback(
-    async (pallet: number, side: PalletSideId, files: FileList | null) => {
+    async (pallet: number, side: PalletSideId, files: FileList | File[] | null) => {
       const f = files?.[0];
       if (!f) return;
       try {

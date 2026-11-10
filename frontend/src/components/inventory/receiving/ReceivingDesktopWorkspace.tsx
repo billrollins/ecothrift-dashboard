@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { AddPhotoTrigger, useAddPhoto } from '../../photos/AddPhoto';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import BoltIcon from '@mui/icons-material/Bolt';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -75,9 +76,9 @@ interface Props {
   onConditionChange: (v: NonNullable<ReceivingDetailDTO['condition']>) => void;
   onIssuesDraftChange: (v: string) => void;
   onIssuesBlur: () => void;
-  onBolTruckPick: (kind: Exclude<PendingPhotoKind, 'pallet_side'>, fileList: FileList | null) => void;
+  onBolTruckPick: (kind: Exclude<PendingPhotoKind, 'pallet_side'>, fileList: FileList | File[] | null) => void;
   onBulkPalletPhotos: (files: File[]) => void | Promise<void>;
-  onPalletPick: (pallet: number, side: PalletSideId, fileList: FileList | null) => void;
+  onPalletPick: (pallet: number, side: PalletSideId, fileList: FileList | File[] | null) => void;
   onDamaged: (palletNumber: number, damaged: boolean) => void;
   onOpenIntakeDisputeForPallet?: (palletNumber: number, subjectPalletId: number | null) => void;
   /** Open complete dialog (photos may be missing - dialog collects overrides). */
@@ -339,6 +340,12 @@ function DropZoneBox({
   pickMultiple?: boolean;
 }) {
   const [over, setOver] = useState(false);
+  // A click opens the shared Add photo choices (#82); dragging files in still works.
+  const picker = useAddPhoto({
+    onPhotos: (files) => onDropFiles(!pickMultiple && small ? files.slice(0, 1) : files),
+    multiple: pickMultiple,
+    usedWhere: 'Receiving',
+  });
   const handleDrop = useCallback(
     (e: DragEvent) => {
       e.preventDefault();
@@ -353,24 +360,9 @@ function DropZoneBox({
     return <Box sx={{ width: '100%', height: '100%' }}>{children}</Box>;
   }
 
-  const pick = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.multiple = pickMultiple;
-    input.onchange = () => {
-      const f = Array.from(input.files ?? []);
-      if (!f.length) return;
-      if (!pickMultiple && small) {
-        onDropFiles([f[0]!]);
-      } else {
-        onDropFiles(f);
-      }
-    };
-    input.click();
-  };
-
   return (
+    <>
+    {picker.node}
     <Box
       onDragOver={(e) => {
         e.preventDefault();
@@ -378,7 +370,7 @@ function DropZoneBox({
       }}
       onDragLeave={() => setOver(false)}
       onDrop={handleDrop}
-      onClick={() => pick()}
+      onClick={(e) => picker.open(e.currentTarget)}
       sx={{
         position: 'relative',
         border: `2px dashed ${over ? rcvBorder.sageDashStrong : rcvBorder.sageDash}`,
@@ -439,6 +431,7 @@ function DropZoneBox({
         ) : null}
       </Box>
     </Box>
+    </>
   );
 }
 
@@ -463,7 +456,7 @@ function PalletCard({
   palletDbId: number | null;
   rec: ReceivingDetailDTO;
   uploadingKey: string | null;
-  onPhotoAdd: (side: PalletSideId, files: FileList | null) => void;
+  onPhotoAdd: (side: PalletSideId, files: FileList | File[] | null) => void;
   onViewPhoto: (att: ReceivingAttachmentDTO, title: string) => void;
   onToggleDamage: () => void;
   onOpenIntakeDispute?: () => void;
@@ -631,9 +624,13 @@ function PalletCard({
                     }}
                   />
                   {!disabled && !rec.completed_at ? (
-                    <Box
-                      component="label"
-                      sx={{
+                    <AddPhotoTrigger usedWhere="Receiving" onPhotos={(files) => void onPhotoAdd(side, files)}>
+                      {(open) => (
+                        <Box
+                          component="button"
+                          type="button"
+                          onClick={(ev: ReactMouseEvent<HTMLElement>) => open(ev.currentTarget)}
+                      sx={{ border: 0, fontFamily: 'inherit',
                         position: 'absolute',
                         right: 4,
                         bottom: 4,
@@ -647,20 +644,11 @@ function PalletCard({
                         cursor: 'pointer',
                         zIndex: 1,
                       }}
-                    >
-                      Replace
-                      <Box
-                        component="input"
-                        type="file"
-                        accept="image/*"
-                        disabled={disabled || uploading}
-                        sx={{ display: 'none' }}
-                        onChange={(ev: ChangeEvent<HTMLInputElement>) => {
-                          onPhotoAdd(side, ev.target.files);
-                          ev.target.value = '';
-                        }}
-                      />
-                    </Box>
+                        >
+                          Replace
+                        </Box>
+                      )}
+                    </AddPhotoTrigger>
                   ) : null}
                 </>
               ) : (
@@ -897,18 +885,11 @@ export default function ReceivingDesktopWorkspace({
     [onBulkPalletPhotos, disabled],
   );
 
-  const quickFillClickPick = () => {
-    if (disabled ?? false) return;
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.multiple = true;
-    input.onchange = () => {
-      const files = Array.from(input.files ?? []);
-      if (files.length) void onBulkPalletPhotos(files);
-    };
-    input.click();
-  };
+  const bulkPicker = useAddPhoto({
+    onPhotos: (files) => void onBulkPalletPhotos(files),
+    multiple: true,
+    usedWhere: 'Receiving',
+  });
 
   useEffect(() => {
     endSyncedToStartPending.current = false;
@@ -1371,9 +1352,13 @@ export default function ReceivingDesktopWorkspace({
                     onOpen={() => openAttachment(bol, 'Bill of Lading')}
                   />
                   {!m.completed_at && !(disabled ?? false) ? (
-                    <Box
-                      component="label"
-                      sx={{
+                    <AddPhotoTrigger usedWhere="Receiving" onPhotos={(files) => void onBolTruckPick('bol', files)}>
+                      {(open) => (
+                        <Box
+                          component="button"
+                          type="button"
+                          onClick={(ev: ReactMouseEvent<HTMLElement>) => open(ev.currentTarget)}
+                      sx={{ border: 0, fontFamily: 'inherit',
                         position: 'absolute',
                         right: 8,
                         bottom: 8,
@@ -1387,19 +1372,11 @@ export default function ReceivingDesktopWorkspace({
                         cursor: 'pointer',
                         zIndex: 1,
                       }}
-                    >
-                      Replace
-                      <Box
-                        component="input"
-                        type="file"
-                        accept="image/*"
-                        sx={{ display: 'none' }}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                          void onBolTruckPick('bol', e.target.files);
-                          e.target.value = '';
-                        }}
-                      />
-                    </Box>
+                        >
+                          Replace
+                        </Box>
+                      )}
+                    </AddPhotoTrigger>
                   ) : null}
                 </Box>
               ) : (
@@ -1426,9 +1403,13 @@ export default function ReceivingDesktopWorkspace({
                     onOpen={() => openAttachment(truck, 'Truck photo')}
                   />
                   {!m.completed_at && !(disabled ?? false) ? (
-                    <Box
-                      component="label"
-                      sx={{
+                    <AddPhotoTrigger usedWhere="Receiving" onPhotos={(files) => void onBolTruckPick('truck', files)}>
+                      {(open) => (
+                        <Box
+                          component="button"
+                          type="button"
+                          onClick={(ev: ReactMouseEvent<HTMLElement>) => open(ev.currentTarget)}
+                      sx={{ border: 0, fontFamily: 'inherit',
                         position: 'absolute',
                         right: 8,
                         bottom: 8,
@@ -1442,19 +1423,11 @@ export default function ReceivingDesktopWorkspace({
                         cursor: 'pointer',
                         zIndex: 1,
                       }}
-                    >
-                      Replace
-                      <Box
-                        component="input"
-                        type="file"
-                        accept="image/*"
-                        sx={{ display: 'none' }}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                          void onBolTruckPick('truck', e.target.files);
-                          e.target.value = '';
-                        }}
-                      />
-                    </Box>
+                        >
+                          Replace
+                        </Box>
+                      )}
+                    </AddPhotoTrigger>
                   ) : null}
                 </Box>
               ) : (
@@ -1620,6 +1593,7 @@ export default function ReceivingDesktopWorkspace({
             </Box>
           ) : (
             <>
+              {bulkPicker.node}
               {/* Quick Fill - only when pallets exist */}
               {!m.completed_at ? (
                 <Box
@@ -1629,7 +1603,9 @@ export default function ReceivingDesktopWorkspace({
                   }}
                   onDragLeave={() => setBulkOver(false)}
                   onDrop={handleBulkDrop}
-                  onClick={quickFillClickPick}
+                  onClick={(e) => {
+                    if (!(disabled ?? false)) bulkPicker.open(e.currentTarget);
+                  }}
                   sx={{
                     m: `18px ${TOKENS.rightPadX}px 8px`,
                     p: bulkOver ? '26px 24px' : '14px 24px',

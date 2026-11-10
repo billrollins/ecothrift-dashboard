@@ -1,3 +1,4 @@
+import { AddPhoto } from '../../components/photos/AddPhoto';
 import { Box, Button, TextField, Typography } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
 import type { RoutineCheckResponse, RoutineResponses, VerifyContext } from '../../api/routines.api';
@@ -349,8 +350,15 @@ function PhotoControl({
     setLabel(check.photo ? 'Photo attached' : 'Add photo');
   }, [check.photo]);
   return (
-    <Button
-      component="label"
+    <AddPhoto
+      variant="text"
+      startIcon={null}
+      disabled={readOnly}
+      label={label}
+      usedWhere="Routines"
+      onPhotos={([file]) => {
+        void photoDataUrl(file).then((photo) => onPatch({ photo }));
+      }}
       sx={{
         mt: 1,
         height: 46,
@@ -361,19 +369,6 @@ function PhotoControl({
         bgcolor: check.photo ? '#F1F8F4' : '#fff',
         fontWeight: 600,
       }}
-    >
-      {label}
-      <input
-        hidden
-        type="file"
-        accept="image/*"
-        disabled={readOnly}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          void photoDataUrl(file).then((photo) => onPatch({ photo }));
-        }}
-      />
-    </Button>
+    />
   );
 }

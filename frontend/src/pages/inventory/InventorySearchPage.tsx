@@ -35,6 +35,7 @@ import { parseRichSearch, parseWorkbenchSelection } from '../../utils/richInvent
 import { ProcessedItemsView } from './ProcessedItemsView';
 import { IconAdd, IconSearch as Search } from '../../icons/ecoIcons';
 import { AddItemDialog } from './addItem/AddItemDialog';
+import BadTagButton from '../../components/badTags/BadTagButton';
 import { skuFromScan } from '../../utils/scanCode';
 
 const DEBOUNCE_MS = 200;
@@ -431,6 +432,7 @@ function SearchBody({ q, sold, misfit, page, sort, drill, setParam }: {
   const [adding, setAdding] = useState(false);
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down('sm'));
+  const { user } = useAuth();
   useEffect(() => setText(q), [q]);
   useEffect(() => {
     if (text === q) return undefined;
@@ -463,9 +465,12 @@ function SearchBody({ q, sold, misfit, page, sort, drill, setParam }: {
         title="Inventory search"
         dense
         action={(
-          <Button variant="contained" startIcon={<IconAdd />} onClick={() => setAdding(true)} size={phone ? 'small' : 'medium'}>
-            Add item
-          </Button>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap justifyContent="flex-end">
+            <BadTagButton where="floor" lang={user?.language} size={phone ? 'small' : 'medium'} />
+            <Button variant="contained" startIcon={<IconAdd />} onClick={() => setAdding(true)} size={phone ? 'small' : 'medium'}>
+              Add item
+            </Button>
+          </Stack>
         )}
       />
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 1, sm: 2 }} alignItems={{ sm: 'center' }} sx={{ mb: 1 }}>

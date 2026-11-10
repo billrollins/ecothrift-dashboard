@@ -29,7 +29,7 @@ import { useAuth } from '../../hooks/useAuth';
 import type { LiveLot } from '../../types/buying.types';
 import { formatCurrencyWhole } from '../../utils/format';
 
-const money = (v: number | null | undefined) => (v == null ? '–' : formatCurrencyWhole(v));
+const money = (v: number | null | undefined) => (v == null ? '-' : formatCurrencyWhole(v));
 // A sweep older than this means the list may be missing new lots (the sweep is hourly).
 const STALE_MINUTES = 180;
 // Winning at your max returns at least this many times what it lands at: worth a look.
@@ -55,7 +55,7 @@ function multipleOf(lot: LiveLot): number | null {
 
 /** Time left, not a clock time: urgency is what matters. Red under an hour, amber under three. */
 function ends(iso: string | null): { text: string; tone: 'error' | 'warning' | undefined; full: string } {
-  if (!iso) return { text: '–', tone: undefined, full: '' };
+  if (!iso) return { text: '-', tone: undefined, full: '' };
   const d = parseISO(iso);
   const mins = Math.max(differenceInMinutes(d, new Date()), 0);
   const full = format(d, 'EEE MMM d, h:mm a');
@@ -158,7 +158,7 @@ function Price({ lot }: { lot: LiveLot }) {
 /** Your max, the number he bids with, and where the price stands against it. */
 function YourMax({ lot }: { lot: LiveLot }) {
   if (lot.bid_up_to == null) {
-    return <Typography variant="caption" color="text.disabled">{lot.freight == null ? 'no freight yet' : '–'}</Typography>;
+    return <Typography variant="caption" color="text.disabled">{lot.freight == null ? 'no freight yet' : '-'}</Typography>;
   }
   const gap = lot.room ?? 0;
   const line =
@@ -179,7 +179,7 @@ function YourMax({ lot }: { lot: LiveLot }) {
 
 function Profit({ lot }: { lot: LiveLot }) {
   if (!lot.brings_in) {
-    return <Typography variant="caption" color="text.disabled">{lot.estimate_note || '–'}</Typography>;
+    return <Typography variant="caption" color="text.disabled">{lot.estimate_note || '-'}</Typography>;
   }
   const m = multiple(lot);
   const good = m != null && m >= GOOD_MULTIPLE;
@@ -193,7 +193,7 @@ function Profit({ lot }: { lot: LiveLot }) {
           variant="body2"
           sx={{ fontWeight: sure ? 700 : 400, color: good ? 'success.main' : sure ? undefined : 'text.secondary' }}
         >
-          {lot.profit_at_max == null ? '–' : `${sure ? '' : '≈ '}${lot.profit_at_max < 0 ? '−' : '+'}${money(Math.abs(lot.profit_at_max))}`}
+          {lot.profit_at_max == null ? '-' : `${sure ? '' : '≈ '}${lot.profit_at_max < 0 ? '−' : '+'}${money(Math.abs(lot.profit_at_max))}`}
         </Typography>
         <Typography variant="caption" color="text.secondary" noWrap display="block">
           {m != null ? `${m.toFixed(2)}×` : ''}{sure ? ' · manifest' : ''}

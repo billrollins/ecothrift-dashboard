@@ -20,6 +20,8 @@ export interface Department {
   manager: number | null;
   manager_name: string | null;
   is_active: boolean;
+  /** "Starts in" (#86): the menu workspace this department's people open on; '' = the house default. */
+  start_workspace?: string;
   home_count?: number;
   shift_count?: number;
   section_count?: number;

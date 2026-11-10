@@ -5,7 +5,7 @@ from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from apps.inventory.models import Product, ProductProfile
+from apps.inventory.models import ProcessingReentry, Product, ProductProfile
 
 logger = logging.getLogger(__name__)
 
@@ -32,3 +32,13 @@ def product_saved(sender, instance, update_fields=None, **kwargs):
 @receiver(post_save, sender=ProductProfile, dispatch_uid='profile_search_text')
 def profile_saved(sender, instance, **kwargs):
     _refresh_search_text(instance.product_id)
+
+
+@receiver(post_save, sender=ProcessingReentry, dispatch_uid='reentry_closes_floor_issue')
+def reentry_saved(sender, instance, **kwargs):
+    """A decided row on the shared list closes the floor reports behind it (Dash Update #84)."""
+    if instance.decided_at is None:
+        return
+    from apps.inventory.services import floor_issues
+
+    floor_issues.reentry_closed(instance)

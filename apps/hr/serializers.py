@@ -1,3 +1,5 @@
+import re
+
 from rest_framework import serializers
 from .models import (
     Department, TimeEntry, TimeEntryModificationRequest, Shift, ShiftAssignment,
@@ -18,11 +20,19 @@ class DepartmentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'slug', 'icon', 'sort_order', 'description',
             'location', 'location_name', 'manager', 'manager_name', 'is_active',
+            'start_workspace',
             'home_count', 'shift_count', 'section_count', 'dependencies',
         ]
         extra_kwargs = {
             'slug': {'required': False, 'allow_blank': True},
         }
+
+    def validate_start_workspace(self, value):
+        """A menu workspace id (the front end owns the list), or blank for the house default."""
+        value = (value or '').strip()
+        if value and not re.fullmatch(r'[A-Za-z][A-Za-z0-9]*', value):
+            raise serializers.ValidationError('Pick a workspace from the list.')
+        return value
 
     def get_home_count(self, obj):
         return int(getattr(obj, 'home_count', 0) or 0)

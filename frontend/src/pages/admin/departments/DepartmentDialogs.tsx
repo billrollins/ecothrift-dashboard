@@ -28,9 +28,13 @@ import { QaIcon } from '../retailqa/QaIcons';
 import { ccTokens } from '../../../theme';
 import {
   DEPARTMENT_ICONS,
+  START_WORKSPACE_HELP,
+  START_WORKSPACE_OPTIONS,
   errorDetail,
   fieldError,
+  knownStartWorkspace,
   slugifyName,
+  startWorkspaceLabel,
 } from './departmentUi';
 
 export type DepartmentDialogMode = 'create' | 'edit';
@@ -71,6 +75,7 @@ export function DepartmentFormDialog({
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState<number | ''>('');
   const [manager, setManager] = useState<number | ''>('');
+  const [startWorkspace, setStartWorkspace] = useState('');
   const [sortOrder, setSortOrder] = useState('0');
   const [nameError, setNameError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -84,6 +89,7 @@ export function DepartmentFormDialog({
     setDescription(department?.description || '');
     setLocation(department?.location ?? '');
     setManager(department?.manager ?? '');
+    setStartWorkspace(knownStartWorkspace(department?.start_workspace));
     setSortOrder(String(department?.sort_order ?? 0));
     setNameError('');
   }, [open, department]);
@@ -95,6 +101,7 @@ export function DepartmentFormDialog({
       description: description.trim(),
       location: location === '' ? null : location,
       manager: manager === '' ? null : manager,
+      start_workspace: startWorkspace,
     };
     if (canEditHard) {
       body.name = name.trim();
@@ -103,7 +110,7 @@ export function DepartmentFormDialog({
       body.sort_order = Number(sortOrder) || 0;
     }
     return body;
-  }, [canEditHard, description, icon, location, manager, name, slug, sortOrder]);
+  }, [canEditHard, description, icon, location, manager, name, slug, sortOrder, startWorkspace]);
 
   async function save() {
     setSaving(true);
@@ -201,6 +208,20 @@ export function DepartmentFormDialog({
             <MenuItem value="">None</MenuItem>
             {(people.data ?? []).map((row) => (
               <MenuItem key={row.id} value={row.id}>{row.full_name}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Starts in"
+            value={startWorkspace}
+            onChange={(event) => setStartWorkspace(event.target.value)}
+            helperText={START_WORKSPACE_HELP}
+            slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
+            data-testid="department-start-workspace"
+          >
+            <MenuItem value="">{startWorkspaceLabel('')}</MenuItem>
+            {START_WORKSPACE_OPTIONS.map((option) => (
+              <MenuItem key={option.id} value={option.id}>{option.label}</MenuItem>
             ))}
           </TextField>
           <TextField

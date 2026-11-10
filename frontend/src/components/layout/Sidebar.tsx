@@ -6,12 +6,11 @@ import { resolveNavGroups } from '../../navigation/navResolve';
 import {
   resolveWorkspaceForRoute,
   rollupWorkspaceBadgeCounts,
-  SLOT_C_DEFAULT_WORKSPACE_ID,
-  SLOT_C_REGISTER_WORKSPACE_ID,
   SLOT_C_NAV_GROUPS,
   SLOT_C_WORKSPACES,
   SLOT_C_WORKSPACE_ID_MIGRATION,
   glowColorForNavItem,
+  startWorkspaceId,
 } from '../../navigation/slotCNavLayout';
 import type { ResolvedNavGroup, ResolvedNavItem } from '../../navigation/navTypes';
 import { useStaffNav } from '../../navigation/useStaffNav';
@@ -79,20 +78,20 @@ export function Sidebar() {
     () => loadWorkspace(user?.id) ?? null,
   );
 
+  // Their department's "Starts in" workspace (Admin > Departments); '' or missing = the house default.
+  const departmentStart = user?.employee?.department_start_workspace ?? null;
+
   useEffect(() => {
     if (!visibleWorkspaces.length) return;
     const selectedStillVisible = visibleWorkspaces.some((w) => w.id === selectedWorkspaceId);
     if (!selectedStillVisible) {
-      // A register computer starts in Cashier; anywhere else in the default (Buying).
-      const preferred = isRegisterDevice() ? SLOT_C_REGISTER_WORKSPACE_ID : SLOT_C_DEFAULT_WORKSPACE_ID;
-      const fallback =
-        visibleWorkspaces.find((w) => w.id === preferred)?.id ??
-        visibleWorkspaces.find((w) => w.id === SLOT_C_DEFAULT_WORKSPACE_ID)?.id ??
-        visibleWorkspaces[0]!.id;
+      // Nothing remembered: a register computer starts in Retail, then the person's own department, then Buying (#86).
+      const fallback = startWorkspaceId(visibleWorkspaces, { registerDevice: isRegisterDevice(), departmentStart });
+      if (!fallback) return;
       setSelectedWorkspaceId(fallback);
       saveWorkspace(user?.id, fallback);
     }
-  }, [selectedWorkspaceId, visibleWorkspaces, user?.id]);
+  }, [selectedWorkspaceId, visibleWorkspaces, user?.id, departmentStart]);
 
   // External URL entry: resolve lowest lifecycle workspace. Sidebar clicks skip via navFromSidebar state.
   useEffect(() => {

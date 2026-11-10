@@ -8,11 +8,16 @@ from .api_bulk_price import (
     bulk_labels_view, bulk_price_apply_view, bulk_price_detail_view, bulk_price_list_view, bulk_price_preview_view,
     bulk_price_undo_view,
 )
+from .api_floor_issues import floor_issue_lookup_view, floor_issue_photo_view, floor_issue_report_view
 from .api_inventory_search import (
     inventory_review_flags_view, inventory_review_view, inventory_search_items_view, inventory_search_similar_view, inventory_search_view,
 )
 from .api_item_card import item_card_view, order_card_view, product_card_view, restoration_card_view
 from .api_product_similar import similar_products_view
+from .api_reentry import (
+    reentry_back_to_shelf_view, reentry_find_view, reentry_list_view, reentry_price_again_view,
+    reentry_scrap_view, reentry_send_to_restoration_view,
+)
 from .views import (
     VendorViewSet, CategoryViewSet, PurchaseOrderViewSet,
     ProductViewSet, VendorProductRefViewSet, BatchGroupViewSet,
@@ -58,6 +63,15 @@ urlpatterns = [
     path('add-item/ai-fill/', add_item_ai_fill_view, name='add-item-ai-fill'),
     path('add-item/check-in/', add_item_check_in_view, name='add-item-check-in'),
     path('restoration-request/settings/', restoration_request_settings_view, name='restoration-request-settings'),
+    path('floor-issues/', floor_issue_report_view, name='floor-issue-report'),
+    path('floor-issues/lookup/', floor_issue_lookup_view, name='floor-issue-lookup'),
+    path('floor-issues/<int:pk>/photo/', floor_issue_photo_view, name='floor-issue-photo'),
+    path('reentries/', reentry_list_view, name='reentry-list'),
+    path('reentries/find/', reentry_find_view, name='reentry-find'),
+    path('reentries/<int:pk>/price-again/', reentry_price_again_view, name='reentry-price-again'),
+    path('reentries/<int:pk>/back-to-shelf/', reentry_back_to_shelf_view, name='reentry-back-to-shelf'),
+    path('reentries/<int:pk>/send-to-restoration/', reentry_send_to_restoration_view, name='reentry-send-to-restoration'),
+    path('reentries/<int:pk>/scrap/', reentry_scrap_view, name='reentry-scrap'),
     path('bulk-price/', bulk_price_list_view, name='bulk-price-list'),
     path('bulk-price/preview/', bulk_price_preview_view, name='bulk-price-preview'),
     path('bulk-price/apply/', bulk_price_apply_view, name='bulk-price-apply'),

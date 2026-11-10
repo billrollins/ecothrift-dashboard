@@ -853,9 +853,9 @@ function HoursText({ g, person, narrow = false }: { g: Grid; person: Person; nar
       <Box data-testid={`hours-${person.id}`} aria-label={tip}
         sx={{ display: 'grid', gridTemplateColumns: HCOLS, columnGap: '4px', alignItems: 'baseline', textAlign: 'right', fontSize: narrow ? 11.5 : 13, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
         <Box component="span" data-testid={`so-far-${person.id}`} sx={{ fontWeight: 700, color: p.delta == null ? 'text.disabled' : off ? 'warning.main' : 'success.main' }}>
-          {p.delta == null ? '–' : hrs(p.worked ?? 0)}
+          {p.delta == null ? '-' : hrs(p.worked ?? 0)}
         </Box>
-        <Box component="span" sx={{ color: 'text.secondary' }}>{p.delta == null ? '–' : hrs(p.toDate)}</Box>
+        <Box component="span" sx={{ color: 'text.secondary' }}>{p.delta == null ? '-' : hrs(p.toDate)}</Box>
         <Box component="span" sx={{ color: 'text.primary' }}>{hrs(p.planned)}</Box>
       </Box>
     </Tooltip>

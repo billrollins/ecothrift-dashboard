@@ -250,6 +250,23 @@ def item_card(item_id: int, *, lite: bool = False) -> dict | None:
         'scan_count': item.scans.count(),
         'restoration': _restoration(job, lite=False),
         'journey': _journey(item, job),
+        'floor_issue': _floor_issue(item),
     })
     return card
+
+
+def _floor_issue(item: Item) -> dict | None:
+    """The problem reported from the floor that still waits in Processing (Dash Update #84), if any."""
+    from apps.inventory.services import floor_issues
+
+    issue = floor_issues.open_issue_for(item)
+    if issue is None:
+        return None
+    return {
+        'id': issue.pk,
+        'reason_label': floor_issues.reason_label(issue.reason),
+        'note': issue.note,
+        'reported_by': _who(issue.reported_by),
+        'reported_at': _iso(issue.reported_at),
+    }
 

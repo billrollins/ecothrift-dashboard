@@ -1,3 +1,4 @@
+import { AddPhoto } from '../photos/AddPhoto';
 import {
   Alert,
   Box,
@@ -11,7 +12,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useReportDashFix } from '../../hooks/useDashFixes';
 import { t } from '../../i18n/routines';
@@ -35,7 +36,6 @@ export function ReportFixDialog({ open, onClose, pagePath, onSent }: ReportFixDi
   const [isPrivate, setIsPrivate] = useState(false);
   const [photos, setPhotos] = useState<File[]>([]);
   const [error, setError] = useState('');
-  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -81,22 +81,15 @@ export function ReportFixDialog({ open, onClose, pagePath, onSent }: ReportFixDi
           slotProps={{ htmlInput: { maxLength: 4000, 'data-testid': 'report-fix-details' } }}
         />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
+          <AddPhoto
             multiple
-            hidden
-            data-testid="report-fix-photo"
-            onChange={(event) => {
-              const picked = Array.from(event.target.files ?? []);
-              event.target.value = '';
-              setPhotos((current) => [...current, ...picked].slice(0, MAX_PHOTOS));
-            }}
+            max={MAX_PHOTOS - photos.length}
+            disabled={photos.length >= MAX_PHOTOS}
+            label={t('fxAddPhoto', lang)}
+            usedWhere="Dash Updates"
+            fileInputTestId="report-fix-photo"
+            onPhotos={(picked) => setPhotos((current) => [...current, ...picked].slice(0, MAX_PHOTOS))}
           />
-          <Button variant="outlined" disabled={photos.length >= MAX_PHOTOS} onClick={() => fileRef.current?.click()}>
-            {t('fxAddPhoto', lang)}
-          </Button>
           <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>{t('fxPhotosHint', lang)}</Typography>
         </Box>
         {photos.map((file, index) => (

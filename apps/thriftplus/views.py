@@ -1239,7 +1239,11 @@ class ReturnsViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'])
     def done(self, request, pk=None):
+        from apps.inventory.services import reentry
+
         ReturnRecord.objects.filter(pk=pk).update(status=ReturnRecord.STATUS_DONE)
+        if str(pk).isdigit():  # it leaves Processing > Returns too (#83)
+            reentry.close_for_return(int(pk), request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

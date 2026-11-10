@@ -143,6 +143,10 @@ def record(
             issue=issue,
         )
     _store_photo(bad, photo, user)
+    # A known item also waits on Processing > Floor issues, off the floor (Dash Update #84).
+    from apps.inventory.services import floor_issues
+
+    floor_issues.open_for_bad_tag(bad, user)
     return bad
 
 

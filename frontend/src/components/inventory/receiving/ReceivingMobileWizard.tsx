@@ -1,3 +1,4 @@
+import { AddPhoto } from '../../photos/AddPhoto';
 import {
   Box,
   Button,
@@ -17,7 +18,7 @@ import {
   alpha,
 } from '@mui/material';
 import Mic from '@mui/icons-material/Mic';
-import type { ChangeEvent } from 'react';
+
 
 import type { PalletSideId, ReceivingDetailDTO } from '../../../types/inventory.types';
 import type { PendingPhotoKind } from '../../../services/receiving/receivingClient';
@@ -39,8 +40,8 @@ interface Props {
   onConditionChange: (v: NonNullable<ReceivingDetailDTO['condition']>) => void;
   onIssuesDraftChange: (v: string) => void;
   onIssuesBlur: () => void;
-  onBolTruckPick: (kind: Exclude<PendingPhotoKind, 'pallet_side'>, fileList: FileList | null) => void;
-  onPalletPick: (pallet: number, side: PalletSideId, fileList: FileList | null) => void;
+  onBolTruckPick: (kind: Exclude<PendingPhotoKind, 'pallet_side'>, fileList: FileList | File[] | null) => void;
+  onPalletPick: (pallet: number, side: PalletSideId, fileList: FileList | File[] | null) => void;
   onDamaged: (palletNumber: number, damaged: boolean) => void;
   onRequestComplete: () => void;
   disabled?: boolean;
@@ -197,31 +198,23 @@ export default function ReceivingMobileWizard(props: Props) {
             <Card variant="outlined" sx={{ mb: 2, bgcolor: bolOk ? undefined : warnBg }}>
               <CardContent>
                 <Typography fontWeight={600}>BOL {bolOk ? '✓' : ''}</Typography>
-                <Button component="label" variant="text" disabled={disabled || !!m.completed_at}>
-                  Upload
-                  <input
-                    hidden
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={(e) => onBolTruckPick('bol', e.target.files)}
-                  />
-                </Button>
+                <AddPhoto
+                  variant="text"
+                  disabled={disabled || !!m.completed_at}
+                  usedWhere="Receiving"
+                  onPhotos={(files) => onBolTruckPick('bol', files)}
+                />
               </CardContent>
             </Card>
             <Card variant="outlined" sx={{ bgcolor: truckOk ? undefined : warnBg }}>
               <CardContent>
                 <Typography fontWeight={600}>Truck / trailer {truckOk ? '✓' : ''}</Typography>
-                <Button component="label" variant="text" disabled={disabled || !!m.completed_at}>
-                  Upload
-                  <input
-                    hidden
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={(e) => onBolTruckPick('truck', e.target.files)}
-                  />
-                </Button>
+                <AddPhoto
+                  variant="text"
+                  disabled={disabled || !!m.completed_at}
+                  usedWhere="Receiving"
+                  onPhotos={(files) => onBolTruckPick('truck', files)}
+                />
               </CardContent>
             </Card>
           </Box>
@@ -271,23 +264,16 @@ export default function ReceivingMobileWizard(props: Props) {
                         return (
                           <Box key={pk}>
                             <Typography variant="caption">{side}</Typography>
-                            <Button
+                            <AddPhoto
                               fullWidth
                               size="small"
+                              startIcon={null}
                               variant={filled ? 'contained' : 'outlined'}
-                              component="label"
                               disabled={disabled || uploading || !!m.completed_at}
-                            >
-                              Photo
-                              <input
-                                hidden
-                                type="file"
-                                accept="image/*"
-                                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                                  void onPalletPick(palletNumber, side as PalletSideId, e.target.files)
-                                }
-                              />
-                            </Button>
+                              label="Photo"
+                              usedWhere="Receiving"
+                              onPhotos={(files) => void onPalletPick(palletNumber, side as PalletSideId, files)}
+                            />
                           </Box>
                         );
                       })}

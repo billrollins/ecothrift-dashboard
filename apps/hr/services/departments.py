@@ -7,7 +7,7 @@ from apps.hr.models import Department, ShiftAssignment
 
 
 PROGRAM_DEPARTMENT_KEY = 'retail_qa.program_department'
-SOFT_FIELDS = frozenset({'description', 'location', 'manager'})
+SOFT_FIELDS = frozenset({'description', 'location', 'manager', 'start_workspace'})
 HARD_FIELDS = frozenset({'name', 'slug', 'icon', 'sort_order', 'is_active'})
 
 

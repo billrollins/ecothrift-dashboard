@@ -27,6 +27,8 @@ const InventoriesPage = lazy(() => import('./pages/inventory/count/InventoriesPa
 const InventoryPage = lazy(() => import('./pages/inventory/count/InventoryPage'));
 const PrFixitPage = lazy(() => import('./pages/inventory/count/PrFixitPage'));
 const TagErrorsPage = lazy(() => import('./pages/inventory/tagErrors/TagErrorsPage'));
+const ProcessingReturnsPage = lazy(() => import('./pages/inventory/reentry/ProcessingReturnsPage'));
+const ProcessingFloorIssuesPage = lazy(() => import('./pages/inventory/reentry/ProcessingFloorIssuesPage'));
 const ApplicantsPage = lazy(() => import('./pages/people/ApplicantsPage'));
 const JobsPage = lazy(() => import('./pages/people/JobsPage'));
 const InterviewsPage = lazy(() => import('./pages/people/InterviewsPage'));
@@ -59,6 +61,7 @@ const RoutinesPage = lazy(() => import('./pages/routines/RoutinesPage'));
 import { PendingBstockLoginNotice } from './pages/routines/runners/PendingBstockLoginNotice';
 const TimePayrollPage = lazy(() => import('./pages/admin/TimePayrollPage'));
 const DashFixesPage = lazy(() => import('./pages/dashFixes/DashFixesPage'));
+const PhotoDropsPage = lazy(() => import('./pages/photoDrops/PhotoDropsPage'));
 const IconsPage = lazy(() => import('./pages/admin/IconsPage'));
 const KeysPage = lazy(() => import('./pages/admin/keys/KeysPage'));
 const AdminRoutinesPage = lazy(() => import('./pages/admin/routines/AdminRoutinesPage'));
@@ -364,6 +367,22 @@ function AppRoutes() {
         <Route path="/inventory/preprocessing/:id" element={<PreprocessingPage />} />
         <Route path="/inventory/processing" element={<ProcessingEntryRedirect />} />
         <Route path="/inventory/processing/:id" element={<ProcessingWorkspacePage />} />
+        <Route
+          path="/inventory/returns"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <ProcessingReturnsPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/inventory/floor-issues"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <ProcessingFloorIssuesPage />
+            </Suspense>
+          }
+        />
         <Route path="/inventory/restorations" element={<RestorationsPage />} />
         <Route path="/inventory/search" element={<InventorySearchPage />} />
         <Route path="/inventory/review" element={<InventoryReviewPage />} />
@@ -589,6 +608,8 @@ function AppRoutes() {
           }
         />
         <Route path="/dash-updates" element={<DashFixesPage />} />
+        {/* Home > Photo drops (#82): every staff login, their own photo drawer. */}
+        <Route path="/photo-drops" element={<PhotoDropsPage />} />
         <Route path="/dash-fixes" element={<Navigate to="/dash-updates" replace />} />
         <Route path="/admin/enhancement-requests" element={<Navigate to="/dash-updates" replace />} />
         <Route

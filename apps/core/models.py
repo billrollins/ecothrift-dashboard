@@ -520,3 +520,29 @@ class AppError(models.Model):
 
     def __str__(self):
         return f'{self.source} error @ {self.created_at}: {self.message[:60]}'
+
+
+class PhotoDrop(models.Model):
+    """One photo in a staff member's photo drawer (Dash Updates #82).
+
+    Taken on a phone (Home > Photo drops), picked later on any computer from the shared Add photo control.
+    A used photo stays, marked with ``used_at``, until its owner deletes it; ``services/photo_drops.py``
+    removes drops older than 30 days.
+    """
+
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='photo_drops')
+    file = models.ForeignKey('core.S3File', on_delete=models.PROTECT, related_name='+')
+    thumbnail = models.ForeignKey('core.S3File', on_delete=models.PROTECT, related_name='+', null=True, blank=True)
+    width = models.PositiveIntegerField(default=0)
+    height = models.PositiveIntegerField(default=0)
+    used_at = models.DateTimeField(null=True, blank=True)
+    # Where it was last used, in the screen's own words ("Processing", "Dash Updates").
+    used_where = models.CharField(max_length=80, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [models.Index(fields=['owner', '-created_at'])]
+
+    def __str__(self):
+        return f'Photo drop {self.pk} ({self.owner_id})'

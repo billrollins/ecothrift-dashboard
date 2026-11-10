@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .dash_fixes import DashFixCoderListView, DashFixCoderView, DashFixViewSet
+from .photo_drops import PhotoDropViewSet
 from .views import (
     WorkLocationViewSet, AppSettingViewSet, S3FileViewSet,
     AiActionViewSet, AiModelViewSet,
@@ -20,6 +21,7 @@ router.register(r'locations', WorkLocationViewSet, basename='worklocation')
 router.register(r'settings', AppSettingViewSet, basename='appsetting')
 router.register(r'files', S3FileViewSet, basename='s3file')
 router.register(r'dash-fixes', DashFixViewSet, basename='dashfix')
+router.register(r'photo-drops', PhotoDropViewSet, basename='photodrop')
 router.register(r'ai/models', AiModelViewSet, basename='ai-model')
 router.register(r'ai/actions', AiActionViewSet, basename='ai-action')
 router.register(r'requests', ApprovalRequestViewSet, basename='approval-request')

@@ -1,3 +1,4 @@
+import { AddPhoto } from '../../components/photos/AddPhoto';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -203,19 +204,10 @@ export default function AnnouncementEditorPage() {
               </Box>
             ))}
           </Stack>
-          <Button component="label" variant="outlined">
-            Add photo
-            <input
-              hidden
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) upload.mutate({ id: numericId, file });
-                e.target.value = '';
-              }}
-            />
-          </Button>
+          <AddPhoto
+            usedWhere="Announcements"
+            onPhotos={([file]) => upload.mutate({ id: numericId, file })}
+          />
           <Stack direction="row" spacing={2}>
             <TextField
               label="CTA label"

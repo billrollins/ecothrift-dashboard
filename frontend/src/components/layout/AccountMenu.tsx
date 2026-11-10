@@ -22,6 +22,7 @@ import MailOutline from '@mui/icons-material/MailOutline';
 import LockReset from '@mui/icons-material/LockReset';
 import Logout from '@mui/icons-material/Logout';
 import Person from '@mui/icons-material/Person';
+import PhotoCameraOutlined from '@mui/icons-material/PhotoCameraOutlined';
 import SpaceDashboardOutlined from '@mui/icons-material/SpaceDashboardOutlined';
 import StorefrontOutlined from '@mui/icons-material/StorefrontOutlined';
 import StarOutlineRounded from '@mui/icons-material/StarOutlineRounded';
@@ -196,6 +197,10 @@ export function AccountMenu() {
         <MenuItem key="messages" data-testid="account-menu-messages" onClick={() => go('/messages')}>
           <ListItemIcon><MailOutline fontSize="small" /></ListItemIcon>
           <ListItemText primary={t('messages', lang)} />
+        </MenuItem>
+        <MenuItem key="photo-drops" data-testid="account-menu-photo-drops" onClick={() => go('/photo-drops')}>
+          <ListItemIcon><PhotoCameraOutlined fontSize="small" /></ListItemIcon>
+          <ListItemText primary={t('phDrops', lang)} />
         </MenuItem>
 
         <Divider key="div-dash" component="li" sx={{ my: 0.5 }} />

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-05 (Schedule, Dash Updates #74) -->
+<!-- Last updated: 2026-11-10 (the menu starts in your department #86; Add photo and the photo drawer #82) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -144,7 +144,7 @@ Shared module: **`frontend/src/navigation/`**
 | `useStaffNav.ts` | Active route detection + navigation |
 | `NavItemRow.tsx` | Shared row component |
 
-Shell: **`frontend/src/components/layout/Sidebar.tsx`** — one workspace panel visible; sidebar clicks keep the current workspace (shared links like Search items); external URL entry picks lowest lifecycle # workspace via **`resolveWorkspaceForRoute`**; manual choice in `ecothrift.navC.workspace.v1.<user id>` (per person, so a shared register computer doesn't hand one person's workspace to the next). With no saved choice, a register computer starts in Cashier, others in Buying. Open the switcher and press the assigned digit (`1`–`8`, `0` Admin) or the short-name letter. Keys listen only while the menu is open. There is no Alt+digit shortcut.
+Shell: **`frontend/src/components/layout/Sidebar.tsx`** — one workspace panel visible; sidebar clicks keep the current workspace (shared links like Search items); external URL entry picks lowest lifecycle # workspace via **`resolveWorkspaceForRoute`**; manual choice in `ecothrift.navC.workspace.v1.<user id>` (per person, so a shared register computer doesn't hand one person's workspace to the next). With no saved choice (`startWorkspaceId`, #86): a register computer starts in Retail, then the person's department's **Starts in** workspace (`user.employee.department_start_workspace`, set on Admin > Departments), then Buying. Only a workspace the person can see is picked; nothing is hidden. Open the switcher and press the assigned digit (`1`–`8`, `0` Admin) or the short-name letter. Keys listen only while the menu is open. There is no Alt+digit shortcut.
 
 Adding a staff nav link: one object in `navItemCatalog.ts` + assign its id to a workspace in `slotCNavLayout.ts`. See **`frontend/src/navigation/README.md`**. Item flags: **`superuserOnly`** (dropped for non-`is_superuser` in `navResolve`) and **`openInNewWindow`** (`navUtils.navigateForNavItem` → `window.open(path, '_blank', 'noopener')`) — both used by **`blogStudio`** (Studios workspace).
 
@@ -253,6 +253,16 @@ One modal per kind of object, opened from its id anywhere on the site. The **Ite
 - **Hover card** (`ItemPeek`): wrap an item name in a list with `<ItemPeek itemId>`. Desktop: shows after ~0.3 s of hover and **follows the mouse** at a 16 px offset like the Dashboard Sales chart tooltip, flips near the window edge, never catches the mouse (`pointer-events: none`) and hides when the mouse leaves the name (Bill, 2026-10-28); click the SKU for the full item. The lite card starts loading the moment the mouse arrives and stays cached a minute. Phone: a small (i) after the name, or a long press; that card stays anchored and has "Open the full item". Used on Restoration Overview (name and SKU), Processing's checked-in table (title cell), and every `ObjectLink type="item"` (Inventory search, Processed items, Shrink, Sold online).
 - **Retail windows (2026-11-02, Dash Updates #37/#48):** `register` (`RegisterWindow`, `GET /api/pos/registers/<id>/card/`, `apps/pos/register_card.py`), `drawer` (`DrawerWindow`, #36, `GET /api/pos/drawers/<id>/card/`, `apps/pos/drawer_card.py`: cash now by bill and coin, every count with expected and the difference, the day's journey; blind while open for non-managers: expected, difference and cash by method left out by the server; non-managers see today's drawers only; opens from the Drawers page "This drawer", the Register window's Drawer line and the terminal's Drawer chip), `history` (`TransactionsWindow`: its id is the scope as one string, `historyKey({register|drawer|member|cashier, from, to, title})`, read by the carts list + summary) and `sale` (`SaleWindow`: the shared `SaleDetail`). Files in `components/pos/windows/`; English/Spanish in `retailCopy.ts`; the shared look (`Section`, `Facts`, `CopyId`, `Stat`, `Timeline`) is `components/objects/windowParts.tsx`, also used by the Item window.
 - **The next object** (product, order, …) copies this: one `…/card/` endpoint, one `…Card.tsx` body inside `ObjectModal`, the same header → sections → journey → links order, read-only with Edit handing over to the existing editor.
+
+## Add photo and the photo drawer (Dash Updates #82, 2026-11-10)
+
+**Every staff screen that asks for a photo uses `components/photos/AddPhoto.tsx`.** Never write a new `<input type="file" accept="image/*">` on a staff screen.
+
+- `<AddPhoto onPhotos={(files) => ...} />` is the button. `multiple`, `max`, `label`, `usedWhere` (the screen's name; a drawer photo then reads "Used in ...") and any MUI Button prop. `AddPhotoTrigger` (render prop) and `useAddPhoto` give the same choices behind a trigger of your own (a drop box, a tile).
+- Three ways, always: Take photo, Photo drawer, From files. Order: phone = Take photo, Photo drawer, From files; computer = Photo drawer, From files, Take photo (`photoMethods.ts`; a phone is a window under 900 px or a touch-only device, asked of the real window so the desk's phone frame still counts as a computer). Take photo is the phone's own camera on a phone and a webcam window (`CameraDialog`) on a computer.
+- The control hands back plain `File` objects, so each screen keeps its own upload call and its own shrink step.
+- The drawer: Home > **Photo drops** (`/photo-drops`, `pages/photoDrops/PhotoDropsPage.tsx`), crop and rotate only (`PhotoTouchUp`). API `/api/core/photo-drops/` (`apps/core/photo_drops.py`, `services/photo_drops.py`): mine only, JPEG at most 2048 px plus a 480 px thumbnail under `photo-drops/<user id>/`, `used/` marks it, 30-day clean-up. The drawer list refetches every 4 seconds while it is on screen.
+- Left alone on purpose: the customer Thrift+ app, the staff screens that photograph a member's face (see the #82 report), the key camera, the delivery driver's run, Social Studio's phone app, the article editor's inline image, and pickers for graphics or documents (label backgrounds, floorplan art, resumes, I-9 scans, CSV, JSON, PDF).
 
 ## Error toasts say the server's words (2026-10-28)
 

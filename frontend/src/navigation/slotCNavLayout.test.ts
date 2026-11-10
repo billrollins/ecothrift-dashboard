@@ -8,6 +8,7 @@ import {
   rollupWorkspaceBadgeCounts,
   SLOT_C_NAV_GROUPS,
   SLOT_C_WORKSPACES,
+  startWorkspaceId,
   workspaceIdForDigit,
   workspaceIdForKey,
   workspaceShortcutLetter,
@@ -134,6 +135,14 @@ describe('Processing workspace pages', () => {
     expect(processing?.itemIds).toEqual(['receiving', 'processing']);
     expect(NAV_ITEM_CATALOG.finalization).toBeUndefined();
     expect(NAV_ITEM_CATALOG.disputes).toBeUndefined();
+  });
+
+  it('lists Returns under an "In progress" caption, for every staff login (#83)', () => {
+    expect(processing?.setupItemIds).toEqual(['processingReturns', 'processingFloorIssues']);
+    expect(processing?.setupLabel).toBe('In progress');
+    expect(NAV_ITEM_CATALOG.processingReturns).toMatchObject({ path: '/inventory/returns', label: 'Returns' });
+    const employee = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS);
+    expect(employee.find((g) => g.id === 'processing')?.items.map((i) => i.id)).toEqual(['receiving', 'processing', 'processingReturns', 'processingFloorIssues']);
   });
 
   it('pins Restoration overview and Search behind the out-of-workspace divider', () => {
@@ -404,5 +413,41 @@ describe('Buying legacy pages (Bill 2026-11-06)', () => {
     expect(buying.itemIds.slice(0, 2)).toEqual(['auctions', 'estimateProfit']);
     expect(buying.setupLabel).toBe('Legacy');
     expect(buying.setupItemIds).toEqual(['wishlist', 'auctionsOld', 'watchlist', 'reportCards']);
+  });
+});
+
+/** #86 (Bill 2026-11-10): the menu opens on a person's own department when they have no remembered workspace. */
+describe('startWorkspaceId (nothing remembered)', () => {
+  const all = SLOT_C_WORKSPACES;
+
+  it('opens a register computer on Retail, before the department', () => {
+    expect(startWorkspaceId(all, { registerDevice: true, departmentStart: 'processing' })).toBe('storeSales');
+  });
+
+  it("opens on the department's workspace anywhere else", () => {
+    expect(startWorkspaceId(all, { registerDevice: false, departmentStart: 'processing' })).toBe('processing');
+    expect(startWorkspaceId(all, { registerDevice: false, departmentStart: 'restoration' })).toBe('restoration');
+    expect(startWorkspaceId(all, { registerDevice: false, departmentStart: 'storeSales' })).toBe('storeSales');
+  });
+
+  it('opens on Buying when the department sets none', () => {
+    expect(startWorkspaceId(all, { registerDevice: false, departmentStart: '' })).toBe('buying');
+    expect(startWorkspaceId(all, { registerDevice: false, departmentStart: null })).toBe('buying');
+    expect(startWorkspaceId(all, { registerDevice: false })).toBe('buying');
+  });
+
+  it('never picks a workspace the person cannot see', () => {
+    const noAdmin = all.filter((w) => w.id !== 'admin');
+    expect(startWorkspaceId(noAdmin, { registerDevice: false, departmentStart: 'admin' })).toBe('buying');
+    expect(startWorkspaceId(all, { registerDevice: false, departmentStart: 'noSuchWorkspace' })).toBe('buying');
+    const noRetail = all.filter((w) => w.id !== 'storeSales');
+    expect(startWorkspaceId(noRetail, { registerDevice: true, departmentStart: 'processing' })).toBe('processing');
+    const hrOnly = all.filter((w) => w.id === 'hr');
+    expect(startWorkspaceId(hrOnly, { registerDevice: false, departmentStart: 'processing' })).toBe('hr');
+    expect(startWorkspaceId([], { registerDevice: false, departmentStart: 'processing' })).toBeNull();
+  });
+
+  it('reads a renamed workspace id as its new one', () => {
+    expect(startWorkspaceId(all, { registerDevice: false, departmentStart: 'cashier' })).toBe('storeSales');
   });
 });

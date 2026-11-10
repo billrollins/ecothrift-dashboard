@@ -1,3 +1,4 @@
+import { AddPhoto } from '../../../components/photos/AddPhoto';
 import { Box, Button, TextField, Typography } from '@mui/material';
 import CameraAltOutlined from '@mui/icons-material/CameraAltOutlined';
 import type { ReactNode } from 'react';
@@ -323,10 +324,15 @@ export function PhotoButton({
   label?: string;
 }) {
   return (
-    <Button
-      component="label"
+    <AddPhoto
+      variant="text"
       disabled={disabled}
       startIcon={<CameraAltOutlined />}
+      label={photo ? 'Photo taken · tap to replace' : label}
+      usedWhere="Routines"
+      onPhotos={([file]) => {
+        void photoDataUrl(file).then(onPhoto);
+      }}
       sx={{
         mx: 1.25,
         mb: 0.75,
@@ -338,21 +344,7 @@ export function PhotoButton({
         bgcolor: photo ? '#F1F8F4' : dutyColors.card,
         fontWeight: 700,
       }}
-    >
-      {photo ? 'Photo taken · tap to replace' : label}
-      <input
-        hidden
-        type="file"
-        accept="image/*"
-        capture="environment"
-        disabled={disabled}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          void photoDataUrl(file).then(onPhoto);
-        }}
-      />
-    </Button>
+    />
   );
 }
 

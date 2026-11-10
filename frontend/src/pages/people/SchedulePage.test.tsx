@@ -121,8 +121,8 @@ describe('SchedulePage', () => {
     // Worked | Due | Week (Bill 11-05: labelled columns); a past week is due in full.
     expect(within(screen.getByTestId('hours-5')).getAllByText(/./).map((el) => el.textContent)).toEqual(['6.3', '12', '12']);
     expect(screen.getByTestId('hours-5')).toHaveAttribute('aria-label', expect.stringContaining('Worked 6.3 of 12 h so far: 5.7 h behind'));
-    expect(screen.getByTestId('hours-6')).toHaveTextContent('––16'); // no clock times to compare
-    expect(screen.getByTestId('so-far-6')).toHaveTextContent('–');
+    expect(screen.getByTestId('hours-6')).toHaveTextContent('--16'); // no clock times to compare
+    expect(screen.getByTestId('so-far-6')).toHaveTextContent('-');
   });
 
   it('hovering the shift bar shows the clocked times, not the scheduled ones', async () => {

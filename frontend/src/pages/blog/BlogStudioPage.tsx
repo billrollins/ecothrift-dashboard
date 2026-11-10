@@ -1,3 +1,4 @@
+import { AddPhotoTrigger } from '../../components/photos/AddPhoto';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import { useSnackbar } from 'notistack';
@@ -151,7 +152,6 @@ export default function BlogStudioPage() {
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
-  const heroInputRef = useRef<HTMLInputElement>(null);
   const loadedIdRef = useRef<number | null>(null);
   const loadingPostRef = useRef<BlogPost | null>(null);
   const lastSavedRef = useRef<string>('');
@@ -411,9 +411,7 @@ export default function BlogStudioPage() {
   }, [serverPost, enqueueSnackbar]);
 
   // ── Image uploads ────────────────────────────────────────────────────────────
-  const onHeroFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
+  const onHeroFile = async (file: File | undefined) => {
     if (!file) return;
     const postId = selectedIdRef.current;
     try {
@@ -552,13 +550,6 @@ export default function BlogStudioPage() {
 
   return (
     <div className="blog-studio">
-      <input
-        ref={heroInputRef}
-        type="file"
-        accept="image/*"
-        hidden
-        onChange={onHeroFile}
-      />
       <div className="app">
         <header>
           <div className="brand">
@@ -744,13 +735,17 @@ export default function BlogStudioPage() {
               <span className="n">{seriesName || '-'}</span>
             </div>
 
-            <div
-              className={`hero ${heroUrl ? 'has-img' : 'empty-hero'}`}
-              onClick={() => hasSelection && heroInputRef.current?.click()}
-            >
-              {heroUrl && <img className="hero-img" src={heroUrl} alt={form.heroAlt || 'Hero image'} />}
-              <span className="b">{heroUrl ? 'Replace hero' : 'Add hero image'}</span>
-            </div>
+            <AddPhotoTrigger usedWhere="Blog" onPhotos={(files) => void onHeroFile(files[0])}>
+              {(open) => (
+                <div
+                  className={`hero ${heroUrl ? 'has-img' : 'empty-hero'}`}
+                  onClick={(e) => hasSelection && open(e.currentTarget)}
+                >
+                  {heroUrl && <img className="hero-img" src={heroUrl} alt={form.heroAlt || 'Hero image'} />}
+                  <span className="b">{heroUrl ? 'Replace hero' : 'Add hero image'}</span>
+                </div>
+              )}
+            </AddPhotoTrigger>
 
             <div className="f">
               <label>Hero alt text</label>

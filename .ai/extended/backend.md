@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-05 (Schedule clear-week, Dash Updates #74) -->
+<!-- Last updated: 2026-11-10 (Department start_workspace, Dash Updates #86) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -148,7 +148,7 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** �
 
 | Model | Key Fields |
 |-------|------------|
-| **Department** | name, slug (unique, set on create only), icon (`cart\|box\|tool\|home\|tag\|truck\|none`), sort_order, location (FK core.WorkLocation), manager (FK User), is_active. Directory at `/admin/departments`. Writes: Manager+ description/location/manager; Superuser create/rename/deactivate/delete/reorder. |
+| **Department** | name, slug (unique, set on create only), icon (`cart\|box\|tool\|home\|tag\|truck\|none`), sort_order, location (FK core.WorkLocation), manager (FK User), is_active, **start_workspace** ("Starts in", #86: the front end's menu workspace id the department's people open on, blank = the house default; carries `db_default`; it reaches the menu as `employee.department_start_workspace` in the sign-in and `/api/auth/me/` payloads). Directory at `/admin/departments`. Writes: Manager+ description/location/manager/start_workspace; Superuser create/rename/deactivate/delete/reorder. |
 | **TimeEntry** | employee (FK User), date, clock_in, clock_out, **shift** (`retail_open` / `retail_day` / `retail_close` / `retail_cs` under Retail, `processing` / `restoration` under Warehouse, `office` under Office; blank on manager payroll rows), break_minutes, **on_break**, **break_started_at**, total_hours, status (pending/approved/flagged), approved_by, **deleted_at**, **deleted_by** — default manager excludes soft-deleted. Serializer: `shift_label` (position) and `shift_department`. Roster `shift_label` is `Retail: Retail Open`. |
 | **SickLeaveBalance**, **SickLeaveRequest** | Deprecated 2026-10-21: no sick leave at Eco-Thrift. No accrual, endpoints or screens; tables kept until a later release drops them. |
 | **PayPeriodClose** | date_from (unique, a pay period's Monday), date_to, is_closed, closed_by/at, reopened_by/at. A closed period's entries can't be added, edited, approved or deleted (`TimeEntry.save` → `pay_periods.assert_open_for_entry`, 400 `PERIOD_CLOSED`) until the owner reopens it. |

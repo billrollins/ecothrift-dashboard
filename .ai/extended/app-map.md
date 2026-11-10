@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-05 (Schedule row, #74; Returns folded into the Register, #71) -->
+<!-- Last updated: 2026-11-10 (the menu starts in your department #86; Processing > Returns #83 and Floor issues #84) -->
 # Eco-Thrift Dashboard — App Map for Navigation Consultation
 
 **Purpose:** Hand this document to a consulting AI (or UX reviewer) to evaluate whether the staff navbar, workspaces, and page grouping can be organized more clearly.
@@ -82,7 +82,7 @@ Intended story: *source → prep → ingest → restore → records → floor �
 | One workspace at a time | Switching workspace replaces the link list under the selector |
 | Persistence | Last selected workspace stored in `localStorage` (`ecothrift.navC.workspace.v1`) |
 | Keyboard | Open the workspace switcher, then press the assigned digit (`1`–`8`, `0` Admin) or the short-name letter. Keys do nothing while the menu is closed. There is no Alt+digit shortcut. |
-| Default workspace | `buying` if nothing stored |
+| Default workspace | If nothing stored: Retail on a register computer, then the person's department's **Starts in** workspace (Admin > Departments; #86), then `buying` |
 | Sidebar click vs deep link | Clicking a sidebar link keeps the current workspace pinned. Opening a URL / refresh resolves which workspace “owns” the active route (lowest lifecycle order that contains a matching item) |
 | Role filtering | Items and whole groups can require min role or `superuserOnly`; empty groups disappear |
 | New window | Some items (`TARS`, `Blog Studio`) open in a new browser window without MainLayout chrome |
@@ -170,9 +170,11 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 |------|------|----------------|
 | **Receiving** | `/inventory/receiving` → `/:id` | Entry redirect picks next eligible PO; page is the physical receiving workspace (pallets, condition, complete). |
 | **Processing** | `/inventory/processing` → `/:id` | Item Processor workspace: work queue, check-in, dispositions, label print, order picker. |
+| **Returns** | `/inventory/returns` | Items customers brought back (every Thrift+ return lands here by itself). One tap each: Price again (prints a tag), Back to shelf as is, Send to Restoration, Scrap. Under the "In progress" caption (#83). |
 | **Finalization** | `/inventory/inbound?view=finalization` | **Placeholder** — close-out workflow not implemented. |
 | **Disputes** | `/inventory/inbound?view=disputes` | **Placeholder** — disputes inbox not implemented. |
 | **Restorations** | `/inventory/restorations` | Hub for items going to / returning from restoration (TO setup / FROM desk lanes). |
+| **Floor issues** | `/inventory/floor-issues` | Items someone on the floor reported with **Report a problem** (the one report for a problem with an item or its tag; it replaced "Report a bad tag" on Today and the register, and is also on Search and the item window). The item keeps its status (a "processing" status would read as never received on its truck) and waits here; one action finishes it: Price again, Back to shelf as is, Send to Restoration, Scrap. The list and actions are shared with Returns (`ProcessingReentry`, `services/reentry.py`); the report is `FloorIssue` (`services/floor_issues.py`). A tag problem is still a `BadTag` (Tag errors keeps its trace). Under "In progress" in the menu until Bill signs off (Dash Updates #84). |
 
 ### Restoration workspace
 
@@ -221,7 +223,7 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 |------|------|----------------|
 | **Assumptions** | `/admin/assumptions` | Manager+: business defaults (shrink, buying assumptions, category-need knobs). |
 | **Employees** | `/admin/users` | Admin: users, roles, pay-related fields. |
-| **Departments** | `/admin/departments`, `/admin/departments/:slug` | Manager+: directory and per-department hub (home staff, shifts, routines, sections when present). Superuser create / rename / deactivate / delete / reorder. Grouping only; departments grant no permissions. |
+| **Departments** | `/admin/departments`, `/admin/departments/:slug` | Manager+: directory and per-department hub (home staff, shifts, routines, sections when present). Superuser create / rename / deactivate / delete / reorder. **Starts in** (#86): the menu workspace the department's people open on until they pick one (Manager+ can change it). Grouping only; departments grant no permissions. |
 | **Customers** | `/admin/customers` | Admin: customer list. |
 | **Permissions** | `/people/permissions` (`/admin/permissions` redirects) | People workspace; Managers read, the owner changes (#53): Levels (a dial per area for Employee and Manager; Owner locked at Full), Departments (adds only), People (each person's level, dial per area with where it came from, exceptions with an end date and a note, View as), History. |
 | **Settings** | `/admin/settings` | Manager+: app settings. Tabs `?tab=` — System, Printing, Store, Assumptions, **Retail QA** (grade weights, letter lines, audit floors, idle prompt minutes), Permissions (a link to People → Permissions), **AI** (superuser only: model catalog, per-action model + effort). |

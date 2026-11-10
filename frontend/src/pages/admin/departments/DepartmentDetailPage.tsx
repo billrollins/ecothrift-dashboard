@@ -34,7 +34,7 @@ import {
   DeleteDepartmentDialog,
   DepartmentFormDialog,
 } from './DepartmentDialogs';
-import { deleteLockTooltip, errorDetail } from './departmentUi';
+import { deleteLockTooltip, errorDetail, startWorkspaceLabel } from './departmentUi';
 import { IconMore as MoreVert } from '../../../icons/ecoIcons';
 
 export default function DepartmentDetailPage() {
@@ -130,6 +130,7 @@ export default function DepartmentDetailPage() {
           <Typography sx={{ fontSize: 14, color: ccTokens.ink2, mt: 0.5 }}>
             {row?.manager_name ? `Manager ${row.manager_name}` : 'No manager'}
             {row?.location_name ? ` · ${row.location_name}` : ''}
+            {row ? ` · Menu starts in ${startWorkspaceLabel(row.start_workspace)}` : ''}
           </Typography>
           {row?.description ? (
             <Typography sx={{ fontSize: 14, mt: 1, maxWidth: 720 }}>{row.description}</Typography>

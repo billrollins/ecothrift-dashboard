@@ -1,6 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import { mergeCurrentDepartment, mergeCurrentDepartments } from '../../../api/hr.api';
-import { deleteLockTooltip, slugifyName } from './departmentUi';
+import {
+  deleteLockTooltip,
+  knownStartWorkspace,
+  slugifyName,
+  startWorkspaceLabel,
+  START_WORKSPACE_OPTIONS,
+} from './departmentUi';
+
+describe('Starts in (#86)', () => {
+  it('offers every menu workspace by name', () => {
+    const labels = START_WORKSPACE_OPTIONS.map((option) => option.label);
+    expect(labels).toEqual(expect.arrayContaining(['Buying', 'Processing', 'Restoration', 'Retail']));
+  });
+
+  it('names the workspace, or the default when none is set', () => {
+    expect(startWorkspaceLabel('processing')).toBe('Processing');
+    expect(startWorkspaceLabel('storeSales')).toBe('Retail');
+    expect(startWorkspaceLabel('')).toBe('Default (Buying)');
+    expect(startWorkspaceLabel(undefined)).toBe('Default (Buying)');
+  });
+
+  it('reads an id that is no longer a workspace as the default', () => {
+    expect(knownStartWorkspace('goneWorkspace')).toBe('');
+    expect(startWorkspaceLabel('goneWorkspace')).toBe('Default (Buying)');
+  });
+});
 
 describe('mergeCurrentDepartment', () => {
   it('keeps the inactive current value so the picker is not blank', () => {

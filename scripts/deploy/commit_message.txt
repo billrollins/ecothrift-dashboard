@@ -1,13 +1,45 @@
-v2.269.3 — Housekeeping: old plans cleared out, one list of open work
+v2.270.0 — Processing: richer top and Truck Plan, photo drawer, Returns, Floor issues; menu starts in your department
 
-User-facing theme: **Housekeeping: old plans cleared out, one list of open work.** Nothing changes on any Dash screen.
+User-facing theme: **Processing Enhancements: a richer top of Processing with a Truck Plan, a photo drawer with one "Add photo" everywhere, Returns and Floor issues pages; and the menu opens on your own department.**
 
-> **For Bill:** no screen changed. The 62 archived plan files left the project (they are off site in `!archive/ecothrift-dashboard/`), everything started and not finished is in one list with a draft plan, and your question log, the Retail and Buying end goals and today's audit are now backed up on GitHub. Heroku has the nine shared AI key names, including the new OpenAI one.
+> **For Bill:** five updates you asked for on 11-10, live together. **Top of Processing (#81):** what we paid, the Target Price (2x paid; you can change it), what we are on track to do with "$X over / under", items, disputes against the 5% line and what the dispute is worth, delivered and dispute due. The load description opens the **Truck Plan**; the order number opens the Order window. **Photos (#82):** on your phone, avatar menu > **Photo drops** > Take photo; it is in your drawer on any computer in a few seconds. Every staff "Add photo" now offers Take photo, Photo drawer, From files. **Processing > Returns (#83):** every item a customer brings back lands here with four buttons: Price again, Back to shelf as is, Send to Restoration, Scrap. Returns nobody handled since launch show as waiting the first time. **Processing > Floor issues (#84):** "Report a bad tag" is now **Report a problem** (Today, the register header, Search, the item window): scan the tag, say what is wrong; it lands on Floor issues with the same four buttons. **Menu (#86):** someone with no remembered workspace starts in their own department (Admin > Departments > "Starts in"). Questions waiting for you are in the rows: what else belongs in the Truck Plan; 30 days for the photo drawer; the four steps; keep the old returns or start empty; the list of floor problems.
 
-### Changed
-- `.ai/initiatives/_archived/` (62 files) removed; the index points at the off-site archive. `.ai/context.md` Active work opens with the 2026-11-10 direction (Dash Updates becomes the only list; Retail and Buying only).
-- New in `.ai/`: `reference/reports/2026-11-10-dash-audit.md`, `reference/reports/2026-11-10-unfinished-work.md` (the one list, the clean-up record, draft plan v2), `reference/owner-qa-log.md`, `reference/end-goals/` (Retail, Buying; drafts), `reference/buying-auctions-mvp/auction-detail-spec.md`, `extended/cash-drops-decisions.md`, `extended/critic-fix-cycle.md`, `protocols/critic-cycle.md`, `initiatives/contractor_agreements.md`.
-- House standards: T86 (house keys, D24) and T87 (the nine AI key names on Heroku; four were missing, Heroku release v617) done; T88 (partner links) recorded, blocked on T67. `extended/development.md` Environment Variables carries the house-keys note.
-- No code, no migration.
+### Changed (#86: the menu starts in your department)
+- **The menu opens on your own department (Dash Updates #86).** A person with no remembered workspace now starts in their department's workspace: Retail, Processing or Restoration. A register computer still opens on Retail, a person's own last choice still wins, and every workspace they could see before is still in their list. Each department has a new **Starts in** setting on Admin > Departments (a dropdown of the workspaces; Office is left on the default, Buying). `hr.Department.start_workspace` (migration `hr.0023_department_start_workspace`, filled from the department names), carried to the menu as `employee.department_start_workspace` in the sign-in and `/api/auth/me/` payloads; the order lives in `startWorkspaceId` (`frontend/src/navigation/slotCNavLayout.ts`). The phone uses the same menu, so it follows the same rule; its Home page is unchanged.
+
+### Added (Dash Updates #82: photos)
+- **Photo drops** (avatar menu, Home): every staff login has a photo drawer. Take a photo on the phone, rotate or crop it, save; it shows on any computer within a few seconds. A used photo stays, marked Used, until its owner deletes it; photos older than 30 days are removed.
+- **Add photo**, one shared control (`components/photos/AddPhoto.tsx`) with the same three ways everywhere: Take photo, Photo drawer, From files. A phone lists the camera first; a computer lists the drawer first.
+- Server: `core.PhotoDrop` (migration `core/0017_photo_drop`), `/api/core/photo-drops/` (mine only), `purge_photo_drops` (the same 30-day clean-up runs about once an hour when a drawer is opened, so no Scheduler job is needed).
+
+### Changed (Dash Updates #82: photos)
+- These staff screens now use Add photo: Receiving (desk and phone), Add item, Bad tag, Dash Updates report, Routines (both photo buttons), We need (Supplies), Tax exempt and the $100+ serial photo at the Register, Announcements, Blog hero, Online Sales listing photos, and Replace in the photo viewer.
+
+### Added (#81: Processing header and Truck Plan)
+- **Processing: a richer top and a Truck Plan (Dash Update #81).** The top of Processing now has three rows. The order row: the order number opens the Order window (the arrow beside it switches orders), the load description opens the Truck Plan, then Delivered and Dispute due. A Truck Plan line: the plan in one line, or "No truck plan yet" with a button (it never blocks processing). The numbers, in four groups: **Money** (Paid, Target, On track with "$X over" / "$X under"), **Items** (Total, Left, Added), **Disputes so far** (Disputed with the 5% line, Dispute worth) and **Work** (Pallet, Rate with the time). Hover a block for the sum behind it.
+- **Truck Plan window** (from the load description and from the Order window): pricing start (% of retail), what to watch for, who is on it, dispute due, known issues, beside the truck's money and disputes so far. Any staff can save the plan; only a superuser can change the Target Price total (2 x Paid by default; who and when are kept).
+- Server: `services/truck_plan.py`, `GET /inventory/orders/{id}/truck-summary/`, `GET/PUT …/truck-plan/`, `POST …/truck-plan/target/`; model `TruckPlan` and three `PurchaseOrder.target_price_*` fields (migration `inventory/0125_truck_plan`). Tests: `apps/inventory/tests/test_truck_plan.py` (target, on track, dispute worth with the 50-of-100 example), `truckSummaryDisplay.test.ts`.
+
+### Changed (#81)
+- The header's On shelf, Sold, Missing and Elapsed blocks are folded into the new ones (Total's hover has on shelf and sold; Pallet's hover has missing on finished pallets; Rate shows the time). Nothing was made owner-only.
+
+### Added (#83: Returns)
+- **Processing > Returns** (Dash Updates #83; Processing Enhancements, Bill 2026-11-10). A new page in the Processing menu, under "In progress": every item a customer brought back, with the simple steps and four one-tap actions, each recorded with who and when: **Price again** (new price, prints the tag, back on the shelf), **Back to shelf as is**, **Send to Restoration** (the usual request window) and **Scrap** (with a reason). When one is done the item leaves the list; Done shows what happened to each one. A scan or typed words find an item; an item in hand that is not listed can be added.
+- Every Thrift+ return at the register now puts its items on that list by itself. The refund is not changed in any way. Returns already waiting (never marked handled) show there the first time the page opens; one whose item is already back in stock is recorded as handled instead.
+- Shared with Floor issues (#84): `inventory.ProcessingReentry` (migration `0126_processing_reentry`), `apps/inventory/services/reentry.py`, `/api/inventory/reentries/`, and the front end's `ReentryList` and `ReentryActionPanel` (the list takes its source, return or floor, as a prop).
+- A returned item stays "sold" until someone decides. Putting it back in stock moves its old sale to a new item number (the rule the register already uses when a sold tag is scanned), so the tag in hand is live again and the sale and its receipt are untouched.
+
+### Changed (#83)
+- Thrift+ > Register > Returned items says Processing decides on its Returns page; an item handled there leaves that list too, and "handled" there takes it off Returns.
+
+### Added (#84: Floor issues)
+- **Report a problem**: the old "Report a bad tag" button and dialog (`components/badTags`) extended, not copied. Scan or type the tag, pick what is wrong (the item: Broken or damaged, Missing parts, Does not work, Dirty, Other; the tag: the five that existed), optional note and photo, Send to Processing. On Today, the register header, Search, the item window and the Floor issues page.
+- **Processing > Floor issues** (`/inventory/floor-issues`, under "In progress" beside Returns): the shared list from #83 with source "floor", the report's photo on the row, and the report button for an item in hand that is not on the list.
+- Server: `inventory.FloorIssue` (migration `0127_floor_issue`), `services/floor_issues.py`, `/api/inventory/floor-issues/`; `stocktake/0009_bad_tag_found_on_floor` (one new "found where" choice). A tag problem still writes its bad-tag trace and PR Fix-it row; closing either side closes the other.
+- **A floor report does not change the item's status** (decision D20): the open "back in Processing" row is the marker, so pallet and truck counts and disputes are not touched.
+
+### Fixed
+- Five files used a dash character the wording test forbids (`SalesOverviewSection`, `LiveLotsPage`, `SchedulePage` and two tests); `noDashes.test.ts` passes again.
+
 
 Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>

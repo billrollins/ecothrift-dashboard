@@ -9,6 +9,8 @@ User = get_user_model()
 
 class EmployeeProfileSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True, default=None)
+    # Where this person's menu starts (#86): their department's "Starts in" workspace id; '' = the house default.
+    department_start_workspace = serializers.CharField(source='department.start_workspace', read_only=True, default='')
     work_location_name = serializers.CharField(source='work_location.name', read_only=True, default=None)
 
     termination_type_display = serializers.CharField(
@@ -18,7 +20,7 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmployeeProfile
         fields = [
-            'id', 'employee_number', 'department', 'department_name',
+            'id', 'employee_number', 'department', 'department_name', 'department_start_workspace',
             'position', 'employment_type', 'pay_rate', 'level', 'overtime_allowance_hours', 'hire_date',
             'termination_date', 'termination_type', 'termination_type_display',
             'termination_notes', 'work_location', 'work_location_name',

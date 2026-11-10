@@ -18,6 +18,8 @@ export interface EmployeeProfile {
   employee_number: string;
   department: number | null;
   department_name: string | null;
+  /** Where this person's menu starts (#86): their department's "Starts in" workspace id; '' = the house default. */
+  department_start_workspace?: string;
   position: string;
   employment_type: EmploymentType;
   pay_rate: string;

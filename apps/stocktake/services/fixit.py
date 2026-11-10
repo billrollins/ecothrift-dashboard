@@ -263,6 +263,10 @@ def fix_issue(issue: Issue, *, user, fix: str, data: dict) -> dict | None:
         issue.fixed_at = timezone.now()
         issue.fixed_by = user
         issue.save()
+        # A bad tag that also waits on Processing > Floor issues is done there too (Dash Update #84).
+        from apps.inventory.services import floor_issues
+
+        floor_issues.fixed_on_pr_fixit(issue, user)
     if printed is not None and fix != 'dismiss':
         printed.refresh_from_db()
         return label_for(printed)

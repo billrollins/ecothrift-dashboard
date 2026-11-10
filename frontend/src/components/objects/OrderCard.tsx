@@ -2,11 +2,12 @@
  * The Order window (Dash Updates #12): one purchase order, read-only, built like the Item window. Header (order number
  * with copy, vendor, status, what it is), Cost, Cost % of retail, Sold so far and Recovered; money; units; the truck
  * claim; the journey from ordered to closed; links to its Processing, Receiving and Truck pages and its vendor.
+ * The description and the "Truck plan" button open the Truck Plan window (TruckPlanCard.tsx, Dash Updates #81).
  * "Edit" swaps in the order page it opened before (OrderDetailPage, embedded).
  * Data: GET /api/inventory/orders/<id>/card/ (apps/inventory/services/order_card.py).
  */
 import { useState, type ReactNode } from 'react';
-import { Box, Button, Chip, CircularProgress, Stack, Typography } from '@mui/material';
+import { Box, Button, Chip, CircularProgress, Link, Stack, Typography } from '@mui/material';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
@@ -101,7 +102,18 @@ function CardView({ c, onEdit }: { c: OrderCardData; onEdit: () => void }) {
           <Typography component="h2" sx={{ fontWeight: 800, fontSize: { xs: 18, md: 22 }, lineHeight: 1.2 }}>
             {c.vendor_name || 'Order'}
           </Typography>
-          {c.description ? <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>{c.description}</Typography> : null}
+          {c.description ? (
+            <Link
+              component="button"
+              type="button"
+              underline="hover"
+              title="Open the Truck Plan"
+              onClick={() => openObject({ type: 'truck-plan', id: c.id })}
+              sx={{ color: 'text.secondary', fontSize: 14, textAlign: 'left', alignSelf: 'flex-start' }}
+            >
+              {c.description}
+            </Link>
+          ) : null}
           <Stack direction="row" spacing={{ xs: 2, md: 3 }} sx={{ pt: 0.5 }} flexWrap="wrap" useFlexGap>
             <Stat label="Cost" value={itemCardMoney(m.total)} />
             <Stat label="Cost of retail" value={m.cost_pct_of_retail != null ? `${m.cost_pct_of_retail}%` : '-'} muted />
@@ -155,6 +167,7 @@ function CardView({ c, onEdit }: { c: OrderCardData; onEdit: () => void }) {
               {c.vendor ? (
                 <Button size="small" variant="outlined" onClick={() => openObject({ type: 'vendor', id: c.vendor!.id })}>{c.vendor.name}</Button>
               ) : null}
+              <Button size="small" variant="outlined" onClick={() => openObject({ type: 'truck-plan', id: c.id })}>Truck plan</Button>
               <Button size="small" variant="outlined" onClick={() => go(`/inventory/receiving/${c.id}`)}>Receiving</Button>
               <Button size="small" variant="outlined" onClick={() => go(`/inventory/processing/${c.id}`)}>Processing</Button>
               <Button size="small" variant="outlined" onClick={() => go(`/inventory/orders/${c.id}/truck`)}>Truck</Button>

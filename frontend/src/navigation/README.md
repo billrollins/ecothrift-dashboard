@@ -70,6 +70,8 @@ orders are handled, not on a 30s poll.
 - Exactly **one workspace panel** visible at a time.
 - **Sidebar click** (workspace panel): stay in the current workspace even when the link appears in multiple workspaces.
 - **External URL** (bookmark, refresh, address bar): for routes shared across workspaces, select the **lowest lifecycle #** workspace (e.g. Inventory for `/inventory/manage-items`).
+- With nothing remembered the menu opens via `startWorkspaceId` (#86): Retail on a register computer, then the
+  person's department's **Starts in** workspace (Admin > Departments), then Buying.
 - Manual workspace choice persists in `ecothrift.navC.workspace.v1`. Open the
   switcher (the trigger card at the top of the sidebar) and press the assigned digit
   (`1`–`9`, `0` for Admin) or the highlighted first letter of a workspace

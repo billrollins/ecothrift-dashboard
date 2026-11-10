@@ -238,6 +238,17 @@ class PurchaseOrder(models.Model):
             'item costs for this PO.'
         ),
     )
+    # Target Price total for the truck (Dash Update #81). Empty = 2 x total cost; a superuser can set another
+    # total (services/truck_plan.py). Who and when are kept beside it.
+    target_price_total = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    target_price_set_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    target_price_set_at = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -2254,6 +2265,59 @@ class ItemHistory(models.Model):
         return f'{self.item.sku} - {self.event_type}'
 
 
+class FloorIssue(models.Model):
+    """Something wrong with an item, reported from the retail floor (Dash Update #84, 2026-11-10).
+
+    One report: scan the tag, pick what is wrong, optional note and photo. The item keeps its status
+    (D20) and shows on Processing > Floor issues, where one action finishes it. A tag problem (wrong
+    price, wrong item, ...) is also a ``stocktake.BadTag``, which keeps its trace to who checked the item in;
+    ``bad_tag`` ties the two. Rules: ``services/floor_issues.py``.
+    """
+    REASON_BROKEN = 'broken'
+    REASON_MISSING_PARTS = 'missing_parts'
+    REASON_NOT_WORKING = 'not_working'
+    REASON_DIRTY = 'dirty'
+    REASON_OTHER = 'other'
+    # The item itself. The tag problems use the BadTag reason keys (retail_high, wrong_item, price_high, ...).
+    ITEM_REASON_CHOICES = [
+        (REASON_BROKEN, 'Broken or damaged'),
+        (REASON_MISSING_PARTS, 'Missing parts'),
+        (REASON_NOT_WORKING, 'Does not work'),
+        (REASON_DIRTY, 'Dirty'),
+        (REASON_OTHER, 'Other'),
+    ]
+
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='floor_issues')
+    reason = models.CharField(max_length=16, db_index=True)
+    note = models.CharField(max_length=300, blank=True, default='')
+    photo = models.ForeignKey('core.S3File', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    found_where = models.CharField(max_length=16, default='floor', help_text='Where it was reported (BadTag.WHERE_*).')
+    status_before = models.CharField(max_length=20, blank=True, default='', help_text="The item's status when reported.")
+    reported_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    reported_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    bad_tag = models.OneToOneField(
+        'stocktake.BadTag', on_delete=models.SET_NULL, null=True, blank=True, related_name='floor_issue',
+    )
+    # Its row on the shared list of items back in Processing (Returns and Floor issues), where the actions are.
+    reentry = models.ForeignKey(
+        'ProcessingReentry', on_delete=models.SET_NULL, null=True, blank=True, related_name='floor_issues',
+    )
+    # What Processing did about it (copied from the row when it closes); empty while it waits.
+    closed_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    outcome = models.CharField(max_length=40, blank=True, default='')
+
+    class Meta:
+        ordering = ['-reported_at']
+
+    def __str__(self):
+        return f'Floor issue {self.item.sku} ({self.reason})'
+
+
 class ItemNote(models.Model):
     """Append-only note about one item. Survives check-in, job and split churn.
 
@@ -2403,6 +2467,72 @@ class ItemScanHistory(models.Model):
         return f'{self.item.sku} scanned at {self.scanned_at}'
 
 
+class ProcessingReentry(models.Model):
+    """
+    One item back in Processing that needs one decision (Processing Enhancements D14-D16, 2026-11-10). A customer
+    return and a floor issue are the same thing to a processor, so they share this list; ``source`` says which page
+    shows the row (Returns, Floor issues). The row is open until someone picks an outcome, then it leaves the list.
+    Rules and the four actions: ``services/reentry.py``.
+    """
+
+    SOURCE_RETURN = 'return'
+    SOURCE_FLOOR = 'floor'
+    SOURCE_CHOICES = [(SOURCE_RETURN, 'Customer return'), (SOURCE_FLOOR, 'Floor issue')]
+
+    OUTCOME_REPRICED = 'repriced'
+    OUTCOME_SHELF = 'shelf'
+    OUTCOME_RESTORATION = 'restoration'
+    OUTCOME_SCRAPPED = 'scrapped'
+    OUTCOME_HANDLED = 'handled'
+    OUTCOME_CHOICES = [
+        (OUTCOME_REPRICED, 'Priced again'),
+        (OUTCOME_SHELF, 'Back to shelf as is'),
+        (OUTCOME_RESTORATION, 'Sent to Restoration'),
+        (OUTCOME_SCRAPPED, 'Scrapped'),
+        # Closed without one of the four actions: it sold again first, or it was marked handled somewhere else.
+        (OUTCOME_HANDLED, 'Handled another way'),
+    ]
+
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='reentries')
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, db_index=True)
+    # The row this came from, when there is one: a ``thriftplus.ReturnRecord`` id for a return, the floor report's id
+    # for a floor issue. A plain number so this app does not depend on theirs.
+    source_ref = models.PositiveIntegerField(null=True, blank=True)
+    reason = models.CharField(max_length=300, blank=True, default='', help_text='Why it came back, in a few words.')
+    reported_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='+')
+    reported_at = models.DateTimeField(default=timezone.now)
+
+    outcome = models.CharField(max_length=12, choices=OUTCOME_CHOICES, blank=True, default='')
+    outcome_note = models.CharField(max_length=300, blank=True, default='',
+                                    help_text='The scrap reason, or how it was handled another way.')
+    old_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    new_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    restoration_job = models.ForeignKey('RestorationJob', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='+')
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+')
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['reported_at', 'pk']
+        indexes = [models.Index(fields=['source', 'decided_at'], name='reentry_source_decided_idx')]
+        constraints = [
+            # An item waits on the list once, whatever brought it back.
+            models.UniqueConstraint(fields=['item'], condition=models.Q(decided_at__isnull=True),
+                                    name='reentry_one_open_per_item'),
+            models.UniqueConstraint(fields=['source', 'source_ref'], condition=models.Q(source_ref__isnull=False),
+                                    name='reentry_one_per_source_row'),
+        ]
+
+    @property
+    def is_open(self) -> bool:
+        return self.decided_at is None
+
+    def __str__(self):
+        return f'{self.get_source_display()}: item {self.item_id} ({self.outcome or "waiting"})'
+
+
 class Receiving(models.Model):
     """Inbound receiving session for one PO. Draft while completed_at is null."""
 
@@ -2529,6 +2659,55 @@ class TruckPallet(models.Model):
 
     def __str__(self):
         return f'Pallet {self.number} {self.code} (PO {self.purchase_order_id})'
+
+
+class TruckPlan(models.Model):
+    """The plan for one truck (PO), filled in before processing starts (Dash Update #81, ``services/truck_plan.py``).
+
+    One per order; no row means "No truck plan yet". It never blocks processing. The truck's Target Price total is
+    on the order itself (``PurchaseOrder.target_price_total``), because a superuser can set it with or without a plan.
+    """
+
+    purchase_order = models.OneToOneField(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='truck_plan',
+    )
+    pricing_start_pct = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('200'))],
+        help_text='Where tag prices start on this truck, as a percent of retail (55 = 55%).',
+    )
+    watch_for = models.TextField(blank=True, default='')
+    known_issues = models.TextField(blank=True, default='')
+    crew = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name='+')
+    dispute_due_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text='Empty = 4 business days after delivery.',
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Truck plan (PO {self.purchase_order_id})'
 
 
 class ManifestAdjustment(models.Model):

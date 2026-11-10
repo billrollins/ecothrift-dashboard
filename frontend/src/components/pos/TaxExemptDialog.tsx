@@ -1,3 +1,4 @@
+import { AddPhoto } from '../photos/AddPhoto';
 /**
  * A tax-exempt sale to a non-profit (Bill, 2026-10-21): the organization's name and its tax-exempt certificate number
  * (preferred), or a photo of the certificate when there is no number. Every line of the sale is then untaxed, the
@@ -61,17 +62,13 @@ export default function TaxExemptDialog({ open, pending, error, onSubmit, onCanc
               helperText="Preferred. No number? Take a photo of the certificate instead."
               inputProps={{ maxLength: 100 }}
             />
-            <Button variant="outlined" component="label" sx={{ alignSelf: 'flex-start', textTransform: 'none' }}>
-              {photo ? `Photo: ${photo.name}` : 'Take or pick a photo of the certificate'}
-              <input
-                hidden
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
-                data-testid="tax-exempt-photo"
-              />
-            </Button>
+            <AddPhoto
+              sx={{ alignSelf: 'flex-start', textTransform: 'none' }}
+              label={photo ? `Photo: ${photo.name}` : 'Add a photo of the certificate'}
+              usedWhere="Tax exempt"
+              fileInputTestId="tax-exempt-photo"
+              onPhotos={(files) => setPhoto(files[0] ?? null)}
+            />
           </Stack>
         </DialogContent>
         <DialogActions>

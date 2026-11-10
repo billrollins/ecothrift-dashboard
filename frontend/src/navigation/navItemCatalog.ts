@@ -53,6 +53,22 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Processing',
     icon: 'processing',
   },
+  // Items customers brought back, with the four one-tap actions (Dash Updates #83). Every staff login.
+  processingReturns: {
+    id: 'processingReturns',
+    path: '/inventory/returns',
+    label: 'Returns',
+    icon: 'undo',
+    keywords: 'returned customer return came back price again scrap restoration',
+  },
+  // Items reported from the floor with "Report a problem", with the four one-tap actions (Dash Updates #84). Every staff login.
+  processingFloorIssues: {
+    id: 'processingFloorIssues',
+    path: '/inventory/floor-issues',
+    label: 'Floor issues',
+    icon: 'fixit',
+    keywords: 'floor issue problem broken damaged missing parts dirty wrong price bad tag report came back',
+  },
   inventoryWorkbench: {
     id: 'inventoryWorkbench',
     path: '/inventory/search',

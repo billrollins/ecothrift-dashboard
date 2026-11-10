@@ -39,6 +39,10 @@ class Department(models.Model):
         related_name='managed_departments',
     )
     is_active = models.BooleanField(default=True)
+    # "Starts in" (#86, Bill 2026-11-10): the menu workspace this department's people open on when they have no
+    # remembered one. A workspace id from the front end (`slotCNavLayout.ts`); blank = the house default.
+    # db_default: code that does not know the column yet (the old release during a deploy) can still add a department.
+    start_workspace = models.CharField(max_length=40, blank=True, default='', db_default='')
 
     class Meta:
         ordering = ['sort_order', 'name']

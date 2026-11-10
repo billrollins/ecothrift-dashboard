@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-22 (Misfit item source; retail_source estimate from Add item; product "+" check-in 409 + one transaction) -->
+<!-- Last updated: 2026-11-10 (Processing header and Truck Plan #81; items back in Processing: Returns #83, Floor issues #84) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -100,6 +100,31 @@ again (owner walkthrough: `.ai/reference/bstock-disputes/`). Dash builds that on
 - Every open and download is logged (`BStockDisputeEvent`: kind, a 16-character hash of IP + browser, the browser
   name); our own previews carry `?from=dash` and do not count. The panel says how often B-Stock opened it and what.
 - APIs: `GET/POST /inventory/orders/{id}/bstock-disputes/`, `PATCH …/bstock-disputes/{dispute_id}/`.
+
+### Processing header numbers and the Truck Plan (Dash Update #81, 2026-11-10)
+
+The top of Processing shows one set of numbers, worked out in `services/truck_plan.py` and served by
+`GET /inventory/orders/{id}/truck-summary/` (decisions: `extended/processing-enhancements-decisions.md` D4-D9).
+
+- **Paid** = `total_cost` (price + fees + shipping). **Target** = the Target Price total: 2 x Paid, unless a superuser
+  set another total on the order (`PurchaseOrder.target_price_total`, with `target_price_set_by` / `_set_at`;
+  `POST …/truck-plan/target/`, empty = back to 2 x Paid).
+- **On track** = tag prices of the items checked in so far (not scrapped or lost) + an estimate for the units on
+  lines the queue still shows open. A line's own price (`shelf_price`, else final, else proposed) is used first;
+  with none, retail x a rate: the truck's own price-to-retail rate once 10 items are priced, before that the plan's
+  pricing start. Combined lines count as one group. Units with no way to estimate are counted, never guessed.
+  Shown as "$X over" / "$X under" the target.
+- **Disputes so far** = what a processor marked: not received and broken at manifest retail, damaged at each item's
+  % of value lost. A finished pallet (or truck) counts everything not received on it. **Worth** = (disputed retail -
+  5% of the truck's retail) / the truck's retail x (price + fees), never below $0, shipping left out. The 5% is the
+  `truck_refund_deductible` setting. The Truck page's expected refund is a different sum (95% of the price alone,
+  all missing units); the two will differ until the truck is finished.
+- **Dispute due** = the plan's own date, else 4 business days after delivery.
+- **Truck Plan** (`TruckPlan`, one per order): pricing start (% of retail), what to watch for, who is on it, dispute
+  due, known issues. `GET/PUT …/truck-plan/` (any staff). No row = "No truck plan yet" on the header with a button;
+  it never blocks processing. One window (`components/objects/TruckPlanCard.tsx`, object type `truck-plan`, id =
+  the order's), opened from the load description on the header and from the Order window. The order number on the
+  header opens the Order window; the arrow beside it switches orders.
 
 ### Review surfaces (pre- vs post-finalize)
 
@@ -365,6 +390,15 @@ Core inventory entity flowing through the system.
 | `returned`  | Returned                       |
 | `scrapped`  | Scrapped                       |
 | `lost`      | Marked missing                 |
+
+### Items back in Processing (Returns and Floor issues; #83, #84, 2026-11-10)
+
+A customer return and a floor issue are the same thing to a processor: one item that came back and needs one decision. They share one list, `ProcessingReentry` (`services/reentry.py`, API `/api/inventory/reentries/`), shown as two pages in the Processing workspace: **Returns** (`source='return'`, `/inventory/returns`) and **Floor issues** (`source='floor'`).
+
+- **Getting on the list.** `reentry.report(item, source, reason=, user=, source_ref=)`. Every Thrift+ return calls `reentry.report_return(record)` from `thriftplus/services/returns.py` `do_return`, after the refund is settled (a failure there never stops a return). Reading the Returns list runs `sync_returns()`: open `ReturnRecord` rows with no row get one, and rows settled another way (already back in stock, sold again at the register, marked handled on the Thrift+ page) close as "Handled another way". An item waits on the list once.
+- **The four actions**, each recorded with who and when; the row then leaves the list: `price_again` (new price, the page prints the tag), `back_to_shelf`, `send_to_restoration` (the usual Restoration request and queue), `scrap` (with a reason). Closing a return's row also sets its `ReturnRecord.status` to done.
+- **A returned item stays `sold` until someone decides** (the register does not change the item on a return; the item status `returned` is still unused). When an action puts it back in stock, its old sale moves to a new item number with `duplicate_tag.move_sale_to_new_item`, the same rule the register uses when a sold tag is scanned: the tag in hand is live again, the sale and receipt are untouched, and no item is both on the shelf and on a finished sale (QA check `shelf_but_sold`). A consignment item, or one with an online listing or hold, is refused with "A manager has to decide this one."
+- **Front end:** `pages/inventory/reentry/` (`ReentryList` takes the source as a prop, `ReentryActionPanel`, `printReentryTag`, `ProcessingReturnsPage`).
 
 ### Item Sources
 

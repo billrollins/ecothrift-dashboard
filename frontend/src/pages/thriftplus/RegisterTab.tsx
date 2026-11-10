@@ -105,7 +105,7 @@ export default function RegisterTab() {
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="subtitle1" fontWeight={800}>Returned items</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          Thrift+ 3-day returns. The Thrift+ credit is already given. Decide what happens to each item, then mark it handled.
+          Thrift+ 3-day returns. The Thrift+ credit is already given. Processing decides what happens to each item on its Returns page; one handled there leaves this list.
         </Typography>
         {returned.data?.length ? (
           <Table size="small">

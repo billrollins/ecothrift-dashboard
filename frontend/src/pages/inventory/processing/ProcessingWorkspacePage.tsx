@@ -58,6 +58,7 @@ import { CollapseRowsDialog } from './CollapseRowsDialog';
 import { ProcessingActiveCard } from './ProcessingActiveCard';
 import { ProcessingPalletsDialog } from './ProcessingPalletsDialog';
 import { truckPalletsKey, useTruckPallets } from '../../../hooks/useTruckPallets';
+import { truckPlanKey, truckSummaryKey, useTruckSummary } from '../../../hooks/useTruckPlan';
 import { TarsQuickGradeDialog } from '../../restoration/tars/TarsQuickGradeDialog';
 import { printProcessingLabelsAndMarkPrinted } from './printProcessingLabel';
 import { useRetailCheckPrompt, withRetailCheck } from './RetailCheckDialog';
@@ -166,12 +167,32 @@ export default function ProcessingWorkspacePage() {
 
   const { data: workspace, isLoading, isFetching, isError, error, refetch } = useProcessingWorkspace(orderId, listParams);
   const { data: palletLedger } = useTruckPallets(orderId);
+  const { data: truckSummary } = useTruckSummary(orderId);
   // Check-ins move the pallet numbers: refresh the ledger whenever the workspace counts change.
   const palletCountsKey = `${workspace?.rollups?.dispositioned_qty ?? ''}:${workspace?.rollups?.total_items ?? ''}`;
   useEffect(() => {
     if (orderId == null) return;
     void queryClient.invalidateQueries({ queryKey: truckPalletsKey(orderId) });
   }, [orderId, palletCountsKey, queryClient]);
+  // The money at the top (On track, disputes) moves with every check-in, price change, scrap or dispute, and
+  // with a finished pallet.
+  const roll = workspace?.rollups;
+  const summaryCountsKey = roll
+    ? [
+        orderId, roll.dispositioned_qty, roll.total_items, roll.on_shelf_value, roll.sold_value, roll.scrapped_qty,
+        roll.lost_qty, roll.pending_qty, palletLedger?.pallets_done ?? 0,
+      ].join(':')
+    : null;
+  const lastSummaryCountsKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (orderId == null || summaryCountsKey == null) return;
+    const last = lastSummaryCountsKey.current;
+    lastSummaryCountsKey.current = summaryCountsKey;
+    // The first counts for an order came with a fresh summary; only a change after that needs a new one.
+    if (last == null || last === summaryCountsKey || !last.startsWith(`${orderId}:`)) return;
+    void queryClient.invalidateQueries({ queryKey: truckSummaryKey(orderId) });
+    void queryClient.invalidateQueries({ queryKey: truckPlanKey(orderId) });
+  }, [orderId, summaryCountsKey, queryClient]);
   /** Stable handle for callbacks that need current rows without re-creating per fetch. */
   const workspaceRef = useRef(workspace);
   useEffect(() => {
@@ -793,7 +814,7 @@ export default function ProcessingWorkspacePage() {
       <Box
         sx={{
           flexShrink: 0,
-          minHeight: 106,
+          minHeight: 154,
           bgcolor: 'background.paper',
         }}
       >
@@ -818,8 +839,9 @@ export default function ProcessingWorkspacePage() {
             onCloseClick={() => setCompleteOpen(true)}
             pallets={palletLedger}
             onOpenPallets={() => setPalletsOpen(true)}
+            summary={truckSummary}
           />
-        : <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 106 }}>
+        : <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 154 }}>
             <CircularProgress size={22} />
           </Box>
         }

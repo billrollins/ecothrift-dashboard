@@ -21,6 +21,8 @@ import { GoogleItLink } from './GoogleItLink';
 import { ProductCategoryLine } from './ProductCategoryLine';
 import { useObjectModal } from './ObjectModal';
 import { Facts, Section } from './windowParts';
+import BadTagButton from '../badTags/BadTagButton';
+import { useLanguage } from '../../i18n/useLanguage';
 
 const STATUS_TONE: Record<string, 'success' | 'info' | 'warning' | 'default' | 'error'> = {
   on_shelf: 'success',
@@ -161,6 +163,7 @@ function Journey({ events }: { events: ItemJourneyEvent[] }) {
 
 function CardView({ card, onEdit }: { card: ItemCardFull; onEdit: () => void }) {
   const { openObject, closeObject } = useObjectModal();
+  const lang = useLanguage();
   const navigate = useNavigate();
   const specs = itemCardSpecs(card.specifications);
   const r = card.restoration;
@@ -208,10 +211,23 @@ function CardView({ card, onEdit }: { card: ItemCardFull; onEdit: () => void }) 
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Header card={card} />
         </Box>
-        <Button variant="contained" startIcon={<IconEdit fontSize="small" />} onClick={onEdit} sx={{ flexShrink: 0 }}>
-          Edit
-        </Button>
+        <Stack direction={{ xs: 'row', sm: 'column' }} spacing={1} sx={{ flexShrink: 0 }}>
+          <Button variant="contained" startIcon={<IconEdit fontSize="small" />} onClick={onEdit}>
+            Edit
+          </Button>
+          {/* One report for anything wrong on the floor (Dash Update #84); hidden while one already waits. */}
+          {!card.floor_issue && <BadTagButton where="floor" code={card.sku} lang={lang} />}
+        </Stack>
       </Stack>
+      {card.floor_issue && (
+        <Alert severity="warning">
+          Floor issue: {card.floor_issue.reason_label}
+          {card.floor_issue.note ? ` · ${card.floor_issue.note}` : ''}
+          {card.floor_issue.reported_by ? ` · ${card.floor_issue.reported_by}` : ''}
+          {card.floor_issue.reported_at ? `, ${itemCardWhen(card.floor_issue.reported_at)}` : ''}
+          . Waiting in Processing.
+        </Alert>
+      )}
       {card.dispute && (
         <Alert severity="warning">
           Dispute: {card.dispute.type}{card.dispute.pct_loss != null ? ` (${card.dispute.pct_loss}% loss)` : ''}

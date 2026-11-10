@@ -41,6 +41,9 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'processing',
     label: 'Processing',
     itemIds: ['receiving', 'processing'],
+    // Processing Enhancements (Bill 2026-11-10): items back in Processing. Under "In progress" until he signs off.
+    setupItemIds: ['processingReturns', 'processingFloorIssues'],
+    setupLabel: 'In progress',
     guestItemIds: ['restorations', 'inventoryWorkbench'],
   },
   {
@@ -228,6 +231,30 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     shortcutDigit: 0,
   },
 ];
+
+/**
+ * Where the menu opens when a person has no remembered workspace (#86, Bill 2026-11-10: "by default have users
+ * workspace default to their department"). In order: a register computer opens on Retail, then the person's
+ * department's "Starts in" workspace (Admin > Departments), then the house default, then the first one they can see.
+ * Only a workspace the person can see is ever picked, so this hides nothing and opens nothing new.
+ */
+export function startWorkspaceId(
+  visible: { id: string }[],
+  options: { registerDevice: boolean; departmentStart?: string | null },
+): string | null {
+  const departmentStart = options.departmentStart
+    ? SLOT_C_WORKSPACE_ID_MIGRATION[options.departmentStart] ?? options.departmentStart
+    : null;
+  const wanted = [
+    options.registerDevice ? SLOT_C_REGISTER_WORKSPACE_ID : null,
+    departmentStart,
+    SLOT_C_DEFAULT_WORKSPACE_ID,
+  ];
+  for (const id of wanted) {
+    if (id && visible.some((w) => w.id === id)) return id;
+  }
+  return visible[0]?.id ?? null;
+}
 
 /**
  * For external URL entry: pick the lowest lifecycle-order workspace containing the active route.

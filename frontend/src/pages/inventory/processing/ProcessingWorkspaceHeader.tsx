@@ -1,4 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+/**
+ * The top of Processing (Dash Update #81). Three rows:
+ * 1. the order: number (opens the Order window; the arrow switches orders), vendor, manifest, load description
+ *    (opens the Truck Plan), delivered, dispute due;
+ * 2. the Truck Plan in one line, or "No truck plan yet" with a button (it never blocks processing);
+ * 3. the numbers in four groups: Money (Paid, Target, On track), Items (Total, Left, Added), Disputes (Disputed,
+ *    Worth) and Work (Pallet, Rate). Hover a block for the sum behind it; click for the same lines in a window.
+ * Money, disputes and dates come from `GET /inventory/orders/<id>/truck-summary/` (`services/truck_plan.py`).
+ */
+import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import {
   Box,
   Button,
@@ -15,12 +24,24 @@ import KeyboardArrowDown from '@mui/icons-material/KeyboardArrowDown';
 import { Link as RouterLink } from 'react-router-dom';
 import { OrderPickerOptionRow } from '../../../components/inventory/OrderPickerOptionRow';
 import { PurchaseOrderManifestDialog } from '../../../components/inventory/PurchaseOrderManifestDialog';
+import { useOptionalObjectModal } from '../../../components/objects/ObjectModal';
 import type { ProcessingWorkspaceOrderDTO, ProcessingWorkspaceRollupsDTO } from '../../../types/inventory.types';
 import { formatCurrency } from '../../../utils/format';
 import { orderPickerProcessingBadgeColors } from '../../../utils/orderPickerDisplay';
 import { processingTokens } from './processingTokens';
 import type { TruckPalletLedgerDTO } from '../../../api/truckPallets.api';
+import type { TruckSummaryDTO } from '../../../api/truckPlan.api';
 import { missingHeadline, palletHeadline } from './palletLedgerDisplay';
+import {
+  disputeDueLabel,
+  disputedHeadline,
+  onTrackHeadline,
+  paidHeadline,
+  planLineParts,
+  shortDay,
+  targetHeadline,
+  worthHeadline,
+} from './truckSummaryDisplay';
 import { IconClose as Close } from '../../../icons/ecoIcons';
 
 export interface ProcessingWorkspaceOrderPickRow {
@@ -46,10 +67,19 @@ interface HeaderMetric {
   value: string;
   suffix?: string;
   helper: string;
+  /** The lines behind the number: shown on hover and when the block is clicked. */
   detail: string[];
   tone?: MetricTone;
-  /** Opens the truck pallets dialog instead of the stat detail. */
-  opensPallets?: boolean;
+  /** Colour the helper line too (On track: over or under the target). */
+  helperTone?: MetricTone;
+  /** What a click opens instead of the stat detail. */
+  opens?: 'pallets' | 'plan';
+}
+
+interface MetricGroup {
+  id: string;
+  label: string;
+  metrics: HeaderMetric[];
 }
 
 function fmtElapsed(ms: number): string {
@@ -72,87 +102,11 @@ function fmtMoney(value: string | number | null | undefined): string {
   return formatCurrency(value);
 }
 
-function formatDate(value: string | null | undefined): string {
-  if (!value) return '-';
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-function formatCompactDate(value: string | null | undefined): string {
-  if (!value) return '-';
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
-}
-
-function formatOrderedDeliveredDates(order: ProcessingWorkspaceOrderDTO): string {
-  const ordered = formatCompactDate(order.ordered_date);
-  const delivered = formatCompactDate(order.delivered_date || order.expected_delivery);
-  return `${ordered} · ${delivered}`;
-}
-
-function parseDateOnly(value: string | null | undefined): Date | null {
-  if (!value) return null;
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function addBusinessDaysToDate(date: Date, days: number): Date {
-  const result = new Date(date);
-  let added = 0;
-  while (added < days) {
-    result.setDate(result.getDate() + 1);
-    const day = result.getDay();
-    if (day !== 0 && day !== 6) added += 1;
-  }
-  return result;
-}
-
-function businessDaysUntilDeadline(deadline: Date, from = new Date()): number {
-  const fromDay = new Date(from.getFullYear(), from.getMonth(), from.getDate());
-  const toDay = new Date(deadline.getFullYear(), deadline.getMonth(), deadline.getDate());
-  if (fromDay.getTime() === toDay.getTime()) return 0;
-  if (fromDay.getTime() > toDay.getTime()) {
-    let count = 0;
-    const cursor = new Date(toDay);
-    while (cursor < fromDay) {
-      cursor.setDate(cursor.getDate() + 1);
-      const day = cursor.getDay();
-      if (day !== 0 && day !== 6) count += 1;
-    }
-    return -count;
-  }
-  let count = 0;
-  const cursor = new Date(fromDay);
-  while (cursor < toDay) {
-    cursor.setDate(cursor.getDate() + 1);
-    const day = cursor.getDay();
-    if (day !== 0 && day !== 6) count += 1;
-  }
-  return count;
-}
-
-function formatDisputeDeadline(value: string | null | undefined): { value: string; tooltip: string } {
-  const delivered = parseDateOnly(value);
-  if (!delivered) return { value: '-', tooltip: '' };
-
-  const deadlineDate = addBusinessDaysToDate(delivered, 4);
-  const dateStr = formatDate(deadlineDate.toISOString().slice(0, 10));
-  const daysLeft = businessDaysUntilDeadline(deadlineDate);
-
-  let daysLabel: string;
-  if (daysLeft > 1) daysLabel = `${daysLeft} days left`;
-  else if (daysLeft === 1) daysLabel = '1 day left';
-  else if (daysLeft === 0) daysLabel = 'Today';
-  else daysLabel = 'Closed';
-
-  const tooltip =
-    daysLeft >= 0
-      ? `${dateStr} - ${daysLeft} business day${daysLeft === 1 ? '' : 's'} remaining (delivery + 4 business days).`
-      : `${dateStr} - dispute window closed.`;
-
-  return { value: `${dateStr} · ${daysLabel}`, tooltip };
+function toneColor(tone: MetricTone | undefined): string | undefined {
+  return tone === 'good' ? processingTokens.accentGreen
+    : tone === 'warning' ? processingTokens.accentAmber
+    : tone === 'error' ? processingTokens.accentRed
+    : undefined;
 }
 
 export interface ProcessingWorkspaceHeaderProps {
@@ -177,6 +131,8 @@ export interface ProcessingWorkspaceHeaderProps {
   /** Truck pallet ledger (E1): current pallet and the running missing %. */
   pallets?: TruckPalletLedgerDTO;
   onOpenPallets?: () => void;
+  /** Paid, Target, On track, disputes so far, dates and the Truck Plan (undefined while it loads). */
+  summary?: TruckSummaryDTO;
 }
 
 export function ProcessingWorkspaceHeader({
@@ -199,11 +155,15 @@ export function ProcessingWorkspaceHeader({
   onCloseClick,
   pallets,
   onOpenPallets,
+  summary,
 }: ProcessingWorkspaceHeaderProps) {
   const [, tick] = useState(0);
   const [selectedMetricId, setSelectedMetricId] = useState<string | null>(null);
   const [orderAnchorEl, setOrderAnchorEl] = useState<HTMLElement | null>(null);
   const [manifestViewerOpen, setManifestViewerOpen] = useState(false);
+  const objectModal = useOptionalObjectModal();
+  const openOrderWindow = objectModal ? () => objectModal.openObject({ type: 'order', id: order.id }) : undefined;
+  const openPlan = objectModal ? () => objectModal.openObject({ type: 'truck-plan', id: order.id }) : undefined;
 
   useEffect(() => {
     // The 1 Hz tick only feeds the items/hour rate, which renders as a static
@@ -219,85 +179,100 @@ export function ProcessingWorkspaceHeader({
   const elapsedMs = sessionStartedAt != null ? Date.now() - sessionStartedAt : 0;
   const elapsedHours = Math.max(elapsedMs / 3600000, 1 / 3600);
   const itemsPerHour = sessionStartedAt != null ? Math.round(sessionCheckInCount / elapsedHours) : 0;
-  const disputeDeadline = formatDisputeDeadline(order.delivered_date || order.expected_delivery);
 
-  const metrics = useMemo<HeaderMetric[]>(() => {
+  const disputeDue = disputeDueLabel(summary?.dates);
+  const deliveredDay = order.delivered_date || order.expected_delivery;
+  const planParts = planLineParts(summary?.plan);
+  const orderNotes = (summary?.order.notes || '').replace(/\s+/g, ' ').trim();
+
+  const groups = useMemo<MetricGroup[]>(() => {
     const expected = rollups?.expected_qty ?? tot;
     const done = rollups?.dispositioned_qty ?? disp;
     const remaining = rollups?.remaining_qty ?? Math.max(0, expected - done);
     const overage = rollups?.overage_qty ?? 0;
-    const onShelfValue = rollups?.on_shelf_value;
-    const soldValue = rollups?.sold_value;
+    const added = rollups?.unmanifested_qty ?? 0;
+    const onTrack = onTrackHeadline(summary);
+    const missing = missingHeadline(pallets);
 
-    const palletMetrics: HeaderMetric[] = onOpenPallets
-      ? [
-          { id: 'pallet', label: 'Pallet', ...palletHeadline(pallets), detail: [], opensPallets: true },
-          { id: 'missing', label: 'Missing', ...missingHeadline(pallets), detail: [], opensPallets: true },
-        ]
-      : [];
-
-    return [
-      ...palletMetrics,
+    const money: HeaderMetric[] = [
+      { id: 'paid', label: 'Paid', ...paidHeadline(summary) },
+      { id: 'target', label: 'Target', ...targetHeadline(summary), opens: 'plan' },
+      { id: 'on-track', label: 'On track', ...onTrack, helperTone: onTrack.tone },
+    ];
+    const items: HeaderMetric[] = [
       {
-        id: 'progress',
-        label: 'Done',
-        value: `${pct}%`,
-        helper: `${fmtQty(done)} / ${fmtQty(expected)} units`,
-        tone: pct >= 100 ? 'good' : pct >= 60 ? 'default' : 'warning',
+        id: 'items',
+        label: 'Total',
+        value: fmtQty(expected),
+        helper: `${fmtQty(done)} done · ${pct}%`,
+        tone: pct >= 100 ? 'good' : 'default',
         detail: [
-          `Manifest basis: ${hasManifestRows ? 'manifest rows' : 'item records'}`,
-          `Dispositioned units: ${fmtQty(done)}`,
-          `Expected units: ${fmtQty(expected)}`,
-          `Remaining units: ${fmtQty(remaining)}`,
+          `Counted from: ${hasManifestRows ? 'the manifest' : 'item records'}.`,
+          `Total: ${fmtQty(expected)} units. Done: ${fmtQty(done)}. Left: ${fmtQty(remaining)}.`,
+          `On the shelf: ${fmtQty(rollups?.on_shelf_qty ?? 0)} units, ${fmtMoney(rollups?.on_shelf_value)} in tags.`,
+          `Sold: ${fmtQty(rollups?.sold_qty ?? 0)} units for ${fmtMoney(rollups?.sold_value)}.`,
         ],
       },
       {
-        id: 'remaining',
+        id: 'left',
         label: 'Left',
         value: fmtQty(remaining),
-        helper: overage > 0 ? `Overage +${fmtQty(overage)}` : 'Units left',
+        helper: overage > 0 ? `${fmtQty(overage)} over the manifest` : 'Units to process',
         tone: remaining > 0 ? 'warning' : 'good',
-        detail: [`Remaining units: ${fmtQty(remaining)}`, `Overage units: ${fmtQty(overage)}`],
+        detail: [`Units left: ${fmtQty(remaining)}.`, `Over the manifest: ${fmtQty(overage)} units.`],
       },
       {
-        id: 'shelf',
-        label: 'On shelf',
-        value: fmtMoney(onShelfValue),
-        helper: 'Checked-in shelf value',
-        tone: onShelfValue ? 'good' : 'default',
-        detail: [`On-shelf value: ${fmtMoney(onShelfValue)}`, `Sold value: ${fmtMoney(soldValue)}`],
+        id: 'added',
+        label: 'Added',
+        value: fmtQty(added),
+        helper: 'Not on the manifest',
+        detail: [`Items added so far that were not on the manifest: ${fmtQty(added)}.`],
       },
-      {
-        id: 'sold',
-        label: 'Sold',
-        value: fmtQty(rollups?.sold_qty ?? 0),
-        helper: fmtMoney(soldValue),
-        detail: [`Sold units: ${fmtQty(rollups?.sold_qty ?? 0)}`, `Sold value: ${fmtMoney(soldValue)}`],
-      },
+    ];
+    const disputes: HeaderMetric[] = [
+      { id: 'disputed', label: 'Disputed', ...disputedHeadline(summary) },
+      { id: 'worth', label: 'Dispute worth', ...worthHeadline(summary) },
+    ];
+    const work: HeaderMetric[] = [
+      ...(onOpenPallets
+        ? [{
+            id: 'pallet',
+            label: 'Pallet',
+            ...palletHeadline(pallets),
+            detail: [`Missing on finished pallets: ${missing.value === '-' ? missing.helper : `${missing.value}, ${missing.helper}`}.`],
+            opens: 'pallets' as const,
+          }]
+        : []),
       {
         id: 'rate',
         label: 'Rate',
         value: sessionStartedAt != null ? String(itemsPerHour) : '-',
         suffix: sessionStartedAt != null ? '/hr' : undefined,
-        helper: `${sessionCheckInCount} this session`,
+        helper: sessionStartedAt != null
+          ? `${fmtQty(sessionCheckInCount)} in ${fmtElapsed(elapsedMs)}`
+          : 'Starts at the first check-in',
         tone: itemsPerHour >= 100 ? 'good' : sessionCheckInCount > 0 ? 'warning' : 'default',
         detail: [
-          `Session check-ins: ${fmtQty(sessionCheckInCount)}`,
-          `Session elapsed: ${sessionStartedAt != null ? fmtElapsed(elapsedMs) : 'starts at first check-in'}`,
-          'Target: 100 items/hr',
+          `Checked in this session: ${fmtQty(sessionCheckInCount)}.`,
+          `Time since the first check-in: ${sessionStartedAt != null ? fmtElapsed(elapsedMs) : 'not started'}.`,
+          'Goal: 100 items an hour.',
         ],
       },
-      {
-        id: 'elapsed',
-        label: 'Elapsed',
-        value: sessionStartedAt != null ? fmtElapsed(elapsedMs) : '-',
-        helper: 'Since first check-in',
-        detail: ['Timer starts at the first check-in this session.', `Session check-ins: ${fmtQty(sessionCheckInCount)}`],
-      },
     ];
-  }, [disp, elapsedMs, hasManifestRows, itemsPerHour, onOpenPallets, pallets, pct, rollups, sessionCheckInCount, sessionStartedAt, tot]);
+    return [
+      { id: 'money', label: 'Money', metrics: money },
+      { id: 'items', label: 'Items', metrics: items },
+      { id: 'disputes', label: 'Disputes so far', metrics: disputes },
+      { id: 'work', label: 'Work', metrics: work },
+    ];
+  }, [disp, elapsedMs, hasManifestRows, itemsPerHour, onOpenPallets, pallets, pct, rollups, sessionCheckInCount, sessionStartedAt, summary, tot]);
 
-  const selectedMetric = metrics.find((m) => m.id === selectedMetricId);
+  const selectedMetric = groups.flatMap((g) => g.metrics).find((m) => m.id === selectedMetricId);
+  const onMetricClick = (metric: HeaderMetric) => {
+    if (metric.opens === 'pallets' && onOpenPallets) onOpenPallets();
+    else if (metric.opens === 'plan' && openPlan) openPlan();
+    else setSelectedMetricId(metric.id);
+  };
 
   return (
     <Box sx={{ flexShrink: 0, borderBottom: 1, borderColor: processingTokens.statsHeaderBorder, bgcolor: 'background.paper' }}>
@@ -316,7 +291,8 @@ export function ProcessingWorkspaceHeader({
       >
         <OrderSelectorCell
           orderNumber={order.number}
-          onOpen={(el) => setOrderAnchorEl(el)}
+          onOpenOrder={openOrderWindow}
+          onOpenPicker={(el) => setOrderAnchorEl(el)}
         />
         <OrderFact label="Vendor" value={order.vendor || order.vendor_code || '-'} />
         {order.has_manifest ? (
@@ -331,42 +307,45 @@ export function ProcessingWorkspaceHeader({
         ) : null}
         <OrderFact
           label="Load description"
-          value={order.load_type || '-'}
-          minWidth={260}
+          value={order.load_type || 'Truck plan'}
+          minWidth={220}
           maxWidth={480}
-          showFullValueOnHover
-          href={order.load_type ? `/inventory/orders/${order.id}` : undefined}
+          tooltip={order.load_type ? `${order.load_type} (opens the Truck Plan)` : 'Opens the Truck Plan'}
+          onClick={openPlan}
+          href={openPlan ? undefined : `/inventory/orders/${order.id}`}
         />
         <OrderFact
-          label="Ordered · Delivered"
-          value={formatOrderedDeliveredDates(order)}
+          label={order.delivered_date ? 'Delivered' : 'Expected'}
+          value={shortDay(deliveredDay)}
+          tooltip={`Ordered ${shortDay(order.ordered_date)}. ${order.delivered_date ? 'Delivered' : 'Expected'} ${shortDay(deliveredDay)}.`}
           monospace
-          minWidth={132}
-          maxWidth={176}
+          minWidth={84}
+          maxWidth={120}
         />
         <OrderFact
-          label="Last day to dispute"
-          value={disputeDeadline.value}
-          tooltip={disputeDeadline.tooltip}
+          label="Dispute due"
+          value={disputeDue.value}
+          tooltip={disputeDue.tooltip}
+          valueColor={toneColor(disputeDue.tone)}
           monospace
           minWidth={150}
-          maxWidth={220}
+          maxWidth={200}
         />
         <Box sx={{ flex: 1, minWidth: 8 }} />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
           {addItemVisible && onAddItem ? (
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={onAddItem}
-            sx={{
-              minHeight: 28,
-              py: 0.25,
-              color: processingTokens.orderHeaderText,
-              borderColor: processingTokens.orderHeaderMutedText,
-              '&:hover': { borderColor: processingTokens.orderHeaderText, bgcolor: 'rgba(255,255,255,0.08)' },
-            }}
-          >
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={onAddItem}
+              sx={{
+                minHeight: 28,
+                py: 0.25,
+                color: processingTokens.orderHeaderText,
+                borderColor: processingTokens.orderHeaderMutedText,
+                '&:hover': { borderColor: processingTokens.orderHeaderText, bgcolor: 'rgba(255,255,255,0.08)' },
+              }}
+            >
               Add item
             </Button>
           ) : null}
@@ -417,23 +396,58 @@ export function ProcessingWorkspaceHeader({
         ))}
       </Menu>
 
+      <TruckPlanLine
+        loaded={summary != null}
+        hasPlan={summary?.plan != null}
+        parts={planParts}
+        orderNotes={orderNotes}
+        onOpenPlan={openPlan}
+      />
+
       <Box
         sx={{
           display: 'flex',
           width: '100%',
-          minHeight: 58,
+          minHeight: 72,
           overflowX: 'auto',
           bgcolor: processingTokens.statsHeaderBg,
           color: processingTokens.statsHeaderText,
         }}
       >
-        {metrics.map((metric, index) => (
-          <StatBlock
-            key={metric.id}
-            metric={metric}
-            first={index === 0}
-            onClick={() => (metric.opensPallets && onOpenPallets ? onOpenPallets() : setSelectedMetricId(metric.id))}
-          />
+        {groups.map((group, groupIndex) => (
+          <Box
+            key={group.id}
+            role="group"
+            aria-label={group.label}
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              flex: `${group.metrics.length} 1 0`,
+              minWidth: group.metrics.length * 92,
+              borderLeft: groupIndex === 0 ? 0 : 2,
+              borderColor: processingTokens.borderStrong,
+            }}
+          >
+            <Typography
+              sx={{
+                px: 1.25,
+                pt: 0.4,
+                fontSize: '0.56rem',
+                fontWeight: 900,
+                letterSpacing: 1,
+                textTransform: 'uppercase',
+                lineHeight: 1.3,
+                color: processingTokens.textMute,
+              }}
+            >
+              {group.label}
+            </Typography>
+            <Box sx={{ display: 'flex', flex: 1 }}>
+              {group.metrics.map((metric, index) => (
+                <StatBlock key={metric.id} metric={metric} first={index === 0} onClick={() => onMetricClick(metric)} />
+              ))}
+            </Box>
+          </Box>
         ))}
       </Box>
 
@@ -441,13 +455,13 @@ export function ProcessingWorkspaceHeader({
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 800 }}>
-              Processing stat
+              Processing
             </Typography>
             <Typography variant="h6" sx={{ lineHeight: 1.2 }}>
               {selectedMetric?.label}
             </Typography>
           </Box>
-          <IconButton aria-label="Close stat detail" onClick={() => setSelectedMetricId(null)}>
+          <IconButton aria-label="Close" onClick={() => setSelectedMetricId(null)}>
             <Close />
           </IconButton>
         </DialogTitle>
@@ -468,6 +482,18 @@ export function ProcessingWorkspaceHeader({
               <li key={line}>{line}</li>
             ))}
           </Box>
+          {openPlan && (selectedMetric?.id === 'paid' || selectedMetric?.id === 'on-track') ? (
+            <Button
+              size="small"
+              sx={{ mt: 1 }}
+              onClick={() => {
+                setSelectedMetricId(null);
+                openPlan();
+              }}
+            >
+              Open the Truck Plan
+            </Button>
+          ) : null}
         </DialogContent>
       </Dialog>
 
@@ -481,39 +507,32 @@ export function ProcessingWorkspaceHeader({
   );
 }
 
+/** The order number opens the Order window; the arrow beside it switches to another order. */
 function OrderSelectorCell({
   orderNumber,
-  onOpen,
+  onOpenOrder,
+  onOpenPicker,
 }: {
   orderNumber: string;
-  onOpen: (el: HTMLElement) => void;
+  onOpenOrder?: () => void;
+  onOpenPicker: (el: HTMLElement) => void;
 }) {
   return (
     <Box
-      component="button"
-      type="button"
-      onClick={(e) => onOpen(e.currentTarget)}
       sx={{
-        appearance: 'none',
-        border: 0,
         borderRight: 1,
         borderColor: processingTokens.orderHeaderBorder,
-        bgcolor: 'transparent',
-        cursor: 'pointer',
         height: 34,
-        px: 1.25,
+        pl: 1.25,
+        pr: 0.25,
         mr: 0.5,
         display: 'flex',
         alignItems: 'center',
-        gap: 0.75,
+        gap: 0.25,
         minWidth: 150,
-        textAlign: 'left',
-        color: 'text.primary',
-        transition: (theme) => theme.transitions.create('background-color'),
-        '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
       }}
     >
-      <Box sx={{ minWidth: 0 }}>
+      <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography
           variant="caption"
           sx={{
@@ -528,11 +547,160 @@ function OrderSelectorCell({
         >
           Order
         </Typography>
-        <Typography sx={{ fontFamily: processingTokens.monoFontFamily, fontSize: 13, fontWeight: 900, lineHeight: 1.2 }} noWrap>
-          {orderNumber}
-        </Typography>
+        <Tooltip title={onOpenOrder ? 'Open the order' : 'Switch order'} enterDelay={300} placement="bottom-start">
+          <Typography
+            component="button"
+            type="button"
+            noWrap
+            onClick={(e: MouseEvent<HTMLElement>) => (onOpenOrder ? onOpenOrder() : onOpenPicker(e.currentTarget))}
+            sx={{
+              display: 'block',
+              appearance: 'none',
+              border: 0,
+              p: 0,
+              bgcolor: 'transparent',
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontFamily: processingTokens.monoFontFamily,
+              fontSize: 13,
+              fontWeight: 900,
+              lineHeight: 1.2,
+              color: 'primary.main',
+              '&:hover': { textDecoration: 'underline' },
+            }}
+          >
+            {orderNumber}
+          </Typography>
+        </Tooltip>
       </Box>
-      <KeyboardArrowDown sx={{ fontSize: 16, color: processingTokens.orderHeaderMutedText }} />
+      <Tooltip title="Switch order" enterDelay={300}>
+        <IconButton size="small" aria-label="Switch order" onClick={(e) => onOpenPicker(e.currentTarget)}>
+          <KeyboardArrowDown sx={{ fontSize: 18, color: processingTokens.orderHeaderMutedText }} />
+        </IconButton>
+      </Tooltip>
+    </Box>
+  );
+}
+
+/** The Truck Plan in one line, or "No truck plan yet" with a button. It never blocks processing. */
+function TruckPlanLine({
+  loaded,
+  hasPlan,
+  parts,
+  orderNotes,
+  onOpenPlan,
+}: {
+  loaded: boolean;
+  hasPlan: boolean;
+  parts: ReturnType<typeof planLineParts>;
+  orderNotes: string;
+  onOpenPlan?: () => void;
+}) {
+  const label = (
+    <Typography
+      sx={{
+        flexShrink: 0,
+        fontSize: '0.56rem',
+        fontWeight: 900,
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+        color: processingTokens.textMute,
+      }}
+    >
+      Truck plan
+    </Typography>
+  );
+  const planButton = (text: string) =>
+    onOpenPlan ? (
+      <Button size="small" variant="outlined" onClick={onOpenPlan} sx={{ minHeight: 22, py: 0, px: 1, fontSize: 12, flexShrink: 0 }}>
+        {text}
+      </Button>
+    ) : null;
+
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+        minHeight: 30,
+        px: 1.25,
+        borderBottom: 1,
+        borderColor: processingTokens.orderHeaderBorder,
+        bgcolor: hasPlan || !loaded ? processingTokens.orderHeaderBg : processingTokens.amberSoft,
+        overflow: 'hidden',
+      }}
+    >
+      {label}
+      {!loaded ? null : !hasPlan ? (
+        <>
+          <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>No truck plan yet</Typography>
+          {planButton('Make the plan')}
+        </>
+      ) : parts.length === 0 ? (
+        <>
+          <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>Nothing written in the plan yet</Typography>
+          {planButton('Open the plan')}
+        </>
+      ) : (
+        <Tooltip
+          enterDelay={300}
+          placement="bottom-start"
+          title={
+            <Box>
+              {parts.map((p) => (
+                <Box key={p.label} sx={{ mb: 0.25 }}>
+                  <b>{p.label}:</b> {p.text}
+                </Box>
+              ))}
+            </Box>
+          }
+        >
+          <Box
+            component="button"
+            type="button"
+            onClick={onOpenPlan}
+            sx={{
+              appearance: 'none',
+              border: 0,
+              p: 0,
+              bgcolor: 'transparent',
+              font: 'inherit',
+              color: 'inherit',
+              cursor: onOpenPlan ? 'pointer' : 'default',
+              textAlign: 'left',
+              flex: '1 1 auto',
+              minWidth: 0,
+              display: 'flex',
+              gap: 1.5,
+              overflow: 'hidden',
+              '&:hover .plan-text': { textDecoration: onOpenPlan ? 'underline' : 'none' },
+            }}
+          >
+            {parts.map((p) => (
+              <Typography
+                key={p.label}
+                noWrap
+                sx={{ fontSize: 12.5, minWidth: 0, flex: p.text.length > 30 ? '0 1 auto' : '0 0 auto' }}
+              >
+                <Box component="span" sx={{ color: p.strong ? processingTokens.accentAmber : 'text.secondary', fontWeight: 700 }}>
+                  {p.label}:
+                </Box>{' '}
+                <Box component="span" className="plan-text" sx={{ fontWeight: p.strong ? 700 : 500 }}>
+                  {p.text}
+                </Box>
+              </Typography>
+            ))}
+          </Box>
+        </Tooltip>
+      )}
+      {loaded && orderNotes ? (
+        <Tooltip title={orderNotes} enterDelay={300}>
+          <Typography noWrap sx={{ fontSize: 12.5, minWidth: 0, flex: '0 1 auto', ml: 'auto', color: 'text.secondary' }}>
+            <Box component="span" sx={{ fontWeight: 700 }}>Order notes:</Box> {orderNotes}
+          </Typography>
+        </Tooltip>
+      ) : null}
     </Box>
   );
 }
@@ -547,6 +715,7 @@ function OrderFact({
   tooltip,
   href,
   onClick,
+  valueColor,
 }: {
   label: string;
   value: string;
@@ -557,8 +726,9 @@ function OrderFact({
   tooltip?: string;
   href?: string;
   onClick?: () => void;
+  valueColor?: string;
 }) {
-  const hoverTitle = tooltip ?? (showFullValueOnHover && value !== '-' ? value : undefined);
+  const hoverTitle = tooltip || (showFullValueOnHover && value !== '-' ? value : undefined);
   const isInteractive = Boolean((href || onClick) && value !== '-');
   const valueTypography = (
     <Typography
@@ -579,7 +749,7 @@ function OrderFact({
         lineHeight: 1.25,
         overflow: 'hidden',
         textOverflow: 'ellipsis',
-        color: isInteractive ? 'primary.main' : processingTokens.orderHeaderText,
+        color: isInteractive ? 'primary.main' : valueColor ?? processingTokens.orderHeaderText,
         ...(isInteractive
           ? {
               textDecoration: 'none',
@@ -648,32 +818,30 @@ function StatBlock({
   first: boolean;
   onClick: () => void;
 }) {
-  const toneColor =
-    metric.tone === 'good' ? processingTokens.accentGreen
-    : metric.tone === 'warning' ? processingTokens.accentAmber
-    : metric.tone === 'error' ? processingTokens.accentRed
-    : processingTokens.statsHeaderText;
+  const valueColor = toneColor(metric.tone) ?? processingTokens.statsHeaderText;
+  const helperColor = toneColor(metric.helperTone);
 
-  return (
+  const block = (
     <Box
       component="button"
       type="button"
       onClick={onClick}
+      aria-label={`${metric.label}: ${metric.value}${metric.suffix ?? ''}. ${metric.helper}`}
       sx={{
         appearance: 'none',
         border: 0,
         borderLeft: first ? 0 : 1,
-        borderBottom: 1,
         borderColor: processingTokens.statsHeaderBorder,
         bgcolor: 'transparent',
         textAlign: 'left',
         font: 'inherit',
         color: 'inherit',
         cursor: 'pointer',
-        flex: '1 0 112px',
-        minWidth: 104,
+        flex: '1 1 0',
+        minWidth: 92,
         px: 1.25,
-        py: 0.85,
+        pt: 0.35,
+        pb: 0.7,
         position: 'relative',
         transition: (theme) => theme.transitions.create('background-color'),
         ...(metric.tone && metric.tone !== 'default' ?
@@ -685,10 +853,7 @@ function StatBlock({
               left: 0,
               width: 3,
               height: '100%',
-              bgcolor:
-                metric.tone === 'good' ? processingTokens.accentGreen
-                : metric.tone === 'warning' ? processingTokens.accentAmber
-                : processingTokens.accentRed,
+              bgcolor: toneColor(metric.tone),
               opacity: 0.55,
             },
           }
@@ -701,7 +866,7 @@ function StatBlock({
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.58rem', fontWeight: 800, letterSpacing: 0.7, textTransform: 'uppercase', lineHeight: 1 }}>
         {metric.label}
       </Typography>
-      <Typography sx={{ fontSize: 20, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: toneColor, lineHeight: 1.05, mt: 0.25 }}>
+      <Typography sx={{ fontSize: 20, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: valueColor, lineHeight: 1.05, mt: 0.25 }}>
         {metric.value}
         {metric.suffix ? (
           <Typography component="span" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: 11 }}>
@@ -709,9 +874,39 @@ function StatBlock({
           </Typography>
         ) : null}
       </Typography>
-      <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', mt: 0.2, maxWidth: 132, fontSize: '0.64rem' }}>
+      <Typography
+        variant="caption"
+        noWrap
+        sx={{
+          display: 'block',
+          mt: 0.2,
+          maxWidth: '100%',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          fontSize: helperColor ? '0.72rem' : '0.64rem',
+          fontWeight: helperColor ? 800 : 400,
+          color: helperColor ?? 'text.secondary',
+        }}
+      >
         {metric.helper}
       </Typography>
     </Box>
+  );
+
+  if (!metric.detail.length) return block;
+  return (
+    <Tooltip
+      enterDelay={250}
+      placement="bottom-start"
+      title={
+        <Box sx={{ py: 0.25 }}>
+          {metric.detail.map((line) => (
+            <Box key={line} sx={{ mb: 0.25 }}>{line}</Box>
+          ))}
+        </Box>
+      }
+    >
+      {block}
+    </Tooltip>
   );
 }

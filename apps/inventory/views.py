@@ -2268,6 +2268,9 @@ _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
         'truck_finalize_step',
         'bstock_disputes',
         'bstock_dispute_update',
+        'truck_summary',
+        'truck_plan',
+        'truck_plan_target',
     },
 )
 
@@ -2685,6 +2688,41 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             request.user, order, pallet,
         )
         return Response(tp.pallet_ledger(order, user=request.user))
+
+    @action(detail=True, methods=['get'], url_path='truck-summary')
+    def truck_summary(self, request, pk=None):
+        """The top of Processing: Paid, Target, On track, disputes so far, dates and the plan (services/truck_plan.py)."""
+        from apps.inventory.services.truck_plan import truck_summary
+
+        order = self.get_object()
+        return Response(truck_summary(order, user=request.user))
+
+    @action(detail=True, methods=['get', 'put'], url_path='truck-plan')
+    def truck_plan(self, request, pk=None):
+        """The Truck Plan window: the same numbers plus the staff to pick from (GET); save the plan (PUT)."""
+        from apps.inventory.services import truck_plan as svc
+
+        order = self.get_object()
+        if request.method == 'PUT':
+            try:
+                svc.save_plan(request.user, order, request.data)
+            except ValueError as e:
+                return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({**svc.truck_summary(order, user=request.user), 'staff': svc.staff_options()})
+
+    @action(detail=True, methods=['post'], url_path='truck-plan/target')
+    def truck_plan_target(self, request, pk=None):
+        """A superuser sets the truck's Target Price total; an empty ``total`` puts it back to 2 x Paid."""
+        from apps.inventory.services import truck_plan as svc
+
+        order = self.get_object()
+        try:
+            order = svc.set_target(request.user, order, request.data.get('total'))
+        except PermissionError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_403_FORBIDDEN)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({**svc.truck_summary(order, user=request.user), 'staff': svc.staff_options()})
 
     @action(detail=True, methods=['get'], url_path='truck-finalize')
     def truck_finalize(self, request, pk=None):
