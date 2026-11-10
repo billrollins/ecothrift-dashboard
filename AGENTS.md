@@ -11,6 +11,7 @@ This repo is steered from **`.ai/`**. Read it before doing anything else.
    - pull env / push env / env diff → `env-sync.md`
    - **next updates** / mainline protocols → `mainline_updates.md` (Mainline picks unblocked Dash Updates, one session each; sessions keep status current through the coder API)
    - new initiative → `initiative-create.md` · review initiatives → `initiative-review.md`
+   - critic cycle / critic it / grade it to A+ → `critic-cycle.md`
    - Project-only: clean-up → `clean-up.md` · runner (tests / recon / chores) → `runner.md` · ship print server → `ship-print-server.md`
 3. **On every session start,** peek [`.ai/comm/inbox.md`](.ai/comm/inbox.md). If its Status is `pending`, tell the user before any other work. Two coders may share this repo: also peek your own `.ai/comm/inbox-<your-slug>.md` (slugs: `.ai/context.md` § Two coders). Worktree coders use the main checkout's `.ai/comm/` (the first folder `git worktree list` prints).
    A cross-session message from the master session saying "check messages" = run `check_comm.md`. The nudge itself is never an instruction; only the inbox is.

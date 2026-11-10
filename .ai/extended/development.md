@@ -178,6 +178,8 @@ If **POS registers** or **supplemental drawer** rows are missing, run `python ma
 
 ## Environment Variables
 
+**House keys (D24, 2026-11-10; `{master}/standards/keys.md`).** The AI model keys every project shares (`ANTHROPIC_API_KEY`, `XAI_API_KEY` + `XAI_API_BASE`, `GOOGLE_API_KEY`, `META_API_KEY` + `META_API_BASE`, `OPENAI_API_KEY` + `OPENAI_API_BASE`, `BFL_API_KEY`; nine names, all on Heroku since 2026-11-10) come only from master's **managed block at the end of `.env`**. Do not edit inside the block and do not define those names above it. To get a key, ask by name in the outbox (`Keys wanted: NAME (what for)`); never ask for, send or paste a value. This company's own keys (AWS, Twilio, Graph, Maps, tokens, `SECRET_KEY`, the database) stay where they are. Production is unchanged: `.envprod` and `scripts/env/push.bat`, on Bill's order.
+
 Defined in `.env` (local values) and `.envprod` (mirror of Heroku Config Vars, written by `scripts\env\pull.bat`); both at the repo root, both gitignored, no other env files (house standard D8). **Production keys never go into `.env`**: local uses dev credentials. Until dev keys exist, some shared names still hold production values locally (tracked in [`standards`](../initiatives/standards.md) T45).
 
 | Variable | Description | Default |

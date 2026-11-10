@@ -23,8 +23,10 @@ Stack: Django 5.2 + DRF, React 18.3 + TypeScript + MUI 7, PostgreSQL (schema `ec
 
 ## Active work
 
+- **2026-11-10, read first:** Bill stopped new work until the open work is in one plan. Everything started and not finished, the clean-up that was done, and the draft plan are in [`reference/reports/2026-11-10-unfinished-work.md`](reference/reports/2026-11-10-unfinished-work.md). **Dash Updates becomes the only list**; the plan files named below are stale and go once their open items are rows there. Focus: Retail and Buying only. Bill's answers: [`reference/owner-qa-log.md`](reference/owner-qa-log.md). End goals: [`reference/end-goals/`](reference/end-goals/). Archives go off site: `{coding root}/!archive/<project name>/`.
+
 - **Calendar:** [`calendar.md`](calendar.md). Read it every session. Thrift+ launched Fri 2026-10-16 (four days ahead of the plan of 10-20).
-- **Compass — Thrift+ Rewards:** [`thrift_plus_rewards`](initiatives/thrift_plus_rewards.md). Launched 10-16. Launch kit (archived 10-20): [`thrift_plus_launch_kit`](initiatives/_archived/thrift_plus_launch_kit.md).
+- **Compass — Thrift+ Rewards:** [`thrift_plus_rewards`](initiatives/thrift_plus_rewards.md). Launched 10-16. Launch kit: archived 10-20, moved off site 11-10 (see `initiatives/_index.md` § Archived).
 - **Data platform and the AI supervisor:** [`data_platform`](initiatives/data_platform.md). This is the owner's priority besides Thrift+.
 - **Product intelligence:** [`product_intelligence`](initiatives/product_intelligence.md). Standardize and dedupe rules: [`extended/product-standard.md`](extended/product-standard.md).
 - **Data quality and rails:** [`data_quality_rails`](initiatives/data_quality_rails.md).
@@ -100,6 +102,7 @@ Load on demand. Do not read them all at session start. When you add, rename or r
 | [`backfill-plan.md`](extended/backfill-plan.md) | Cleaning or backfilling a field (rules in `warehouse/sql/`, models in `factory/`) |
 | [`brand.md`](extended/brand.md) | Staff colours, same-colour-same-meaning, token files |
 | [`creative-method.md`](extended/creative-method.md) | Any poster, sign or social post: built from vector type plus separate AI photo plates, the QA gates, Facebook sizes |
+| [`critic-fix-cycle.md`](extended/critic-fix-cycle.md) | Making a page great: critic grades, coder fixes, up to 10 rounds until A+; findings say what, why and possible actions (the coder decides the fix) |
 | [`bstock.md`](extended/bstock.md) | B-Stock API, scraper, SOCKS5 |
 | [`cash-management.md`](extended/cash-management.md) | Drops, pickups, drawer reconciliation, safe |
 | [`consignment.md`](extended/consignment.md) | Agreements, items, payouts, portal |

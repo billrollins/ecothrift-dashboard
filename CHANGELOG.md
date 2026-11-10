@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.269.2] -->
-<!-- Last reviewed: 2026-11-10 (2.269.2) -->
+<!-- Line 1 release: ## [2.269.3] -->
+<!-- Last reviewed: 2026-11-10 (2.269.3) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.269.3] - 2026-11-10
+
+User-facing theme: **Housekeeping: old plans cleared out, one list of open work.** Nothing changes on any Dash screen.
+
+> **For Bill:** no screen changed. The 62 archived plan files left the project (they are off site in `!archive/ecothrift-dashboard/`), everything started and not finished is in one list with a draft plan, and your question log, the Retail and Buying end goals and today's audit are now backed up on GitHub. Heroku has the nine shared AI key names, including the new OpenAI one.
+
+### Changed
+- `.ai/initiatives/_archived/` (62 files) removed; the index points at the off-site archive. `.ai/context.md` Active work opens with the 2026-11-10 direction (Dash Updates becomes the only list; Retail and Buying only).
+- New in `.ai/`: `reference/reports/2026-11-10-dash-audit.md`, `reference/reports/2026-11-10-unfinished-work.md` (the one list, the clean-up record, draft plan v2), `reference/owner-qa-log.md`, `reference/end-goals/` (Retail, Buying; drafts), `reference/buying-auctions-mvp/auction-detail-spec.md`, `extended/cash-drops-decisions.md`, `extended/critic-fix-cycle.md`, `protocols/critic-cycle.md`, `initiatives/contractor_agreements.md`.
+- House standards: T86 (house keys, D24) and T87 (the nine AI key names on Heroku; four were missing, Heroku release v617) done; T88 (partner links) recorded, blocked on T67. `extended/development.md` Environment Variables carries the house-keys note.
+- No code, no migration.
 
 ## [2.269.2] - 2026-11-10
 

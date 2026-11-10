@@ -1,10 +1,13 @@
-v2.269.2 — A save no longer fails with "status code 499"
+v2.269.3 — Housekeeping: old plans cleared out, one list of open work
 
-User-facing theme: **A save no longer fails with "status code 499".**
+User-facing theme: **Housekeeping: old plans cleared out, one list of open work.** Nothing changes on any Dash screen.
 
-> **For Bill:** saving a product (and any other save) sometimes failed with a red "Request failed with status code 499". The save never reached Dash; pressing Save again worked. That no longer happens.
+> **For Bill:** no screen changed. The 62 archived plan files left the project (they are off site in `!archive/ecothrift-dashboard/`), everything started and not finished is in one list with a draft plan, and your question log, the Retail and Buying end goals and today's audit are now backed up on GitHub. Heroku has the nine shared AI key names, including the new OpenAI one.
 
-### Fixed
-- `Procfile`: gunicorn `--keep-alive 95`. Heroku's router (Router 2.0) keeps connections to the dyno open for 90 seconds; gunicorn's gthread worker closed an idle one after 2 seconds, so a request with a body (PATCH, POST) sometimes went out on a connection gunicorn had just closed. The router answered 499 (logged as H28, service about 5 ms) and the app never saw the request. Reads were retried by the router, so only saves showed it. 95 is Heroku's own setting for gunicorn (their `python-getting-started` config): the router now closes idle connections first.
+### Changed
+- `.ai/initiatives/_archived/` (62 files) removed; the index points at the off-site archive. `.ai/context.md` Active work opens with the 2026-11-10 direction (Dash Updates becomes the only list; Retail and Buying only).
+- New in `.ai/`: `reference/reports/2026-11-10-dash-audit.md`, `reference/reports/2026-11-10-unfinished-work.md` (the one list, the clean-up record, draft plan v2), `reference/owner-qa-log.md`, `reference/end-goals/` (Retail, Buying; drafts), `reference/buying-auctions-mvp/auction-detail-spec.md`, `extended/cash-drops-decisions.md`, `extended/critic-fix-cycle.md`, `protocols/critic-cycle.md`, `initiatives/contractor_agreements.md`.
+- House standards: T86 (house keys, D24) and T87 (the nine AI key names on Heroku; four were missing, Heroku release v617) done; T88 (partner links) recorded, blocked on T67. `extended/development.md` Environment Variables carries the house-keys note.
+- No code, no migration.
 
 Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
