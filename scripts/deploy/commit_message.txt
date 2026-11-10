@@ -1,12 +1,10 @@
-v2.269.1 — A member's name opens their window in more places
+v2.269.2 — A save no longer fails with "status code 499"
 
-User-facing theme: **A Thrift+ member's name opens their Member window in more places.**
+User-facing theme: **A save no longer fails with "status code 499".**
 
-> **For Bill:** click a member's name to open their window (ThriftBucks, credit, trips, Make it right) from the register's member card, the Return window (the member found and the receipt's "For ..."), the Transactions window, the Users page member drawer, the staff app's Finalize card, and the Thrift+ Members tab ("Open member window").
+> **For Bill:** saving a product (and any other save) sometimes failed with a red "Request failed with status code 499". The save never reached Dash; pressing Save again worked. That no longer happens.
 
-### Added
-- `components/thriftplus/MemberName.tsx`: a member's name as a link to their Member window; plain text where no window can open.
-- Used in: `MemberCard` (register member dialog and /pos/members), `ReturnWindow` and `ReturnsSummaryStep`, `TransactionsWindow`, `MemberDrawer` (Users page), `finalizePeople` (staff app; the staff app now has the object window), and an "Open member window" button on the Thrift+ Members tab.
-- Not linked yet: the suspended-sale tab (it resumes the sale) and the late returns list (no person on its rows).
+### Fixed
+- `Procfile`: gunicorn `--keep-alive 95`. Heroku's router (Router 2.0) keeps connections to the dyno open for 90 seconds; gunicorn's gthread worker closed an idle one after 2 seconds, so a request with a body (PATCH, POST) sometimes went out on a connection gunicorn had just closed. The router answered 499 (logged as H28, service about 5 ms) and the app never saw the request. Reads were retried by the router, so only saves showed it. 95 is Heroku's own setting for gunicorn (their `python-getting-started` config): the router now closes idle connections first.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>

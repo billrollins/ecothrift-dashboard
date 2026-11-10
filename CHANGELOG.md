@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.269.1] -->
-<!-- Last reviewed: 2026-11-09 (2.269.1) -->
+<!-- Line 1 release: ## [2.269.2] -->
+<!-- Last reviewed: 2026-11-10 (2.269.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.269.2] - 2026-11-10
+
+User-facing theme: **A save no longer fails with "status code 499".**
+
+> **For Bill:** saving a product (and any other save) sometimes failed with a red "Request failed with status code 499". The save never reached Dash; pressing Save again worked. That no longer happens.
+
+### Fixed
+- `Procfile`: gunicorn `--keep-alive 95`. Heroku's router (Router 2.0) keeps connections to the dyno open for 90 seconds; gunicorn's gthread worker closed an idle one after 2 seconds, so a request with a body (PATCH, POST) sometimes went out on a connection gunicorn had just closed. The router answered 499 (logged as H28, service about 5 ms) and the app never saw the request. Reads were retried by the router, so only saves showed it. 95 is Heroku's own setting for gunicorn (their `python-getting-started` config): the router now closes idle connections first.
 
 ## [2.269.1] - 2026-11-09
 
