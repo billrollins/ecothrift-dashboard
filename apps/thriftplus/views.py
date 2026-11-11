@@ -45,6 +45,7 @@ from apps.thriftplus.services import (
     ledger,
     members,
     register,
+    return_receipt,
     returns,
     returns_find,
     rewards,
@@ -1068,8 +1069,10 @@ class ReturnsViewSet(viewsets.ViewSet):
       the owner PIN as ``pin``, O1; owner 2026-10-20) lets a return past the 3 days through, with the note saying why;
     - The Register's Return window (owner 2026-10-20, on the Register since #71; ``returns_find.py``): ``find`` ``{q | person, register?}`` (a POST, so names stay
       out of the logs), ``receipt`` ``?cart=`` (one ticket, Returnable and AS IS), ``preview`` ``{cart, cart_lines}`` (the
-      summary), ``batch`` ``{cart, cart_lines, late?: {reason, note}, pin?}`` (several lines in one go; past the 3 days it
-      needs the owner signed in or ``pin``, a reason, and is marked against Retail);
+      summary), ``batch`` ``{cart, cart_lines, reasons?: {"<cart line>": {reason, note?}}, late?: {reason, note}, pin?}``
+      (several lines in one go; past the 3 days it needs the owner signed in or ``pin``, a reason, and is marked
+      against Retail). ``reasons`` says why each item came back (#90; kept per line, shown on Processing > Returns);
+      the answer carries ``receipt``, the return receipt to print (``return_receipt.py``; one per sale);
     - ``history``: every return, newest first, for Transactions → Returns (#72; it replaced the managers' ``late`` list);
     - ``photo``: the serial and condition photo of a $100+ item at the sale;
     - ``list`` and ``done``: returned items waiting for staff.
@@ -1084,7 +1087,7 @@ class ReturnsViewSet(viewsets.ViewSet):
             {'id': r.pk, 'status': r.status, 'member': f'{r.person.first_name} {r.person.last_name}'.strip(),
              'sku': r.item.sku if r.item_id else '', 'title': r.cart_line.description, 'paid': str(r.paid),
              'credit': str(r.credit), 'bucks_back': str(r.bucks_back), 'bucks_taken': str(r.bucks_taken),
-             'shortfall': str(r.shortfall), 'note': r.note, 'created_at': r.created_at}
+             'shortfall': str(r.shortfall), 'note': r.note, 'why': r.why, 'created_at': r.created_at}
             for r in rows
         ])
 
@@ -1187,6 +1190,10 @@ class ReturnsViewSet(viewsets.ViewSet):
             return error
         d = request.data
         training = self._training(d.get('register'))
+        try:  # why each item is coming back (#90); checked before any PIN, so a bad one never costs a try
+            reasons = returns.clean_reasons(d.get('reasons'), [l.pk for l in lines])
+        except register.RegisterError as exc:
+            return Response(exc.payload(), status=status.HTTP_400_BAD_REQUEST)
         late = any(returns.is_late(line) for line in lines)
         info = d.get('late') if isinstance(d.get('late'), dict) else {}
         reason, note = str(info.get('reason') or ''), str(info.get('note') or d.get('note') or '').strip()
@@ -1204,9 +1211,11 @@ class ReturnsViewSet(viewsets.ViewSet):
         person = returns_find.acting_person(member, d.get('person'))
         try:
             result = returns.batch(lines, person=person, note=note, user=request.user, training=training, late_ok=late,
-                                   late_reason=reason, by_pin=by_pin, approved_by=approver)
+                                   late_reason=reason, by_pin=by_pin, approved_by=approver, reasons=reasons)
         except register.RegisterError as exc:
             return Response(exc.payload(), status=status.HTTP_400_BAD_REQUEST)
+        # The return receipt, ready to print: one for this sale, every line that just came back (#90).
+        result['receipt'] = return_receipt.for_batch(lines, result, reasons, user=request.user)
         return Response(result, status=status.HTTP_200_OK if training else status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['get'])

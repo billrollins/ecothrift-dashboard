@@ -28,7 +28,7 @@ python scripts/dev/dash_update.py <id> --status done --version v2.NNN.0
 ## Roles (Bill, 2026-11-10)
 
 - **Mainline** is the coordinator. It runs on Fable 5.2 at Extra effort. It plans, answers the subs' questions, merges, ships and deploys (on Bill's words), **marks an update Done on its own say**, and **deletes the sub when its update is complete**.
-- A **sub** (sub-session; title starts with "└ ") works on **one update at a time**, on Fable 5.2 at medium effort. It never ships, deploys or sets Done.
+- A **sub** (sub-session; title starts with "└ ") works on **one update at a time**. It never ships, deploys or sets Done. **Model (Bill, 2026-11-11, replaces "Fable 5.2 medium"):** Opus 5.5 at high effort, or medium for an easy task; Mainline decides each time and sets it as soon as the sub reports "started" (a new sub starts on the Mainline model and effort, and the change applies from its next turn).
 - **No row, no work.** Nothing is built that is not a row in Dash Updates.
 
 ## Mainline steps

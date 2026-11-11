@@ -1,12 +1,14 @@
-import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
+import PersonSearchRounded from '@mui/icons-material/PersonSearchRounded';
+import QrCode2Rounded from '@mui/icons-material/QrCode2Rounded';
+import QrCodeScannerRounded from '@mui/icons-material/QrCodeScannerRounded';
+import ReceiptLongRounded from '@mui/icons-material/ReceiptLongRounded';
 import SearchRounded from '@mui/icons-material/SearchRounded';
 import {
   Alert,
   Avatar,
   Box,
   Button,
-  Checkbox,
   CircularProgress,
   Dialog,
   DialogContent,
@@ -16,7 +18,6 @@ import {
   ListItemAvatar,
   ListItemButton,
   ListItemText,
-  Paper,
   Stack,
   TextField,
   Typography,
@@ -24,33 +25,54 @@ import {
 } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { thriftErrorMessage } from '../../../api/thriftplusRegister.api';
 import {
   findReturns,
   getReturnsReceipt,
+  type ReturnReasonPick,
   type ReturnsDone,
   type ReturnsFind,
-  type ReturnsLine,
   type ReturnsPerson,
   type ReturnsReceipt,
+  type ReturnsSummary,
   type ReturnsTicket,
 } from '../../../api/thriftplusReturns.api';
+import { localPrintService, printErrorMessage } from '../../../services/localPrintService';
 import { formatCurrency } from '../../../utils/format';
 import { skuFromScan } from '../../../utils/scanCode';
 import { useObjectModal } from '../../objects/ObjectModal';
 import { MemberName } from '../../thriftplus/MemberName';
-import { tbNumber } from '../../thriftplus/ThriftBucks';
-import StepFrame from './StepFrame';
+import ReturnDoneStep, { type ReturnDoneLine, type ReturnPrint } from './ReturnDoneStep';
+import ReturnTicketStep from './ReturnTicketStep';
 import ReturnsSummaryStep from './ReturnsSummaryStep';
-import { BIG, FOCUS_RING, dayOnly, dayTime } from './returnsText';
+import StepFrame from './StepFrame';
+import { BIG, REASONS_FALLBACK, STEPS, dayTime, reasonWords } from './returnsText';
 
-type Step = 'find' | 'receipt' | 'summary';
+type Step = 'start' | 'ticket' | 'check' | 'done';
+const STEP_AT: Record<Step, number> = { start: 0, ticket: 1, check: 2, done: 3 };
 
-/** What the line under the scan box says when there is nothing to warn about. */
-const SCAN_HINT = 'Press Enter for the summary.';
-/** ... and before anything is ticked. */
-const TICK_HINT = 'Scan or tap each item coming back.';
+/** The big ways in on "Start a return". Each one only says what to do and readies the box: the box finds anything. */
+type Way = 'tag' | 'qr' | 'member' | 'ticket';
+const WAYS: { key: Way; icon: ReactNode; title: string; help: string; label: string; placeholder: string; hint: string }[] = [
+  {
+    key: 'tag', icon: <QrCodeScannerRounded fontSize="large" />, title: "Scan an item's tag", help: 'The tag on what came back',
+    label: "Scan the item's tag", placeholder: 'Scan the tag now, or type its number', hint: 'Ready: scan the tag on the item they brought back.',
+  },
+  {
+    key: 'qr', icon: <QrCode2Rounded fontSize="large" />, title: 'Scan their Thrift+ QR', help: "In the member's app",
+    label: 'Scan their Thrift+ QR', placeholder: 'Scan the QR in their app now', hint: "Ready: scan the QR in the member's Thrift+ app.",
+  },
+  {
+    key: 'member', icon: <PersonSearchRounded fontSize="large" />, title: 'Find the member', help: 'Name or phone number',
+    label: "Member's name or phone", placeholder: 'Type a name or phone number', hint: 'Type a name or phone number, then press Enter.',
+  },
+  {
+    key: 'ticket', icon: <ReceiptLongRounded fontSize="large" />, title: 'Type the ticket number', help: 'At the top of the receipt',
+    label: 'Ticket number', placeholder: "R-20261104-045, or just 45 for today's", hint: 'The ticket number is at the top of the receipt. Type it, then press Enter.',
+  },
+];
+const ANY_HINT = 'Ready to scan. Or tap a way above.';
 
 function TicketRow({ t, onOpen, last }: { t: ReturnsTicket; onOpen: (cart: number) => void; last: boolean }) {
   return (
@@ -80,20 +102,34 @@ function PersonRow({ p, onPick }: { p: ReturnsPerson; onPick: (id: number) => vo
   );
 }
 
-/** The server's window-closed sentence: on a late ticket the alert above already says it once. */
-const WINDOW_CLOSED = /The 3-day return window closed[^.]*\.\s*/;
-
-/** AS IS lines, the same item once with a count (nine bottles of one shampoo are one row). */
-function groupAsIs(lines: ReturnsLine[], late: boolean): { key: string; line: ReturnsLine; count: number }[] {
-  const groups = new Map<string, { key: string; line: ReturnsLine; count: number }>();
-  for (const raw of lines) {
-    const l = late ? { ...raw, why: raw.why.replace(WINDOW_CLOSED, '').trim() || 'Sold AS IS.' } : raw;
-    const key = `${l.title}|${l.state}|${l.why}`;
-    const g = groups.get(key);
-    if (g) g.count += Math.max(1, l.quantity);
-    else groups.set(key, { key, line: l, count: Math.max(1, l.quantity) });
+/** Where the cashier is: the four steps on one line (one short line on a phone). */
+function StepsLine({ at, narrow }: { at: number; narrow: boolean }) {
+  const words = `Step ${at + 1} of ${STEPS.length}: ${STEPS[at]}`;
+  if (narrow) {
+    return <Typography variant="body2" color="text.secondary" fontWeight={700} data-testid="return-steps">{words}</Typography>;
   }
-  return [...groups.values()];
+  return (
+    <Stack direction="row" spacing={1} alignItems="center" role="group" aria-label={words} data-testid="return-steps" data-step={at + 1}>
+      {STEPS.map((label, i) => (
+        <Fragment key={label}>
+          {i ? <Box sx={{ flex: 1, height: 2, borderRadius: 1, bgcolor: i <= at ? 'primary.main' : 'divider' }} /> : null}
+          <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
+            <Box
+              sx={{
+                width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 14, fontWeight: 800,
+                bgcolor: i <= at ? 'primary.main' : 'action.disabledBackground', color: i <= at ? 'primary.contrastText' : 'text.secondary',
+              }}
+            >
+              {i + 1}
+            </Box>
+            <Typography variant="body2" noWrap fontWeight={i === at ? 800 : 500} color={i === at ? 'text.primary' : 'text.secondary'}>
+              {label}
+            </Typography>
+          </Stack>
+        </Fragment>
+      ))}
+    </Stack>
+  );
 }
 
 interface Props {
@@ -106,49 +142,57 @@ interface Props {
 }
 
 /**
- * The Return window on the Register (#71, Bill 2026-11-04: the Register holds the POS and returns; it replaced the
- * Returns page of 2026-10-20). SUPER FAST, keyboard and scanner first.
- * 1. Find the receipt by anything: the member (QR, name, phone, email, member #), the ticket (the receipt #, a date or the
- *    total) or an item (its tag, or words from it). A single ticket opens at once; found by a tag, that item is ticked.
- * 2. Tick the lines coming back (scan an item tag to tick it). Returnable on top, AS IS greyed with the reason below.
- * 3. Summary and Confirm. Past the 3 days: a manager's own PIN (or the owner signed in) and a reason (a mark against Retail).
- * 4. Done: the window closes and the member's window opens with the new credit (practice too, with nothing written).
- * Every return taken, late ones too, is listed in Transactions → Returns (#72). Server: `apps/thriftplus`
- * `returns/find|receipt|preview|batch`.
+ * The Return window on the Register (#71, Bill 2026-11-04: the Register holds the POS and returns). Rebuilt as four
+ * clear steps for #90 (Carrie 2026-11-10: "the return process looked difficult and confusing"; Bill: "a start a
+ * return. Which then pulls up a ticket, picks the things that are going to be returned, gives all the reasons for each
+ * return, then once it's done, it prints a receipt").
+ * 1. Start a return: four big ways in (scan an item's tag, scan the member's QR, find the member, type the ticket
+ *    number) over one box that has the cursor from the moment the window opens, so a scan works with no tap first.
+ *    The box still finds by anything (a date, a total, an email, words from the item). One ticket opens at once.
+ * 2. The ticket (`ReturnTicketStep`): tap or scan what is coming back; each picked item asks why.
+ * 3. Check (`ReturnsSummaryStep`): what comes back, each reason, what the customer gets; Confirm. Past the 3 days: a
+ *    manager's own PIN (or the owner signed in) and a reason (a mark against Retail).
+ * 4. Return complete (`ReturnDoneStep`): it says so, big; the return receipt prints by itself (one per sale), with
+ *    Print again; "Another return for this customer" goes to their next ticket, which gets its own receipt.
+ * The money rules are the server's and did not change (`apps/thriftplus` `returns/find|receipt|preview|batch`).
+ * Every return taken, late ones too, is listed in Transactions → Returns (#72).
  * The window keeps one height on every step and its messages sit in lines that are always there, so nothing jumps.
  */
 export default function ReturnWindow({ open, onClose, registerCode, practice }: Props) {
   const { enqueueSnackbar } = useSnackbar();
   const { openObject } = useObjectModal();
   const queryClient = useQueryClient();
-  const [step, setStep] = useState<Step>('find');
+  const [step, setStep] = useState<Step>('start');
+  const [way, setWay] = useState<Way | null>(null);
   const [q, setQ] = useState('');
   const [searched, setSearched] = useState('');
   const [found, setFound] = useState<ReturnsFind | null>(null);
   const [searching, setSearching] = useState(false);
   const [receipt, setReceipt] = useState<ReturnsReceipt | null>(null);
   const [ticked, setTicked] = useState<number[]>([]);
-  const [scan, setScan] = useState('');
-  const [scanNote, setScanNote] = useState('');
+  const [reasons, setReasons] = useState<Record<number, ReturnReasonPick>>({});
+  const [finished, setFinished] = useState<{ result: ReturnsDone; lines: ReturnDoneLine[] } | null>(null);
+  const [print, setPrint] = useState<ReturnPrint>({ status: 'printing', error: '' });
+  const printedOnce = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
-  const scanRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const listScrollRef = useRef<HTMLDivElement>(null);
   const listScroll = useRef(0);
   const [lastCart, setLastCart] = useState<number | null>(null);
 
   const reset = useCallback(() => {
-    setStep('find');
+    setStep('start');
+    setWay(null);
     setReceipt(null);
     setFound(null);
     setTicked([]);
+    setReasons({});
+    setFinished(null);
     setQ('');
     setSearched('');
-    setScan('');
-    setScanNote('');
   }, []);
 
-  /** Back from a ticket: to the same list when it came from one (no retyping a date), else a clean search. */
+  /** Back from a ticket: to the same list when it came from one (no retyping a date), else a clean start. */
   const backToList = Boolean(found && !found.receipt && found.tickets.length > 1);
   function back() {
     if (!backToList) {
@@ -156,11 +200,10 @@ export default function ReturnWindow({ open, onClose, registerCode, practice }: 
       reset();
       return;
     }
-    setStep('find');
+    setStep('start');
     setReceipt(null);
     setTicked([]);
-    setScan('');
-    setScanNote('');
+    setReasons({});
   }
 
   // Every opening starts clean.
@@ -169,10 +212,9 @@ export default function ReturnWindow({ open, onClose, registerCode, practice }: 
   }, [open, reset]);
 
   useEffect(() => {
-    if (!open) return;
-    if (step === 'find' && listScrollRef.current) listScrollRef.current.scrollTop = listScroll.current;
-    if (step === 'find') searchRef.current?.focus();
-    if (step === 'receipt') scanRef.current?.focus();
+    if (!open || step !== 'start') return;
+    if (listScrollRef.current) listScrollRef.current.scrollTop = listScroll.current;
+    searchRef.current?.focus();
   }, [open, step]);
 
   /** Open a ticket; `tag` (the item tag it was found by) ticks that line when it can come back. */
@@ -181,9 +223,8 @@ export default function ReturnWindow({ open, onClose, registerCode, practice }: 
     const line = code ? next.lines.find((l) => l.sku.toLowerCase() === code && l.state === 'returnable') : undefined;
     setReceipt(next);
     setTicked(line ? [line.cart_line] : []);
-    setScan('');
-    setScanNote('');
-    setStep('receipt');
+    setReasons({});
+    setStep('ticket');
   }, []);
 
   async function search(text = q, person?: number) {
@@ -196,7 +237,7 @@ export default function ReturnWindow({ open, onClose, registerCode, practice }: 
       if (listScrollRef.current) listScrollRef.current.scrollTop = 0;
       if (typed) setSearched(typed);
       listScroll.current = 0;
-      setLastCart(null);
+      if (person == null) setLastCart(null);
       if (answer.receipt) openReceipt(answer.receipt, answer.kind === 'item' ? skuFromScan(typed) : '');
       else setQ('');
     } catch (err) {
@@ -219,68 +260,70 @@ export default function ReturnWindow({ open, onClose, registerCode, practice }: 
     }
   }
 
-  const returnable = useMemo(() => (receipt?.lines ?? []).filter((l) => l.state === 'returnable'), [receipt]);
-  const asIs = useMemo(() => groupAsIs((receipt?.lines ?? []).filter((l) => l.state !== 'returnable'), Boolean(receipt?.late)), [receipt]);
-  // Each reason once, with its items under it.
-  const asIsByWhy = useMemo(() => {
-    const byWhy = new Map<string, typeof asIs>();
-    for (const g of asIs) {
-      const why = g.line.why || 'Sold AS IS.';
-      byWhy.set(why, [...(byWhy.get(why) ?? []), g]);
-    }
-    return [...byWhy.entries()];
-  }, [asIs]);
   // A short screen (a register's small monitor, a phone): the window takes the whole screen so the items get the room.
   const compact = useMediaQuery('(max-height: 720px), (max-width: 599.95px)');
   const narrow = useMediaQuery('(max-width: 599.95px)');
 
-  function toggle(id: number) {
-    setTicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  function pickWay(next: Way) {
+    setWay(next);
+    searchRef.current?.focus();
   }
 
-  /** Scanning an item tag while the receipt is open ticks that line. */
-  function scanned(raw: string) {
-    const code = skuFromScan(raw).toLowerCase();
-    setScan('');
-    if (!code) {
-      if (ticked.length) {
-        setScanNote('');
-        setStep('summary');
-      }
+  /**
+   * The return receipt goes to the print server (the route every sale receipt uses). A failure is said on the done
+   * screen and never undoes the return. Print again after a good print is a copy, and says COPY (REG-17).
+   */
+  async function printSlip(payload: Record<string, unknown> | null | undefined, again: boolean) {
+    if (!payload) {
+      setPrint({ status: 'none', error: '' });
       return;
     }
-    const line = receipt?.lines.find((l) => l.sku.toLowerCase() === code);
-    if (!line) {
-      setScanNote(`Not on this ticket: ${skuFromScan(raw)}`);
-      return;
+    setPrint({ status: 'printing', error: '' });
+    try {
+      const copy = again && printedOnce.current;
+      await localPrintService.printReceipt(
+        copy ? { ...payload, copy: true, receipt_number: `${String(payload.receipt_number ?? 'RETURN')} COPY` } : payload,
+        false,
+      );
+      printedOnce.current = true;
+      setPrint({ status: 'printed', error: '' });
+    } catch (err) {
+      const why = printErrorMessage(err).replace(/^The receipt did not print\.\s*/, '').trim();
+      setPrint({ status: 'failed', error: why && !/[.!?]$/.test(why) ? `${why}.` : why });
     }
-    if (line.state !== 'returnable') {
-      setScanNote(`Cannot come back${/AS IS/i.test(line.why) || !line.why ? ' (sold AS IS)' : ''}: ${line.title}`);
-      return;
-    }
-    if (ticked.includes(line.cart_line)) {
-      setScanNote(`Already ticked: ${line.title}`);
-      return;
-    }
-    setScanNote('');
-    setTicked((cur) => [...cur, line.cart_line]);
   }
 
-  function done(result: ReturnsDone) {
-    enqueueSnackbar(
-      result.training
-        ? 'Practice: nothing was given.'
-        : `Thrift+ credit added: ${formatCurrency(result.totals.credit)}${Number(result.totals.bucks_taken) > 0 ? ` · ${tbNumber(result.totals.bucks_taken)} ThriftBucks taken back` : ''}`,
-      { variant: result.training ? 'info' : 'success' },
-    );
-    onClose();
-    // Practice ends like the real thing: the member's window opens (#49), read again so it shows the credit of now.
+  /** Confirm went through: the done screen, and the return receipt prints by itself (one per sale). */
+  function done(result: ReturnsDone, summary: ReturnsSummary) {
+    const options = receipt?.return_reasons?.length ? receipt.return_reasons : REASONS_FALLBACK;
+    setFinished({
+      result,
+      lines: summary.lines.map((l) => ({ cart_line: l.cart_line, title: l.title, why: reasonWords(reasons[l.cart_line], options), credit: l.credit })),
+    });
+    setStep('done');
+    // Their member window and the register's member block read again: the credit of now, not the old one.
     void queryClient.invalidateQueries({ queryKey: ['member-window', result.person_id] });
     void queryClient.invalidateQueries({ queryKey: ['thriftplus', 'member-card', result.person_id] });
-    openObject({ type: 'member', id: result.person_id });
+    printedOnce.current = false;
+    void printSlip(result.receipt, false);
   }
 
-  const tickedCredit = receipt ? receipt.lines.filter((l) => ticked.includes(l.cart_line)).reduce((sum, l) => sum + Number(l.refund), 0) : 0;
+  /** "Another return for this customer": straight to their tickets; the next one is its own return and receipt. */
+  function another() {
+    const person = finished?.result.person_id;
+    const cart = receipt?.cart ?? null;
+    reset();
+    setLastCart(cart);
+    if (person != null) void search('', person);
+  }
+
+  function seeMember() {
+    const person = finished?.result.person_id;
+    onClose();
+    if (person != null) openObject({ type: 'member', id: person });
+  }
+
+  const active = WAYS.find((w) => w.key === way);
 
   return (
     <Dialog
@@ -308,38 +351,88 @@ export default function ReturnWindow({ open, onClose, registerCode, practice }: 
           <CloseRounded />
         </IconButton>
       </DialogTitle>
-      <DialogContent sx={{ pt: compact ? 1.5 : 2, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <DialogContent sx={{ pt: compact ? 1 : 1.5, display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: compact ? 1 : 1.5 }}>
+        <Box sx={{ flexShrink: 0 }}>
+          <StepsLine at={STEP_AT[step]} narrow={narrow} />
+        </Box>
 
-        {step === 'find' ? (
+        {step === 'start' ? (
           <StepFrame
             scrollRef={listScrollRef}
             top={
-              <Stack direction="row" spacing={1}>
-                <TextField
-                  inputRef={searchRef}
-                  autoFocus
-                  fullWidth
-                  label="Find the receipt"
-                  placeholder={narrow ? 'Scan, or type a name' : 'Scan it or a tag, or type a name, phone, ticket #, date or total'}
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void search();
-                    // Down goes into the list: to the ticket last looked at, else the first.
-                    if (e.key === 'ArrowDown') {
-                      (resultsRef.current?.querySelector<HTMLElement>('[data-last]')
-                        ?? resultsRef.current?.querySelector<HTMLElement>('[data-ticket-row],[role=button]'))?.focus();
-                    }
-                  }}
-                  slotProps={{ inputLabel: { shrink: true }, htmlInput: { 'data-testid': 'returns-search', autoComplete: 'off' } }}
-                />
-                <Button variant="contained" onClick={() => void search()} disabled={searching || !q.trim()} startIcon={searching ? <CircularProgress size={20} color="inherit" aria-label="Searching" /> : <SearchRounded />} sx={{ ...BIG, px: 3 }}>
-                  Find
-                </Button>
+              <Stack spacing={1.5}>
+                {narrow ? null : (
+                  <Box>
+                    <Typography variant="h5" component="h2" fontWeight={800} data-testid="return-start-head">Start a return</Typography>
+                    <Typography color="text.secondary">Scan now, or pick how to find the sale.</Typography>
+                  </Box>
+                )}
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' }, gap: narrow ? 1 : 1.5 }} role="group" aria-label="Ways to find the sale">
+                  {WAYS.map((w) => (
+                    <Button
+                      key={w.key}
+                      variant="outlined"
+                      color={way === w.key ? 'primary' : 'inherit'}
+                      aria-pressed={way === w.key}
+                      onClick={() => pickWay(w.key)}
+                      data-testid={`return-way-${w.key}`}
+                      sx={{
+                        flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start', textAlign: 'left', textTransform: 'none',
+                        minHeight: narrow ? 76 : 112, p: narrow ? 1 : 1.5, borderRadius: 2, gap: 0.25,
+                        borderColor: way === w.key ? 'primary.main' : 'divider', bgcolor: way === w.key ? 'action.selected' : 'transparent',
+                        '& .MuiSvgIcon-root': { color: 'primary.main', fontSize: narrow ? 26 : 34 },
+                      }}
+                    >
+                      {w.icon}
+                      <Typography component="span" fontWeight={800} sx={{ lineHeight: 1.2 }}>{w.title}</Typography>
+                      {narrow ? null : <Typography component="span" variant="body2" color="text.secondary" sx={{ lineHeight: 1.2 }}>{w.help}</Typography>}
+                    </Button>
+                  ))}
+                </Box>
+                <Box>
+                  <Stack direction="row" spacing={1}>
+                    <TextField
+                      inputRef={searchRef}
+                      autoFocus
+                      fullWidth
+                      label={active?.label ?? 'Scan or type to find the sale'}
+                      placeholder={active?.placeholder ?? (narrow ? 'Scan, or type a name' : 'Scan a tag or a Thrift+ QR, or type a name, phone or ticket number')}
+                      value={q}
+                      onChange={(e) => setQ(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void search();
+                        // Down goes into the list: to the ticket last looked at, else the first.
+                        if (e.key === 'ArrowDown') {
+                          (resultsRef.current?.querySelector<HTMLElement>('[data-last]')
+                            ?? resultsRef.current?.querySelector<HTMLElement>('[data-ticket-row],[role=button]'))?.focus();
+                        }
+                      }}
+                      slotProps={{
+                        inputLabel: { shrink: true },
+                        htmlInput: { 'data-testid': 'returns-search', autoComplete: 'off', inputMode: way === 'ticket' ? 'numeric' : undefined },
+                      }}
+                    />
+                    <Button variant="contained" onClick={() => void search()} disabled={searching || !q.trim()} startIcon={searching ? <CircularProgress size={20} color="inherit" aria-label="Searching" /> : <SearchRounded />} sx={{ ...BIG, px: 3 }}>
+                      Find
+                    </Button>
+                  </Stack>
+                  {/* Always one line: what to do now, in the words of the way that was tapped. */}
+                  <Typography variant="body2" color="text.secondary" noWrap={!narrow} sx={{ pt: 0.5, px: 1.75, minHeight: 24 }} data-testid="return-start-hint">
+                    {active?.hint ?? ANY_HINT}
+                  </Typography>
+                </Box>
               </Stack>
             }
           >
             <Box ref={resultsRef}>
+              {!found ? (
+                <Box sx={{ px: 1.75, pt: 0.5 }} data-testid="return-start-more">
+                  <Typography fontWeight={700}>No item, no app and no ticket number?</Typography>
+                  <Typography color="text.secondary">
+                    Type the day of the sale (11/4), its total ($85.60), their email, or words from the item (brass lamp).
+                  </Typography>
+                </Box>
+              ) : null}
               {found?.message ? <Alert severity="info" data-testid="returns-message">{found.message}</Alert> : null}
               {found?.person ? (
                 <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1 }}>
@@ -361,7 +454,7 @@ export default function ReturnWindow({ open, onClose, registerCode, practice }: 
                 <>
                   <Typography fontWeight={700} sx={{ mb: 0.5 }} data-testid="returns-tickets-head">
                     {found.person
-                      ? 'Recent tickets, newest first'
+                      ? 'Their tickets, newest first. Tap the one the items are on.'
                       : `${found.tickets.length} ${found.tickets.length === 1 ? 'ticket' : 'tickets'}${searched ? ` for “${searched}”` : ''}`}
                   </Typography>
                   <List
@@ -390,170 +483,43 @@ export default function ReturnWindow({ open, onClose, registerCode, practice }: 
           </StepFrame>
         ) : null}
 
-        {step === 'receipt' && receipt ? (
-          <StepFrame
-            top={
-              returnable.length ? (
-                <Box>
-                  <TextField
-                    inputRef={scanRef}
-                    autoFocus
-                    fullWidth
-                    label="Scan a tag to tick it"
-                    value={scan}
-                    onChange={(e) => setScan(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && scanned(scan)}
-                    slotProps={{ htmlInput: { 'data-testid': 'returns-scan', autoComplete: 'off' } }}
-                  />
-                  {/* Always the same height (one line, two on a phone): a warning takes the hint's place, so the list never moves. */}
-                  <Typography
-                    variant="body2"
-                    noWrap={!narrow}
-                    title={scanNote || undefined}
-                    data-testid={scanNote ? 'returns-scan-note' : undefined}
-                    sx={{
-                      pt: 0.5, px: 1.75, fontWeight: scanNote ? 700 : 400, color: scanNote ? 'warning.dark' : 'text.secondary',
-                      ...(narrow
-                        ? { height: 44, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
-                        : { minHeight: 24 }),
-                    }}
-                  >
-                    {scanNote || (ticked.length ? SCAN_HINT : TICK_HINT)}
-                  </Typography>
-                </Box>
-              ) : null
-            }
-            bottom={
-              returnable.length ? (
-                <Button
-                  variant="contained"
-                  fullWidth
-                  disabled={!ticked.length}
-                  onClick={() => {
-                    setScanNote('');
-                    setStep('summary');
-                  }}
-                  sx={BIG}
-                  data-testid="returns-next"
-                >
-                  {ticked.length ? `Next: summary (${ticked.length} ${ticked.length === 1 ? 'item' : 'items'}, ${formatCurrency(tickedCredit)})` : 'Tick the items coming back'}
-                </Button>
-              ) : (
-                <Button variant="contained" fullWidth autoFocus disableFocusRipple onClick={back} sx={{ ...BIG, ...FOCUS_RING }}>{backToList ? 'Back to the list' : 'Find another receipt'}</Button>
-              )
-            }
-          >
-            <Paper variant="outlined" sx={{ px: 2, py: 1.25, mb: 1 }}>
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <Typography variant="h6" fontWeight={800} data-testid="receipt-head" sx={{ flex: 1, minWidth: 0 }}>
-                  <Box component="span" sx={{ whiteSpace: 'nowrap' }}>{receipt.receipt_number}</Box>{' '}
-                  {narrow ? null : '· '}
-                  <Box component="span" sx={{ whiteSpace: 'nowrap' }}>{formatCurrency(receipt.total)}</Box>
-                </Typography>
-                {returnable.length && narrow ? (
-                  <Button
-                    size="small"
-                    startIcon={<ArrowBackRounded />}
-                    onClick={back}
-                    aria-label={backToList ? 'Back to the list' : 'Find another receipt'}
-                    sx={{ flexShrink: 0, minHeight: 44 }}
-                  >
-                    {backToList ? 'List' : 'New search'}
-                  </Button>
-                ) : returnable.length ? (
-                  <Button size="small" startIcon={<ArrowBackRounded />} onClick={back} sx={{ flexShrink: 0, minHeight: 44 }}>
-                    {backToList ? 'Back to the list' : 'Find another receipt'}
-                  </Button>
-                ) : null}
-              </Stack>
-              <Typography color="text.secondary">
-                {dayTime(receipt.completed_at)}{receipt.member ? <> · <MemberName personId={receipt.member.person_id}>{receipt.member.name}</MemberName></> : ' · not a Thrift+ member'}
-                {receipt.cashier ? ` · rung by ${receipt.cashier}` : ''}
-              </Typography>
-              {returnable.length === 0 ? (
-                <Typography sx={{ mt: 0.5 }} fontWeight={700} data-testid="receipt-none">Nothing on this ticket can come back.</Typography>
-              ) : receipt.late ? (
-                <Typography sx={{ mt: 0.5 }} fontWeight={700} color="warning.dark" data-testid="receipt-late">
-                  The 3 days ended {dayOnly(receipt.deadline)}. A return now needs a manager's PIN and is marked against Retail.
-                </Typography>
-              ) : (
-                <Typography sx={{ mt: 0.5 }} fontWeight={700}>Returns through {dayOnly(receipt.deadline)}.</Typography>
-              )}
-              {receipt.closed_note && !receipt.late && returnable.length ? (
-                <Typography variant="body2" color="text.secondary">{receipt.closed_note}</Typography>
-              ) : null}
-            </Paper>
-            {returnable.length ? (
-              <Box>
-                <Stack direction="row" alignItems="center" justifyContent="space-between">
-                  <Typography fontWeight={800}>Returnable</Typography>
-                  {returnable.length > 1 ? (
-                    <Button
-                      sx={{ minHeight: 44, px: 2 }}
-                      onClick={() => {
-                        setTicked(ticked.length === returnable.length ? [] : returnable.map((l) => l.cart_line));
-                        scanRef.current?.focus();
-                      }}
-                    >
-                      {ticked.length === returnable.length ? 'Untick all' : 'Tick all'}
-                    </Button>
-                  ) : null}
-                </Stack>
-                <List disablePadding>
-                  {returnable.map((l) => (
-                    <ListItemButton key={l.cart_line} onClick={() => { toggle(l.cart_line); scanRef.current?.focus(); }} selected={ticked.includes(l.cart_line)}
-                      sx={{ minHeight: 64, borderRadius: 2 }} data-testid={`line-${l.cart_line}`}>
-                      <Checkbox edge="start" checked={ticked.includes(l.cart_line)} tabIndex={-1} disableRipple slotProps={{ input: { 'aria-label': `Return ${l.title}` } }} />
-                      <ListItemText
-                        primary={l.title}
-                        // A late ticket says it once, in its alert; one late line on a newer ticket says it here.
-                        secondary={
-                          <>
-                            {narrow ? `${l.sku} ` : `${l.sku} · `}
-                            <Box component="span" sx={{ whiteSpace: 'nowrap' }}>{`back ${formatCurrency(l.refund)} Thrift+ credit`}</Box>
-                            {l.late && !receipt.late ? ' · past the 3 days' : ''}
-                          </>
-                        }
-                        slotProps={{ primary: { fontWeight: 700 }, secondary: { color: l.late && !receipt.late ? 'warning.dark' : undefined } }}
-                      />
-                    </ListItemButton>
-                  ))}
-                </List>
-              </Box>
-            ) : null}
-
-            {asIsByWhy.length ? (
-              <Box sx={{ mt: returnable.length ? 1.5 : 0 }} data-testid="returns-as-is">
-                {/* With nothing returnable the card already says so: no second heading. */}
-                {returnable.length ? <Typography fontWeight={800} color="text.secondary">Cannot come back</Typography> : null}
-                {asIsByWhy.map(([why, groups]) => (
-                  <Box key={why} sx={{ mt: 0.5 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ px: 2 }}>{why}</Typography>
-                    <List disablePadding sx={{ opacity: 0.6 }}>
-                      {groups.map(({ key, line, count }) => (
-                        <ListItemText
-                          key={key}
-                          sx={{ px: 2, py: 0.5 }}
-                          primary={count > 1 ? `${line.title} × ${count}` : line.title}
-                          secondary={line.sku}
-                        />
-                      ))}
-                    </List>
-                  </Box>
-                ))}
-              </Box>
-            ) : null}
-          </StepFrame>
+        {step === 'ticket' && receipt ? (
+          <ReturnTicketStep
+            receipt={receipt}
+            ticked={ticked}
+            reasons={reasons}
+            onTicked={setTicked}
+            onReasons={setReasons}
+            backToList={backToList}
+            onBack={back}
+            onNext={() => setStep('check')}
+            narrow={narrow}
+          />
         ) : null}
 
-        {step === 'summary' && receipt ? (
+        {step === 'check' && receipt ? (
           <ReturnsSummaryStep
             receipt={receipt}
             lines={ticked}
+            reasons={reasons}
             registerCode={registerCode}
             practice={practice || receipt.practice}
-            onBack={() => setStep('receipt')}
+            onBack={() => setStep('ticket')}
             onDone={done}
+          />
+        ) : null}
+
+        {step === 'done' && receipt && finished ? (
+          <ReturnDoneStep
+            receipt={receipt}
+            done={finished.result}
+            lines={finished.lines}
+            print={print}
+            onPrintAgain={() => void printSlip(finished.result.receipt, true)}
+            onAnother={another}
+            onMember={seeMember}
+            onClose={onClose}
+            narrow={narrow}
           />
         ) : null}
       </DialogContent>

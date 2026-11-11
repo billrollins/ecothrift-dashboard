@@ -465,6 +465,17 @@ class ReturnRecord(models.Model):
     STATUS_OPEN = 'open'
     STATUS_DONE = 'done'
     STATUS_CHOICES = [(STATUS_OPEN, 'Waiting for staff'), (STATUS_DONE, 'Handled')]
+    # Why each item came back (Bill 2026-11-10, #90: "gives all the reasons for each return"). A record for Processing
+    # and the return receipt; it never decides whether the item may come back (W1: any reason).
+    REASON_OTHER = 'other'
+    REASON_CHOICES = [
+        ('not_working', 'Does not work'),
+        ('damaged', 'Broken or damaged'),
+        ('missing_parts', 'Missing parts'),
+        ('not_as_described', 'Not as described'),
+        ('changed_mind', 'Changed mind'),
+        (REASON_OTHER, 'Other'),
+    ]
 
     account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='returns')
     person = models.ForeignKey(Person, on_delete=models.PROTECT, related_name='+')
@@ -487,6 +498,12 @@ class ReturnRecord(models.Model):
     late_ok_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                    related_name='+', help_text='The owner who allowed this return after the 3 days (O1).')
     note = models.TextField(blank=True, default='', help_text='Optional note.')
+    # db_default: code from before these columns (the old dynos during a deploy, another worktree on the shared local
+    # database) still writes a return.
+    reason = models.CharField(max_length=20, blank=True, default='', db_default='', choices=REASON_CHOICES,
+                              help_text='Why this item came back. Blank on returns taken before reasons were asked.')
+    reason_note = models.CharField(max_length=200, blank=True, default='', db_default='',
+                                   help_text="The cashier's words about this item.")
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_OPEN, help_text='Staff decide what happens to the item.')
     returned_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -496,6 +513,15 @@ class ReturnRecord(models.Model):
 
     def __str__(self):
         return f'return of line {self.cart_line_id} ({self.paid})'
+
+    @property
+    def why(self) -> str:
+        """Why it came back, in words: the reason and the cashier's note ("Does not work: buzzes when on"). A return
+        taken before reasons were asked answers its free note, as Processing > Returns always showed."""
+        label = self.get_reason_display() if self.reason else ''
+        if label:
+            return f'{label}: {self.reason_note}' if self.reason_note else label
+        return self.reason_note or self.note
 
 
 class PriceFix(models.Model):

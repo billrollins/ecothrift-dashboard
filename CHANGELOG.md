@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.271.1] -->
-<!-- Last reviewed: 2026-11-10 (2.271.1) -->
+<!-- Line 1 release: ## [2.272.0] -->
+<!-- Last reviewed: 2026-11-11 (2.272.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.272.0] - 2026-11-11
+
+User-facing theme: **Register: a clearer return, from "Start a return" to a printed return receipt (Carrie's request, Dash Update #90).**
+
+> **For Bill:** the Return button now opens four clear steps, shown on a line at the top. **1 Start a return:** four big ways in (scan an item's tag, scan their Thrift+ QR, find the member, type the ticket number); scanning works the moment the window opens. **2 The ticket:** tap what is coming back; each item asks its reason from a short list (Does not work, Broken or damaged, Missing parts, Not as described, Changed mind, Other) with a note. **3 Check:** what is coming back, why, and what the customer gets. **4 Return complete:** a clear done screen, and the return receipt prints by itself (Print again is there; a failed print never undoes the return). One return receipt per original sale; "Another return for this customer" goes to their next ticket, which gets its own. The money rules did not change. The reason shows on Processing > Returns as the "why", and in Transactions > Returns. Not built yet: sale receipts have no barcode, so "scan the receipt" is not one of the ways in (typing the ticket number works); a RETURN band on the slip and each reason on its own line need a later print server release. One thing for you to confirm: the rulebook said staff do not ask why (W1); the reason is now recorded but never decides a return, and the screen says "Any reason is fine".
+
+### Changed
+- **Register: a clearer return, from "Start a return" to a printed return receipt (Dash Update #90; Carrie and Bill 2026-11-10).** The Return window is now four steps, with a line on top that says where you are. **Start a return:** four big ways in (scan an item's tag, scan their Thrift+ QR, find the member, type the ticket number) over one box that has the cursor the moment the window opens, so a scan works with no tap; the box still finds by a date, a total, an email or words from the item. **The ticket:** the sale as the customer knows it (number, day, items, what was paid); tap or scan what is coming back, and each picked item asks why, from a short list with an optional note ("Same reason for the other N" when several of one thing came back). **Check:** each item with its reason and what the customer gets, then Confirm. **Return complete:** a big done screen that says what happened and what the customer got; **the return receipt prints by itself, one per original sale**, with Print again; a receipt that does not print is said there and never undoes the return; "Another return for this customer" goes to their next ticket, which gets its own receipt. The reason is kept on each returned line, shows as the item's why on Processing > Returns, and has a Why column in Transactions > Returns. **No money rule changed.** The member's window no longer opens by itself after a return (the done screen says it); it is one tap away.
+- The return receipt goes through the print server's existing receipt route, so no print server install is needed. What a later print server release would add (a RETURN band, the reason on its own line, a barcode on sale receipts so "Scan the receipt" can work): `.ai/extended/print-server.md` § Return receipt.
+
+### Database
+- `thriftplus.0033_return_reason`: `ReturnRecord.reason` and `reason_note` (both with a database default, so code from before them still writes a return).
 
 ## [2.271.1] - 2026-11-10
 

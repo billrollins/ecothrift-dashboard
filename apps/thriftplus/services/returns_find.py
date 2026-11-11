@@ -271,6 +271,8 @@ def receipt(cart_id: int, *, training: bool = False) -> dict | None:
         'completed_at': cart.completed_at, 'total': str(cart.total), 'tax': str(cart.tax_amount),
         'cashier': (cart.cashier.full_name or cart.cashier.email) if cart.cashier else '',
         'deadline': last.isoformat(), 'late': today > last, 'closed_note': returns.closed_note(sold_on),
+        # The sale as the customer knows it (#90): how it was paid, and the reasons a returned item can be given.
+        'payment_method': cart.payment_method or '', 'return_reasons': returns.reason_options(),
         'member': None if member is None else {
             'person_id': member.person_id, 'account_id': member.account_id,
             'name': f'{member.person.first_name} {member.person.last_name}'.strip(),

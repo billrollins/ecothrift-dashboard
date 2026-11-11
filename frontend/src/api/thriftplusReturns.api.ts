@@ -52,6 +52,18 @@ export interface ReturnsLine {
   why: string;
 }
 
+/** One reason a returned item can be given (#90): the server's short list, in order. */
+export interface ReturnReasonOption {
+  value: string;
+  label: string;
+}
+
+/** Why one item is coming back: a reason from the list and the cashier's optional note. */
+export interface ReturnReasonPick {
+  reason: string;
+  note: string;
+}
+
 export interface ReturnsReceipt {
   cart: number;
   practice: boolean;
@@ -60,6 +72,10 @@ export interface ReturnsReceipt {
   total: string;
   tax: string;
   cashier: string;
+  /** How the sale was paid: cash, card, split, thrift (Thrift+ in full) or payroll. */
+  payment_method?: string;
+  /** The reasons a returned item can be given. */
+  return_reasons?: ReturnReasonOption[];
   /** ISO date: the last day returns are taken without the owner (sale day + 3). */
   deadline: string;
   late: boolean;
@@ -144,19 +160,24 @@ export async function previewReturn(cart: number, lines: number[], register = ''
 export interface ReturnsDone {
   totals: ReturnsTotals;
   training: boolean;
-  /** Their member card opens: `/pos/members?person=<person_id>`. */
+  /** Their member card: `/pos/members?person=<person_id>`. */
   person_id: number;
   account_id: number;
+  /** Their Thrift+ credit after the return. */
   credit?: string;
   banked?: string;
   available?: string;
+  /** The return receipt, ready for the print server (`POST /print/receipt`): one per sale. Null if it could not be made. */
+  receipt?: Record<string, unknown> | null;
 }
 
-/** Confirm. Past the 3 days: `late` (reason, note) and the owner PIN (not needed when the owner is signed in). */
+/** Confirm. `reasons`: why each item is coming back, by cart line (#90). Past the 3 days: `late` (reason, note) and a
+ * manager's PIN (not needed when the owner is signed in). */
 export async function confirmReturn(body: {
   cart: number;
   cart_lines: number[];
   register?: string;
+  reasons?: Record<string, { reason: string; note?: string }>;
   late?: { reason: LateReason; note?: string };
   pin?: string;
 }): Promise<ReturnsDone> {
@@ -181,6 +202,9 @@ export interface ReturnHistoryRow {
   bucks_back: string;
   /** Who took it at the register. */
   returned_by: string;
+  /** Why it came back (#90): the reason's words, and the cashier's note. '' on returns taken before reasons were asked. */
+  reason?: string;
+  reason_note?: string;
   /** Past the 3 days (a mark against Retail). */
   late: boolean;
   /** The mark itself: managers and the owner only (null for everyone else and for on-time returns). */

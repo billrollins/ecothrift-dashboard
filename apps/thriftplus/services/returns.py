@@ -2,7 +2,8 @@
 Thrift+ 3-day returns (the 10-12 policy, W1-W14; owner answers 2026-10-14): a return privilege for members (W1).
 
 - **Members only**, for items bought on this membership. Guests: all sales final, sold AS IS (W9).
-- **Any reason.** Nothing is asked and nothing is tested (W1, W7).
+- **Any reason.** Nothing is tested and no reason is judged (W1, W7). Since #90 (Bill 2026-11-10) the cashier records
+  why each item came back (``ReturnRecord.reason``), for Processing and the return receipt; it never decides a return.
 - **Which items:** the line's mark, frozen on the receipt line at the sale (``CartLine.meta['thrift_plus']['mark']``,
   W10, A3). Until the AI marks items, an item is a "3-day return" item unless W6's guide leaves it out (owner 10-14):
   clothing and soft goods (``thrift_plus_nonreturnable_categories``), AS IS or salvage words
@@ -353,6 +354,38 @@ def is_late(line, today: date | None = None) -> bool:
 
 LATE_REASONS = dict(LateReturnMark.REASON_CHOICES)
 
+# Why each item came back (Bill 2026-11-10, #90). A record for Processing and the return receipt. It never decides
+# whether the item may come back (W1: any reason), so a return is never refused for want of one: the Return window asks
+# for it on every item, and a screen that sends none (an old tab during a deploy) still gets its return.
+RETURN_REASONS = dict(ReturnRecord.REASON_CHOICES)
+REASON_NOTE_MAX = 200
+
+
+def reason_options() -> list[dict]:
+    """The short list the Return window offers, in order."""
+    return [{'value': value, 'label': label} for value, label in ReturnRecord.REASON_CHOICES]
+
+
+def clean_reasons(raw, line_ids: list[int]) -> dict[int, tuple[str, str]]:
+    """``{cart line id: (reason, note)}`` from what the screen sent (``{"<cart line id>": {"reason", "note"}}``), for the
+    lines coming back. A reason that is not on the list is refused; a line with none is left out."""
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[int, tuple[str, str]] = {}
+    for line_id in line_ids:
+        sent = raw.get(str(line_id), raw.get(line_id))
+        if isinstance(sent, str):
+            sent = {'reason': sent}
+        if not isinstance(sent, dict):
+            continue
+        code = str(sent.get('reason') or '').strip()
+        note = ' '.join(str(sent.get('note') or '').split())[:REASON_NOTE_MAX]
+        if code and code not in RETURN_REASONS:
+            raise RegisterError('BAD_REASON', 'Pick why it is coming back from the list.')
+        if code or note:
+            out[line_id] = (code, note)
+    return out
+
 
 def _to_processing(record) -> None:
     """The returned item goes on Processing > Returns, where a processor decides what happens to it (#83). The money
@@ -367,14 +400,16 @@ def _to_processing(record) -> None:
 
 
 def do_return(line, code: str = '', *, person=None, note: str = '', user=None, training: bool = False,
-              late_ok: bool = False, late_reason: str = '', by_pin: bool = False, approved_by=None) -> dict:
+              late_ok: bool = False, late_reason: str = '', by_pin: bool = False, approved_by=None,
+              reason: str = '', reason_note: str = '') -> dict:
     """Take the line back (W3, W4, W11): Thrift+ credit for 80% of what was paid, tax included; 80% of the ThriftBucks
     used on it back as fresh ThriftBucks; 80% of the ThriftBucks it collected taken back, soonest first, any shortfall
     off the credit. On a training register the result is worked out and nothing is written.
 
     The member is their QR scanned (``code``) or found by phone (``person``, an id). ``late_ok`` (the owner signed in or
     the owner PIN, O1; the view checks) lets a return past the window through; it is logged and, with ``late_reason``,
-    marked against Retail (``LateReturnMark``)."""
+    marked against Retail (``LateReturnMark``). ``reason`` and ``reason_note`` say why this item came back (#90): they
+    are kept on the record and change nothing about the money."""
     who, card = found(code, person)
     account = who.account
     parts = refund_parts(line)
@@ -408,6 +443,7 @@ def do_return(line, code: str = '', *, person=None, note: str = '', user=None, t
             taxable_back=parts['taxable_back'], tax_back=parts['tax_back'], bucks_back=parts['bucks_back'],
             bucks_taken=taken, shortfall=shortfall, note=note, returned_by=user,
             late_ok_by=(approved_by or user) if late and late_ok else None,
+            reason=reason if reason in RETURN_REASONS else '', reason_note=(reason_note or '')[:REASON_NOTE_MAX],
         )
         members.log('return', account=account, person=who, card=card, actor=user, cart=line.cart_id,
                     cart_line=line.pk, credit=str(credit), refund=str(parts['refund']),
@@ -463,10 +499,13 @@ def preview(lines: list, account, *, training: bool = False) -> dict:
 
 
 def batch(lines: list, code: str = '', *, person=None, note: str = '', user=None, training: bool = False,
-          late_ok: bool = False, late_reason: str = '', by_pin: bool = False, approved_by=None) -> dict:
+          late_ok: bool = False, late_reason: str = '', by_pin: bool = False, approved_by=None,
+          reasons: dict[int, tuple[str, str]] | None = None) -> dict:
     """Take several lines of one receipt back in one go: all of them, or none (one transaction). The owner's OK for a
-    late line is checked by the caller before this (a wrong PIN must be counted even though the return stops)."""
+    late line is checked by the caller before this (a wrong PIN must be counted even though the return stops).
+    ``reasons`` (``clean_reasons``) says why each line came back."""
     results = []
+    reasons = reasons or {}
     if training:  # worked out and nothing written, line by line in order, so the shortfall is right
         who, _ = found(code, person)
         shown = preview(lines, who.account, training=True)
@@ -476,8 +515,10 @@ def batch(lines: list, code: str = '', *, person=None, note: str = '', user=None
                 'account_id': who.account_id}
     with transaction.atomic():
         for line in lines:
+            why, why_note = reasons.get(line.pk, ('', ''))
             results.append(do_return(line, code, person=person, note=note, user=user, late_ok=late_ok,
-                                     late_reason=late_reason, by_pin=by_pin, approved_by=approved_by))
+                                     late_reason=late_reason, by_pin=by_pin, approved_by=approved_by,
+                                     reason=why, reason_note=why_note))
         who, _ = found(code, person)
     totals = {
         'credit': sum((Decimal(r['credit']) for r in results), ZERO),
@@ -540,6 +581,8 @@ def history(*, date_from: date | None = None, date_to: date | None = None, cashi
             'member': f'{r.person.first_name} {r.person.last_name}'.strip(), 'person_id': r.person_id,
             'credit': str(r.credit), 'bucks_taken': str(r.bucks_taken), 'bucks_back': str(r.bucks_back),
             'returned_by': _name(r.returned_by), 'late': mark is not None, 'mark': None,
+            # Why it came back (#90): '' on returns taken before reasons were asked.
+            'reason': r.get_reason_display() if r.reason else '', 'reason_note': r.reason_note,
         }
         if mark is not None and managers:
             sold = timezone.localdate(cart.completed_at) if cart.completed_at else None

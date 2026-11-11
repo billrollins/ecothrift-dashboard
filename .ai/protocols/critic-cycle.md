@@ -63,3 +63,9 @@ The critic grades the page as it is, not the effort. A round that makes it worse
 ## Project-only steps
 
 <!-- Add project-specific steps below this line. -->
+
+- **"2+1" (Bill, 2026-11-10).** A short form of the loop for work that should already be close: "Make sure it gets to A+ in 2 rounds or so. It could be a 2+1 where you do 2 rounds. And then the +1 is a fully descriptive what was wrong, what should be better round."
+  1. **Round 1 and round 2:** the loop as written (a fresh critic grades against the A+ picture, the coder fixes).
+  2. **The +1:** a fresh critic reads the whole trail and writes the letter in the vision letter's shape ("What I really haven't liked", "What I was hoping to see", "What I'd change first"), fully descriptive, to `workspace/critic/<page>/vision.md`. The coder works toward it once, and a last fresh critic gives the final grade in `round-03.md`.
+  3. Stop there, whatever the grade, and report it. A page already at A+ after round 1 or 2 skips the rest.
+- **Where the trail lives when a sub runs the cycle:** in the **main checkout's** `workspace/critic/<page>/`, not the sub's own worktree, so it outlives the sub.

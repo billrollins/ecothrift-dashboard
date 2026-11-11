@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-03 (one Printing screen, every choice per computer; tags 1.9.12) -->
+<!-- Last updated: 2026-11-11 (the return receipt, #90; earlier: one Printing screen, every choice per computer; tags 1.9.12) -->
 
 # Print Server — Extended Context
 
@@ -46,6 +46,14 @@ Upload path pattern: `print-server/ecothrift-printserver-setup-v{VERSION}.exe`. 
 **IT optional:** [`printserver/installer/uninstall_legacy_prior.bat`](../../printserver/installer/uninstall_legacy_prior.bat) — best-effort CMD mirror (not uploaded separately to S3 by default).
 
 **Not used:** Windows Services, Task Scheduler (for both stacks per reference).
+
+## Return receipt (Dash Update #90, 2026-11-11)
+
+A Thrift+ return prints its own receipt, one per original sale, through the **existing** `POST /print/receipt` with a payload print server **1.9.13** already draws (no print server release was needed). Dash builds it in `apps/thriftplus/services/return_receipt.py`.
+
+- **What prints today:** the top line "RETURN R-20261104-045   Nov 11, 11:15 AM", centered (`receipt_number`, `date`, `time`; `cashier` is sent empty, because with three parts 1.9.13 centers the day and this long a number prints under it); the 3-DAY RETURN heading with "Returns through <the sale's last return day> · 80% of value as store credit" (`mark: "3-day return"` on every item, `returns_until`); one row per returned item, "Brass lamp. Reason: Does not work (buzzes)", with what came back for it and any ThriftBucks given back (`bucks`); Subtotal and Tax (the refund's two parts); one bold free line under them, "Taken by Carrie R. · From the sale of Wed Nov 4 · 28.00 ThriftBucks taken back" (sent as `tax_exempt`: the server prints that text as it is and adds no words of its own); TOTAL (the Thrift+ credit given); "Thrift+ credit added $68.48" (`payment_method` + `amount_tendered`); the THRIFT+ MEMBER block with the first name.
+- **What 1.9.13 cannot do** (a later print server release; the payload already carries `kind: "return"` and a plain `return` block for it, which 1.9.13 ignores): a RETURN band across the top; the cashier on the top line; each reason on its own line under its item; "ThriftBucks taken back" as its own row; the sale's day as its own row; BACK instead of PRICE over the amounts; leaving out the Google review line and "Use them starting tomorrow" (ThriftBucks given back on a return are usable at once).
+- **Also for a print server release, not built:** a barcode of the ticket number on sale receipts, so the Return window's box can open a ticket from a scan of the receipt (the box already opens a ticket from its number).
 
 ## Receipt template (PNG vs print)
 

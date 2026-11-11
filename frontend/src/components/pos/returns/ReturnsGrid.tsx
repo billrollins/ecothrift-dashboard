@@ -67,6 +67,15 @@ export default function ReturnsGrid({ filters }: { filters: ReturnsFilters }) {
         </Typography>
       ),
     },
+    {
+      // Why it came back, as the cashier recorded it (#90). Blank on returns taken before reasons were asked.
+      field: 'reason',
+      headerName: 'Why',
+      description: 'Why it came back, as the cashier recorded it',
+      width: 190,
+      sortable: false,
+      valueGetter: (_v, row) => [row.reason, row.reason_note].filter(Boolean).join(': '),
+    },
     { field: 'member', headerName: 'Thrift+ member', width: 160, sortable: false },
     {
       field: 'credit',

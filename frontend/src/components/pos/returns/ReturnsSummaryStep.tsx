@@ -18,6 +18,7 @@ import {
   previewReturn,
   returnsErrorCode,
   type LateReason,
+  type ReturnReasonPick,
   type ReturnsDone,
   type ReturnsReceipt,
   type ReturnsSummary,
@@ -29,15 +30,18 @@ import { MemberName } from '../../thriftplus/MemberName';
 import { tbNumber } from '../../thriftplus/ThriftBucks';
 import { formatCurrency } from '../../../utils/format';
 import StepFrame from './StepFrame';
-import { BIG, FOCUS_RING, GLANCE } from './returnsText';
+import { BIG, FOCUS_RING, GLANCE, REASONS_FALLBACK, reasonWords } from './returnsText';
 
 interface Props {
   receipt: ReturnsReceipt;
   lines: number[];
+  /** Why each line is coming back, by cart line (picked on the ticket). */
+  reasons: Record<number, ReturnReasonPick>;
   registerCode: string;
   practice: boolean;
   onBack: () => void;
-  onDone: (done: ReturnsDone) => void;
+  /** It went through: what was given, and the lines as they were checked. */
+  onDone: (done: ReturnsDone, summary: ReturnsSummary) => void;
 }
 
 /** The ThriftBucks in one plain number, net: what comes off their balance or what goes back to them ('' when even). */
@@ -57,13 +61,15 @@ function lineWords(l: ReturnsSummaryLine, late: boolean): string {
 }
 
 /**
- * Step 3 (owner 2026-10-20): the summary. Who gets it, then per line and in all the Thrift+ credit (80% of what was paid,
- * tax included) and any ThriftBucks taken back or given back, and what to check. Past the 3 days it also asks for a
+ * Step 3, Check (owner 2026-10-20; #90): who gets it, each item coming back with its reason, then per line and in all
+ * the Thrift+ credit (80% of what was paid, tax included) and any ThriftBucks taken back or given back, and what to
+ * glance at. Nothing is written until Confirm. Past the 3 days it also asks for a
  * reason and a manager's own register PIN (Bill 2026-10-21; not when the owner is signed in); the return is then a mark
  * against Retail on the original sale's cashier. Back and Confirm stay in view; the keyboard lands on Confirm (or on the
  * reasons when one is needed), so Enter finishes it.
  */
-export default function ReturnsSummaryStep({ receipt, lines, registerCode, practice, onBack, onDone }: Props) {
+export default function ReturnsSummaryStep({ receipt, lines, reasons, registerCode, practice, onBack, onDone }: Props) {
+  const options = receipt.return_reasons?.length ? receipt.return_reasons : REASONS_FALLBACK;
   const [summary, setSummary] = useState<ReturnsSummary | null>(null);
   const [loadError, setLoadError] = useState('');
   const [reason, setReason] = useState<LateReason | ''>('');
@@ -130,9 +136,14 @@ export default function ReturnsSummaryStep({ receipt, lines, registerCode, pract
     setError('');
     try {
       const body: Parameters<typeof confirmReturn>[0] = { cart: receipt.cart, cart_lines: lines, register: registerCode };
+      // Why each item is coming back (#90): kept per returned line.
+      const why = Object.fromEntries(
+        lines.filter((id) => reasons[id]?.reason).map((id) => [String(id), { reason: reasons[id].reason, note: reasons[id].note.trim() }]),
+      );
+      if (Object.keys(why).length) body.reasons = why;
       if (late && reason) body.late = { reason, note: note.trim() };
       if (needsPin) body.pin = pin;
-      onDone(await confirmReturn(body));
+      onDone(await confirmReturn(body), summary);
     } catch (err) {
       const code = returnsErrorCode(err);
       if (code === 'PIN_WRONG' || code === 'PIN_LOCKED' || code === 'PIN_NEEDED') {
@@ -167,7 +178,7 @@ export default function ReturnsSummaryStep({ receipt, lines, registerCode, pract
           sx={{ ...BIG, flex: 1, ...FOCUS_RING }}
           data-testid="returns-confirm"
         >
-          {busy ? 'Working…' : !summary ? 'Working out the return…' : !late || reason ? `Confirm: give ${formatCurrency(summary?.totals.credit ?? 0)} Thrift+ credit${practice ? ' (practice)' : ''}` : 'Pick a reason first'}
+          {busy ? 'Working…' : !summary ? 'Working out the return…' : !late || reason ? `Confirm: give ${formatCurrency(summary?.totals.credit ?? 0)} Thrift+ credit${practice ? ' (practice)' : ''}` : 'Say why it is allowed first'}
         </Button>
       </Stack>
     </Stack>
@@ -183,7 +194,7 @@ export default function ReturnsSummaryStep({ receipt, lines, registerCode, pract
   if (!summary) {
     return (
       <StepFrame bottom={footer}>
-        <Typography variant="h6" fontWeight={800}>Summary</Typography>
+        <Typography variant="h6" fontWeight={800}>Check the return</Typography>
         <CircularProgress size={28} aria-label="Working out the return" sx={{ mt: 2 }} />
       </StepFrame>
     );
@@ -195,7 +206,7 @@ export default function ReturnsSummaryStep({ receipt, lines, registerCode, pract
     <StepFrame bottom={footer}>
       <Stack spacing={2}>
         <Box>
-          <Typography variant="h6" fontWeight={800}>Summary</Typography>
+          <Typography variant="h6" fontWeight={800}>Check the return</Typography>
           <Typography color="text.secondary" data-testid="summary-who">
             {receipt.member ? <>For <MemberName personId={receipt.member.person_id}>{receipt.member.name}</MemberName></> : 'Not a Thrift+ member'} · ticket{' '}
             <Box component="span" sx={{ whiteSpace: 'nowrap' }}>{receipt.receipt_number}</Box>
@@ -265,27 +276,21 @@ export default function ReturnsSummaryStep({ receipt, lines, registerCode, pract
             {`Thrift+ credit ${formatCurrency(t.credit)}`}
           </Typography>
           {bucks ? <Typography color="text.secondary" data-testid="summary-bucks">{bucks}</Typography> : null}
-          {summary.lines.length === 1 && Number(summary.lines[0].shortfall) > 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              {`${tbNumber(summary.lines[0].shortfall)} ThriftBucks were already spent: the credit is that much less.`}
-            </Typography>
-          ) : null}
           <Divider sx={{ my: 1 }} />
-          {summary.lines.length > 1 || summary.lines.some((l) => l.problems.length) ? (
-            summary.lines.map((l) => (
-              <Box key={l.cart_line} sx={{ py: 0.75 }} data-testid={`summary-line-${l.cart_line}`}>
-                <Stack direction="row" spacing={1} alignItems="baseline">
-                  <Typography fontWeight={700} sx={{ flex: 1, minWidth: 0 }}>{l.title}</Typography>
-                  <Typography color="text.secondary" sx={{ textAlign: 'right', maxWidth: '60%' }}>{lineWords(l, late)}</Typography>
-                </Stack>
-                {l.problems.length ? <Alert severity="error" sx={{ mt: 0.5 }}>{l.problems.join(' ')}</Alert> : null}
-              </Box>
-            ))
-          ) : (
-            <Typography fontWeight={700} data-testid={`summary-line-${summary.lines[0]?.cart_line}`}>
-              {summary.lines[0]?.title}
-            </Typography>
-          )}
+          {summary.lines.map((l) => (
+            <Box key={l.cart_line} sx={{ py: 0.75 }} data-testid={`summary-line-${l.cart_line}`}>
+              <Stack direction="row" spacing={1} alignItems="baseline">
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography fontWeight={700}>{l.title}</Typography>
+                  <Typography variant="body2" color="text.secondary" data-testid={`summary-why-${l.cart_line}`}>
+                    {reasonWords(reasons[l.cart_line], options) || 'No reason given'}
+                  </Typography>
+                </Box>
+                <Typography color="text.secondary" sx={{ textAlign: 'right', maxWidth: '60%' }}>{lineWords(l, late)}</Typography>
+              </Stack>
+              {l.problems.length ? <Alert severity="error" sx={{ mt: 0.5 }}>{l.problems.join(' ')}</Alert> : null}
+            </Box>
+          ))}
         </Paper>
 
       </Stack>

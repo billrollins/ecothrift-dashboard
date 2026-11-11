@@ -116,7 +116,8 @@ def report_return(record) -> ProcessingReentry | None:
     """A Thrift+ return (``ReturnRecord``) puts its item on the Returns list. None when the line had no item."""
     if record.item_id is None:
         return None
-    return report(record.item, ProcessingReentry.SOURCE_RETURN, reason=record.note, user=record.returned_by,
+    # The row's why is the reason the cashier picked for this item (#90); an older return has only its free note.
+    return report(record.item, ProcessingReentry.SOURCE_RETURN, reason=record.why, user=record.returned_by,
                   source_ref=record.pk, reported_at=record.created_at)
 
 
@@ -142,7 +143,7 @@ def sync_returns() -> int:
                 ProcessingReentry.objects.get_or_create(  # two pages may read the list at the same moment
                     source=ProcessingReentry.SOURCE_RETURN, source_ref=record.pk,
                     defaults={
-                        'item': record.item, 'reason': _clean(record.note), 'reported_by': record.returned_by,
+                        'item': record.item, 'reason': _clean(record.why), 'reported_by': record.returned_by,
                         'reported_at': record.created_at, 'outcome': ProcessingReentry.OUTCOME_HANDLED,
                         'outcome_note': 'Already back in stock.', 'decided_at': timezone.now(),
                     },
