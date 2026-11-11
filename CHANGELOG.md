@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.271.0] -->
-<!-- Last reviewed: 2026-11-10 (2.271.0) -->
+<!-- Line 1 release: ## [2.271.1] -->
+<!-- Last reviewed: 2026-11-10 (2.271.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.271.1] - 2026-11-10
+
+User-facing theme: **Notes only: the night's decisions and the questions waiting for Bill.** Nothing changes on any Dash screen.
+
+> **For Bill:** no screen changed and nothing was deployed (docs-only releases no longer deploy). The decisions behind the nine Processing updates, and the seven questions the subs left for you, are in `.ai/extended/processing-enhancements-decisions.md`.
+
+### Changed
+- New `.ai/extended/processing-enhancements-decisions.md` (Bill's words, decisions D1-D20, what shipped, what waits for him). `.ai/reference/owner-qa-log.md`, the plan in `.ai/reference/reports/2026-11-10-unfinished-work.md` and `.ai/context.md` brought up to date.
+- `.ai/protocols/mainline_updates.md` § Roles (Bill 11-10): Mainline coordinates, marks Done on its own say and deletes a sub when its update is complete; a sub works on one update at a time; Mainline runs Fable 5.2 at Extra effort, subs at medium; no row, no work.
 
 ## [2.271.0] - 2026-11-10
 

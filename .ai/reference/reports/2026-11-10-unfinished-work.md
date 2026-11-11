@@ -203,6 +203,8 @@ Everything removed that was not plainly regenerable is off site at `{coding root
 
 Dash Updates becomes the only list. Each line below becomes one row; every other plan file is then removed. "Log row" = the line in `owner-qa-log.md` that already answers it.
 
+**0. Shipped 2026-11-10 evening (Bill's order, ahead of everything below): project "Processing Enhancements"** and two more. v2.270.0: #81 richer Processing header + Truck Plan (this was plan row 4 below), #82 photo drawer and one Add photo, #83 Returns, #84 Floor issues, #86 the menu starts in your department. v2.271.0: Mainline's three (#87 Processing Command Center, #88 Close the truck, which is most of plan row 5 below, #89 Price coach) and #85 faster ship and deploy. Decisions, and the seven questions waiting for Bill: `.ai/extended/processing-enhancements-decisions.md`.
+
 **1. Now, in this order (Retail and Buying only; log rows 117-119)**
 
 | # | Row | Size | Still needs from Bill |

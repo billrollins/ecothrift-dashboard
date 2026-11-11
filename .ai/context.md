@@ -24,6 +24,7 @@ Stack: Django 5.2 + DRF, React 18.3 + TypeScript + MUI 7, PostgreSQL (schema `ec
 ## Active work
 
 - **2026-11-10, read first:** Bill stopped new work until the open work is in one plan. Everything started and not finished, the clean-up that was done, and the draft plan are in [`reference/reports/2026-11-10-unfinished-work.md`](reference/reports/2026-11-10-unfinished-work.md). **Dash Updates becomes the only list**; the plan files named below are stale and go once their open items are rows there. Focus: Retail and Buying only. Bill's answers: [`reference/owner-qa-log.md`](reference/owner-qa-log.md). End goals: [`reference/end-goals/`](reference/end-goals/). Archives go off site: `{coding root}/!archive/<project name>/`.
+- **Processing Enhancements (Dash Updates project, 2026-11-10):** nine updates shipped that evening (v2.270.0 and v2.271.0). Decisions and the questions waiting for Bill: [`extended/processing-enhancements-decisions.md`](extended/processing-enhancements-decisions.md). How Mainline and the subs work: [`protocols/mainline_updates.md`](protocols/mainline_updates.md) § Roles.
 
 - **Calendar:** [`calendar.md`](calendar.md). Read it every session. Thrift+ launched Fri 2026-10-16 (four days ahead of the plan of 10-20).
 - **Compass — Thrift+ Rewards:** [`thrift_plus_rewards`](initiatives/thrift_plus_rewards.md). Launched 10-16. Launch kit: archived 10-20, moved off site 11-10 (see `initiatives/_index.md` § Archived).

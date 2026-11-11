@@ -25,12 +25,18 @@ python scripts/dev/dash_update.py <id> --status done --version v2.NNN.0
 - Status moves keep the line tidy the same way Bill's buttons do: working/almost/accepted keep or take a rank, hold and done leave the line, `waiting_on` clears unless the status is almost.
 - `new` and `declined` are Bill's alone (accept / decline in the drawer).
 
+## Roles (Bill, 2026-11-10)
+
+- **Mainline** is the coordinator. It runs on Fable 5.2 at Extra effort. It plans, answers the subs' questions, merges, ships and deploys (on Bill's words), **marks an update Done on its own say**, and **deletes the sub when its update is complete**.
+- A **sub** (sub-session; title starts with "└ ") works on **one update at a time**, on Fable 5.2 at medium effort. It never ships, deploys or sets Done.
+- **No row, no work.** Nothing is built that is not a row in Dash Updates.
+
 ## Mainline steps
 
 1. **Pick.** Read the open list (`python scripts/dev/dash_update.py`). Take the top updates by rank that are **unblocked** (`blocked_by` empty, `open_question` false, status accepted). Run several at once only when none depends on another and they touch different files.
 2. **One session per update.** Start each with its own spawn chip, in its own worktree from `origin/main`. The brief names the update id, its title, the files, what done looks like, and this protocol.
 3. **Merge and ship.** When a session reports built and tested, Mainline reads its notes (step 4 of the Session steps should have done it; check), merges, bumps, ships and deploys only on Bill's words (`ship.md`, `deploy.md`).
-4. **Shipped** → set `done` with the version (`--status done --version v2.NNN.0`), then archive the session.
+4. **Shipped** → set `done` with the version (`--status done --version v2.NNN.0`), then delete the sub (the app asks Bill to confirm each delete).
 5. **Parked** (Bill says stop, or it waits on something not in the line) → set `hold` with a note saying why, and archive the session. It comes back with `--status accepted`.
 
 ## Session steps
