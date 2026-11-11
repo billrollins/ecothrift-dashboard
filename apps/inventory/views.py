@@ -2271,6 +2271,7 @@ _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
         'truck_summary',
         'truck_plan',
         'truck_plan_target',
+        'truck_plan_default',
         'truck_close',
         'truck_close_step',
     },
@@ -2699,12 +2700,29 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         order = self.get_object()
         return Response(truck_summary(order, user=request.user))
 
-    @action(detail=True, methods=['get', 'put'], url_path='truck-plan')
+    @action(detail=False, methods=['get', 'put'], url_path='truck-plan-default')
+    def truck_plan_default(self, request):
+        """The store default Truck Plan (#99): anyone reads it; only a superuser changes it."""
+        from apps.inventory.services import truck_plan as svc
+
+        if request.method == 'PUT':
+            try:
+                return Response(svc.save_plan_default(request.user, request.data))
+            except PermissionError as e:
+                return Response({'detail': str(e)}, status=status.HTTP_403_FORBIDDEN)
+            except ValueError as e:
+                return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(svc.plan_default_out())
+
+    @action(detail=True, methods=['get', 'put', 'delete'], url_path='truck-plan')
     def truck_plan(self, request, pk=None):
-        """The Truck Plan window: the same numbers plus the staff to pick from (GET); save the plan (PUT)."""
+        """The Truck Plan window: the same numbers plus the staff to pick from (GET); save the plan (PUT);
+        back to the store default (DELETE)."""
         from apps.inventory.services import truck_plan as svc
 
         order = self.get_object()
+        if request.method == 'DELETE':
+            svc.back_to_default(order)
         if request.method == 'PUT':
             try:
                 svc.save_plan(request.user, order, request.data)

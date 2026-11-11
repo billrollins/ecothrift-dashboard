@@ -39,6 +39,8 @@ export interface OrderCardData {
   claim: { status: string; status_label: string; refund_expected: string | null; refund_received: string | null } | null;
   /** Disputed items (not broken) and the manifest retail they add to the truck claim (Dash Update #1). */
   disputed_claim?: { items: number; retail: string | null } | null;
+  /** The plan the truck works to: its own or the store default (#99). Never blank. */
+  truck_plan?: { is_default: boolean; pricing_start_pct: string | null; watch_for: string } | null;
   disputes: { kind: string; status: string; title: string }[];
   journey: { kind: string; at: string | null }[];
 }
@@ -134,6 +136,12 @@ function CardView({ c, onEdit }: { c: OrderCardData; onEdit: () => void }) {
               ['Total (landed)', m.total ? itemCardMoney(m.total) : null],
               ['Retail', m.retail ? itemCardMoney(m.retail) : null],
               ['Est. shrink', m.est_shrink ? `${Math.round(Number(m.est_shrink) * 100)}%` : null],
+              ['Truck Plan', c.truck_plan ? (
+                <Link key="plan" component="button" type="button" underline="hover" onClick={() => openObject({ type: 'truck-plan', id: c.id })} sx={{ fontSize: 'inherit', textAlign: 'left' }}>
+                  {c.truck_plan.is_default ? 'Default plan' : 'Own plan'}
+                  {c.truck_plan.pricing_start_pct ? `, tags start at ${c.truck_plan.pricing_start_pct}% of retail` : ''}
+                </Link>
+              ) : null],
             ]} />
           </Section>
           <Section title="Units">

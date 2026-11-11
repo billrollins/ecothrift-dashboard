@@ -1,7 +1,12 @@
 import api from './client';
 
-/** The Truck Plan of one order (`apps/inventory/services/truck_plan.py`). Null on the summary = no plan yet. */
+/**
+ * The Truck Plan of one order (`apps/inventory/services/truck_plan.py`). Never blank (#99): a truck with no plan of
+ * its own gets the store default (`is_default`).
+ */
 export interface TruckPlanDTO {
+  /** True while the truck follows the store default plan; a saved change makes it the truck's own. */
+  is_default: boolean;
   /** Where tag prices start on this truck, as a percent of retail ("55"). */
   pricing_start_pct: string | null;
   watch_for: string;
@@ -78,8 +83,19 @@ export interface TruckSummaryDTO {
     finalized_at: string | null;
     not_filed: string | null;
   };
-  plan: TruckPlanDTO | null;
+  plan: TruckPlanDTO;
   can_set_target: boolean;
+  /** A superuser may change the store default plan. */
+  can_edit_default?: boolean;
+}
+
+/** The store default plan every truck starts with (#99). */
+export interface TruckPlanDefaultDTO {
+  pricing_start_pct: string | null;
+  watch_for: string;
+  known_issues: string;
+  updated_by: string;
+  updated_at: string | null;
 }
 
 export interface TruckPlanWindowDTO extends TruckSummaryDTO {
@@ -104,6 +120,18 @@ export function getTruckPlan(orderId: number): Promise<{ data: TruckPlanWindowDT
 
 export function saveTruckPlan(orderId: number, body: TruckPlanSaveBody): Promise<{ data: TruckPlanWindowDTO }> {
   return api.put<TruckPlanWindowDTO>(`/inventory/orders/${orderId}/truck-plan/`, body);
+}
+
+/** The truck follows the store default again (its own plan is removed). */
+export function truckPlanBackToDefault(orderId: number): Promise<{ data: TruckPlanWindowDTO }> {
+  return api.delete<TruckPlanWindowDTO>(`/inventory/orders/${orderId}/truck-plan/`);
+}
+
+/** Superuser only: change the store default. Every truck still on it follows; trucks with their own plan do not. */
+export function saveTruckPlanDefault(
+  body: { pricing_start_pct: string | null; watch_for: string },
+): Promise<{ data: TruckPlanDefaultDTO }> {
+  return api.put<TruckPlanDefaultDTO>('/inventory/orders/truck-plan-default/', body);
 }
 
 /** Superuser only. An empty total puts the target back to 2 x Paid. */

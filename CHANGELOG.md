@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.272.3] -->
-<!-- Last reviewed: 2026-11-11 (2.272.3) -->
+<!-- Line 1 release: ## [2.273.0] -->
+<!-- Last reviewed: 2026-11-11 (2.273.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.273.0] - 2026-11-11
+
+User-facing theme: **Truck Plan: never blank; every truck starts with the default plan (Dash Update #99).**
+
+> **For Bill:** you said a truck plan "can be marked default plan but it should never be blank." Every truck now opens with a plan already filled from one store default, marked **Default plan** until someone changes it. The default until you write your own: tags start at 55% of retail; target 2 x what we paid; watch for missing and broken items and mark them the day you find them; dispute due 4 business days after delivery. To change it for every truck still on the default: open any Truck Plan and tap **Edit the default plan** (superuser only). Changing one truck's plan makes it that truck's own; "Back to the default" puts it back. "No truck plan yet" is gone from the header, the Truck Plan window and the Order window. One effect: On track now uses the 55% start for trucks with no plan of their own, so unpriced lines get an estimate where they used to show none.
+
+### Added (#99: Truck Plan default)
+- One store default plan (`AppSetting` `truck_plan_default`, read live by `services/truck_plan.py`): pricing start 55% of retail, what to watch for, the 4-business-day dispute rule. Every truck with no plan of its own shows it, marked "Default plan", on the header line, the Truck Plan window and the Order window. No migration and no data job.
+- "Edit the default plan" in the Truck Plan window (superuser only; cannot be saved blank; history kept). Saving a change on a truck makes it that truck's own plan; "Back to the default" removes it. Changing the default reaches only trucks still on it.
+
+### Changed (#99)
+- The "No truck plan yet / Make the plan" state is gone. On track uses the default pricing start for trucks with no plan of their own.
 
 ## [2.272.3] - 2026-11-11
 

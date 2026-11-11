@@ -19,7 +19,12 @@ One call gives the Processing header and the Truck Plan window the same numbers:
 - **Dispute due** = the plan's own date, else 4 business days after delivery.
 
 The Truck Plan (``TruckPlan``, one per order) holds the pricing start point, what to watch for, who is on it, the
-dispute due date and known issues. No row = "No truck plan yet"; it never blocks processing.
+dispute due date and known issues. It never blocks processing.
+
+**Never blank (#99, D30).** A truck with no plan of its own follows the store default: one ``AppSetting``
+(``truck_plan_default``) a superuser edits, read live, so old trucks show it at once and a change to it reaches every
+truck still on it. Saving a change to a truck's plan makes it that truck's own (a ``TruckPlan`` row); "Back to the
+default" removes the row. A row that says nothing at all also reads as the default.
 """
 
 from __future__ import annotations
@@ -42,6 +47,14 @@ _ZERO = Decimal('0')
 _CENT = Decimal('0.01')
 _NOT_PRICED_STATUSES = ('intake', 'processing', 'lost', 'scrapped')
 _TEXT_LIMIT = 4000
+
+PLAN_DEFAULT_KEY = 'truck_plan_default'
+# Until Bill writes his own (D30, guessed): his usual start point and the one thing every truck needs watched.
+BUILT_IN_PLAN_DEFAULT = {
+    'pricing_start_pct': '55',
+    'watch_for': 'Missing and broken items. Mark them the day you find them.',
+    'known_issues': '',
+}
 
 
 def _money(v: Decimal | None) -> str | None:
@@ -201,6 +214,72 @@ def _plan_for(order: PurchaseOrder) -> TruckPlan | None:
     return TruckPlan.objects.filter(purchase_order=order).select_related('updated_by').first()
 
 
+def own_plan(order: PurchaseOrder) -> TruckPlan | None:
+    """The truck's own plan, or None when it follows the store default (no row, or a row that says nothing)."""
+    plan = _plan_for(order)
+    if plan is None:
+        return None
+    says_something = (
+        plan.pricing_start_pct is not None or plan.watch_for.strip() or plan.known_issues.strip()
+        or plan.dispute_due_date is not None or plan.crew.exists()
+    )
+    return plan if says_something else None
+
+
+# --- the store default --------------------------------------------------------------------------------------------
+
+
+def plan_default() -> dict[str, Any]:
+    """The store default plan: what a superuser saved, else the built-in one."""
+    from apps.core.models import AppSetting
+
+    row = AppSetting.objects.filter(key=PLAN_DEFAULT_KEY).select_related('updated_by').first()
+    value = row.value if row is not None and isinstance(row.value, dict) else {}
+    out = {**BUILT_IN_PLAN_DEFAULT, **{k: v for k, v in value.items() if k in BUILT_IN_PLAN_DEFAULT}}
+    try:
+        pct = Decimal(str(out['pricing_start_pct'])) if out['pricing_start_pct'] not in (None, '') else None
+    except (InvalidOperation, ValueError):
+        pct = Decimal(BUILT_IN_PLAN_DEFAULT['pricing_start_pct'])
+    return {
+        'pricing_start_pct': pct,
+        'watch_for': str(out['watch_for'] or ''),
+        'known_issues': str(out['known_issues'] or ''),
+        'updated_by': _user_name(row.updated_by) if row is not None else '',
+        'updated_at': row.updated_at.isoformat() if row is not None and row.updated_at else None,
+    }
+
+
+def plan_default_out() -> dict[str, Any]:
+    d = plan_default()
+    return {**d, 'pricing_start_pct': _pct_text(d['pricing_start_pct'])}
+
+
+def save_plan_default(user, data: dict) -> dict[str, Any]:
+    """A superuser changes the store default. It reaches every truck still on it, and no truck with its own plan."""
+    from apps.core.models import AppSetting, AppSettingHistory
+
+    if not getattr(user, 'is_superuser', False):
+        raise PermissionError('Only a superuser can change the default plan.')
+    old = plan_default_out()
+    pct = _decimal_or_none(data.get('pricing_start_pct', old['pricing_start_pct']), 'Pricing start')
+    if pct is not None and (pct < 0 or pct > 200):
+        raise ValueError('Pricing start must be between 0 and 200 percent.')
+    watch = str(data.get('watch_for', old['watch_for']) or '').strip()[:_TEXT_LIMIT]
+    issues = str(data.get('known_issues', old['known_issues']) or '').strip()[:_TEXT_LIMIT]
+    if pct is None and not watch and not issues:
+        raise ValueError('The default plan cannot be blank. Give it a pricing start or something to watch for.')
+    value = {'pricing_start_pct': _pct_text(pct), 'watch_for': watch, 'known_issues': issues}
+    row = AppSetting.objects.filter(key=PLAN_DEFAULT_KEY).first()
+    before = row.value if row is not None else None
+    if row is None:
+        row = AppSetting(key=PLAN_DEFAULT_KEY, description='The Truck Plan every truck starts with (Dash Update #99).')
+    row.value = value
+    row.updated_by = user
+    row.save()
+    AppSettingHistory.objects.create(key=PLAN_DEFAULT_KEY, old_value=before, new_value=value, changed_by=user)
+    return plan_default_out()
+
+
 def _target_out(order: PurchaseOrder) -> dict[str, Any]:
     own = order.target_price_total
     return {
@@ -228,7 +307,7 @@ def _on_track_out(order: PurchaseOrder, plan: TruckPlan | None) -> dict[str, Any
         priced_items=int(agg['rate_n'] or 0),
         priced_sum=agg['rate_price'] or _ZERO,
         retail_sum=agg['rate_retail'] or _ZERO,
-        plan_start_pct=plan.pricing_start_pct if plan else None,
+        plan_start_pct=plan.pricing_start_pct if plan else plan_default()['pricing_start_pct'],
     )
     rows = []
     for r in ProcessingRow.objects.filter(purchase_order=order).exclude(
@@ -346,10 +425,22 @@ def _pct_text(v: Decimal | None) -> str | None:
     return str(q.quantize(Decimal('1'))) if q == q.to_integral_value() else str(q.normalize())
 
 
-def plan_out(plan: TruckPlan | None) -> dict[str, Any] | None:
+def plan_out(plan: TruckPlan | None) -> dict[str, Any]:
+    """The plan the truck works to: its own, or the store default (``is_default``). Never empty."""
     if plan is None:
-        return None
+        d = plan_default_out()
+        return {
+            'pricing_start_pct': d['pricing_start_pct'],
+            'watch_for': d['watch_for'],
+            'known_issues': d['known_issues'],
+            'crew': [],
+            'dispute_due_date': None,
+            'updated_by': d['updated_by'],
+            'updated_at': d['updated_at'],
+            'is_default': True,
+        }
     return {
+        'is_default': False,
         'pricing_start_pct': _pct_text(plan.pricing_start_pct),
         'watch_for': plan.watch_for,
         'known_issues': plan.known_issues,
@@ -364,7 +455,7 @@ def truck_summary(order: PurchaseOrder, *, user=None) -> dict[str, Any]:
     """Everything the Processing header and the Truck Plan window show for one order."""
     from apps.inventory.services.truck_close import header_claim
 
-    plan = _plan_for(order)
+    plan = own_plan(order)
     due, due_from_plan = dispute_due_date(order, plan)
     disputes = dispute_numbers(order)
     return {
@@ -395,6 +486,7 @@ def truck_summary(order: PurchaseOrder, *, user=None) -> dict[str, Any]:
         },
         'plan': plan_out(plan),
         'can_set_target': bool(user is not None and getattr(user, 'is_superuser', False)),
+        'can_edit_default': bool(user is not None and getattr(user, 'is_superuser', False)),
     }
 
 
@@ -421,7 +513,12 @@ def save_plan(user, order: PurchaseOrder, data: dict) -> TruckPlan:
     """Create or update the truck's plan. Only the keys sent are changed."""
     plan = TruckPlan.objects.filter(purchase_order=order).first()
     if plan is None:
-        plan = TruckPlan(purchase_order=order, created_by=user)
+        # The first change: the truck's own plan starts as a copy of the default, then takes what was sent.
+        d = plan_default()
+        plan = TruckPlan(
+            purchase_order=order, created_by=user, pricing_start_pct=d['pricing_start_pct'],
+            watch_for=d['watch_for'], known_issues=d['known_issues'],
+        )
     if 'pricing_start_pct' in data:
         pct = _decimal_or_none(data.get('pricing_start_pct'), 'Pricing start')
         if pct is not None and (pct < 0 or pct > 200):
@@ -457,6 +554,11 @@ def save_plan(user, order: PurchaseOrder, data: dict) -> TruckPlan:
     if crew_ids is not None:
         plan.crew.set(crew_ids)
     return plan
+
+
+def back_to_default(order: PurchaseOrder) -> None:
+    """The truck follows the store default again: its own plan is removed."""
+    TruckPlan.objects.filter(purchase_order=order).delete()
 
 
 def set_target(user, order: PurchaseOrder, raw_total: Any) -> PurchaseOrder:

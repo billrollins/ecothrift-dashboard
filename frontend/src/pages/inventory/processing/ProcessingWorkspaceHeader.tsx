@@ -2,7 +2,7 @@
  * The top of Processing (Dash Update #81). Three rows:
  * 1. the order: number (opens the Order window; the arrow switches orders), vendor, manifest, load description
  *    (opens the Truck Plan), delivered, dispute due;
- * 2. the Truck Plan in one line, or "No truck plan yet" with a button (it never blocks processing);
+ * 2. the Truck Plan in one line, marked "Default plan" while the truck follows the store default (never blank);
  * 3. the numbers in four groups: Money (Paid, Target, On track), Items (Total, Left, Added), Disputes (Disputed,
  *    Worth) and Work (Pallet, Rate). Hover a block for the sum behind it; click for the same lines in a window.
  * Money, disputes and dates come from `GET /inventory/orders/<id>/truck-summary/` (`services/truck_plan.py`).
@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import {
   Box,
   Button,
+  Chip,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -490,7 +491,7 @@ export function ProcessingWorkspaceHeader({
 
       <TruckPlanLine
         loaded={summary != null}
-        hasPlan={summary?.plan != null}
+        isDefault={Boolean(summary?.plan?.is_default)}
         dueSetByHand={Boolean(summary?.plan?.dispute_due_date)}
         parts={planParts}
         orderNotes={orderNotes}
@@ -678,10 +679,10 @@ function OrderSelectorCell({
   );
 }
 
-/** The Truck Plan in one line, or "No truck plan yet" with a button. It never blocks processing. */
+/** The Truck Plan in one line, with a small "Default plan" mark while it follows the store default. */
 function TruckPlanLine({
   loaded,
-  hasPlan,
+  isDefault,
   dueSetByHand,
   parts,
   orderNotes,
@@ -693,7 +694,7 @@ function TruckPlanLine({
   notFiled?: { text: string; missed: boolean } | null;
   onOpenCloseTruck?: () => void;
   loaded: boolean;
-  hasPlan: boolean;
+  isDefault: boolean;
   /** The plan holds a dispute day set by hand (it may hold nothing else). */
   dueSetByHand?: boolean;
   parts: ReturnType<typeof planLineParts>;
@@ -714,12 +715,14 @@ function TruckPlanLine({
       Truck plan
     </Typography>
   );
-  const planButton = (text: string) =>
-    onOpenPlan ? (
-      <Button size="small" variant="outlined" onClick={onOpenPlan} sx={{ minHeight: 22, py: 0, px: 1, fontSize: 12, flexShrink: 0 }}>
-        {text}
-      </Button>
-    ) : null;
+  const defaultMark = isDefault ? (
+    <Chip
+      size="small"
+      variant="outlined"
+      label="Default plan"
+      sx={{ height: 20, flexShrink: 0, fontSize: 11, fontWeight: 700, color: 'text.secondary', '& .MuiChip-label': { px: 0.75 } }}
+    />
+  ) : null;
 
   return (
     <Box
@@ -731,25 +734,23 @@ function TruckPlanLine({
         px: 1.25,
         borderBottom: 1,
         borderColor: processingTokens.orderHeaderBorder,
-        bgcolor: hasPlan || !loaded ? processingTokens.orderHeaderBg : processingTokens.amberSoft,
+        bgcolor: processingTokens.orderHeaderBg,
         overflow: 'hidden',
         flexWrap: { xs: 'wrap', md: 'nowrap' },
         py: { xs: 0.5, md: 0 },
       }}
     >
       {label}
-      {!loaded ? null : !hasPlan ? (
-        <>
-          <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>No truck plan yet</Typography>
-          {planButton('Make the plan')}
-        </>
-      ) : parts.length === 0 ? (
-        <>
-          <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>
-            {dueSetByHand ? 'Only the dispute day is set' : 'No truck plan yet'}
-          </Typography>
-          {planButton(dueSetByHand ? 'Write the plan' : 'Make the plan')}
-        </>
+      {loaded ? defaultMark : null}
+      {!loaded ? null : parts.length === 0 ? (
+        // A plan of its own that holds only a dispute day: say so, and open it on a click.
+        <Typography
+          component={onOpenPlan ? 'button' : 'span'}
+          onClick={onOpenPlan}
+          sx={{ appearance: 'none', border: 0, p: 0, bgcolor: 'transparent', font: 'inherit', fontSize: 12.5, cursor: onOpenPlan ? 'pointer' : 'default', '&:hover': { textDecoration: onOpenPlan ? 'underline' : 'none' } }}
+        >
+          {dueSetByHand ? 'Dispute day set by hand. Nothing else written.' : 'Process it as normal.'}
+        </Typography>
       ) : (
         <Tooltip
           enterDelay={300}

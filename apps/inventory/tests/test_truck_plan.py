@@ -211,13 +211,14 @@ class PaidTargetOnTrackTests(TruckSummaryBase):
 
     def test_a_line_with_no_price_uses_the_plan_start_point(self):
         ProcessingRow.objects.filter(pk=self.rows[1][1].pk).update(shelf_price=None)
+        # No plan of its own: the default plan's 55% start. 10 x $5 own price + 5 x $100 retail x 55%.
         t = self._summary()['on_track']
-        self.assertEqual((t['estimated_left'], t['units_no_estimate'], t['rate_basis']), ('50.00', 5, ''))
-        TruckPlan.objects.create(purchase_order=self.order, pricing_start_pct=Decimal('55'))
-        t = self._summary()['on_track']
-        # 10 x $5 own price + 5 x $100 retail x 55%.
         self.assertEqual((t['estimated_left'], t['units_by_rate'], t['units_no_estimate']), ('325.00', 5, 0))
         self.assertEqual((t['rate_pct'], t['rate_basis']), (55.0, 'plan'))
+        # The truck's own plan wins: 5 x $100 x 40%.
+        TruckPlan.objects.create(purchase_order=self.order, pricing_start_pct=Decimal('40'))
+        t = self._summary()['on_track']
+        self.assertEqual((t['estimated_left'], t['rate_pct']), ('250.00', 40.0))
 
     def test_scrapped_and_lost_items_are_not_priced(self):
         self._check_in(1, 5, price='40.00')
@@ -272,7 +273,9 @@ class TruckPlanApiTests(TruckSummaryBase):
     def test_no_plan_yet_and_the_default_due_date(self):
         r = self.client.get(self._url('truck-summary/'))
         self.assertEqual(r.status_code, 200, r.data)
-        self.assertIsNone(r.data['plan'])
+        # Never blank: a truck with no plan of its own reads the default plan (#99).
+        self.assertTrue(r.data['plan']['is_default'])
+        self.assertEqual(r.data['plan']['pricing_start_pct'], '55')
         # Delivered Thursday 11-05, due 4 business days later.
         self.assertEqual(r.data['dates']['dispute_due'], '2026-11-11')
         self.assertFalse(r.data['dates']['dispute_due_from_plan'])
@@ -328,7 +331,7 @@ class TruckPlanApiTests(TruckSummaryBase):
         # The target never touches what we paid, and it does not make a plan.
         self.order.refresh_from_db()
         self.assertEqual(self.order.total_cost, Decimal('520.00'))
-        self.assertIsNone(r.data['plan'])
+        self.assertTrue(r.data['plan']['is_default'])
 
         r = self.client.post(self._url('truck-plan/target/'), {'total': ''}, format='json')
         self.assertEqual((r.data['target']['total'], r.data['target']['is_default'], r.data['target']['set_by']),
@@ -336,3 +339,79 @@ class TruckPlanApiTests(TruckSummaryBase):
 
         r = self.client.post(self._url('truck-plan/target/'), {'total': '-5'}, format='json')
         self.assertEqual(r.status_code, 400)
+
+
+class DefaultPlanTests(TruckSummaryBase):
+    """#99 (D30): every truck starts with the store default; a change makes it the truck's own."""
+
+    DEFAULT_URL = '/api/inventory/orders/truck-plan-default/'
+
+    def _other_order(self, number='PO-OTHER'):
+        made = PurchaseOrder.objects.create(
+            vendor=self.vendor, order_number=number, ordered_date='2026-11-02', delivered_date='2026-11-05',
+            purchase_cost=Decimal('100.00'), status='processing',
+        )
+        return PurchaseOrder.objects.get(pk=made.pk)
+
+    def test_a_new_truck_reads_the_default(self):
+        order = self._other_order()
+        plan = truck_summary(order, user=self.staff)['plan']
+        self.assertTrue(plan['is_default'])
+        self.assertEqual(plan['pricing_start_pct'], '55')
+        self.assertEqual(plan['watch_for'], 'Missing and broken items. Mark them the day you find them.')
+        self.assertEqual((plan['crew'], plan['dispute_due_date']), ([], None))
+        self.assertFalse(TruckPlan.objects.filter(purchase_order=order).exists())
+
+    def test_a_blank_saved_plan_still_reads_the_default(self):
+        TruckPlan.objects.create(purchase_order=self.order)
+        self.assertTrue(self._summary()['plan']['is_default'])
+
+    def test_a_saved_plan_stops_following_the_default(self):
+        r = self.client.put(self._url('truck-plan/'), {'watch_for': 'Check the remotes.'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        plan = r.data['plan']
+        self.assertFalse(plan['is_default'])
+        # The rest of the plan starts as a copy of the default.
+        self.assertEqual((plan['watch_for'], plan['pricing_start_pct']), ('Check the remotes.', '55'))
+
+        self.client.force_authenticate(user=self.owner)
+        r = self.client.put(self.DEFAULT_URL, {'pricing_start_pct': '60'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(self._summary()['plan']['pricing_start_pct'], '55')
+
+    def test_changing_the_default_reaches_only_trucks_on_the_default(self):
+        mine = self._other_order('PO-MINE')
+        TruckPlan.objects.create(purchase_order=mine, pricing_start_pct=Decimal('45'))
+        on_default = self._other_order('PO-DEF')
+
+        r = self.client.put(self.DEFAULT_URL, {'pricing_start_pct': '60'}, format='json')
+        self.assertEqual(r.status_code, 403)   # only a superuser changes the default
+
+        self.client.force_authenticate(user=self.owner)
+        r = self.client.put(self.DEFAULT_URL, {'pricing_start_pct': '60', 'watch_for': 'Wet boxes.'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual((r.data['pricing_start_pct'], r.data['updated_by']), ('60', 'Olive Owner'))
+        d = truck_summary(on_default, user=self.staff)['plan']
+        self.assertEqual((d['is_default'], d['pricing_start_pct'], d['watch_for']), (True, '60', 'Wet boxes.'))
+        own = truck_summary(mine, user=self.staff)['plan']
+        self.assertEqual((own['is_default'], own['pricing_start_pct']), (False, '45'))
+
+        r = self.client.get(self.DEFAULT_URL)
+        self.assertEqual(r.data['pricing_start_pct'], '60')
+        # It can never be made blank.
+        r = self.client.put(self.DEFAULT_URL, {'pricing_start_pct': '', 'watch_for': ' ', 'known_issues': ''}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_back_to_the_default(self):
+        self.client.put(self._url('truck-plan/'), {'pricing_start_pct': '40', 'crew_ids': [self.staff.pk]}, format='json')
+        self.assertFalse(self._summary()['plan']['is_default'])
+        r = self.client.delete(self._url('truck-plan/'))
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertTrue(r.data['plan']['is_default'])
+        self.assertEqual((r.data['plan']['pricing_start_pct'], r.data['plan']['crew']), ('55', []))
+        self.assertFalse(TruckPlan.objects.filter(purchase_order=self.order).exists())
+
+    def test_the_order_window_names_the_plan(self):
+        from apps.inventory.services.order_card import order_card
+
+        self.assertTrue(order_card(self.order.pk)['truck_plan']['is_default'])

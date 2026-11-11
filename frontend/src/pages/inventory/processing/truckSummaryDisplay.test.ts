@@ -40,7 +40,10 @@ function summary(over: Partial<TruckSummaryDTO> = {}): TruckSummaryDTO {
       dispute_business_days: 4,
     },
     claim: { filed: false, filed_on: null, amount_asked: null, amount_back: null, finalized_at: null, not_filed: null },
-    plan: null,
+    plan: {
+      is_default: true, pricing_start_pct: '55', watch_for: 'Missing and broken items.', known_issues: '', crew: [],
+      dispute_due_date: null, updated_by: '', updated_at: null,
+    },
     can_set_target: false,
     ...over,
   };
@@ -159,7 +162,7 @@ describe('dispute due', () => {
 
 describe('the plan line', () => {
   const plan: TruckPlanDTO = {
-    pricing_start_pct: '55', watch_for: 'Check every box\nfor the remote.', known_issues: 'Two pallets came in wet.',
+    is_default: false, pricing_start_pct: '55', watch_for: 'Check every box\nfor the remote.', known_issues: 'Two pallets came in wet.',
     crew: [{ id: 1, name: 'Pat Proc' }, { id: 2, name: 'Ana Lee' }], dispute_due_date: null, updated_by: 'Pat Proc',
     updated_at: '2026-11-10T15:00:00Z',
   };

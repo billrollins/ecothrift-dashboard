@@ -2,17 +2,22 @@
  * The Truck Plan window (Dash Updates #81): the plan for one order's truck, filled in before processing starts.
  * Opened from the load description at the top of Processing and from the Order window. It never blocks processing.
  *
- * Left: the plan (pricing start, what to watch for, who is on it, dispute due, known issues), saved by any staff.
+ * The plan (pricing start, what to watch for, who is on it, dispute due, known issues), saved by any staff. It is
+ * never blank (#99): a truck starts on the store default plan, marked "Default plan"; saving a change makes it the
+ * truck's own, and "Back to the default" puts it back. A superuser edits the store default here too.
  * Right: the money (Paid, Target, On track) and the disputes so far, the same numbers as the top of Processing.
  * Only a superuser can change the Target Price total; everyone sees it.
- * Data: GET / PUT /api/inventory/orders/<id>/truck-plan/ and POST .../truck-plan/target/ (services/truck_plan.py).
+ * Data: GET / PUT / DELETE /api/inventory/orders/<id>/truck-plan/, POST .../truck-plan/target/ and
+ * PUT /api/inventory/orders/truck-plan-default/ (services/truck_plan.py).
  */
 import { useEffect, useState } from 'react';
 import {
   Autocomplete, Box, Button, Chip, CircularProgress, InputAdornment, Link, Stack, TextField, Typography,
 } from '@mui/material';
 import type { TruckPlanDTO, TruckPlanWindowDTO } from '../../api/truckPlan.api';
-import { useSaveTruckPlan, useSetTruckTarget, useTruckPlanWindow } from '../../hooks/useTruckPlan';
+import {
+  useSaveTruckPlan, useSaveTruckPlanDefault, useSetTruckTarget, useTruckPlanBackToDefault, useTruckPlanWindow,
+} from '../../hooks/useTruckPlan';
 import {
   count, disputeDueLabel, money, moneyWhole, overUnder, shortDay, worthSum,
 } from '../../pages/inventory/processing/truckSummaryDisplay';
@@ -65,11 +70,6 @@ const drafts = {
   },
 };
 
-/** True when the plan says nothing: it is shown as "No truck plan yet". */
-function planIsEmpty(plan: TruckPlanDTO | null): boolean {
-  return !plan || !(plan.pricing_start_pct || plan.watch_for.trim() || plan.known_issues.trim() || plan.crew.length || plan.dispute_due_date);
-}
-
 /** A pricing start far from where trucks usually start is most often a slip of the finger. */
 function pricingStartHint(text: string): string | null {
   const n = Number(text.trim());
@@ -100,25 +100,25 @@ function TargetLine({ data }: { data: TruckPlanWindowDTO }) {
   );
 }
 
-function PlanRead({ data, onEdit }: { data: TruckPlanWindowDTO; onEdit: () => void }) {
+function PlanRead({ orderId, data, onEdit, onEditDefault }: {
+  orderId: number; data: TruckPlanWindowDTO; onEdit: () => void; onEditDefault: () => void;
+}) {
   const plan = data.plan;
   const due = disputeDueLabel(data.dates);
+  const back = useTruckPlanBackToDefault(orderId);
+  const [backAsk, setBackAsk] = useState(false);
   const none = <Box component="span" sx={{ color: 'text.secondary', fontWeight: 400 }}>Nothing written</Box>;
   const text = (v: string | undefined) => (v && v.trim() ? <Box component="span" sx={{ whiteSpace: 'pre-wrap' }}>{v.trim()}</Box> : none);
-  if (planIsEmpty(plan)) {
-    // No plan yet: a calm note for everyone and one way to start. Nothing that looks like a form to fill in.
-    return (
-      <Section title="The plan">
-        <Facts rows={[['Target', <TargetLine key="t" data={data} />]]} />
-        <Typography sx={{ mt: 1.5, fontSize: 14 }}>
-          No plan yet for this truck. Process it as normal.
-        </Typography>
-        <Button variant="outlined" size="small" sx={{ mt: 1.25 }} onClick={onEdit}>Write the plan</Button>
-      </Section>
-    );
-  }
   return (
     <Section title="The plan" action={<Button size="small" variant="outlined" onClick={onEdit}>Change the plan</Button>}>
+      {plan.is_default ? (
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+          <Chip size="small" variant="outlined" label="Default plan" sx={{ fontWeight: 700 }} />
+          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+            Every truck starts with this. A change here makes a plan for this truck alone.
+          </Typography>
+        </Stack>
+      ) : null}
       <Facts rows={[
         ['Target', <TargetLine key="t" data={data} />],
         ['Known issues', text(plan?.known_issues)],
@@ -127,11 +127,91 @@ function PlanRead({ data, onEdit }: { data: TruckPlanWindowDTO; onEdit: () => vo
         ['Who is on it', plan?.crew.length ? plan.crew.map((c) => c.name).join(', ') : none],
         ['Dispute due', due.value !== '-' ? `${due.value} (${data.dates.dispute_due_from_plan ? 'set by hand in this plan' : `${data.dates.dispute_business_days} business days after delivery`})` : null],
       ]} />
-      {plan?.updated_at ? (
-        <Typography sx={{ mt: 1.25, fontSize: 13, color: 'text.secondary' }}>
-          Saved{plan.updated_by ? ` by ${plan.updated_by}` : ''}, {itemCardWhen(plan.updated_at)}
+      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 1.25, minHeight: 32 }}>
+        {plan.updated_at ? (
+          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+            {plan.is_default ? 'Default plan set' : 'Saved'}{plan.updated_by ? ` by ${plan.updated_by}` : ''}, {itemCardWhen(plan.updated_at)}
+          </Typography>
+        ) : null}
+        {!plan.is_default ? (
+          backAsk ? (
+            <>
+              <Typography sx={{ fontSize: 13, fontWeight: 700 }}>Drop this truck&apos;s plan?</Typography>
+              <Button size="small" color="warning" disabled={back.isPending} onClick={() => back.mutate(undefined, { onSettled: () => setBackAsk(false) })}>
+                Yes, back to the default
+              </Button>
+              <Button size="small" disabled={back.isPending} onClick={() => setBackAsk(false)}>Keep it</Button>
+            </>
+          ) : (
+            <Button size="small" onClick={() => setBackAsk(true)}>Back to the default</Button>
+          )
+        ) : null}
+        {data.can_edit_default ? (
+          <Button size="small" onClick={onEditDefault} sx={{ ml: 'auto' }}>Edit the default plan</Button>
+        ) : null}
+      </Stack>
+      {back.isError ? (
+        <Typography role="status" sx={{ mt: 0.5, fontSize: 13, fontWeight: 600, color: 'error.main' }}>
+          {errorText(back.error, 'The plan could not be put back to the default.')}
         </Typography>
       ) : null}
+    </Section>
+  );
+}
+
+/** A superuser changes the store default: every truck still on it follows; a truck with its own plan keeps it. */
+function DefaultEditor({ data, onDone }: { data: TruckPlanWindowDTO; onDone: () => void }) {
+  const save = useSaveTruckPlanDefault();
+  // On a truck that follows the default, its plan is the default; otherwise start from the built-in words.
+  const start = data.plan.is_default ? data.plan : null;
+  const [pct, setPct] = useState(start?.pricing_start_pct ?? '55');
+  const [watch, setWatch] = useState(start?.watch_for ?? '');
+  const error = save.isError ? errorText(save.error, 'The default plan could not be saved.') : '';
+  const blank = !pct.trim() && !watch.trim();
+  const hint = pricingStartHint(pct);
+  return (
+    <Section title="Edit the default plan">
+      <Stack spacing={1.75} sx={{ pt: 0.5 }}>
+        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+          Every truck without a plan of its own uses this, now and from the day it comes. Trucks with their own plan keep it.
+        </Typography>
+        <TextField
+          label="Watch for"
+          size="small"
+          multiline
+          minRows={2}
+          value={watch}
+          onChange={(e) => { setWatch(e.target.value); if (save.isError) save.reset(); }}
+          helperText="What a processor should look out for on every truck."
+        />
+        <TextField
+          label="Pricing start"
+          size="small"
+          value={pct}
+          onChange={(e) => { setPct(e.target.value); if (save.isError) save.reset(); }}
+          error={error.startsWith('Pricing start')}
+          helperText={(error.startsWith('Pricing start') && error) || hint || 'Where tags start. On track uses it for lines with no price yet.'}
+          slotProps={{
+            input: { endAdornment: <InputAdornment position="end">% of retail</InputAdornment> },
+            htmlInput: { inputMode: 'decimal', 'aria-label': 'Default pricing start, percent of retail' },
+            formHelperText: { sx: hint ? { color: 'warning.dark', fontWeight: 600 } : undefined },
+          }}
+          sx={{ '& .MuiInputBase-root': { maxWidth: 260 } }}
+        />
+        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap sx={{ minHeight: 40 }}>
+          <Button
+            variant="contained"
+            disabled={save.isPending || blank}
+            onClick={() => save.mutate({ pricing_start_pct: pct.trim() || null, watch_for: watch }, { onSuccess: onDone })}
+          >
+            {save.isPending ? 'Saving' : 'Save the default plan'}
+          </Button>
+          <Button disabled={save.isPending} onClick={() => { save.reset(); onDone(); }}>Cancel</Button>
+          <Typography role="status" sx={{ fontSize: 13, fontWeight: error ? 600 : 400, color: error ? 'error.main' : 'text.secondary' }}>
+            {error && !error.startsWith('Pricing start') ? error : blank ? 'The default plan cannot be blank.' : ''}
+          </Typography>
+        </Stack>
+      </Stack>
     </Section>
   );
 }
@@ -162,7 +242,7 @@ function PlanEditor({ orderId, data, onDone }: { orderId: number; data: TruckPla
     onDone();
   };
   const defaultDue = data.dates.dispute_due_from_plan ? null : data.dates.dispute_due;
-  const firstPlan = planIsEmpty(data.plan);
+  const firstPlan = data.plan.is_default;
   const error = save.isError ? errorText(save.error, 'The plan could not be saved.') : '';
   const pctNumber = Number(form.pricing_start_pct.trim());
   const pricingError = error.startsWith('Pricing start') ? error
@@ -176,11 +256,11 @@ function PlanEditor({ orderId, data, onDone }: { orderId: number; data: TruckPla
   const [dropAsk, setDropAsk] = useState(false);
 
   return (
-    <Section title={firstPlan ? 'The plan' : 'Change the plan'}>
+    <Section title="Change the plan">
       <Stack spacing={1.75} sx={{ pt: 0.5 }}>
         <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
           {firstPlan
-            ? 'No truck plan yet. Write what you know and save. Processing can start without it.'
+            ? 'This starts from the default plan. Saving makes it this truck\'s own plan.'
             : 'Everyone who opens this truck sees the plan.'}
         </Typography>
         <TextField
@@ -288,11 +368,12 @@ function PlanEditor({ orderId, data, onDone }: { orderId: number; data: TruckPla
   );
 }
 
-/** The plan as statements for readers; the form to write it. A truck with no plan opens on the form. */
+/** The plan as statements for readers; the form to change it; for a superuser, the store default. */
 function PlanPanel({ orderId, data }: { orderId: number; data: TruckPlanWindowDTO }) {
-  const [editing, setEditing] = useState(() => drafts.has(orderId));
-  if (editing) return <PlanEditor orderId={orderId} data={data} onDone={() => setEditing(false)} />;
-  return <PlanRead data={data} onEdit={() => setEditing(true)} />;
+  const [mode, setMode] = useState<'read' | 'edit' | 'default'>(() => (drafts.has(orderId) ? 'edit' : 'read'));
+  if (mode === 'edit') return <PlanEditor orderId={orderId} data={data} onDone={() => setMode('read')} />;
+  if (mode === 'default' && data.can_edit_default) return <DefaultEditor data={data} onDone={() => setMode('read')} />;
+  return <PlanRead orderId={orderId} data={data} onEdit={() => setMode('edit')} onEditDefault={() => setMode('default')} />;
 }
 
 function TargetEditor({ orderId, data }: { orderId: number; data: TruckPlanWindowDTO }) {

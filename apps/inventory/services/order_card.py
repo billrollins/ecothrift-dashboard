@@ -32,6 +32,15 @@ def _pct(part, whole) -> float | None:
     return round(float(Decimal(part) / Decimal(whole) * 100), 1)
 
 
+def _truck_plan(po: PurchaseOrder) -> dict:
+    """The plan the truck works to, in one line: its own or the store default (#99). Never blank."""
+    from apps.inventory.services.truck_plan import own_plan, plan_out
+
+    plan = plan_out(own_plan(po))
+    return {'is_default': plan['is_default'], 'pricing_start_pct': plan['pricing_start_pct'],
+            'watch_for': plan['watch_for']}
+
+
 def _disputed_claim(po: PurchaseOrder) -> dict | None:
     """Items disputed in Processing (not broken) and the manifest retail they add to the truck claim (each at its % of
     value lost), the same numbers as the Truck page."""
@@ -105,6 +114,7 @@ def order_card(order_id: int) -> dict | None:
                   'refund_expected': _money(claim.refund_expected), 'refund_received': _money(claim.refund_received)}
         if claim else None,
         'disputed_claim': _disputed_claim(po) if stats['disputed'] else None,
+        'truck_plan': _truck_plan(po),
         'disputes': disputes,
         'journey': journey,
     }

@@ -32,7 +32,7 @@ from django.utils import timezone
 from apps.inventory.models import BStockDispute, Item, PurchaseOrder, TruckPallet
 from apps.inventory.services import bstock_disputes
 from apps.inventory.services.truck_finalize import truck_lines
-from apps.inventory.services.truck_plan import _plan_for, dispute_due_date, dispute_numbers
+from apps.inventory.services.truck_plan import dispute_due_date, dispute_numbers, own_plan
 
 _CENT = Decimal('0.01')
 _ZERO = Decimal('0')
@@ -219,7 +219,7 @@ def close_payload(order: PurchaseOrder, *, link_for=None) -> dict[str, Any]:
     added = Item.objects.filter(purchase_order=order, manifest_row__isnull=True).exclude(
         status__in=('intake', 'processing', 'lost'),
     ).aggregate(n=Count('pk'), retail=Sum('retail'))
-    plan = _plan_for(order)
+    plan = own_plan(order)
     due, _from_plan = dispute_due_date(order, plan)
     today = timezone.localdate()
     c_lines = claim_lines(order, record)
@@ -348,7 +348,7 @@ def unfiled_claims(today: date | None = None) -> list[dict[str, Any]]:
         worth = Decimal(numbers['worth']) if numbers.get('worth') else _ZERO
         if worth <= 0:
             continue
-        due, _from_plan = dispute_due_date(order, _plan_for(order))
+        due, _from_plan = dispute_due_date(order, own_plan(order))
         out.append({
             'order_id': order.pk,
             'order_number': order.order_number,

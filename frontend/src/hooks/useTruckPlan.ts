@@ -3,7 +3,9 @@ import {
   getTruckPlan,
   getTruckSummary,
   saveTruckPlan,
+  saveTruckPlanDefault,
   setTruckTarget,
+  truckPlanBackToDefault,
   type TruckPlanSaveBody,
   type TruckPlanWindowDTO,
 } from '../api/truckPlan.api';
@@ -46,6 +48,26 @@ export function useSaveTruckPlan(orderId: number | null | undefined) {
   return useMutation({
     mutationFn: async (body: TruckPlanSaveBody) => (await saveTruckPlan(orderId as number, body)).data,
     onSuccess: setWindow,
+  });
+}
+
+export function useTruckPlanBackToDefault(orderId: number | null | undefined) {
+  const setWindow = useSetWindow(orderId);
+  return useMutation({
+    mutationFn: async () => (await truckPlanBackToDefault(orderId as number)).data,
+    onSuccess: setWindow,
+  });
+}
+
+/** The store default reaches every truck still on it, so every open plan and header reloads. */
+export function useSaveTruckPlanDefault() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { pricing_start_pct: string | null; watch_for: string }) => (await saveTruckPlanDefault(body)).data,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['truck-plan'] });
+      void qc.invalidateQueries({ queryKey: ['truck-summary'] });
+    },
   });
 }
 
