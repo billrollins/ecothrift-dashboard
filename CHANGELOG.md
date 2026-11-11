@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.276.0] -->
-<!-- Last reviewed: 2026-11-11 (2.276.0) -->
+<!-- Line 1 release: ## [2.277.0] -->
+<!-- Last reviewed: 2026-11-11 (2.277.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.277.0] - 2026-11-11
+
+User-facing theme: **Photo sheets: print a full-page sheet of pictures with a clear title, for items in a box (Dash Update #95).**
+
+> **For Bill:** your "BIG need". **Photo sheet** is now a button on the Processing row, the check-in window, the item window and the product window, and there is a **Photo sheets** page under Processing > In progress that also makes a sheet with no item at all. Copy a picture from the web and press **Ctrl+V** (or drag it in, or paste its link); **Find pictures** opens an image search for the title. Dash picks the layout from how many pictures there are (1, 2, 1 big and 2 small, 1 big and 3 small, 4 in a grid; upright or sideways) and you can switch with a tap; the preview is the paper. The sheet prints as exactly one letter page: the full title, the condition in bold, "In the box, not assembled" when ticked, a few facts, and under the pictures "Product picture" or "Photo of this item". **Price** and **Item number** are tick boxes, off unless you want them. **Print sheet again** is one tap. Guessed until you say: the caption starts as "Product picture"; nothing prints in place of the price when Price is off. Not fixed: a staged main picture with three small ones can leave about half an inch of white at the right.
+
+### Added (#95 Photo sheets)
+- **Photo sheets**: a full Letter page of photos and the full title, to tape on a closed box so a shopper can see what is inside. Ten templates (1 photo; 2 photos; 1 big and 2 small; 1 big and 3 small; 4 in a grid; each upright and sideways): Dash picks one from how many photos there are and which way of turning the paper gives them more of it, and a tap on a small picture switches it, with a true-to-paper preview. Each photo's space takes the photo's own shape and the spaces line up on one grid, so photos fill the sheet edge to edge with no white bands; the words go under the photos or in a column beside them, whichever leaves the photos more paper. Pasting is the main way in (Bill: the pictures are mostly copied from a web search, since the item stays in its box): Ctrl+V of a copied picture anywhere on the sheet window, a picture dragged in from another tab or the desktop, or a pasted picture link (the server fetches public web addresses only); "Find pictures" opens an image search for the title in a new tab; the shared Add photo (take, photo drawer, files) stays. A picture's plain white border is trimmed so the item fills its space, and a picture on white may sit in a wider space (white on white) while a staged room picture crops a little at its edges to close a gap. A small picture is flagged "This picture is small and may print fuzzy", never refused. Under the pictures the sheet says "Product picture" or "Photo of this item" (the processor picks). "In the box, not assembled" prints bold with the condition. Every picture starts on Fit so the item is never cut, and can be set to Fill (cropped to an even grid), turned, swapped (tap one then another, or drag), or taken off. The title prints big and bold, shrinks to two lines (three at most), never cut; a long manifest title can have a short plain name that prints big with the full title under it; the brand prints small above it unless the title starts with it. Condition prints as its own bold line under the title; Size, In the box and Good to know go with the photos, big enough to read standing up; an empty one does not print. Price, and the item number with its barcode, print only when ticked, and only on a sheet for one tagged item. "Clean up with AI" fills the empty boxes (and a short name) from what Dash knows about the product (every word editable; the sheet works without it). Prints from the browser's own print window as exactly one page, nothing but the sheet; every photo is decoded before the print window opens.
+- Where: a Photo sheet button on the Processing row's product line, the check-in window, the item window and the product window (the last two also offer Print sheet again, one tap, when a sheet is saved); a Photo sheets page under Processing > In progress, which also makes a sheet with no item at all. A sheet is saved with its item or product; the next item of the same product starts from it, photos and all. New table `inventory.PhotoSheet` (migration 0129).
 
 ## [2.276.0] - 2026-11-11
 

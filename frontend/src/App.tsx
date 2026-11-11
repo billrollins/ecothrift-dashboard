@@ -29,6 +29,7 @@ const PrFixitPage = lazy(() => import('./pages/inventory/count/PrFixitPage'));
 const TagErrorsPage = lazy(() => import('./pages/inventory/tagErrors/TagErrorsPage'));
 const ProcessingReturnsPage = lazy(() => import('./pages/inventory/reentry/ProcessingReturnsPage'));
 const ProcessingFloorIssuesPage = lazy(() => import('./pages/inventory/reentry/ProcessingFloorIssuesPage'));
+const PhotoSheetsPage = lazy(() => import('./pages/inventory/photoSheets/PhotoSheetsPage'));
 const ApplicantsPage = lazy(() => import('./pages/people/ApplicantsPage'));
 const JobsPage = lazy(() => import('./pages/people/JobsPage'));
 const InterviewsPage = lazy(() => import('./pages/people/InterviewsPage'));
@@ -381,6 +382,14 @@ function AppRoutes() {
           element={
             <Suspense fallback={<LoadingScreen message="Loading…" />}>
               <ProcessingFloorIssuesPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/inventory/photo-sheets"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <PhotoSheetsPage />
             </Suspense>
           }
         />

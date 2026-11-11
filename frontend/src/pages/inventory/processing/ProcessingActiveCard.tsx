@@ -59,6 +59,7 @@ import { formatCurrency } from '../../../utils/format';
 import { moneyValuesEqual, preventWheelChangeNumber, sanitizeDecimalPaste } from '../../../utils/formInputs';
 import { isTaxonomyV1CategoryName, TAXONOMY_V1_CATEGORY_NAMES } from '../../../constants/taxonomyV1';
 import { ProcessingGoogleSearchButton } from './ProcessingGoogleSearchButton';
+import { PhotoSheetButton } from '../../../components/photoSheets/PhotoSheetButton';
 import { parseSearchTagsCsv } from './processingGoogleQuery';
 import { ProcessingCheckInDialog, type ProcessingCheckInSeed } from './ProcessingCheckInDialog';
 import { DisputeItemsDialog } from './DisputeItemsDialog';
@@ -1288,6 +1289,8 @@ function AttachedProductCard({
           searchTags={product.tags}
           iconSize={17}
         />
+        {/* A sheet of photos and the title for a closed box (Dash Update #95). */}
+        <PhotoSheetButton product={product.productId} compact data-testid="row-photo-sheet" />
       </Box>
       <Box sx={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: 0.1, pl: 0.25 }}>
         <Typography color="text.secondary" sx={{ fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.625rem', lineHeight: 1.15 }}>

@@ -11,6 +11,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
 import { IconBack, IconEdit, IconSearch } from '../../icons/ecoIcons';
+import { PhotoSheetButton } from '../photoSheets/PhotoSheetButton';
 import { GoogleItLink } from './GoogleItLink';
 import { itemCardMoney, itemCardWhen } from './itemCardData';
 import { useObjectModal } from './ObjectModal';
@@ -118,7 +119,11 @@ function CardView({ c, onEdit }: { c: ProductCardData; onEdit: () => void }) {
             ) : <Typography sx={{ color: 'text.secondary', fontSize: 13, pt: 0.5 }}>No items of this product yet.</Typography>}
           </Stack>
         </Stack>
-        <Button variant="contained" startIcon={<IconEdit fontSize="small" />} onClick={onEdit} sx={{ flexShrink: 0 }}>Edit</Button>
+        <Stack spacing={1} sx={{ flexShrink: 0 }}>
+          <Button variant="contained" startIcon={<IconEdit fontSize="small" />} onClick={onEdit}>Edit</Button>
+          {/* A sheet of photos and the title for a closed box (Dash Update #95). */}
+          <PhotoSheetButton product={c.id} quickPrint />
+        </Stack>
       </Stack>
 
       <Box sx={{ display: 'grid', gap: 2, alignItems: 'start', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1.15fr) minmax(0, 1fr)' } }}>

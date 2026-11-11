@@ -69,6 +69,14 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'fixit',
     keywords: 'floor issue problem broken damaged missing parts dirty wrong price bad tag report came back',
   },
+  // A full page of photos and the title, taped to a closed box (Dash Updates #95). Every staff login.
+  processingPhotoSheets: {
+    id: 'processingPhotoSheets',
+    path: '/inventory/photo-sheets',
+    label: 'Photo sheets',
+    icon: 'printables',
+    keywords: 'photo sheet print photos box picture title template what is inside',
+  },
   // #87: who did what today and how the room is doing. Leads and the owner, like Retail's Command Center.
   processingCommandCenter: {
     id: 'processingCommandCenter',

@@ -9,6 +9,10 @@ from .api_bulk_price import (
     bulk_price_undo_view,
 )
 from .api_floor_issues import floor_issue_lookup_view, floor_issue_photo_view, floor_issue_report_view
+from .api_photo_sheets import (
+    photo_sheet_ai_view, photo_sheet_detail_view, photo_sheet_list_view, photo_sheet_photo_link_view,
+    photo_sheet_photo_upload_view, photo_sheet_photo_view, photo_sheet_printed_view, photo_sheet_start_view,
+)
 from .api_inventory_search import (
     inventory_review_flags_view, inventory_review_view, inventory_search_items_view, inventory_search_similar_view, inventory_search_view,
 )
@@ -72,6 +76,14 @@ urlpatterns = [
     path('floor-issues/', floor_issue_report_view, name='floor-issue-report'),
     path('floor-issues/lookup/', floor_issue_lookup_view, name='floor-issue-lookup'),
     path('floor-issues/<int:pk>/photo/', floor_issue_photo_view, name='floor-issue-photo'),
+    path('photo-sheets/', photo_sheet_list_view, name='photo-sheet-list'),
+    path('photo-sheets/start/', photo_sheet_start_view, name='photo-sheet-start'),
+    path('photo-sheets/ai/', photo_sheet_ai_view, name='photo-sheet-ai'),
+    path('photo-sheets/photos/', photo_sheet_photo_upload_view, name='photo-sheet-photo-upload'),
+    path('photo-sheets/photos/link/', photo_sheet_photo_link_view, name='photo-sheet-photo-link'),
+    path('photo-sheets/photos/<int:file_id>/', photo_sheet_photo_view, name='photo-sheet-photo'),
+    path('photo-sheets/<int:pk>/', photo_sheet_detail_view, name='photo-sheet-detail'),
+    path('photo-sheets/<int:pk>/printed/', photo_sheet_printed_view, name='photo-sheet-printed'),
     path('reentries/', reentry_list_view, name='reentry-list'),
     path('reentries/find/', reentry_find_view, name='reentry-find'),
     path('reentries/<int:pk>/price-again/', reentry_price_again_view, name='reentry-price-again'),

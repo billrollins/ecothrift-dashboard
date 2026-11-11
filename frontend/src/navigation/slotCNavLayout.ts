@@ -44,7 +44,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     itemIds: ['receiving', 'processing', 'processingMyNumbers'],
     managerItemIds: ['processingCommandCenter'],
     // Processing Enhancements (Bill 2026-11-10): items back in Processing. Under "In progress" until he signs off.
-    setupItemIds: ['processingReturns', 'processingFloorIssues'],
+    setupItemIds: ['processingReturns', 'processingFloorIssues', 'processingPhotoSheets'],
     setupLabel: 'In progress',
     guestItemIds: ['restorations', 'inventoryWorkbench'],
   },

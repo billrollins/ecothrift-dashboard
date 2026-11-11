@@ -22,6 +22,7 @@ import { ProductCategoryLine } from './ProductCategoryLine';
 import { useObjectModal } from './ObjectModal';
 import { Facts, Section } from './windowParts';
 import BadTagButton from '../badTags/BadTagButton';
+import { PhotoSheetButton } from '../photoSheets/PhotoSheetButton';
 import { useLanguage } from '../../i18n/useLanguage';
 
 const STATUS_TONE: Record<string, 'success' | 'info' | 'warning' | 'default' | 'error'> = {
@@ -217,6 +218,8 @@ function CardView({ card, onEdit }: { card: ItemCardFull; onEdit: () => void }) 
           </Button>
           {/* One report for anything wrong on the floor (Dash Update #84); hidden while one already waits. */}
           {!card.floor_issue && <BadTagButton where="floor" code={card.sku} lang={lang} />}
+          {/* A sheet of photos and the title for a closed box (Dash Update #95). */}
+          <PhotoSheetButton item={card.id} quickPrint />
         </Stack>
       </Stack>
       {card.floor_issue && (

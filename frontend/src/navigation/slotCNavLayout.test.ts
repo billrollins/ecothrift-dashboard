@@ -138,11 +138,11 @@ describe('Processing workspace pages', () => {
   });
 
   it('lists Returns under an "In progress" caption, for every staff login (#83)', () => {
-    expect(processing?.setupItemIds).toEqual(['processingReturns', 'processingFloorIssues']);
+    expect(processing?.setupItemIds).toEqual(['processingReturns', 'processingFloorIssues', 'processingPhotoSheets']);
     expect(processing?.setupLabel).toBe('In progress');
     expect(NAV_ITEM_CATALOG.processingReturns).toMatchObject({ path: '/inventory/returns', label: 'Returns' });
     const employee = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS);
-    expect(employee.find((g) => g.id === 'processing')?.items.map((i) => i.id)).toEqual(['receiving', 'processing', 'processingMyNumbers', 'processingReturns', 'processingFloorIssues']);
+    expect(employee.find((g) => g.id === 'processing')?.items.map((i) => i.id)).toEqual(['receiving', 'processing', 'processingMyNumbers', 'processingReturns', 'processingFloorIssues', 'processingPhotoSheets']);
   });
 
   it('gives every processor My numbers and only leads the Command Center (#87)', () => {

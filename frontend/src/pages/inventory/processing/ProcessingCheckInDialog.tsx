@@ -34,6 +34,7 @@ import {
   PROCESSING_ITEM_DEFAULT_CONDITION,
 } from './processingItemFormOptions';
 import { scaleRowAmountForProductId } from './processingManifestAccounting';
+import { PhotoSheetButton } from '../../../components/photoSheets/PhotoSheetButton';
 import { effectiveRowQty } from './processingQueueCellText';
 import { LargeCheckInConfirmDialog } from './LargeCheckInConfirmDialog';
 import { isLargeCheckIn, MAX_CHECK_IN_QUANTITY } from './largeCheckIn';
@@ -463,6 +464,8 @@ export function ProcessingCheckInDialog({
         <Button onClick={onClose} disabled={busy}>
           Cancel
         </Button>
+        {/* A sheet of photos and the title for a closed box (Dash Update #95); it opens on top and never holds up the check-in. */}
+        <PhotoSheetButton product={productId} disabled={busy} data-testid="check-in-photo-sheet" />
         <Typography variant="caption" color="warning.main" sx={{ mr: 'auto', minWidth: 0 }}>
           {restorationIssues[0] ?? ''}
         </Typography>

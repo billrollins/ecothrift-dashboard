@@ -3413,3 +3413,51 @@ class InventoryWeek(models.Model):
 
     def __str__(self):
         return f'{self.week_start} {self.dimension} {self.parent + " / " if self.parent else ""}{self.key}'
+
+
+class PhotoSheet(models.Model):
+    """A letter-size sheet of photos with the full title, taped to a closed box on the floor (Dash Update #95).
+
+    A customer six feet away should know in three seconds what is in the box, what it looks like, how big it is,
+    what comes with it and what shape it is in (D21). Saved with its item, or its product, or neither (a thing not
+    sold in the store, D26), so Print again is one tap and the next one of the same product starts with its photos.
+    Rules: ``services/photo_sheets.py``.
+    """
+    ORIENTATION_CHOICES = [('portrait', 'Upright'), ('landscape', 'Sideways')]
+
+    item = models.ForeignKey(Item, on_delete=models.SET_NULL, null=True, blank=True, related_name='photo_sheets')
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name='photo_sheets')
+    title = models.CharField(max_length=300)
+    # A short plain name for a long title ("L-shaped sleeper sofa"): it prints big, the full title smaller under it.
+    name = models.CharField(max_length=80, blank=True, default='')
+    brand = models.CharField(max_length=200, blank=True, default='')
+    # The four short facts under the photos (D23): size, in_box, condition, good_to_know. An empty one never prints.
+    facts = models.JSONField(default=dict, blank=True)
+    # Which template (D24): one, two, big2, big3, grid4; and which way the paper turns.
+    layout = models.CharField(max_length=12, default='one')
+    orientation = models.CharField(max_length=10, choices=ORIENTATION_CHOICES, default='portrait')
+    # In sheet order: [{"file": <core.S3File id>, "width": px, "height": px, "fit": "fit"|"fill", "turn": 0|90|180|270}].
+    photos = models.JSONField(default=list, blank=True)
+    # Off unless wanted (D25): the item's price; its item number with a barcode (only for one tagged item).
+    show_price = models.BooleanField(default=False)
+    show_item_number = models.BooleanField(default=False)
+    # What the pictures are (Bill, 11-11: most are copied from the web): 'product' a product picture, 'item' this very item.
+    caption = models.CharField(max_length=10, default='product')
+    # Sold in its box, not put together: printed where it cannot be missed, beside the condition.
+    not_assembled = models.BooleanField(default=False)
+    print_count = models.PositiveIntegerField(default=0)
+    printed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, db_index=True)
+
+    class Meta:
+        ordering = ['-updated_at', '-id']
+
+    def __str__(self):
+        return f'Photo sheet {self.pk}: {self.title[:60]}'
