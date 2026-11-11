@@ -355,7 +355,6 @@ function OrderListBody() {
       }}
     >
       <Box sx={{ px: 2.5, pt: 2.5, pb: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <UnfiledClaimsStrip />
         <Box
           sx={{
             display: 'flex',
@@ -374,6 +373,8 @@ function OrderListBody() {
               {isFetching && rows.length > 0 ? 'Updating…' : 'Select orders to compare profitability'}
             </Typography>
           </Box>
+          {/* The count-down sits in the heading row, so it never pushes the page down when it loads. */}
+          <UnfiledClaimsStrip />
           <Button
             variant="contained"
             size="medium"

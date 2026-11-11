@@ -45,7 +45,10 @@ export function palletHeadline(ledger: TruckPalletLedgerDTO | undefined): Pallet
   const cur = currentPallet(ledger);
   const progress = `${ledger.pallets_done}/${ledger.pallets_total} done`;
   if (!cur) {
-    return { value: 'Start', helper: progress, tone: ledger.pallets_total > 0 ? 'warning' : 'default' };
+    const of = `${ledger.pallets_done} of ${ledger.pallets_total}`;
+    if (ledger.pallets_total === 0) return { value: '-', helper: 'No pallets listed', tone: 'default' };
+    if (ledger.pallets_done >= ledger.pallets_total) return { value: of, helper: 'Pallets closed', tone: 'default' };
+    return { value: of, helper: 'Pallets closed', tone: 'default' };
   }
   const detail = ledger.has_manifest_pallets
     ? `${fmtUnits(cur.received_units)}/${fmtUnits(cur.manifest_units)} units · ${progress}`

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getTruckClose, getUnfiledClaims, truckCloseStep, type TruckCloseStep } from '../api/truckClose.api';
+import { getTruckClose, getUnfiledClaims, truckCloseStep, type TruckCloseStep, type UnfiledClaimDTO } from '../api/truckClose.api';
 import { truckPlanKey, truckSummaryKey } from './useTruckPlan';
 
 export const truckCloseKey = (orderId: number | null | undefined) => ['truck-close', orderId] as const;
@@ -30,10 +30,27 @@ export function useTruckCloseStep(orderId: number | null | undefined) {
 }
 
 /** The count-down: trucks with a claim worth filing that is not filed. */
+const UNFILED_KEPT = 'unfiled-claims:last';
+
+function keptUnfiledClaims(): UnfiledClaimDTO[] | undefined {
+  try {
+    const raw = window.localStorage.getItem(UNFILED_KEPT);
+    return raw ? (JSON.parse(raw) as UnfiledClaimDTO[]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The last answer is kept in the browser and shown at once, so the strip does not push the page down a second later. */
 export function useUnfiledClaims() {
   return useQuery({
     queryKey: unfiledClaimsKey,
-    queryFn: async () => (await getUnfiledClaims()).data.claims,
+    queryFn: async () => {
+      const claims = (await getUnfiledClaims()).data.claims;
+      try { window.localStorage.setItem(UNFILED_KEPT, JSON.stringify(claims)); } catch { /* shown anyway */ }
+      return claims;
+    },
+    placeholderData: keptUnfiledClaims,
     staleTime: 60_000,
   });
 }

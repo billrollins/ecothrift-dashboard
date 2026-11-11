@@ -167,7 +167,7 @@ function CardView({ c, onEdit }: { c: OrderCardData; onEdit: () => void }) {
               {c.vendor ? (
                 <Button size="small" variant="outlined" onClick={() => openObject({ type: 'vendor', id: c.vendor!.id })}>{c.vendor.name}</Button>
               ) : null}
-              <Button size="small" variant="outlined" onClick={() => openObject({ type: 'truck-plan', id: c.id })}>Truck plan</Button>
+              <Button size="small" variant="outlined" onClick={() => openObject({ type: 'truck-plan', id: c.id })}>Truck Plan</Button>
               <Button size="small" variant="outlined" onClick={() => go(`/inventory/receiving/${c.id}`)}>Receiving</Button>
               <Button size="small" variant="outlined" onClick={() => go(`/inventory/processing/${c.id}`)}>Processing</Button>
               <Button size="small" variant="outlined" onClick={() => go(`/inventory/orders/${c.id}/truck`)}>Truck</Button>

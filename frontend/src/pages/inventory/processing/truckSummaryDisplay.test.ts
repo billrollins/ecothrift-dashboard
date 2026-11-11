@@ -88,10 +88,11 @@ describe('the money blocks', () => {
   it('On track shows the total and how it sits against the target', () => {
     const h = onTrackHeadline(summary());
     expect(h.value).toBe('$1,150');
+    expect(h.tone).toBe('default');
     expect(h.helper).toBe('$110 over');
-    expect(h.tone).toBe('good');
-    expect(h.detail[0]).toBe('Tags so far: $700.00 on 40 items.');
-    expect(h.detail[1]).toBe('Estimate for 30 units on lines still open: $450.00.');
+    expect(h.detail).toContain('Over the target: there is room to price lower.');
+    expect(h.detail[0]).toBe('Tags so far: $700.00 on 40 items (added items count too).');
+    expect(h.detail[1]).toBe('Estimate for the 30 units left: $450.00.');
     expect(h.detail).toContain('8 units use retail x 31.5% (this truck so far).');
     expect(h.detail.some((line) => line.startsWith('2 units have no estimate yet.'))).toBe(true);
   });
@@ -106,8 +107,9 @@ describe('the dispute blocks', () => {
   it('Disputed shows the retail, the items and the 5% line', () => {
     const h = disputedHeadline(summary());
     expect(h.value).toBe('$250');
-    expect(h.helper).toBe('3 items · 5% line $50');
-    expect(h.tone).toBe('warning');
+    expect(h.helper).toBe('3 items');
+    expect(h.suffix).toBe(' / $50');
+    expect(h.tone).toBe('default');
     expect(h.detail[0]).toBe('Not received: 1 unit, $100.00 retail.');
   });
 
@@ -141,13 +143,13 @@ describe('dispute due', () => {
     expect(disputeDueLabel(dates, new Date(2026, 10, 9)).value).toBe('Nov 11 · 2 days left');
     expect(disputeDueLabel(dates, new Date(2026, 10, 11)).value).toBe('Nov 11 · Today');
     const closed = disputeDueLabel(dates, new Date(2026, 10, 12));
-    expect(closed.value).toBe('Nov 11 · Closed');
+    expect(closed.value).toBe('Nov 11 · Window closed');
     expect(closed.tooltip).toContain('4 business days after delivery.');
   });
 
   it('says when the plan set the day', () => {
     const label = disputeDueLabel({ ...summary().dates, dispute_due_from_plan: true }, new Date(2026, 10, 9));
-    expect(label.tooltip).toContain('Set in the Truck Plan.');
+    expect(label.tooltip).toContain('set by hand in the Truck Plan.');
   });
 
   it('is blank with no delivery date', () => {
@@ -168,10 +170,10 @@ describe('the plan line', () => {
 
   it('says the start point, who is on it, issues and what to watch for', () => {
     expect(planLineParts(plan)).toEqual([
-      { label: 'Start at', text: '55% of retail' },
-      { label: 'On it', text: 'Pat, Ana' },
-      { label: 'Issues', text: 'Two pallets came in wet.', strong: true },
+      { label: 'Known issues', text: 'Two pallets came in wet.', strong: true },
       { label: 'Watch for', text: 'Check every box for the remote.' },
+      { label: 'Pricing start', text: '55% of retail' },
+      { label: 'On it', text: 'Pat, Ana' },
     ]);
   });
 

@@ -23,6 +23,10 @@ export interface TruckCloseDTO {
   numbers: TruckDisputesDTO;
   added: { units: number; retail: string | null };
   state: TruckClaimState;
+  /** What the top of Processing shows before the truck is closed: only what is marked so far. */
+  so_far_worth: string | null;
+  /** What is still open on the truck. All zero = the work is finished. */
+  working: { pending_items: number; pallets_open: number; pallets_total: number };
   claim: {
     id: number | null;
     filed: boolean;
@@ -50,6 +54,8 @@ export interface UnfiledClaimDTO {
   worth: string;
   due: string | null;
   days_left: number | null;
+  /** The day to file has passed: missed, not counted down. */
+  missed?: boolean;
 }
 
 export type TruckCloseStep = 'filed' | 'not-filed' | 'money-back' | 'finalize';

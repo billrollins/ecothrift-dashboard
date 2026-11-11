@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.272.2] -->
-<!-- Last reviewed: 2026-11-11 (2.272.2) -->
+<!-- Line 1 release: ## [2.272.3] -->
+<!-- Last reviewed: 2026-11-11 (2.272.3) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.272.3] - 2026-11-11
+
+User-facing theme: **The top of Processing, the Truck Plan and Close the truck: the critic-cycle fixes (Dash Update #91).**
+
+> **For Bill:** three screens went through your 2+1 critic cycle. Final grades: top of Processing A- (from B-), Truck Plan A (from B), Close the truck A- (from C+). What changed: the header's buttons are always in reach (the red count-down used to push Close the truck and Close PO off the screen at common widths) and a phone shows every fact; the numbers agree with each other and say which way to lean ("$X over" / "$X under", with the advice in the hover), and tapping a block leads somewhere (Left, Added and Disputed filter the list; money opens the plan; the dispute opens Close the truck). The Truck Plan reads as a plan: target first, five plain lines, fits one screen, keeps what you typed, and cannot be saved blank. Close the truck's top sentence is true for every truck, catches slips (a date in the future, an amount far over the dispute), asks once before closing with work still open, and its copied list pastes clean. One word everywhere: **dispute** (your word and B-Stock's), not "claim". A dispute past its due day now shows as missed ("Dispute day passed, $X not filed") and leaves the count-down, so you can see what was lost. Questions for you are in the decisions file: is a dispute past its day really dead, and which number goes into B-Stock (the Truck page still says 95% of the price).
+
+### Changed (#91 critic cycle: the top of Processing, the Truck Plan, Close the truck)
+- **Top of Processing** (`ProcessingWorkspaceHeader.tsx`, `truckSummaryDisplay.ts`): the order row wraps so Close the truck and Close PO stay in reach; the count-down sits on the Truck Plan line; Left uses the same per-line count as On track; percent done never passes 100; On track reads "$X over" or "$X under" with the advice in its hover; blocks lead somewhere (filters, the plan, Close the truck).
+- **Truck Plan** (`TruckPlanCard.tsx`): target first, five plan rows as plain statements, sums behind one link, typing kept across close and reload, a blank plan cannot be saved, a dispute date before delivery is refused.
+- **Close the truck** (`CloseTruckCard.tsx`, `services/truck_close.py`): a top sentence that is true for every truck, the dispute shown once with its sum one tap away, slips caught, one question before closing with work open, money back can be written after closing, a clean copied list. The Orders strip sits in the heading row.
+- **One word, "dispute"**, in everything people read on these screens, the Orders strip and the Owner page ("Truck disputes not filed"). No code or field names changed.
+- **A dispute past its due day is "missed"**: "Dispute day passed, $X not filed" on the header, apart on the Orders strip, and its own line on the Owner page; it leaves the count-down. Server rows carry `missed`.
 
 ## [2.272.2] - 2026-11-11
 

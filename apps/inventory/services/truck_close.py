@@ -155,24 +155,43 @@ def claim_lines(order: PurchaseOrder, record: BStockDispute | None) -> list[dict
 
 
 def copy_text(order: PurchaseOrder, lines: list[dict[str, Any]], numbers: dict[str, Any]) -> str:
-    """The claim as plain text, ready to paste into B-Stock."""
+    """The claim as plain text, ready to paste into B-Stock. Columns nobody filled (UPC, pallet) are left out."""
+    def dollars(v) -> str:
+        return f'${Decimal(v):,.2f}' if v else ''
+
+    def units(v) -> str:
+        return f'{Decimal(str(v)).normalize():f}'
+
+    extra = [(name, key) for name, key in (('UPC', 'upc'), ('Pallet', 'pallet_id')) if any(line[key] for line in lines)]
     out = [f'Order {order.order_number}: items not received or damaged', '']
-    out.append('Line\tItem\tUnits\tRetail each\tRetail total\tReason\tUPC\tPallet')
+    out.append('\t'.join(['Line', 'Item', 'Units', 'Retail each', 'Retail total', 'Reason'] + [name for name, _key in extra]))
     for line in lines:
         out.append('\t'.join([
-            str(line['row_number']), line['title'], f"{line['units']:g}",
-            f"${line['unit_retail']}" if line['unit_retail'] else '', f"${line['total_retail']}" if line['total_retail'] else '',
-            line['reason'], line['upc'], line['pallet_id'],
-        ]))
+            str(line['row_number']), line['title'], units(line['units']),
+            dollars(line['unit_retail']), dollars(line['total_retail']), line['reason'],
+        ] + [line[key] for _name, key in extra]))
     total_units = sum(Decimal(str(line['units'])) for line in lines)
     total_retail = sum((Decimal(line['total_retail']) for line in lines if line['total_retail']), _ZERO)
-    out += ['', f'Total: {total_units:g} units, ${_money(total_retail)} manifest retail']
+    out += ['', f'Total: {units(total_units)} units, {dollars(total_retail) or "$0.00"} manifest retail']
     if numbers.get('truck_retail') and numbers.get('retail_pct') is not None:
-        out.append(f"That is {numbers['retail_pct']}% of the load's ${numbers['truck_retail']} manifest retail.")
+        out.append(f"That is {numbers['retail_pct']}% of the truck's {dollars(numbers['truck_retail'])} manifest retail.")
+    if numbers.get('worth') and Decimal(numbers['worth']) > 0:
+        out.append(f"Amount asked: {dollars(numbers['worth'])}")
     return '\n'.join(out)
 
 
-def _warnings(order: PurchaseOrder, state: str) -> list[str]:
+def still_working(order: PurchaseOrder) -> dict[str, int]:
+    """What is still open on the truck: items waiting and pallets not marked done. All zero = the work is finished."""
+    pallets = TruckPallet.objects.filter(purchase_order=order)
+    total = pallets.count()
+    return {
+        'pending_items': Item.objects.filter(purchase_order=order, status__in=('intake', 'processing')).count(),
+        'pallets_open': total - pallets.filter(done_at__isnull=False).count(),
+        'pallets_total': total,
+    }
+
+
+def _warnings(order: PurchaseOrder, state: str, late: bool = False) -> list[str]:
     """Worth knowing before closing; none of them blocks it."""
     out = []
     pending = Item.objects.filter(purchase_order=order, status__in=('intake', 'processing')).count()
@@ -183,9 +202,11 @@ def _warnings(order: PurchaseOrder, state: str) -> list[str]:
     if total and done < total:
         out.append(f'{total - done} of {total} pallets are not marked done. Everything not checked in counts as not received.')
     if order.purchase_cost is None:
-        out.append('The price is not on the order, so the claim cannot be worked out.')
-    if state == 'to_file':
-        out.append('The claim is not filed yet. A truck can be closed without filing, but the money is then not asked for.')
+        out.append('The price is not on the order, so the dispute cannot be worked out.')
+    if state == 'to_file' and late:
+        out.append('Dispute day passed and it was not filed. Closing without it is the normal step.')
+    elif state == 'to_file':
+        out.append('The dispute is not filed yet. A truck can be closed without filing, but the money is then not asked for.')
     return out
 
 
@@ -214,6 +235,9 @@ def close_payload(order: PurchaseOrder, *, link_for=None) -> dict[str, Any]:
         'numbers': numbers,
         'added': {'units': int(added['n'] or 0), 'retail': _money(added['retail'] or _ZERO)},
         'state': state,
+        # What the top of Processing shows before the truck is closed: only what is marked so far.
+        'so_far_worth': dispute_numbers(order, lines=lines)['worth'],
+        'working': still_working(order),
         'claim': rec,
         'lines': c_lines,
         'copy_text': copy_text(order, c_lines, numbers) if c_lines else '',
@@ -227,7 +251,9 @@ def close_payload(order: PurchaseOrder, *, link_for=None) -> dict[str, Any]:
             'by': (order.truck_finalized_by.full_name or order.truck_finalized_by.email)
             if order.truck_finalized_by_id else '',
         },
-        'warnings': [] if order.truck_finalized_at else _warnings(order, state),
+        'warnings': [] if order.truck_finalized_at else _warnings(
+            order, state, late=bool(due and business_days_left(due, today) < 0),
+        ),
     }
 
 
@@ -279,7 +305,7 @@ def record_money_back(order: PurchaseOrder, data: dict) -> BStockDispute:
     """B-Stock answered: how much came back and when. $0 = denied; less than asked = partly refunded."""
     record = claim_record(order)
     if record is None or record.status == BStockDispute.STATUS_DRAFT or not record.filed_at:
-        raise ValueError('Record the day the claim was filed first.')
+        raise ValueError('Record the day the dispute was filed first.')
     back = _decimal(data.get('amount_back'), 'Amount back')
     if back is None:
         # Cleared: the claim is waiting for an answer again.
@@ -330,6 +356,7 @@ def unfiled_claims(today: date | None = None) -> list[dict[str, Any]]:
             'worth': _money(worth),
             'due': due.isoformat() if due else None,
             'days_left': business_days_left(due, today) if due else None,
+            'missed': bool(due and business_days_left(due, today) < 0),
         })
     out.sort(key=lambda r: (r['days_left'] is None, r['days_left'] if r['days_left'] is not None else 0))
     return out

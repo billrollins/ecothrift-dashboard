@@ -88,7 +88,7 @@ const LABEL: Record<ObjectRef['type'], string> = {
   sale: 'Sale',
   member: 'Thrift+ member',
   history: 'Transactions',
-  'truck-plan': 'Truck plan',
+  'truck-plan': 'Truck Plan',
   'close-truck': 'Close the truck',
 };
 /** The retail windows' header word in Spanish (their staff read them in either language). */

@@ -12,6 +12,8 @@ export interface SummaryHeadline {
   tone: SummaryTone;
   /** The lines behind the number: shown on hover and when the block is clicked. */
   detail: string[];
+  /** Small text after the big number (Disputed: " / $5,175", the 5% line). */
+  suffix?: string;
 }
 
 const num = (v: string | number | null | undefined): number | null => {
@@ -52,11 +54,11 @@ export function overUnder(vsTarget: string | null | undefined): { text: string; 
 }
 
 export function paidHeadline(s: TruckSummaryDTO | undefined): SummaryHeadline {
-  if (!s) return { value: '-', helper: 'Price + fees + shipping', tone: 'default', detail: [] };
+  if (!s) return { value: '-', helper: 'All costs in', tone: 'default', detail: [] };
   const p = s.paid;
   return {
     value: moneyWhole(p.total),
-    helper: p.total == null ? 'No cost on the order yet' : 'Price + fees + shipping',
+    helper: p.total == null ? 'No cost on the order yet' : 'All costs in',
     tone: 'default',
     detail: [
       `Price: ${money(p.price)}`,
@@ -92,10 +94,10 @@ export function onTrackHeadline(s: TruckSummaryDTO | undefined): SummaryHeadline
   const t = s.on_track;
   const vs = overUnder(t.vs_target);
   const detail = [
-    `Tags so far: ${money(t.priced_so_far)} on ${plural(t.priced_items, 'item', 'items')}.`,
-    `Estimate for ${plural(t.units_left, 'unit', 'units')} on lines still open: ${money(t.estimated_left)}.`,
+    `Tags so far: ${money(t.priced_so_far)} on ${plural(t.priced_items, 'item', 'items')} (added items count too).`,
+    `Estimate for the ${plural(t.units_left, 'unit', 'units')} left: ${money(t.estimated_left)}.`,
   ];
-  if (t.units_own_price) detail.push(`${plural(t.units_own_price, 'unit uses', 'units use')} the price on its line.`);
+  if (t.units_own_price) detail.push(`${plural(t.units_own_price, 'unit is', 'units are')} priced from the manifest line.`);
   const rate = rateLine(t);
   if (rate) detail.push(rate);
   if (t.units_no_estimate) {
@@ -104,17 +106,19 @@ export function onTrackHeadline(s: TruckSummaryDTO | undefined): SummaryHeadline
   detail.push(`On track: ${money(t.total)}. Target: ${money(s.target.total)}.`);
   if (vs.tone === 'good' && vs.text !== 'On target') detail.push('Over the target: there is room to price lower.');
   if (vs.tone === 'warning') detail.push('Under the target: price higher where the item can take it.');
-  return { value: moneyWhole(t.total), helper: vs.text, tone: vs.tone, detail };
+  // The caption stays short so it is never cut; which way to price is in the detail.
+  return { value: moneyWhole(t.total), helper: vs.text, tone: vs.tone === 'warning' ? 'warning' : 'default', detail };
 }
 
 export function disputedHeadline(s: TruckSummaryDTO | undefined): SummaryHeadline {
   if (!s) return { value: '-', helper: 'Disputed so far', tone: 'default', detail: [] };
   const d = s.disputes;
-  const line = d.threshold_retail != null ? `${count(d.threshold_pct)}% line ${moneyWhole(d.threshold_retail)}` : 'No retail on the manifest';
   return {
     value: moneyWhole(d.retail),
-    helper: `${plural(d.items, 'item', 'items')} · ${line}`,
-    tone: d.over_threshold ? 'warning' : 'default',
+    // The line B-Stock needs, beside the number it is measured against ("$20 / $5,175").
+    suffix: d.threshold_retail != null ? ` / ${moneyWhole(d.threshold_retail)}` : undefined,
+    helper: d.threshold_retail != null ? plural(d.items, 'item', 'items') : `${plural(d.items, 'item', 'items')} · no retail`,
+    tone: 'default',
     detail: disputeDetail(d),
   };
 }
@@ -139,11 +143,15 @@ export function disputeDetail(d: TruckDisputesDTO): string[] {
 /** The sum behind "Dispute worth", in the order Bill says it. */
 export function worthSum(d: TruckDisputesDTO): string {
   if (d.worth == null || d.truck_retail == null || d.threshold_retail == null) return 'Needs the truck retail and the price we paid.';
+  // Under the line the sum would come out below $0, so say that instead of a sum that "equals" $0.00.
+  if ((num(d.retail) ?? 0) <= (num(d.threshold_retail) ?? 0)) {
+    return `${money(d.retail)} disputed is under the ${money(d.threshold_retail)} line, so $0.00`;
+  }
   return `(${money(d.retail)} - ${money(d.threshold_retail)}) / ${money(d.truck_retail)} x ${money(d.price_plus_fees)} = ${money(d.worth)}`;
 }
 
 export function worthHeadline(s: TruckSummaryDTO | undefined): SummaryHeadline {
-  if (!s) return { value: '-', helper: 'So far, no shipping', tone: 'default', detail: [] };
+  if (!s) return { value: '-', helper: 'No shipping', tone: 'default', detail: [] };
   const d = s.disputes;
   const worth = num(d.worth);
   const detail = [
@@ -155,8 +163,8 @@ export function worthHeadline(s: TruckSummaryDTO | undefined): SummaryHeadline {
   if (d.threshold_retail != null && gap > 0) detail.push(`${money(gap)} more disputed retail reaches the line.`);
   return {
     value: moneyWhole(d.worth),
-    helper: 'So far, no shipping',
-    tone: worth != null && worth > 0 ? 'good' : 'default',
+    helper: 'No shipping',
+    tone: 'default',
     detail,
   };
 }
@@ -201,9 +209,9 @@ export function disputeDueLabel(
   if (!dates || !due) return { value: '-', tooltip: 'Shows once the truck has a delivery date.', tone: 'default' };
   const left = businessDaysUntil(due, today);
   const day = shortDay(dates.dispute_due);
-  const label = left > 1 ? `${left} days left` : left === 1 ? '1 day left' : left === 0 ? 'Today' : 'Closed';
+  const label = left > 1 ? `${left} days left` : left === 1 ? '1 day left' : left === 0 ? 'Today' : 'Window closed';
   const why = dates.dispute_due_from_plan
-    ? 'Set in the Truck Plan.'
+    ? 'This day was set by hand in the Truck Plan.'
     : `${dates.dispute_business_days} business days after delivery.`;
   return {
     value: `${day} · ${label}`,
@@ -226,9 +234,9 @@ export function planLineParts(plan: TruckPlanDTO | null | undefined): PlanLinePa
   if (!plan) return [];
   const one = (text: string) => text.replace(/\s+/g, ' ').trim();
   const parts: PlanLinePart[] = [];
-  if (plan.pricing_start_pct) parts.push({ label: 'Start at', text: `${plan.pricing_start_pct}% of retail` });
-  if (plan.crew.length) parts.push({ label: 'On it', text: plan.crew.map((c) => c.name.split(' ')[0]).join(', ') });
-  if (one(plan.known_issues)) parts.push({ label: 'Issues', text: one(plan.known_issues), strong: true });
+  if (one(plan.known_issues)) parts.push({ label: 'Known issues', text: one(plan.known_issues), strong: true });
   if (one(plan.watch_for)) parts.push({ label: 'Watch for', text: one(plan.watch_for) });
+  if (plan.pricing_start_pct) parts.push({ label: 'Pricing start', text: `${plan.pricing_start_pct}% of retail` });
+  if (plan.crew.length) parts.push({ label: 'On it', text: plan.crew.map((c) => c.name.split(' ')[0]).join(', ') });
   return parts;
 }

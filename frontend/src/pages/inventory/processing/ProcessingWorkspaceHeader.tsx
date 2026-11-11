@@ -75,7 +75,11 @@ interface HeaderMetric {
   /** Colour the helper line too (On track: over or under the target). */
   helperTone?: MetricTone;
   /** What a click opens instead of the stat detail. */
-  opens?: 'pallets' | 'plan';
+  opens?: 'pallets';
+  /** The button in the block's window: where the number leads. */
+  leadsTo?: { label: string; go: 'plan' | 'close' | 'open' | 'disputes' | 'unmanifested' };
+  /** Wider block (the disputed number sits beside its 5% line). */
+  wide?: boolean;
 }
 
 interface MetricGroup {
@@ -135,6 +139,8 @@ export interface ProcessingWorkspaceHeaderProps {
   onOpenPallets?: () => void;
   /** Paid, Target, On track, disputes so far, dates and the Truck Plan (undefined while it loads). */
   summary?: TruckSummaryDTO;
+  /** Show these lines in the list under the header (Left, Added, Disputed lead there). */
+  onShowRows?: (filter: 'open' | 'disputes' | 'unmanifested') => void;
 }
 
 export function ProcessingWorkspaceHeader({
@@ -158,6 +164,7 @@ export function ProcessingWorkspaceHeader({
   pallets,
   onOpenPallets,
   summary,
+  onShowRows,
 }: ProcessingWorkspaceHeaderProps) {
   const [, tick] = useState(0);
   const [selectedMetricId, setSelectedMetricId] = useState<string | null>(null);
@@ -178,13 +185,13 @@ export function ProcessingWorkspaceHeader({
 
   const disp = hasManifestRows && manifestTotalQty > 0 ? manifestDispositioned : itemTotal > 0 ? itemDispositioned : 0;
   const tot = hasManifestRows && manifestTotalQty > 0 ? manifestTotalQty : itemTotal > 0 ? itemTotal : 0;
-  const pct = tot > 0 ? Math.round((100 * disp) / tot) : 0;
+  const pct = tot > 0 ? Math.min(100, Math.floor((100 * Math.min(disp, tot)) / tot)) : 0;
   const elapsedMs = sessionStartedAt != null ? Date.now() - sessionStartedAt : 0;
   const elapsedHours = Math.max(elapsedMs / 3600000, 1 / 3600);
   const itemsPerHour = sessionStartedAt != null ? Math.round(sessionCheckInCount / elapsedHours) : 0;
 
   const disputeDue = disputeDueLabel(summary?.dates);
-  // The count-down (#88): a claim worth filing that is not filed yet, with the days left.
+  // The count-down (#88): a dispute worth filing that is not filed yet, with the days left (or missed, once passed).
   const dueDay = summary?.dates.dispute_due ? new Date(`${summary.dates.dispute_due}T00:00:00`) : null;
   const notFiled = notFiledLine(summary?.claim?.not_filed, dueDay ? businessDaysUntil(dueDay, new Date()) : null);
   const truckClosed = Boolean(summary?.claim?.finalized_at);
@@ -199,23 +206,33 @@ export function ProcessingWorkspaceHeader({
     const overage = rollups?.overage_qty ?? 0;
     const added = rollups?.unmanifested_qty ?? 0;
     const onTrack = onTrackHeadline(summary);
+    const planLead = { label: 'Open the Truck Plan', go: 'plan' as const };
+    // Left is counted line by line (the same count On track and the Truck Plan use). Extra units on one line do not
+    // make another line less open, so it can be more than Total minus Done; the hover says by how much.
+    const left = summary ? summary.on_track.units_left : remaining;
+    // Units that came on a line beyond what the manifest said for that line. They count as done, not as left.
+    const extra = Math.max(0, done + left - expected);
+    const leftPct = expected > 0 ? Math.min(100, Math.floor((100 * Math.max(0, expected - left)) / expected)) : pct;
+    const addsUp = extra > 0
+      ? `${fmtQty(expected)} on the manifest - ${fmtQty(left)} left + ${fmtQty(extra)} extra on lines that came over = ${fmtQty(done)} done.`
+      : `${fmtQty(expected)} on the manifest - ${fmtQty(left)} left = ${fmtQty(done)} done.`;
     const missing = missingHeadline(pallets);
 
     const money: HeaderMetric[] = [
-      { id: 'paid', label: 'Paid', ...paidHeadline(summary) },
-      { id: 'target', label: 'Target', ...targetHeadline(summary), opens: 'plan' },
-      { id: 'on-track', label: 'On track', ...onTrack, helperTone: onTrack.tone },
+      { id: 'paid', label: 'Paid', ...paidHeadline(summary), leadsTo: planLead },
+      { id: 'target', label: 'Target', ...targetHeadline(summary), leadsTo: planLead },
+      { id: 'on-track', label: 'On track', ...onTrack, helperTone: onTrack.tone === 'warning' ? 'warning' : undefined, wide: true, leadsTo: planLead },
     ];
     const items: HeaderMetric[] = [
       {
         id: 'items',
         label: 'Total',
         value: fmtQty(expected),
-        helper: `${fmtQty(done)} done · ${pct}%`,
-        tone: pct >= 100 ? 'good' : 'default',
+        helper: `${leftPct}% done`,
+        tone: 'default',
         detail: [
           `Counted from: ${hasManifestRows ? 'the manifest' : 'item records'}.`,
-          `Total: ${fmtQty(expected)} units. Done: ${fmtQty(done)}. Left: ${fmtQty(remaining)}.`,
+          addsUp,
           `On the shelf: ${fmtQty(rollups?.on_shelf_qty ?? 0)} units, ${fmtMoney(rollups?.on_shelf_value)} in tags.`,
           `Sold: ${fmtQty(rollups?.sold_qty ?? 0)} units for ${fmtMoney(rollups?.sold_value)}.`,
         ],
@@ -223,22 +240,30 @@ export function ProcessingWorkspaceHeader({
       {
         id: 'left',
         label: 'Left',
-        value: fmtQty(remaining),
-        helper: overage > 0 ? `${fmtQty(overage)} over the manifest` : 'Units to process',
-        tone: remaining > 0 ? 'warning' : 'good',
-        detail: [`Units left: ${fmtQty(remaining)}.`, `Over the manifest: ${fmtQty(overage)} units.`],
+        value: fmtQty(left),
+        helper: 'To process',
+        tone: 'default',
+        detail: [
+          `Units left on lines still open: ${fmtQty(left)}.`,
+          addsUp,
+        ],
+        leadsTo: { label: 'Show the lines still open', go: 'open' },
       },
       {
         id: 'added',
         label: 'Added',
         value: fmtQty(added),
-        helper: 'Not on the manifest',
+        helper: 'Off manifest',
         detail: [`Items added so far that were not on the manifest: ${fmtQty(added)}.`],
+        leadsTo: { label: 'Show the added items', go: 'unmanifested' },
       },
     ];
     const disputes: HeaderMetric[] = [
-      { id: 'disputed', label: 'Disputed', ...disputedHeadline(summary) },
-      { id: 'worth', label: 'Dispute worth', ...worthHeadline(summary) },
+      {
+        id: 'disputed', label: 'Disputed / 5% line', ...disputedHeadline(summary), wide: true,
+        leadsTo: { label: 'Show the disputed lines', go: 'disputes' },
+      },
+      { id: 'worth', label: 'Dispute worth', ...worthHeadline(summary), wide: true, leadsTo: { label: 'Open Close the truck', go: 'close' } },
     ];
     const work: HeaderMetric[] = [
       ...(onOpenPallets
@@ -246,7 +271,16 @@ export function ProcessingWorkspaceHeader({
             id: 'pallet',
             label: 'Pallet',
             ...palletHeadline(pallets),
-            detail: [`Missing on finished pallets: ${missing.value === '-' ? missing.helper : `${missing.value}, ${missing.helper}`}.`],
+            detail: [
+              pallets && pallets.pallets_total > 0
+                ? `${pallets.pallets_done} of ${pallets.pallets_total} pallets are closed (marked done on the pallet list). Items done counts units, so the two can differ. Click to pick the pallet you are on or to mark one done.`
+                : 'No pallets are listed for this truck. Click to see the pallet list.',
+              !pallets || pallets.has_manifest_pallets
+                ? missing.value === '-'
+                  ? 'Missing units show here once a pallet is marked done.'
+                  : `Missing on finished pallets: ${missing.value}, ${missing.helper}.`
+                : 'This manifest does not say which pallet each line is on, so missing units are counted for the whole truck.',
+            ],
             opens: 'pallets' as const,
           }]
         : []),
@@ -257,11 +291,13 @@ export function ProcessingWorkspaceHeader({
         suffix: sessionStartedAt != null ? '/hr' : undefined,
         helper: sessionStartedAt != null
           ? `${fmtQty(sessionCheckInCount)} in ${fmtElapsed(elapsedMs)}`
-          : 'Starts at the first check-in',
-        tone: itemsPerHour >= 100 ? 'good' : sessionCheckInCount > 0 ? 'warning' : 'default',
+          : 'None yet',
+        tone: 'default',
         detail: [
           `Checked in this session: ${fmtQty(sessionCheckInCount)}.`,
-          `Time since the first check-in: ${sessionStartedAt != null ? fmtElapsed(elapsedMs) : 'not started'}.`,
+          sessionStartedAt != null
+            ? `Time since the first check-in: ${fmtElapsed(elapsedMs)}.`
+            : 'The clock starts when you check in your first item on this screen.',
           'Goal: 100 items an hour.',
         ],
       },
@@ -277,9 +313,14 @@ export function ProcessingWorkspaceHeader({
   const selectedMetric = groups.flatMap((g) => g.metrics).find((m) => m.id === selectedMetricId);
   const onMetricClick = (metric: HeaderMetric) => {
     if (metric.opens === 'pallets' && onOpenPallets) onOpenPallets();
-    else if (metric.opens === 'plan' && openPlan) openPlan();
     else setSelectedMetricId(metric.id);
   };
+  const lead = selectedMetric?.leadsTo;
+  const leadAction: (() => void) | undefined = !lead ? undefined
+    : lead.go === 'plan' ? openPlan
+    : lead.go === 'close' ? openCloseTruck
+    : onShowRows ? () => onShowRows(lead.go as 'open' | 'disputes' | 'unmanifested')
+    : undefined;
 
   return (
     <Box sx={{ flexShrink: 0, borderBottom: 1, borderColor: processingTokens.statsHeaderBorder, bgcolor: 'background.paper' }}>
@@ -287,11 +328,14 @@ export function ProcessingWorkspaceHeader({
         sx={{
           display: 'flex',
           alignItems: 'center',
+          // Below a wide screen the facts take their own line, so the buttons are always in reach.
+          flexWrap: { xs: 'wrap', lg: 'nowrap' },
+          rowGap: 0.5,
           minHeight: 48,
           px: 1,
+          py: { xs: 0.5, lg: 0 },
           borderBottom: 1,
           borderColor: processingTokens.orderHeaderBorder,
-          overflow: 'hidden',
           bgcolor: processingTokens.orderHeaderBg,
           color: processingTokens.orderHeaderText,
         }}
@@ -301,26 +345,37 @@ export function ProcessingWorkspaceHeader({
           onOpenOrder={openOrderWindow}
           onOpenPicker={(el) => setOrderAnchorEl(el)}
         />
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: { xs: 'wrap', lg: 'nowrap' },
+            rowGap: 0.5,
+            order: { xs: 3, lg: 0 },
+            flex: { xs: '1 1 100%', lg: '1 1 0' },
+            minWidth: 0,
+          }}
+        >
         <OrderFact label="Vendor" value={order.vendor || order.vendor_code || '-'} />
-        {order.has_manifest ? (
-          <OrderFact
-            label="Manifest"
-            value={order.manifest_filename || 'View CSV'}
-            minWidth={120}
-            maxWidth={220}
-            showFullValueOnHover
-            onClick={() => setManifestViewerOpen(true)}
-          />
-        ) : null}
         <OrderFact
           label="Load description"
           value={order.load_type || 'Truck plan'}
-          minWidth={220}
-          maxWidth={480}
+          minWidth={160}
+          grow
           tooltip={order.load_type ? `${order.load_type} (opens the Truck Plan)` : 'Opens the Truck Plan'}
           onClick={openPlan}
           href={openPlan ? undefined : `/inventory/orders/${order.id}`}
         />
+        {order.has_manifest ? (
+          <OrderFact
+            label="Manifest"
+            value="View"
+            minWidth={88}
+            maxWidth={92}
+            tooltip={order.manifest_filename ? `Open the manifest: ${order.manifest_filename}` : 'Open the manifest'}
+            onClick={() => setManifestViewerOpen(true)}
+          />
+        ) : null}
         <OrderFact
           label={order.delivered_date ? 'Delivered' : 'Expected'}
           value={shortDay(deliveredDay)}
@@ -331,28 +386,16 @@ export function ProcessingWorkspaceHeader({
         />
         <OrderFact
           label="Dispute due"
-          value={disputeDue.value}
+          value={truckClosed ? 'Truck closed' : disputeDue.value}
           tooltip={disputeDue.tooltip}
           valueColor={toneColor(disputeDue.tone)}
           monospace
-          minWidth={150}
-          maxWidth={200}
+          minWidth={184}
+          maxWidth={210}
+          last
         />
-        {notFiled && openCloseTruck ? (
-          <Tooltip title="A claim is worth filing on this truck and is not filed yet. Opens Close the truck." enterDelay={300}>
-            <Button
-              size="small"
-              color="error"
-              variant="outlined"
-              onClick={openCloseTruck}
-              sx={{ ml: 1, minHeight: 28, py: 0.25, flexShrink: 0, whiteSpace: 'nowrap', fontWeight: 800 }}
-            >
-              {notFiled}
-            </Button>
-          </Tooltip>
-        ) : null}
-        <Box sx={{ flex: 1, minWidth: 8 }} />
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 0.5, flex: { xs: '1 1 0', lg: '0 0 auto' }, minWidth: 0, ml: 'auto', pl: 1 }}>
           {addItemVisible && onAddItem ? (
             <Button
               size="small"
@@ -369,27 +412,45 @@ export function ProcessingWorkspaceHeader({
               Add item
             </Button>
           ) : null}
-          {openCloseTruck ? (
-            <Button
-              size="small"
-              variant="outlined"
-              color={truckClosed ? 'success' : 'primary'}
-              onClick={openCloseTruck}
-              sx={{ minHeight: 28, py: 0.25, whiteSpace: 'nowrap' }}
-            >
-              {truckClosed ? 'Truck closed' : 'Close the truck'}
-            </Button>
-          ) : null}
-          <Button
-            size="small"
-            variant="contained"
-            color="success"
-            disabled={closeLoading || pendingUnits > 0 || orderComplete}
-            onClick={onCloseClick}
-            sx={{ minHeight: 28, py: 0.25, boxShadow: 'none', '&:hover': { boxShadow: 'none' } }}
+          <Tooltip
+            enterDelay={300}
+            title={
+              orderComplete ? 'Processing is finished on this order.'
+              : pendingUnits > 0 ? `Close PO marks processing finished on this order. ${fmtQty(pendingUnits)} units are still waiting, so it is not ready yet.`
+              : 'Close PO marks processing finished on this order. Use it when the last item is checked in.'
+            }
           >
-            Close PO
-          </Button>
+            <span>
+              <Button
+                size="small"
+                variant="outlined"
+                color="success"
+                disabled={closeLoading || pendingUnits > 0 || orderComplete}
+                onClick={onCloseClick}
+                sx={{ minHeight: 28, py: 0.25, whiteSpace: 'nowrap' }}
+              >
+                Close PO
+              </Button>
+            </span>
+          </Tooltip>
+          {openCloseTruck ? (
+            <Tooltip
+              enterDelay={300}
+              title={truckClosed
+                ? 'This truck is closed. Opens what was counted and disputed.'
+                : 'For a lead or the owner, after processing: see what did not come, record the B-Stock dispute and close the truck.'}
+            >
+              <Button
+                size="small"
+                variant="outlined"
+                color={truckClosed ? 'success' : 'primary'}
+                onClick={openCloseTruck}
+                sx={{ minHeight: 28, py: 0.25, whiteSpace: 'nowrap' }}
+              >
+                {truckClosed ? 'Truck closed' : 'Close the truck'}
+              </Button>
+            </Tooltip>
+          ) : null}
         </Box>
       </Box>
 
@@ -430,17 +491,20 @@ export function ProcessingWorkspaceHeader({
       <TruckPlanLine
         loaded={summary != null}
         hasPlan={summary?.plan != null}
+        dueSetByHand={Boolean(summary?.plan?.dispute_due_date)}
         parts={planParts}
         orderNotes={orderNotes}
         onOpenPlan={openPlan}
+        notFiled={notFiled}
+        onOpenCloseTruck={openCloseTruck}
       />
 
       <Box
         sx={{
           display: 'flex',
           width: '100%',
-          minHeight: 72,
-          overflowX: 'auto',
+          minHeight: 74,
+          flexWrap: 'wrap',
           bgcolor: processingTokens.statsHeaderBg,
           color: processingTokens.statsHeaderText,
         }}
@@ -453,8 +517,8 @@ export function ProcessingWorkspaceHeader({
             sx={{
               display: 'flex',
               flexDirection: 'column',
-              flex: `${group.metrics.length} 1 0`,
-              minWidth: group.metrics.length * 92,
+              flex: `${group.metrics.reduce((n, m) => n + (m.wide ? 1.35 : 1), 0)} 1 0`,
+              minWidth: group.metrics.reduce((n, m) => n + (m.wide ? 140 : 96), 0),
               borderLeft: groupIndex === 0 ? 0 : 2,
               borderColor: processingTokens.borderStrong,
             }}
@@ -463,7 +527,7 @@ export function ProcessingWorkspaceHeader({
               sx={{
                 px: 1.25,
                 pt: 0.4,
-                fontSize: '0.56rem',
+                fontSize: '0.66rem',
                 fontWeight: 900,
                 letterSpacing: 1,
                 textTransform: 'uppercase',
@@ -513,16 +577,17 @@ export function ProcessingWorkspaceHeader({
               <li key={line}>{line}</li>
             ))}
           </Box>
-          {openPlan && (selectedMetric?.id === 'paid' || selectedMetric?.id === 'on-track') ? (
+          {lead && leadAction ? (
             <Button
               size="small"
+              variant="outlined"
               sx={{ mt: 1 }}
               onClick={() => {
                 setSelectedMetricId(null);
-                openPlan();
+                leadAction();
               }}
             >
-              Open the Truck Plan
+              {lead.label}
             </Button>
           ) : null}
         </DialogContent>
@@ -569,9 +634,9 @@ function OrderSelectorCell({
           sx={{
             display: 'block',
             color: processingTokens.orderHeaderMutedText,
-            fontSize: '0.56rem',
+            fontSize: '0.66rem',
             fontWeight: 800,
-            letterSpacing: 0.8,
+            letterSpacing: 0.6,
             textTransform: 'uppercase',
             lineHeight: 1,
           }}
@@ -617,12 +682,20 @@ function OrderSelectorCell({
 function TruckPlanLine({
   loaded,
   hasPlan,
+  dueSetByHand,
   parts,
   orderNotes,
   onOpenPlan,
+  notFiled,
+  onOpenCloseTruck,
 }: {
+  /** The count-down: a dispute worth filing that is not filed yet (or missed). It sits at the end of this line. */
+  notFiled?: { text: string; missed: boolean } | null;
+  onOpenCloseTruck?: () => void;
   loaded: boolean;
   hasPlan: boolean;
+  /** The plan holds a dispute day set by hand (it may hold nothing else). */
+  dueSetByHand?: boolean;
   parts: ReturnType<typeof planLineParts>;
   orderNotes: string;
   onOpenPlan?: () => void;
@@ -631,7 +704,7 @@ function TruckPlanLine({
     <Typography
       sx={{
         flexShrink: 0,
-        fontSize: '0.56rem',
+        fontSize: '0.66rem',
         fontWeight: 900,
         letterSpacing: 1,
         textTransform: 'uppercase',
@@ -654,12 +727,14 @@ function TruckPlanLine({
         display: 'flex',
         alignItems: 'center',
         gap: 1,
-        minHeight: 30,
+        minHeight: 32,
         px: 1.25,
         borderBottom: 1,
         borderColor: processingTokens.orderHeaderBorder,
         bgcolor: hasPlan || !loaded ? processingTokens.orderHeaderBg : processingTokens.amberSoft,
         overflow: 'hidden',
+        flexWrap: { xs: 'wrap', md: 'nowrap' },
+        py: { xs: 0.5, md: 0 },
       }}
     >
       {label}
@@ -670,8 +745,10 @@ function TruckPlanLine({
         </>
       ) : parts.length === 0 ? (
         <>
-          <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>Nothing written in the plan yet</Typography>
-          {planButton('Open the plan')}
+          <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>
+            {dueSetByHand ? 'Only the dispute day is set' : 'No truck plan yet'}
+          </Typography>
+          {planButton(dueSetByHand ? 'Write the plan' : 'Make the plan')}
         </>
       ) : (
         <Tooltip
@@ -703,7 +780,8 @@ function TruckPlanLine({
               flex: '1 1 auto',
               minWidth: 0,
               display: 'flex',
-              gap: 1.5,
+              columnGap: 1.5,
+              flexWrap: { xs: 'wrap', md: 'nowrap' },
               overflow: 'hidden',
               '&:hover .plan-text': { textDecoration: onOpenPlan ? 'underline' : 'none' },
             }}
@@ -712,7 +790,11 @@ function TruckPlanLine({
               <Typography
                 key={p.label}
                 noWrap
-                sx={{ fontSize: 12.5, minWidth: 0, flex: p.text.length > 30 ? '0 1 auto' : '0 0 auto' }}
+                sx={{
+                  fontSize: 12.5, minWidth: 0, maxWidth: '100%',
+                  // Short parts keep their room; the two notes share what is left, so neither is cut to a letter.
+                  flex: { xs: '0 1 auto', md: p.text.length > 30 ? '1 1 0' : '0 0 auto' },
+                }}
               >
                 <Box component="span" sx={{ color: p.strong ? processingTokens.accentAmber : 'text.secondary', fontWeight: 700 }}>
                   {p.label}:
@@ -732,6 +814,28 @@ function TruckPlanLine({
           </Typography>
         </Tooltip>
       ) : null}
+      {notFiled && onOpenCloseTruck ? (
+        <Tooltip
+          title={notFiled.missed
+            ? 'The day to file this dispute has passed and it was not filed. If it was filed on B-Stock in time, record it in Close the truck.'
+            : 'A dispute is worth filing on this truck and is not filed yet. Opens Close the truck.'}
+          enterDelay={300}
+        >
+          <Button
+            size="small"
+            color={notFiled.missed ? 'inherit' : 'error'}
+            variant={notFiled.missed ? 'outlined' : 'contained'}
+            onClick={onOpenCloseTruck}
+            sx={{
+              ml: orderNotes ? 0 : 'auto', minHeight: 22, py: 0, px: 1, fontSize: 12, flexShrink: 0, maxWidth: '100%',
+              whiteSpace: { xs: 'normal', md: 'nowrap' }, textAlign: 'left', lineHeight: 1.3,
+              fontWeight: 800, boxShadow: 'none', '&:hover': { boxShadow: 'none' },
+            }}
+          >
+            {notFiled.text}
+          </Button>
+        </Tooltip>
+      ) : null}
     </Box>
   );
 }
@@ -747,7 +851,12 @@ function OrderFact({
   href,
   onClick,
   valueColor,
+  grow,
+  last,
 }: {
+  /** Takes the room the other facts leave (the load description). */
+  grow?: boolean;
+  last?: boolean;
   label: string;
   value: string;
   monospace?: boolean;
@@ -759,11 +868,12 @@ function OrderFact({
   onClick?: () => void;
   valueColor?: string;
 }) {
+  const twoLines = Boolean(grow);
   const hoverTitle = tooltip || (showFullValueOnHover && value !== '-' ? value : undefined);
   const isInteractive = Boolean((href || onClick) && value !== '-');
   const valueTypography = (
     <Typography
-      noWrap
+      noWrap={!twoLines}
       component={href && value !== '-' ? RouterLink : onClick && value !== '-' ? 'button' : 'span'}
       {...(href && value !== '-' ? { to: href } : {})}
       {...(onClick && value !== '-' && !href
@@ -777,9 +887,10 @@ function OrderFact({
         fontSize: 12.5,
         fontWeight: 700,
         fontFamily: monospace ? processingTokens.monoFontFamily : undefined,
-        lineHeight: 1.25,
+        lineHeight: twoLines ? 1.2 : 1.25,
         overflow: 'hidden',
         textOverflow: 'ellipsis',
+        ...(twoLines ? { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', whiteSpace: 'normal' } : {}),
         color: isInteractive ? 'primary.main' : valueColor ?? processingTokens.orderHeaderText,
         ...(isInteractive
           ? {
@@ -802,17 +913,17 @@ function OrderFact({
   return (
     <Box
       sx={{
-        display: { xs: 'none', md: 'flex' },
+        display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        height: 34,
+        height: grow ? 'auto' : 34,
+        minHeight: 34,
         minWidth,
-        maxWidth,
-        flex: maxWidth > 160 ? '1 1 auto' : undefined,
+        maxWidth: grow ? undefined : maxWidth,
+        flex: grow ? '1 1 0' : '0 0 auto',
         px: 1.1,
-        borderRight: 1,
+        borderRight: last ? 0 : 1,
         borderColor: 'divider',
-        minHeight: 0,
       }}
     >
       <Typography
@@ -820,9 +931,9 @@ function OrderFact({
         sx={{
           display: 'block',
           color: processingTokens.orderHeaderMutedText,
-          fontSize: '0.56rem',
+          fontSize: '0.66rem',
           fontWeight: 800,
-          letterSpacing: 0.8,
+          letterSpacing: 0.6,
           textTransform: 'uppercase',
           lineHeight: 1.05,
         }}
@@ -868,9 +979,9 @@ function StatBlock({
         font: 'inherit',
         color: 'inherit',
         cursor: 'pointer',
-        flex: '1 1 0',
-        minWidth: 92,
-        px: 1.25,
+        flex: metric.wide ? '1.35 1 0' : '1 1 0',
+        minWidth: metric.wide ? 140 : 96,
+        px: 1,
         pt: 0.35,
         pb: 0.7,
         position: 'relative',
@@ -894,13 +1005,13 @@ function StatBlock({
         },
       }}
     >
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.58rem', fontWeight: 800, letterSpacing: 0.7, textTransform: 'uppercase', lineHeight: 1 }}>
+      <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', lineHeight: 1.1 }}>
         {metric.label}
       </Typography>
-      <Typography sx={{ fontSize: 20, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: valueColor, lineHeight: 1.05, mt: 0.25 }}>
+      <Typography noWrap sx={{ fontSize: 18, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: valueColor, lineHeight: 1.05, mt: 0.25 }}>
         {metric.value}
         {metric.suffix ? (
-          <Typography component="span" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: 11 }}>
+          <Typography component="span" sx={{ color: 'text.secondary', fontWeight: 700, fontSize: 13 }}>
             {metric.suffix}
           </Typography>
         ) : null}
@@ -914,8 +1025,8 @@ function StatBlock({
           maxWidth: '100%',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
-          fontSize: helperColor ? '0.72rem' : '0.64rem',
-          fontWeight: helperColor ? 800 : 400,
+          fontSize: helperColor ? '0.78rem' : '0.72rem',
+          fontWeight: helperColor ? 800 : 500,
           color: helperColor ?? 'text.secondary',
         }}
       >

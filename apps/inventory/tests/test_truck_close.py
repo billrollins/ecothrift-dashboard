@@ -60,6 +60,13 @@ class ClaimTests(CloseTruckBase):
         self.assertEqual(sum(Decimal(line['total_retail']) for line in p['lines']), Decimal(n['retail']))
         self.assertIn('Total: 3.5 units, $250.00 manifest retail', p['copy_text'])
         self.assertIn('Not received', p['copy_text'])
+        # Ready to paste: no empty UPC or pallet column, the truck's share, and the amount to ask.
+        self.assertIn('Reason' + chr(10), p['copy_text'])    # the header row ends at Reason: no empty UPC or pallet column
+        self.assertIn("of the truck's $1,000.00 manifest retail.", p['copy_text'])
+        self.assertTrue(p['copy_text'].endswith('Amount asked: $44.00'))
+        # The header shows the same claim once the work is done; until then the window says what is open.
+        self.assertEqual(set(p['working']), {'pending_items', 'pallets_open', 'pallets_total'})
+        self.assertIn('so_far_worth', p)
 
     def test_the_claim_is_the_header_number_once_the_truck_is_done(self):
         self._check_in(0, 8)
@@ -217,6 +224,7 @@ class CountDownTests(CloseTruckBase):
         self.assertEqual(len(rows), 1)
         self.assertEqual((rows[0]['worth'], rows[0]['order_number']), ('33.00', 'PO-PLAN'))
         self.assertIsNotNone(rows[0]['days_left'])
+        self.assertFalse(rows[0]['missed'])
         r = self.client.get('/api/inventory/orders/unfiled-claims/')
         self.assertEqual(r.status_code, 200, r.data)
         self.assertIn(self.order.pk, [c['order_id'] for c in r.data['claims']])
@@ -225,6 +233,24 @@ class CountDownTests(CloseTruckBase):
         item = next(i for i in owner_page.needs_you()['items'] if i['key'] == 'truck_claims')
         self.assertEqual(item['count'], 1)
         self.assertIn('PO-PLAN $33.00', item['detail'])
+
+    def test_a_dispute_past_its_day_is_missed_not_counted_down(self):
+        PurchaseOrder.objects.filter(pk=self.order.pk).update(delivered_date=timezone.localdate() - timedelta(days=14))
+        rows = [r for r in unfiled_claims() if r['order_id'] == self.order.pk]
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]['missed'])
+        self.assertLess(rows[0]['days_left'], 0)
+
+        from apps.core.services import owner_page
+        items = {i['key']: i for i in owner_page.needs_you()['items']}
+        self.assertNotIn('truck_claims', items)
+        self.assertEqual(items['truck_claims_missed']['label'], 'Dispute day passed')
+        self.assertIn('PO-PLAN $33.00 not filed', items['truck_claims_missed']['detail'])
+
+        # Closing it without filing is the normal step, and the window says so.
+        self.order.refresh_from_db()
+        warnings = close_payload(self.order)['warnings']
+        self.assertIn('Dispute day passed and it was not filed. Closing without it is the normal step.', warnings)
 
     def test_filed_or_finalized_trucks_leave_the_count_down(self):
         self._post('filed', {})

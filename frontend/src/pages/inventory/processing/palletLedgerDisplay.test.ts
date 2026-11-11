@@ -69,7 +69,7 @@ describe('palletLedgerDisplay', () => {
     const h = palletHeadline(ledger());
     expect(h.value).toBe('PAL-1');
     expect(h.helper).toBe('5/6 units · 0/2 done');
-    expect(palletHeadline(ledger({ current_pallet_id: null })).value).toBe('Start');
+    expect(palletHeadline(ledger({ current_pallet_id: null })).helper).toBe('Pallets closed');
   });
 
   it('missing waits for a finished pallet and never guesses without pallet ids', () => {

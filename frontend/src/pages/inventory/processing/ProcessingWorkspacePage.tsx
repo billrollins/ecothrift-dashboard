@@ -814,7 +814,7 @@ export default function ProcessingWorkspacePage() {
       <Box
         sx={{
           flexShrink: 0,
-          minHeight: 154,
+          minHeight: 164,
           bgcolor: 'background.paper',
         }}
       >
@@ -840,8 +840,9 @@ export default function ProcessingWorkspacePage() {
             pallets={palletLedger}
             onOpenPallets={() => setPalletsOpen(true)}
             summary={truckSummary}
+            onShowRows={(filter) => setQueueFilters({ allMode: false, active: [filter] })}
           />
-        : <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 154 }}>
+        : <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 164 }}>
             <CircularProgress size={22} />
           </Box>
         }

@@ -343,8 +343,11 @@ def needs_you(now: datetime | None = None) -> dict[str, Any]:
     def truck_claims():
         from apps.inventory.services.truck_close import unfiled_claims
 
-        # Close the truck (#88): claims worth filing that nobody has filed, soonest due first.
-        claims = unfiled_claims(timezone.localdate(now))
+        # Close the truck (#88): disputes worth filing that nobody has filed, soonest due first. One whose day has
+        # passed is missed, not open: it leaves the count and is named apart so the owner sees what was lost.
+        rows = unfiled_claims(timezone.localdate(now))
+        claims = [c for c in rows if not c.get('missed')]
+        missed = [c for c in rows if c.get('missed')]
         late = any(c['days_left'] is not None and c['days_left'] <= 1 for c in claims)
 
         def when(c):
@@ -353,10 +356,18 @@ def needs_you(now: datetime | None = None) -> dict[str, Any]:
                 return 'no due day'
             return 'past due' if left < 0 else 'due today' if left == 0 else f'due in {left} day' + ('' if left == 1 else 's')
 
-        detail = '; '.join(f"{c['order_number']} ${c['worth']} ({when(c)})" for c in claims[:5])
-        link = f"/inventory/orders/{claims[0]['order_id']}/truck" if len(claims) == 1 else '/inventory/orders'
-        return [_item('truck_claims', 'Truck claims not filed', len(claims), link, detail=detail,
-                      tone='error' if late else 'warning')]
+        out = []
+        if claims:
+            detail = '; '.join(f"{c['order_number']} ${c['worth']} ({when(c)})" for c in claims[:5])
+            link = f"/inventory/orders/{claims[0]['order_id']}/truck" if len(claims) == 1 else '/inventory/orders'
+            out.append(_item('truck_claims', 'Truck disputes not filed', len(claims), link, detail=detail,
+                             tone='error' if late else 'warning'))
+        if missed:
+            detail = '; '.join(f"{c['order_number']} ${c['worth']} not filed" for c in missed[:5])
+            link = f"/inventory/orders/{missed[0]['order_id']}/truck" if len(missed) == 1 else '/inventory/orders'
+            out.append(_item('truck_claims_missed', 'Dispute day passed', len(missed), link, detail=detail,
+                             tone='default'))
+        return out
 
     for build in (requests, time_changes, returns, offers, checkins, data_checks, site_errors, thrift_plus, supplies,
                   truck_claims):
