@@ -11,7 +11,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { useEffect, useMemo, useState, type WheelEvent } from 'react';
+import { useEffect, useMemo, useState, type ReactNode, type WheelEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getProduct, type ProcessingCheckInPayload } from '../../../api/inventory.api';
 import type {
@@ -172,6 +172,8 @@ export interface ProcessingCheckInDialogProps {
     payload: ProcessingCheckInPayload,
     options: { printLabels: boolean },
   ) => Promise<boolean>;
+  /** The Processing search, the same as on the page (#97): a scan here goes to the next item. */
+  searchBar?: ReactNode;
 }
 
 export function ProcessingCheckInDialog({
@@ -184,6 +186,7 @@ export function ProcessingCheckInDialog({
   onClose,
   onSubmit,
   onUpdateItemCheckIn,
+  searchBar = null,
 }: ProcessingCheckInDialogProps) {
   const editCheckIn = seed?.itemCheckIn && onUpdateItemCheckIn ? seed.itemCheckIn : null;
   const isEditMode = editCheckIn != null;
@@ -332,6 +335,8 @@ export function ProcessingCheckInDialog({
     <Dialog
       open={open}
       onClose={busy ? undefined : onClose}
+      // The page puts the cursor in its search when this closes (#97), not back on the button that opened it.
+      disableRestoreFocus
       fullWidth
       maxWidth="md"
       PaperProps={{
@@ -376,6 +381,7 @@ export function ProcessingCheckInDialog({
           </IconButton>
         </Box>
       </DialogTitle>
+      {searchBar}
 
       <DialogContent sx={{ px: 2, py: 1.5, bgcolor: processingTokens.cardDeckBg, overflow: 'auto' }}>
         {productId == null ?

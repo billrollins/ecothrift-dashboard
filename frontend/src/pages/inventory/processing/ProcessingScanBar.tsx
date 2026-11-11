@@ -24,10 +24,17 @@ export interface ProcessingScanBarProps {
   mode?: 'queue' | 'detail';
   placeholder?: string;
   ariaLabel?: string;
+  /** Which search a scan typed elsewhere goes to: the page's, or the check-in window's own (#97). */
+  scope?: 'page' | 'dialog';
+  /** Take the cursor when it first shows (the check-in window keeps it on its first box). */
+  autoFocusOnMount?: boolean;
+  /** One short line in a fixed spot on the bar ("Nothing found ..."); the bar keeps its size with or without it. */
+  status?: { text: string; tone?: 'info' | 'warning' } | null;
 }
 
 /**
- * Scan/search bar for the processing queue. Hidden while viewing row detail.
+ * The one scan / search bar of Processing (#97): on the queue, the row page and the check-in window, the same
+ * behaviour everywhere. Each time it takes the cursor its words are selected, so the next scan replaces them.
  */
 export function ProcessingScanBar({
   search,
@@ -42,6 +49,9 @@ export function ProcessingScanBar({
   mode = 'queue',
   placeholder: placeholderProp,
   ariaLabel = 'Scan or search processing queue',
+  scope = 'page',
+  autoFocusOnMount = true,
+  status = null,
 }: ProcessingScanBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
@@ -57,8 +67,20 @@ export function ProcessingScanBar({
     setHistoryItems(readSearchHistory(historyStorageKey, historyMax));
   }, [historyStorageKey, historyMax]);
 
+  // The cursor lands with the words selected, so a scan replaces them.
+  // Putting the cursor back is not a request for the recent searches: they open on a click or a key only.
+  const quietFocus = useRef(false);
+  const focusAndSelect = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    if (document.activeElement !== el) quietFocus.current = true;
+    el.focus();
+    el.select();
+  }, []);
+
   useEffect(() => {
-    inputRef.current?.focus();
+    if (autoFocusOnMount) focusAndSelect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when it first shows
   }, []);
 
   useEffect(() => () => {
@@ -66,9 +88,11 @@ export function ProcessingScanBar({
   }, []);
 
   useEffect(() => {
-    if (!searchFocusSignal) return;
-    inputRef.current?.focus();
-  }, [searchFocusSignal]);
+    if (!searchFocusSignal) return undefined;
+    // A beat later, so a window that is closing has let go of the cursor first.
+    const timer = window.setTimeout(focusAndSelect, 0);
+    return () => window.clearTimeout(timer);
+  }, [searchFocusSignal, focusAndSelect]);
 
   useEffect(() => {
     refreshHistory();
@@ -116,6 +140,8 @@ export function ProcessingScanBar({
         px: 1,
         py: 0.75,
         minHeight: 48,
+        flexWrap: { xs: 'wrap', md: 'nowrap' },
+        rowGap: 0.25,
         borderBottom: 1,
         borderColor: processingTokens.border,
         bgcolor: 'background.paper',
@@ -172,9 +198,17 @@ export function ProcessingScanBar({
               onChange={(e) => onSearchChange(e.target.value)}
               onFocus={() => {
                 refreshHistory();
+                if (quietFocus.current) {
+                  quietFocus.current = false;
+                  return;
+                }
                 if (historyStorageKey && readSearchHistory(historyStorageKey, historyMax).length > 0) {
                   setHistoryOpen(true);
                 }
+              }}
+              onMouseDown={() => {
+                quietFocus.current = false;
+                if (historyStorageKey && readSearchHistory(historyStorageKey, historyMax).length > 0) setHistoryOpen(true);
               }}
               onBlur={() => {
                 if (blurTimerRef.current != null) window.clearTimeout(blurTimerRef.current);
@@ -213,10 +247,11 @@ export function ProcessingScanBar({
               placeholder={
                 placeholderProp ??
                 (inDetail ?
-                  'Scan next item (UPC / SKU / row #) - or type and press Enter to search the queue'
+                  'Scan the next item (UPC, SKU or row #), or type and press Enter to search the queue'
                 : 'Scan or search row #, title, UPC, SKU, brand, model, category, specs, tags...')
               }
               aria-label={ariaLabel}
+              data-scan-search={scope}
               aria-expanded={showHistory}
               aria-autocomplete="list"
               sx={{
@@ -346,20 +381,23 @@ export function ProcessingScanBar({
           </Paper>
         : null}
       </Box>
-      {inDetail ?
-        <Typography
-          variant="caption"
-          sx={{
-            flexShrink: 0,
-            fontSize: '0.72rem',
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-            color: processingTokens.textMute,
-          }}
-        >
-          Esc returns to queue
-        </Typography>
-      : null}
+      {/* A fixed spot: it is always there, so a message coming or going moves nothing. */}
+      <Typography
+        role="status"
+        variant="caption"
+        noWrap
+        title={status?.text}
+        sx={{
+          flex: { xs: '1 1 100%', md: '0 1 340px' },
+          minWidth: 0,
+          minHeight: 18,
+          fontSize: '0.75rem',
+          fontWeight: status ? 700 : 600,
+          color: status?.tone === 'warning' ? 'warning.dark' : status ? 'text.primary' : processingTokens.textMute,
+        }}
+      >
+        {status?.text ?? (inDetail && onEscapeEmpty ? 'Esc returns to queue' : '')}
+      </Typography>
     </Box>
   );
 }

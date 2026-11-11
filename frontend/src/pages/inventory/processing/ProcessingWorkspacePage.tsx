@@ -49,6 +49,7 @@ import { AddProcessingItemDialog } from './modals/AddProcessingItemDialog';
 import { ProcessingWorkspaceHeader, type ProcessingWorkspaceOrderPickRow } from './ProcessingWorkspaceHeader';
 import { ProcessingFilterRow } from './ProcessingFilterRow';
 import { ProcessingScanBar } from './ProcessingScanBar';
+import { soleRowId, useScanRouting } from './processingScanRouting';
 import { ProcessingRecentRowsBar } from './ProcessingRecentRowsBar';
 import { ProcessingQueueTable } from './ProcessingQueueTable';
 import { ProcessingBulkActionBar } from './ProcessingBulkActionBar';
@@ -115,9 +116,19 @@ export default function ProcessingWorkspacePage() {
   }, []);
 
   const bumpSearchFocus = useCallback(() => setSearchFocusSignal((s) => s + 1), []);
+  // A key typed outside a typing box goes to the search; a scan into a price, quantity or note box is taken out.
+  useScanRouting({
+    onScanTakenOut: (scan) => setScanNote({
+      text: `That scan was kept out of the box. Press Enter to find ${scan}.`,
+      tone: 'warning',
+    }),
+  });
 
+  // One short line in the scan bar's fixed spot: what a scan found or did not find (#97).
+  const [scanNote, setScanNote] = useState<{ text: string; tone?: 'info' | 'warning' } | null>(null);
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value);
+    setScanNote(null);
     if (!value.trim()) setDebouncedSearch('');
   }, []);
 
@@ -476,6 +487,7 @@ export default function ProcessingWorkspacePage() {
   }, [workspace]);
 
   const backToQueue = useCallback(() => {
+    setScanNote(null);
     setDetailProcessingRowId(null);
     setSelectedItemId(null);
     setDetailScrollToHistory(false);
@@ -513,6 +525,7 @@ export default function ProcessingWorkspacePage() {
     setDetailScrollToHistory(false);
     setSearch('');
     setDebouncedSearch('');
+    setScanNote(null);
     bumpSearchFocus();
   }, [bumpSearchFocus, rememberRecentRow]);
 
@@ -522,13 +535,15 @@ export default function ProcessingWorkspacePage() {
     const inDetail = detailProcessingRowId != null;
     if (isSingleScanToken(q)) {
       const onPage = rowsMatchingExactScan(workspace?.rows ?? [], q);
-      if (onPage.length === 1) {
-        openScanMatch(onPage[0].processing_row_id);
+      const onPageSole = soleRowId(onPage);
+      if (onPageSole != null) {
+        openScanMatch(onPageSole);
         return;
       }
       try {
+        // Enough rows to see a group of rows checked in as one (it shows as one row and opens as one).
         const { data } = await getProcessingWorkspace(orderId, {
-          limit: 2,
+          limit: 50,
           offset: 0,
           segment: 'all',
           segments: queueFiltersToSegmentsParam(queueFilters),
@@ -536,12 +551,17 @@ export default function ProcessingWorkspacePage() {
           search: q,
           hide_checked_in: false,
         });
-        if (data.row_count_filtered === 1 && data.rows[0]) {
-          const sole = data.rows[0];
-          if (rowsMatchingExactScan([sole], q).length === 1) {
-            openScanMatch(sole.processing_row_id);
-            return;
-          }
+        const found = data.row_count_filtered ?? data.rows.length;
+        const sole = found <= data.rows.length ? soleRowId(data.rows) : null;
+        if (sole != null && rowsMatchingExactScan(data.rows, q).length > 0) {
+          openScanMatch(sole);
+          return;
+        }
+        if (data.row_count_filtered === 0 && onPage.length === 0) {
+          // Nothing on this truck: say so where the eye already is, and keep the cursor ready for the next scan.
+          setScanNote({ text: `Nothing on this truck matches ${q}.`, tone: 'warning' });
+          bumpSearchFocus();
+          return;
         }
       } catch {
         /* ignore scan helper failures */
@@ -554,7 +574,7 @@ export default function ProcessingWorkspacePage() {
       setSelectedItemId(null);
       setDebouncedSearch(q);
     }
-  }, [search, orderId, detailProcessingRowId, workspace?.rows, queueFilters, productFilterProductId, openScanMatch]);
+  }, [search, orderId, detailProcessingRowId, workspace?.rows, queueFilters, productFilterProductId, openScanMatch, bumpSearchFocus]);
 
   const handleCheckIn = useCallback(
     async (payload: ProcessingCheckInPayload, options?: { printLabels?: boolean }) => {
@@ -588,7 +608,6 @@ export default function ProcessingWorkspacePage() {
         } else {
           enqueueSnackbar(`Checked in ${data.created_count} unit(s) without printing.`, { variant: 'success' });
         }
-        bumpSearchFocus();
         if (payload.dispatch === 'restoration' && data.restoration_job_id) {
           setQuickGradeJobId(data.restoration_job_id);
         }
@@ -602,7 +621,7 @@ export default function ProcessingWorkspacePage() {
         return false;
       }
     },
-    [selectedRow, orderId, rowCheckIn, retailCheck.ask, enqueueSnackbar, bumpSearchFocus, recordSessionCheckIns, rememberRecentRow, queryClient, navigate],
+    [selectedRow, orderId, rowCheckIn, retailCheck.ask, enqueueSnackbar, recordSessionCheckIns, rememberRecentRow, queryClient, navigate],
   );
 
   const selectedQueueRows = useMemo(
@@ -964,28 +983,31 @@ export default function ProcessingWorkspacePage() {
         </Box>
       : null}
 
-      {detailProcessingRowId == null ? (
-        <Box sx={{ flexShrink: 0 }}>
-          <ProcessingScanBar
-            search={search}
-            onSearchChange={handleSearchChange}
-            onSearchEnter={() => void handleSearchEnter()}
-            onHistorySelect={(q) => {
-              setSearch(q);
-              setDebouncedSearch(q.trim());
-            }}
-            historyStorageKey={orderId != null ? processingSearchHistoryKey(orderId) : undefined}
-            historyMax={10}
-            searchFocusSignal={searchFocusSignal}
-            isFetching={isFetching && !isLoading}
-            mode="queue"
-          />
+      {/* One search on the queue and the row page alike (#97); the check-in window has the same bar at its top. */}
+      <Box sx={{ flexShrink: 0 }}>
+        <ProcessingScanBar
+          search={search}
+          onSearchChange={handleSearchChange}
+          onSearchEnter={() => void handleSearchEnter()}
+          onHistorySelect={(q) => {
+            setSearch(q);
+            setDebouncedSearch(q.trim());
+          }}
+          historyStorageKey={orderId != null ? processingSearchHistoryKey(orderId) : undefined}
+          historyMax={10}
+          searchFocusSignal={searchFocusSignal}
+          isFetching={isFetching && !isLoading}
+          mode={detailProcessingRowId == null ? 'queue' : 'detail'}
+          onEscapeEmpty={detailProcessingRowId == null ? undefined : backToQueue}
+          status={scanNote}
+        />
+        {detailProcessingRowId == null ? (
           <ProcessingRecentRowsBar
             rows={recentRows}
             onOpenRow={(processingRowId) => openDetail(processingRowId)}
           />
-        </Box>
-      ) : null}
+        ) : null}
+      </Box>
 
       {detailProcessingRowId == null ? (
         <Box sx={{ flexShrink: 0 }}>
@@ -1050,6 +1072,19 @@ export default function ProcessingWorkspacePage() {
               activeItem={activeItem}
               onSelectItemId={setSelectedItemId}
               onBackToQueue={backToQueue}
+              onCheckInClosed={bumpSearchFocus}
+              checkInSearchBar={
+                <ProcessingScanBar
+                  search={search}
+                  onSearchChange={handleSearchChange}
+                  onSearchEnter={() => void handleSearchEnter()}
+                  mode="detail"
+                  scope="dialog"
+                  autoFocusOnMount={false}
+                  status={scanNote}
+                  ariaLabel="Scan or search processing queue from the check-in window"
+                />
+              }
               onRefreshDetail={() => void handleRefreshDetail()}
               detailRefreshing={detailRefreshPending}
               onCheckIn={handleCheckIn}

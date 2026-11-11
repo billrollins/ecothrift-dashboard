@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.273.0] -->
-<!-- Last reviewed: 2026-11-11 (2.273.0) -->
+<!-- Line 1 release: ## [2.274.0] -->
+<!-- Last reviewed: 2026-11-11 (2.274.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.274.0] - 2026-11-11
+
+User-facing theme: **Processing: the search is always in reach, and a scan just works after Back to queue or a check-in (Dash Update #97).**
+
+> **For Bill:** you asked that a processor never has to click or delete between items. Now: one scan bar shows on the queue, the row page and the check-in window. **Back to queue** puts the cursor in the queue search with the old words selected, so the next scan replaces them. **After a check-in** (saved or closed) the cursor goes back to the search with its words selected, so the next scan goes straight to the next item. A scan made anywhere on these screens goes to the search; a scan that lands in a price, quantity or note box is taken back out and nothing is saved. A scan that matches one row opens it (a group of rows checked in together now counts as one row, so scanning those UPCs works where it used to do nothing), and a scan that matches nothing says so in a fixed spot. Not tried with a real hand scanner or a real saved check-in: it was tested by sending keys at scanner speed. Tell me if a real scanner behaves differently.
+
+### Changed (#97: Processing scan flow)
+- One scan bar on the Processing queue, the row page and the check-in window (`ProcessingScanBar.tsx`, `ProcessingWorkspacePage.tsx`, `ProcessingCheckInDialog.tsx`). Back to queue and closing the check-in window (saved or not) put the cursor in the search with its words selected.
+- New `processingScanRouting.ts`: a key typed outside a typing box goes to the search; a scanner burst that lands in a price, retail, cost, quantity, count, note or percent box is taken back out, its Enter is held, and the scan goes to the search. UPC and search boxes take scans as before.
+- A scan that matches one row opens it, and rows checked in as one group count as one row. A scan that matches nothing says so in a fixed spot on the bar. Recent searches open only on a click. Front end only; 9 new tests in `processingScanFlow.test.tsx`.
 
 ## [2.273.0] - 2026-11-11
 

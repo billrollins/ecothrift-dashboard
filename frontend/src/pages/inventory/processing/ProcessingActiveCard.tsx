@@ -1330,6 +1330,10 @@ export interface ProcessingActiveCardProps {
   onSelectItemId: (itemId: number) => void;
   onBackToQueue: () => void;
   onCheckIn: (payload: ProcessingCheckInPayload, options?: { printLabels?: boolean }) => Promise<boolean>;
+  /** The check-in window closed (saved or not): the page puts the cursor in its search (#97). */
+  onCheckInClosed?: () => void;
+  /** The page's scan bar, shown at the top of the check-in window too (#97). */
+  checkInSearchBar?: ReactNode;
   checkInLoading: boolean;
   onPatchCheckedIn: (payload: Record<string, unknown>) => void;
   patchLoading: boolean;
@@ -1355,6 +1359,8 @@ export function ProcessingActiveCard({
   onSelectItemId,
   onBackToQueue,
   onCheckIn,
+  onCheckInClosed,
+  checkInSearchBar,
   checkInLoading,
   onReprintItems,
   onPatchRowDefaults,
@@ -1627,7 +1633,16 @@ export function ProcessingActiveCard({
     setCheckInOpen(false);
     setCheckInSeed(null);
     setCheckInProductId(null);
+    onCheckInClosed?.();
   }
+
+  // A scan from the check-in window opened another row: this row's check-in window closes with it.
+  const shownRowId = row.processing_row_id;
+  useEffect(() => {
+    setCheckInOpen(false);
+    setCheckInSeed(null);
+    setCheckInProductId(null);
+  }, [shownRowId]);
 
   function openProductEditor(productId: number | null) {
     setProductEditorProductId(productId);
@@ -2443,6 +2458,7 @@ export function ProcessingActiveCard({
         onClose={closeDetailedCheckIn}
         onSubmit={onCheckIn}
         onUpdateItemCheckIn={handleUpdateItemCheckIn}
+        searchBar={checkInSearchBar}
       />
       {productEditorOpen && (productEditorProductId == null || productEditorQuery.data) ?
         <ProductManagePanel
