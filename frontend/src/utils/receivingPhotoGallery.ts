@@ -20,7 +20,7 @@ export type ReceivingGalleryItem = {
 export function buildReceivingPhotoGallery(rec: ReceivingDetailDTO): ReceivingGalleryItem[] {
   const items: ReceivingGalleryItem[] = [];
   const bol = rec.attachments.find((a) => a.kind === 'bol');
-  if (bol) items.push({ attachment: bol, title: 'Bill of Lading' });
+  if (bol) items.push({ attachment: bol, title: 'Bill of lading' });
   const truck = rec.attachments.find((a) => a.kind === 'truck');
   if (truck) items.push({ attachment: truck, title: 'Truck photo' });
 

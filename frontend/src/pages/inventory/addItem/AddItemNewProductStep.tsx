@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import PhotoCameraOutlined from '@mui/icons-material/PhotoCameraOutlined';
 import {
-  Alert, Box, Button, Chip, CircularProgress, IconButton, MenuItem, Stack, TextField, Typography,
+  Alert, Box, Button, ButtonBase, Chip, CircularProgress, IconButton, MenuItem, Stack, TextField, Typography,
 } from '@mui/material';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   aiFillProduct, getAddItemTaxonomy, type AddItemProduct, type NewProductSpec,
 } from '../../../api/addItem.api';
 import { AddPhoto } from '../../../components/photos/AddPhoto';
+import { PhotoTouchUp } from '../../../components/photos/PhotoTouchUp';
+import { editedPhotoFile } from '../../../components/photos/photoFile';
 import { apiErrorDetail } from '../../../hooks/useProductSearch';
 import { IconAiAssist, IconClose } from '../../../icons/ecoIcons';
 import { ProductPhoto } from './AddItemFindStep';
@@ -16,14 +18,30 @@ import { newProductProblems, productName, specFromDraft, subcategoriesFor } from
 /** The photo picker: the shared Add photo control (take it, the photo drawer, or a file). */
 function PhotoPicker({ photo, onChange, disabled }: { photo: File | null; onChange: (f: File | null) => void; disabled?: boolean }) {
   const url = useMemo(() => (photo ? URL.createObjectURL(photo) : null), [photo]);
+  const [big, setBig] = useState(false);
   useEffect(() => () => {
     if (url) URL.revokeObjectURL(url);
   }, [url]);
   return (
     <Box>
-      {url ? (
-        <Box sx={{ position: 'relative', width: '100%', maxWidth: { xs: 220, md: '100%' } }}>
-          <Box component="img" src={url} alt="The item" sx={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 1.5, display: 'block' }} />
+      {url && photo ? (
+        <Box sx={{ position: 'relative', width: { xs: 56, md: '100%' }, bgcolor: '#1f2937', borderRadius: 1.5, overflow: 'hidden' }}>
+          <ButtonBase onClick={() => setBig(true)} disabled={disabled} aria-label="Open photo" sx={{ display: 'block', width: '100%' }}>
+            <Box component="img" src={url} alt="The item" sx={{ width: '100%', aspectRatio: '1', objectFit: 'contain', display: 'block' }} />
+          </ButtonBase>
+          <PhotoTouchUp
+            open={big}
+            photo={photo}
+            onClose={() => setBig(false)}
+            onSave={(blob) => {
+              onChange(editedPhotoFile(photo, blob));
+              setBig(false);
+            }}
+            onDelete={() => {
+              onChange(null);
+              setBig(false);
+            }}
+          />
           <IconButton
             size="small"
             aria-label="Remove the photo"
@@ -40,9 +58,10 @@ function PhotoPicker({ photo, onChange, disabled }: { photo: File | null; onChan
           startIcon={<PhotoCameraOutlined />}
           onPhotos={(files) => onChange(files[0] ?? null)}
           usedWhere="Add item"
+          usedOn="save"
           disabled={disabled}
-          label="Add a photo (optional)"
-          sx={{ height: { xs: 56, md: 140 }, borderStyle: 'dashed' }}
+          label="Add photo (optional)"
+          sx={{ height: { xs: 56, md: 'auto' }, aspectRatio: { md: '1' }, borderStyle: 'dashed' }}
         />
       )}
     </Box>

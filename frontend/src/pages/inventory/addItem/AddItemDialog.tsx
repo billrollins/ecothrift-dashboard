@@ -25,6 +25,7 @@ import { TarsQuickGradeDialog } from '../../restoration/tars/TarsQuickGradeDialo
 import { AddItemCheckInStep } from './AddItemCheckInStep';
 import { AddItemFindStep } from './AddItemFindStep';
 import { AddItemNewProductStep } from './AddItemNewProductStep';
+import { markPhotosUsed } from '../../../components/photos/photoFile';
 import {
   buildCheckInPayload, emptySpec, initialCheckIn, quantityOf, specFromProduct,
   type CheckInForm, type PickedProduct,
@@ -117,6 +118,8 @@ export function AddItemDialog({ open, onClose }: { open: boolean; onClose: () =>
         retailCheck.ask,
       );
       if (!data) return;
+      // The product is made: only now is its drawer photo really used.
+      if (picked.kind === 'new') void markPhotosUsed([picked.photo], 'Add item');
       let printed = 'Tags not printed.';
       let printFailed = false;
       if (printLabels) {

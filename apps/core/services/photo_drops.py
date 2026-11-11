@@ -94,6 +94,17 @@ def save_drop(raw: bytes, *, user) -> PhotoDrop:
         raise
 
 
+def replace_drop(old: PhotoDrop, raw: bytes, *, user) -> PhotoDrop:
+    """Save a turned or cropped copy in place of ``old``: it keeps the time it was taken and its Used mark."""
+    drop = save_drop(raw, user=user)
+    PhotoDrop.objects.filter(pk=drop.pk).update(
+        created_at=old.created_at, used_at=old.used_at, used_where=old.used_where,
+    )
+    delete_drop(old)
+    drop.refresh_from_db()
+    return drop
+
+
 def _delete_stored(key: str) -> None:
     try:
         default_storage.delete(key)

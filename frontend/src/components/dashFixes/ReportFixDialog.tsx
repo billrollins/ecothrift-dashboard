@@ -1,4 +1,6 @@
 import { AddPhoto } from '../photos/AddPhoto';
+import { PickedPhotos } from '../photos/PickedPhotos';
+import { markPhotosUsed } from '../photos/photoFile';
 import {
   Alert,
   Box,
@@ -18,6 +20,8 @@ import { useReportDashFix } from '../../hooks/useDashFixes';
 import { t } from '../../i18n/routines';
 
 export const MAX_PHOTOS = 3;
+/** The window's own name, as the drawer shows it: "Used in Ask for an update". */
+const USED_WHERE = 'Ask for an update';
 
 export interface ReportFixDialogProps {
   open: boolean;
@@ -55,6 +59,8 @@ export function ReportFixDialog({ open, onClose, pagePath, onSent }: ReportFixDi
       { details: details.trim(), page_path: pagePath, private: isPrivate, photos },
       {
         onSuccess: () => {
+          // Only now are the drawer photos really used.
+          void markPhotosUsed(photos, USED_WHERE);
           onSent?.();
           onClose();
         },
@@ -86,20 +92,20 @@ export function ReportFixDialog({ open, onClose, pagePath, onSent }: ReportFixDi
             max={MAX_PHOTOS - photos.length}
             disabled={photos.length >= MAX_PHOTOS}
             label={t('fxAddPhoto', lang)}
-            usedWhere="Dash Updates"
+            usedWhere={USED_WHERE}
+            usedOn="save"
             fileInputTestId="report-fix-photo"
             onPhotos={(picked) => setPhotos((current) => [...current, ...picked].slice(0, MAX_PHOTOS))}
           />
           <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>{t('fxPhotosHint', lang)}</Typography>
         </Box>
-        {photos.map((file, index) => (
-          <Box key={`${file.name}-${index}`} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography sx={{ fontSize: 13, wordBreak: 'break-all', flex: 1 }}>{file.name}</Typography>
-            <Button size="small" onClick={() => setPhotos((current) => current.filter((_, i) => i !== index))}>
-              {t('fxRemovePhoto', lang)}
-            </Button>
-          </Box>
-        ))}
+        <PickedPhotos
+          photos={photos}
+          slots={MAX_PHOTOS}
+          disabled={report.isPending}
+          onRemove={(index) => setPhotos((current) => current.filter((_, i) => i !== index))}
+          onChange={(index, file) => setPhotos((current) => current.map((old, i) => (i === index ? file : old)))}
+        />
         {user?.is_superuser ? (
           <FormControlLabel
             control={

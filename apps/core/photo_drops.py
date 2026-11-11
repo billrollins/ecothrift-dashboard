@@ -28,6 +28,8 @@ class PhotoDropSerializer(serializers.ModelSerializer):
 
 class PhotoDropUploadSerializer(serializers.Serializer):
     photo = serializers.ImageField()
+    # A turned or cropped copy of this drop (mine): it takes the old one's place, time and Used mark.
+    replaces = serializers.IntegerField(required=False, min_value=1)
 
     def validate_photo(self, value):
         if (getattr(value, 'size', 0) or 0) > photo_drops.MAX_UPLOAD_BYTES:
@@ -57,8 +59,15 @@ class PhotoDropViewSet(viewsets.GenericViewSet):
         serializer.is_valid(raise_exception=True)
         upload = serializer.validated_data['photo']
         upload.seek(0)
+        replaces = serializer.validated_data.get('replaces')
+        old = self.get_queryset().filter(pk=replaces).first() if replaces else None
+        if replaces and old is None:
+            return Response({'replaces': ['That photo is not in your drawer.']}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            drop = photo_drops.save_drop(upload.read(), user=request.user)
+            if old is not None:
+                drop = photo_drops.replace_drop(old, upload.read(), user=request.user)
+            else:
+                drop = photo_drops.save_drop(upload.read(), user=request.user)
         except photo_drops.PhotoDropError as exc:
             return Response({'photo': [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
         return Response(PhotoDropSerializer(drop).data, status=status.HTTP_201_CREATED)

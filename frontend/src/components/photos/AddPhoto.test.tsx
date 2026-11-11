@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AddPhoto } from './AddPhoto';
+import { markPhotosUsed } from './photoFile';
 import { NARROW_WINDOW_QUERY, TOUCH_ONLY_QUERY, photoMethodOrder } from './photoMethods';
 
 const api = vi.hoisted(() => ({
@@ -137,6 +138,35 @@ describe('Add photo', () => {
     expect(file.type).toBe('image/jpeg');
     expect(api.getPhotoDropFile).toHaveBeenCalledWith(7);
     expect(api.markPhotoDropUsed).toHaveBeenCalledWith(7, 'Processing');
+  });
+
+  it('a form that saves later does not mark the photo used on the pick; it marks it when it saves', async () => {
+    device({});
+    const onPhotos = show({ usedWhere: 'Add item', usedOn: 'save' });
+    await userEvent.click(screen.getByTestId('add-photo'));
+    await userEvent.click(await screen.findByTestId('add-photo-drawer'));
+    const dialog = await screen.findByTestId('photo-drawer-dialog');
+    const tile = await within(dialog).findByTestId('photo-drop');
+    await userEvent.click(within(tile).getByRole('button'));
+    await waitFor(() => expect(onPhotos).toHaveBeenCalledTimes(1));
+    expect(api.markPhotoDropUsed).not.toHaveBeenCalled();
+    const [file] = onPhotos.mock.calls[0][0] as File[];
+    // A cancelled form never gets here. A saved one does, and a file that is not from the drawer is skipped.
+    await markPhotosUsed([file, new File(['x'], 'other.jpg', { type: 'image/jpeg' }), null], 'Add item');
+    expect(api.markPhotoDropUsed).toHaveBeenCalledTimes(1);
+    expect(api.markPhotoDropUsed).toHaveBeenCalledWith(7, 'Add item');
+  });
+
+  it('a computer with no camera offers the other two ways as buttons', async () => {
+    device({});
+    show();
+    await userEvent.click(screen.getByTestId('add-photo'));
+    await userEvent.click(await screen.findByTestId('add-photo-take'));
+    const camera = await screen.findByTestId('photo-camera-dialog');
+    expect(await within(camera).findByTestId('photo-camera-none')).toBeInTheDocument();
+    expect(within(camera).queryByTestId('photo-camera-take')).toBeNull();
+    await userEvent.click(within(camera).getByTestId('photo-camera-use-drawer'));
+    expect(await screen.findByTestId('photo-drawer-dialog')).toBeInTheDocument();
   });
 
   it('an empty drawer says how to fill it', async () => {

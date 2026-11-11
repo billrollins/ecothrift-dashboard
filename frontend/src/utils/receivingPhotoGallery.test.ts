@@ -56,7 +56,7 @@ describe('buildReceivingPhotoGallery', () => {
     );
     expect(gallery.map((g) => g.attachment.id)).toEqual([2, 1, 4, 5, 3, 6, 7, 10]);
     expect(gallery.map((g) => g.title)).toEqual([
-      'Bill of Lading',
+      'Bill of lading',
       'Truck photo',
       'Pallet 1 · Front',
       'Pallet 1 · Right',

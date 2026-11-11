@@ -57,6 +57,8 @@ export interface ImageViewerDialogProps {
   canEdit?: boolean;
   /** Pick a new image file to replace the current one in place. */
   onReplaceFile?: (file: File) => void | Promise<void>;
+  /** The screen's name, so a drawer photo picked for Replace reads "Used · Receiving". */
+  replaceUsedWhere?: string;
   /** Gallery navigation (e.g. Receiving photo sequence). */
   onPrev?: () => void;
   onNext?: () => void;
@@ -103,6 +105,7 @@ export function ImageViewerDialog({
   hasPrev = false,
   hasNext = false,
   positionLabel = null,
+  replaceUsedWhere,
 }: ImageViewerDialogProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
@@ -613,6 +616,7 @@ export function ImageViewerDialog({
             label={replacing ? 'Replacing…' : 'Replace'}
             data-testid="image-viewer-replace"
             fileInputTestId="image-viewer-replace-input"
+            usedWhere={replaceUsedWhere}
             onPhotos={(files) => void handleReplacePick(files[0])}
           />
         ) : null}

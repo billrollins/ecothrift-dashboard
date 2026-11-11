@@ -18,6 +18,11 @@ export interface AddPhotoOptions {
   max?: number;
   /** Where the photo goes, in the screen's own words. A drawer photo then reads "Used in Processing". */
   usedWhere?: string;
+  /**
+   * When a drawer photo gets its Used mark. `pick` (default): at once, for a screen that saves the photo the moment
+   * it is picked. `save`: the screen holds the photo until its own Save or Send, and calls `markPhotosUsed` then.
+   */
+  usedOn?: 'pick' | 'save';
   /** Test id of the hidden From files input (screens that already had one keep theirs). */
   fileInputTestId?: string;
 }
@@ -36,7 +41,7 @@ const METHOD_LABEL: Record<PhotoMethod, string> = { take: 'phTakePhoto', drawer:
  * `open(anchor)` shows the choices beside `anchor`; render `node` once anywhere in the same component.
  * Most screens use the `AddPhoto` button below; this hook is for a screen with its own trigger (a tile, an icon).
  */
-export function useAddPhoto({ onPhotos, multiple = false, max, usedWhere = '', fileInputTestId }: AddPhotoOptions) {
+export function useAddPhoto({ onPhotos, multiple = false, max, usedWhere = '', usedOn = 'pick', fileInputTestId }: AddPhotoOptions) {
   const lang = useLanguage();
   const isPhone = useIsPhoneDevice();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
@@ -99,7 +104,7 @@ export function useAddPhoto({ onPhotos, multiple = false, max, usedWhere = '', f
             key={method}
             onClick={() => choose(method)}
             data-testid={`add-photo-${method}`}
-            sx={{ minHeight: 48, pr: 3 }}
+            sx={{ minHeight: { xs: 52, sm: 48 }, pr: 3 }}
           >
             <ListItemIcon>{METHOD_ICON[method]}</ListItemIcon>
             <ListItemText primary={t(METHOD_LABEL[method], lang)} />
@@ -115,10 +120,17 @@ export function useAddPhoto({ onPhotos, multiple = false, max, usedWhere = '', f
           multiple={multiple && limit > 1}
           max={max}
           usedWhere={usedWhere}
+          usedOn={usedOn}
         />
       ) : null}
       {cameraOpen ? (
-        <CameraDialog open onClose={() => setCameraOpen(false)} onPhoto={(file) => deliver([file])} />
+        <CameraDialog
+          open
+          onClose={() => setCameraOpen(false)}
+          onPhoto={(file) => deliver([file])}
+          onUseDrawer={() => setDrawerOpen(true)}
+          onUseFiles={() => filesRef.current?.click()}
+        />
       ) : null}
     </span>
   );
@@ -134,10 +146,10 @@ export interface AddPhotoProps extends AddPhotoOptions, Omit<ButtonProps, 'onCli
 
 /** The Add photo button. Every staff screen that asks for a photo uses this one. */
 export function AddPhoto({
-  onPhotos, multiple, max, usedWhere, fileInputTestId, label, 'data-testid': testId = 'add-photo', ...button
+  onPhotos, multiple, max, usedWhere, usedOn, fileInputTestId, label, 'data-testid': testId = 'add-photo', ...button
 }: AddPhotoProps) {
   const lang = useLanguage();
-  const picker = useAddPhoto({ onPhotos, multiple, max, usedWhere, fileInputTestId });
+  const picker = useAddPhoto({ onPhotos, multiple, max, usedWhere, usedOn, fileInputTestId });
   return (
     <>
       <Button

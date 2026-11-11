@@ -141,6 +141,33 @@ class PhotoDropTests(TestCase):
         self.assertEqual(res.status_code, 200, res.data)
         self.assertEqual(res.data['used_where'], '')
 
+    # -- a turned or cropped copy ---------------------------------------------
+    def test_an_edited_copy_takes_the_old_ones_place_time_and_used_mark(self):
+        first = self.drop()['id']
+        mine = self.drop(width=800, height=600)['id']
+        self.age(mine, 2)
+        self.c_ann.post(f'{BASE}{mine}/used/', {'where': 'Receiving'}, format='json')
+        before = PhotoDrop.objects.get(pk=mine)
+        old_keys = [before.file.key, before.thumbnail.key]
+        res = self.c_ann.post(BASE, {'photo': photo(width=600, height=800), 'replaces': mine}, format='multipart')
+        self.assertEqual(res.status_code, 201, res.data)
+        new = PhotoDrop.objects.get(pk=res.data['id'])
+        self.assertEqual((new.width, new.height), (600, 800))
+        self.assertEqual(new.created_at, before.created_at)
+        self.assertEqual(new.used_at, before.used_at)
+        self.assertEqual(new.used_where, 'Receiving')
+        self.assertFalse(PhotoDrop.objects.filter(pk=mine).exists())
+        self.assertFalse(any(default_storage.exists(key) for key in old_keys))
+        # Still older than the photo taken after it: it keeps its place in the drawer.
+        self.assertEqual([row['id'] for row in self.c_ann.get(BASE).data], [first, new.pk])
+
+    def test_an_edited_copy_cannot_replace_someone_elses_photo(self):
+        theirs = self.drop(self.c_bob)['id']
+        res = self.c_ann.post(BASE, {'photo': photo(), 'replaces': theirs}, format='multipart')
+        self.assertEqual(res.status_code, 400)
+        self.assertTrue(PhotoDrop.objects.filter(pk=theirs).exists())
+        self.assertEqual(PhotoDrop.objects.filter(owner=self.ann).count(), 0)
+
     # -- the 30-day clean-up ----------------------------------------------------
     def test_clean_up_removes_drops_older_than_30_days_used_or_not(self):
         old, old_used, fresh = self.drop()['id'], self.drop()['id'], self.drop()['id']

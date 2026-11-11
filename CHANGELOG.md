@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.274.0] -->
-<!-- Last reviewed: 2026-11-11 (2.274.0) -->
+<!-- Line 1 release: ## [2.274.1] -->
+<!-- Last reviewed: 2026-11-11 (2.274.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.274.1] - 2026-11-11
+
+User-facing theme: **Photo drops and Add photo: the critic-cycle fixes (Dash Update #93).**
+
+> **For Bill:** both screens went through two critic rounds and finished at A- (from B+ and B); you stopped the cycle there. What changed: a photo saves the moment it is taken, and a failed save stays on screen as "Not saved" with Try again; From files takes several at once; tiles show the whole photo; "Used" is marked only when the form really saves and says where. The big view has Turn left, Turn right, Crop, Undo and a close button, and a turned or cropped photo keeps its place and its Used mark. In Ask for an update and Add item, tap a picked photo to turn or crop it. Two bugs were found and fixed (the drawer re-drew in a loop while loading; a retried photo was held back while the mouse was over the drawer). Not done: Receiving's own big photo viewer still looks different (four other screens share it). Five small questions for you are in the decisions file.
+
+### Changed (#93 critic cycle: Photo drops and Add photo)
+- Photo drops (`pages/photoDrops`, `components/photos`): a photo saves the moment it is taken; a failed save stays as "Not saved" with Try again; From files takes several; tiles show the whole photo; "Used" is set only when the form saves and names the place; a photo from another device waits while a hand is over the drawer.
+- Big view: Turn left, Turn right, Crop, Undo, close, and Cancel once changed. A turned or cropped photo keeps its time, place and Used mark (server: `replaces` on the photo-drops API; 2 new tests; no migration).
+- Ask for an update and Add item: tap a picked photo to turn or crop it. A PC with no camera is offered the drawer or files. Receiving's boxes show the whole photo ("Bill of lading", "Truck photo").
+- Fixed: the drawer re-rendered in a loop while loading; a retried or edited photo was held back while the mouse was over the drawer.
 
 ## [2.274.0] - 2026-11-11
 

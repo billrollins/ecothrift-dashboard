@@ -1,12 +1,13 @@
 import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { getPhotoDropFile, markPhotoDropUsed, type PhotoDropDTO } from '../../api/photoDrops.api';
-import { photoDropsKey, usePhotoDrops } from '../../hooks/usePhotoDrops';
+import { photoDropsKey, usePhotoDrops, useSteadyDrops } from '../../hooks/usePhotoDrops';
 import { useQueryClient } from '@tanstack/react-query';
 import { t } from '../../i18n/routines';
 import { useLanguage } from '../../i18n/useLanguage';
 import { PhotoDropTile } from './PhotoDropTile';
-import { blobToPhotoFile } from './photoFile';
+import { blobToPhotoFile, rememberDrop } from './photoFile';
+import { useIsPhoneDevice } from './photoMethods';
 
 export interface PhotoDrawerDialogProps {
   open: boolean;
@@ -18,16 +19,25 @@ export interface PhotoDrawerDialogProps {
   max?: number;
   /** Where the photo is going, in the screen's own words; shown on the drop as "Used in ...". */
   usedWhere?: string;
+  /**
+   * When the Used mark is made. `pick`: now (a screen that saves the photo the moment it is picked).
+   * `save`: not here; the screen calls `markPhotosUsed` when its own Save or Send goes through.
+   */
+  usedOn?: 'pick' | 'save';
 }
 
 /**
  * Pick from my photo drawer. While it is open the list refreshes every few seconds, so a photo taken on the phone
  * a moment ago shows up without touching anything.
  */
-export function PhotoDrawerDialog({ open, onClose, onPhotos, multiple = false, max, usedWhere = '' }: PhotoDrawerDialogProps) {
+export function PhotoDrawerDialog({
+  open, onClose, onPhotos, multiple = false, max, usedWhere = '', usedOn = 'pick',
+}: PhotoDrawerDialogProps) {
   const lang = useLanguage();
+  const isPhone = useIsPhoneDevice();
   const client = useQueryClient();
-  const { data: drops = [], isLoading, isError } = usePhotoDrops({ enabled: open, live: open });
+  const { data: allDrops = [], isLoading, isError } = usePhotoDrops({ enabled: open, live: open });
+  const { drops, holdProps } = useSteadyDrops(allDrops);
   const [picked, setPicked] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -46,11 +56,15 @@ export function PhotoDrawerDialog({ open, onClose, onPhotos, multiple = false, m
     setError('');
     try {
       const files = await Promise.all(
-        rows.map(async (row) => blobToPhotoFile((await getPhotoDropFile(row.id)).data, row.filename || undefined)),
+        rows.map(async (row) => rememberDrop(
+          blobToPhotoFile((await getPhotoDropFile(row.id)).data, row.filename || undefined), row.id,
+        )),
       );
-      // The mark is a note for the person; a failed mark never blocks using the photo.
-      void Promise.allSettled(rows.map((row) => markPhotoDropUsed(row.id, usedWhere)))
-        .then(() => client.invalidateQueries({ queryKey: photoDropsKey }));
+      if (usedOn === 'pick') {
+        // The mark is a note for the person; a failed mark never blocks using the photo.
+        void Promise.allSettled(rows.map((row) => markPhotoDropUsed(row.id, usedWhere)))
+          .then(() => client.invalidateQueries({ queryKey: photoDropsKey }));
+      }
       onPhotos(files);
       onClose();
     } catch {
@@ -61,6 +75,7 @@ export function PhotoDrawerDialog({ open, onClose, onPhotos, multiple = false, m
 
   const tap = (drop: PhotoDropDTO) => {
     if (!multiple) {
+      setPicked([drop.id]);
       void use([drop]);
       return;
     }
@@ -71,7 +86,14 @@ export function PhotoDrawerDialog({ open, onClose, onPhotos, multiple = false, m
   };
 
   return (
-    <Dialog open={open} onClose={busy ? undefined : onClose} fullWidth maxWidth="md" data-testid="photo-drawer-dialog">
+    <Dialog
+      open={open}
+      onClose={busy ? undefined : onClose}
+      fullWidth
+      maxWidth="md"
+      fullScreen={isPhone}
+      data-testid="photo-drawer-dialog"
+    >
       <DialogTitle sx={{ fontWeight: 800 }}>{t('phMyDrawer', lang)}</DialogTitle>
       <DialogContent sx={{ minHeight: 220 }}>
         {error ? <Alert severity="error" sx={{ mb: 1.5 }}>{error}</Alert> : null}
@@ -88,12 +110,20 @@ export function PhotoDrawerDialog({ open, onClose, onPhotos, multiple = false, m
             <Typography sx={{ color: 'text.secondary', fontSize: 13.5, mb: 1.5 }}>
               {multiple ? t('phPickMany', lang) : t('phPickOne', lang)}
             </Typography>
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(132px, 1fr))', gap: 1.5 }}>
+            <Box
+              {...holdProps}
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: 'repeat(3, minmax(0, 1fr))', sm: 'repeat(auto-fill, minmax(132px, 1fr))' },
+                gap: { xs: 1, sm: 1.5 },
+              }}
+            >
               {drops.map((drop) => (
                 <PhotoDropTile
                   key={drop.id}
                   drop={drop}
                   selected={picked.includes(drop.id)}
+                  working={busy && picked.includes(drop.id)}
                   disabled={busy}
                   onClick={() => tap(drop)}
                 />
@@ -102,7 +132,19 @@ export function PhotoDrawerDialog({ open, onClose, onPhotos, multiple = false, m
           </>
         )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
+      <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+        {/* Always in the row, so the buttons never move when the wait starts. */}
+        <Box
+          role="status"
+          data-testid="photo-drawer-adding"
+          sx={{
+            flex: 1, display: 'flex', alignItems: 'center', gap: 1, fontSize: 14, fontWeight: 700,
+            visibility: busy ? 'visible' : 'hidden',
+          }}
+        >
+          <CircularProgress size={18} />
+          {t('phAdding', lang)}
+        </Box>
         <Button onClick={onClose} disabled={busy}>{t('phCancel', lang)}</Button>
         {multiple ? (
           <Button
@@ -110,6 +152,7 @@ export function PhotoDrawerDialog({ open, onClose, onPhotos, multiple = false, m
             disabled={busy || picked.length === 0}
             onClick={() => void use(drops.filter((drop) => picked.includes(drop.id)))}
             data-testid="photo-drawer-use"
+            sx={{ minWidth: 150 }}
           >
             {t('phUsePhotos', lang)}{picked.length ? ` (${picked.length})` : ''}
           </Button>

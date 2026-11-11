@@ -17,9 +17,11 @@ const BASE = '/core/photo-drops';
 
 export const getPhotoDrops = () => api.get<PhotoDropDTO[]>(`${BASE}/`);
 
-export function addPhotoDrop(photo: Blob, filename = 'photo.jpg') {
+/** Save a photo to my drawer. `replaces`: a turned or cropped copy of that drop takes its place and keeps its time. */
+export function addPhotoDrop(photo: Blob, replaces?: number) {
   const form = new FormData();
-  form.append('photo', photo, filename);
+  form.append('photo', photo, 'photo.jpg');
+  if (replaces != null) form.append('replaces', String(replaces));
   return api.post<PhotoDropDTO>(`${BASE}/`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
 }
 

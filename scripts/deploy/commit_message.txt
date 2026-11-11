@@ -1,12 +1,13 @@
-v2.274.0 — Processing: search always in reach; a scan works after Back to queue or a check-in
+v2.274.1 — Photo drops and Add photo: critic-cycle fixes
 
-User-facing theme: **Processing: the search is always in reach, and a scan just works after Back to queue or a check-in (Dash Update #97).**
+User-facing theme: **Photo drops and Add photo: the critic-cycle fixes (Dash Update #93).**
 
-> **For Bill:** you asked that a processor never has to click or delete between items. Now: one scan bar shows on the queue, the row page and the check-in window. **Back to queue** puts the cursor in the queue search with the old words selected, so the next scan replaces them. **After a check-in** (saved or closed) the cursor goes back to the search with its words selected, so the next scan goes straight to the next item. A scan made anywhere on these screens goes to the search; a scan that lands in a price, quantity or note box is taken back out and nothing is saved. A scan that matches one row opens it (a group of rows checked in together now counts as one row, so scanning those UPCs works where it used to do nothing), and a scan that matches nothing says so in a fixed spot. Not tried with a real hand scanner or a real saved check-in: it was tested by sending keys at scanner speed. Tell me if a real scanner behaves differently.
+> **For Bill:** both screens went through two critic rounds and finished at A- (from B+ and B); you stopped the cycle there. What changed: a photo saves the moment it is taken, and a failed save stays on screen as "Not saved" with Try again; From files takes several at once; tiles show the whole photo; "Used" is marked only when the form really saves and says where. The big view has Turn left, Turn right, Crop, Undo and a close button, and a turned or cropped photo keeps its place and its Used mark. In Ask for an update and Add item, tap a picked photo to turn or crop it. Two bugs were found and fixed (the drawer re-drew in a loop while loading; a retried photo was held back while the mouse was over the drawer). Not done: Receiving's own big photo viewer still looks different (four other screens share it). Five small questions for you are in the decisions file.
 
-### Changed (#97: Processing scan flow)
-- One scan bar on the Processing queue, the row page and the check-in window (`ProcessingScanBar.tsx`, `ProcessingWorkspacePage.tsx`, `ProcessingCheckInDialog.tsx`). Back to queue and closing the check-in window (saved or not) put the cursor in the search with its words selected.
-- New `processingScanRouting.ts`: a key typed outside a typing box goes to the search; a scanner burst that lands in a price, retail, cost, quantity, count, note or percent box is taken back out, its Enter is held, and the scan goes to the search. UPC and search boxes take scans as before.
-- A scan that matches one row opens it, and rows checked in as one group count as one row. A scan that matches nothing says so in a fixed spot on the bar. Recent searches open only on a click. Front end only; 9 new tests in `processingScanFlow.test.tsx`.
+### Changed (#93 critic cycle: Photo drops and Add photo)
+- Photo drops (`pages/photoDrops`, `components/photos`): a photo saves the moment it is taken; a failed save stays as "Not saved" with Try again; From files takes several; tiles show the whole photo; "Used" is set only when the form saves and names the place; a photo from another device waits while a hand is over the drawer.
+- Big view: Turn left, Turn right, Crop, Undo, close, and Cancel once changed. A turned or cropped photo keeps its time, place and Used mark (server: `replaces` on the photo-drops API; 2 new tests; no migration).
+- Ask for an update and Add item: tap a picked photo to turn or crop it. A PC with no camera is offered the drawer or files. Receiving's boxes show the whole photo ("Bill of lading", "Truck photo").
+- Fixed: the drawer re-rendered in a loop while loading; a retried or edited photo was held back while the mouse was over the drawer.
 
 Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>

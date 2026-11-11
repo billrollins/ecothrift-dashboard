@@ -1,4 +1,31 @@
 /** Small helpers the photo drawer and the Add photo control share. */
+import { markPhotoDropUsed } from '../../api/photoDrops.api';
+
+/** Which drawer photo a picked file came from, for screens that mark it used only once they really save. */
+const DROP_OF_FILE = new WeakMap<File, number>();
+
+export function rememberDrop(file: File, dropId: number): File {
+  DROP_OF_FILE.set(file, dropId);
+  return file;
+}
+
+/** A turned or cropped copy of a picked photo: still the same drawer photo. */
+export function editedPhotoFile(from: File, blob: Blob): File {
+  const file = new File([blob], from.name.replace(/\.[a-z0-9]+$/i, '') + '.jpg', { type: 'image/jpeg', lastModified: Date.now() });
+  const id = DROP_OF_FILE.get(from);
+  if (id != null) DROP_OF_FILE.set(file, id);
+  return file;
+}
+
+/**
+ * A form that holds its photos until Send or Save calls this when the save went through. Files that did not come
+ * from the drawer are skipped. The mark is a note for the person, so a failed mark is never an error.
+ */
+export async function markPhotosUsed(files: Array<File | null | undefined>, where: string): Promise<void> {
+  const ids = files.map((file) => (file ? DROP_OF_FILE.get(file) : undefined)).filter((id): id is number => id != null);
+  if (!ids.length) return;
+  await Promise.allSettled(ids.map((id) => markPhotoDropUsed(id, where)));
+}
 
 /** Long side of a photo saved to the drawer; the server keeps the same limit. */
 export const DROP_MAX_EDGE = 2048;

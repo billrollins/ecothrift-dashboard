@@ -8,7 +8,7 @@ import CheckCircleOutlineOutlined from '@mui/icons-material/CheckCircleOutlineOu
 import FlagOutlined from '@mui/icons-material/FlagOutlined';
 import ArrowBackIosNewOutlined from '@mui/icons-material/ArrowBackIosNewOutlined';
 import ImageOutlined from '@mui/icons-material/ImageOutlined';
-import UploadOutlined from '@mui/icons-material/UploadOutlined';
+import PhotoCameraOutlined from '@mui/icons-material/PhotoCameraOutlined';
 import RecyclingOutlined from '@mui/icons-material/RecyclingOutlined';
 
 import type { ChangeEvent } from 'react';
@@ -290,7 +290,7 @@ function ThumbBolTruck({
           src={url}
           loading="lazy"
           decoding="async"
-          sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          sx={{ width: '100%', height: '100%', objectFit: 'contain' }}
         />
       ) : (
         <>
@@ -412,7 +412,7 @@ function DropZoneBox({
         }}
       >
         {!small ? (
-          <UploadOutlined sx={{ fontSize: 18, color: TOKENS.mutedEarth }} />
+          <PhotoCameraOutlined sx={{ fontSize: 18, color: TOKENS.mutedEarth }} />
         ) : null}
         {label ? (
           <Typography
@@ -1341,15 +1341,15 @@ export default function ReceivingDesktopWorkspace({
 
           {/* BOL */}
           <Box>
-            <Typography sx={panelLabelSx()}>Bill of Lading</Typography>
+            <Typography sx={panelLabelSx()}>Bill of lading</Typography>
             <Box sx={{ height: TOKENS.bolTruckH }}>
               {hasBol(m) && bol ? (
                 <Box sx={{ height: '100%', position: 'relative', borderRadius: '10px', overflow: 'hidden' }}>
                   <ThumbBolTruck
                     url={bolThumbUrl}
                     name={bol.s3_file?.filename ?? 'BOL'}
-                    alt="Bill of Lading"
-                    onOpen={() => openAttachment(bol, 'Bill of Lading')}
+                    alt="Bill of lading"
+                    onOpen={() => openAttachment(bol, 'Bill of lading')}
                   />
                   {!m.completed_at && !(disabled ?? false) ? (
                     <AddPhotoTrigger usedWhere="Receiving" onPhotos={(files) => void onBolTruckPick('bol', files)}>
@@ -1383,7 +1383,7 @@ export default function ReceivingDesktopWorkspace({
                 <DropZoneBox
                   small={false}
                   hasContent={false}
-                  label="Drop BOL photo"
+                  label="Add photo"
                   onDropFiles={handleBolDrop}
                 />
               )}
@@ -1392,7 +1392,7 @@ export default function ReceivingDesktopWorkspace({
 
           {/* TRUCK */}
           <Box>
-            <Typography sx={panelLabelSx()}>Truck Photo</Typography>
+            <Typography sx={panelLabelSx()}>Truck photo</Typography>
             <Box sx={{ height: TOKENS.bolTruckH }}>
               {hasTruck(m) && truck ? (
                 <Box sx={{ height: '100%', position: 'relative', borderRadius: '10px', overflow: 'hidden' }}>
@@ -1433,7 +1433,7 @@ export default function ReceivingDesktopWorkspace({
               ) : (
                 <DropZoneBox
                   hasContent={false}
-                  label="Drop truck photo"
+                  label="Add photo"
                   onDropFiles={handleTruckDrop}
                 />
               )}
@@ -1705,6 +1705,7 @@ export default function ReceivingDesktopWorkspace({
       </Box>
 
       <ImageViewerDialog
+        replaceUsedWhere="Receiving"
         open={viewer != null}
         onClose={closeViewer}
         src={viewer?.src ?? null}
