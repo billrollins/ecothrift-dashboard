@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.274.1] -->
-<!-- Last reviewed: 2026-11-11 (2.274.1) -->
+<!-- Line 1 release: ## [2.275.0] -->
+<!-- Last reviewed: 2026-11-11 (2.275.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.275.0] - 2026-11-11
+
+User-facing theme: **Processing: fast, smart product search inside a manifest row (Dash Update #98).**
+
+> **For Bill:** you said Add product / Search product was "SUPER slow and clunky". Opening a manifest row now shows likely products at once, with no typing: an exact code match first (UPC, SKU, item number), then the row's brand and title, then products close in meaning. There is a clear **Search products** box and button. The search no longer needs every word to be in the title: it looks at codes, tags, titles and meaning together, ranks them, and an extra or missing word no longer empties the list. Each result shows brand, model, UPC, category, how many sold, the average price and how many are on the shelf, and why it is listed; **Use** attaches it. Measured on ten real rows of the big Target truck (local copy, 203,827 products): a search went from about half a second (535 ms, first one 1.6 s) to 22 ms, and the likely list is ready in about 80 ms. Not verified: search by meaning from typed words could not be tried on this PC; it only runs when no word matches.
+
+### Changed (#98: product search inside a manifest row)
+- New `services/product_find.py` with `GET /api/inventory/processing-rows/<id>/likely-products/` and `GET /api/inventory/product-find/?q=&row=`: codes first, then all words, then all but one or two, ranked with rare words weighted; close in meaning fills the rest. No migration (existing trigram and vector indexes).
+- `ProcessingProductFinder` replaces the old search box inside a Processing row: likely products shown at once, a Search products box and button, results with brand, model, UPC, category, sold, average price and on-shelf count. `ProductSearchAutocomplete` and its other two users are unchanged.
+- Measured on order 384: search median 535 ms to 22 ms; likely list median 79 ms.
 
 ## [2.274.1] - 2026-11-11
 

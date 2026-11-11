@@ -36,7 +36,7 @@ import {
 import { printProcessingLabelsAndMarkPrinted } from './printProcessingLabel';
 import { checkInPrintActionLabel } from './checkedInPrintedAggregate';
 import { apiErrorDetail } from '../../../hooks/useProductSearch';
-import { ProductSearchAutocomplete } from '../../../components/inventory/ProductSearchAutocomplete';
+import { ProcessingProductFinder } from './ProcessingProductFinder';
 import {
   getProduct,
   type ProcessingCheckInPayload,
@@ -2301,27 +2301,13 @@ export function ProcessingActiveCard({
               </Button>
             </Box>
             <Stack spacing={0.45} sx={{ flex: '1 1 auto', minHeight: 0, overflow: 'hidden' }}>
-              <Box
-                sx={{
-                  flexShrink: 0,
-                  px: 0.75,
-                  py: 0.35,
-                  border: 1,
-                  borderColor: processingTokens.border,
-                  borderRadius: 1,
-                  bgcolor: processingTokens.surfaceRaised,
-                }}
-              >
-                <ProductSearchAutocomplete
-                  scope="processing-row-attach"
-                  label="Search to add product"
-                  placeholder="Type product #, title, brand, model, UPC…"
-                  value={null}
-                  onSelect={(product) => void handleAttachExistingProduct(product?.id)}
-                  searchOnly
-                  helperText=""
-                />
-              </Box>
+              {/* #98: likely products the moment the row opens, and one smart search (ProcessingProductFinder). */}
+              <ProcessingProductFinder
+                key={row.processing_row_id}
+                processingRowId={row.processing_row_id}
+                attachedProductIds={attachedProductIds}
+                onUse={(productId) => void handleAttachExistingProduct(productId)}
+              />
               <Stack
                 spacing={0.45}
                 sx={{
