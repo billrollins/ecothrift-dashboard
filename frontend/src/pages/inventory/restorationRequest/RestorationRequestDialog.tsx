@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
 import type { RestorationRequestPayload } from '../../../types/inventory.types';
 import { RestorationRequestFields } from './RestorationRequestFields';
 import {
@@ -20,12 +20,15 @@ export function RestorationRequestDialog({
   onCancel,
   onConfirm,
   price,
+  about,
 }: {
   open: boolean;
   initial?: RestorationRequestForm;
   /** The check-in's price: the done price starts as it (Dash Updates #2). */
   price?: string | null;
   busy?: boolean;
+  /** Drawn above the request: which item this is, when the window opens from a list of items. */
+  about?: ReactNode;
   onCancel: () => void;
   onConfirm: (request: RestorationRequestPayload) => void;
 }) {
@@ -39,6 +42,7 @@ export function RestorationRequestDialog({
     <Dialog open={open} onClose={busy ? undefined : onCancel} fullWidth maxWidth="sm">
       <DialogTitle sx={{ fontWeight: 800 }}>Send to Restoration</DialogTitle>
       <DialogContent>
+        {about ? <Box sx={{ mb: 2 }}>{about}</Box> : null}
         {open ? <RestorationRequestFields key={String(open)} value={form} onChange={setForm} disabled={busy} price={price} /> : null}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2, gap: 1, flexWrap: 'wrap' }}>

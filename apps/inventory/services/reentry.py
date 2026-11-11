@@ -247,6 +247,15 @@ def counts() -> dict[str, int]:
     return found
 
 
+def done_today() -> dict[str, int]:
+    """How many were decided today (store time), by source: the count beside Done."""
+    start = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+    found = dict.fromkeys(SOURCES, 0)
+    for source in ProcessingReentry.objects.filter(decided_at__gte=start).values_list('source', flat=True):
+        found[source] = found.get(source, 0) + 1
+    return found
+
+
 def rows(source: str, *, done: bool = False) -> dict[str, Any]:
     """The list for one page: the rows waiting (oldest first), or with ``done`` the last ones decided (newest
     first). ``waiting`` counts both sources so a page can show the other one's number."""
@@ -263,7 +272,7 @@ def rows(source: str, *, done: bool = False) -> dict[str, Any]:
     else:
         found = list(qs.filter(decided_at__isnull=True).order_by('reported_at', 'pk')[:LIST_LIMIT])
     sales = _sales(found)
-    return {'source': source, 'done': done, 'waiting': counts(),
+    return {'source': source, 'done': done, 'waiting': counts(), 'done_today': done_today(),
             'results': [as_row(r, sales.get(r.source_ref) if r.source_ref else None) for r in found]}
 
 
@@ -281,8 +290,13 @@ def find(code: str, source: str) -> dict[str, Any]:
     row = (ProcessingReentry.objects.filter(item=item, decided_at__isnull=True)
            .select_related('item__product', 'reported_by', 'decided_by').first())
     sale = _sales([row]).get(row.source_ref) if row is not None and row.source_ref else None
+    # Not waiting: the last time it was decided, so the page can say "already handled" instead of offering it again.
+    last = None if row is not None else (
+        ProcessingReentry.objects.filter(item=item, decided_at__isnull=False)
+        .select_related('item__product', 'reported_by', 'decided_by').order_by('-decided_at', '-pk').first())
     return {'item': {**label(item), 'status': item.status, 'status_label': item.get_status_display()},
-            'row': as_row(row, sale) if row is not None else None}
+            'row': as_row(row, sale) if row is not None else None,
+            'last': as_row(last) if last is not None else None}
 
 
 # ── The actions ────────────────────────────────────────────────────────────────────────────────────────────────────

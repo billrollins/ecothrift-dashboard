@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { SnackbarProvider } from 'notistack';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import BadTagButton from './BadTagButton';
-import BadTagDialog from './BadTagDialog';
+import BadTagDialog, { typedTag } from './BadTagDialog';
 
 const client = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 vi.mock('../../api/client', () => ({ default: client }));
@@ -53,25 +53,38 @@ describe('Report a problem', () => {
     expect(screen.getByText('The tag')).toBeInTheDocument();
     const send = screen.getByRole('button', { name: 'Send to Processing' });
     expect(send).toBeDisabled();
+    // The line above Send always says what is still needed.
+    expect(screen.getByText('First scan or type the tag.')).toBeInTheDocument();
 
     await user.type(screen.getByLabelText('Scan or type the tag'), 'itm0000101{Enter}');
     expect(await screen.findByText('Brass floor lamp')).toBeInTheDocument();
     // Sent as typed; the server reads any case (and a Perks tag's link) as the SKU.
     expect(client.get).toHaveBeenCalledWith('/inventory/floor-issues/lookup/', { params: { code: 'itm0000101' } });
     expect(send).toBeDisabled();
+    expect(screen.getByText('Now pick what is wrong, then send.')).toBeInTheDocument();
 
     await user.click(screen.getByText('Broken or damaged'));
     expect(send).toBeEnabled();
     await user.type(screen.getByLabelText('Note (optional)'), 'Cracked base');
     await user.click(send);
 
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    // Sent: the window says so, names the item, and stays until Done.
+    const sent = await screen.findByTestId('report-sent');
+    expect(sent).toHaveTextContent('Sent to Processing');
+    expect(sent).toHaveTextContent('Brass floor lamp (ITM0000101)');
+    expect(sent).toHaveTextContent('Put the item on the PR cart.');
+    expect(onClose).not.toHaveBeenCalled();
     expect(client.post).toHaveBeenCalledWith('/inventory/floor-issues/', {
       code: 'ITM0000101', reason: 'broken', where: 'floor', note: 'Cracked base',
       right_price: undefined, right_retail: undefined, photo: undefined,
     });
     expect(onSaved).toHaveBeenCalled();
-    expect(await screen.findByText('Sent to Processing. Put the item on the PR cart.')).toBeInTheDocument();
+    // Report another starts a clean report in the same window.
+    await user.click(screen.getByRole('button', { name: 'Report another' }));
+    expect(screen.getByLabelText('Scan or type the tag')).toHaveValue('');
+    expect(screen.getByText('First scan or type the tag.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onClose).toHaveBeenCalled();
   });
 
   it('a tag problem goes through the same report, with the right price', async () => {
@@ -82,7 +95,8 @@ describe('Report a problem', () => {
 
     expect(await screen.findByText('Brass floor lamp')).toBeInTheDocument();
     await user.click(screen.getByText('Price too high'));
-    await user.type(screen.getByLabelText('Right price (if you know it)'), '12');
+    expect(screen.getByText('Ready to send. Price too high: our price on the tag is more than it should be.')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Right price, if known'), '12');
     await user.click(screen.getByRole('button', { name: 'Send to Processing' }));
 
     await waitFor(() => expect(client.post).toHaveBeenCalled());
@@ -98,6 +112,7 @@ describe('Report a problem', () => {
     await user.click(screen.getByText('Other'));
     const send = screen.getByRole('button', { name: 'Send to Processing' });
     expect(send).toBeDisabled();
+    expect(screen.getByText('Say what is wrong in the note, then send.')).toBeInTheDocument();
     await user.type(screen.getByLabelText('What is wrong with it?'), 'Smells like smoke');
     expect(send).toBeEnabled();
   });
@@ -107,9 +122,13 @@ describe('Report a problem', () => {
     const user = userEvent.setup();
     wrap(<BadTagDialog open where="floor" initialCode="ITM0000101" onClose={vi.fn()} />);
 
-    expect(await screen.findByText(/Already on its way to Processing: Dirty \(Pat\)/)).toBeInTheDocument();
-    await user.click(screen.getByText('Broken or damaged'));
-    expect(screen.getByRole('button', { name: 'Send to Processing' })).toBeDisabled();
+    expect(await screen.findByText('Already reported: Dirty')).toBeInTheDocument();
+    expect(screen.getByText(/\(by Pat\)\. It is waiting in Processing\. Nothing more to send\./)).toBeInTheDocument();
+    // Nothing left to pick or send: the only way on is Close.
+    expect(screen.queryByText('Broken or damaged')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send to Processing' })).not.toBeInTheDocument();
+    const onlyClose = screen.getAllByRole('button', { name: 'Close' });
+    await user.click(onlyClose[onlyClose.length - 1]);
     expect(client.post).not.toHaveBeenCalled();
   });
 
@@ -130,5 +149,85 @@ describe('Report a problem', () => {
     await user.click(screen.getByRole('button', { name: 'Report a problem' }));
     expect(await screen.findByText('Brass floor lamp')).toBeInTheDocument();
     expect(screen.getByLabelText('Scan or type the tag')).toHaveValue('ITM0000101');
+  });
+
+  it('takes the digits of a tag alone, and says what to do when no item has the tag', async () => {
+    expect(typedTag('226270')).toBe('ITM0226270');
+    expect(typedTag('itm0226270')).toBe('itm0226270');
+    expect(typedTag('HTTPS://ECOTHRIFT.US/I/ITM0226270')).toBe('ITM0226270');
+    client.get.mockResolvedValue({ data: { ...FOUND, found: false, item: null, code: 'ITM0000999' } });
+    const user = userEvent.setup();
+    wrap(<BadTagDialog open where="floor" onClose={vi.fn()} />);
+    await user.type(screen.getByLabelText('Scan or type the tag'), '999{Enter}');
+    expect(client.get).toHaveBeenCalledWith('/inventory/floor-issues/lookup/', { params: { code: 'ITM0000999' } });
+    expect(await screen.findByText(/No item has this tag\. Check the number and try again\./)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send to Processing' })).toBeDisabled();
+  });
+
+  it('a second scan replaces the first, and one tap clears the tag', async () => {
+    client.get.mockImplementation(async (_url: string, opts: { params: { code: string } }) => ({
+      data: { ...FOUND, code: opts.params.code.toUpperCase(), item: { ...ITEM, sku: opts.params.code.toUpperCase() } },
+    }));
+    const user = userEvent.setup();
+    wrap(<BadTagDialog open where="floor" onClose={vi.fn()} />);
+    const tag = screen.getByLabelText('Scan or type the tag');
+    await user.click(tag);
+    await user.keyboard('ITM0000101{Enter}');
+    expect(await screen.findByText(/ITM0000101$/)).toBeInTheDocument();
+    await user.keyboard('ITM0000202{Enter}');
+    await waitFor(() => expect(tag).toHaveValue('ITM0000202'));
+    expect(client.get).toHaveBeenLastCalledWith('/inventory/floor-issues/lookup/', { params: { code: 'ITM0000202' } });
+    await user.click(screen.getByRole('button', { name: 'Clear the tag' }));
+    expect(tag).toHaveValue('');
+    expect(screen.getByText('First scan or type the tag.')).toBeInTheDocument();
+  });
+
+  it('asks before closing when a note would be lost', async () => {
+    client.get.mockResolvedValue({ data: FOUND });
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    wrap(<BadTagDialog open where="floor" initialCode="ITM0000101" onClose={onClose} />);
+    expect(await screen.findByText('Brass floor lamp')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Note (optional)'), 'Cracked base');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText('Close without sending? The note and photo are lost.')).toBeInTheDocument();
+    // Keep going puts the window back as it was.
+    await user.click(screen.getByRole('button', { name: 'Keep going' }));
+    expect(screen.getByLabelText('Note (optional)')).toHaveValue('Cracked base');
+    expect(screen.getByRole('button', { name: 'Send to Processing' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Close without sending' }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('a different item scanned after the first starts a clean report', async () => {
+    client.get.mockImplementation(async (_url: string, opts: { params: { code: string } }) => ({
+      data: { ...FOUND, code: opts.params.code, item: { ...ITEM, id: opts.params.code === 'ITM0000101' ? 7 : 8, sku: opts.params.code } },
+    }));
+    const user = userEvent.setup();
+    wrap(<BadTagDialog open where="floor" onClose={vi.fn()} />);
+    const tag = screen.getByLabelText('Scan or type the tag');
+    await user.click(tag);
+    await user.keyboard('ITM0000101{Enter}');
+    await user.click(await screen.findByText('Dirty'));
+    await user.type(screen.getByLabelText('Note (optional)'), 'Sticky');
+    await user.click(tag);
+    await user.keyboard('ITM0000202{Enter}');
+    await waitFor(() => expect(tag).toHaveValue('ITM0000202'));
+    expect(screen.getByLabelText('Note (optional)')).toHaveValue('');
+    expect(screen.getByText('Now pick what is wrong, then send.')).toBeInTheDocument();
+  });
+
+  it('an item the system says was sold can only be a wrong tag', async () => {
+    client.get.mockResolvedValue({ data: { ...FOUND, item: { ...ITEM, status: 'sold' } } });
+    const user = userEvent.setup();
+    wrap(<BadTagDialog open where="floor" initialCode="ITM0000101" onClose={vi.fn()} />);
+    expect(await screen.findByText('The system says this item was sold.')).toBeInTheDocument();
+    await user.click(screen.getByText('Broken or damaged'));
+    expect(screen.getByRole('button', { name: 'Send to Processing' })).toBeDisabled();
+    expect(screen.getByText('It was sold, so this tag is on the wrong item. Pick "Wrong item".')).toBeInTheDocument();
+    await user.click(screen.getByText('Wrong item'));
+    expect(screen.getByRole('button', { name: 'Send to Processing' })).toBeEnabled();
   });
 });

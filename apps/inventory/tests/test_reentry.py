@@ -117,6 +117,19 @@ class ListTests(ReentryBase):
         self.assertIsNone(miss.json()['row'])
         self.assertEqual(self.api.get('/api/inventory/reentries/find/', {'code': 'NOPE', 'source': RETURN}).status_code, 404)
 
+    def test_find_says_when_the_item_was_already_handled(self):
+        """A tag scanned again after its item was decided: the page says what was done, not "add it"."""
+        self._return('ITMTPLAMP')
+        waiting = self.api.get('/api/inventory/reentries/find/', {'code': 'ITMTPLAMP', 'source': RETURN}).json()
+        self.assertIsNone(waiting['last'])
+        self.assertEqual(self._post(self._row(), 'back-to-shelf').status_code, 200)
+        done = self.api.get('/api/inventory/reentries/find/', {'code': 'ITMTPLAMP', 'source': RETURN}).json()
+        self.assertIsNone(done['row'])
+        self.assertEqual((done['last']['outcome'], done['last']['source']), ('shelf', RETURN))
+        self.assertTrue(done['last']['decided_at'])
+        never = self.api.get('/api/inventory/reentries/find/', {'code': 'ITMTPVASE', 'source': RETURN}).json()
+        self.assertIsNone(never['last'])
+
     def test_bad_source_and_unknown_item_are_refused(self):
         self.assertEqual(self.api.get('/api/inventory/reentries/', {'source': 'attic'}).status_code, 400)
         r = self.api.post('/api/inventory/reentries/', {'sku': 'NOPE', 'source': FLOOR}, format='json')

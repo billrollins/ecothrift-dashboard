@@ -8,6 +8,7 @@ import ProcessingFloorIssuesPage from './ProcessingFloorIssuesPage';
 
 const api = vi.hoisted(() => ({
   listReentries: vi.fn(),
+  findReentry: vi.fn(),
   reentryPriceAgain: vi.fn(),
   reentryBackToShelf: vi.fn(),
   reentrySendToRestoration: vi.fn(),
@@ -21,8 +22,8 @@ vi.mock('../../../components/objects/ObjectModal', () => ({
   ObjectLink: ({ label }: { label: string }) => <span>{label}</span>,
 }));
 vi.mock('../restorationRequest/RestorationRequestDialog', () => ({ RestorationRequestDialog: () => null }));
-vi.mock('../tagErrors/BadTagPhoto', () => ({
-  BadTagPhoto: ({ url }: { url: string }) => <button type="button">{`Photo ${url}`}</button>,
+vi.mock('./ReportPhoto', () => ({
+  ReportPhoto: ({ url }: { url: string }) => <button type="button">{`Photo ${url}`}</button>,
 }));
 vi.mock('../../../components/badTags/BadTagButton', () => ({
   default: ({ code }: { code?: string }) => <button type="button">{code ? `Report a problem ${code}` : 'Report a problem'}</button>,
@@ -86,8 +87,10 @@ describe('Processing > Floor issues', () => {
     await screen.findByTestId('reentry-row-1');
     expect(screen.getByRole('button', { name: 'Report a problem' })).toBeInTheDocument();
 
+    api.findReentry.mockResolvedValue({ item: { ...LAMP.item, id: 99, sku: 'ITM0000099', product_title: 'Oak stool', status_label: 'On shelf' }, row: null, last: null });
     await user.type(screen.getByLabelText('Find on Floor issues'), 'ITM0000099');
-    expect(await screen.findByText('Is ITM0000099 in your hand with a problem? Report it here.')).toBeInTheDocument();
+    expect(await screen.findByText('Oak stool (ITM0000099)')).toBeInTheDocument();
+    expect(screen.getByText('Does it have a problem? Report it.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Report a problem ITM0000099' })).toBeInTheDocument();
   });
 });

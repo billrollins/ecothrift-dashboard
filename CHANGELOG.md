@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.272.0] -->
-<!-- Last reviewed: 2026-11-11 (2.272.0) -->
+<!-- Line 1 release: ## [2.272.1] -->
+<!-- Last reviewed: 2026-11-11 (2.272.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.272.1] - 2026-11-11
+
+User-facing theme: **Processing > Returns, Floor issues and Report a problem: the critic-cycle fixes (Dash Update #92).**
+
+> **For Bill:** three screens went through your 2+1 critic cycle. Final grades: Returns B+, Floor issues B+, Report a problem A- (from B, B and B-). What changed for a processor: the line that says what just happened and where the item goes has its own fixed spot, so rows no longer jump; a second scan replaces the first, and a scan that lands in a price or scrap-reason box is refused (a real bug: a scan plus Enter could scrap an item with the tag number as its reason); Back to shelf and Scrap wait 5 seconds with Undo; the floor's reason and suggested price come in already filled. Report a problem reads the tag with the phone camera, holds its shape on a phone, says what is still needed above Send, and ends on a Sent screen with Report another. Not done, and waiting for you: a take-back after a decision is saved; plain words inside the shared Send to Restoration window. Also in this release: the Heroku build no longer caches the front-end packages (it made the last two builds slower, 174 to 182 seconds against about 147).
+
+### Changed
+- **Processing > Returns and Floor issues, and the Report a problem window (Dash Update #92, critic cycle 2+1).** Returns and Floor issues: a bar that stays at the top holds the find box and one line that says what just happened and where the item goes (it never covers a row and nothing moves); Back to shelf as is and Scrap give a few seconds to Undo before they save; a second scan replaces the first; a scan that lands in the price or scrap box is refused, never saved; the item in hand is named when it is not on the list, with "already handled" when it was; the floor's reason, what Restoration needs and the floor's price come in ready; Done shows today's count; the steps box says what each of the four buttons is for. Report a problem: the phone's camera reads the tag (digits alone work when typing); the window holds its shape from open to send at phone and desktop size; the line above Send always says what is still needed; after sending, the window shows what was sent and offers Report another; closing with a note asks once (Keep going); a new item scanned starts a clean report. The four actions, what they do, and the bad-tag trace are unchanged.
+- Root `package.json`: `cacheDirectories` removed. Caching `frontend/node_modules` and `frontend-public/node_modules` made the Heroku build slower (174 s and 182 s against 142 to 157 s before), as #85 said to check; `build:deploy` (no second type check) stays.
 
 ## [2.272.0] - 2026-11-11
 

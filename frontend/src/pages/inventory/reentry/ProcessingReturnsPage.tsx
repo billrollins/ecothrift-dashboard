@@ -1,50 +1,61 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Alert, Box, Button, Paper, TextField, Typography } from '@mui/material';
-import { reportReentry } from '../../../api/reentry.api';
+import { Alert, Box, Button, TextField, Typography } from '@mui/material';
+import { reportReentry, type ReentryFound } from '../../../api/reentry.api';
 import { PageHeader } from '../../../components/common/PageHeader';
 import { apiErrorMessage } from '../../../utils/apiError';
-import { skuFromScan } from '../../../utils/scanCode';
 import { ReentryList } from './ReentryList';
+import { ReentrySteps } from './ReentrySteps';
 import { SOURCE_WORDS } from './reentry';
 
 const STEPS = [
-  'Find the item: scan its tag.',
+  'Scan the tag of the item in your hand.',
   'Look it over: is it clean, whole and working?',
-  'Pick one: Price again, Back to shelf as is, Send to Restoration, or Scrap.',
-  'Put it where it goes. It leaves this list.',
+  'Tap one of its four buttons. The line under the find box says where the item goes. A slip? Back to shelf as is and Scrap give you a few seconds to undo.',
 ];
 
-/** An item in hand that is not on the list (it came back without a return at the register): add it. */
-function AddReturn({ typed }: { typed: string }) {
+/** A real item in hand that is not on the list (it came back without a return at the register): add it. */
+function AddReturn({ found, say }: { found: ReentryFound; say: (text: string) => void }) {
   const queryClient = useQueryClient();
-  const sku = skuFromScan(typed).trim();
+  const item = found.item;
   const [why, setWhy] = useState('');
   const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<{ severity: 'error' | 'info'; text: string } | null>(null);
+  const [error, setError] = useState('');
+  // Already handled once: adding it again records a second return, so it takes one deliberate tap to open.
+  const [opened, setOpened] = useState(!found.last);
 
   async function add() {
     setBusy(true);
-    setNote(null);
+    setError('');
     try {
-      const row = await reportReentry(sku, 'return', why.trim());
-      if (row.source !== 'return') setNote({ severity: 'info', text: `This one is waiting on ${SOURCE_WORDS[row.source].page}.` });
+      const row = await reportReentry(item.sku, 'return', why.trim());
       await queryClient.invalidateQueries({ queryKey: ['reentries'] });
+      void queryClient.invalidateQueries({ queryKey: ['reentry-find'] });
+      const name = `${item.product_title || item.sku} (${item.sku})`;
+      say(row.source === 'return' ? `${name} is on Returns now. Pick what happens to it.` : `${name} is waiting on ${SOURCE_WORDS[row.source].page}.`);
     } catch (err) {
-      setNote({ severity: 'error', text: apiErrorMessage(err, 'That did not save. Try again.') });
+      setError(apiErrorMessage(err, 'That did not save. Try again.'));
     } finally {
       setBusy(false);
     }
   }
 
+  if (!opened) {
+    return (
+      <Button variant="text" size="small" onClick={() => setOpened(true)} sx={{ mt: 0.5, px: 0, textTransform: 'none' }}>
+        A customer brought it back again
+      </Button>
+    );
+  }
+
   return (
     <Box
       component="form"
-      onSubmit={(e) => { e.preventDefault(); if (sku) void add(); }}
+      onSubmit={(e) => { e.preventDefault(); void add(); }}
       sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1, maxWidth: 520 }}
     >
       <Typography variant="body2">
-        {`Is ${sku} a return in your hand? Add it here.`}
+        {found.last ? 'A new return of the same item: add it to Returns.' : 'Did a customer bring it back? Add it to Returns.'}
       </Typography>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
         <TextField
@@ -56,9 +67,9 @@ function AddReturn({ typed }: { typed: string }) {
           sx={{ flex: 1, minWidth: 200 }}
           slotProps={{ htmlInput: { maxLength: 300 } }}
         />
-        <Button type="submit" variant="contained" disabled={busy || !sku}>Add to Returns</Button>
+        <Button type="submit" variant="contained" disabled={busy} sx={{ minHeight: 40 }}>Add to Returns</Button>
       </Box>
-      {note ? <Alert severity={note.severity}>{note.text}</Alert> : null}
+      {error ? <Alert severity="error">{error}</Alert> : null}
     </Box>
   );
 }
@@ -71,16 +82,9 @@ function AddReturn({ typed }: { typed: string }) {
 export default function ProcessingReturnsPage() {
   return (
     <Box sx={{ p: { xs: 1, sm: 2 }, width: '100%', minWidth: 0, maxWidth: 1200, mx: 'auto' }}>
-      <PageHeader title="Returns" subtitle="Items customers brought back. Pick what happens to each one." dense />
-      <Paper variant="outlined" sx={{ p: 1.5, mb: 2 }}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5 }}>The steps</Typography>
-        <Box component="ol" sx={{ m: 0, pl: 2.5 }}>
-          {STEPS.map((step) => (
-            <Typography key={step} component="li" variant="body2">{step}</Typography>
-          ))}
-        </Box>
-      </Paper>
-      <ReentryList source="return" notOnList={(typed) => <AddReturn typed={typed} />} />
+      <PageHeader title="Returns" subtitle="Items customers brought back. Each one needs one decision." dense />
+      <ReentrySteps steps={STEPS} />
+      <ReentryList source="return" offer={(found, say) => <AddReturn key={found.item.sku} found={found} say={say} />} />
     </Box>
   );
 }

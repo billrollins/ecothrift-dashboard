@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReentryList, ReentryRow } from '../../../api/reentry.api';
 import ProcessingReturnsPage from './ProcessingReturnsPage';
 
-const api = vi.hoisted(() => ({ listReentries: vi.fn(), reportReentry: vi.fn() }));
+const api = vi.hoisted(() => ({ listReentries: vi.fn(), reportReentry: vi.fn(), findReentry: vi.fn() }));
 vi.mock('../../../api/reentry.api', () => api);
 vi.mock('./printReentryTag', () => ({ printReentryTag: vi.fn() }));
 vi.mock('../../../components/objects/ObjectModal', () => ({
@@ -40,13 +40,17 @@ describe('ProcessingReturnsPage', () => {
   beforeEach(() => {
     api.listReentries.mockReset();
     api.reportReentry.mockReset();
+    api.findReentry.mockReset();
+    api.findReentry.mockResolvedValue({ item: { ...ROW.item, status_label: 'On shelf' }, row: null, last: null });
   });
 
   it('shows the steps and asks for the returns list', async () => {
     api.listReentries.mockResolvedValue(list([]));
     page();
     expect(screen.getByRole('heading', { name: 'Returns' })).toBeInTheDocument();
-    expect(screen.getByText('Pick one: Price again, Back to shelf as is, Send to Restoration, or Scrap.')).toBeInTheDocument();
+    expect(screen.getByText('Tap one of its four buttons. The line under the find box says where the item goes. A slip? Back to shelf as is and Scrap give you a few seconds to undo.')).toBeInTheDocument();
+    // What each button is for, and where the item goes after.
+    expect(screen.getAllByText(/It can sell, at a new price\. A new tag prints\. Back to the sales floor\./).length).toBeGreaterThan(0);
     expect(await screen.findByText('No returns are waiting.')).toBeInTheDocument();
     expect(api.listReentries).toHaveBeenCalledWith('return', false);
   });
@@ -58,11 +62,15 @@ describe('ProcessingReturnsPage', () => {
     page();
     await screen.findByText('No returns are waiting.');
     await user.type(screen.getByLabelText('Find on Returns'), 'https://ecothrift.us/i/itm0000031');
-    expect(screen.getByText('Is ITM0000031 a return in your hand? Add it here.')).toBeInTheDocument();
+    // The item is looked up first, so the person sees what they are about to add.
+    expect(await screen.findByText('Desk fan (ITM0000031)')).toBeInTheDocument();
+    expect(screen.getByText('Did a customer bring it back? Add it to Returns.')).toBeInTheDocument();
     await user.type(screen.getByLabelText('Why it came back (optional)'), 'Box was open');
     await user.click(screen.getByRole('button', { name: 'Add to Returns' }));
     await waitFor(() => expect(api.reportReentry).toHaveBeenCalledWith('ITM0000031', 'return', 'Box was open'));
     expect(await screen.findByTestId('reentry-row-7')).toBeInTheDocument();
+    expect(screen.getByText('Desk fan (ITM0000031) is on Returns now. Pick what happens to it.')).toBeInTheDocument();
+
   });
 
   it('says so when the item is waiting on Floor issues instead', async () => {
@@ -72,7 +80,23 @@ describe('ProcessingReturnsPage', () => {
     page();
     await screen.findByText('No returns are waiting.');
     await user.type(screen.getByLabelText('Find on Returns'), 'ITM0000031');
-    await user.click(screen.getByRole('button', { name: 'Add to Returns' }));
-    expect(await screen.findByText('This one is waiting on Floor issues.')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Add to Returns' }));
+    expect(await screen.findByText('Desk fan (ITM0000031) is waiting on Floor issues.')).toBeInTheDocument();
+  });
+
+  it('does not offer to add a number that is no item', async () => {
+    const user = userEvent.setup();
+    api.listReentries.mockResolvedValue(list([]));
+    api.findReentry.mockRejectedValue(new Error('No item with that number.'));
+    page();
+    await screen.findByText('No returns are waiting.');
+    // Plain words are a search, not a tag: nothing is looked up or offered.
+    await user.type(screen.getByLabelText('Find on Returns'), 'zzqqxx');
+    expect(await screen.findByText('To look an item up, scan its tag or type its whole item number.')).toBeInTheDocument();
+    expect(api.findReentry).not.toHaveBeenCalled();
+    await user.clear(screen.getByLabelText('Find on Returns'));
+    await user.type(screen.getByLabelText('Find on Returns'), 'ITM9999999');
+    expect(await screen.findByText('No item has the number ITM9999999.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add to Returns' })).not.toBeInTheDocument();
   });
 });

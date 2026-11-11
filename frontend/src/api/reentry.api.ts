@@ -50,6 +50,8 @@ export interface ReentryList {
   done: boolean;
   /** How many are waiting on each page. */
   waiting: Record<ReentrySource, number>;
+  /** How many were decided today, on each page. */
+  done_today?: Record<ReentrySource, number>;
   results: ReentryRow[];
 }
 
@@ -63,6 +65,8 @@ export interface ReentryFound {
   item: ReentryItem;
   /** Its row when it is waiting (on either page). */
   row: ReentryRow | null;
+  /** Not waiting: the last time it was decided (what was done, who, when), or null when it never was. */
+  last?: ReentryRow | null;
 }
 
 export async function listReentries(source: ReentrySource, done = false): Promise<ReentryList> {
