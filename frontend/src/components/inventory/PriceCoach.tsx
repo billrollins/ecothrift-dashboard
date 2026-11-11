@@ -1,22 +1,36 @@
 /**
- * Price coach (Dash Updates #89): one plain line at the check-in price box, from our own sales. "9 like this sold,
- * most at $12 to $15, in about 2 weeks. 4 priced $25 and up are still on the shelf after 90 days." Tap it for the
- * items it rests on. Facts only: it never changes or blocks a price, and on an error, a slow answer or the owner's
- * switch `inventory_price_coach` off it shows nothing. Server: `apps/inventory/services/price_coach.py`.
+ * Price coach (Dash Updates #89): plain facts at the check-in price box, from our own sales. "This same product:
+ * 8 sold, all for $6.29, typically in 21 days. 109 on the shelf now at $6.29 to $9.74, 11 of them over 90 days."
+ * Open it for the items it rests on. Facts only: it never changes or blocks a price, and on an error, a slow answer
+ * or the owner's switch `inventory_price_coach` off it shows nothing. Server: `apps/inventory/services/price_coach.py`.
  *
- * The recovery estimate beside it (`RecoveryHint`) speaks in percent of retail and suggests a band; this speaks in
- * dollars and days and suggests nothing.
+ * It always names the group it speaks about. When that group is wider than this product it gives this product's
+ * own record first, then one short line about the other products (they never count this product again, so the
+ * parts add up to the count under them).
+ *
+ * Nothing moves: room is held from the moment the window opens, a short answer leaves that room plain (no grey
+ * panel), and an error keeps the room and shows nothing.
+ *
+ * The store-wide estimate beside it (`RecoveryHint`) speaks in percent of retail and suggests a band; this speaks
+ * in dollars and days and suggests nothing.
  */
 import { useEffect, useState } from 'react';
-import {
-  Box, ButtonBase, Dialog, DialogContent, DialogTitle, IconButton, Stack, Table, TableBody, TableCell, TableHead,
-  TableRow, Typography,
-} from '@mui/material';
+import { Box, ButtonBase, Dialog, DialogContent, DialogTitle, IconButton, Stack, Typography } from '@mui/material';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { getPriceCoach, type PriceCoach as Coach } from '../../api/priceCoach.api';
+import {
+  getPriceCoach,
+  type PriceCoach as Coach,
+  type PriceCoachGroup,
+  type PriceCoachShelf,
+  type PriceCoachSold,
+} from '../../api/priceCoach.api';
 import { IconClose } from '../../icons/ecoIcons';
 
 const DEBOUNCE_MS = 400;
+/** How near is "near" the typed price (the server's NEAR_SHARE). */
+const NEAR_SHARE = 0.15;
+/** Room held for the coach from the moment the window opens, sized for its tallest common answer. */
+export const COACH_HELD = { xs: 204, sm: 120 } as const;
 
 function useDebounced<T>(value: T): T {
   const [v, setV] = useState(value);
@@ -27,81 +41,160 @@ function useDebounced<T>(value: T): T {
   return v;
 }
 
-/** $12 for whole dollars, $12.50 otherwise. */
+/** Always dollars and cents, like the Price box: $12.00, $12.50. */
 export function coachMoney(value: number): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error('price coach: not a price');
-  return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`;
+  return `$${value.toFixed(2)}`;
 }
+
+/** Always days, the one unit the coach uses: "the same day", "1 day", "14 days". */
+export function coachDays(days: number): string {
+  if (typeof days !== 'number' || !Number.isFinite(days)) throw new Error('price coach: not a number of days');
+  if (days <= 0) return 'the same day';
+  return days === 1 ? '1 day' : `${days.toLocaleString()} days`;
+}
+
+function priceRange(low: number, high: number): string {
+  return low === high ? coachMoney(low) : `${coachMoney(low)} to ${coachMoney(high)}`;
+}
+
+/** How fast: "in 12 days" for one or two sales, "typically in 21 days" for three or more. Same words in the list. */
+function speed(n: number, days: number): string {
+  const when = days <= 0 ? 'the same day' : `in ${coachDays(days)}`;
+  return n >= 3 ? `typically ${when}` : when;
+}
+
+/** "8 sold, all for $6.29, typically in 21 days." */
+export function soldWords(sold: PriceCoachSold | null, { withSpeed = true } = {}): string {
+  if (!sold) return 'None sold yet.';
+  const tail = withSpeed ? `, ${speed(sold.n, sold.median_days)}` : '';
+  if (sold.n < 3) return `${sold.n.toLocaleString()} sold for ${priceRange(sold.min ?? sold.low, sold.max ?? sold.high)}${tail}.`;
+  // "most" only when the middle half is a narrower band than all of them.
+  const all = sold.min != null && sold.max != null && sold.min === sold.max;
+  return all
+    ? `${sold.n.toLocaleString()} sold, all for ${coachMoney(sold.min!)}${tail}.`
+    : `${sold.n.toLocaleString()} sold, most for ${priceRange(sold.low, sold.high)}${tail}.`;
+}
+
+/** "109 on the shelf now, 98 from this truck, 11 of them over 90 days." The tags go in when nothing sold. */
+export function shelfWords(shelf: PriceCoachShelf | null, { tags = true }: { tags?: boolean } = {}): string {
+  if (!shelf || !shelf.n) return 'None on the shelf now.';
+  const truck = shelf.this_truck ? (shelf.this_truck === shelf.n ? ', all from this truck' : `, ${shelf.this_truck.toLocaleString()} from this truck`) : '';
+  const at = tags && shelf.min_price != null && shelf.max_price != null ? ` at ${priceRange(shelf.min_price, shelf.max_price)}` : '';
+  if (shelf.n === 1) {
+    return `1 on the shelf now${at}${shelf.this_truck ? ', from this truck' : ''}, there ${shelf.sitting > 0 ? `over ${shelf.sitting_days} days` : coachDays(shelf.oldest_days)}.`;
+  }
+  const age = shelf.sitting > 0
+    ? (shelf.sitting === shelf.n
+      ? `, all over ${shelf.sitting_days} days`
+      : `, ${shelf.sitting.toLocaleString()} of them over ${shelf.sitting_days} days`)
+    : `, the oldest ${coachDays(shelf.oldest_days)}`;
+  return `${shelf.n.toLocaleString()} on the shelf now${at}${truck}${age}.`;
+}
+
+/** The group the line speaks about, said in the line itself. A wider group never includes this product. */
+export function coachGroup(c: Pick<Coach, 'basis' | 'label'>): string {
+  return c.basis === 'product' ? 'This same product'
+    : c.basis === 'similar' ? 'Other products like it'
+      : c.basis === 'category_brand' ? `Other ${c.label}`
+        : '';
+}
+
+/**
+ * The main line. For this same product: what sold, then the shelf. For a wider group, one short fact about the
+ * other products (the product's own record comes first, in `coachOwn`).
+ */
+export function coachLine(c: Coach): string {
+  if (!c.enough) return 'Not enough like this yet.';
+  // Fewer numbers in the line: the shelf's tags only when nothing has sold (they are in the list).
+  if (c.basis === 'product') return `${coachGroup(c)}: ${soldWords(c.sold)} ${shelfWords(c.on_shelf, { tags: !c.sold })}`;
+  const shelf = c.on_shelf?.n ? ` ${c.on_shelf.n.toLocaleString()} on the shelf now.` : '';
+  return `${coachGroup(c)}: ${soldWords(c.sold, { withSpeed: true })}${shelf}`;
+}
+
+/** This exact product's own record, when the line rests on a wider group. '' when the line is the product's own. */
+export function coachOwn(c: Coach): string {
+  if (!c.enough || !c.own) return '';
+  if (!c.own.n) return 'This same product: no sales or shelf time here yet.';
+  return `This same product: ${soldWords(c.own.sold)} ${shelfWords(c.own.on_shelf, { tags: !c.own.sold })}`;
+}
+
+/**
+ * The answer to the price just typed: what happened to tags close to it, from our own sales. Always said once a
+ * price is in (none is a fact too). A count, never a verdict, and never a price of its own.
+ */
+export function coachNear(c: Coach): string {
+  if (!c.enough || !c.near) return '';
+  const { price, sold, on_shelf: shelf, n } = c.near;
+  const low = coachMoney(c.near.low ?? Math.round(price * (1 - NEAR_SHARE) * 100) / 100);
+  const high = coachMoney(c.near.high ?? Math.round(price * (1 + NEAR_SHARE) * 100) / 100);
+  // Always this same product, and it says so.
+  if (!n) return `This product near ${coachMoney(price)} (${low} to ${high}): never tagged there yet.`;
+  return `This product near ${coachMoney(price)} (${low} to ${high}): ${sold.toLocaleString()} sold, ${shelf.toLocaleString()} on the shelf now.`;
+}
+
+/** How much the line rests on, in plain words. */
+export function coachBasis(c: Pick<Coach, 'basis' | 'n'>): string {
+  const items = `${c.n.toLocaleString()} ${c.n === 1 ? 'item' : 'items'}`;
+  const from = c.basis === 'similar' ? ', this product and ones with close descriptions'
+    : c.basis === 'category_brand' ? ', this product and its brand in the category'
+      : '';
+  return `${items}${from}, last 12 months`;
+}
+
+type Words = { line: string; own: string; near: string; basis: string };
 
 /**
  * Check-in must never break because of the coach. An answer in a shape this screen does not know (an older or
  * newer server during a deploy, a cached answer) gives no words at all, and the coach then shows nothing.
  */
-function coachWords(c: Coach): { line: string; note: string; basis: string } | null {
+function coachWords(c: Coach): Words | null {
   try {
     const line = coachLine(c);
-    if (!line || !Array.isArray(c.items)) return null;
-    return { line, note: coachNote(c), basis: coachBasis(c) };
+    if (!line || !Array.isArray(c.sold_groups) || !Array.isArray(c.shelf_groups)) return null;
+    return { line, own: coachOwn(c), near: coachNear(c), basis: coachBasis(c) };
   } catch {
     return null;
   }
 }
 
-/** "3 days", "about 2 weeks", "about 3 months". */
-export function coachDays(days: number): string {
-  if (typeof days !== 'number' || !Number.isFinite(days)) throw new Error('price coach: not a number of days');
-  if (days <= 1) return days === 1 ? '1 day' : 'the same day';
-  if (days < 11) return `${days} days`;
-  if (days < 60) return `about ${Math.round(days / 7)} weeks`;
-  return `about ${Math.round(days / 30)} months`;
+function GroupRows({ groups, sold, more, showOwn }: { groups: PriceCoachGroup[]; sold: boolean; more: number; showOwn: boolean }) {
+  return (
+    <Stack spacing={0} sx={{ mb: 2 }}>
+      {groups.map((group, index) => {
+        const days = sold
+          ? speed(group.n, group.median_days)
+          : (group.min_days === group.max_days ? coachDays(group.max_days) : `${group.min_days.toLocaleString()} to ${coachDays(group.max_days)}`);
+        return (
+          <Box
+            key={`${group.title}-${group.price}-${index}`}
+            data-testid="price-coach-item"
+            sx={{ py: 0.75, borderTop: index ? 1 : 0, borderColor: 'divider' }}
+          >
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {sold
+                ? `${group.n.toLocaleString()} sold for ${coachMoney(group.price)}, ${days}`
+                : `${group.n.toLocaleString()} at ${coachMoney(group.price)}, on the shelf ${days}`}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', overflowWrap: 'anywhere' }}>
+              {showOwn && group.own ? 'This same product: ' : ''}{group.title}
+            </Typography>
+          </Box>
+        );
+      })}
+      {more > 0 ? (
+        <Typography variant="caption" color="text.secondary" sx={{ pt: 0.75 }}>
+          And {more.toLocaleString()} more {sold ? 'sold' : 'on the shelf'}, in smaller groups.
+        </Typography>
+      ) : null}
+    </Stack>
+  );
 }
 
-/** What the line rests on, in plain words. */
-export function coachBasis(c: Pick<Coach, 'basis' | 'label' | 'n'>): string {
-  const what = c.basis === 'product' ? 'this same product'
-    : c.basis === 'similar' ? 'similar products'
-      : c.basis === 'category_brand' ? c.label
-        : '';
-  const items = `${c.n.toLocaleString()} ${c.n === 1 ? 'item' : 'items'}`;
-  return what ? `From ${what}, ${items} in the last year` : items;
-}
-
-/** The one line. */
-export function coachLine(c: Coach): string {
-  if (!c.enough) return 'Not enough like this yet.';
-  const parts: string[] = [];
-  if (c.sold) {
-    const at = c.sold.low === c.sold.high
-      ? `at ${coachMoney(c.sold.low)}`
-      : `at ${coachMoney(c.sold.low)} to ${coachMoney(c.sold.high)}`;
-    const when = c.sold.median_days === 0 ? 'the same day' : `in ${coachDays(c.sold.median_days)}`;
-    // "most" only when there are enough sales for a middle to mean something.
-    const most = c.sold.n >= 3 ? ', most' : '';
-    parts.push(`${c.sold.n.toLocaleString()} like this sold${most} ${at}, ${when}.`);
-  } else if (c.on_shelf?.n) {
-    parts.push(`None like this has sold yet. ${c.on_shelf.n.toLocaleString()} on the shelf, the oldest ${c.on_shelf.oldest_days} days.`);
-  }
-  if (c.sitting) {
-    const verb = c.sitting.n === 1 ? 'is' : 'are';
-    const { min_price: low, max_price: high } = c.sitting;
-    // "$25 and up" only when what is sitting is priced above what sold; otherwise say the tags as they are.
-    const above = !c.sold || low > c.sold.high;
-    const tags = low === high ? coachMoney(low) : above ? `${coachMoney(low)} and up` : `${coachMoney(low)} to ${coachMoney(high)}`;
-    parts.push(`${c.sitting.n.toLocaleString()} priced ${tags} ${verb} still on the shelf after ${c.sitting.days} days.`);
-  } else if (c.sold && c.on_shelf?.n) {
-    const verb = c.on_shelf.n === 1 ? 'is' : 'are';
-    parts.push(`${c.on_shelf.n.toLocaleString()} more ${verb} on the shelf, the oldest ${c.on_shelf.oldest_days} days.`);
-  }
-  return parts.join(' ');
-}
-
-/** The gentle note for the typed price, or ''. */
-export function coachNote(c: Coach): string {
-  if (!c.enough || !c.note) return '';
-  return `Items like this at ${coachMoney(c.note.price)} and up have mostly sat (${c.note.unsold} of ${c.note.n} unsold after ${c.note.days} days).`;
-}
-
-function CoachList({ coach, open, onClose }: { coach: Coach; open: boolean; onClose: () => void }) {
+function CoachList({ coach, words, open, onClose }: { coach: Coach; words: Words; open: boolean; onClose: () => void }) {
+  const wider = coach.basis !== 'product';
+  const soldCount = (coach.sold?.n ?? 0) + (wider ? coach.own?.sold?.n ?? 0 : 0);
+  const shelfCount = (coach.on_shelf?.n ?? 0) + (wider ? coach.own?.on_shelf?.n ?? 0 : 0);
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" data-testid="price-coach-list">
       <DialogTitle sx={{ fontWeight: 800, pr: 6 }}>
@@ -111,47 +204,55 @@ function CoachList({ coach, open, onClose }: { coach: Coach; open: boolean; onCl
         </IconButton>
       </DialogTitle>
       <DialogContent>
-        <Typography variant="body2" sx={{ mb: 0.5 }}>{coachLine(coach)}</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          {coachBasis(coach)}
-          {coach.items.length < coach.n ? `. Showing ${coach.items.length}: the longest on the shelf, then the slowest to sell.` : '.'}
+        {words.own ? <Typography variant="body2" sx={{ mb: 0.5 }}>{words.own}</Typography> : null}
+        <Typography variant="body2" sx={{ mb: 0.5 }}>{words.line}</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {words.basis}. Equal items are one row.
         </Typography>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Item</TableCell>
-              <TableCell align="right">Tag</TableCell>
-              <TableCell>What happened</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {coach.items.map((item) => (
-              <TableRow key={item.id} data-testid="price-coach-item">
-                <TableCell sx={{ maxWidth: 260 }}>
-                  <Typography variant="body2" noWrap title={item.title}>{item.title || item.sku}</Typography>
-                  <Typography variant="caption" color="text.secondary">{item.sku}</Typography>
-                </TableCell>
-                <TableCell align="right">{coachMoney(item.price)}</TableCell>
-                <TableCell>
-                  {item.sold
-                    ? `Sold for ${coachMoney(item.sold_for ?? item.price)}, ${item.days === 0 ? 'the same day' : `in ${item.days} ${item.days === 1 ? 'day' : 'days'}`}`
-                    : `On the shelf ${item.days} days`}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <Typography variant="overline" sx={{ fontWeight: 800, lineHeight: 1.6 }}>
+          Sold ({soldCount.toLocaleString()})
+        </Typography>
+        {coach.sold_groups.length ? (
+          <GroupRows groups={coach.sold_groups} sold more={coach.more?.sold ?? 0} showOwn={wider} />
+        ) : (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>None sold yet.</Typography>
+        )}
+        <Typography variant="overline" sx={{ fontWeight: 800, lineHeight: 1.6 }}>
+          On the shelf now ({shelfCount.toLocaleString()})
+        </Typography>
+        {coach.shelf_groups.length ? (
+          <GroupRows groups={coach.shelf_groups} sold={false} more={coach.more?.on_shelf ?? 0} showOwn={wider} />
+        ) : (
+          <Typography variant="body2" color="text.secondary">None on the shelf now.</Typography>
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
-export function PriceCoach({ productId, price }: { productId?: number | null; price?: string }) {
+/** The held room: transparent, so a short answer or no answer never looks like an empty panel. */
+const HOLD = { gridColumn: '1 / -1', minHeight: COACH_HELD } as const;
+/** The grey box, only as tall as what it says. */
+const FRAME = {
+  px: 1.25, py: 0.75, borderRadius: 1, bgcolor: 'action.hover', display: 'block', width: '100%', textAlign: 'left',
+} as const;
+
+const NAME = (
+  <Typography
+    variant="caption"
+    sx={{ display: 'block', fontWeight: 800, letterSpacing: 0.4, textTransform: 'uppercase', fontSize: '0.68rem', color: 'text.primary' }}
+  >
+    Price coach: what sold here
+  </Typography>
+);
+
+export function PriceCoach({ productId, price, orderId }: { productId?: number | null; price?: string; orderId?: number | null }) {
   const typed = useDebounced(price?.trim() ?? '');
-  const [listOpen, setListOpen] = useState(false);
+  // Open for one product. A new price (the box reformats "10" to "10.00" when a click leaves it) keeps it open.
+  const [openFor, setOpenFor] = useState<number | null>(null);
   const { data, isError } = useQuery({
-    queryKey: ['price-coach', productId ?? null, typed],
-    queryFn: async ({ signal }) => (await getPriceCoach({ product: productId!, price: typed }, signal)).data,
+    queryKey: ['price-coach', productId ?? null, typed, orderId ?? null],
+    queryFn: async ({ signal }) => (await getPriceCoach({ product: productId!, price: typed, order: orderId }, signal)).data,
     enabled: productId != null,
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
@@ -159,38 +260,57 @@ export function PriceCoach({ productId, price }: { productId?: number | null; pr
     retry: false,
     meta: { silent: true },
   });
-  const coach = productId != null && !isError ? data?.coach : null;
-  if (!data?.enabled || !coach) return null;
-  const words = coachWords(coach);
-  if (!words) return null;
-  const { line, note } = words;
-  const canOpen = coach.enough && coach.items.length > 0;
+  if (productId == null) return null;
+  // The owner's switch is off: no coach, no room.
+  if (data && !data.enabled) return null;
+  const coach = !isError ? data?.coach ?? null : null;
+  const words = coach ? coachWords(coach) : null;
+  // Gone (an error, another product): the list closes and never pops up by itself later.
+  if ((!coach || !words) && openFor != null) setOpenFor(null);
+  // Still asking, an error, or an answer it cannot read: keep the room, say nothing.
+  if (!coach || !words) {
+    return <Box sx={HOLD} aria-hidden data-testid={data || isError ? 'price-coach-empty' : 'price-coach-holding'} />;
+  }
+  const canOpen = coach.enough && coach.sold_groups.length + coach.shelf_groups.length > 0;
   const text = (
-    <Stack spacing={0.25} sx={{ minWidth: 0, textAlign: 'left' }}>
-      <Typography variant="body2" data-testid="price-coach-line">{line}</Typography>
+    <Stack spacing={0.25} sx={{ minWidth: 0 }}>
+      {NAME}
+      {/* The answer to the typed price comes first: it is the line that moves with what you type. */}
+      {words.near ? (
+        <Typography variant="body2" color="text.primary" sx={{ fontWeight: 650 }} data-testid="price-coach-near">{words.near}</Typography>
+      ) : null}
+      {words.own ? (
+        <Typography variant="body2" data-testid="price-coach-own">{words.own}</Typography>
+      ) : null}
+      <Typography
+        variant="body2"
+        data-testid="price-coach-line"
+        // A wider group is a weaker fact than the product's own record above it, and looks it.
+        color={coach.enough && !words.own ? 'text.primary' : 'text.secondary'}
+      >
+        {words.line}
+      </Typography>
       {coach.enough ? (
         <Typography variant="caption" color="text.secondary" data-testid="price-coach-basis">
-          {words.basis}{canOpen ? '. Tap to see them.' : '.'}
-        </Typography>
-      ) : null}
-      {note ? (
-        <Typography variant="body2" data-testid="price-coach-note" sx={{ color: 'warning.dark', fontWeight: 600 }}>
-          {note}
+          {words.basis}.{canOpen ? (
+            <Box component="span" sx={{ ml: 0.5, color: 'primary.main', fontWeight: 700, textDecoration: 'underline', whiteSpace: 'nowrap' }}>
+              See the items
+            </Box>
+          ) : null}
         </Typography>
       ) : null}
     </Stack>
   );
-  const frame = { gridColumn: '1 / -1', px: 1.25, py: 0.75, borderRadius: 1, bgcolor: 'action.hover', display: 'block', width: '100%' } as const;
   return (
-    <>
+    <Box sx={HOLD}>
       {canOpen ? (
-        <ButtonBase sx={frame} onClick={() => setListOpen(true)} aria-label="Price coach: see the items" data-testid="price-coach">
+        <ButtonBase sx={{ ...FRAME, alignItems: 'flex-start' }} onClick={() => setOpenFor(productId)} aria-label="Price coach: see the items" data-testid="price-coach">
           {text}
         </ButtonBase>
       ) : (
-        <Box sx={frame} aria-label="Price coach" data-testid="price-coach">{text}</Box>
+        <Box sx={FRAME} aria-label="Price coach" data-testid="price-coach">{text}</Box>
       )}
-      {canOpen && listOpen ? <CoachList coach={coach} open onClose={() => setListOpen(false)} /> : null}
-    </>
+      {canOpen && openFor === productId ? <CoachList coach={coach} words={words} open onClose={() => setOpenFor(null)} /> : null}
+    </Box>
   );
 }

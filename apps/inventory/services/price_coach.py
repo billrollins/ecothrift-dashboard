@@ -18,13 +18,23 @@ least ``FRESH_DAYS`` (a tag put out this week has had no time to sell, so it is 
 ``sold_at`` minus that start; an unsold item's days are today minus that start.
 
 **The line:** how many sold, the middle half of what they sold for (25th to 75th percentile), the median days to
-sell, and how many are still on the shelf after ``SITTING_DAYS`` and the lowest tag among those.
+sell, then everything on the shelf now with its tag range and how many of those have sat ``SITTING_DAYS`` or
+longer. Sold plus on the shelf is the count the line rests on, so the parts always add up.
 
-**The note** for a typed price: of the items tagged at that price or more that are old enough to judge (sold, or on
-the shelf ``SAT_DAYS`` or longer), when there are at least ``SAT_MIN_ITEMS`` and more than half are still unsold
-after ``SAT_DAYS``, it says so.
+**The product's own record** (``own``): when the line rests on a wider group (similar products, or the brand in
+the category), the few items of this exact product are summed up apart and shown first. They are the closest
+facts there are. ``sold`` and ``on_shelf`` then count only the other products, so own plus others is ``n``.
 
-The item list per product is cached for ``CACHE_SECONDS``; the note is worked out per request from that list.
+**Near the typed price** (``near``): of this exact product's items tagged within ``NEAR_SHARE`` of the typed
+price, how many sold and how many are on the shelf now. Only ever this same product, never the wider group.
+Always given once a price is typed (``n`` may be 0). A plain count, never a
+verdict: it is given whichever way it points. (It replaced the first version's "has mostly sat" note, which counted every tag at the typed price
+and up, so it fired at low prices and stayed quiet at the price the shelf was full of.)
+
+**The list** behind the line comes grouped: equal rows (same product, same price) are one line with a count,
+sold and on the shelf apart, this product's own rows first, so the sales the line names are always in it.
+
+The item list per product is cached for ``CACHE_SECONDS``; the near-price count is worked out per request from that list.
 Switch: AppSetting ``inventory_price_coach`` (on unless the row says off; the row is made on first use so it shows
 in Settings without a migration).
 """
@@ -48,14 +58,14 @@ MIN_ITEMS = 5
 WINDOW_DAYS = 365
 SITTING_DAYS = 90
 FRESH_DAYS = 14
-SAT_DAYS = 60
-SAT_MIN_ITEMS = 3
+NEAR_SHARE = 0.15
+NEAR_MIN_ITEMS = 3
 NEIGHBOURS = 30
 NEIGHBOUR_FLOOR = 0.75
 MAX_EVIDENCE = 400
-LIST_LIMIT = 40
+GROUP_LIMIT = 12
 CACHE_SECONDS = 300
-CACHE_PREFIX = 'price_coach:v1:'
+CACHE_PREFIX = 'price_coach:v3:'
 
 BASIS_PRODUCT = 'product'
 BASIS_SIMILAR = 'similar'
@@ -89,7 +99,7 @@ def _item_rows(product_ids, now) -> list[dict[str, Any]]:
         )
         .order_by('-id')
         .values('id', 'sku', 'status', 'price', 'sold_for', 'sold_at', 'checked_in_at', 'listed_at',
-                'product_id', 'product__title')[:MAX_EVIDENCE]
+                'product_id', 'product__title', 'purchase_order_id')[:MAX_EVIDENCE]
     )
     rows = []
     for item in qs:
@@ -103,6 +113,7 @@ def _item_rows(product_ids, now) -> list[dict[str, Any]]:
             'sku': item['sku'],
             'title': item['product__title'] or '',
             'product_id': item['product_id'],
+            'order_id': item['purchase_order_id'],
             'sold': sold,
             'price': float(item['price'] or 0),
             'sold_for': float(item['sold_for']) if sold else None,
@@ -164,18 +175,18 @@ def gather(product_id: int, now=None) -> dict[str, Any] | None:
         return None
     rows = _item_rows([product.pk], now)
     if len(rows) >= MIN_ITEMS:
-        return {'basis': BASIS_PRODUCT, 'label': '', 'rows': rows}
+        return {'basis': BASIS_PRODUCT, 'label': '', 'rows': rows, 'product_id': product.pk}
     near = _neighbour_ids(product)
     if near:
         similar = _item_rows([product.pk, *near], now)
         if len(similar) >= MIN_ITEMS:
-            return {'basis': BASIS_SIMILAR, 'label': '', 'rows': similar}
+            return {'basis': BASIS_SIMILAR, 'label': '', 'rows': similar, 'product_id': product.pk}
     ids, label = _category_brand_ids(product)
     if ids:
         wide = _item_rows({product.pk, *ids}, now)
         if len(wide) >= MIN_ITEMS:
-            return {'basis': BASIS_CATEGORY_BRAND, 'label': label, 'rows': wide}
-    return {'basis': '', 'label': '', 'rows': rows}
+            return {'basis': BASIS_CATEGORY_BRAND, 'label': label, 'rows': wide, 'product_id': product.pk}
+    return {'basis': '', 'label': '', 'rows': rows, 'product_id': product.pk}
 
 
 def _cached_evidence(product_id: int) -> dict[str, Any] | None:
@@ -216,60 +227,114 @@ def _to_price(raw) -> float | None:
     return value if value > 0 else None
 
 
-def sat_note(rows: list[dict[str, Any]], price: float | None) -> dict[str, Any] | None:
-    """Items tagged at ``price`` or more: have most of them sat ``SAT_DAYS`` without selling?"""
+def _sold_part(sold: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not sold:
+        return None
+    prices = [r['sold_for'] for r in sold]
+    return {
+        'n': len(sold),
+        'low': round(_percentile(prices, 0.25), 2),
+        'high': round(_percentile(prices, 0.75), 2),
+        'median_days': int(round(_median([float(r['days']) for r in sold]))),
+        # So the words can say "all for $6.29" when every sale was one price.
+        'min': round(min(prices), 2),
+        'max': round(max(prices), 2),
+    }
+
+
+def _shelf_part(unsold: list[dict[str, Any]], order_id=None) -> dict[str, Any]:
+    tags = [r['price'] for r in unsold]
+    return {
+        # On the shelf from the truck being checked in now: a full shelf of this truck's own copies is not slow sales.
+        'this_truck': sum(1 for r in unsold if order_id and r.get('order_id') == order_id),
+        'n': len(unsold),
+        'oldest_days': max((r['days'] for r in unsold), default=0),
+        'min_price': round(min(tags), 2) if tags else None,
+        'max_price': round(max(tags), 2) if tags else None,
+        'sitting': sum(1 for r in unsold if r['days'] >= SITTING_DAYS),
+        'sitting_days': SITTING_DAYS,
+    }
+
+
+def near_price(rows: list[dict[str, Any]], price: float | None, scope: str = 'product') -> dict[str, Any] | None:
+    """Of these items, the ones tagged within ``NEAR_SHARE`` of ``price``: how many sold, how many sit now.
+
+    Always an answer once a price is typed (the +1 critic: the coach went quiet at the moment it is for), so ``n``
+    may be 0: "nothing like this tagged near that yet" is a fact too. A plain count either way, never a verdict.
+    """
     if price is None:
         return None
-    judged = [r for r in rows if r['price'] >= price and (r['sold'] or r['days'] >= SAT_DAYS)]
-    if len(judged) < SAT_MIN_ITEMS:
-        return None
-    unsold = [r for r in judged if not r['sold']]
-    if len(unsold) * 2 <= len(judged):
-        return None
-    return {'price': round(price, 2), 'n': len(judged), 'unsold': len(unsold), 'days': SAT_DAYS}
+    low, high = price * (1 - NEAR_SHARE), price * (1 + NEAR_SHARE)
+    close = [r for r in rows if low <= r['price'] <= high]
+    unsold = [r for r in close if not r['sold']]
+    return {
+        'price': round(price, 2), 'low': round(low, 2), 'high': round(high, 2), 'scope': scope,
+        'n': len(close), 'sold': len(close) - len(unsold), 'on_shelf': len(unsold),
+        'oldest_days': max((r['days'] for r in unsold), default=0),
+    }
 
 
-def summarize(evidence: dict[str, Any], price=None) -> dict[str, Any]:
+def _groups(rows: list[dict[str, Any]], own_id) -> tuple[list[dict[str, Any]], int]:
+    """Equal rows as one line: same product and same price (what it sold for, or its tag on the shelf)."""
+    found: dict[tuple, dict[str, Any]] = {}
+    for r in rows:
+        price = r['sold_for'] if r['sold'] else r['price']
+        key = (r['product_id'], price)
+        g = found.setdefault(key, {'title': r['title'] or r['sku'], 'price': price, 'n': 0, 'days': [],
+                                   'own': r['product_id'] == own_id})
+        g['n'] += 1
+        g['days'].append(r['days'])
+    ordered = sorted(found.values(), key=lambda g: (not g['own'], -g['n'], -max(g['days'])))
+    out = [
+        {'title': g['title'], 'price': g['price'], 'n': g['n'], 'own': g['own'],
+         'min_days': min(g['days']), 'max_days': max(g['days']),
+         'median_days': int(round(_median([float(d) for d in g['days']])))}
+        for g in ordered[:GROUP_LIMIT]
+    ]
+    return out, sum(g['n'] for g in ordered[GROUP_LIMIT:])
+
+
+def summarize(evidence: dict[str, Any], price=None, order_id=None) -> dict[str, Any]:
     rows = evidence['rows']
+    own_id = evidence.get('product_id')
     out: dict[str, Any] = {
         'basis': evidence['basis'], 'label': evidence['label'], 'n': len(rows),
         'enough': bool(evidence['basis']) and len(rows) >= MIN_ITEMS,
-        'sold': None, 'on_shelf': None, 'sitting': None, 'note': None, 'items': [],
+        'sold': None, 'on_shelf': None, 'own': None, 'near': None,
+        'sold_groups': [], 'shelf_groups': [], 'more': {'sold': 0, 'on_shelf': 0},
     }
     if not out['enough']:
         return out
     sold = [r for r in rows if r['sold']]
     unsold = [r for r in rows if not r['sold']]
-    if sold:
-        prices = [r['sold_for'] for r in sold]
-        out['sold'] = {
-            'n': len(sold),
-            'low': round(_percentile(prices, 0.25), 2),
-            'high': round(_percentile(prices, 0.75), 2),
-            'median_days': int(round(_median([float(r['days']) for r in sold]))),
+    own = [r for r in rows if r['product_id'] == own_id]
+    if evidence['basis'] == BASIS_PRODUCT:
+        out['sold'] = _sold_part(sold)
+        out['on_shelf'] = _shelf_part(unsold, order_id)
+        out['near'] = near_price(own, _to_price(price))
+    else:
+        # The line rests on a wider group: this exact product's own few items are the closest facts, said apart,
+        # and the wider line counts only the other products, so own plus others is ``n`` and nothing is counted twice.
+        out['sold'] = _sold_part([r for r in sold if r['product_id'] != own_id])
+        out['on_shelf'] = _shelf_part([r for r in unsold if r['product_id'] != own_id], order_id)
+        out['own'] = {
+            'n': len(own),
+            'sold': _sold_part([r for r in own if r['sold']]),
+            'on_shelf': _shelf_part([r for r in own if not r['sold']], order_id),
         }
-    sitting = [r for r in unsold if r['days'] >= SITTING_DAYS]
-    out['on_shelf'] = {'n': len(unsold), 'oldest_days': max((r['days'] for r in unsold), default=0)}
-    if sitting:
-        tags = [r['price'] for r in sitting]
-        out['sitting'] = {'n': len(sitting), 'min_price': round(min(tags), 2), 'max_price': round(max(tags), 2),
-                          'days': SITTING_DAYS}
-    out['note'] = sat_note(rows, _to_price(price))
-    # The list behind the line: unsold longest-sitting first, then sold, slowest first.
-    listed = sorted(unsold, key=lambda r: -r['days']) + sorted(sold, key=lambda r: -r['days'])
-    out['items'] = [
-        {'id': r['id'], 'sku': r['sku'], 'title': r['title'], 'sold': r['sold'], 'price': r['price'],
-         'sold_for': r['sold_for'], 'days': r['days']}
-        for r in listed[:LIST_LIMIT]
-    ]
+        # The near count speaks only for this same product, never borrowed from others (round 3: "10 sold" near $1.74
+        # were all another clearance blaster).
+        out['near'] = near_price(own, _to_price(price))
+    out['sold_groups'], out['more']['sold'] = _groups(sold, own_id)
+    out['shelf_groups'], out['more']['on_shelf'] = _groups(unsold, own_id)
     return out
 
 
-def coach(product_id: int | None, price=None) -> dict[str, Any] | None:
+def coach(product_id: int | None, price=None, order_id: int | None = None) -> dict[str, Any] | None:
     """The coach answer for the check-in price box, or None when there is no product to go on."""
     if not product_id:
         return None
     evidence = _cached_evidence(int(product_id))
     if evidence is None:
         return None
-    return summarize(evidence, price)
+    return summarize(evidence, price, order_id)

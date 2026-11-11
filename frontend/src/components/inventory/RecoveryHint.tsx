@@ -42,7 +42,7 @@ export function recoverySourcesText(e: RecoveryEstimate): string {
     .join(' · ');
 }
 
-export function RecoveryHint({ retail, productId, orderId, condition, price, onUsePrice, disabled }: {
+export function RecoveryHint({ retail, productId, orderId, condition, price, onUsePrice, disabled, name }: {
   retail: string;
   productId?: number | null;
   orderId?: number | null;
@@ -50,6 +50,8 @@ export function RecoveryHint({ retail, productId, orderId, condition, price, onU
   price?: string;
   onUsePrice?: (price: string) => void;
   disabled?: boolean;
+  /** A short name over the line, for screens where another helper sits beside it (check-in's Price coach). */
+  name?: string;
 }) {
   const inputs = useDebounced({ retail: retail.trim(), product: productId ?? null, order: orderId ?? null, condition: condition ?? '', price: price?.trim() ?? '' });
   const hasRetail = Number.parseFloat(inputs.retail) > 0;
@@ -64,6 +66,14 @@ export function RecoveryHint({ retail, productId, orderId, condition, price, onU
   if (!data?.enabled || !e) return null;
   return (
     <Box sx={{ gridColumn: '1 / -1', px: 1.25, py: 0.75, borderRadius: 1, bgcolor: 'action.hover' }} aria-label="Recovery estimate">
+      {name ? (
+        <Typography
+          variant="caption"
+          sx={{ display: 'block', fontWeight: 800, letterSpacing: 0.4, textTransform: 'uppercase', fontSize: '0.68rem', color: 'text.primary' }}
+        >
+          {name}
+        </Typography>
+      ) : null}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0.5, sm: 1 }} alignItems={{ sm: 'center' }}
         justifyContent="space-between">
         <Tooltip title={`Based on ${e.basis}. ${recoverySourcesText(e)}`}>

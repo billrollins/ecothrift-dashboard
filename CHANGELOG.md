@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.272.1] -->
-<!-- Last reviewed: 2026-11-11 (2.272.1) -->
+<!-- Line 1 release: ## [2.272.2] -->
+<!-- Last reviewed: 2026-11-11 (2.272.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.272.2] - 2026-11-11
+
+User-facing theme: **Processing Command Center, My numbers and the Price coach: the critic-cycle fixes (Dash Update #94).**
+
+> **For Bill:** three screens went through your 2+1 critic cycle. Final grades: Command Center B+, My numbers A-, Price coach A- (all three started at C). What changed: a real error is fixed, the week's pace divided a no-punch day's items by other days' hours (Ashley showed 47 items an hour; her clocked days ran 17 to 20), and pace now counts only clocked days. The Command Center opens with the answer in words: the room against the goal, the room's pace, what cannot be said about people while sign-ins are shared, and who is new and climbing; while sign-ins are shared nobody is rated against the room, each person is shown against their own clocked days. "Needs a look" gives each problem its next move. My numbers leads with the person's own day as a scoreboard. The Price coach answers every typed price with a plain fact about this same product's tags near that price, says how many on the shelf are from this truck, and no longer moves the window. Both pages are faster than before. Not done: the Command Center still shows two money totals (put on the floor, and checked in) because they count different things, and it is long on a phone; the coach's wider "similar" group is still loose. Six questions for you are in the decisions file, the first being whether there is a per-person number to expect (items or dollars an hour).
+
+### Changed (#94 critic cycle: Processing Command Center, My numbers, Price coach)
+- **Command Center** opens with the answer in a few sentences (the room against its goal, its pace, what can and cannot be said about people, who is new and climbing). Fixed: the week's pace no longer divides a no-punch day's items by other days' hours (Ashley showed 47 an hour; her clocked days ran 17 to 20), for a person and for the room. While sign-ins are shared nobody is rated against the room: pace is grey and each person is shown against their own clocked days. Hours with no check-ins show no pace (never 0.0). "Needs a look" gives each problem its next move and says how many days it has run; the owner checking in a few items is not a missed punch. Phone: one short card a person. The picked day is in the address.
+- **My numbers** leads with the person's own day as a scoreboard and their pace against their own clocked days; the shared sign-in note reaches the processor too; a clocked day with nothing under their name counts their hours first; tag errors say when they are already fixed; the room is one quiet line for the same day or week.
+- **Price coach** answers every typed price with one plain fact about this same product's tags near it; names its group and, when the evidence is wider, gives this product's own record first and counts only the others after it (the parts add up); says how many on the shelf are from this truck; the list groups equal items with the sales always in it; the window no longer moves when the coach loads, fails or the price changes; it sits right under the price, above the store-wide estimate.
 
 ## [2.272.1] - 2026-11-11
 

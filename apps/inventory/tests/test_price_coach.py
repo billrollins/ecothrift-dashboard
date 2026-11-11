@@ -1,4 +1,4 @@
-"""Price coach (#89): the order of evidence, the under-5 rule, the days math, the "has sat" note, the switch."""
+"""Price coach (#89): the order of evidence, the under-5 rule, the days math, the near-price count, the grouped list, the switch."""
 from __future__ import annotations
 
 from datetime import timedelta
@@ -75,6 +75,8 @@ class EvidenceOrderTests(TestCase):
             out = answer(self.mug)
         self.assertEqual((out['basis'], out['n']), ('similar', 6))
         self.assertLess(out['sold']['high'], 20)
+        # The product's own 2 are said apart; the wider line counts the other 4, so 2 + 4 is the 6 under it.
+        self.assertEqual((out['own']['sold']['n'], out['sold']['n']), (2, 4))
 
     def test_category_and_brand_is_last_and_says_what_it_used(self):
         sold(self.mug, 12, 10)
@@ -99,7 +101,7 @@ class EvidenceOrderTests(TestCase):
         with mock.patch.object(pc, '_neighbour_ids', return_value=[self.cup.pk]):
             out = answer(self.mug)
         self.assertFalse(out['enough'])
-        self.assertEqual((out['basis'], out['sold'], out['note'], out['items']), ('', None, None, []))
+        self.assertEqual((out['basis'], out['sold'], out['near'], out['sold_groups'], out['shelf_groups']), ('', None, None, [], []))
         self.assertEqual(out['n'], 2)
 
     def test_an_unknown_product_or_none_gives_nothing(self):
@@ -122,7 +124,7 @@ class ItemRulesTests(TestCase):
         out = answer(self.lamp)
         self.assertEqual(out['n'], 5)
         self.assertEqual(out['on_shelf']['n'], 0)
-        self.assertIsNone(out['sitting'])
+        self.assertEqual(out['on_shelf']['sitting'], 0)
 
     def test_a_tag_put_out_this_week_is_no_evidence_yet(self):
         for _ in range(5):
@@ -145,10 +147,11 @@ class ItemRulesTests(TestCase):
         sold(self.lamp, 20, 14, start='listed_at')
         shelf(self.lamp, 20, 120)
         out = answer(self.lamp)
-        days = sorted(row['days'] for row in out['items'] if row['sold'])
-        self.assertEqual(days, [4, 10, 14, 30])
+        # The four sales are one row in the list (same product, same price): 4 to 30 days, the middle 12.
+        self.assertEqual([(g['n'], g['min_days'], g['max_days'], g['median_days']) for g in out['sold_groups']],
+                         [(4, 4, 30, 12)])
         self.assertEqual(out['sold']['median_days'], 12)      # the middle of 10 and 14
-        self.assertEqual([row['days'] for row in out['items'] if not row['sold']], [120])
+        self.assertEqual([g['max_days'] for g in out['shelf_groups']], [120])
 
     def test_sold_range_is_the_middle_half_of_what_they_sold_for_not_the_tag(self):
         for tag, got in ((30, 10), (30, 12), (30, 13), (30, 15), (30, 40)):
@@ -163,47 +166,115 @@ class ItemRulesTests(TestCase):
         shelf(self.lamp, 40, 200)
         shelf(self.lamp, 18, 89)      # not 90 yet
         out = answer(self.lamp)
-        self.assertEqual(out['sitting'], {'n': 2, 'min_price': 25.0, 'max_price': 40.0, 'days': 90})
-        self.assertEqual(out['on_shelf'], {'n': 3, 'oldest_days': 200})
-        # The list leads with what is sitting, longest first.
-        self.assertEqual([row['days'] for row in out['items'][:3]], [200, 91, 89])
+        # Everything on the shelf is counted, with how many of them have sat 90 days.
+        self.assertEqual(out['on_shelf'], {'n': 3, 'oldest_days': 200, 'min_price': 18.0, 'max_price': 40.0,
+                                           'sitting': 2, 'sitting_days': 90, 'this_truck': 0})
+        self.assertEqual(out['sold']['n'] + out['on_shelf']['n'], out['n'])
 
 
-class SatNoteTests(TestCase):
+class NearPriceTests(TestCase):
+    """What happened to this product's tags close to the typed price: a count, whichever way it points."""
+
     def setUp(self):
-        self.vase = Product.objects.create(title='Glass vase', brand='Clear')
+        self.game = Product.objects.create(title='Board game', brand='Play')
+        for _ in range(8):
+            sold(self.game, 6.29, 21)
+        for _ in range(11):
+            shelf(self.game, 6.29, 175)
+        for _ in range(30):
+            shelf(self.game, 9.74, 33)
+
+    def test_it_speaks_at_the_price_the_shelf_is_full_of(self):
+        out = answer(self.game, '9.74')
+        self.assertEqual({k: out['near'][k] for k in ('price', 'n', 'sold', 'on_shelf', 'scope')},
+                         {'price': 9.74, 'n': 30, 'sold': 0, 'on_shelf': 30, 'scope': 'product'})
+
+    def test_it_counts_sales_too_so_it_is_not_a_warning(self):
+        out = answer(self.game, '6.29')
+        self.assertEqual((out['near']['sold'], out['near']['on_shelf']), (8, 11))
+
+    def test_at_a_price_nothing_was_tagged_near_it_says_none(self):
+        """The first version said "$3 and up have mostly sat" for a game nobody ever tagged $3; now it says 0."""
+        self.assertEqual(answer(self.game, '3')['near']['n'], 0)
+        self.assertEqual(answer(self.game, '25')['near']['n'], 0)
+
+    def test_it_needs_a_price(self):
+        self.assertIsNone(answer(self.game, '')['near'])
+        self.assertIsNone(answer(self.game, 'abc')['near'])
+
+    def test_close_means_within_fifteen_percent(self):
+        near = answer(self.game, '7')['near']
+        self.assertEqual((near['n'], near['low'], near['high']), (19, 5.95, 8.05))    # $6.29 is within 15% of $7
+        self.assertEqual(answer(self.game, '7.50')['near']['n'], 0)                  # $6.29 and $9.74 are too far
+
+    def test_the_shelf_says_how_many_are_from_this_truck(self):
+        from apps.inventory.models import PurchaseOrder, Vendor
+
+        vendor = Vendor.objects.create(name='Coach vendor', code='CV94')
+        po = PurchaseOrder.objects.create(vendor=vendor, order_number='PC-94', ordered_date=NOW.date())
+        Item.objects.filter(product=self.game, price=Decimal('9.74')).update(purchase_order=po)
+        cache.clear()
+        out = pc.summarize(pc.gather(self.game.pk, now=NOW), '9.74', po.pk)
+        self.assertEqual((out['on_shelf']['n'], out['on_shelf']['this_truck']), (41, 30))
+        self.assertEqual(pc.summarize(pc.gather(self.game.pk, now=NOW), '9.74')['on_shelf']['this_truck'], 0)
+
+
+class GroupedListTests(TestCase):
+    def setUp(self):
+        self.game = Product.objects.create(title='Board game', brand='Play')
+        for _ in range(8):
+            sold(self.game, 6.29, 21)
+        for _ in range(11):
+            shelf(self.game, 6.29, 175)
+        for _ in range(98):
+            shelf(self.game, 9.74, 33)
+
+    def test_equal_items_are_one_row_and_the_sales_are_always_there(self):
+        out = answer(self.game)
+        self.assertEqual([(g['price'], g['n'], g['median_days']) for g in out['sold_groups']], [(6.29, 8, 21)])
+        self.assertEqual((out['sold']['min'], out['sold']['max']), (6.29, 6.29))
+        self.assertEqual([(g['price'], g['n'], g['max_days']) for g in out['shelf_groups']], [(9.74, 98, 33), (6.29, 11, 175)])
+        self.assertEqual(out['more'], {'sold': 0, 'on_shelf': 0})
+        self.assertEqual(out['sold']['n'] + out['on_shelf']['n'], out['n'])
+
+    def test_groups_past_the_limit_are_counted_not_dropped_silently(self):
+        for cents in range(20):
+            sold(self.game, f'20.{cents:02d}', 5)
+        out = answer(self.game)
+        self.assertEqual(len(out['sold_groups']), pc.GROUP_LIMIT)
+        self.assertEqual(out['more']['sold'], 28 - sum(g['n'] for g in out['sold_groups']))
+
+
+class OwnRecordTests(TestCase):
+    """When the line rests on a wider group, this exact product's own few items are said apart."""
+
+    def setUp(self):
+        self.blaster = Product.objects.create(title='Gel blaster', brand='Hyper')
+        self.pellets = Product.objects.create(title='Gel pellets', brand='Hyper')
+        for product in (self.blaster, self.pellets):
+            ProductProfile.objects.update_or_create(product=product, defaults={'category': 'Toys & games', 'brand': 'Hyper'})
+        shelf(self.blaster, 32.49, 33)
+        shelf(self.blaster, 32.49, 33)
         for _ in range(6):
-            sold(self.vase, 12, 8)
+            sold(self.pellets, 3.75, 10)
 
-    def test_note_when_most_at_that_price_and_up_have_sat(self):
-        shelf(self.vase, 25, 70)
-        shelf(self.vase, 30, 120)
-        sold(self.vase, 28, 5)
-        out = answer(self.vase, '25')
-        self.assertEqual(out['note'], {'price': 25.0, 'n': 3, 'unsold': 2, 'days': 60})
+    def test_the_own_record_is_apart_and_its_rows_lead_the_list(self):
+        out = answer(self.blaster, '32.49')
+        self.assertEqual((out['basis'], out['n']), ('category_brand', 8))
+        self.assertEqual(out['own']['n'], 2)
+        self.assertIsNone(out['own']['sold'])
+        self.assertEqual((out['sold']['n'], out['on_shelf']['n']), (6, 0))     # the others only
+        self.assertEqual((out['own']['on_shelf']['n'], out['own']['on_shelf']['min_price']), (2, 32.49))
+        self.assertTrue(out['shelf_groups'][0]['own'])
+        self.assertFalse(out['sold_groups'][0]['own'])
+        # The near count is this same product's only: its own 2 at $32.49, never the pellets that sold elsewhere.
+        self.assertEqual((out['near']['scope'], out['near']['n'], out['near']['sold']), ('product', 2, 0))
+        self.assertEqual(pc.summarize(pc.gather(self.blaster.pk, now=NOW), '3.75')['near']['n'], 0)
 
-    def test_no_note_below_the_range_that_sat(self):
-        shelf(self.vase, 25, 70)
-        shelf(self.vase, 30, 120)
-        self.assertIsNone(answer(self.vase, '12')['note'])   # 6 sold at $12 outweigh the 2 sitting
-
-    def test_no_note_when_half_or_more_sold(self):
-        shelf(self.vase, 25, 70)
-        sold(self.vase, 25, 5)
-        sold(self.vase, 26, 5)
-        self.assertIsNone(answer(self.vase, '25')['note'])
-
-    def test_no_note_on_fewer_than_three_items_or_without_a_price(self):
-        shelf(self.vase, 25, 70)
-        shelf(self.vase, 30, 120)
-        self.assertIsNone(answer(self.vase, '26')['note'])   # only the $30 one is at $26 and up
-        self.assertIsNone(answer(self.vase, '')['note'])
-        self.assertIsNone(answer(self.vase, 'abc')['note'])
-
-    def test_an_unsold_item_under_60_days_is_not_judged(self):
-        for _ in range(3):
-            shelf(self.vase, 25, 59)
-        self.assertIsNone(answer(self.vase, '25')['note'])
+    def test_the_products_own_line_has_no_separate_record(self):
+        for _ in range(5):
+            sold(self.blaster, 30, 9)
+        self.assertIsNone(answer(self.blaster)['own'])
 
 
 class ApiTests(TestCase):
@@ -237,7 +308,7 @@ class ApiTests(TestCase):
         self.assertIsNone(self.get(product='abc').data['coach'])
         self.assertEqual(APIClient().get('/api/inventory/price-coach/').status_code, 401)
 
-    def test_the_evidence_is_cached_per_product_and_the_note_follows_the_price(self):
+    def test_the_evidence_is_cached_per_product_and_the_near_count_follows_the_price(self):
         shelf(self.pot, 30, 100)
         shelf(self.pot, 30, 100)
         shelf(self.pot, 30, 100)
@@ -245,5 +316,5 @@ class ApiTests(TestCase):
             first = self.get(product=self.pot.pk, price='30').data['coach']
             second = self.get(product=self.pot.pk, price='9').data['coach']
         self.assertEqual(gather.call_count, 1)
-        self.assertIsNotNone(first['note'])
-        self.assertIsNone(second['note'])
+        self.assertEqual((first['near']['sold'], first['near']['on_shelf']), (0, 3))
+        self.assertEqual((second['near']['sold'], second['near']['on_shelf']), (5, 0))

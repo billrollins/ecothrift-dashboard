@@ -117,17 +117,45 @@ class TheMathTests(Base):
         self.clock(self.ann, DAY, 4)
         self.check_in(self.bo, at(DAY), '1000.00')   # no clock entry: left out of the pace
         room = pcc.build(self.lead, DAY)['room']['day_average']
-        self.assertEqual(room, {'items_per_hour': '0.25', 'dollars_per_hour': '20.00'})
-
+        self.assertEqual(room, {'items_per_hour': '0.25', 'dollars_per_hour': '20.00', 'people': 1})
 
     def test_the_room_average_leaves_out_people_on_the_clock_with_no_check_ins(self):
         self.check_in(self.ann, at(DAY), '80.00')
         self.clock(self.ann, DAY, 4)
         self.clock(self.bo, DAY, 8)   # receiving all day: on the page, not in the check-in pace
         payload = pcc.build(self.lead, DAY)
-        self.assertEqual(payload['room']['day_average'], {'items_per_hour': '0.25', 'dollars_per_hour': '20.00'})
+        self.assertEqual(payload['room']['day_average'],
+                         {'items_per_hour': '0.25', 'dollars_per_hour': '20.00', 'people': 1})
         bo = self.line(payload, self.bo)['day']
-        self.assertEqual((bo['items'], bo['hours'], bo['dollars_per_hour']), (0, '8.00', '0.00'))
+        # Hours with no check-ins of their own: no pace, never a zero (a shared PC may hold their items).
+        self.assertEqual((bo['items'], bo['hours'], bo['items_per_hour'], bo['dollars_per_hour']),
+                         (0, '8.00', None, None))
+
+    def test_the_week_pace_counts_only_days_with_a_punch(self):
+        """The bug the first critic found: Monday's items with no punch were divided by Tuesday's hours."""
+        for _ in range(40):
+            self.check_in(self.ann, at(MONDAY), '10.00')          # Monday: no punch
+        for _ in range(8):
+            self.check_in(self.ann, at(DAY), '10.00')             # Wednesday: 8 items in 4 hours
+        self.clock(self.ann, DAY, 4)
+        payload = pcc.build(self.lead, DAY)
+        week = self.line(payload, self.ann)['week']
+        self.assertEqual((week['items'], week['dollars'], week['hours']), (48, '480.00', '4.00'))
+        self.assertEqual((week['items_per_hour'], week['dollars_per_hour']), ('2.00', '20.00'))
+        self.assertEqual(week['items_off_clock'], 40)
+        self.assertEqual(payload['room']['week_average'],
+                         {'items_per_hour': '2.00', 'dollars_per_hour': '20.00', 'people': 1})
+
+    def test_the_week_comes_day_by_day_with_the_missing_punch_showing(self):
+        self.check_in(self.ann, at(MONDAY), '10.00')
+        self.check_in(self.ann, at(DAY), '30.00')
+        self.clock(self.ann, DAY, 2)
+        payload = pcc.build(self.lead, DAY)
+        days = self.line(payload, self.ann)['days']
+        self.assertEqual([d['date'] for d in days], ['2026-03-02', '2026-03-03', '2026-03-04'])
+        self.assertEqual([(d['items'], d['hours'], d['items_per_hour']) for d in days],
+                         [(1, None, None), (0, None, None), (1, '2.00', '0.50')])
+        self.assertEqual([d['date'] for d in payload['room']['by_day']], ['2026-03-02', '2026-03-03', '2026-03-04'])
 
     def test_a_tag_error_alone_does_not_list_a_person(self):
         item = self.check_in(self.ann, at(MONDAY - timedelta(days=20)), '10.00')
@@ -233,3 +261,61 @@ class WhoSeesWhatTests(Base):
         self.assertEqual(self.get(self.lead, date='tomorrow').status_code, 400)
         body = self.get(self.lead, date='2099-01-01').json()
         self.assertEqual(body['date'], timezone.localdate().isoformat())
+
+
+class TheWholeRoomTests(Base):
+    """Round 2 critic: the room pace left out people on the clock with no check-ins, so a shared sign-in doubled it."""
+
+    def test_the_whole_room_is_every_check_in_over_every_processing_hour(self):
+        for _ in range(20):
+            self.check_in(self.ann, at(DAY), '10.00')
+        self.clock(self.ann, DAY, 4)
+        self.clock(self.bo, DAY, 4)          # on the clock, items under Ann's sign-in
+        room = pcc.build(self.lead, DAY)['room']
+        self.assertEqual(room['day_whole'], {'items': 20, 'hours': '8.00', 'items_per_hour': '2.50', 'dollars_per_hour': '25.00',
+                                             'items_off_clock': 0})
+        self.assertEqual(room['day_average']['items_per_hour'], '5.00')     # Ann's own line, unchanged
+        self.assertEqual(room['shared_sign_in'], {'day': True, 'week': True})
+
+    def test_no_shared_sign_in_when_everyone_on_the_clock_checked_in(self):
+        self.check_in(self.ann, at(DAY), '10.00')
+        self.clock(self.ann, DAY, 4)
+        self.assertEqual(pcc.build(self.lead, DAY)['room']['shared_sign_in'], {'day': False, 'week': False})
+
+    def test_the_processor_is_told_about_a_shared_sign_in_too(self):
+        self.check_in(self.ann, at(DAY), '10.00')
+        self.clock(self.ann, DAY, 4)
+        self.clock(self.bo, DAY, 4)
+        self.assertTrue(pcc.build(self.ann, DAY, mine=True)['room']['shared_sign_in']['day'])
+
+    def test_the_owner_is_marked(self):
+        owner = staff('owner@x.com', 'Admin', superuser=True)
+        self.check_in(owner, at(DAY), '10.00')
+        payload = pcc.build(self.lead, DAY)
+        self.assertTrue(self.line(payload, owner)['is_owner'])
+        self.check_in(self.ann, at(DAY), '10.00')
+        self.assertFalse(self.line(pcc.build(self.lead, DAY), self.ann)['is_owner'])
+
+    def test_the_whole_room_week_counts_pace_only_on_days_with_punches(self):
+        """The +1 critic: a no-punch Monday's items must not lift the week's room pace."""
+        for _ in range(40):
+            self.check_in(self.ann, at(MONDAY), '10.00')          # Monday: nobody on the clock
+        for _ in range(8):
+            self.check_in(self.ann, at(DAY), '10.00')
+        self.clock(self.ann, DAY, 4)
+        self.clock(self.bo, DAY, 4)
+        week = pcc.build(self.lead, DAY)['room']['week_whole']
+        self.assertEqual(week, {'items': 48, 'hours': '8.00', 'items_per_hour': '1.00', 'dollars_per_hour': '10.00',
+                                'items_off_clock': 40})
+
+    def test_tag_errors_say_how_many_are_already_fixed(self):
+        from apps.stocktake.models import Issue
+
+        item = self.check_in(self.ann, at(DAY), '10.00')
+        open_tag = BadTag.objects.create(item=item, reason=BadTag.REASON_PRICE_HIGH, checked_in_by=self.ann)
+        fixed_tag = BadTag.objects.create(item=item, reason=BadTag.REASON_PRICE_LOW, checked_in_by=self.ann)
+        issue = Issue.objects.create(item=item, kind=Issue.KIND_CHOICES[0][0], fixed_at=at(DAY, 12))
+        BadTag.objects.filter(pk=fixed_tag.pk).update(found_at=at(DAY), issue=issue)
+        BadTag.objects.filter(pk=open_tag.pk).update(found_at=at(DAY))
+        day = self.line(pcc.build(self.lead, DAY), self.ann)['day']
+        self.assertEqual((day['tag_errors'], day['tag_errors_fixed']), (2, 1))

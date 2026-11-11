@@ -436,9 +436,13 @@ export function ProcessingCheckInDialog({
               highlightRequired={!isEditMode}
               belowPrice={
                 <>
-                  <RecoveryHint retail={retail} productId={productId} orderId={orderId} condition={condition} price={price}
-                    onUsePrice={setPrice} disabled={busy} />
-                  <PriceCoach productId={productId} price={price} />
+                  {/* Room is held for both helpers from the start, so the Price box never moves when they load.
+                      The coach (this product's own record) sits first, next to the price; the rule of thumb after. */}
+                  <PriceCoach productId={productId} price={price} orderId={orderId} />
+                  <Box sx={{ gridColumn: '1 / -1', minHeight: Number.parseFloat(retail) > 0 ? { xs: 124, sm: 68 } : 0 }}>
+                    <RecoveryHint retail={retail} productId={productId} orderId={orderId} condition={condition} price={price}
+                      onUsePrice={setPrice} disabled={busy} name="Store-wide estimate: a rule of thumb" />
+                  </Box>
                 </>
               }
             />

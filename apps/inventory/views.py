@@ -8574,7 +8574,7 @@ def recovery_estimate_view(request):
 def price_coach_view(request):
     """What items like this sold for here, and how fast, for the check-in price box (Dash Updates #89).
 
-    GET /api/inventory/price-coach/?product=<id>&price=<typed price>
+    GET /api/inventory/price-coach/?product=<id>&price=<typed price>&order=<the PO being checked in>
     Returns: { enabled, coach } (coach null with the switch off or no product). Facts only; never changes a price.
     """
     from .services import price_coach
@@ -8582,7 +8582,8 @@ def price_coach_view(request):
     if not price_coach.is_enabled():
         return Response({'enabled': False, 'coach': None})
     q = request.query_params
-    return Response({'enabled': True, 'coach': price_coach.coach(_int_or_none(q.get('product')), q.get('price'))})
+    coach = price_coach.coach(_int_or_none(q.get('product')), q.get('price'), _int_or_none(q.get('order')))
+    return Response({'enabled': True, 'coach': coach})
 
 
 @api_view(['POST'])
