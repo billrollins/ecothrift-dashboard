@@ -1,12 +1,17 @@
-v2.275.0 — Processing: fast, smart product search inside a manifest row
+v2.276.0 — Add item with AI: dump anything, then one Clean up with AI
 
-User-facing theme: **Processing: fast, smart product search inside a manifest row (Dash Update #98).**
+User-facing theme: **Add item with AI: dump anything, then one "Clean up with AI" (Dash Update #96).**
 
-> **For Bill:** you said Add product / Search product was "SUPER slow and clunky". Opening a manifest row now shows likely products at once, with no typing: an exact code match first (UPC, SKU, item number), then the row's brand and title, then products close in meaning. There is a clear **Search products** box and button. The search no longer needs every word to be in the title: it looks at codes, tags, titles and meaning together, ranks them, and an extra or missing word no longer empties the list. Each result shows brand, model, UPC, category, how many sold, the average price and how many are on the shelf, and why it is listed; **Use** attaches it. Measured on ten real rows of the big Target truck (local copy, 203,827 products): a search went from about half a second (535 ms, first one 1.6 s) to 22 ms, and the likely list is ready in about 80 ms. Not verified: search by meaning from typed words could not be tried on this PC; it only runs when no word matches.
+> **For Bill:** you asked to "just dump some text" when adding an item. Find item > Add item > **Add it with AI** now opens one screen: a big box, **Anything you know about it** (paste a web page, a model number, a sentence, a list), **Add photos** (take, drawer or files, several), and the usual boxes, which you can fill or leave empty. Press **Clean up with AI** and it fills the rest: title, brand, model, category, condition, tags, identifiers, specifications, a price to start and the retail. **What you typed in a box always wins.** Each box the AI filled has a small **AI** mark like Processing's Suggest; tap it to see what was there. Nothing to go on, or the AI fails: it says so plainly and your boxes stay as they were. What you typed in the big box and every photo are kept with the item.
 
-### Changed (#98: product search inside a manifest row)
-- New `services/product_find.py` with `GET /api/inventory/processing-rows/<id>/likely-products/` and `GET /api/inventory/product-find/?q=&row=`: codes first, then all words, then all but one or two, ranked with rare words weighted; close in meaning fills the rest. No migration (existing trigram and vector indexes).
-- `ProcessingProductFinder` replaces the old search box inside a Processing row: likely products shown at once, a Search products box and button, results with brand, model, UPC, category, sold, average price and on-shelf count. `ProductSearchAutocomplete` and its other two users are unchanged.
-- Measured on order 384: search median 535 ms to 22 ms; likely list median 79 ms.
+### Added (#96: Add item, Clean up with AI)
+- New `POST /api/inventory/add-item/clean-up/` (`add_item.clean_up`): the big box (cut at 12,000 characters), up to 4 photos and the filled boxes go to the model; the answer is cleaned to our rules (taxonomy names only, conditions, a 12 or 13 digit UPC, money) and merged so a typed box is never changed (identifiers and specifications gain only the names left out). Model: Settings > AI `SUGGEST_PRODUCT`, else Spark Contributor at low effort (reads photos; about $0.001 and 11 to 13 s a call). Every call logged in AIUsage (`inventory.add_item_ai`), failures too.
+- The price to start is the AI's; our sales of similar items fill it only when the AI cannot tell (tried: a $499 mixer got $5.78 from mixer accessories, $200 earbuds got $11).
+- Check-in takes several photos (`photos`): the first is the product photo, the rest are saved and listed on the check-in record with the big box text (`defaults_snapshot.add_item`: `more_photos`, `source_text`). Tags, identifiers and specifications are saved on the new product.
+- One new-product screen for Copy, AI and Type it (`AddItemNewProductStep.tsx`): photos in the shared row (`PickedPhotos`: tap to turn or crop, X to take out; a drawer photo is marked used only once the item is checked in), AI marks with a way back per box, Original / AI values for all, condition and price to start carried into the check-in step. Rules in `addItemModel.ts`. 9 server tests (`test_add_item_clean_up.py`), 8 front-end tests (model and the screen).
+
+### Fixed
+- Add item check-in step: the photo preview could show as a broken image (the preview link was dropped when React re-ran the effect).
+- Picked photos row (`PickedPhotos`, Add item and Ask for an update): the same broken-image fault on a local server (React's dev double run); production was not affected.
 
 Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>

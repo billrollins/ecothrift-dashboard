@@ -86,7 +86,44 @@ export interface NewProductSpec {
   retail_estimate?: string | null;
   how: 'copy' | 'ai' | 'typed';
   copied_from?: number;
-  ai?: { model: string; draft: AiDraft };
+  /** The AI's values, so the server records which fields were kept as the AI wrote them. */
+  ai?: { model: string; draft: Partial<AiDraft> | Record<string, unknown> };
+  /** Clean up with AI (#96). */
+  tags?: string[];
+  identifiers?: Record<string, string>;
+  specifications?: Record<string, string>;
+  /** "Anything you know about it", kept as typed on the check-in record. */
+  source_text?: string;
+}
+
+/** Clean up with AI (Dash Updates #96): every box, with what the person typed kept. Money comes as a string. */
+export interface CleanUpValues {
+  title: string;
+  short_name: string;
+  brand: string;
+  model: string;
+  category: string;
+  subcategory: string;
+  upc: string;
+  condition: ItemCondition | '';
+  price: string | null;
+  retail_estimate: string | null;
+  tags: string[];
+  identifiers: Record<string, string>;
+  specifications: Record<string, string>;
+}
+
+export type CleanUpField = keyof CleanUpValues;
+
+export interface CleanUpResponse {
+  values: CleanUpValues;
+  /** The boxes the AI filled (or, for identifiers and specifications, added to). */
+  filled: CleanUpField[];
+  problems: string[];
+  confidence: 'high' | 'medium' | 'low';
+  /** Where the price came from: "our sales of similar items", "the AI", "typed" or "". */
+  price_from: string;
+  model: string;
 }
 
 export type AddItemDestination = 'floor' | 'back_stock' | 'restoration';
@@ -141,12 +178,26 @@ export function aiFillProduct(title: string, photo?: File | null) {
   }).then((r) => r.data);
 }
 
-/** Check in Misfit items. A photo goes with a new product (kept on the product). Throws a 409 for the retail check. */
-export function addItemCheckIn(payload: AddItemCheckInPayload, photo?: File | null) {
-  if (!photo) return api.post<AddItemCheckInResult>('/inventory/add-item/check-in/', payload).then((r) => r.data);
+/**
+ * Clean up with AI (#96): the big box, the photos (up to 4 go to the model) and the boxes the person filled.
+ * The server never changes a typed box. A failure throws with a plain `detail`; the caller leaves the form alone.
+ */
+export function cleanUpWithAi(text: string, typed: Partial<Record<CleanUpField, unknown>>, photos: File[]) {
+  const form = new FormData();
+  form.append('payload', JSON.stringify({ text, typed }));
+  photos.slice(0, 4).forEach((p) => form.append('photos', p));
+  return api.post<CleanUpResponse>('/inventory/add-item/clean-up/', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 90_000,
+  }).then((r) => r.data);
+}
+
+/** Check in Misfit items. Photos go with a new product (the first on the product, all kept). 409 = the retail check. */
+export function addItemCheckIn(payload: AddItemCheckInPayload, photos?: File[] | null) {
+  if (!photos?.length) return api.post<AddItemCheckInResult>('/inventory/add-item/check-in/', payload).then((r) => r.data);
   const form = new FormData();
   form.append('payload', JSON.stringify(payload));
-  form.append('photo', photo);
+  photos.forEach((p) => form.append('photos', p));
   return api.post<AddItemCheckInResult>('/inventory/add-item/check-in/', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data);

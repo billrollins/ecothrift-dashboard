@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box, Button, Chip, CircularProgress, Link, Stack, TextField, Typography,
 } from '@mui/material';
@@ -31,10 +31,17 @@ function Label({ children }: { children: React.ReactNode }) {
 function PickedSummary({ picked, onChange }: { picked: PickedProduct; onChange: () => void }) {
   const p = picked.kind === 'existing' ? picked.product : null;
   const spec = picked.kind === 'new' ? picked.spec : null;
-  const photoUrl = useMemo(() => (picked.kind === 'new' && picked.photo ? URL.createObjectURL(picked.photo) : null), [picked]);
-  useEffect(() => () => {
-    if (photoUrl) URL.revokeObjectURL(photoUrl);
-  }, [photoUrl]);
+  const first = picked.kind === 'new' ? picked.photos[0] ?? null : null;
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!first) {
+      setPhotoUrl(null);
+      return undefined;
+    }
+    const url = URL.createObjectURL(first);
+    setPhotoUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [first]);
   const name = p ? productName(p) : spec?.short_name || spec?.title || '';
   const line = p ? [p.brand, p.model].filter(Boolean).join(' · ') : [spec?.brand, spec?.model].filter(Boolean).join(' · ');
   const place = p ? [p.category, p.subcategory].filter(Boolean).join(' › ') : [spec?.category, spec?.subcategory].filter(Boolean).join(' › ');

@@ -5,7 +5,8 @@ GET  /api/inventory/add-item/find/?q=                      products for the box:
 GET  /api/inventory/add-item/price/?product=&title=&category=  a price from what it (or similar items) sold for
 GET  /api/inventory/add-item/taxonomy/                     categories and their subcategories (the answer key)
 POST /api/inventory/add-item/ai-fill/                      title (+ photo): the AI's draft of a new product
-POST /api/inventory/add-item/check-in/                     JSON, or multipart with `payload` (JSON) + `photo`
+POST /api/inventory/add-item/clean-up/                     Clean up with AI (#96): `payload` {text, typed} + `photos`
+POST /api/inventory/add-item/check-in/                     JSON, or multipart with `payload` (JSON) + `photo`/`photos`
 """
 import json
 
@@ -67,6 +68,43 @@ def add_item_ai_fill_view(request):
         return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+def _photos(request) -> list:
+    uploads = request.FILES.getlist('photos')
+    for upload in uploads:
+        if upload.size > MAX_PHOTO_BYTES:
+            raise add_item.AddItemError('One of the photos is over 25 MB.')
+    return uploads
+
+
+def _payload(request) -> dict:
+    data = request.data
+    if 'payload' in data:
+        try:
+            data = json.loads(data.get('payload') or '{}')
+        except (TypeError, ValueError):
+            raise add_item.AddItemError('payload must be JSON.')
+    if not isinstance(data, dict):
+        raise add_item.AddItemError('Send an object.')
+    return data
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsStaff])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
+def add_item_clean_up_view(request):
+    """Clean up with AI (#96): `payload` JSON {text, typed} + up to 4 `photos`. Typed boxes always win."""
+    try:
+        data = _payload(request)
+        uploads = _photos(request)[:add_item.CLEAN_UP_PHOTOS_MAX]
+        images = [add_item.ai_image_block(u.read()) for u in uploads]
+        return Response(add_item.clean_up(str(data.get('text') or ''), data.get('typed') or {}, images=images))
+    except ReceivingPhotoError:
+        return Response({'detail': 'One of the photos is not a photo we can read. Take it out and try again.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    except add_item.AddItemError as e:
+        return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, IsStaff])
 @parser_classes([MultiPartParser, FormParser, JSONParser])
@@ -80,7 +118,7 @@ def add_item_check_in_view(request):
     if not isinstance(data, dict):
         return Response({'detail': 'Send an object.'}, status=status.HTTP_400_BAD_REQUEST)
     try:
-        result = add_item.check_in(request.user, dict(data), photo=_photo(request))
+        result = add_item.check_in(request.user, dict(data), photo=_photo(request), photos=_photos(request))
     except RetailCheckNeeded as e:
         return Response({'detail': str(e), **e.payload}, status=status.HTTP_409_CONFLICT)
     except ValueError as e:

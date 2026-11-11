@@ -319,12 +319,15 @@ def taxonomy() -> dict[str, list[str]]:
     return std.canon()
 
 
-def _ai_system_prompt(cats: dict[str, list[str]]) -> str:
+AI_DRAFT_INTRO = ('From a rough title (and a photo when there is one), draft the product the way the store\'s catalog '
+                  'writes it. Call the tool `draft_product`.')
+
+
+def _ai_system_prompt(cats: dict[str, list[str]], intro: str = AI_DRAFT_INTRO) -> str:
     from apps.inventory.services import standardize as std
 
     tax = std.TAXONOMY.read_text(encoding='utf-8')
-    return f"""You help a thrift store add one product it has in hand. From a rough title (and a photo when there is
-one), draft the product the way the store's catalog writes it. Call the tool `draft_product`.
+    return f"""You help a thrift store add one product it has in hand. {intro}
 
 # How to place an item
 {std._section(tax, 'How to place an item (in order)')}
@@ -444,6 +447,252 @@ def ai_draft(title: str, *, image: dict | None = None) -> dict[str, Any]:
     return {'draft': draft, 'problems': problems, 'model': result.model_used}
 
 
+# ── 2c. Clean up with AI (Dash Updates #96, owner 2026-11-11) ───────────────
+# "Dump anything": one big box of whatever the person knows (a pasted web page, a model number, a sentence), any
+# photos, and any boxes already filled. One call fills the rest. A box the person filled always wins: the AI only
+# fills what is empty, and a list (identifiers, specifications) only gets the keys the person left out.
+
+CLEAN_UP_DETAIL = 'Add item: Clean up with AI'
+CLEAN_UP_TEXT_MAX = 12000         # a pasted product page is cut here; the start carries the facts
+CLEAN_UP_PHOTOS_MAX = 4
+# Settings > AI picks the model for SUGGEST_PRODUCT. With none picked, the house volume model (Spark Contributor,
+# which reads photos through the router's OpenAI-style image blocks) does it, not the .env fallback.
+CLEAN_UP_DEFAULT_MODEL = 'muse-spark-1.3-contributor'
+CLEAN_UP_DEFAULT_EFFORT = 'low'
+CONDITIONS = ('new', 'like_new', 'very_good', 'good', 'fair')
+TEXT_FIELDS = ('title', 'short_name', 'brand', 'model', 'category', 'subcategory', 'upc', 'condition')
+MONEY_FIELDS = ('price', 'retail_estimate')
+DICT_FIELDS = ('identifiers', 'specifications')
+CLEAN_UP_FIELDS = TEXT_FIELDS + MONEY_FIELDS + DICT_FIELDS + ('tags',)
+
+
+def clean_up_model() -> tuple[str, str]:
+    """(model id, effort) for Clean up with AI: Settings > AI when a model is picked there, else Spark Contributor."""
+    from apps.core.ai_config import ai_effort, ai_model, settings_model
+
+    model_id = ai_model(AI_PURPOSE)
+    if model_id == settings_model(AI_PURPOSE):     # nothing picked in Settings > AI
+        return CLEAN_UP_DEFAULT_MODEL, CLEAN_UP_DEFAULT_EFFORT
+    effort = ai_effort(AI_PURPOSE)
+    return model_id, effort
+
+
+def _clean_up_prompt(cats: dict[str, list[str]]) -> str:
+    return _ai_system_prompt(cats, intro=(
+        'A staff member dumped what they know about it: maybe a pasted web page, a model number, a sentence, a list, '
+        'and maybe photos. Some boxes may already be filled (`already_filled`): treat those as true and make the rest '
+        'agree with them. Draft the product the way the store\'s catalog writes it. Call the tool `clean_up_product`.'
+    )) + f"""
+- condition: one of {', '.join(CONDITIONS)}, only when the words or photos say it (sealed or new in box is new;
+  "open box" is like_new); else "".
+- tags: up to 8 short lowercase search words a shopper might type that are not already in the title.
+- identifiers: only ones written in the dump or readable in a photo (upc, ean, mpn, sku, asin, item_number). Never
+  invent a number.
+- upc: the 12 or 13 digit barcode number when one is written or readable, else "".
+- specifications: up to 8 short facts that matter to a buyer (size, capacity, wattage, material, color, what is in
+  the box), as name: value. Only what the dump or photos show.
+- price: what a thrift store asks for it used and in the condition given, in dollars, or 0 when you cannot tell.
+  Our store usually starts near half of retail for good condition."""
+
+
+def _clean_up_tool(cats: dict[str, list[str]]) -> dict:
+    tool = _ai_tool(cats)
+    props = dict(tool['input_schema']['properties'])
+    props.update({
+        'upc': {'type': 'string'},
+        'condition': {'type': 'string', 'enum': [*CONDITIONS, '']},
+        'tags': {'type': 'array', 'items': {'type': 'string'}},
+        'identifiers': {'type': 'object', 'additionalProperties': {'type': 'string'}},
+        'specifications': {'type': 'object', 'additionalProperties': {'type': 'string'}},
+        'price': {'type': 'number'},
+    })
+    return {'name': 'clean_up_product', 'description': 'The cleaned-up product.',
+            'input_schema': {**tool['input_schema'], 'properties': props}}
+
+
+def _text(value, limit: int = 300) -> str:
+    return str(value or '').strip()[:limit] if not isinstance(value, (dict, list)) else ''
+
+
+def _amount(value) -> Decimal | None:
+    try:
+        amount = Decimal(str(value).replace('$', '').replace(',', '').strip()).quantize(Decimal('0.01'))
+    except Exception:  # noqa: BLE001 - null or not a number
+        return None
+    return amount if Decimal('0') < amount < Decimal('100000') else None
+
+
+def _pairs(value, *, limit: int = 12) -> dict[str, str]:
+    """A name: value object, cleaned (blank names and values dropped, short strings)."""
+    if not isinstance(value, dict):
+        return {}
+    out: dict[str, str] = {}
+    for k, v in value.items():
+        key, val = _text(k, 60), _text(v, 200)
+        if key and val and not isinstance(v, (dict, list)):
+            out[key] = val
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _tag_list(value) -> list[str]:
+    raw = value.split(',') if isinstance(value, str) else value if isinstance(value, list) else []
+    out: list[str] = []
+    for t in raw:
+        tag = _text(t, 40).lower()
+        if tag and tag not in out:
+            out.append(tag)
+    return out[:12]
+
+
+def _typed_values(typed: dict) -> dict[str, Any]:
+    """What the person already filled, cleaned. Empty boxes are left out."""
+    typed = typed if isinstance(typed, dict) else {}
+    out: dict[str, Any] = {}
+    for f in TEXT_FIELDS:
+        v = _text(typed.get(f))
+        if v:
+            out[f] = v
+    for f in MONEY_FIELDS:
+        v = _amount(typed.get(f)) if typed.get(f) not in (None, '') else None
+        if v is not None:
+            out[f] = v
+    for f in DICT_FIELDS:
+        v = _pairs(typed.get(f))
+        if v:
+            out[f] = v
+    tags = _tag_list(typed.get('tags'))
+    if tags:
+        out['tags'] = tags
+    return out
+
+
+def _ai_values(raw: dict, cats: dict[str, list[str]], typed: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    """The AI's answer, cleaned to our rules. A category the person typed decides which subcategories are allowed."""
+    category = _text(raw.get('category'), 100)
+    category = category if category in cats else ''
+    allowed_in = typed.get('category') if typed.get('category') in cats else category
+    subcategory = _text(raw.get('subcategory'), 100)
+    subcategory = subcategory if subcategory in cats.get(allowed_in, []) else ''
+    condition = _text(raw.get('condition'), 20).lower()
+    upc = re.sub(r'\D', '', _text(raw.get('upc'), 20))
+    brand = _text(raw.get('brand'), 200)
+    confidence = _text(raw.get('confidence'), 10).lower()
+    return {
+        'title': _text(raw.get('title'), TITLE_MAX),
+        'short_name': _text(raw.get('short_name'), SHORT_MAX),
+        'brand': brand if brand.lower() != 'generic' else 'Generic',
+        'model': _text(raw.get('model'), 200),
+        'category': category,
+        'subcategory': subcategory,
+        'upc': upc if len(upc) in (12, 13) else '',
+        'condition': condition if condition in CONDITIONS else '',
+        'price': _amount(raw.get('price')),
+        'retail_estimate': _amount(raw.get('retail_estimate')),
+        'identifiers': _pairs(raw.get('identifiers')),
+        'specifications': _pairs(raw.get('specifications')),
+        'tags': _tag_list(raw.get('tags'))[:8],
+    }, confidence if confidence in ('high', 'medium', 'low') else 'low'
+
+
+def merge_clean_up(typed: dict[str, Any], ai: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """The person's boxes win. The AI fills an empty box; a name: value list only gets the names left out.
+    Returns the merged values and the fields the AI filled (or added to)."""
+    merged: dict[str, Any] = {}
+    filled: list[str] = []
+    for f in CLEAN_UP_FIELDS:
+        mine, theirs = typed.get(f), ai.get(f)
+        if f in DICT_FIELDS:
+            mine = dict(mine or {})
+            extra = {k: v for k, v in (theirs or {}).items() if k.lower() not in {m.lower() for m in mine}}
+            merged[f] = {**mine, **extra}
+            if extra:
+                filled.append(f)
+        elif mine not in (None, '', [], {}):
+            merged[f] = mine
+        elif theirs not in (None, '', [], {}):
+            merged[f] = theirs
+            filled.append(f)
+        else:
+            merged[f] = [] if f == 'tags' else None if f in MONEY_FIELDS else ''
+    return merged, filled
+
+
+def clean_up(text: str, typed: dict | None = None, *, images: list[dict] | None = None) -> dict[str, Any]:
+    """Clean up with AI: the big box, the photos and the filled boxes in; every box out, the person's untouched.
+    Raises AddItemError with plain words (nothing to go on, or the AI failed): the form is never changed then."""
+    from apps.core.services.ai_usage_log import log_ai_usage
+    from apps.core.services.llm_router import LLMAPIError, LLMConfigError, llm_complete
+
+    text = (text or '').strip()[:CLEAN_UP_TEXT_MAX]
+    images = list(images or [])[:CLEAN_UP_PHOTOS_MAX]
+    mine = _typed_values(typed or {})
+    if not text and not images and not mine:
+        raise AddItemError('Give the AI something to go on: type or paste anything you know about it, or add a photo.')
+    cats = taxonomy()
+    content: list[dict] = [{'type': 'text', 'text': json.dumps({
+        'anything_you_know': text or '(nothing typed: see the photos and the filled boxes)',
+        'already_filled': {k: (str(v) if isinstance(v, Decimal) else v) for k, v in mine.items()},
+        'photos': len(images),
+    }, ensure_ascii=False)}]
+    content.extend(images)
+    model_id, effort = clean_up_model()
+    detail = f'{CLEAN_UP_DETAIL} ({len(images)} photo{"" if len(images) == 1 else "s"}, {len(text)} chars)'
+    started = time.monotonic()
+    try:
+        result = llm_complete(
+            model_id=model_id, system=_clean_up_prompt(cats), messages=[{'role': 'user', 'content': content}],
+            tools=[_clean_up_tool(cats)], tool_name='clean_up_product', max_tokens=1500, effort=effort,
+            timeout=60.0, log_source=AI_FEATURE, log_purpose=AI_PURPOSE, log_detail=detail,
+        )
+    except (LLMAPIError, LLMConfigError) as exc:
+        log_ai_usage(AI_FEATURE, model_id, purpose=AI_PURPOSE, duration_ms=int((time.monotonic() - started) * 1000),
+                     detail=detail, success=False, error=str(exc)[:500])
+        raise AddItemError('The AI could not clean this one up right now. Your boxes are as you left them: '
+                           'try again, or fill them in by hand.') from exc
+    raw = result.tool_input
+    if raw is None:
+        from apps.inventory.services.category_taxonomy import extract_json_object
+
+        try:
+            raw = extract_json_object(result.text or '')
+        except Exception:  # noqa: BLE001 - nothing usable came back
+            raise AddItemError('The AI answer was not usable. Your boxes are as you left them: try again, '
+                               'or fill them in by hand.')
+    ai, confidence = _ai_values(raw if isinstance(raw, dict) else {}, cats, mine)
+    merged, filled = merge_clean_up(mine, ai)
+    if merged['subcategory'] and merged['subcategory'] not in cats.get(merged['category'], []):
+        if 'subcategory' in filled:
+            filled.remove('subcategory')
+        merged['subcategory'] = ''
+
+    # The price to start: the AI's (it knows the product) when it gives one. Our sales of "similar items" are matched
+    # by title words and can be far off (a $200 pair of earbuds got $11 from cheap ones), so they fill in only when
+    # the AI cannot tell. The check-in step still shows that sales figure beside the price, with "Use it".
+    price_from = 'typed' if 'price' in mine else 'the AI' if merged['price'] is not None else ''
+    if 'price' not in mine and merged['price'] is None:
+        try:
+            ours = suggest_price(title=merged['title'] or text[:120], category=merged['category'])
+        except Exception:  # noqa: BLE001 - the price lookup never fails the clean-up
+            logger.exception('Add item clean-up: price lookup failed')
+            ours = {'price': None}
+        if ours.get('price'):
+            merged['price'] = ours['price']
+            price_from = f"our sales of {ours.get('basis') or 'similar items'}"
+            filled.append('price')
+
+    problems: list[str] = []
+    if not merged['category']:
+        problems.append('Pick a category.')
+    elif cats.get(merged['category']) and not merged['subcategory']:
+        problems.append('Pick a subcategory.')
+    if not merged['title']:
+        problems.append('Give it a title.')
+    return {'values': merged, 'filled': filled, 'ai': ai, 'problems': problems, 'confidence': confidence,
+            'price_from': price_from, 'model': result.model_used}
+
+
 # ── Make the product (copy similar, AI fill, or typed) ─────────────────────
 
 def _new_product(spec: dict, *, user) -> tuple[Product, dict]:
@@ -492,7 +741,26 @@ def _new_product(spec: dict, *, user) -> tuple[Product, dict]:
         same_as_ai = bool(ai_model_used) and drafted not in (None, '') and str(drafted) == str(value)
         set_field(product, field, value, profile=profile, source=f'ai:{ai_model_used}' if same_as_ai else 'human',
                   confidence=str(ai_values.get('confidence') or '') if same_as_ai else 'confirmed')
+    # Clean up with AI (#96): tags, identifiers and specifications go on the product; an existing product only gets
+    # what it lacks (a tag it does not have, a name it has no value for).
+    extra_fields: list[str] = []
+    tags = _tag_list(spec.get('tags'))
+    if tags:
+        have = list(product.tags or []) if isinstance(product.tags, list) else []
+        product.tags = have + [t for t in tags if t not in have]
+        extra_fields.append('tags')
+    for f in DICT_FIELDS:
+        pairs = _pairs(spec.get(f), limit=20)
+        if pairs:
+            have = dict(getattr(product, f) or {}) if isinstance(getattr(product, f), dict) else {}
+            setattr(product, f, {**pairs, **have})
+            extra_fields.append(f)
+    if extra_fields:
+        product.save(update_fields=[*extra_fields, 'updated_at'])
     origin = {'product': 'new' if created else 'matched', 'how': str(spec.get('how') or 'typed')[:20]}
+    source_text = str(spec.get('source_text') or '').strip()[:20000]
+    if source_text:
+        origin['source_text'] = source_text      # "Anything you know about it", kept as typed (on the check-in record)
     if spec.get('copied_from'):
         origin['copied_from'] = int(spec['copied_from'])
     if ai_model_used:
@@ -544,7 +812,28 @@ def restoration_estimate(raw: Any) -> dict[str, Any]:
         raise AddItemError(str(e)) from e
 
 
-def check_in(user, data: dict, *, photo=None) -> dict[str, Any]:
+def save_extra_photos(product: Product, uploads: list) -> list[str]:
+    """Photos beyond the product's one: saved (2048 px) beside the product photos. Returns their storage names."""
+    import uuid
+
+    from django.core.files.base import ContentFile
+    from django.core.files.storage import default_storage
+
+    from apps.inventory.services.receiving_photos import prepare_high_res_and_thumb
+
+    kept: list[str] = []
+    for upload in uploads[:CLEAN_UP_PHOTOS_MAX * 2]:
+        try:
+            upload.seek(0)
+            high, _thumb = prepare_high_res_and_thumb(upload.read())
+            kept.append(default_storage.save(f'inventory/products/add-item/{product.pk}-{uuid.uuid4().hex}.jpg',
+                                             ContentFile(high)))
+        except Exception:  # noqa: BLE001 - one bad photo never stops the rest or the check-in
+            logger.exception('Add item: extra photo for %s not saved', product.pk)
+    return kept
+
+
+def check_in(user, data: dict, *, photo=None, photos=None) -> dict[str, Any]:
     """Check in Misfit items: the product (picked, or made here), then Processing's own check-in on the Misfit order.
     Raises RetailCheckNeeded (answer and send again) and AddItemError. Nothing is saved unless it all works."""
     from apps.inventory.processing_ops import (
@@ -601,11 +890,18 @@ def check_in(user, data: dict, *, photo=None) -> dict[str, Any]:
             ItemCheckIn.objects.filter(pk=check_in_id).update(
                 defaults_snapshot=_merged_snapshot(check_in_id, {'add_item': snapshot_origin}))
 
-    if photo is not None:
+    uploads = [p for p in ([photo] if photo is not None else []) + list(photos or []) if p is not None]
+    if uploads:
         try:
-            save_product_photo(product, photo)
+            save_product_photo(product, uploads[0])
         except Exception:  # noqa: BLE001 - a photo problem never undoes a check-in
             logger.exception('Add item: product photo for %s not saved', product.pk)
+    if len(uploads) > 1 and check_in_id:
+        # The product has one photo; the others are kept and listed on the check-in record (#96), never thrown away.
+        kept = save_extra_photos(product, uploads[1:])
+        if kept:
+            ItemCheckIn.objects.filter(pk=check_in_id).update(defaults_snapshot=_merged_snapshot(
+                check_in_id, {'add_item': {**snapshot_origin, 'more_photos': kept}}))
     return {
         'product_id': product.pk,
         'purchase_order_id': order.pk,

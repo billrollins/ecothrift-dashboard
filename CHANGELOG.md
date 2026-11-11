@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.275.0] -->
-<!-- Last reviewed: 2026-11-11 (2.275.0) -->
+<!-- Line 1 release: ## [2.276.0] -->
+<!-- Last reviewed: 2026-11-11 (2.276.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.276.0] - 2026-11-11
+
+User-facing theme: **Add item with AI: dump anything, then one "Clean up with AI" (Dash Update #96).**
+
+> **For Bill:** you asked to "just dump some text" when adding an item. Find item > Add item > **Add it with AI** now opens one screen: a big box, **Anything you know about it** (paste a web page, a model number, a sentence, a list), **Add photos** (take, drawer or files, several), and the usual boxes, which you can fill or leave empty. Press **Clean up with AI** and it fills the rest: title, brand, model, category, condition, tags, identifiers, specifications, a price to start and the retail. **What you typed in a box always wins.** Each box the AI filled has a small **AI** mark like Processing's Suggest; tap it to see what was there. Nothing to go on, or the AI fails: it says so plainly and your boxes stay as they were. What you typed in the big box and every photo are kept with the item.
+
+### Added (#96: Add item, Clean up with AI)
+- New `POST /api/inventory/add-item/clean-up/` (`add_item.clean_up`): the big box (cut at 12,000 characters), up to 4 photos and the filled boxes go to the model; the answer is cleaned to our rules (taxonomy names only, conditions, a 12 or 13 digit UPC, money) and merged so a typed box is never changed (identifiers and specifications gain only the names left out). Model: Settings > AI `SUGGEST_PRODUCT`, else Spark Contributor at low effort (reads photos; about $0.001 and 11 to 13 s a call). Every call logged in AIUsage (`inventory.add_item_ai`), failures too.
+- The price to start is the AI's; our sales of similar items fill it only when the AI cannot tell (tried: a $499 mixer got $5.78 from mixer accessories, $200 earbuds got $11).
+- Check-in takes several photos (`photos`): the first is the product photo, the rest are saved and listed on the check-in record with the big box text (`defaults_snapshot.add_item`: `more_photos`, `source_text`). Tags, identifiers and specifications are saved on the new product.
+- One new-product screen for Copy, AI and Type it (`AddItemNewProductStep.tsx`): photos in the shared row (`PickedPhotos`: tap to turn or crop, X to take out; a drawer photo is marked used only once the item is checked in), AI marks with a way back per box, Original / AI values for all, condition and price to start carried into the check-in step. Rules in `addItemModel.ts`. 9 server tests (`test_add_item_clean_up.py`), 8 front-end tests (model and the screen).
+
+### Fixed
+- Add item check-in step: the photo preview could show as a broken image (the preview link was dropped when React re-ran the effect).
+- Picked photos row (`PickedPhotos`, Add item and Ask for an update): the same broken-image fault on a local server (React's dev double run); production was not affected.
 
 ## [2.275.0] - 2026-11-11
 

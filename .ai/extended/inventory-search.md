@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-28 (Edit category on the Product and Item windows) -->
+<!-- Last updated: 2026-11-11 (Add item: Clean up with AI, #96) -->
 # Inventory search and the standard object views
 
 Owner, 2026-10-02: one fast search for everything in inventory, and one standard way to open a product, a check-in
@@ -45,11 +45,24 @@ item list's Add item (removed in v2.202.0). A modal (full screen on a phone), bu
    the brand; then times sold and shelf count. Each row: photo, tag name, typical price (median sold, else median
    shelf), times sold, Use / Copy. Measured on the local copy of production (202k products): 8 to 96 ms. Vectors are
    not used for typed words (that needs the model on the web server); they are used for price comps.
-2. **Not found: make the product.** *Copy* a near match and edit title, brand, model; or *AI fill*: a rough title and
-   an optional photo (camera on a phone). The AI drafts title, tag name, brand, model, category and subcategory (the
-   taxonomy's exact names: anything else is dropped) and a retail estimate; the person checks it. Through the AI
-   router (purpose `SUGGEST_PRODUCT`, Settings > AI), logged in AIUsage as `inventory.add_item_ai`; the router now
-   sends photos to xAI, Google and Spark too. The product is made at check-in (one transaction), or matched when the
+2. **Not found: make the product.** *Copy* a near match, *Add it with AI*, or *type it in*: all three land on one
+   screen (Dash Update #96, 2026-11-11). Left: one big box, **Anything you know about it** (a pasted web page, a model
+   number, a sentence, a list), **Add photos** (the shared Add photo, up to 8) and one button, **Clean up with AI**
+   (`POST /api/inventory/add-item/clean-up/`, `add_item.clean_up`). Right: the usual boxes, which the person may fill
+   or leave empty: title, brand, model, category, subcategory, tag name, UPC, condition, price to start, retail, tags,
+   identifiers, specifications. The button needs something to go on (words, a photo or a filled box) and says so
+   plainly otherwise. **A box the person filled always wins**: the server never changes it (it is told to the AI as
+   `already_filled`), and identifiers and specifications only gain the names the person left out. Each AI-filled box
+   carries an **AI** mark (Processing's Suggest look); tapping it shows what was there ("Orig") and back; Original and
+   AI values flip them all; typing in a box drops its mark. Up to 4 photos go to the model. The price to start is
+   the AI's; our sales of similar items fill it only when the AI cannot tell (they are matched by title words and can
+   be far off). A failed or slow call leaves every box as it was, with a plain message. Model: Settings > AI purpose
+   `SUGGEST_PRODUCT`; with none picked there it is **Spark Contributor at low effort** (it reads photos through the
+   router), about $0.001 and 11 to 13 s a call (2026-11-11). Logged in AIUsage as `inventory.add_item_ai`. Kept: the
+   big box as `source_text` and photos beyond the product's one (as `more_photos`, storage names) on the check-in
+   record (`ItemCheckIn.defaults_snapshot.add_item`); tags, identifiers and specifications on the product (an
+   existing product only gains what it lacks). Condition and the price to start carry into the check-in step. The
+   older `ai-fill/` endpoint (rough title + one photo) is no longer called by the screen. The product is made at check-in (one transaction), or matched when the
    same UPC or title/brand/model/category exists. Profile fields keep their source (`human`, or `ai:<model>` when
    left as drafted); the photo is kept on the product (`Product.photo`, `photo_thumb`; 2048 px and 480 px).
 3. **Check in.** Quantity, condition, where it goes (Floor, Back stock, Restoration = location `on_shelf`,

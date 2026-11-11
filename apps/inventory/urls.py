@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .api_add_item import (
-    add_item_ai_fill_view, add_item_check_in_view, add_item_find_view, add_item_price_view, add_item_taxonomy_view,
+    add_item_ai_fill_view, add_item_check_in_view, add_item_clean_up_view, add_item_find_view, add_item_price_view, add_item_taxonomy_view,
     restoration_request_settings_view,
 )
 from .api_bulk_price import (
@@ -66,6 +66,7 @@ urlpatterns = [
     path('add-item/price/', add_item_price_view, name='add-item-price'),
     path('add-item/taxonomy/', add_item_taxonomy_view, name='add-item-taxonomy'),
     path('add-item/ai-fill/', add_item_ai_fill_view, name='add-item-ai-fill'),
+    path('add-item/clean-up/', add_item_clean_up_view, name='add-item-clean-up'),
     path('add-item/check-in/', add_item_check_in_view, name='add-item-check-in'),
     path('restoration-request/settings/', restoration_request_settings_view, name='restoration-request-settings'),
     path('floor-issues/', floor_issue_report_view, name='floor-issue-report'),

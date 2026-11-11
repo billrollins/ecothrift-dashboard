@@ -12,7 +12,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import {
-  addItemCheckIn, type AddItemCheckInResult, type AddItemProduct, type NewProductSpec,
+  addItemCheckIn, type AddItemCheckInResult, type AddItemProduct,
 } from '../../../api/addItem.api';
 import { apiErrorDetail } from '../../../hooks/useProductSearch';
 import { printedPreviewToLabelInputs } from '../../../hooks/useProcessingWorkspace';
@@ -24,10 +24,10 @@ import { useRetailCheckPrompt, withRetailCheck } from '../processing/RetailCheck
 import { TarsQuickGradeDialog } from '../../restoration/tars/TarsQuickGradeDialog';
 import { AddItemCheckInStep } from './AddItemCheckInStep';
 import { AddItemFindStep } from './AddItemFindStep';
-import { AddItemNewProductStep } from './AddItemNewProductStep';
+import { AddItemNewProductStep, type FormState } from './AddItemNewProductStep';
 import { markPhotosUsed } from '../../../components/photos/photoFile';
 import {
-  buildCheckInPayload, emptySpec, initialCheckIn, quantityOf, specFromProduct,
+  buildCheckInPayload, emptyForm, formFromSpec, initialCheckIn, quantityOf, specFromForm, specFromProduct,
   type CheckInForm, type PickedProduct,
 } from './addItemModel';
 
@@ -69,9 +69,9 @@ export function AddItemDialog({ open, onClose }: { open: boolean; onClose: () =>
 
   const [step, setStep] = useState<Step>('find');
   const [query, setQuery] = useState('');
-  const [spec, setSpec] = useState<NewProductSpec>(() => emptySpec('typed'));
+  const [newForm, setNewForm] = useState<FormState>(() => ({ form: emptyForm('typed'), marks: {} }));
   const [copiedFrom, setCopiedFrom] = useState<AddItemProduct | null>(null);
-  const [photo, setPhoto] = useState<File | null>(null);
+  const [photos, setPhotos] = useState<File[]>([]);
   const [picked, setPicked] = useState<PickedProduct | null>(null);
   const [form, setForm] = useState<CheckInForm | null>(null);
   const [busy, setBusy] = useState(false);
@@ -82,9 +82,9 @@ export function AddItemDialog({ open, onClose }: { open: boolean; onClose: () =>
   const restart = useCallback((keepQuery = false) => {
     setStep('find');
     if (!keepQuery) setQuery('');
-    setSpec(emptySpec('typed'));
+    setNewForm({ form: emptyForm('typed'), marks: {} });
     setCopiedFrom(null);
-    setPhoto(null);
+    setPhotos([]);
     setPicked(null);
     setForm(null);
     setDone(null);
@@ -100,11 +100,11 @@ export function AddItemDialog({ open, onClose }: { open: boolean; onClose: () =>
     setStep('checkin');
   };
 
-  const startNew = (next: NewProductSpec, from: AddItemProduct | null, q: string) => {
+  const startNew = (next: FormState['form'], from: AddItemProduct | null, q: string) => {
     setQuery(q);
-    setSpec(next);
+    setNewForm({ form: next, marks: {} });
     setCopiedFrom(from);
-    setPhoto(null);
+    setPhotos([]);
     setStep('new');
   };
 
@@ -114,12 +114,12 @@ export function AddItemDialog({ open, onClose }: { open: boolean; onClose: () =>
     try {
       const data = await withRetailCheck(
         buildCheckInPayload(picked, form),
-        (body) => addItemCheckIn(body, picked.kind === 'new' ? picked.photo : null),
+        (body) => addItemCheckIn(body, picked.kind === 'new' ? picked.photos : null),
         retailCheck.ask,
       );
       if (!data) return;
       // The product is made: only now is its drawer photo really used.
-      if (picked.kind === 'new') void markPhotosUsed([picked.photo], 'Add item');
+      if (picked.kind === 'new') void markPhotosUsed(picked.photos, 'Add item');
       let printed = 'Tags not printed.';
       let printFailed = false;
       if (printLabels) {
@@ -196,21 +196,23 @@ export function AddItemDialog({ open, onClose }: { open: boolean; onClose: () =>
                 setQuery(q);
                 toCheckIn({ kind: 'existing', product: row });
               }}
-              onCopy={(row, q) => startNew(specFromProduct(row), row, q)}
-              onAiFill={(q) => startNew(emptySpec('ai'), null, q)}
-              onTypeIt={(q) => startNew(emptySpec('typed', q), null, q)}
+              onCopy={(row, q) => startNew(formFromSpec(specFromProduct(row)), row, q)}
+              onAiFill={(q) => startNew(emptyForm('ai', q), null, q)}
+              onTypeIt={(q) => startNew({ ...emptyForm('typed'), title: q }, null, q)}
             />
           )}
           {step === 'new' && (
             <AddItemNewProductStep
-              spec={spec}
-              onSpecChange={setSpec}
-              photo={photo}
-              onPhotoChange={setPhoto}
+              state={newForm}
+              onStateChange={setNewForm}
+              photos={photos}
+              onPhotosChange={setPhotos}
               copiedFrom={copiedFrom}
-              roughTitle={query}
               onBack={() => setStep('find')}
-              onNext={() => toCheckIn({ kind: 'new', spec, photo })}
+              onNext={() => toCheckIn({
+                kind: 'new', spec: specFromForm(newForm.form), photos,
+                start: { condition: newForm.form.condition, price: newForm.form.price },
+              })}
             />
           )}
           {step === 'checkin' && picked && form && (

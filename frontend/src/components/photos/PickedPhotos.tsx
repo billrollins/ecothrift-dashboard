@@ -1,6 +1,6 @@
 import { Box, ButtonBase, IconButton } from '@mui/material';
 import CloseRounded from '@mui/icons-material/CloseRounded';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { t } from '../../i18n/routines';
 import { useLanguage } from '../../i18n/useLanguage';
 import { PhotoTouchUp } from './PhotoTouchUp';
@@ -25,8 +25,13 @@ export interface PickedPhotosProps {
 export function PickedPhotos({ photos, onRemove, onChange, slots = 0, disabled = false }: PickedPhotosProps) {
   const lang = useLanguage();
   const [open, setOpen] = useState<number | null>(null);
-  const urls = useMemo(() => photos.map((file) => URL.createObjectURL(file)), [photos]);
-  useEffect(() => () => urls.forEach((url) => URL.revokeObjectURL(url)), [urls]);
+  // Made and revoked in one effect: React's dev double run would otherwise revoke links still on screen.
+  const [urls, setUrls] = useState<string[]>([]);
+  useEffect(() => {
+    const next = photos.map((file) => URL.createObjectURL(file));
+    setUrls(next);
+    return () => next.forEach((url) => URL.revokeObjectURL(url));
+  }, [photos]);
   const empty = Math.max(0, slots - photos.length);
   const showing = open != null ? photos[open] ?? null : null;
   return (

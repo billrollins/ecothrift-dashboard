@@ -179,7 +179,7 @@ export function AddItemFindStep({
           <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Not here? Make the product.</Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="center" alignItems="center">
             <Button variant="outlined" startIcon={<IconAiAssist />} onClick={() => onAiFill(text.trim())}>
-              AI fill from a title or photo
+              Add it with AI: paste anything, add photos
             </Button>
             <Typography variant="caption" color="text.secondary">
               or tap Copy on a near match, or{' '}
