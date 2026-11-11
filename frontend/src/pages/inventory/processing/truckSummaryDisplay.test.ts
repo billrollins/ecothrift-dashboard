@@ -39,6 +39,7 @@ function summary(over: Partial<TruckSummaryDTO> = {}): TruckSummaryDTO {
       delivered: '2026-11-05', expected_delivery: null, dispute_due: '2026-11-11', dispute_due_from_plan: false,
       dispute_business_days: 4,
     },
+    claim: { filed: false, filed_on: null, amount_asked: null, amount_back: null, finalized_at: null, not_filed: null },
     plan: null,
     can_set_target: false,
     ...over,

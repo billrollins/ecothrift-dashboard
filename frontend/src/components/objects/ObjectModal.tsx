@@ -30,6 +30,7 @@ import { IconBack as ArrowBack, IconClose as Close, IconOpenExternal as OpenInNe
 import { ItemCardBody } from './ItemCard';
 import { OrderCardBody } from './OrderCard';
 import { TruckPlanCardBody } from './TruckPlanCard';
+import { CloseTruckCardBody } from './CloseTruckCard';
 import { ProductCardBody } from './ProductCard';
 import { RestorationCardBody } from './RestorationCard';
 import { VendorCardBody } from './VendorCard';
@@ -70,7 +71,9 @@ export type ObjectRef =
   /** A new check-in for a product: "add more of these". */
   | { type: 'new-checkin'; id: number }
   /** A truck's plan (Dash Update #81); the id is the order's. */
-  | { type: 'truck-plan'; id: number };
+  | { type: 'truck-plan'; id: number }
+  /** Close the truck (Dash Update #88); the id is the order's. */
+  | { type: 'close-truck'; id: number };
 
 const LABEL: Record<ObjectRef['type'], string> = {
   product: 'Product',
@@ -86,6 +89,7 @@ const LABEL: Record<ObjectRef['type'], string> = {
   member: 'Thrift+ member',
   history: 'Transactions',
   'truck-plan': 'Truck plan',
+  'close-truck': 'Close the truck',
 };
 /** The retail windows' header word in Spanish (their staff read them in either language). */
 const LABEL_ES: Partial<Record<ObjectRef['type'], string>> = { register: 'Caja', drawer: 'Cajón', sale: 'Venta', history: 'Ventas', member: 'Miembro Thrift+' };
@@ -99,7 +103,7 @@ export function parseObjectRef(raw: string | null | undefined): ObjectRef | null
 }
 
 export function formatObjectRef(ref: ObjectRef | null): string {
-  return ref && ref.type !== 'new-checkin' && ref.type !== 'history' && ref.type !== 'truck-plan' ? `${ref.type}:${ref.id}` : '';
+  return ref && ref.type !== 'new-checkin' && ref.type !== 'history' && ref.type !== 'truck-plan' && ref.type !== 'close-truck' ? `${ref.type}:${ref.id}` : '';
 }
 
 interface ObjectModalContextValue {
@@ -208,7 +212,7 @@ export function ObjectModalProvider({
               )}
               <Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }}>
                 {label(current.type)}
-                {current.type !== 'new-checkin' && current.type !== 'order' && current.type !== 'history' && current.type !== 'truck-plan' && (
+                {current.type !== 'new-checkin' && current.type !== 'order' && current.type !== 'history' && current.type !== 'truck-plan' && current.type !== 'close-truck' && (
                   <Typography component="span" color="text.secondary" sx={{ ml: 1 }}>
                     #{current.id}
                   </Typography>
@@ -281,6 +285,7 @@ export function ObjectModalProvider({
                     <OrderCardBody orderId={current.id} renderEditor={() => <OrderDetailPage orderId={current.id} embedded />} />
                   )}
                   {current.type === 'truck-plan' && <TruckPlanCardBody orderId={current.id} />}
+                  {current.type === 'close-truck' && <CloseTruckCardBody orderId={current.id} />}
                   {current.type === 'register' && <RegisterWindow id={current.id} />}
                   {current.type === 'drawer' && <DrawerWindow id={current.id} />}
                   {current.type === 'sale' && <SaleWindow id={current.id} />}

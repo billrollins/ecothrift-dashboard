@@ -33,6 +33,7 @@ import {
   type TruckMeasure,
 } from '../../../api/truckFinalize.api';
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
+import { useOptionalObjectModal } from '../../../components/objects/ObjectModal';
 import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../hooks/useAuth';
 import { IconClose as Close } from '../../../icons/ecoIcons';
@@ -60,6 +61,7 @@ export default function TruckFinalizePage() {
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
   const qc = useQueryClient();
+  const objectModal = useOptionalObjectModal();
   const [allLines, setAllLines] = useState(false);
   const [confirm, setConfirm] = useState<'finalize' | 'reopen' | null>(null);
   const phone = useMediaQuery(useTheme().breakpoints.down('sm'));
@@ -121,6 +123,11 @@ export default function TruckFinalizePage() {
         <Button component={RouterLink} to={`/inventory/processing/${orderId}`} variant="outlined">
           Processing
         </Button>
+        {objectModal && orderId != null ? (
+          <Button variant="contained" onClick={() => objectModal.openObject({ type: 'close-truck', id: orderId })}>
+            Close the truck
+          </Button>
+        ) : null}
         {finalized ? (
           canAccess(user, ['buying:manage']) ? (
             <Button variant="outlined" color="warning" onClick={() => setConfirm('reopen')}>

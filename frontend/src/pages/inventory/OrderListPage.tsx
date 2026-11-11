@@ -26,6 +26,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { useSnackbar } from 'notistack';
 import CreatePurchaseOrderDialog from '../../components/inventory/CreatePurchaseOrderDialog';
+import { UnfiledClaimsStrip } from '../../components/inventory/UnfiledClaimsStrip';
 import { ObjectModalProvider, useObjectModal, type ObjectRef } from '../../components/objects/ObjectModal';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import {
@@ -354,6 +355,7 @@ function OrderListBody() {
       }}
     >
       <Box sx={{ px: 2.5, pt: 2.5, pb: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <UnfiledClaimsStrip />
         <Box
           sx={{
             display: 'flex',

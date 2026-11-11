@@ -198,10 +198,23 @@ DATABASES = {
 _RUNNING_TESTS = (
     (len(sys.argv) >= 2 and sys.argv[1] == 'test')
     or bool(os.environ.get('PYTEST_CURRENT_TEST'))
+    or bool(os.environ.get('PYTEST_XDIST_WORKER'))  # a pytest-xdist worker: its argv does not name pytest
     or any('pytest' in (arg or '').lower() for arg in sys.argv[:1])
 )
 if _RUNNING_TESTS:
     DATABASES['default']['OPTIONS'] = {'options': '-c search_path=public'}
+    # Tests only: a fast hasher. The real one (PBKDF2, slow on purpose) made every test sign-in and
+    # create_user cost about 0.2 s. Production never takes this branch: apps/core/tests/test_test_only_settings.py.
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+    # A worktree keeps its own test database (test_<name>_<worktree folder>): several coders on this PC run tests at
+    # the same time with different migrations, and one shared --reuse-db database made their runs collide. The main
+    # checkout keeps test_<name>. ECOTHRIFT_TEST_DB names it outright. Created on the first run (all migrations, once).
+    _test_db = os.environ.get('ECOTHRIFT_TEST_DB', '').strip()
+    if not _test_db and (BASE_DIR / '.git').is_file():  # in a worktree .git is a file, not a folder
+        _slug = ''.join(c if c.isalnum() else '_' for c in BASE_DIR.name.lower())[:30].strip('_')
+        _test_db = f"test_{DATABASES['default']['NAME']}_{_slug}"
+    if _test_db:
+        DATABASES['default']['TEST'] = {'NAME': _test_db}
 # Read by data migrations that must not depend on a developer's .env during tests.
 RUNNING_TESTS = _RUNNING_TESTS
 

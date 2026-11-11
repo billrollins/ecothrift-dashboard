@@ -41,6 +41,7 @@ import { processingTokens } from './processingTokens';
 import { ProcessingCheckInEditStats, ProductSummaryCard } from './ProcessingCheckInEditStats';
 import { useWorkbenchConfirmDialog } from '../workbench/useWorkbenchConfirmDialog';
 import { RestorationRequestFields } from '../restorationRequest/RestorationRequestFields';
+import { PriceCoach } from '../../../components/inventory/PriceCoach';
 import { RecoveryHint } from '../../../components/inventory/RecoveryHint';
 import {
   EMPTY_REQUEST,
@@ -434,8 +435,11 @@ export function ProcessingCheckInDialog({
               disabled={busy}
               highlightRequired={!isEditMode}
               belowPrice={
-                <RecoveryHint retail={retail} productId={productId} orderId={orderId} condition={condition} price={price}
-                  onUsePrice={setPrice} disabled={busy} />
+                <>
+                  <RecoveryHint retail={retail} productId={productId} orderId={orderId} condition={condition} price={price}
+                    onUsePrice={setPrice} disabled={busy} />
+                  <PriceCoach productId={productId} price={price} />
+                </>
               }
             />
             {toRestoration ?

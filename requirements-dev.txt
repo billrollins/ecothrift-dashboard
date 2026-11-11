@@ -1,0 +1,5 @@
+# Dev and test tools only. Heroku installs requirements.txt and never this file.
+#   pip install -r requirements-dev.txt
+-r requirements.txt
+# Server tests on several CPUs (scripts/dev/lean_test.py uses it when it is installed; each worker keeps its own test database).
+pytest-xdist==3.8.0

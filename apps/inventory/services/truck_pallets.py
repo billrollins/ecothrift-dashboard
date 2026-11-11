@@ -299,6 +299,41 @@ def _bucket_out(b: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _pool_combined_lines(order: PurchaseOrder, expected: dict[int, int], received: dict[int, int]) -> None:
+    """Lines combined in Processing (collapse groups) share their check-ins.
+
+    A combined group is checked in on its first line, so that line reads far over and the others read empty: the
+    truck then looked short by everything on the other lines (found on a real Target truck, Dash Update #88). The
+    group's check-ins are spread over its lines in order, each up to what it expects; anything beyond stays on the
+    first line as over. Lines that are not combined are untouched.
+    """
+    groups: dict[int, list[tuple[int, int]]] = defaultdict(list)
+    masters: dict[int, tuple[int, int]] = {}
+    rows = list(
+        ProcessingRow.objects.filter(purchase_order=order, manifest_row_id__isnull=False)
+        .values_list('id', 'collapse_master_id', 'row_number', 'manifest_row_id'),
+    )
+    by_id = {r[0]: r for r in rows}
+    for row_id, master_id, row_number, mr_id in rows:
+        if master_id and master_id in by_id:
+            groups[master_id].append((row_number, mr_id))
+            masters[master_id] = (by_id[master_id][2], by_id[master_id][3])
+    for master_id, members in groups.items():
+        ordered = []
+        for _row_number, mr_id in [masters[master_id], *sorted(members)]:
+            if mr_id not in ordered:
+                ordered.append(mr_id)
+        if len(ordered) < 2:
+            continue
+        pool = sum(received.get(mr_id, 0) for mr_id in ordered)
+        for mr_id in ordered:
+            take = min(pool, max(0, expected.get(mr_id, 0)))
+            received[mr_id] = take
+            pool -= take
+        if pool > 0:
+            received[ordered[0]] += pool
+
+
 def manifest_line_accounting(order: PurchaseOrder) -> list[dict[str, Any]]:
     """One entry per manifest line: manifest units/$ and the received / missing share (see module docstring)."""
     expected: dict[int, int] = defaultdict(int)
@@ -332,6 +367,8 @@ def manifest_line_accounting(order: PurchaseOrder) -> list[dict[str, Any]]:
         lost[row['manifest_row_id']] = row['lost']
         disputed_n[row['manifest_row_id']] = row['disputed']
         disputed_pct[row['manifest_row_id']] = row['disputed_pct'] or 0
+
+    _pool_combined_lines(order, expected, received)
 
     out = []
     for mr in ManifestRow.objects.filter(purchase_order=order).values(

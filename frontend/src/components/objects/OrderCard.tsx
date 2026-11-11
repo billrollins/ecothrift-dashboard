@@ -171,6 +171,7 @@ function CardView({ c, onEdit }: { c: OrderCardData; onEdit: () => void }) {
               <Button size="small" variant="outlined" onClick={() => go(`/inventory/receiving/${c.id}`)}>Receiving</Button>
               <Button size="small" variant="outlined" onClick={() => go(`/inventory/processing/${c.id}`)}>Processing</Button>
               <Button size="small" variant="outlined" onClick={() => go(`/inventory/orders/${c.id}/truck`)}>Truck</Button>
+              <Button size="small" variant="outlined" onClick={() => openObject({ type: 'close-truck', id: c.id })}>Close the truck</Button>
             </Stack>
           </Section>
         </Stack>

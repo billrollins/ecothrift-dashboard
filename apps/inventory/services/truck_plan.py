@@ -263,12 +263,20 @@ def _pallet_key(code: str) -> str:
     return str(code or '').strip().lower()
 
 
-def _disputes_out(order: PurchaseOrder) -> dict[str, Any]:
-    lines = truck_lines(order)
+def dispute_numbers(order: PurchaseOrder, *, as_closed: bool = False, lines: list | None = None) -> dict[str, Any]:
+    """Disputed retail and what it is worth (D7), for the Processing header and for Close the truck (#88).
+
+    One rule, one function: ``as_closed`` counts everything not received, as it will be once the truck is closed.
+    A finished or finalized truck gives the same numbers either way.
+    """
+    if lines is None:
+        lines = truck_lines(order)
     pallets = list(TruckPallet.objects.filter(purchase_order=order).values('code', 'done_at'))
     done_codes = {_pallet_key(p['code']) for p in pallets if p['done_at'] and p['code']}
     truck_done = (
-        order.processing_status == 'done'
+        as_closed
+        or bool(order.truck_finalized_at)
+        or order.processing_status == 'done'
         or order.status == 'complete'
         or bool(pallets and all(p['done_at'] for p in pallets))
     )
@@ -354,8 +362,11 @@ def plan_out(plan: TruckPlan | None) -> dict[str, Any] | None:
 
 def truck_summary(order: PurchaseOrder, *, user=None) -> dict[str, Any]:
     """Everything the Processing header and the Truck Plan window show for one order."""
+    from apps.inventory.services.truck_close import header_claim
+
     plan = _plan_for(order)
     due, due_from_plan = dispute_due_date(order, plan)
+    disputes = dispute_numbers(order)
     return {
         'order': {
             'id': order.pk,
@@ -372,7 +383,9 @@ def truck_summary(order: PurchaseOrder, *, user=None) -> dict[str, Any]:
         },
         'target': _target_out(order),
         'on_track': _on_track_out(order, plan),
-        'disputes': _disputes_out(order),
+        'disputes': disputes,
+        # Close the truck (#88): filed or not, and what is worth filing and is not filed yet.
+        'claim': header_claim(order, disputes),
         'dates': {
             'delivered': order.delivered_date.isoformat() if order.delivered_date else None,
             'expected_delivery': order.expected_delivery.isoformat() if order.expected_delivery else None,

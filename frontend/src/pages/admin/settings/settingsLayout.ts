@@ -227,6 +227,12 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
         help: 'What similar items keep of retail, at Preprocessing and check-in. The owner turns it on.',
         keys: ['inventory_recovery_estimate', 'inventory_recovery_prior_n', 'inventory_recovery_band_share'],
       },
+      {
+        id: 'price-coach',
+        title: 'Price coach',
+        help: 'At the price box in check-in: what items like this sold for here, and how fast. Facts only; it never changes a price.',
+        keys: ['inventory_price_coach'],
+      },
     ],
   },
   {

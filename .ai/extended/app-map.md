@@ -171,6 +171,8 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 | **Receiving** | `/inventory/receiving` → `/:id` | Entry redirect picks next eligible PO; page is the physical receiving workspace (pallets, condition, complete). |
 | **Processing** | `/inventory/processing` → `/:id` | Item Processor workspace: work queue, check-in, dispositions, label print, order picker. |
 | **Returns** | `/inventory/returns` | Items customers brought back (every Thrift+ return lands here by itself). One tap each: Price again (prints a tag), Back to shelf as is, Send to Restoration, Scrap. Under the "In progress" caption (#83). |
+| **My numbers** | `/processing/my-numbers` | Every processor (#87): their own line for a day and its week (items, tag dollars, per clocked hour, big items, tag errors, to Restoration) beside the room and the goal. |
+| **Command Center** | `/processing/command-center` | Leads and the owner (#87): the same numbers for every processor, the room against the day's share of the weekly goal, new hires beside the room pace. Read only. |
 | **Finalization** | `/inventory/inbound?view=finalization` | **Placeholder** — close-out workflow not implemented. |
 | **Disputes** | `/inventory/inbound?view=disputes` | **Placeholder** — disputes inbox not implemented. |
 | **Restorations** | `/inventory/restorations` | Hub for items going to / returning from restoration (TO setup / FROM desk lanes). |

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-05 (Wi-Fi clock helper env vars) -->
+<!-- Last updated: 2026-11-10 (requirements-dev.txt) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -34,7 +34,7 @@ venv\Scripts\activate          # Windows
 source venv/bin/activate       # macOS/Linux
 
 # 2. Install Python dependencies
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # requirements.txt plus the test tools (pytest-xdist); Heroku installs requirements.txt only
 
 # 3. Create the database
 psql -U postgres -c "CREATE DATABASE local_shared OWNER postgres;"

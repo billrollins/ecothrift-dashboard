@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-10 (Processing header and Truck Plan #81; items back in Processing: Returns #83, Floor issues #84) -->
+<!-- Last updated: 2026-11-10 (Processing header and Truck Plan #81; Returns #83; Floor issues #84; close the truck #88; price coach #89) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -125,6 +125,30 @@ The top of Processing shows one set of numbers, worked out in `services/truck_pl
   it never blocks processing. One window (`components/objects/TruckPlanCard.tsx`, object type `truck-plan`, id =
   the order's), opened from the load description on the header and from the Order window. The order number on the
   header opens the Order window; the arrow beside it switches orders.
+
+### Close the truck (Dash Update #88, 2026-11-10)
+
+One guided step over what already existed (the Truck page, `BStockDispute`, `finalize_truck`); not a second dispute
+system. `services/truck_close.py`, window `components/objects/CloseTruckCard.tsx` (object type `close-truck`, id =
+the order's), opened from the Processing header, the Order window, the Truck page and the Orders list count-down.
+
+- **The claim** is the header's rule (D7) from the same function: `truck_plan.dispute_numbers(order,
+  as_closed=True)`, where everything not checked in counts as not received. On a finished or finalized truck the
+  header shows the same number. The Truck page's "expected refund" (95% of the price) is still its own sum.
+- **The list to copy** = `bstock_disputes.affected_lines` (line, units, retail, reason, total), live until filed,
+  then the lines frozen at filing. The public dispute page link shows once a claim record exists.
+- **Filed / money back** are kept on the truck's newest `BStockDispute`: `filed_at`, `amount_asked` (new; empty =
+  the claim), `refund_received`, `refund_received_on` (new). $0 back = denied, less than asked = partly refunded.
+  A person files on B-Stock; Dash sends nothing. APIs: `GET …/truck-close/`, `POST
+  …/truck-close/{filed|not-filed|money-back|finalize}/`. Migration `inventory/0128_truck_claim`.
+- **Close** = `finalize_truck` (stamps the order, freezes totals, changes no item). Nothing to claim = one button.
+- **Count-down**: `unfiled_claims()` = trucks delivered in the last 30 days, not finalized, claim so far above $0
+  and not filed. On the header ("Dispute due in 2 days, $412 not filed"), the Orders list (a strip of chips,
+  `GET /inventory/orders/unfiled-claims/`) and the Owner page's Needs you ("Truck claims not filed").
+- **Combined lines fix** (`truck_pallets._pool_combined_lines`): a group of lines combined in Processing is checked
+  in on its first line, so the other lines read empty and the truck looked far shorter than it was (a real Target
+  truck: $52,748 missing instead of $19,144). The group's check-ins are now spread over its lines. This also
+  corrects the Truck page, the pallet ledger and the public dispute page.
 
 ### Review surfaces (pre- vs post-finalize)
 
@@ -612,3 +636,14 @@ Also in `apps/inventory/management/commands/` — scaffolded but not yet run:
 | `backfill_categories` | Retroactively classify all items into the `Category` taxonomy |
 
 Run these when the pricing/ML initiative schedules them (legacy retag cutover is complete).
+
+## Price coach at check-in (Dash Updates #89, 2026-11-10)
+
+One line under the price in `ProcessingCheckInDialog` (`components/inventory/PriceCoach.tsx`), beside the recovery estimate. The recovery estimate speaks in percent of retail and suggests a band; the coach speaks in dollars and days from our own items and suggests nothing.
+
+- Server: `apps/inventory/services/price_coach.py`, `GET /api/inventory/price-coach/?product=<id>&price=<typed>`. Switch: AppSetting `inventory_price_coach` (on by default; the row is made on first use, so there is no migration).
+- Evidence, first level with 5 or more items: the same product; that plus the nearest products by meaning (stored vectors, similarity 0.75 and up, a bare index query); the same category and brand. Under 5 everywhere: "Not enough like this yet."
+- Items that count: sold (`sold_for` above 0) and on the shelf 14 days or more (`price` above 0), put out in the last 365 days. Scrapped, lost, returned and not yet put out are left out. Days run from `checked_in_at` (`listed_at` when it is empty) to `sold_at`, or to today for an unsold item.
+- The line: how many sold, the middle half of what they sold for, the median days, and what is still on the shelf after 90 days. The note: of items tagged at the typed price or more that can be judged (sold, or unsold 60 days or more), at least 3 and more than half unsold.
+- It must never slow or break check-in: evidence is cached 5 minutes per product, the screen drops the call after 4 seconds, tries once, and shows nothing on any error or on an answer in a shape it does not know.
+- Measured on the local copy of production (order 384, 400 products): median 18 ms, 95th percentile about 380 ms, about 400 ms at worst once warm.

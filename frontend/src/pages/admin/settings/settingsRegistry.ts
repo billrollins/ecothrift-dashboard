@@ -459,6 +459,12 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'inventory',
     kind: 'switch',
   },
+  inventory_price_coach: {
+    label: 'Price coach at check-in',
+    help: 'On: the price box in Processing check-in shows what items like this sold for here, how fast, and what is still on the shelf. Facts only; it never changes or blocks a price. Off: the line is gone. On by default.',
+    tab: 'inventory',
+    kind: 'switch',
+  },
   inventory_recovery_prior_n: {
     label: 'Recovery: sales before a source counts fully',
     help: 'Each source (category, subcategory, vendor, price point, condition, similar products) is pulled toward its parent by this many sales (default 30).',

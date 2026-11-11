@@ -40,7 +40,9 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'processing',
     label: 'Processing',
-    itemIds: ['receiving', 'processing'],
+    // #87: My numbers is every processor's own line; the Command Center sits under the line like Retail's.
+    itemIds: ['receiving', 'processing', 'processingMyNumbers'],
+    managerItemIds: ['processingCommandCenter'],
     // Processing Enhancements (Bill 2026-11-10): items back in Processing. Under "In progress" until he signs off.
     setupItemIds: ['processingReturns', 'processingFloorIssues'],
     setupLabel: 'In progress',

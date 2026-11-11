@@ -26,6 +26,21 @@ cd /d "!PROJECT_ROOT!"
 echo [1/3] git add -A
 git add -A
 if !errorlevel! neq 0 exit /b 1
+:: Heroku builds without a type check (since 2026-11): a type error must stop here. Runs only when a front end is in
+:: this release (the staged tree against origin/main); a repeat check of an unchanged tree takes seconds.
+set "FRONT_CHANGED="
+for /f "delims=" %%f in ('git diff --cached --name-only origin/main -- frontend frontend-public') do set "FRONT_CHANGED=1"
+if defined FRONT_CHANGED (
+    echo [type check] a front end changed: lean_test.py tsc
+    set "PYEXE=python"
+    if exist "venv\Scripts\python.exe" set "PYEXE=venv\Scripts\python.exe"
+    "!PYEXE!" scripts\dev\lean_test.py tsc
+    if !errorlevel! neq 0 (
+        echo ERROR: the type check failed. Nothing committed, nothing pushed. Fix it, then ship again.
+        git reset -q
+        exit /b 1
+    )
+)
 echo [2/3] git commit
 git commit -F "!COMMIT_MSG_FILE!"
 if !errorlevel! neq 0 (

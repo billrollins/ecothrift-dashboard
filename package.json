@@ -6,6 +6,10 @@
     "npm": "11.x"
   },
   "scripts": {
-    "heroku-postbuild": "cd frontend && npm install --include=dev && npm run build && cd ../frontend-public && npm install --include=dev && npm run build"
-  }
+    "heroku-postbuild": "cd frontend && npm install --include=dev --no-audit --no-fund && npm run build:deploy && cd ../frontend-public && npm install --include=dev --no-audit --no-fund && npm run build:deploy"
+  },
+  "cacheDirectories": [
+    "frontend/node_modules",
+    "frontend-public/node_modules"
+  ]
 }

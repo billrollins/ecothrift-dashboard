@@ -77,6 +77,7 @@ const ReceivingOrderPage = lazy(() => import('./pages/inventory/ReceivingOrderPa
 const PreprocessingPage = lazy(() => import('./pages/inventory/PreprocessingPage'));
 const ProcessingEntryRedirect = lazy(() => import('./pages/inventory/ProcessingEntryRedirect'));
 const ProcessingWorkspacePage = lazy(() => import('./pages/inventory/processing/ProcessingWorkspacePage'));
+const ProcessingCommandCenterPage = lazy(() => import('./pages/inventory/processing/ProcessingCommandCenterPage'));
 const TruckFinalizePage = lazy(() => import('./pages/inventory/truck/TruckFinalizePage'));
 const RestorationsPage = lazy(() => import('./pages/inventory/restorations/RestorationsPage'));
 const InventorySearchPage = lazy(() => import('./pages/inventory/InventorySearchPage'));
@@ -383,6 +384,8 @@ function AppRoutes() {
             </Suspense>
           }
         />
+        <Route path="/processing/command-center" element={<ProcessingCommandCenterPage />} />
+        <Route path="/processing/my-numbers" element={<ProcessingCommandCenterPage mine />} />
         <Route path="/inventory/restorations" element={<RestorationsPage />} />
         <Route path="/inventory/search" element={<InventorySearchPage />} />
         <Route path="/inventory/review" element={<InventoryReviewPage />} />

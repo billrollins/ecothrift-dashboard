@@ -4,8 +4,14 @@ setlocal enabledelayedexpansion
 :: Run by the coder. Asks nothing. App: ecothrift-dashboard.
 :: Before the first deploy of the day (store time) it takes a database backup; later deploys that day skip it
 :: (Bill, 2026-10-21). --dry-run: say what would happen (backup or skip, the commit) and push nothing.
+:: A release that changed only docs (.ai, docs, CHANGELOG, .version, the commit message) is not deployed: it says so
+:: and stops (Bill, 2026-11-10). --even-docs deploys it anyway.
 set "DRY_RUN="
-if /i "%~1"=="--dry-run" set "DRY_RUN=1"
+set "EVEN_DOCS="
+for %%a in (%*) do (
+    if /i "%%~a"=="--dry-run" set "DRY_RUN=1"
+    if /i "%%~a"=="--even-docs" set "EVEN_DOCS=1"
+)
 for %%I in ("%~dp0..\..") do set "PROJECT_ROOT=%%~fI"
 cd /d "!PROJECT_ROOT!"
 git remote get-url heroku >nul 2>&1
@@ -22,6 +28,15 @@ for /f "tokens=1" %%h in ('git ls-remote heroku refs/heads/main') do set "HEROKU
 if "!HEROKU_SHA!"=="!ORIGIN_SHA!" (
     echo Nothing new to deploy: Heroku already runs !ORIGIN_SHA:~0,8!.
     exit /b 0
+)
+if defined HEROKU_SHA if not defined EVEN_DOCS (
+    set "PYEXE=python"
+    if exist "venv\Scripts\python.exe" set "PYEXE=venv\Scripts\python.exe"
+    "!PYEXE!" scripts\dev\lean_test.py docs-only !HEROKU_SHA! !ORIGIN_SHA! >nul 2>&1
+    if !errorlevel! equ 0 (
+        echo Docs only between Heroku ^(!HEROKU_SHA:~0,8!^) and origin/main ^(!ORIGIN_SHA:~0,8!^): nothing to deploy. It goes out with the next code release.
+        exit /b 0
+    )
 )
 echo [2/4] database backup ^(first deploy of the day only^)
 if defined DRY_RUN (

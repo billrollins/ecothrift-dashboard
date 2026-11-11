@@ -69,6 +69,15 @@ export interface TruckSummaryDTO {
     dispute_due_from_plan: boolean;
     dispute_business_days: number;
   };
+  /** Close the truck (#88): filed or not, and what is worth filing and is not filed yet (null = nothing to chase). */
+  claim: {
+    filed: boolean;
+    filed_on: string | null;
+    amount_asked: string | null;
+    amount_back: string | null;
+    finalized_at: string | null;
+    not_filed: string | null;
+  };
   plan: TruckPlanDTO | null;
   can_set_target: boolean;
 }

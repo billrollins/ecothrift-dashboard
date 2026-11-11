@@ -2271,6 +2271,8 @@ _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
         'truck_summary',
         'truck_plan',
         'truck_plan_target',
+        'truck_close',
+        'truck_close_step',
     },
 )
 
@@ -2723,6 +2725,43 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response({**svc.truck_summary(order, user=request.user), 'staff': svc.staff_options()})
+
+    def _truck_close_payload(self, request, order):
+        from apps.inventory.services.truck_close import close_payload
+
+        return close_payload(order, link_for=lambda d: request.build_absolute_uri(f'/dispute/{d.token}/'))
+
+    @action(detail=True, methods=['get'], url_path='truck-close')
+    def truck_close(self, request, pk=None):
+        """Close the truck (#88): what did not come, the claim, the list to copy, filed / money back, finalized."""
+        return Response(self._truck_close_payload(request, self.get_object()))
+
+    @action(detail=True, methods=['post'], url_path=r'truck-close/(?P<step>filed|not-filed|money-back|finalize)')
+    def truck_close_step(self, request, pk=None, step=None):
+        """Record what a person did on B-Stock (filed, money back), or finalize the truck. Dash files nothing itself."""
+        from apps.inventory.services import truck_close as svc
+        from apps.inventory.services.truck_finalize import finalize_truck
+
+        order = self.get_object()
+        try:
+            if step == 'filed':
+                svc.record_filed(request.user, order, request.data)
+            elif step == 'not-filed':
+                svc.record_not_filed(order)
+            elif step == 'money-back':
+                svc.record_money_back(order, request.data)
+            else:
+                order = finalize_truck(request.user, order)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self._truck_close_payload(request, order))
+
+    @action(detail=False, methods=['get'], url_path='unfiled-claims')
+    def unfiled_claims(self, request):
+        """The count-down: trucks with a claim worth filing that is not filed, soonest due first."""
+        from apps.inventory.services.truck_close import unfiled_claims
+
+        return Response({'claims': unfiled_claims()})
 
     @action(detail=True, methods=['get'], url_path='truck-finalize')
     def truck_finalize(self, request, pk=None):
@@ -8528,6 +8567,22 @@ def recovery_estimate_view(request):
         retail=q.get('retail'), product_id=_int_or_none(q.get('product')), order_id=_int_or_none(q.get('order')),
         condition=str(q.get('condition') or ''), price=q.get('price') or None, category=str(q.get('category') or ''),
     )})
+
+
+@api_view(['GET'])
+@perm_classes([IsAuthenticated, IsStaff])
+def price_coach_view(request):
+    """What items like this sold for here, and how fast, for the check-in price box (Dash Updates #89).
+
+    GET /api/inventory/price-coach/?product=<id>&price=<typed price>
+    Returns: { enabled, coach } (coach null with the switch off or no product). Facts only; never changes a price.
+    """
+    from .services import price_coach
+
+    if not price_coach.is_enabled():
+        return Response({'enabled': False, 'coach': None})
+    q = request.query_params
+    return Response({'enabled': True, 'coach': price_coach.coach(_int_or_none(q.get('product')), q.get('price'))})
 
 
 @api_view(['POST'])

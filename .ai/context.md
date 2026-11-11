@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-28 (extended table: supplies.md covers Received, spend, requests) -->
+<!-- Last updated: 2026-11-10 (lean test gate: lean_test.py changed) -->
 # ecothrift-dashboard — AI Context
 
 ## Project summary
@@ -70,7 +70,7 @@ Two coders can share this repo. Each one has one peer inbox, `comm/inbox-<slug>.
   - Never sell graphic sex or porn media, tobacco or nicotine products, or actual guns.
   - Never add an ID scanner that stores data.
 - **Categories:** [`extended/product-taxonomy.md`](extended/product-taxonomy.md) is the one answer key. A questioned placement is settled with a TAX-NN ruling there.
-- **Runner:** tests, recon and small chores can go to a runner agent via [`protocols/runner.md`](protocols/runner.md) and [`comm/runner/`](comm/runner/) (`queue.md`, live `tasks/` and `results/`, `baseline.md` = known failures; kept results go to `reference/reports/`). Targeted tests: `python scripts/dev/lean_test.py <area>`.
+- **Runner:** tests, recon and small chores can go to a runner agent via [`protocols/runner.md`](protocols/runner.md) and [`comm/runner/`](comm/runner/) (`queue.md`, live `tasks/` and `results/`, `baseline.md` = known failures; kept results go to `reference/reports/`). Per-ship gate: `python scripts/dev/lean_test.py changed` (only what changed, checks side by side); targeted: `lean_test.py py|vitest|suite <area>`; the full suite (`suite ship`) is nightly.
 - Substantial work maps to a named initiative. If that's unclear, ask. Never archive an initiative without the user's approval.
 - Don't create documentation files unless asked. The exceptions are this compass, initiatives and `extended/` files the work changes.
 - When a domain changes, update its `extended/` file. When you add an env key, add it to `.env` / `.envprod` and to the table in [`extended/development.md`](extended/development.md). Stamp edited docs `<!-- Last updated: YYYY-MM-DD -->` (America/Chicago).

@@ -33,6 +33,7 @@ import type { TruckPalletLedgerDTO } from '../../../api/truckPallets.api';
 import type { TruckSummaryDTO } from '../../../api/truckPlan.api';
 import { missingHeadline, palletHeadline } from './palletLedgerDisplay';
 import {
+  businessDaysUntil,
   disputeDueLabel,
   disputedHeadline,
   onTrackHeadline,
@@ -42,6 +43,7 @@ import {
   targetHeadline,
   worthHeadline,
 } from './truckSummaryDisplay';
+import { notFiledLine } from '../truck/closeTruckDisplay';
 import { IconClose as Close } from '../../../icons/ecoIcons';
 
 export interface ProcessingWorkspaceOrderPickRow {
@@ -164,6 +166,7 @@ export function ProcessingWorkspaceHeader({
   const objectModal = useOptionalObjectModal();
   const openOrderWindow = objectModal ? () => objectModal.openObject({ type: 'order', id: order.id }) : undefined;
   const openPlan = objectModal ? () => objectModal.openObject({ type: 'truck-plan', id: order.id }) : undefined;
+  const openCloseTruck = objectModal ? () => objectModal.openObject({ type: 'close-truck', id: order.id }) : undefined;
 
   useEffect(() => {
     // The 1 Hz tick only feeds the items/hour rate, which renders as a static
@@ -181,6 +184,10 @@ export function ProcessingWorkspaceHeader({
   const itemsPerHour = sessionStartedAt != null ? Math.round(sessionCheckInCount / elapsedHours) : 0;
 
   const disputeDue = disputeDueLabel(summary?.dates);
+  // The count-down (#88): a claim worth filing that is not filed yet, with the days left.
+  const dueDay = summary?.dates.dispute_due ? new Date(`${summary.dates.dispute_due}T00:00:00`) : null;
+  const notFiled = notFiledLine(summary?.claim?.not_filed, dueDay ? businessDaysUntil(dueDay, new Date()) : null);
+  const truckClosed = Boolean(summary?.claim?.finalized_at);
   const deliveredDay = order.delivered_date || order.expected_delivery;
   const planParts = planLineParts(summary?.plan);
   const orderNotes = (summary?.order.notes || '').replace(/\s+/g, ' ').trim();
@@ -331,6 +338,19 @@ export function ProcessingWorkspaceHeader({
           minWidth={150}
           maxWidth={200}
         />
+        {notFiled && openCloseTruck ? (
+          <Tooltip title="A claim is worth filing on this truck and is not filed yet. Opens Close the truck." enterDelay={300}>
+            <Button
+              size="small"
+              color="error"
+              variant="outlined"
+              onClick={openCloseTruck}
+              sx={{ ml: 1, minHeight: 28, py: 0.25, flexShrink: 0, whiteSpace: 'nowrap', fontWeight: 800 }}
+            >
+              {notFiled}
+            </Button>
+          </Tooltip>
+        ) : null}
         <Box sx={{ flex: 1, minWidth: 8 }} />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
           {addItemVisible && onAddItem ? (
@@ -347,6 +367,17 @@ export function ProcessingWorkspaceHeader({
               }}
             >
               Add item
+            </Button>
+          ) : null}
+          {openCloseTruck ? (
+            <Button
+              size="small"
+              variant="outlined"
+              color={truckClosed ? 'success' : 'primary'}
+              onClick={openCloseTruck}
+              sx={{ minHeight: 28, py: 0.25, whiteSpace: 'nowrap' }}
+            >
+              {truckClosed ? 'Truck closed' : 'Close the truck'}
             </Button>
           ) : null}
           <Button

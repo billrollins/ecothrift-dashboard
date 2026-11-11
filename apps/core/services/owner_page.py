@@ -340,7 +340,26 @@ def needs_you(now: datetime | None = None) -> dict[str, Any]:
                   detail='; '.join(waiting[:5])),
         ]
 
-    for build in (requests, time_changes, returns, offers, checkins, data_checks, site_errors, thrift_plus, supplies):
+    def truck_claims():
+        from apps.inventory.services.truck_close import unfiled_claims
+
+        # Close the truck (#88): claims worth filing that nobody has filed, soonest due first.
+        claims = unfiled_claims(timezone.localdate(now))
+        late = any(c['days_left'] is not None and c['days_left'] <= 1 for c in claims)
+
+        def when(c):
+            left = c['days_left']
+            if left is None:
+                return 'no due day'
+            return 'past due' if left < 0 else 'due today' if left == 0 else f'due in {left} day' + ('' if left == 1 else 's')
+
+        detail = '; '.join(f"{c['order_number']} ${c['worth']} ({when(c)})" for c in claims[:5])
+        link = f"/inventory/orders/{claims[0]['order_id']}/truck" if len(claims) == 1 else '/inventory/orders'
+        return [_item('truck_claims', 'Truck claims not filed', len(claims), link, detail=detail,
+                      tone='error' if late else 'warning')]
+
+    for build in (requests, time_changes, returns, offers, checkins, data_checks, site_errors, thrift_plus, supplies,
+                  truck_claims):
         add(build)
     return {'items': items, 'errors': errors}
 

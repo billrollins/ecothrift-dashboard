@@ -69,6 +69,22 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'fixit',
     keywords: 'floor issue problem broken damaged missing parts dirty wrong price bad tag report came back',
   },
+  // #87: who did what today and how the room is doing. Leads and the owner, like Retail's Command Center.
+  processingCommandCenter: {
+    id: 'processingCommandCenter',
+    path: '/processing/command-center',
+    label: 'Command Center',
+    icon: 'commandCenter',
+    roles: ['Manager', 'Admin'],
+    need: ['processing:manage', 'admin:manage'],
+  },
+  // #87: the same page with only your own line, for every processor.
+  processingMyNumbers: {
+    id: 'processingMyNumbers',
+    path: '/processing/my-numbers',
+    label: 'My numbers',
+    icon: 'reportCard',
+  },
   inventoryWorkbench: {
     id: 'inventoryWorkbench',
     path: '/inventory/search',

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.270.0] -->
-<!-- Last reviewed: 2026-11-10 (2.270.0) -->
+<!-- Line 1 release: ## [2.271.0] -->
+<!-- Last reviewed: 2026-11-10 (2.271.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,37 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.271.0] - 2026-11-10
+
+User-facing theme: **Processing: a Command Center, Close the truck, and a Price coach at check-in (the three Bill asked Mainline to pick); and shipping is much faster.**
+
+> **For Bill:** you asked for three Processing updates of my own; here they are, live. **Processing > Command Center (#87):** who did what, for a day and its week: items checked in, tag dollars, both per hour on the clock, average tag, big items ($25 and up), tag errors; the room against the day's share of the weekly goal; a "new" mark on anyone in their first 30 days. Every processor has **My numbers** (their own line). First thing it shows: nearly all check-ins are under one sign-in, so the numbers only mean something when each processor checks in as themselves. **Close the truck (#88):** one button on the top of Processing, the Order window and the Truck page: what did not come, what came broken, the claim by B-Stock's 5% rule (the same number as the header), a list to copy into B-Stock, where you record filed and money back, then Finalize. A red count-down shows on a truck whose claim is not filed, and on the Owner page's Needs you. It also fixed a real error: trucks with combined lines showed far too much missing (one Target truck read $52,748 missing; the right number is $19,144). **Price coach (#89):** under the price box at check-in, one line from our own sales: what things like this sold for, how fast, and what is still sitting. Settings > Inventory turns it off. **Shipping (#85):** the same test run that took 276 seconds takes about 61.
+
+### Added (#87: Processing Command Center)
+- **Processing Command Center (Dash Updates #87).** A read-only page in the Processing workspace: per processor, for a day and its week (Monday to that day), items checked in, tag dollars, hours on the clock, items and dollars an hour, average tag, big items ($25 and up) with their share of the dollars, tag errors traced to them and items sent to Restoration. Above the table: the room's dollars against the day's share of the weekly Processing goal and the week so far (the Dashboard's own Processing number), and the room's check-in pace. A person whose first check-in was under 30 days ago is marked **New** and shows the room's pace beside theirs. Leads and the owner see everyone (**Command Center**, under the line like Retail's); every processor has **My numbers**, the same page with only their own line. Hours are Processing punches on the time clock: with no punch the per-hour cells are blank, never guessed. No pay data. One call, `GET /api/inventory/processing-command-center/?date=&mine=` (`apps/inventory/services/processing_command_center.py`); no migration.
+
+### Added (#88: Close the truck)
+- **Processing: Close the truck (Dash Update #88).** One guided step for a truck, from the top of Processing, the Order window and the Truck page: what did not come, what came broken or damaged and what was added, each with retail; the claim, by the same rule as the top of Processing; a claim list to copy into B-Stock; "filed on" and "amount asked", then "amount back" and the date; and Close the truck (Finalized). A person files on B-Stock; Dash sends nothing. Closing changes no item. A truck with nothing to claim closes with one button.
+- **A count-down for claims nobody filed**: "Dispute due in 2 days, $412 not filed" on the top of Processing, a strip on the Orders list, and "Truck claims not filed" on the Owner page's Needs you.
+- Server: `services/truck_close.py`, `GET …/truck-close/`, `POST …/truck-close/{filed|not-filed|money-back|finalize}/`, `GET /inventory/orders/unfiled-claims/`; `BStockDispute.amount_asked` and `refund_received_on` (migration `inventory/0128_truck_claim`). Tests: `apps/inventory/tests/test_truck_close.py`, `closeTruckDisplay.test.ts`.
+
+### Fixed (#88)
+- **Trucks with combined lines looked far shorter than they were.** Lines combined in Processing are checked in on the first line, so the others counted as missing on the Truck page, the pallet numbers and the dispute page (one real Target truck: $52,748 missing instead of $19,144). The group's check-ins are now spread over its lines.
+
+### Added (#89: Price coach)
+- **Price coach** at the price box in Processing check-in: one plain line from our own sales, for example "9 like this sold, most at $12 to $15, in about 2 weeks. 4 priced $25 and up are still on the shelf after 90 days." Tap it for the items it rests on. A gentle note when the typed price is in a range that has mostly sat. Facts only: it never changes or blocks a price, and on an error or a slow answer it shows nothing.
+- Evidence in order: the same product, then similar products, then the same category and brand; under 5 items it says "Not enough like this yet." Server: `apps/inventory/services/price_coach.py`, `GET /api/inventory/price-coach/`. No migration.
+- Settings > Inventory > **Price coach at check-in** turns it off (on by default).
+
+### Changed (#85: faster ship and deploy)
+- **Tests run much faster.** In tests only, passwords use a fast hasher (`ecothrift/settings.py`, inside the tests-only block); a normal process and production keep Django's real one, proven by `apps/core/tests/test_test_only_settings.py`.
+- **`scripts/dev/lean_test.py` runs its checks side by side** and has a per-ship mode, `changed`: only the server tests of the apps whose files changed against `origin/main`, the front-end tests related to the changed files, the type check, compile and the migrations check. Server tests use `pytest-xdist` when installed (new `requirements-dev.txt`, never installed by Heroku). The type check covers both front ends and reuses its last result. New: `compile`, `docs-only`. A front-end test that fails beside the other checks is run once more alone before it counts.
+- **Heroku build:** no second type check (`heroku-postbuild` runs the new `build:deploy` = `vite build`), and both `node_modules` folders are cached between builds. `ship.bat` now runs the type check itself when a front end is in the release and stops before the commit on an error.
+- **Docs-only releases are shipped and not deployed:** `deploy.bat` stops when nothing but docs differs from what Heroku runs (`--even-docs` overrides). `ship.md` and `deploy.md` § Project steps carry the new lean rule: per ship `lean_test.py changed`; the full suite runs nightly.
+- **A worktree keeps its own test database** (`test_<name>_<worktree folder>`, set in the tests-only settings block; `ECOTHRIFT_TEST_DB` overrides): coders working side by side no longer collide in one shared test database. The main checkout keeps `test_local_shared`. The first run in a new worktree builds it (all migrations, a few minutes).
+- No migration. No Dash screen changes.
+
 
 ## [2.270.0] - 2026-11-10
 

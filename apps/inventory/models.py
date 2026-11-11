@@ -2800,6 +2800,9 @@ class BStockDispute(models.Model):
     snapshot = models.JSONField(default=dict, blank=True, help_text='Lines and totals frozen when filed.')
     refund_expected = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     refund_received = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Close the truck (Dash Update #88): what we asked B-Stock for, and the day the money came back.
+    amount_asked = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    refund_received_on = models.DateField(null=True, blank=True)
     filed_at = models.DateTimeField(null=True, blank=True)
     closed_at = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(

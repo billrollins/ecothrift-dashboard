@@ -132,7 +132,7 @@ describe('Processing workspace pages', () => {
   const processing = SLOT_C_NAV_GROUPS.find((g) => g.id === 'processing');
 
   it('keeps Receiving and Processing, and drops Finalization and Disputes', () => {
-    expect(processing?.itemIds).toEqual(['receiving', 'processing']);
+    expect(processing?.itemIds).toEqual(['receiving', 'processing', 'processingMyNumbers']);
     expect(NAV_ITEM_CATALOG.finalization).toBeUndefined();
     expect(NAV_ITEM_CATALOG.disputes).toBeUndefined();
   });
@@ -142,7 +142,19 @@ describe('Processing workspace pages', () => {
     expect(processing?.setupLabel).toBe('In progress');
     expect(NAV_ITEM_CATALOG.processingReturns).toMatchObject({ path: '/inventory/returns', label: 'Returns' });
     const employee = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS);
-    expect(employee.find((g) => g.id === 'processing')?.items.map((i) => i.id)).toEqual(['receiving', 'processing', 'processingReturns', 'processingFloorIssues']);
+    expect(employee.find((g) => g.id === 'processing')?.items.map((i) => i.id)).toEqual(['receiving', 'processing', 'processingMyNumbers', 'processingReturns', 'processingFloorIssues']);
+  });
+
+  it('gives every processor My numbers and only leads the Command Center (#87)', () => {
+    const pages = (role: 'Employee' | 'Manager') => {
+      const group = resolveNavGroups({ role, is_superuser: false }, SLOT_C_NAV_GROUPS).find((g) => g.id === 'processing');
+      return { all: group?.items.map((i) => i.id) ?? [], managers: group?.managerItems.map((i) => i.id) ?? [] };
+    };
+    expect(pages('Employee').all).toContain('processingMyNumbers');
+    expect(pages('Employee').all).not.toContain('processingCommandCenter');
+    expect(pages('Manager').managers).toEqual(['processingCommandCenter']);
+    expect(NAV_ITEM_CATALOG.processingCommandCenter?.path).toBe('/processing/command-center');
+    expect(NAV_ITEM_CATALOG.processingMyNumbers?.path).toBe('/processing/my-numbers');
   });
 
   it('pins Restoration overview and Search behind the out-of-workspace divider', () => {
