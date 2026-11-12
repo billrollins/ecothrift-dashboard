@@ -22,7 +22,7 @@ export function parseDeskDaysUrlState(params: URLSearchParams): DeskDaysUrlState
 export function deskDaysStateToParams(state: DeskDaysUrlState): URLSearchParams {
   const p = new URLSearchParams();
   if (state.bucket !== 'today') p.set('bucket', state.bucket);
-  if (state.search.trim()) p.set('q', state.search.trim());
+  if (state.search.trim()) p.set('q', state.search); // as typed: the box reads it back from the URL (#107)
   if (state.page > 1) p.set('page', String(state.page));
   return p;
 }

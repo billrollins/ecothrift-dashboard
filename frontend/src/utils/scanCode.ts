@@ -24,6 +24,15 @@ export function skuFromScan(raw: string | null | undefined): string {
   return match ? match[1].toUpperCase() : text;
 }
 
+/**
+ * What a search box keeps while someone types or scans into it: a whole tag link becomes its SKU, anything else stays
+ * exactly as typed. Never trim here: this runs on every keystroke, and trimming drops a typed space before the next
+ * word arrives ("a b" became "ab", Dash Update #107). Trim where the search is sent.
+ */
+export function scanBoxText(raw: string): string {
+  return isTagLink(raw) ? skuFromScan(raw) : raw;
+}
+
 /** Whether a scan is our tag link. */
 export function isTagLink(raw: string | null | undefined): boolean {
   return TAG_LINK.test((raw ?? '').trim());

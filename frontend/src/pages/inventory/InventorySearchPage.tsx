@@ -36,7 +36,7 @@ import { ProcessedItemsView } from './ProcessedItemsView';
 import { IconAdd, IconSearch as Search } from '../../icons/ecoIcons';
 import { AddItemDialog } from './addItem/AddItemDialog';
 import BadTagButton from '../../components/badTags/BadTagButton';
-import { skuFromScan } from '../../utils/scanCode';
+import { scanBoxText } from '../../utils/scanCode';
 
 const DEBOUNCE_MS = 200;
 
@@ -433,6 +433,8 @@ function SearchBody({ q, sold, misfit, page, sort, drill, setParam }: {
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down('sm'));
   const { user } = useAuth();
+  // The URL keeps the box as typed (a trailing space too), so syncing it back never eats a space; trim when sent (#107).
+  const sent = q.trim();
   useEffect(() => setText(q), [q]);
   useEffect(() => {
     if (text === q) return undefined;
@@ -441,8 +443,8 @@ function SearchBody({ q, sold, misfit, page, sort, drill, setParam }: {
   }, [text, q, setParam]);
 
   const { data, isFetching, isError } = useQuery({
-    queryKey: ['inventory-search', q, sold, page, sort, misfit, drill.category, drill.sub, drill.stale, drill.vendor, drill.price_point],
-    queryFn: async ({ signal }) => (await searchInventory({ q, sold, page, sort, misfit, ...drill }, signal)).data,
+    queryKey: ['inventory-search', sent, sold, page, sort, misfit, drill.category, drill.sub, drill.stale, drill.vendor, drill.price_point],
+    queryFn: async ({ signal }) => (await searchInventory({ q: sent, sold, page, sort, misfit, ...drill }, signal)).data,
     placeholderData: keepPreviousData,
   });
   const rows = data?.results ?? [];
@@ -480,7 +482,7 @@ function SearchBody({ q, sold, misfit, page, sort, drill, setParam }: {
           size="small"
           placeholder={phone ? 'Name, brand, model, UPC, or scan a tag' : 'Search by name, brand, model, category, UPC, product number, or scan a tag'}
           value={text}
-          onChange={(e) => setText(skuFromScan(e.target.value))}
+          onChange={(e) => setText(scanBoxText(e.target.value))}
           onKeyDown={(e) => {
             if (e.key === 'Enter') setParam({ q: text || null, page: null });
           }}

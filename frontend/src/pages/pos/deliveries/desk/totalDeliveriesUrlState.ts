@@ -16,7 +16,7 @@ export function parseDeskTotalUrlState(params: URLSearchParams): DeskTotalUrlSta
 
 export function deskTotalStateToParams(state: DeskTotalUrlState): URLSearchParams {
   const p = new URLSearchParams();
-  if (state.search.trim()) p.set('q', state.search.trim());
+  if (state.search.trim()) p.set('q', state.search); // as typed: the box reads it back from the URL (#107)
   if (state.status) p.set('status', state.status);
   if (state.includeArchived) p.set('include_archived', '1');
   if (state.page > 1) p.set('page', String(state.page));

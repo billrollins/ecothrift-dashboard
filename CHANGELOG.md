@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.282.0] -->
-<!-- Last reviewed: 2026-11-12 (2.282.0) -->
+<!-- Line 1 release: ## [2.283.0] -->
+<!-- Last reviewed: 2026-11-12 (2.283.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.283.0] - 2026-11-12
+
+User-facing theme: **Search boxes keep the space you type again (Dash Update #107).**
+
+> **For Bill:** in four search boxes a space you typed vanished as soon as you typed it, so "desk lamp" came out "desklamp" (a space put in afterwards between two words stayed, which is why it looked random). Fixed in: **Inventory search** (Inventory → Search), the **Add item** search box (the "Find the product" box in Add item), the **Deliveries desk: Days** search, and the **Deliveries desk: Total deliveries** search. Scanning a tag still turns the tag's link into its SKU in the box, and the search still ignores spaces at the start or end.
+
+### Fixed (#107: typed spaces)
+- Root cause: those boxes trimmed their own text on every keystroke, so a trailing space was gone before the next letter came. Inventory search and Add item ran the typed value through `skuFromScan` (which trims); the two Deliveries desk pages keep the box in the URL and wrote it back trimmed. A space typed between existing words survived because it was not at the end.
+- New `scanBoxText` in `utils/scanCode.ts`: a whole tag link becomes its SKU, anything else stays as typed. Inventory search and Add item use it on every keystroke; trimming happens only where the search is sent (`q.trim()` for the Inventory search request and its cache key; Add item already trimmed its query).
+- `deskDaysStateToParams` / `deskTotalStateToParams` keep `q` as typed in the URL; the API params still trim.
+- Swept `frontend/` and `frontend-public/` for the same pattern (trim or `skuFromScan` in an `onChange`, a URL written trimmed and read back into the box, debounced values synced back): no other search box has it. The remaining trim-on-change fields are number boxes (truck line #, units, refunds).
+- 1 new front-end test file (5 tests): types "a b" key by key, pausing after the space past the debounce, into each of the four boxes; all five fail on the old code.
 
 ## [2.282.0] - 2026-11-12
 

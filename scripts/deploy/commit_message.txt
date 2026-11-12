@@ -1,21 +1,14 @@
-v2.282.0 — Store Map: Current floor plan with layers, and Signage
+v2.283.0 — Search boxes keep the space you type
 
-User-facing theme: **Store Map: one Current floor plan with layers of pins, and Signage, the list of store signs with their print PDFs and where they hang (Dash Updates #105 and #106).**
+User-facing theme: **Search boxes keep the space you type again (Dash Update #107).**
 
-> **For Bill:** in Studios → Floorplans each plan now has a star. Tap it on the plan that matches the store today and it becomes the **Current** plan (only you can do this; there is one Current plan per store). Facilities → **Store map** shows the Current plan to every staff login, with layers you turn on and off. Each layer holds pins with a name and a note: managers tap **Add a pin**, tap the spot, name it, and drag a pin to move it. Signage is the first layer; cameras, fire extinguishers, fixtures, keys and shelves can be added the same way later. The pins are kept apart from the drawing, so editing the plan in Studios never moves or loses them, and if you later make a new plan Current, the pins move over to it at the same spots. Facilities → **Signage** is the list of store signs. Each sign has a name, a status you mark off as it goes (**To make**, **Printed**, **Up**), how many copies are up, a note, and its PDF: **Print** and **Download** right there, and managers add or replace the PDF from the page. Tap a sign and the store map beside it lights up where that sign hangs; tap a pin on the map and it shows that sign. Managers tap **Add a spot** and then the spot on the map, and drag a pin to move it. Every staff login can look and print; changing the list is for managers. The list starts empty: the only sign files I found are the three Thrift+ posters and the register sign in the off-site archive, and those wait for your word before they go in.
+> **For Bill:** in four search boxes a space you typed vanished as soon as you typed it, so "desk lamp" came out "desklamp" (a space put in afterwards between two words stayed, which is why it looked random). Fixed in: **Inventory search** (Inventory → Search), the **Add item** search box (the "Find the product" box in Add item), the **Deliveries desk: Days** search, and the **Deliveries desk: Total deliveries** search. Scanning a tag still turns the tag's link into its SKU in the box, and the search still ignores spaces at the start or end.
 
-### Added (#106: Signage)
-- New app `apps/signage`: `Sign` (name, status to make / printed / up, copies up, note, PDF in the shared file store `core.S3File`), migration `signage/0001_initial`, which also points the store map's Signage layer at signs (`ref_type = signage.sign`).
-- API `/api/signage/signs/` (staff read; Manager/Admin write under the new `signage:manage` item, Admin area): `?status=`, each sign's spot count on the Current map; `signs/{id}/pdf/` GET streams it (`?download=1` as a file), POST uploads a PDF (checked, 20 MB cap), DELETE takes it off. Renaming a sign renames its pins; removing a sign hides it and drops its pins.
-- Pins on a layer that points at records must name a live one (`ref_id` checked generically from the layer's `ref_type`), so later layers (FF&E, shelves) work the same way.
-- Facilities → **Signage** (`/facilities/signage`, `?sign=<id>` opens one): status filter with counts, Print / Download / open, the map with that sign's spots, Add a spot, drag, remove a spot. Store map: a sign pin offers **Open the sign**.
-- 10 new server tests, 3 new front-end tests.
-
-### Added (#105: Current plan and map layers)
-- `FloorPlan.is_current` (one per location, DB constraint), `MapLayer` and `MapPin` (migration `floorplan/0006_current_plan_layers_pins`, seeds the `signage` layer). `POST /api/floorplan/plans/{id}/make-current/` (superuser) moves the old Current plan's pins over; delete clears the flag; `is_current` is read-only otherwise.
-- `GET /api/floorplan/store-map/` (staff): the Current plan, layers, pins and the stores that have one. `layers/` (read-only) and `pins/` (staff read, Manager/Admin write under `floorplan:write`; a pin stays on its plan and layer and may sit at most 240" off the plan).
-- Facilities → **Store map** (`/facilities/store-map`): layer chips with counts, the plan drawn read-only with pins at one screen size at every zoom, a pin's name and note, Add a pin / drag to move / Edit / Remove for managers. `StoreMapView` is reusable (Signage uses it next).
-- Studios → Floorplans: a Current chip and the owner's star with a confirm.
-- 12 new server tests, 4 new front-end tests.
+### Fixed (#107: typed spaces)
+- Root cause: those boxes trimmed their own text on every keystroke, so a trailing space was gone before the next letter came. Inventory search and Add item ran the typed value through `skuFromScan` (which trims); the two Deliveries desk pages keep the box in the URL and wrote it back trimmed. A space typed between existing words survived because it was not at the end.
+- New `scanBoxText` in `utils/scanCode.ts`: a whole tag link becomes its SKU, anything else stays as typed. Inventory search and Add item use it on every keystroke; trimming happens only where the search is sent (`q.trim()` for the Inventory search request and its cache key; Add item already trimmed its query).
+- `deskDaysStateToParams` / `deskTotalStateToParams` keep `q` as typed in the URL; the API params still trim.
+- Swept `frontend/` and `frontend-public/` for the same pattern (trim or `skuFromScan` in an `onChange`, a URL written trimmed and read back into the box, debounced values synced back): no other search box has it. The remaining trim-on-change fields are number boxes (truck line #, units, refunds).
+- 1 new front-end test file (5 tests): types "a b" key by key, pausing after the space past the debounce, into each of the four boxes; all five fail on the old code.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
