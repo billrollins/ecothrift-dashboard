@@ -100,7 +100,9 @@ def pick_rate(*, priced_items: int, priced_sum: Decimal, retail_sum: Decimal,
     return None, ''
 
 
-_OPEN_ROW_STATUSES = ('pending', 'partial')
+# A disputed row can still have units to process (#100: 1 of 2 did not come, the other is still to do); its
+# left is quantity - handled like any other, so a fully handled one adds nothing.
+_OPEN_ROW_STATUSES = ('pending', 'partial', 'disputed')
 
 
 def units_left_by_line(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -1194,6 +1194,9 @@ def refresh_processing_rows_denorm(
             items_by_mr[it.manifest_row_id].append(it)
     # P9 split families: siblings share a manifest line - attribute its items per row.
     split_attr = split_family_attribution(oid, mr_ids)
+    from apps.inventory.services.row_disputes import disputed_units_by_processing_row
+
+    row_disputed_units = disputed_units_by_processing_row(oid, [p.pk for p in prs]) if mr_ids else {}
 
     product_ids = {p.matched_product_id for p in prs if p.matched_product_id}
     products_by_id: dict[int, Product] = {}
@@ -1269,8 +1272,10 @@ def refresh_processing_rows_denorm(
             items = _items_for_family_row(pr.pk, fam, items)
         ids = [i.id for i in items]
         pr.item_ids = ids
-        pr.queue_status = derive_row_queue_status(items)
-        pr.qty_dispositioned = row_qty_dispositioned(items)
+        # Row disputes (#100): units disputed from the queue with no item count as handled and mark the row.
+        row_disputed = row_disputed_units.get(pr.pk, 0)
+        pr.queue_status = 'disputed' if row_disputed else derive_row_queue_status(items)
+        pr.qty_dispositioned = row_qty_dispositioned(items) + row_disputed
         pr.distinct_product_count = distinct_product_count_for_items(items)
         primary_pid = primary_product_id_for_items(items)
         if primary_pid is not None:
@@ -1842,7 +1847,11 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
 
     primary = _row_primary_item(items)
     row_price = _workspace_price_from_bookmark_row(rw_vals)
-    qty_disp = row_qty_dispositioned(items)
+    from apps.inventory.services.row_disputes import disputed_units_by_processing_row
+
+    member_ids = list(ProcessingRow.objects.filter(collapse_master_id=bk.pk).values_list('pk', flat=True))
+    row_disputed = disputed_units_by_processing_row(order.pk, [bk.pk, *member_ids])   # #100: units disputed by row
+    qty_disp = row_qty_dispositioned(items) + row_disputed.get(bk.pk, 0)
     qty_remaining = max(0, qty_target - qty_disp)
     qty_overage = max(0, qty_disp - qty_target)
     stags = bk.search_tags
@@ -1871,7 +1880,8 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         'tracking': bk.tracking if isinstance(bk.tracking, dict) else {},
         'items': [_serialize_item(i) for i in items],
         'itemCheckIns': _serialize_item_check_ins(bk, items_by_id),
-        'status': derive_row_queue_status(items),
+        'status': 'disputed' if row_disputed.get(bk.pk) else derive_row_queue_status(items),
+        'rowDisputedUnits': row_disputed.get(bk.pk, 0),
         'condition': condition_db_to_ui(primary.condition) if primary else base['condition'],
         'price': row_price,
         'dispatch': location_to_dispatch(primary.location) if primary else base['dispatch'],
@@ -1906,7 +1916,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
 
         group_qty = int(qty_target) + sum(int(m.quantity or 0) for m in member_rows)
         group_disp = qty_disp + sum(
-            row_qty_dispositioned(member_items_by_mr.get(m.manifest_row_id, []))
+            row_qty_dispositioned(member_items_by_mr.get(m.manifest_row_id, [])) + row_disputed.get(m.pk, 0)
             for m in member_rows
         )
         row_full['collapsedGroup'] = {
@@ -1917,7 +1927,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         }
         row_full['items'] = [_serialize_item(i) for i in all_items]
         row_full['itemCheckIns'] = batches
-        derived = derive_row_queue_status(all_items)
+        derived = 'disputed' if any(row_disputed.values()) else derive_row_queue_status(all_items)
         if derived != 'disputed':
             derived = (
                 'pending' if group_disp <= 0

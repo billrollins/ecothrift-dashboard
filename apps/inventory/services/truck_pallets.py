@@ -368,6 +368,18 @@ def manifest_line_accounting(order: PurchaseOrder) -> list[dict[str, Any]]:
         disputed_n[row['manifest_row_id']] = row['disputed']
         disputed_pct[row['manifest_row_id']] = row['disputed_pct'] or 0
 
+    # Row disputes from the Processing queue (Dash Update #100), no items: the same buckets as item disputes.
+    # Did not come = not received (marked missing); broken / wrong item = received broken; the rest = received,
+    # partly damaged at their % lost.
+    from apps.inventory.services.row_disputes import accounting_by_manifest_row
+
+    for mr_id, b in accounting_by_manifest_row(order).items():
+        lost[mr_id] += b['missing']
+        received[mr_id] += b['broken'] + b['partial']
+        broken[mr_id] += b['broken']
+        disputed_n[mr_id] += b['partial']
+        disputed_pct[mr_id] += b['partial_pct']
+
     _pool_combined_lines(order, expected, received)
 
     out = []

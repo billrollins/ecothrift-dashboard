@@ -49,6 +49,7 @@ import {
   readProcessingQueueTableClientWidth,
 } from './processingQueueLayout';
 import { processingHeaderGradient, processingTokens } from './processingTokens';
+import ReportProblemOutlined from '@mui/icons-material/ReportProblemOutlined';
 import { IconDelete as DeleteOutline } from '../../../icons/ecoIcons';
 
 export type QueueSortField =
@@ -85,6 +86,8 @@ export interface ProcessingQueueTableProps {
   /** Delete pending unmanifested lines (added rows only). */
   onDeleteAddedRow?: (row: ProcessingWorkspaceRowDTO) => void;
   deleteAddedRowLoadingId?: number | null;
+  /** Dispute a manifest row from the queue (Dash Update #100): no product or check-in. */
+  onDisputeRow?: (row: ProcessingWorkspaceRowDTO) => void;
 }
 
 type SortCycleState = { field: QueueSortField; dir: 'asc' | 'desc' } | null;
@@ -101,6 +104,7 @@ interface ProcessingQueueRowProps {
   showDeleteCol: boolean;
   onDeleteAddedRow?: (row: ProcessingWorkspaceRowDTO) => void;
   deleteAddedRowLoadingId?: number | null;
+  onDisputeRow?: (row: ProcessingWorkspaceRowDTO) => void;
 }
 
 const ProcessingQueueRow = memo(function ProcessingQueueRow({
@@ -115,6 +119,7 @@ const ProcessingQueueRow = memo(function ProcessingQueueRow({
   showDeleteCol,
   onDeleteAddedRow,
   deleteAddedRowLoadingId,
+  onDisputeRow,
 }: ProcessingQueueRowProps) {
   const meta = queueStatusMeta(r.status);
   const productsChip = queueProductsChipLabel(r.distinctProductCount);
@@ -396,6 +401,25 @@ const ProcessingQueueRow = memo(function ProcessingQueueRow({
               </span>
             </Tooltip>
           : null}
+          {r.rowKind !== 'added' && r.manifest_row_id != null && onDisputeRow ?
+            <Tooltip title={`Dispute row ${r.rowNum}: did not come, broken, wrong item…`} enterDelay={300} disableInteractive>
+              <IconButton
+                size="small"
+                aria-label={`Dispute row ${r.rowNum}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDisputeRow(r);
+                }}
+                sx={{
+                  p: 0.35,
+                  color: r.status === 'disputed' ? processingTokens.accentAmber : processingTokens.textSoft,
+                  '&:hover': { color: processingTokens.accentAmber, bgcolor: processingTokens.amberSoft },
+                }}
+              >
+                <ReportProblemOutlined sx={{ fontSize: 17 }} />
+              </IconButton>
+            </Tooltip>
+          : null}
         </TableCell>
       : null}
     </TableRow>
@@ -488,6 +512,7 @@ export function ProcessingQueueTable({
   onSelectAllVisible,
   onDeleteAddedRow,
   deleteAddedRowLoadingId,
+  onDisputeRow,
 }: ProcessingQueueTableProps) {
   const theme = useTheme();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -502,9 +527,11 @@ export function ProcessingQueueTable({
 
   // Collapsed member rows stay hidden - the master row represents the group.
   const visibleRows = useMemo(() => rows.filter((r) => !r.collapseMasterId), [rows]);
+  // One action column: Delete on added rows, Dispute on manifest rows (#100).
   const showDeleteCol = useMemo(
-    () => Boolean(onDeleteAddedRow) && visibleRows.some((r) => r.rowKind === 'added'),
-    [onDeleteAddedRow, visibleRows],
+    () => (Boolean(onDeleteAddedRow) && visibleRows.some((r) => r.rowKind === 'added'))
+      || (Boolean(onDisputeRow) && visibleRows.some((r) => r.rowKind !== 'added' && r.manifest_row_id != null)),
+    [onDeleteAddedRow, onDisputeRow, visibleRows],
   );
 
   const dataColumnWidth = Math.max(
@@ -887,6 +914,7 @@ export function ProcessingQueueTable({
                   onToggleRow={onToggleRow}
                   selectionEnabled={selectionEnabled}
                   showDeleteCol={showDeleteCol}
+                  onDisputeRow={onDisputeRow}
                   onDeleteAddedRow={onDeleteAddedRow}
                   deleteAddedRowLoadingId={deleteAddedRowLoadingId}
                 />

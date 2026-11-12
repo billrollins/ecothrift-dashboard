@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.277.0] -->
-<!-- Last reviewed: 2026-11-11 (2.277.0) -->
+<!-- Line 1 release: ## [2.278.0] -->
+<!-- Last reviewed: 2026-11-12 (2.278.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.278.0] - 2026-11-12
+
+User-facing theme: **Processing: dispute a manifest row straight from the queue, with no product or check-in (Dash Update #100).**
+
+> **For Bill:** you said a dispute is row based and "it does not make sense to create a product and check in just to dispute that it did not come." Every manifest row on the Processing queue now has a **Dispute** button (the warning sign at the end of the row). Pick what is wrong (**Did not come** is first), how many units, and a note if you like, then **Dispute**. Nothing else is made. Those units come off what is left to process, the row reads Disputed, and they count right away in the header's Disputes so far, Close the truck and the B-Stock list. Made a mistake? Open it again and press **Undo**: the units go back to the row. Photos for broken and the rest come next (#101).
+
+### Added (#100: dispute a manifest row from the queue)
+- New `ManifestRowDispute` (migration `inventory/0130_manifest_row_dispute`) and `services/row_disputes.py`: reason (did not come, arrived broken, wrong item came, missing parts, other), units, % of value lost for the two partial reasons, note, who/when; undo keeps the record. API `GET/POST /api/inventory/orders/{id}/row-disputes/` and `POST …/row-disputes/{dispute_id}/undo/` (staff, like Processing).
+- The units count as handled on the queue row (`qty_dispositioned`, list and row detail) and the row reads Disputed; the truck accounting adds them to the same buckets as item disputes (did not come = not received; broken and wrong item = damaged; the rest = partly damaged at their %), so the header, Close the truck, the pallet ledger and the B-Stock list need no change and no second dispute system.
+- Queue: a Dispute button on every manifest row (`ProcessingQueueTable.tsx`, the action column added rows already used for Delete) and `RowDisputeDialog.tsx` (rules in `rowDispute.ts`). 11 server tests (`test_row_disputes.py`), 7 front-end tests.
+
+### Fixed
+- Processing header **Left to process**: a row with any disputed unit dropped out entirely, so its units still to do were not counted. A disputed row now counts what it has left.
 
 ## [2.277.0] - 2026-11-11
 

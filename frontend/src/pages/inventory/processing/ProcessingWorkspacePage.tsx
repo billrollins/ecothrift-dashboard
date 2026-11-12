@@ -77,6 +77,7 @@ import {
 import { useWorkbenchConfirmDialog } from '../workbench/useWorkbenchConfirmDialog';
 import { apiErrorDetail } from '../../../hooks/useProductSearch';
 import { skuFromScan } from '../../../utils/scanCode';
+import { RowDisputeDialog } from './RowDisputeDialog';
 
 export default function ProcessingWorkspacePage() {
   const { id: idParam } = useParams<{ id: string }>();
@@ -436,6 +437,8 @@ export default function ProcessingWorkspacePage() {
   }, []);
 
   /** Stable identity so memo'd ProcessingQueueRow doesn't re-render on every page render. */
+  /** Dispute a manifest row from the queue (#100). */
+  const [disputeRowId, setDisputeRowId] = useState<number | null>(null);
   const handleDeleteAddedRowClick = useCallback(
     (row: ProcessingWorkspaceRowDTO) => void handleDeleteAddedRow(row),
     [handleDeleteAddedRow],
@@ -1140,9 +1143,16 @@ export default function ProcessingWorkspacePage() {
                     onOpenDetail={openDetail}
                     onFilterProduct={handleFilterProduct}
                     onDeleteAddedRow={handleDeleteAddedRowClick}
+                    onDisputeRow={(row) => setDisputeRowId(row.processing_row_id)}
                     deleteAddedRowLoadingId={
                       deleteAddedRow.isPending ? (deleteAddedRow.variables ?? null) : null
                     }
+                  />
+                  <RowDisputeDialog
+                    open={disputeRowId != null}
+                    orderId={workspace.order.id}
+                    processingRowId={disputeRowId}
+                    onClose={() => setDisputeRowId(null)}
                   />
                   <ProcessingBulkActionBar
                     selectedCount={selectedRowIds.size}

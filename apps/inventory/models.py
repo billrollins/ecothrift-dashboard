@@ -2822,6 +2822,56 @@ class BStockDispute(models.Model):
         return f'B-Stock dispute {self.bstock_dispute_id or self.pk} (PO {self.purchase_order_id})'
 
 
+class ManifestRowDispute(models.Model):
+    """Units of one manifest row disputed straight from the Processing queue, with no product, item or check-in
+    (Dash Update #100, Bill 2026-11-11: "Dispute is unit/manifest ROW based. NOT Product or Item").
+
+    The units count as handled on the queue row (they leave what is left to process) and feed the truck numbers in
+    ``truck_pallets.manifest_line_accounting``: "did not come" as not received, broken and wrong item as damaged, the
+    rest as partly damaged at ``pct_lost``. So the header, Close the truck and the B-Stock dispute list read them with
+    no second dispute system. Undo keeps the record (``undone_at``) and gives the units back. ``services/row_disputes.py``.
+    """
+
+    REASON_DID_NOT_COME = 'did_not_come'
+    REASON_BROKEN = 'broken'
+    REASON_WRONG_ITEM = 'wrong_item'
+    REASON_MISSING_PARTS = 'missing_parts'
+    REASON_OTHER = 'other'
+    REASON_CHOICES = [
+        (REASON_DID_NOT_COME, 'Did not come'),
+        (REASON_BROKEN, 'Arrived broken'),
+        (REASON_WRONG_ITEM, 'Wrong item came'),
+        (REASON_MISSING_PARTS, 'Missing parts'),
+        (REASON_OTHER, 'Other problem'),
+    ]
+
+    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name='row_disputes')
+    manifest_row = models.ForeignKey('ManifestRow', on_delete=models.CASCADE, related_name='row_disputes')
+    processing_row = models.ForeignKey(
+        ProcessingRow, on_delete=models.SET_NULL, null=True, blank=True, related_name='row_disputes',
+        help_text='The queue row it was entered on (its units are in that row\'s quantity).',
+    )
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES)
+    units = models.PositiveIntegerField()
+    pct_lost = models.PositiveSmallIntegerField(default=100, help_text='Share of each unit\'s value lost, 1-100.')
+    note = models.TextField(blank=True, default='')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    undone_at = models.DateTimeField(null=True, blank=True)
+    undone_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [models.Index(fields=['purchase_order', 'undone_at'])]
+
+    def __str__(self):
+        return f'Row dispute {self.pk}: {self.units} x {self.reason} (manifest row {self.manifest_row_id})'
+
+
 class BStockDisputeEvent(models.Model):
     """Who looked at a dispute page and what they opened (so we learn what B-Stock uses)."""
 

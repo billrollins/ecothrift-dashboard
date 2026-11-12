@@ -1,5 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from .api_row_disputes import row_dispute_undo_view, row_disputes_view
 from .api_add_item import (
     add_item_ai_fill_view, add_item_check_in_view, add_item_clean_up_view, add_item_find_view, add_item_price_view, add_item_taxonomy_view,
     restoration_request_settings_view,
@@ -56,6 +57,9 @@ router.register(r'restoration-parts-orders', RestorationPartsOrderViewSet, basen
 router.register(r'grade-scales', RestorationGradeScaleViewSet, basename='restorationgradescale')
 
 urlpatterns = [
+    path('orders/<int:po_id>/row-disputes/', row_disputes_view, name='row-disputes'),
+    path('orders/<int:po_id>/row-disputes/<int:dispute_id>/undo/', row_dispute_undo_view,
+         name='row-dispute-undo'),
     path('manifest-fields/', manifest_field_metadata_view, name='inventory-manifest-fields'),
     path('similar-products/', similar_products_view, name='similar-products'),
     path('product-find/', product_find_view, name='product-find'),

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-10 (Processing header and Truck Plan #81; Returns #83; Floor issues #84; close the truck #88; price coach #89) -->
+<!-- Last updated: 2026-11-11 (dispute a manifest row from the queue, #100) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -149,6 +149,29 @@ the order's), opened from the Processing header, the Order window, the Truck pag
   in on its first line, so the other lines read empty and the truck looked far shorter than it was (a real Target
   truck: $52,748 missing instead of $19,144). The group's check-ins are now spread over its lines. This also
   corrects the Truck page, the pallet ledger and the public dispute page.
+
+### Dispute a manifest row from the queue (Dash Update #100, 2026-11-11)
+
+Bill: "Dispute is unit/manifest ROW based. NOT Product or Item ... It does not make sense to create a product and
+check in just to dispute that it did not come." Each manifest row on the Processing queue has a **Dispute** button
+(the action column; added rows keep Delete there). Its window: what is wrong (**Did not come** first, Arrived broken,
+Wrong item came, Missing parts, Other problem), how many units (starts at all that is left), the % of value lost for
+the two partial reasons, a note, and the row's disputes with **Undo**. No product, item or check-in is made.
+
+- Record: `ManifestRowDispute` (`inventory/0130`): order, manifest row, the queue row it was entered on, reason,
+  units (queue units, like item counts), `pct_lost`, note, who/when, `undone_at`/`undone_by` (kept, never deleted).
+  Service `services/row_disputes.py`; API `GET/POST /inventory/orders/{id}/row-disputes/`,
+  `POST …/row-disputes/{dispute_id}/undo/`.
+- **The row:** `refresh_processing_rows_denorm` and the row detail add the active units to `qty_dispositioned`, so
+  they leave what is left to process (check-in starts at what is left; extras stay allowed as before), and the row
+  reads **Disputed**. Undo gives them back. A disputed row's leftover units still count in **Left to process**
+  (`truck_plan._OPEN_ROW_STATUSES` now includes `disputed`; before, a row with one disputed item dropped all its left).
+- **The truck numbers:** `manifest_line_accounting` adds them to the same buckets as item disputes: did not come =
+  `lost` (not received, the header's "so far"); broken and wrong item = received and broken; missing parts and other =
+  received, disputed at `pct_lost`. So the header, Close the truck, the pallet ledger and the B-Stock list read them
+  with no second system (Wrong item shows as "Damaged" on the B-Stock list until #102).
+- Not yet: photos for every reason but "did not come" (#101); one dispute record everywhere and the old item marks
+  and `Dispute` rows folded in (#102).
 
 ### Review surfaces (pre- vs post-finalize)
 
