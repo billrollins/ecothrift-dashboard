@@ -5,6 +5,7 @@ All HTTP/SDK traffic is mocked - no network calls. One routing test per provider
 """
 
 import json
+from decimal import Decimal
 from unittest import mock
 
 from django.test import SimpleTestCase, override_settings
@@ -508,3 +509,83 @@ class MetaSparkTests(SimpleTestCase):
         self.assertEqual(result.text, 'Household')
         self.assertEqual(result.output_tokens, 40)
         self.assertEqual(effort_payload('meta', 'muse-spark-1.3', 'low'), 'low')
+
+
+class _FakeServerToolUse:
+    def __init__(self, searches, fetches):
+        self.web_search_requests = searches
+        self.web_fetch_requests = fetches
+
+
+class _FakeStream:
+    """``client.messages.stream(...)`` as a context manager that hands back one final message."""
+
+    def __init__(self, message):
+        self._message = message
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def get_final_message(self):
+        return self._message
+
+
+@override_settings(AI_PROVIDER='auto', ANTHROPIC_API_KEY='ant-k', XAI_API_KEY='xai-k')
+class ServerToolTests(SimpleTestCase):
+    """Anthropic-run web tools through the router (Dash Update #110)."""
+
+    WEB = [{'type': 'web_search_20260209', 'name': 'web_search', 'max_uses': 3}]
+    TOOLS = [{'name': 'report', 'description': '', 'input_schema': {'type': 'object'}}]
+
+    def _turn(self, blocks, stop_reason, searches, fetches):
+        turn = _FakeAnthropicResponse(blocks)
+        turn.model = 'claude-opus-5-5'
+        turn.stop_reason = stop_reason
+        turn.usage.server_tool_use = _FakeServerToolUse(searches, fetches)
+        return turn
+
+    def test_web_tools_stream_resume_a_paused_turn_and_count_the_searches(self):
+        paused = self._turn([_FakeAnthropicBlock('server_tool_use', name='web_search')], 'pause_turn', 2, 1)
+        final = self._turn([_FakeAnthropicBlock('tool_use', name='report', input={'ok': True})], 'tool_use', 1, 0)
+        client = mock.MagicMock()
+        client.messages.stream.side_effect = [_FakeStream(paused), _FakeStream(final)]
+        with mock.patch('anthropic.Anthropic', return_value=client), mock.patch(
+            'apps.core.services.ai_usage_log.log_ai_usage',
+        ) as log, mock.patch('apps.core.services.ai_usage_log.estimate_cost_usd', return_value=Decimal('0.5')):
+            result = llm_complete(
+                model_id='claude-opus-5-5', system='sys', user='check these', effort='high',
+                tools=self.TOOLS, tool_name='report', server_tools=self.WEB, log_source='ai_price_check',
+            )
+        client.messages.create.assert_not_called()  # a web turn is streamed
+        first, second = [c.kwargs for c in client.messages.stream.call_args_list]
+        self.assertEqual(first['tools'], [*self.TOOLS, *self.WEB])
+        self.assertEqual(first['tool_choice'], {'type': 'auto'})  # Opus 5.5 takes no forced tool
+        self.assertEqual(first['extra_body'], {'output_config': {'effort': 'high'}})
+        self.assertEqual(first['messages'], [{'role': 'user', 'content': 'check these'}])
+        # The paused assistant turn goes back unchanged, with no extra user message.
+        self.assertEqual(second['messages'][1:], [{'role': 'assistant', 'content': paused.content}])
+        self.assertEqual(result.tool_input, {'ok': True})
+        self.assertEqual((result.web_search_requests, result.web_fetch_requests), (3, 1))
+        self.assertEqual((result.input_tokens, result.output_tokens), (22, 14))  # both requests are billed
+        logged = log.call_args.kwargs
+        self.assertEqual(logged['context'], {'web_searches': 3, 'web_fetches': 1})
+        self.assertEqual(logged['cost_usd'], Decimal('0.53'))  # tokens plus $0.01 a search
+
+    def test_a_plain_call_is_not_streamed_and_logs_no_web_cost(self):
+        client = mock.MagicMock()
+        client.messages.create.return_value = _FakeAnthropicResponse([_FakeAnthropicBlock('text', text='ok')])
+        with mock.patch('anthropic.Anthropic', return_value=client), mock.patch(
+            'apps.core.services.ai_usage_log.log_ai_usage',
+        ) as log:
+            result = llm_complete(model_id='claude-sonnet-4-6', user='hi')
+        client.messages.stream.assert_not_called()
+        self.assertEqual((result.web_search_requests, result.web_fetch_requests), (0, 0))
+        self.assertIsNone(log.call_args.kwargs['context'])
+        self.assertIsNone(log.call_args.kwargs['cost_usd'])
+
+    def test_web_tools_need_an_anthropic_model(self):
+        with self.assertRaises(LLMConfigError):
+            llm_complete(model_id='grok-4.7', user='hi', server_tools=self.WEB)

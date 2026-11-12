@@ -22,6 +22,8 @@ from django.conf import settings
 log = logging.getLogger(__name__)
 
 _MILLION = Decimal('1000000')
+# Anthropic's web search tool: $10 per 1,000 searches, on top of tokens (web fetch has no fee).
+WEB_SEARCH_USD = Decimal('0.01')
 
 # The Dash login of the request this code runs in (None outside a request, and in threads it starts).
 _request_user: contextvars.ContextVar = contextvars.ContextVar('ai_usage_request_user', default=None)

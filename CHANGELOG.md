@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.284.0] -->
-<!-- Last reviewed: 2026-11-12 (2.284.0) -->
+<!-- Line 1 release: ## [2.285.0] -->
+<!-- Last reviewed: 2026-11-12 (2.285.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.285.0] - 2026-11-12
+
+User-facing theme: **Settings > AI: every model's input and output price is checked on the web, with a Refresh prices button that shows each change and its source before anything is saved (Dash Update #110).**
+
+> **For Bill:** in Settings > AI, next to Update, there is now **Refresh prices**. It sends Claude Opus 5.5 (high effort, with web search) every model that is not archived, with the prices we have now, and it reads each provider's own pricing page. After a few minutes a window opens with three lists: **Changes** (what we have, what it found, and a link to the page it read it on), **Could not verify** (it found no price on a page, so nothing changes), and **Confirmed**. Untick any change you don't want, then **Save**. Nothing is saved until you do, and each save is kept with who and when. Update still looks for new models; it now also gets the price of any model that shows "set", and fills those in on its own (a price that is already there is never overwritten without your review). A line above the list says when prices were last checked and what was found; if a check fails it says so instead of staying quiet. It never makes up a price: a number with no page behind it is thrown away.
+
+### Fixed (#110: AI model prices)
+- Root cause of the models left on "set": the automatic check (`ai_prices.run`, started by Update) only ever looked at models Update had **just added** in that click and that had no price, so a model added before (claude-haiku-5-5 since 10-07) was never checked again; and the screen showed nothing when that check failed or found nothing, so no one could tell. It also read the providers' pages as raw downloaded text cut at 80,000 characters, with no web search, so a model not on the first part of a long page (Google's runs past the cut) came back blank.
+- The check now goes through the house router (`llm_complete`, logged in `AIUsage` as `ai_price_check`) as Claude Opus 5.5 at high effort with Anthropic's server tools `web_search_20260209` and `web_fetch_20260209` (12 uses each) and the strict tool `report_prices`. It sends every non-archived text model with our current input and output price per 1M tokens and the providers' pricing page links; each row comes back verified or not, with prices, a source link and a note. A price is used only when the model says it verified it, gives an http(s) source, the call actually searched or read a page, and the number fits the field; anything else is "could not verify" with a reason.
+- Router: `llm_complete(server_tools=...)` (Anthropic only) streams the call, sends a `pause_turn` back unchanged up to 5 times, adds up tokens over the resumed requests, reports `web_search_requests` / `web_fetch_requests`, and logs the searches' fee ($10 per 1,000) in the cost and their counts in `AIUsage.context`.
+- `POST /api/core/ai/models/price-check/` starts a check in its own process (`manage.py check_ai_prices`): Refresh prices sends `--review` (saves nothing) and who asked; Update sends `{"auto": true}`, which runs only when a price is missing and fills only models with no price at all. `POST .../price-check/apply/` saves the picked changes from the kept check (not from the browser), skips a model whose price changed since the check, and logs old, new, source, who and when in `AppSettingHistory` under `ai_model_prices`. A price typed in the table is logged there too. A check older than 20 minutes still "running" shows as stopped.
+- Settings > AI: Refresh prices button, a status line (when, who, confirmed / to review / could not verify), and the review window (Changes with checkboxes, Could not verify, Confirmed, each with the checker's note, and the searches it made).
+- The price cells in the model list kept the price they first showed, so a price saved by the check (or in another tab) still read "set" until the page was reloaded. They now follow the saved price unless you are typing in them.
+- 11 new server tests for the check (model call faked) and 3 for the router's web tools; 4 new front-end tests.
 
 ## [2.284.0] - 2026-11-12
 

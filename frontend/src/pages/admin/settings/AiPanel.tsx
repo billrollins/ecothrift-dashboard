@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -51,7 +51,7 @@ import {
 import { formatApiError } from '../labelStudio/labelStudioUtils';
 import { AiTestDialog } from './AiTestDialog';
 import { PriceCell } from './AiPriceCell';
-import { AiPriceCheck } from './AiPriceCheck';
+import { AiPriceCheck, PRICE_CHECK_KEY, useAiPriceCheck } from './AiPriceCheck';
 import { startAiPriceCheck } from '../../../api/aiSettings.api';
 import { IconEdit as EditIcon } from '../../../icons/ecoIcons';
 
@@ -94,6 +94,10 @@ export function AiPanel() {
   const [discoverResults, setDiscoverResults] = useState<AiDiscoverProviderResult[] | null>(null);
   const [testModelId, setTestModelId] = useState<number | null>(null);
   const [updating, setUpdating] = useState(false);
+  const priceCheck = useAiPriceCheck();
+  const checking = priceCheck.data?.status === 'running';
+  const [reviewWhenDone, setReviewWhenDone] = useState(false);
+  const reviewOpened = useCallback(() => setReviewWhenDone(false), []);
 
   const models = useMemo(() => modelsQuery.data ?? [], [modelsQuery.data]);
   const actions = actionsQuery.data ?? [];
@@ -150,21 +154,29 @@ export function AiPanel() {
     }
   };
 
-  // Update: look for new models; for the ones just added, quietly get prices if the providers list them.
+  // Update: look for new models, then get prices for any model that has none (the server skips the
+  // check when no price is missing).
   const runUpdate = async () => {
     setUpdating(true);
     try {
       const data = await discover.mutateAsync();
       const added = data.providers.flatMap((p) => p.added);
-      if (added.length) {
-        await startAiPriceCheck(added);
-        void queryClient.invalidateQueries({ queryKey: ['ai-settings', 'price-check'] });
-      }
+      queryClient.setQueryData(PRICE_CHECK_KEY, await startAiPriceCheck(true));
       enqueueSnackbar(added.length ? `Added ${added.join(', ')}. Getting their prices.` : 'No new models.', { variant: 'success' });
     } catch (err) {
       enqueueSnackbar(formatApiError(err, 'Could not update.'), { variant: 'error' });
     } finally {
       setUpdating(false);
+    }
+  };
+
+  // Refresh prices: check every model's price on the web; the changes are reviewed before any is saved.
+  const runRefresh = async () => {
+    try {
+      queryClient.setQueryData(PRICE_CHECK_KEY, await startAiPriceCheck(false));
+      setReviewWhenDone(true);
+    } catch (err) {
+      enqueueSnackbar(formatApiError(err, 'Could not start the price check.'), { variant: 'error' });
     }
   };
 
@@ -190,7 +202,17 @@ export function AiPanel() {
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
             <Typography variant="h6" sx={{ flex: 1 }}>Models</Typography>
-            <Tooltip title="Look for new models at each provider, then check every active model's price" enterDelay={400}>
+            <Tooltip
+              title="Check every model's input and output price on the web. You see the changes and their sources before anything is saved."
+              enterDelay={400}
+            >
+              <span>
+                <Button variant="outlined" size="small" onClick={() => void runRefresh()} disabled={checking}>
+                  {checking ? 'Checking prices...' : 'Refresh prices'}
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip title="Look for new models at each provider, then get the price of any model that has none" enterDelay={400}>
               <span>
                 <Button variant="contained" size="small" onClick={() => void runUpdate()} disabled={updating}>
                   {updating ? 'Updating...' : 'Update'}
@@ -198,7 +220,7 @@ export function AiPanel() {
               </span>
             </Tooltip>
           </Box>
-          <AiPriceCheck />
+          <AiPriceCheck openWhenDone={reviewWhenDone} onOpened={reviewOpened} />
           <Table size="small">
             <TableHead>
               <TableRow>

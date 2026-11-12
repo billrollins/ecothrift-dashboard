@@ -18,6 +18,13 @@ export function PriceCell({ model, field }: { model: AiCatalogModel; field: 'inp
   const { enqueueSnackbar } = useSnackbar();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(shown(model[field]));
+  // A price saved elsewhere (the price check, another tab) shows at once, unless it is being typed over.
+  const saved = shown(model[field]);
+  const [seen, setSeen] = useState(saved);
+  if (saved !== seen && !editing) {
+    setSeen(saved);
+    setValue(saved);
+  }
   const label = `${model.slug} ${field === 'input_price' ? 'input' : 'output'} price`;
 
   if (model.modality !== 'text') {

@@ -435,15 +435,41 @@ class AiModelViewSet(viewsets.ModelViewSet):
     def discover(self, request):
         return Response({'providers': discover_models()})
 
+    def perform_update(self, serializer):
+        """A price typed in by hand is logged like one saved from the price check."""
+        from apps.core.services import ai_prices
+
+        before = (serializer.instance.input_price, serializer.instance.output_price)
+        row = serializer.save()
+        if (row.input_price, row.output_price) != before:
+            ai_prices.log_change([{
+                'slug': row.slug, 'old_input': ai_prices._text(before[0]), 'old_output': ai_prices._text(before[1]),
+                'new_input': ai_prices._text(row.input_price), 'new_output': ai_prices._text(row.output_price),
+            }], self.request.user, 'typed in')
+
     @action(detail=False, methods=['get', 'post'], url_path='price-check')
     def price_check(self, request):
-        """GET the last "Estimate API costs" check; POST starts a new one (its own process)."""
+        """GET the last price check. POST starts one (its own process): ``{"auto": true}`` is Update's
+        follow-up (runs only when a price is missing, and fills those); otherwise it is Refresh prices,
+        which saves nothing until the changes are reviewed."""
         from apps.core.services import ai_prices
 
         if request.method == 'POST':
-            slugs = [str(x) for x in request.data.get('slugs') or []]
-            return Response(ai_prices.start(slugs) if slugs else {'status': 'done', 'results': []})
+            return Response(ai_prices.start(save_blanks=bool(request.data.get('auto')), user=request.user))
         return Response(ai_prices.state())
+
+    @action(detail=False, methods=['post'], url_path='price-check/apply')
+    def price_check_apply(self, request):
+        """Save the reviewed price changes for ``ids`` (model ids) from the last check. Logged with who and when."""
+        from apps.core.services import ai_prices
+
+        ids = request.data.get('ids')
+        if not isinstance(ids, list) or not ids:
+            return Response({'detail': 'Pick at least one change to save.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            return Response(ai_prices.apply(ids, request.user))
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'])
     def test(self, request, pk=None):

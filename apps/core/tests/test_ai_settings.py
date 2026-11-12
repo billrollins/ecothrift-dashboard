@@ -255,30 +255,230 @@ class AiModelTestEndpointTests(TestCase):
 
 
 class AiPriceCheckTests(TestCase):
-    def test_blank_prices_are_filled_and_a_different_price_you_set_is_only_reported(self):
+    """Settings > AI price check (Dash Update #110). The model call (``ai_prices._ask``) is faked."""
+
+    USED = {'model': 'claude-opus-5-5', 'web_searches': 3, 'web_fetches': 4}
+
+    def setUp(self):
         from decimal import Decimal
-        from unittest.mock import patch
+
+        AiModel.objects.all().delete()  # only the models each test makes
+        self.blank = AiModel.objects.create(slug='check-blank-x', provider='google')
+        self.mine = AiModel.objects.create(slug='check-mine-x', provider='xai', input_price=Decimal('2'), output_price=Decimal('6'))
+        self.same = AiModel.objects.create(slug='check-same-x', provider='anthropic', input_price=Decimal('4'), output_price=Decimal('20'))
+        self.lost = AiModel.objects.create(slug='check-lost-x', provider='meta', input_price=Decimal('1'), output_price=Decimal('3'))
+        AiModel.objects.create(slug='check-old-x', provider='xai', status=AiModel.STATUS_ARCHIVED)
+        AiModel.objects.create(slug='check-image-x', provider='xai', modality=AiModel.MODALITY_IMAGE)
+        self.owner = make_user('price-owner@example.com', superuser=True)
+
+    @staticmethod
+    def _row(slug, inp, out, url='https://provider.example/pricing', verified=True, note=''):
+        return {'slug': slug, 'verified': verified, 'input_per_million': inp, 'output_per_million': out,
+                'source_url': url, 'note': note}
+
+    def _answer(self):
+        return {'prices': [
+            self._row('check-blank-x', 0.1, 0.4, 'https://g.example/p'),
+            self._row('check-mine-x', 3, 15, 'https://x.example/p'),
+            self._row('check-same-x', 4, 20, 'https://a.example/p'),
+            self._row('check-lost-x', None, None, '', verified=False, note='Not on the pricing page.'),
+        ]}
+
+    def _run(self, answer=None, used=None, **kwargs):
+        from apps.core.services import ai_prices
+
+        with mock.patch.object(ai_prices, '_ask', return_value=(answer or self._answer(), used or self.USED)) as ask:
+            state = ai_prices.run(**kwargs)
+        return state, ask
+
+    def _prices(self, row):
+        row.refresh_from_db()
+        return row.input_price, row.output_price
+
+    def test_every_model_that_is_not_archived_is_sent_with_our_estimates(self):
+        from apps.core.services import ai_prices
+
+        _state, ask = self._run(save_blanks=False)
+        sent = ask.call_args.args[0]
+        self.assertEqual({m.slug for m in sent}, {'check-blank-x', 'check-mine-x', 'check-same-x', 'check-lost-x'})
+        question = ai_prices._question(sent)
+        self.assertIn('check-mine-x, provider xai. Our estimate per 1M tokens: input $2, output $6.', question)
+        self.assertIn('check-blank-x, provider google. Our estimate per 1M tokens: input not set, output not set.', question)
+        self.assertIn('https://ai.google.dev/gemini-api/docs/pricing', question)  # pages to read go in the user message
+
+    def test_refresh_proposes_and_saves_nothing(self):
+        from decimal import Decimal
+
+        from apps.core.models import AppSettingHistory
+
+        state, _ask = self._run(save_blanks=False, user=self.owner)
+        rows = {r['slug']: r for r in state['results']}
+        self.assertEqual(rows['check-blank-x']['verdict'], 'changed')
+        self.assertEqual((rows['check-blank-x']['current_input'], rows['check-blank-x']['found_input']), (None, '0.1000'))
+        self.assertEqual(rows['check-mine-x']['verdict'], 'changed')
+        self.assertEqual((rows['check-mine-x']['found_input'], rows['check-mine-x']['found_output']), ('3.0000', '15.0000'))
+        self.assertEqual(rows['check-mine-x']['source_url'], 'https://x.example/p')
+        self.assertEqual(rows['check-same-x']['verdict'], 'confirmed')
+        self.assertEqual(rows['check-lost-x']['verdict'], 'not_verified')
+        self.assertEqual(rows['check-lost-x']['note'], 'Not on the pricing page.')
+        self.assertTrue(all(r['saved'] == '' for r in state['results']))
+        self.assertEqual(self._prices(self.blank), (None, None))
+        self.assertEqual(self._prices(self.mine), (Decimal('2'), Decimal('6')))
+        self.assertEqual(state['requested_by'], 'Test User')
+        self.assertEqual((state['checker'], state['web_searches'], state['web_fetches']), ('claude-opus-5-5', 3, 4))
+        self.assertFalse(AppSettingHistory.objects.filter(key='ai_model_prices').exists())
+
+    def test_the_automatic_run_fills_missing_prices_and_leaves_set_ones_for_review(self):
+        from decimal import Decimal
+
+        from apps.core.models import AppSettingHistory
+
+        state, _ask = self._run(save_blanks=True)
+        rows = {r['slug']: r for r in state['results']}
+        self.assertEqual(self._prices(self.blank), (Decimal('0.1000'), Decimal('0.4000')))
+        self.assertEqual(rows['check-blank-x']['saved'], 'auto')
+        self.assertEqual(self._prices(self.mine), (Decimal('2'), Decimal('6')))  # a price somebody set waits for review
+        self.assertEqual((rows['check-mine-x']['verdict'], rows['check-mine-x']['saved']), ('changed', ''))
+        log = AppSettingHistory.objects.get(key='ai_model_prices')
+        self.assertIsNone(log.changed_by)
+        self.assertEqual(log.old_value, {'check-blank-x': {'input': None, 'output': None}})
+        self.assertEqual(log.new_value['check-blank-x'], {
+            'input': '0.1000', 'output': '0.4000', 'source': 'https://g.example/p',
+            'how': 'price check, filled a missing price'})
+
+    def test_a_price_is_never_used_without_a_source_or_without_the_web(self):
+        answer = {'prices': [
+            self._row('check-blank-x', 0.1, 0.4, url=''),                       # no source link
+            self._row('check-mine-x', 3, 15, url='the pricing page'),           # not a link
+            self._row('check-same-x', -4, 20),                                  # not a price
+            # check-lost-x is missing from the answer
+        ]}
+        state, _ask = self._run(answer=answer, save_blanks=True)
+        rows = {r['slug']: r for r in state['results']}
+        self.assertEqual({r['verdict'] for r in rows.values()}, {'not_verified'})
+        self.assertTrue(all(r['found_input'] is None and r['found_output'] is None for r in rows.values()))
+        self.assertEqual(rows['check-blank-x']['note'], 'A price came back with no source link, so it was not used.')
+        self.assertEqual(rows['check-lost-x']['note'], 'The check did not report on this model.')
+        self.assertEqual(self._prices(self.blank), (None, None))
+
+        # The model answered from memory (no search, no page read): nothing counts as verified.
+        state, _ask = self._run(used={'model': 'claude-opus-5-5', 'web_searches': 0, 'web_fetches': 0}, save_blanks=True)
+        self.assertEqual({r['verdict'] for r in state['results']}, {'not_verified'})
+        self.assertEqual(self._prices(self.blank), (None, None))
+
+    def test_a_failed_call_is_kept_as_failed_and_changes_nothing(self):
+        from apps.core.services import ai_prices
+
+        with mock.patch.object(ai_prices, '_ask', side_effect=ValueError('The checker did not report prices. Try again.')):
+            state = ai_prices.run(save_blanks=True)
+        self.assertEqual((state['status'], state['results']), ('failed', []))
+        self.assertIn('did not report prices', ai_prices.state()['error'])
+        self.assertEqual(self._prices(self.blank), (None, None))
+
+    def test_save_applies_the_reviewed_changes_and_logs_who(self):
+        from decimal import Decimal
+
+        from apps.core.models import AppSettingHistory
+
+        self._run(save_blanks=False, user=self.owner)
+        api = APIClient()
+        api.force_authenticate(self.owner)
+        url = '/api/core/ai/models/price-check/apply/'
+        self.assertEqual(api.post(url, {'ids': []}, format='json').status_code, 400)
+        # The confirmed and the could-not-verify rows are ignored even when asked for.
+        resp = api.post(url, {'ids': [self.mine.pk, self.same.pk, self.lost.pk]}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        rows = {r['slug']: r for r in resp.data['results']}
+        self.assertEqual(rows['check-mine-x']['saved'], 'review')
+        self.assertEqual(rows['check-blank-x']['saved'], '')  # not picked, so not saved
+        self.assertEqual(self._prices(self.mine), (Decimal('3.0000'), Decimal('15.0000')))
+        self.assertEqual(self._prices(self.blank), (None, None))
+        self.assertEqual(self._prices(self.lost), (Decimal('1'), Decimal('3')))
+        self.assertEqual((resp.data['saved']['by'], resp.data['saved']['count']), ('Test User', 1))
+        log = AppSettingHistory.objects.get(key='ai_model_prices')
+        self.assertEqual(log.changed_by, self.owner)
+        self.assertEqual(log.old_value, {'check-mine-x': {'input': '2.0000', 'output': '6.0000'}})
+        self.assertEqual(log.new_value, {'check-mine-x': {
+            'input': '3.0000', 'output': '15.0000', 'source': 'https://x.example/p', 'how': 'price check, reviewed'}})
+        # Saving the same row again does nothing.
+        api.post(url, {'ids': [self.mine.pk]}, format='json')
+        self.assertEqual(AppSettingHistory.objects.filter(key='ai_model_prices').count(), 1)
+
+    def test_save_skips_a_price_that_changed_after_the_check(self):
+        from decimal import Decimal
 
         from apps.core.services import ai_prices
 
-        blank = AiModel.objects.create(slug='check-blank-x', provider='google')
-        mine = AiModel.objects.create(slug='check-mine-x', provider='xai', input_price=Decimal('2'), output_price=Decimal('6'))
-        AiModel.objects.create(slug='check-old-x', provider='xai', status=AiModel.STATUS_ARCHIVED)
-        answer = {'prices': [
-            {'slug': 'check-blank-x', 'input_per_million': 0.1, 'output_per_million': 0.4, 'source_url': 'https://g/p', 'note': ''},
-            {'slug': 'check-mine-x', 'input_per_million': 3, 'output_per_million': 15, 'source_url': 'https://x/p', 'note': ''},
-        ]}
-        with patch.object(ai_prices, '_ask', return_value=(answer, 'claude-opus-5-5')) as ask:
-            s = ai_prices.run()
-        with patch.object(ai_prices, '_ask') as not_asked:
-            ai_prices.run(['check-mine-x'])  # Update's path: only just-added models with no price get checked
-        not_asked.assert_not_called()
-        slugs = [r['slug'] for r in ask.call_args.args[0]]
-        self.assertNotIn('check-old-x', slugs)  # archived models are not checked
-        blank.refresh_from_db()
-        mine.refresh_from_db()
-        self.assertEqual((blank.input_price, blank.output_price), (Decimal('0.1000'), Decimal('0.4000')))
-        self.assertEqual(mine.input_price, Decimal('2'))  # a price you set is never overwritten
-        rows = {r['slug']: r for r in s['results']}
-        self.assertTrue(rows['check-blank-x']['filled'])
-        self.assertTrue(rows['check-mine-x']['differs'])
+        self._run(save_blanks=False, user=self.owner)
+        AiModel.objects.filter(pk=self.mine.pk).update(input_price=Decimal('2.5'))
+        state = ai_prices.apply([self.mine.pk], self.owner)
+        row = next(r for r in state['results'] if r['slug'] == 'check-mine-x')
+        self.assertTrue(row['stale'])
+        self.assertEqual(row['saved'], '')
+        self.assertEqual(self._prices(self.mine), (Decimal('2.5000'), Decimal('6')))
+
+    def test_the_buttons_start_the_check_and_update_only_when_a_price_is_missing(self):
+        from apps.core.services import ai_prices
+
+        api = APIClient()
+        api.force_authenticate(self.owner)
+        url = '/api/core/ai/models/price-check/'
+        with mock.patch.object(ai_prices.subprocess, 'Popen') as popen:
+            resp = api.post(url, {}, format='json')  # Refresh prices
+            self.assertEqual((resp.data['status'], resp.data['auto'], resp.data['requested_by']), ('running', False, 'Test User'))
+            args = popen.call_args.args[0]
+            self.assertEqual(args[-4:], ['check_ai_prices', '--review', '--by', str(self.owner.pk)])
+            api.post(url, {}, format='json')  # a second click while it runs starts nothing
+            self.assertEqual(popen.call_count, 1)
+
+            self._run(save_blanks=True)  # the run finishes and fills the one missing price
+            self.assertFalse(ai_prices.has_blank())
+            resp = api.post(url, {'auto': True}, format='json')  # Update: nothing is missing, so no check
+            self.assertEqual(resp.data['status'], 'done')
+            self.assertEqual(popen.call_count, 1)
+
+            AiModel.objects.create(slug='check-new-x', provider='google')
+            resp = api.post(url, {'auto': True}, format='json')  # Update with a new, unpriced model
+            self.assertEqual((resp.data['status'], resp.data['auto']), ('running', True))
+            self.assertNotIn('--review', popen.call_args.args[0])
+
+    def test_a_check_that_never_finished_is_reported_as_stopped(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.core.services import ai_prices
+
+        ai_prices._save({'status': 'running', 'started_at': (timezone.now() - timedelta(minutes=30)).isoformat(), 'results': []})
+        self.assertEqual(ai_prices.state()['status'], 'failed')
+
+    def test_a_price_typed_in_by_hand_is_logged_too(self):
+        from apps.core.models import AppSettingHistory
+
+        api = APIClient()
+        api.force_authenticate(self.owner)
+        resp = api.patch(f'/api/core/ai/models/{self.blank.pk}/', {'input_price': '0.25', 'output_price': '1'}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        api.patch(f'/api/core/ai/models/{self.blank.pk}/', {'label': 'Blank X'}, format='json')  # not a price change
+        log = AppSettingHistory.objects.get(key='ai_model_prices')
+        self.assertEqual(log.changed_by, self.owner)
+        self.assertEqual(log.new_value['check-blank-x'], {'input': '0.2500', 'output': '1.0000', 'source': '', 'how': 'typed in'})
+
+    def test_the_call_goes_through_the_router_as_opus_high_with_the_web_tools(self):
+        from apps.core.services import ai_prices
+        from apps.core.services.llm_router import LLMResult
+
+        result = LLMResult(text='', model_used='claude-opus-5-5', tool_input=self._answer(),
+                           web_search_requests=2, web_fetch_requests=5)
+        with mock.patch('apps.core.services.llm_router.llm_complete', return_value=result) as complete:
+            body, used = ai_prices._ask([self.blank, self.mine])
+        kwargs = complete.call_args.kwargs
+        self.assertEqual((kwargs['model_id'], kwargs['effort']), ('claude-opus-5-5', 'high'))
+        self.assertEqual([t['type'] for t in kwargs['server_tools']], ['web_search_20260209', 'web_fetch_20260209'])
+        self.assertEqual((kwargs['tool_name'], kwargs['tools'][0]['strict']), ('report_prices', True))
+        self.assertEqual(kwargs['log_source'], 'ai_price_check')
+        self.assertEqual(used, {'model': 'claude-opus-5-5', 'web_searches': 2, 'web_fetches': 5})
+        self.assertEqual(body, self._answer())
+        with mock.patch('apps.core.services.llm_router.llm_complete', return_value=LLMResult(text='I could not.', model_used='claude-opus-5-5')):
+            with self.assertRaises(ValueError):
+                ai_prices._ask([self.blank])

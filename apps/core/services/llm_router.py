@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 GOOGLE_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 DEFAULT_TIMEOUT_SECONDS = 60.0
 DEFAULT_MAX_TOKENS = 4096
+# A turn that uses Anthropic's web tools can pause (stop_reason "pause_turn"); it is sent back to continue.
+MAX_PAUSE_RESUMES = 5
 
 PROVIDER_KEY_HINT = {
     'anthropic': 'ANTHROPIC_API_KEY',
@@ -97,6 +99,8 @@ class LLMResult:
     stop_reason: str = ''
     response_id: str = ''
     tool_input: dict | None = None
+    web_search_requests: int = 0
+    web_fetch_requests: int = 0
 
 
 def resolve_provider(model_id: str) -> str:
@@ -281,7 +285,10 @@ def _anthropic_complete(
     effort: str | None = None,
     force_tool: bool = True,
     max_retries: int | None = None,
+    server_tools: list[dict] | None = None,
 ) -> LLMResult:
+    """One Anthropic call. ``server_tools`` are Anthropic-run tools (web search, web fetch): the call is
+    streamed (a search turn can be quiet for minutes) and a paused turn is sent back until it finishes."""
     import anthropic as anthropic_lib
 
     client_kwargs: dict = {'api_key': api_key}
@@ -305,9 +312,9 @@ def _anthropic_complete(
         extra_body['temperature'] = temperature
     if timeout is not None:
         kwargs['timeout'] = timeout
-    if tools:
-        kwargs['tools'] = tools
-        if tool_name:
+    if tools or server_tools:
+        kwargs['tools'] = [*(tools or []), *(server_tools or [])]
+        if tools and tool_name:
             kwargs['tool_choice'] = (
                 {'type': 'tool', 'name': tool_name} if force_tool else {'type': 'auto'}
             )
@@ -316,8 +323,20 @@ def _anthropic_complete(
     if extra_body:
         kwargs['extra_body'] = extra_body
 
+    def send():
+        if not server_tools:
+            return client.messages.create(**kwargs)
+        with client.messages.stream(**kwargs) as stream:
+            return stream.get_final_message()
+
     try:
-        response = client.messages.create(**kwargs)
+        response = send()
+        turns = [response]
+        while getattr(response, 'stop_reason', '') == 'pause_turn' and len(turns) <= MAX_PAUSE_RESUMES:
+            # The paused assistant turn goes back unchanged; the server picks up where it stopped.
+            kwargs['messages'] = [*kwargs['messages'], {'role': 'assistant', 'content': response.content}]
+            response = send()
+            turns.append(response)
     except anthropic_lib.AuthenticationError as e:
         raise LLMAPIError(str(e), kind='auth', status_code=401) from e
     except anthropic_lib.RateLimitError as e:
@@ -340,17 +359,29 @@ def _anthropic_complete(
             if isinstance(inp, dict) and tool_input is None:
                 tool_input = inp
 
-    usage = getattr(response, 'usage', None)
+    def total(field: str, of: str = '') -> int:
+        """A usage count added up over every request of the turn (each resume is billed)."""
+        n = 0
+        for turn in turns:
+            usage = getattr(turn, 'usage', None)
+            if of:
+                usage = getattr(usage, of, None)
+            value = getattr(usage, field, 0)
+            n += value if isinstance(value, int) else 0
+        return n
+
     return LLMResult(
         text=text,
         model_used=getattr(response, 'model', None) or model_id,
-        input_tokens=int(getattr(usage, 'input_tokens', 0) or 0),
-        output_tokens=int(getattr(usage, 'output_tokens', 0) or 0),
-        cache_creation_tokens=int(getattr(usage, 'cache_creation_input_tokens', 0) or 0),
-        cache_read_tokens=int(getattr(usage, 'cache_read_input_tokens', 0) or 0),
+        input_tokens=total('input_tokens'),
+        output_tokens=total('output_tokens'),
+        cache_creation_tokens=total('cache_creation_input_tokens'),
+        cache_read_tokens=total('cache_read_input_tokens'),
         stop_reason=str(getattr(response, 'stop_reason', '') or ''),
         response_id=str(getattr(response, 'id', '') or ''),
         tool_input=tool_input,
+        web_search_requests=total('web_search_requests', of='server_tool_use'),
+        web_fetch_requests=total('web_fetch_requests', of='server_tool_use'),
     )
 
 
@@ -593,17 +624,24 @@ def llm_complete(
     log_purpose: str = '',
     effort: str | None = None,
     max_retries: int | None = None,
+    server_tools: list[dict] | None = None,
 ) -> LLMResult:
     """One completion call routed by model id. Raises LLMConfigError / LLMAPIError.
 
     Pass either ``user`` (single-turn) or ``messages`` (multi-turn, anthropic-style
     role/content dicts; content blocks are flattened to text for xAI/Google).
 
+    ``server_tools`` gives the model Anthropic-run web tools, e.g.
+    ``[{'type': 'web_search_20260209', 'name': 'web_search', 'max_uses': 10}]``. Anthropic models only.
+    The searches made are on the result (``web_search_requests``) and their fee is added to the logged cost.
+
     Every successful call is recorded in ``AIUsage`` (the Owner page's AI spend), with ``log_source`` as the
     feature (else the purpose). Failed calls are logged by the callers that catch them.
     """
     mid = (model_id or '').strip()
     provider = resolve_provider(mid)
+    if server_tools and provider != 'anthropic':
+        raise LLMConfigError('Web search tools need an Anthropic model.')
     key = api_key or resolve_api_key(provider)
 
     quirks = model_quirks(provider, mid)
@@ -626,6 +664,8 @@ def llm_complete(
         'force_tool': quirks['forced_tool'],
         'max_retries': max_retries,
     }
+    if server_tools:
+        call['server_tools'] = server_tools
     started = time.monotonic()
     for attempt in range(4):
         try:
@@ -639,8 +679,16 @@ def llm_complete(
             )
 
     try:
-        from apps.core.services.ai_usage_log import log_ai_usage
+        from apps.core.services.ai_usage_log import WEB_SEARCH_USD, estimate_cost_usd, log_ai_usage
 
+        web = None
+        cost = None
+        if result.web_search_requests or result.web_fetch_requests:
+            web = {'web_searches': result.web_search_requests, 'web_fetches': result.web_fetch_requests}
+            cost = estimate_cost_usd(
+                result.model_used, result.input_tokens, result.output_tokens,
+                result.cache_creation_tokens, result.cache_read_tokens,
+            ) + WEB_SEARCH_USD * result.web_search_requests
         log_ai_usage(
             log_source or (log_purpose or 'llm').lower(),
             result.model_used,
@@ -652,6 +700,8 @@ def llm_complete(
             marketplace=log_marketplace,
             purpose=log_purpose,
             duration_ms=int((time.monotonic() - started) * 1000),
+            context=web,
+            cost_usd=cost,
             detail=log_detail,
             success=True,
             error=None,

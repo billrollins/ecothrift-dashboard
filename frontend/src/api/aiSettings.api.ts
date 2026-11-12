@@ -130,26 +130,41 @@ export function getAiActionChoices(purpose: string): Promise<{ data: AiActionCho
   return api.get<AiActionChoices>(`/core/ai/actions/${encodeURIComponent(purpose)}/choices/`);
 }
 
+/** One model in the last price check. Prices are USD per 1M tokens; null = not set / not found. */
 export interface AiPriceCheckRow {
   id: number;
   slug: string;
-  found_input: string | null;
-  found_output: string | null;
+  label: string;
+  provider: AiProvider;
+  /** What Dash had when the check ran. */
   current_input: string | null;
   current_output: string | null;
-  filled: boolean;
-  differs: boolean;
+  /** What the check read on the web (null when it could not verify). */
+  found_input: string | null;
+  found_output: string | null;
+  verdict: 'confirmed' | 'changed' | 'not_verified';
   source_url: string;
   note: string;
+  /** '' = not saved; 'auto' = a missing price the automatic run filled in; 'review' = saved from the review. */
+  saved: '' | 'auto' | 'review';
+  /** The price was changed after the check, so Save skipped it. */
+  stale?: boolean;
 }
 
 export interface AiPriceCheck {
   status?: 'running' | 'done' | 'failed';
+  /** True for the automatic run (after Update); false for Refresh prices. */
+  auto?: boolean;
+  requested_by?: string;
   started_at?: string;
   finished_at?: string;
   checker?: string;
+  effort?: string;
+  web_searches?: number;
+  web_fetches?: number;
   results: AiPriceCheckRow[];
   error?: string;
+  saved?: { by: string; at: string; count: number };
 }
 
 export async function getAiPriceCheck(): Promise<AiPriceCheck> {
@@ -157,8 +172,17 @@ export async function getAiPriceCheck(): Promise<AiPriceCheck> {
   return { ...data, results: data.results ?? [] };
 }
 
-/** "Estimate API costs": starts the check (it runs on its own; poll getAiPriceCheck). */
-export async function startAiPriceCheck(slugs: string[]): Promise<AiPriceCheck> {
-  const { data } = await api.post<AiPriceCheck>('/core/ai/models/price-check/', { slugs });
+/**
+ * Start the price check (it runs on its own; poll getAiPriceCheck). `auto` is Update's follow-up: it runs
+ * only when a price is missing and fills those in. Without it (Refresh prices) nothing is saved until reviewed.
+ */
+export async function startAiPriceCheck(auto: boolean): Promise<AiPriceCheck> {
+  const { data } = await api.post<AiPriceCheck>('/core/ai/models/price-check/', { auto });
+  return { ...data, results: data.results ?? [] };
+}
+
+/** Save the reviewed price changes for these model ids, from the last check. */
+export async function applyAiPriceCheck(ids: number[]): Promise<AiPriceCheck> {
+  const { data } = await api.post<AiPriceCheck>('/core/ai/models/price-check/apply/', { ids });
   return { ...data, results: data.results ?? [] };
 }
