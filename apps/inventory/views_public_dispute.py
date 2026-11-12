@@ -45,6 +45,7 @@ def dispute_page(request, token: str):
         'truck_photos': [p for p in photos if p['kind'] == 'truck'],
         'pallet_groups': [{'number': n, 'photos': ph, 'caption': ph[0]['caption'].rsplit(' - ', 1)[0]}
                           for n, ph in sorted(pallets.items())],
+        'line_groups': svc.line_photos(dispute.purchase_order, payload),
         'from_q': '?from=dash' if request.GET.get('from') == 'dash' else '',
         'status_label': dict(BStockDispute.STATUS_CHOICES).get(dispute.status, dispute.status),
     }
@@ -63,6 +64,21 @@ def dispute_photo(request, token: str, attachment_id: int):
         raise Http404('No such photo.')
     svc.log_event(dispute, request, BStockDisputeEvent.KIND_PHOTO, f'{att.kind} {att.pallet_number or ""} {att.side}'.strip())
     return _private(HttpResponseRedirect(att.s3_file.url))
+
+
+@require_GET
+def dispute_line_photo(request, token: str, photo_id: int):
+    """A photo of one affected line's problem (Dash Update #101), only if that line is on this dispute's list."""
+    dispute = _dispute(token)
+    payload = svc.dispute_payload(dispute)
+    photo = next(
+        (ph for group in svc.line_photos(dispute.purchase_order, payload) for ph in group['photos'] if ph['id'] == photo_id),
+        None,
+    )
+    if photo is None or not photo['url']:
+        raise Http404('No such photo.')
+    svc.log_event(dispute, request, BStockDisputeEvent.KIND_PHOTO, photo['caption'])
+    return _private(HttpResponseRedirect(photo['url']))
 
 
 @require_GET

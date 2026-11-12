@@ -1,25 +1,53 @@
-"""Dash Update #100: dispute a manifest row from the Processing queue with no product, item or check-in."""
+"""Dash Updates #100 and #101: dispute a manifest row from the Processing queue with no product, item or check-in;
+photos for every reason but "did not come", carried to the B-Stock dispute page."""
+import io
+import zipfile
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.files.storage import default_storage
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
+from PIL import Image
 from rest_framework.test import APIClient
 
-from apps.inventory.models import BStockDispute, Item, ManifestRowDispute, Product
-from apps.inventory.services.bstock_disputes import affected_lines
+from apps.core.models import S3File
+from apps.inventory.models import BStockDispute, Item, ManifestRowDispute, ManifestRowDisputePhoto, Product
+from apps.inventory.services.bstock_disputes import affected_lines, create_dispute
 from apps.inventory.services.truck_finalize import truck_lines
 from apps.inventory.services.truck_plan import truck_summary
 from apps.inventory.tests.test_truck_finalize import TruckFinalizeBase
 
+_STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
+    'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+}
+_NEEDS_PHOTOS = {'broken', 'wrong_item', 'missing_parts', 'other'}
 
+
+def _jpeg(name='cracked.jpg'):
+    buf = io.BytesIO()
+    Image.new('RGB', (64, 48), (200, 40, 40)).save(buf, format='JPEG')
+    return SimpleUploadedFile(name, buf.getvalue(), content_type='image/jpeg')
+
+
+@override_settings(STORAGES=_STORAGES)
 class RowDisputeTests(TruckFinalizeBase):
     """Line 1 = 10 x $50 (row 1), line 2 = 5 x $100 (row 2)."""
 
     def _url(self, tail=''):
         return f'/api/inventory/orders/{self.order.id}/row-disputes/{tail}'
 
-    def _dispute(self, idx=0, **body):
+    def _dispute(self, idx=0, photos=None, **body):
+        """Every reason that needs a photo gets one unless ``photos`` says otherwise (0 = none)."""
         _, pr = self.rows[idx]
-        return self.client.post(self._url(), {'processing_row_id': pr.id, **body}, format='json')
+        if photos is None:
+            photos = 1 if body.get('reason') in _NEEDS_PHOTOS else 0
+        data = {'processing_row_id': pr.id, **body}
+        if not photos:
+            return self.client.post(self._url(), data, format='json')
+        files = [_jpeg(f'photo{n}.jpg') for n in range(photos)]
+        return self.client.post(self._url(), {**data, 'photos': files}, format='multipart')
 
     def _line(self, idx=0):
         mr, _ = self.rows[idx]
@@ -118,6 +146,94 @@ class RowDisputeTests(TruckFinalizeBase):
         self.assertEqual(r.status_code, 200, r.data)
         row = r.data['row']
         self.assertEqual((row['qtyRemaining'], row['rowDisputedUnits'], row['status']), (7, 3, 'disputed'))
+
+    # --- photos (Dash Update #101) -------------------------------------------------------------------------------
+
+    def test_every_reason_but_did_not_come_needs_a_photo(self):
+        for reason in sorted(_NEEDS_PHOTOS):
+            r = self._dispute(reason=reason, units=1, pct_lost=30, photos=0)
+            self.assertEqual(r.status_code, 400, reason)
+            self.assertIn('Add a photo of the problem', r.data['detail'])
+        self.assertFalse(ManifestRowDispute.objects.exists())
+        _, pr = self.rows[0]
+        pr.refresh_from_db()
+        self.assertEqual(pr.qty_dispositioned, 0)
+        self.assertEqual(self._dispute(reason='did_not_come', units=1).status_code, 201)     # no photo needed
+
+    def test_photos_are_kept_with_the_dispute(self):
+        r = self._dispute(reason='broken', units=2, photos=2, note='crushed corner')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(len(r.data['dispute']['photos']), 2)
+        self.assertEqual(len(r.data['disputes'][0]['photos']), 2)
+        photos = list(ManifestRowDisputePhoto.objects.select_related('s3_file', 'thumbnail_file'))
+        self.assertEqual([p.position for p in photos], [0, 1])
+        for p in photos:
+            self.assertTrue(p.s3_file.key.startswith(f'disputes/orders/{self.order.id}/rows/'))
+            self.assertTrue(default_storage.exists(p.s3_file.key))
+            self.assertTrue(default_storage.exists(p.thumbnail_file.key))
+        # The window shows them later too.
+        _, pr = self.rows[0]
+        got = self.client.get(self._url(), {'processing_row': pr.id}).data
+        self.assertEqual(len(got['disputes'][0]['photos']), 2)
+        self.assertEqual(got['photos_max'], 6)
+        self.assertEqual({x['value']: x['photos'] for x in got['reasons']}['did_not_come'], False)
+
+    def test_did_not_come_keeps_no_photos(self):
+        r = self._dispute(reason='did_not_come', units=1, photos=1)
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual((r.data['dispute']['photos'], S3File.objects.count()), ([], 0))
+
+    def test_a_bad_photo_stops_the_dispute_and_leaves_nothing(self):
+        _, pr = self.rows[0]
+        bad = SimpleUploadedFile('note.jpg', b'not a picture', content_type='image/jpeg')
+        r = self.client.post(self._url(), {'processing_row_id': pr.id, 'reason': 'broken', 'units': 1, 'photos': [bad]},
+                             format='multipart')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('could not be read as a picture', r.data['detail'])
+        self.assertEqual((ManifestRowDispute.objects.count(), S3File.objects.count()), (0, 0))
+
+    def test_too_many_photos(self):
+        r = self._dispute(reason='broken', units=1, photos=7)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('Up to 6 photos', r.data['detail'])
+
+    def test_a_refused_dispute_leaves_no_photo_files(self):
+        r = self._dispute(reason='broken', units=11, photos=1)          # only 10 left: refused after the photos are read
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual((ManifestRowDisputePhoto.objects.count(), S3File.objects.count()), (0, 0))
+
+    def test_photos_go_to_the_b_stock_list_beside_their_line(self):
+        self._dispute(reason='broken', units=2, photos=2)
+        self._dispute(reason='missing_parts', units=1, pct_lost=40, photos=1)
+        self._dispute(reason='did_not_come', units=3)
+        by_issue = {ln['issue']: ln for ln in affected_lines(self.order) if ln['row_number'] == 1}
+        self.assertEqual(len(by_issue['Damaged']['photo_ids']), 2)
+        self.assertEqual(len(by_issue['Damaged (partial)']['photo_ids']), 1)
+        self.assertEqual(by_issue['Not received']['photo_ids'], [])
+
+        dispute = create_dispute(self.user, self.order)
+        anon = APIClient()
+        page = anon.get(f'/dispute/{dispute.token}/')
+        self.assertEqual(page.status_code, 200)
+        html = page.content.decode()
+        self.assertIn('Photos of the damage, by line', html)
+        self.assertIn('Line 1 · Damaged (partial)', html)
+        self.assertIn('2 photos below', html)
+        first = by_issue['Damaged']['photo_ids'][0]
+        self.assertIn(f'/dispute/{dispute.token}/line-photo/{first}/', html)
+        self.assertEqual(anon.get(f'/dispute/{dispute.token}/line-photo/{first}/').status_code, 302)
+        zf = zipfile.ZipFile(io.BytesIO(b''.join(anon.get(f'/dispute/{dispute.token}/dispute.zip').streaming_content)))
+        shots = [n for n in zf.namelist() if n.startswith('photos/')]
+        self.assertEqual(len(shots), 3)
+        self.assertTrue(any('Line 1 - Damaged - photo 1' in n for n in shots), shots)
+
+    def test_undone_and_other_trucks_photos_stay_off_the_list(self):
+        r = self._dispute(reason='broken', units=1)
+        photo_id = r.data['dispute']['photos'][0]['id']
+        dispute = create_dispute(self.user, self.order)
+        self.client.post(self._url(f'{r.data["dispute"]["id"]}/undo/'), {}, format='json')
+        self.assertFalse(any(ln.get('photo_ids') for ln in affected_lines(self.order)))
+        self.assertEqual(APIClient().get(f'/dispute/{dispute.token}/line-photo/{photo_id}/').status_code, 404)
 
     def test_only_staff(self):
         outsider = APIClient()

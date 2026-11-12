@@ -170,8 +170,15 @@ the two partial reasons, a note, and the row's disputes with **Undo**. No produc
   `lost` (not received, the header's "so far"); broken and wrong item = received and broken; missing parts and other =
   received, disputed at `pct_lost`. So the header, Close the truck, the pallet ledger and the B-Stock list read them
   with no second system (Wrong item shows as "Damaged" on the B-Stock list until #102).
-- Not yet: photos for every reason but "did not come" (#101); one dispute record everywhere and the old item marks
-  and `Dispute` rows folded in (#102).
+- **Photos (Dash Update #101, 2026-11-12).** Bill: "we need to take photos if it is anything other than missing."
+  Every reason but **Did not come** needs at least one photo (up to 6, guessed), through the shared Add photo; the
+  server refuses without one, and photos sent with "did not come" are not kept. `ManifestRowDisputePhoto`
+  (`inventory/0131`): 2048px JPEG + thumbnail, keys `disputes/orders/{po}/rows/…`; the dispute is sent as a form
+  (`photos` files) when it has photos. A refused dispute leaves no photo file behind. On the B-Stock dispute list each
+  Damaged / Damaged (partial) line carries `photo_ids` (frozen with the list when filed); the public page shows
+  "Photos of the damage, by line" (link `/dispute/{token}/line-photo/{id}/`, only photos on that list) and the zip
+  adds them as `Line N - Damaged - photo 1`. Undone disputes' photos leave the list.
+- Not yet: one dispute record everywhere and the old item marks and `Dispute` rows folded in (#102).
 
 ### Review surfaces (pre- vs post-finalize)
 

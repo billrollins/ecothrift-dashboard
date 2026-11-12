@@ -8,13 +8,20 @@ export interface RowDisputeForm {
   units: string;
   pctLost: string;
   note: string;
+  /** Photos of the problem, held until the dispute is sent (Dash Update #101). */
+  photos: File[];
 }
 
 export const PARTIAL_REASONS: RowDisputeReason[] = ['missing_parts', 'other'];
 
+/** Bill: "we need to take photos if it is anything other than missing" (Dash Update #101). */
+export function needsPhotos(reason: RowDisputeReason | ''): boolean {
+  return reason !== '' && reason !== 'did_not_come';
+}
+
 /** Bill: "This is for rows that do not come", so the window starts there with every unit left. */
 export function initialRowDisputeForm(remaining: number, defaultPct = 50): RowDisputeForm {
-  return { reason: 'did_not_come', units: String(Math.max(0, remaining)), pctLost: String(defaultPct), note: '' };
+  return { reason: 'did_not_come', units: String(Math.max(0, remaining)), pctLost: String(defaultPct), note: '', photos: [] };
 }
 
 function wholeNumber(text: string): number | null {
@@ -35,7 +42,15 @@ export function rowDisputeProblems(form: RowDisputeForm, remaining: number): str
     const pct = wholeNumber(form.pctLost);
     if (pct == null || pct < 1 || pct > 100) out.push('How much of the value is lost: 1 to 100%.');
   }
+  if (needsPhotos(form.reason) && form.photos.length === 0) {
+    out.push('Add a photo of the problem. Every reason but "did not come" needs at least one.');
+  }
   return out;
+}
+
+/** The photos that go with the dispute: none for "did not come" (nothing to take a picture of). */
+export function rowDisputePhotos(form: RowDisputeForm): File[] {
+  return needsPhotos(form.reason) ? form.photos : [];
 }
 
 export function rowDisputePayload(processingRowId: number, form: RowDisputeForm): RowDisputeInput {

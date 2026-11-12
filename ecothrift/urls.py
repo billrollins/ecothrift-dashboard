@@ -33,6 +33,7 @@ urlpatterns = [
     path('dispute/<str:token>/items.csv', dispute_views.dispute_csv, name='bstock-dispute-csv'),
     path('dispute/<str:token>/dispute.zip', dispute_views.dispute_zip, name='bstock-dispute-zip'),
     path('dispute/<str:token>/photo/<int:attachment_id>/', dispute_views.dispute_photo, name='bstock-dispute-photo'),
+    path('dispute/<str:token>/line-photo/<int:photo_id>/', dispute_views.dispute_line_photo, name='bstock-dispute-line-photo'),
     re_path(
         r'^admin/?$',
         RedirectView.as_view(url='/db-admin/', permanent=False),

@@ -7,8 +7,16 @@ import api from './client';
 
 export type RowDisputeReason = 'did_not_come' | 'broken' | 'wrong_item' | 'missing_parts' | 'other';
 
+export interface RowDisputePhotoDTO {
+  id: number;
+  url: string | null;
+  thumb_url: string | null;
+}
+
 export interface RowDisputeDTO {
   id: number;
+  /** Photos of the problem (Dash Update #101): every reason but did_not_come has at least one. */
+  photos: RowDisputePhotoDTO[];
   reason: RowDisputeReason;
   reason_label: string;
   units: number;
@@ -33,8 +41,9 @@ export interface RowDisputesResponse {
     disputed: number;
   };
   disputes: RowDisputeDTO[];
-  reasons: Array<{ value: RowDisputeReason; label: string; partial: boolean }>;
+  reasons: Array<{ value: RowDisputeReason; label: string; partial: boolean; photos: boolean }>;
   default_pct_lost: number;
+  photos_max: number;
 }
 
 export interface RowDisputeInput {
@@ -53,10 +62,20 @@ export function getRowDisputes(orderId: number, processingRowId: number) {
     .then((r) => r.data);
 }
 
-export function createRowDispute(orderId: number, body: RowDisputeInput) {
-  return api
-    .post<RowDisputesResponse & { dispute: RowDisputeDTO }>(`/inventory/orders/${orderId}/row-disputes/`, body)
-    .then((r) => r.data);
+/** With photos it goes as a form (``photos``, one file each); without, as JSON. */
+export function createRowDispute(orderId: number, body: RowDisputeInput, photos: File[] = []) {
+  const url = `/inventory/orders/${orderId}/row-disputes/`;
+  if (!photos.length) {
+    return api.post<RowDisputesResponse & { dispute: RowDisputeDTO }>(url, body).then((r) => r.data);
+  }
+  const form = new FormData();
+  Object.entries(body).forEach(([k, v]) => {
+    if (v != null) form.append(k, String(v));
+  });
+  photos.forEach((file) => form.append('photos', file, file.name || 'photo.jpg'));
+  return api.post<RowDisputesResponse & { dispute: RowDisputeDTO }>(url, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data);
 }
 
 export function undoRowDispute(orderId: number, disputeId: number) {

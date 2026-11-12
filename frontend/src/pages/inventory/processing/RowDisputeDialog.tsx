@@ -3,7 +3,8 @@
  * unit/manifest ROW based. NOT Product or Item ... It does not make sense to create a product and check in just to
  * dispute that it did not come"). Pick what is wrong and how many units; nothing else is made. The units leave what
  * is left to process and count in the truck's dispute numbers (header, Close the truck, the B-Stock list). Undo puts
- * them back. Server: `services/row_disputes.py`.
+ * them back. Every reason but "did not come" needs a photo (Dash Update #101); the photos go to the B-Stock dispute
+ * page beside the line. Server: `services/row_disputes.py`.
  */
 import { useEffect, useState } from 'react';
 import {
@@ -14,14 +15,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createRowDispute, getRowDisputes, rowDisputesKey, undoRowDispute, type RowDisputeDTO,
 } from '../../../api/rowDisputes.api';
+import { AddPhoto } from '../../../components/photos/AddPhoto';
+import { PickedPhotos } from '../../../components/photos/PickedPhotos';
+import { blobToPhotoFile, markPhotosUsed, shrinkPhoto } from '../../../components/photos/photoFile';
 import { truckPalletsKey } from '../../../hooks/useTruckPallets';
 import { truckPlanKey, truckSummaryKey } from '../../../hooks/useTruckPlan';
 import { apiErrorMessage } from '../../../utils/apiError';
 import {
-  disputeRetail, initialRowDisputeForm, PARTIAL_REASONS, rowDisputePayload, rowDisputeProblems, type RowDisputeForm,
+  disputeRetail, initialRowDisputeForm, needsPhotos, PARTIAL_REASONS, rowDisputePayload, rowDisputePhotos,
+  rowDisputeProblems, type RowDisputeForm,
 } from './rowDispute';
 
 const money = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const USED_WHERE = 'Dispute';
 
 function DisputeLine({ d, onUndo, busy }: { d: RowDisputeDTO; onUndo: () => void; busy: boolean }) {
   const undone = Boolean(d.undone_at);
@@ -36,6 +42,25 @@ function DisputeLine({ d, onUndo, busy }: { d: RowDisputeDTO; onUndo: () => void
           {[d.by, when, d.note].filter(Boolean).join(' · ')}
           {undone ? ` · Undone${d.undone_by ? ` by ${d.undone_by}` : ''}` : ''}
         </Typography>
+        {d.photos?.length > 0 && (
+          <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
+            {d.photos.map((p, i) => (
+              <Box
+                key={p.id}
+                component="a"
+                href={p.url ?? undefined}
+                target="_blank"
+                rel="noopener"
+                aria-label={`Dispute photo ${i + 1}`}
+                sx={{ display: 'block', width: 44, height: 44, borderRadius: 1, overflow: 'hidden', bgcolor: '#1f2937', flex: 'none' }}
+              >
+                {p.thumb_url && (
+                  <Box component="img" src={p.thumb_url} alt={`Dispute photo ${i + 1}`} sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                )}
+              </Box>
+            ))}
+          </Stack>
+        )}
       </Box>
       {!undone && <Button size="small" onClick={onUndo} disabled={busy}>Undo</Button>}
     </Stack>
@@ -89,8 +114,14 @@ export function RowDisputeDialog({
     void qc.invalidateQueries({ queryKey: truckPalletsKey(orderId) });
   };
   const save = useMutation({
-    mutationFn: () => createRowDispute(orderId, rowDisputePayload(processingRowId as number, form)),
+    mutationFn: async () => {
+      // A phone photo can be 8 MB; shrink it first so the dispute saves quickly on the store Wi-Fi.
+      const photos = await Promise.all(rowDisputePhotos(form).map(async (f) => blobToPhotoFile(await shrinkPhoto(f), f.name)));
+      return createRowDispute(orderId, rowDisputePayload(processingRowId as number, form), photos);
+    },
     onSuccess: (res) => {
+      // Only now are drawer photos really used.
+      void markPhotosUsed(rowDisputePhotos(form), USED_WHERE);
       qc.setQueryData(rowDisputesKey(orderId, processingRowId as number), res);
       refreshAll();
       onClose();
@@ -109,6 +140,8 @@ export function RowDisputeDialog({
   const busy = save.isPending || undo.isPending;
   const reasons = data.data?.reasons ?? [];
   const partial = form.reason !== '' && PARTIAL_REASONS.includes(form.reason);
+  const photosWanted = needsPhotos(form.reason);
+  const photosMax = data.data?.photos_max ?? 6;
   const atStake = disputeRetail(form, data.data?.row.unit_retail ?? null);
   const set = (patch: Partial<RowDisputeForm>) => setForm((f) => ({ ...f, ...patch }));
   const submit = () => {
@@ -171,6 +204,37 @@ export function RowDisputeDialog({
                     />
                   )}
                 </Stack>
+                {photosWanted && (
+                  <Box data-testid="row-dispute-photos">
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+                      <AddPhoto
+                        multiple
+                        max={photosMax - form.photos.length}
+                        disabled={busy || form.photos.length >= photosMax}
+                        size="small"
+                        usedWhere={USED_WHERE}
+                        usedOn="save"
+                        fileInputTestId="row-dispute-photo"
+                        onPhotos={(picked) => setForm((f) => ({ ...f, photos: [...f.photos, ...picked].slice(0, photosMax) }))}
+                      />
+                      <Typography
+                        variant="caption"
+                        color={tried && form.photos.length === 0 ? 'warning.main' : 'text.secondary'}
+                        sx={{ fontWeight: form.photos.length ? 400 : 700 }}
+                      >
+                        {form.photos.length
+                          ? `${form.photos.length} of up to ${photosMax}. They go to B-Stock with this line.`
+                          : 'A photo is needed: show the problem (and the label, if you can).'}
+                      </Typography>
+                    </Stack>
+                    <PickedPhotos
+                      photos={form.photos}
+                      disabled={busy}
+                      onRemove={(index) => setForm((f) => ({ ...f, photos: f.photos.filter((_, i) => i !== index) }))}
+                      onChange={(index, file) => setForm((f) => ({ ...f, photos: f.photos.map((old, i) => (i === index ? file : old)) }))}
+                    />
+                  </Box>
+                )}
                 <TextField
                   label="Note"
                   placeholder="Optional: what you saw, which pallet"
@@ -182,7 +246,7 @@ export function RowDisputeDialog({
                 />
                 <Typography variant="caption" color="text.secondary">
                   No product or check-in is made. The units come off what is left to process and count in the truck's
-                  dispute (the header and Close the truck). Undo puts them back.
+                  dispute (the header, Close the truck and the B-Stock list). Undo puts them back.
                   {atStake != null ? ` About ${money(atStake)} of manifest retail.` : ''}
                 </Typography>
               </>

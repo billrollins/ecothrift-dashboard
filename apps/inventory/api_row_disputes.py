@@ -3,6 +3,7 @@ Row disputes from the Processing queue (Dash Update #100, services/row_disputes.
 
 GET  /api/inventory/orders/<po>/row-disputes/?processing_row=<id>   the row, what is left, its disputes
 POST /api/inventory/orders/<po>/row-disputes/                       {processing_row_id, reason, units, pct_lost?, note?}
+     as JSON, or as a form with ``photos`` files: every reason but did_not_come needs at least one (Dash Update #101)
 POST /api/inventory/orders/<po>/row-disputes/<id>/undo/             the units go back to the row
 """
 from django.shortcuts import get_object_or_404
@@ -27,8 +28,11 @@ def row_disputes_view(request, po_id: int):
     try:
         if request.method == 'GET':
             return Response(row_disputes.row_disputes(order, request.query_params.get('processing_row')))
-        data = request.data if isinstance(request.data, dict) else {}
-        return Response(row_disputes.create(request.user, order, dict(data)), status=status.HTTP_201_CREATED)
+        raw = request.data if hasattr(request.data, 'get') else {}
+        # JSON or a form with photos (``photos``, one or more files); one value per field either way.
+        data = {k: raw.get(k) for k in ('processing_row_id', 'reason', 'units', 'pct_lost', 'note')}
+        photos = request.FILES.getlist('photos') if request.FILES else []
+        return Response(row_disputes.create(request.user, order, data, photos), status=status.HTTP_201_CREATED)
     except row_disputes.RowDisputeError as e:
         return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

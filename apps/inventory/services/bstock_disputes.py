@@ -40,6 +40,7 @@ from apps.inventory.services.truck_pallets import short_label
 ISSUE_MISSING = 'Not received'
 ISSUE_BROKEN = 'Damaged'
 ISSUE_DISPUTED = 'Damaged (partial)'
+_PHOTO_BUCKET = {'broken': 'broken', 'disputed': 'partial'}     # truck line key -> row dispute bucket with photos
 _CENT = Decimal('0.01')
 _SIDE_ORDER = {'front': 0, 'right': 1, 'back': 2, 'left': 3}
 
@@ -59,8 +60,12 @@ def _condition_label(code: str) -> str:
 
 def affected_lines(order: PurchaseOrder) -> list[dict[str, Any]]:
     """One row per (manifest line, issue): units missing are "Not received", units broken are "Damaged", disputed
-    units (each its % of value lost) are "Damaged (partial)"."""
+    units (each its % of value lost) are "Damaged (partial)". ``photo_ids``: the row disputes' photos of that line's
+    problem (Dash Update #101), shown beside the line on the page and put in the zip."""
+    from apps.inventory.services.row_disputes import photos_by_line
+
     lines = [line for line in truck_lines(order) if any(line['units'][k] > 0 for k in ('missing', 'broken', 'disputed'))]
+    photos = photos_by_line(order) if lines else {}
     meta = {
         mr['id']: mr
         for mr in ManifestRow.objects.filter(pk__in=[line['manifest_row_id'] for line in lines]).values(
@@ -88,6 +93,7 @@ def affected_lines(order: PurchaseOrder) -> list[dict[str, Any]]:
                 'upc': str(ids.get('upc') or ids.get('UPC') or ''),
                 'pallet_id': str(tracking.get('pallet_id') or ''),
                 'lpn': str(tracking.get('lpn') or ''),
+                'photo_ids': [p.pk for p in photos.get((line['manifest_row_id'], _PHOTO_BUCKET.get(key, '')), [])],
             })
     return out
 
@@ -248,6 +254,45 @@ def dispute_photos(order: PurchaseOrder) -> list[dict[str, Any]]:
     return out
 
 
+def line_photos(order: PurchaseOrder, payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """The photos of each affected line's problem, in line order (Dash Update #101). Reads ``photo_ids`` from the
+    lines, so a filed (frozen) list keeps the photos it was filed with."""
+    from apps.inventory.models import ManifestRowDisputePhoto
+
+    wanted = [pid for line in payload.get('lines') or [] for pid in line.get('photo_ids') or []]
+    if not wanted:
+        return []
+    found = {
+        p.pk: p
+        for p in ManifestRowDisputePhoto.objects.filter(pk__in=wanted, dispute__purchase_order=order)
+        .select_related('s3_file', 'thumbnail_file')
+    }
+    out = []
+    for line in payload['lines']:
+        photos = [found[pid] for pid in line.get('photo_ids') or [] if pid in found]
+        if not photos:
+            continue
+        caption = f"Line {line['row_number']} - {line['issue']}"
+        out.append({
+            'row_number': line['row_number'],
+            'title': line['title'],
+            'issue': line['issue'],
+            'caption': caption,
+            'photos': [
+                {
+                    'id': p.pk,
+                    'caption': f'{caption} - photo {n}',
+                    'key': p.s3_file.key if p.s3_file_id else '',
+                    'url': p.s3_file.url if p.s3_file_id else None,
+                    'thumb_url': (p.thumbnail_file.url if p.thumbnail_file_id else None)
+                    or (p.s3_file.url if p.s3_file_id else None),
+                }
+                for n, p in enumerate(photos, start=1)
+            ],
+        })
+    return out
+
+
 def log_event(dispute: BStockDispute, request, kind: str, detail: str = '') -> None:
     ip = (request.META.get('HTTP_X_FORWARDED_FOR', '') or request.META.get('REMOTE_ADDR', '')).split(',')[0].strip()
     ua = request.META.get('HTTP_USER_AGENT', '') or ''
@@ -395,14 +440,15 @@ class _Pipe(io.RawIOBase):
 
 
 def photos_zip_stream(dispute: BStockDispute, payload: dict[str, Any], link: str) -> Iterator[bytes]:
-    """Streams a zip: the Excel, the items CSV and every receiving photo at full size."""
+    """Streams a zip: the Excel, the items CSV, every receiving photo and every affected line's photo, at full size."""
     pipe = _Pipe()
     with zipfile.ZipFile(pipe, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
         prefix = payload['order']['order_number'] or f'order-{dispute.purchase_order_id}'
         zf.writestr(f'{prefix}-dispute.xlsx', workbook_bytes(dispute, payload, link))
         zf.writestr(f'{prefix}-items-affected.csv', items_csv(payload))
         yield pipe.take()
-        for i, photo in enumerate(dispute_photos(dispute.purchase_order), start=1):
+        line_shots = [ph for group in line_photos(dispute.purchase_order, payload) for ph in group['photos']]
+        for i, photo in enumerate(dispute_photos(dispute.purchase_order) + line_shots, start=1):
             if not photo['key']:
                 continue
             try:

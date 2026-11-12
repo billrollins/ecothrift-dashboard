@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.278.0] -->
-<!-- Last reviewed: 2026-11-12 (2.278.0) -->
+<!-- Line 1 release: ## [2.279.0] -->
+<!-- Last reviewed: 2026-11-12 (2.279.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.279.0] - 2026-11-12
+
+User-facing theme: **Disputes: photos for every reason except "did not come", carried to B-Stock (Dash Update #101).**
+
+> **For Bill:** you said "we need to take photos if it is anything other than missing." In the Dispute window, every reason but **Did not come** now shows **Add photo** (take one, the photo drawer, or a file) and will not save without at least one. The photos show on the dispute in the window, and on the B-Stock dispute page each damaged line says how many photos it has, with a "Photos of the damage, by line" section and the photos in the zip download. "Did not come" still needs no photo.
+
+### Added (#101: dispute photos)
+- New `ManifestRowDisputePhoto` (migration `inventory/0131_manifest_row_dispute_photo`): each photo kept at 2048px with a thumbnail. `POST …/row-disputes/` takes a form with `photos` files; every reason but did not come needs at least one (up to 6); a bad picture or a refused dispute leaves no file behind.
+- B-Stock list: each Damaged / Damaged (partial) line carries its photos (kept with the list when filed); the public page shows them by line (`/dispute/{token}/line-photo/{id}/`) and the zip adds them. Undone disputes' photos leave the list.
+- `RowDisputeDialog.tsx`: the shared Add photo and picked photos (turn, crop, remove) for the four reasons that need them; photos are shrunk before they go up. 9 new server tests, 2 new front-end tests.
 
 ## [2.278.0] - 2026-11-12
 

@@ -2872,6 +2872,24 @@ class ManifestRowDispute(models.Model):
         return f'Row dispute {self.pk}: {self.units} x {self.reason} (manifest row {self.manifest_row_id})'
 
 
+class ManifestRowDisputePhoto(models.Model):
+    """A photo of a row dispute's problem (Dash Update #101, Bill: "when disputing an item we need to take photos if
+    it is anything other than missing"). Needed for every reason but "did not come"; shown on the B-Stock dispute
+    page beside its line and put in the photos zip. High-res (2048px) and a thumbnail, as receiving photos."""
+
+    dispute = models.ForeignKey(ManifestRowDispute, on_delete=models.CASCADE, related_name='photos')
+    s3_file = models.ForeignKey('core.S3File', on_delete=models.PROTECT, related_name='+')
+    thumbnail_file = models.ForeignKey('core.S3File', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    position = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['dispute_id', 'position', 'id']
+
+    def __str__(self):
+        return f'Row dispute {self.dispute_id} photo {self.position + 1}'
+
+
 class BStockDisputeEvent(models.Model):
     """Who looked at a dispute page and what they opened (so we learn what B-Stock uses)."""
 

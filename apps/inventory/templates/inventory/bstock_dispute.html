@@ -99,7 +99,7 @@
             <td class="n">{{ l.row_number }}</td>
             <td>{{ l.title }}</td>
             <td>{{ l.condition|default:"-" }}</td>
-            <td class="issue {% if l.issue != 'Not received' %}broken{% else %}missing{% endif %}">{{ l.issue }}</td>
+            <td class="issue {% if l.issue != 'Not received' %}broken{% else %}missing{% endif %}">{{ l.issue }}{% if l.photo_ids %}<div class="muted" style="font-weight:400">{{ l.photo_ids|length }} photo{{ l.photo_ids|length|pluralize }} below</div>{% endif %}</td>
             <td class="n">{{ l.units|floatformat:"-1g" }}</td>
             <td class="n">{{ l.unit_retail|money }}</td>
             <td class="n">{{ l.total_retail|money }}</td>
@@ -117,6 +117,20 @@
       </table>
     </div>
   </section>
+
+  {% if line_groups %}
+  <section class="card">
+    <h2>Photos of the damage, by line</h2>
+    {% for g in line_groups %}
+    <div class="pallet">
+      <h3>Line {{ g.row_number }} · {{ g.issue }} · <span class="muted">{{ g.title }}</span></h3>
+      <div class="photos">
+        {% for ph in g.photos %}<a href="/dispute/{{ dispute.token }}/line-photo/{{ ph.id }}/{{ from_q }}" target="_blank" rel="noopener"><img src="{{ ph.thumb_url }}" alt="{{ ph.caption }}" loading="lazy">Photo {{ forloop.counter }}</a>{% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
 
   <section class="card">
     <h2>Proof of delivery and truck</h2>
