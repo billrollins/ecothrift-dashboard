@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.285.0] -->
-<!-- Last reviewed: 2026-11-12 (2.285.0) -->
+<!-- Line 1 release: ## [2.286.0] -->
+<!-- Last reviewed: 2026-11-12 (2.286.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.286.0] - 2026-11-12
+
+User-facing theme: **Facilities > Signage: Drafts, where staff vote whether a sign is needed and rank its versions, and Production, with previews, a version gallery, Print and Download (Dash Update #122).**
+
+> **For Bill:** Signage now has two tabs. **Drafts** are signs (and sign themes) still being made: each row shows the name, where it goes and how many, and on the right either **Vote on the best** or, once you have voted, the % who say it is needed and the top version. Open one and you answer **Does the store need this sign?** (Yes / No), then tap the best version, then the next best, until all are ranked (the last one fills itself). Each version shows the number you gave it in its corner. You see no one else's votes until you have said yes or no and picked a best; after that you see everything: the % yes, each version's average rank, how many picked it best, and the versions in order with the best on the left. Anyone can leave a note ("I think it needs to be more..."). Tap a picture to see it larger, with arrows and Download the PDF. A manager has **Add a version** (a PDF, and a PNG preview or one drawn from the PDF), **Approve into production** (the top version is picked for you; you can choose another), Edit and Remove. **Production** is the old list (To make, Printed, Up): compact rows with a small picture; open one for its preview (tap for larger), Print, Download, its versions (**Use this** switches which one prints) and its spots on the store map. The signs already on the list are in Production. On a phone, or a narrow window, an open sign takes the screen and **All signs** goes back.
+
+### Added (#122: sign drafts and voting)
+- `Sign.stage` (draft / production; existing signs migrate as production, new ones start as drafts), `kind` (sign / theme), `slug` (the draft package name), `dash_update`, `location`, `quantity`, `chosen_version`, `approved_by`, `approved_at`; new `SignVersion` (label, position, `pdf` and `preview` as `core.S3File`), `SignNeedVote` (one yes/no per person), `SignVersionRank` (one rank per person per version, each rank used once) and `SignNote`. Migration `signage/0002_sign_drafts_voting`.
+- API on `/api/signage/signs/`: `?stage=`; `POST {id}/vote/ {needed}`, `POST {id}/rank/ {version}` (the person's next rank; with one version left it takes the last rank; `{clear: true}` starts over), `POST {id}/notes/`, `DELETE {id}/notes/{nid}/` (writer or manager), all staff; managers: `POST {id}/versions/` (multipart `pdf`, optional `png`, `label`; no PNG = first page drawn at 100 dpi with pymupdf), `DELETE {id}/versions/{vid}/` (not the one in use), `POST {id}/approve/ {version}` (a draft goes to production as To make with that version's PDF as its print file; on a production sign it switches the version). `GET {id}/versions/{vid}/pdf|preview/` streams the files to staff. Each sign carries `votes` {my_needed, has_voted, results}; `results` and each version's `avg_rank` / `rankers` / `firsts` are null until the reader has voted (a yes/no in and a best picked), the same for managers.
+- Loading draft packages (spec: `workspace/signage/DRAFT-PACKAGE-SPEC.md`, one folder per sign or theme with `draft.json` and a PNG + PDF per version), in two steps because the folders are on the office PC and the app runs on Heroku. Step 1, `scripts/s3/upload_sign_drafts.py <folder> [...] [--env-file .envprod] [--apply]`: checks every package (slug, kind, fields, files and their signatures, 20 MB cap; notes a PNG over 1.5 MB or a label that leans), uploads the files to `<AWS_LOCATION>/signage/drafts/<slug>/<sha256 12>-<file>` (same file, same key; a file already there is not sent again) and writes the manifest to `signage/drafts/manifests/<UTC time>.json` (a copy in `workspace/signage/manifests/`); store values come from the environment or the env file and are never printed. Step 2, `manage.py load_sign_drafts --manifest-key <key> [--apply] [--user email]`: refuses a manifest uploaded under another store folder or with a file missing; creates the `S3File` rows, drafts and versions; idempotent by slug (a draft's fields follow the manifest; versions match by label: new label added, new files replace the old ones with the votes kept, a label no longer listed is kept and reported); never touches a sign in production or removed. The dry run does the same work in a transaction and rolls it back. Checks live in `apps/signage/packages.py` (plain Python).
+- Page: Drafts and Production tabs; compact rows with a preview thumbnail; the draft window (full screen on a phone); the production card with preview, Print, Download, open, version gallery and the store map; previews come through the API with the sign-in (`useSignPreview`).
+- 16 new server tests (voting, hidden results, ranking, average order, notes, approve, versions; package checks, manifest, load, rerun by slug, production untouched, wrong folder); the page tests rewritten for both tabs (8). Tried on local_shared with the on-camera and sold-as-is packages: upload, dry run, load, a second load (no change) and a second upload (nothing sent).
 
 ## [2.285.0] - 2026-11-12
 
