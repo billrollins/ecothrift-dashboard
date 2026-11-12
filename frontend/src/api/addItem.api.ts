@@ -42,6 +42,7 @@ export interface AddItemPriceComp {
   title: string;
   sold: number;
   typical_price: string | null;
+  typical_retail?: string | null;
 }
 
 export interface AddItemPrice {
@@ -50,6 +51,11 @@ export interface AddItemPrice {
   sold_count: number;
   comps: AddItemPriceComp[];
   method: '' | 'own' | 'vector' | 'title';
+  /** Similar items: the retail the band was made from, and the comps' median sold-for share of their retail. */
+  retail_used: string | null;
+  share_of_retail: number | null;
+  /** Why there is no similar-items price: no retail to make a band from, no category, or no close sales. */
+  missing: '' | 'retail' | 'category' | 'match';
 }
 
 export interface TaxonomyCategory {
@@ -160,7 +166,10 @@ export function findAddItemProducts(q: string, signal?: AbortSignal) {
   return api.get<AddItemFindResponse>('/inventory/add-item/find/', { params: { q }, signal }).then((r) => r.data);
 }
 
-export function getAddItemPrice(params: { product?: number; title?: string; category?: string }, signal?: AbortSignal) {
+export function getAddItemPrice(
+  params: { product?: number; title?: string; category?: string; subcategory?: string; retail?: string },
+  signal?: AbortSignal,
+) {
   return api.get<AddItemPrice>('/inventory/add-item/price/', { params, signal }).then((r) => r.data);
 }
 

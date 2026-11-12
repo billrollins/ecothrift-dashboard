@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.280.0] -->
-<!-- Last reviewed: 2026-11-12 (2.280.0) -->
+<!-- Line 1 release: ## [2.281.0] -->
+<!-- Last reviewed: 2026-11-12 (2.281.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.281.0] - 2026-11-12
+
+User-facing theme: **Add item: the "Suggested $X (similar items)" price now comes from the same kind of item at a similar retail, and shows which items it used (Dash Update #104).**
+
+> **For Bill:** the suggested price on Add item's check-in step was matched by title words, so a $499 KitchenAid Artisan mixer was priced from $14 mixer mats and $200 Sony earbuds from $10 no-name ones. Now it only uses items we sold that are in the same category and subcategory, whose retail was between half and double this one's, and that are closest to it (by meaning when the product is already in the catalog, else by name). It takes what share of retail those sold for and applies it to this retail. Under the suggestion you see the items it used, each with what it sold for and its retail. When there are not at least 3 such sales, it shows no number and says "price it by eye"; with no retail it says "type the retail". Change the retail box and the suggestion follows. On our data the mixer now gets **$203** (5 stand mixers, 41% of retail) and the earbuds **$79** (noise-cancelling earbuds and headphones, 40%).
+
+### Changed (#104: similar-items price on Add item)
+- `services/add_item.py` `suggest_price`: comps are sold items in the same taxonomy category (subcategory first, the category when the subcategory has under 3 such sales) with their own retail from 0.5x to 2x this retail, ranked by exact cosine on stored vectors for an existing product (within 0.10 of the nearest, at least 0.6) or by title trigram similarity for a new one; up to 8 products. Price = median sold-for/retail share x this retail. Needs 3 sales from 2 products, else no price with `missing` = `retail`, `category` or `match`. An existing product with no retail typed uses its items' median retail. Own sales (2 or more) still come first. New response fields `retail_used`, `share_of_retail`, `missing`, and `typical_retail` per comp.
+- `GET /api/inventory/add-item/price/` takes `subcategory` and `retail`; Clean up with AI passes its subcategory and retail estimate when our sales fill in the price.
+- `AddItemCheckInStep.tsx`: sends the retail box (after typing stops) and the subcategory; shows "N similar sold at a median X% of their retail" and up to 4 comps with sold price and retail (all on hover); a plain no-match or no-retail line instead of a weak number.
+- Measured in local_shared, before -> after (title, category, retail): KitchenAid Artisan stand mixer $3.61 to $35.82 depending on title wording (mixer mats, hand mixers) -> $203.38; Sony WF-1000XM4 earbuds $11.06 (cheap earbuds) -> $79.03; about 20-80 ms warm. 4 new or rewritten server tests.
 
 ## [2.280.0] - 2026-11-12
 

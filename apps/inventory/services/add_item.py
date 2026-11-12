@@ -29,7 +29,7 @@ from decimal import Decimal
 from statistics import median
 from typing import Any
 
-from django.contrib.postgres.search import TrigramSimilarity, TrigramWordSimilarity
+from django.contrib.postgres.search import TrigramWordSimilarity
 from django.db import connection, transaction
 from django.db.models import Count, Q, Value
 from django.db.models.functions import StrIndex
@@ -47,7 +47,6 @@ ID_KEYS = ('upc', 'ean', 'gtin', 'sku', 'mpn', 'item_number', 'asin')
 BARCODE_KEYS = ('upc', 'ean', 'gtin')
 DESTINATIONS = {'floor': 'on_shelf', 'back_stock': 'back_storage', 'restoration': 'restoration'}
 OWN_SALES_ENOUGH = 2        # a product's own sales price it once it has this many; else similar products do
-COMPS = 12
 TITLE_MAX, SHORT_MAX = 120, 28
 AI_IMAGE_EDGE = 1024
 
@@ -249,64 +248,139 @@ def find(q: str, *, limit: int = RESULTS) -> dict[str, Any]:
 
 
 # ── 3. Price from what similar items sold for ──────────────────────────────
+#
+# Similar items (Dash Updates #104; replaces a title-words match that priced a $499 stand mixer from $14 mixer mats
+# and $200 earbuds from $10 no-name ones). A comp is a sold item that is
+#   1. the same kind of thing: the same taxonomy category, and the same subcategory when that has enough sales;
+#   2. at a similar retail: the item's own retail from half to double this one's (``RETAIL_BAND``); and
+#   3. among the nearest by meaning: by the product's stored vector when it has one (exact cosine over the band's
+#      products, a few hundred rows at most, so no model loads; only those close to the nearest one), else by the
+#      title's trigram similarity (a new product has no vector yet).
+# The suggestion is the comps' median share of retail (sold for / retail) times this retail: the band is wide, and
+# the share carries across it. Fewer than ``MIN_COMP_ITEMS`` sales from ``MIN_COMP_PRODUCTS`` products, or no retail
+# to make a band from, and there is no suggestion (``missing`` says why): nothing is better than a wrong number.
+
+RETAIL_BAND = (Decimal('0.5'), Decimal('2'))
+COMP_PRODUCTS = 8           # the nearest products kept as comps
+MIN_COMP_ITEMS = 3          # sold items the suggestion needs, from at least
+MIN_COMP_PRODUCTS = 2       # this many products
+MEANING_FLOOR = 0.6         # cosine similarity a comp needs when ranked by vector, and it must be within
+MEANING_WINDOW = 0.1        # this of the nearest one (stand mixers sit at 0.86-0.91; the bread maker after, 0.75)
+TITLE_FLOOR = 0.15          # trigram similarity a comp needs when ranked by title
+
 
 def _sold_prices(ids: list[int], cap: int = 200) -> list[Decimal]:
     return list(Item.objects.filter(product_id__in=ids, sold_at__isnull=False, sold_for__gt=0)
                 .order_by('-sold_at').values_list('sold_for', flat=True)[:cap])
 
 
-def _similar_ids(product: Product | None, title: str, category: str) -> tuple[list[int], str]:
-    """Products like this one that have sold: by stored vector when the product has one, else by title."""
-    if product is not None:
-        from apps.inventory.models import ProductVector
-        from apps.inventory.services.product_vectors import MODEL_NAME, similar_products
+def _cents(v) -> Decimal:
+    return Decimal(str(v)).quantize(Decimal('0.01'))
 
-        if ProductVector.objects.filter(product=product, model_name=MODEL_NAME).exists():
-            near = similar_products(product=product, limit=COMPS, sold_only=True)
-            if near:
-                return [n['product_id'] for n in near], 'vector'
+
+def _band_pool(retail: Decimal, category: str, subcategory: str, exclude: int | None) -> dict[int, dict[str, Any]]:
+    """Sold items in the category (and subcategory) whose own retail is in the band, grouped by product."""
+    lo, hi = retail * RETAIL_BAND[0], retail * RETAIL_BAND[1]
+    sql = """
+        SELECT i.product_id, count(*),
+               percentile_cont(0.5) WITHIN GROUP (ORDER BY i.sold_for),
+               percentile_cont(0.5) WITHIN GROUP (ORDER BY i.retail),
+               array_agg(i.sold_for / i.retail)
+        FROM inventory_item i JOIN inventory_productprofile pp ON pp.product_id = i.product_id
+        WHERE i.sold_at IS NOT NULL AND i.sold_for > 0 AND i.retail BETWEEN %s AND %s
+          AND pp.category = %s AND (%s = '' OR pp.subcategory = %s) AND i.product_id <> %s
+        GROUP BY i.product_id
+    """
+    with connection.cursor() as cur:
+        cur.execute(sql, [lo, hi, category, subcategory, subcategory, exclude or 0])
+        return {pid: {'sold': n, 'typical_price': _cents(s), 'typical_retail': _cents(r), 'shares': list(shares)}
+                for pid, n, s, r, shares in cur.fetchall()}
+
+
+def _nearest(product: Product | None, title: str, ids: list[int]) -> tuple[list[int], str]:
+    """The pool's products nearest this one, best first: by stored vector when it has one, else by title."""
+    if not ids:
+        return [], ''
+    if product is not None:
+        from apps.inventory.services.product_vectors import MODEL_NAME
+
+        with connection.cursor() as cur:
+            cur.execute("""
+                SELECT o.product_id, 1 - (o.embedding <=> s.embedding) AS sim
+                FROM inventory_productvector o
+                JOIN inventory_productvector s ON s.product_id = %s AND s.model_name = %s
+                WHERE o.model_name = %s AND o.product_id = ANY(%s)
+                ORDER BY sim DESC
+            """, [product.pk, MODEL_NAME, MODEL_NAME, ids])
+            rows = [(pid, sim) for pid, sim in cur.fetchall() if sim is not None and sim >= MEANING_FLOOR]
+            near = [pid for pid, sim in rows if sim >= rows[0][1] - MEANING_WINDOW] if rows else []
+        if near:
+            return near, 'vector'
     title = (title or (product.title if product else '')).strip()
     if len(title) < 3:
         return [], ''
-    qs = Product.objects.filter(is_active=True, title__trigram_similar=title)
-    if product is not None:
-        qs = qs.exclude(pk=product.pk)
-    ranked = list(qs.annotate(sim=TrigramSimilarity('title', title)).order_by('-sim').values_list('pk', flat=True)[:60])
-    sold = {r['product_id']: r['sold'] for r in _counts(ranked).values()}
-    ids = [pk for pk in ranked if sold.get(pk)]
-    if category:
-        same = set(ProductProfile.objects.filter(product_id__in=ids, category=category).values_list('product_id', flat=True))
-        if len(same) >= 3:
-            ids = [pk for pk in ids if pk in same]
-    return ids[:COMPS], 'title'
+    with connection.cursor() as cur:
+        cur.execute('SELECT id, similarity(title, %s) AS sim FROM inventory_product WHERE id = ANY(%s) '
+                    'ORDER BY sim DESC, id DESC', [title, ids])
+        return [pid for pid, sim in cur.fetchall() if sim >= TITLE_FLOOR], 'title'
 
 
-def suggest_price(*, product_id: int | None = None, title: str = '', category: str = '') -> dict[str, Any]:
-    """A shelf price from what this product sold for, or what similar products sold for (medians)."""
+def _similar_items(product: Product | None, title: str, category: str, subcategory: str,
+                   retail: Decimal) -> tuple[list[int], dict[int, dict[str, Any]], str]:
+    """The comp products (nearest first), the band's sales by product, and how they were ranked."""
+    exclude = product.pk if product is not None else None
+    if subcategory:
+        pool = _band_pool(retail, category, subcategory, exclude)
+        ids, method = _nearest(product, title, list(pool))
+        if sum(pool[pid]['sold'] for pid in ids[:COMP_PRODUCTS]) >= MIN_COMP_ITEMS:
+            return ids[:COMP_PRODUCTS], pool, method
+    pool = _band_pool(retail, category, '', exclude)       # no subcategory, or too few sales in it: the category
+    ids, method = _nearest(product, title, list(pool))
+    return ids[:COMP_PRODUCTS], pool, method
+
+
+def suggest_price(*, product_id: int | None = None, title: str = '', category: str = '', subcategory: str = '',
+                  retail=None) -> dict[str, Any]:
+    """A shelf price from what this product sold for, or from what items like it, at a similar retail, sold for."""
     product = Product.objects.filter(pk=product_id).select_related('profile').first() if product_id else None
-    if product is not None and not category:
-        category = getattr(getattr(product, 'profile', None), 'category', '') or ''
+    profile = getattr(product, 'profile', None) if product is not None else None
+    if profile is not None and not category:
+        category, subcategory = profile.category or '', profile.subcategory or ''
     own = _sold_prices([product.pk]) if product is not None else []
-    out: dict[str, Any] = {'price': None, 'basis': '', 'sold_count': 0, 'comps': [], 'method': ''}
+    out: dict[str, Any] = {'price': None, 'basis': '', 'sold_count': 0, 'comps': [], 'method': '',
+                           'retail_used': None, 'share_of_retail': None, 'missing': ''}
     if len(own) >= OWN_SALES_ENOUGH:
-        out.update(price=Decimal(str(median(own))).quantize(Decimal('0.01')), basis='this product',
-                   sold_count=len(own), method='own')
+        out.update(price=_cents(median(own)), basis='this product', sold_count=len(own), method='own')
         return out
-    ids, method = _similar_ids(product, title, category)
-    prices = _sold_prices(ids)
-    if prices:
-        names = {p.pk: p for p in Product.objects.filter(pk__in=ids).select_related('profile').defer('search_text')}
-        counts = _counts(ids)
-        medians = _medians(ids)
-        out['comps'] = [
-            {'product_id': pk, 'title': (names[pk].profile.display_title if hasattr(names[pk], 'profile')
-                                         and names[pk].profile.display_title else names[pk].title),
-             'sold': (counts.get(pk) or {}).get('sold') or 0, 'typical_price': (medians.get(pk) or {}).get('sold')}
-            for pk in ids if pk in names
-        ][:6]
-        out.update(price=Decimal(str(median(prices))).quantize(Decimal('0.01')), basis='similar items',
-                   sold_count=len(prices), method=method)
-    elif own:
+    try:
+        retail = _cents(retail) if retail not in (None, '') else None
+    except ArithmeticError:   # an unreadable retail is no retail
+        retail = None
+    if (retail is None or retail <= 0) and product is not None:
+        retail = (_medians([product.pk]).get(product.pk) or {}).get('retail')   # what its items carry
+    if retail is None or retail <= 0:
+        out['missing'] = 'retail'
+    elif not category or category.startswith('Mixed'):
+        out['missing'] = 'category'
+    else:
+        ids, pool, method = _similar_items(product, title, category, subcategory, retail)
+        shares = [float(s) for pid in ids for s in pool[pid]['shares']]
+        if len(shares) >= MIN_COMP_ITEMS and len(ids) >= MIN_COMP_PRODUCTS:
+            share = Decimal(str(median(shares)))
+            names = {p.pk: p for p in Product.objects.filter(pk__in=ids).select_related('profile').defer('search_text')}
+            out['comps'] = [
+                {'product_id': pk,
+                 'title': (names[pk].profile.display_title if hasattr(names[pk], 'profile')
+                           and names[pk].profile.display_title else names[pk].title),
+                 'sold': pool[pk]['sold'], 'typical_price': pool[pk]['typical_price'],
+                 'typical_retail': pool[pk]['typical_retail']}
+                for pk in ids if pk in names
+            ]
+            out.update(price=_cents(retail * share), basis='similar items', sold_count=len(shares), method=method,
+                       retail_used=retail, share_of_retail=round(float(share) * 100))
+            return out
+        out['missing'] = 'match'
+    if own:
         out.update(price=own[0], basis='this product', sold_count=len(own), method='own')
     return out
 
@@ -673,7 +747,8 @@ def clean_up(text: str, typed: dict | None = None, *, images: list[dict] | None 
     price_from = 'typed' if 'price' in mine else 'the AI' if merged['price'] is not None else ''
     if 'price' not in mine and merged['price'] is None:
         try:
-            ours = suggest_price(title=merged['title'] or text[:120], category=merged['category'])
+            ours = suggest_price(title=merged['title'] or text[:120], category=merged['category'],
+                                     subcategory=merged['subcategory'], retail=merged['retail_estimate'])
         except Exception:  # noqa: BLE001 - the price lookup never fails the clean-up
             logger.exception('Add item clean-up: price lookup failed')
             ours = {'price': None}

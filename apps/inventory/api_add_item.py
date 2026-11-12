@@ -2,7 +2,7 @@
 Add item: Misfit items from Find item (services/add_item.py). Same people as Processing check-in (staff).
 
 GET  /api/inventory/add-item/find/?q=                      products for the box: identifiers, then words
-GET  /api/inventory/add-item/price/?product=&title=&category=  a price from what it (or similar items) sold for
+GET  /api/inventory/add-item/price/?product=&title=&category=&subcategory=&retail=  a price from what it (or similar items) sold for
 GET  /api/inventory/add-item/taxonomy/                     categories and their subcategories (the answer key)
 POST /api/inventory/add-item/ai-fill/                      title (+ photo): the AI's draft of a new product
 POST /api/inventory/add-item/clean-up/                     Clean up with AI (#96): `payload` {text, typed} + `photos`
@@ -45,6 +45,8 @@ def add_item_price_view(request):
         product_id=int(raw) if raw.isdigit() else None,
         title=str(request.query_params.get('title') or '')[:300],
         category=str(request.query_params.get('category') or '')[:100],
+        subcategory=str(request.query_params.get('subcategory') or '')[:100],
+        retail=str(request.query_params.get('retail') or '').strip()[:20] or None,
     ))
 
 

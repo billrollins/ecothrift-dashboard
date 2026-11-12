@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import {
   Box, Button, Chip, CircularProgress, Link, Stack, TextField, Typography,
 } from '@mui/material';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { getAddItemPrice } from '../../../api/addItem.api';
+import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { IconPrint } from '../../../icons/ecoIcons';
 import type { ItemCondition } from '../../../types/inventory.types';
 import { CheckInQtyStepper, CompactMoneyField, SegmentedOptionButtons } from '../workbench/CheckInDetailsLayout';
@@ -83,14 +84,19 @@ export function AddItemCheckInStep({
   onSubmit: (printLabels: boolean) => void;
 }) {
   const set = (patch: Partial<CheckInForm>) => onFormChange({ ...form, ...patch });
+  // Similar items are matched at a similar retail, so the suggestion follows the retail box (once typing stops).
+  const typedRetail = money(useDebouncedValue(form.retail, 600));
+  const retail = typedRetail ? typedRetail.toFixed(2) : undefined;
   const params = picked.kind === 'existing'
-    ? { product: picked.product.product_id }
-    : { title: picked.spec.title, category: picked.spec.category };
+    ? { product: picked.product.product_id, retail }
+    : { title: picked.spec.title, category: picked.spec.category, subcategory: picked.spec.subcategory, retail };
   const price = useQuery({
     queryKey: ['add-item-price', params],
     queryFn: ({ signal }) => getAddItemPrice(params, signal),
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
+  const comps = price.data?.basis === 'similar items' ? price.data.comps : [];
   const suggested = price.data?.price ?? null;
   // The suggestion fills an empty price once; the person can always change it.
   useEffect(() => {
@@ -161,7 +167,9 @@ export function AddItemCheckInStep({
                 <Typography variant="body2">
                   Suggested <b>{formatMoney(suggested)}</b>
                   <Typography component="span" variant="caption" color="text.secondary">
-                    {' '}· median of {price.data?.sold_count} sold ({price.data?.basis})
+                    {price.data?.basis === 'similar items'
+                      ? ` · ${price.data.sold_count} similar sold at a median ${price.data.share_of_retail}% of their retail`
+                      : ` · median of ${price.data?.sold_count} sold (this product)`}
                   </Typography>
                   {form.price !== Number(suggested).toFixed(2) && (
                     <Link component="button" type="button" sx={{ ml: 1, fontSize: 13 }}
@@ -169,13 +177,27 @@ export function AddItemCheckInStep({
                   )}
                 </Typography>
               ) : (
-                <Typography variant="caption" color="text.secondary">No sales of this or similar products yet: price it by eye.</Typography>
-              )}
-              {price.data?.basis === 'similar items' && price.data.comps.length > 0 && (
-                <Typography variant="caption" color="text.secondary" component="div" noWrap
-                  title={price.data.comps.map((c) => `${c.title} (${c.sold} sold)`).join('\n')}>
-                  Like: {price.data.comps.slice(0, 3).map((c) => c.title).join('; ')}
+                <Typography variant="caption" color="text.secondary">
+                  {price.data?.missing === 'retail'
+                    ? 'Type the retail to see what similar items sold for.'
+                    : 'No sales of this or of items like it at a similar retail yet: price it by eye.'}
                 </Typography>
+              )}
+              {comps.length > 0 && (
+                <Box component="ul" sx={{ m: 0, mt: 0.25, pl: 2, color: 'text.secondary' }}
+                  title={comps.map((c) => `${c.title}: sold ${formatMoney(c.typical_price)}, retail ${formatMoney(c.typical_retail ?? null)} (${c.sold} sold)`).join('\n')}>
+                  {comps.slice(0, 4).map((c) => (
+                    <Typography key={c.product_id} component="li" variant="caption" noWrap sx={{ display: 'list-item' }}>
+                      {c.title} · sold {formatMoney(c.typical_price)}{c.typical_retail ? ` of ${formatMoney(c.typical_retail)} retail` : ''}
+                      {c.sold > 1 ? ` (${c.sold})` : ''}
+                    </Typography>
+                  ))}
+                  {comps.length > 4 && (
+                    <Typography component="li" variant="caption" sx={{ display: 'list-item', listStyle: 'none' }}>
+                      and {comps.length - 4} more
+                    </Typography>
+                  )}
+                </Box>
               )}
               <Typography variant="caption" color="text.secondary" component="div">
                 {pct != null ? `Price is ${pct}% of retail. ` : ''}{retailNote}

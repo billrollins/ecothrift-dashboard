@@ -117,16 +117,69 @@ class FindTests(AddItemBase):
 
 
 class PriceTests(AddItemBase):
-    def test_own_sales_first_then_similar_items(self):
+    """Similar items are the same kind (category, subcategory), at a similar retail, nearest by meaning (#104)."""
+
+    def _product(self, title, sub, sales, vector=None):
+        with self.captureOnCommitCallbacks(execute=True):
+            p = Product.objects.create(title=title, brand='Test', category=self.cat)
+            ProductProfile.objects.create(product=p, category='Kitchen & dining', subcategory=sub)
+        for retail, sold in sales:
+            Item.objects.create(product=p, sku=f'ITMPR{Item.objects.count():04d}', price=Decimal(sold), status='sold',
+                                sold_for=Decimal(sold), sold_at=timezone.now(), retail=Decimal(retail))
+        if vector is not None:
+            from apps.inventory.models import ProductVector
+            from apps.inventory.services.product_vectors import MODEL_NAME
+
+            emb = [(1 - vector ** 2) ** 0.5, vector] + [0.0] * (ProductVector.DIMENSIONS - 2)
+            ProductVector.objects.create(product=p, model_name=MODEL_NAME, embedding=emb, text_hash=title[:40])
+        return p
+
+    def setUp(self):
+        super().setUp()
+        self.mixer_a = self._product('KitchenAid Stand Mixer 5.5 Qt', 'Small appliances', [('400', '160')], vector=0.1)
+        self.mixer_b = self._product('KitchenAid Bowl-Lift Stand Mixer', 'Small appliances',
+                                     [('300', '120'), ('300', '120')], vector=0.2)
+        # The two that used to price a $499 mixer: a $20 mat for one, and a cheap hand mixer.
+        self._product('Bamboo Mixer Slider Mat for KitchenAid Stand Mixer', 'Tools & gadgets', [('20', '5')])
+        self._product('Hand Mixer 5 Speed', 'Small appliances', [('30', '10')])
+        # In the band and the subcategory, but nothing like a mixer by meaning.
+        self._product('Panasonic Microwave', 'Small appliances', [('300', '60')], vector=0.6)
+
+    def test_own_sales_come_first(self):
         own = add_item.suggest_price(product_id=self.blender.pk)
         self.assertEqual((own['price'], own['basis'], own['sold_count'], own['method']),
                          (Decimal('35.00'), 'this product', 3, 'own'))
-        similar = add_item.suggest_price(title='Hamilton Beach Toaster 2 Slice')
-        self.assertEqual((similar['price'], similar['basis'], similar['method']), (Decimal('13.00'), 'similar items', 'title'))
-        self.assertEqual(similar['comps'][0]['product_id'], self.toaster.pk)
-        self.assertIsNone(add_item.suggest_price(title='zz')['price'])
         r = self.client.get(API + 'price/', {'product': self.blender.pk})
         self.assertEqual(r.data['price'], Decimal('35.00'))
+
+    def test_a_new_product_is_priced_from_the_same_kind_at_a_similar_retail(self):
+        r = self.client.get(API + 'price/', {'title': 'KitchenAid Artisan Stand Mixer', 'category': 'Kitchen & dining',
+                                             'subcategory': 'Small appliances', 'retail': '499'})
+        out = r.data
+        # The mat and the hand mixer are out of the band; the microwave is in it but furthest by title, and the
+        # suggestion is the comps' median share of retail (40%) times this retail.
+        self.assertEqual((out['basis'], out['method'], out['share_of_retail'], out['retail_used']),
+                         ('similar items', 'title', 40, Decimal('499.00')))
+        self.assertEqual(out['price'], Decimal('199.60'))
+        self.assertEqual([c['product_id'] for c in out['comps']][:2], [self.mixer_a.pk, self.mixer_b.pk])
+        self.assertEqual((out['comps'][1]['sold'], out['comps'][1]['typical_price'], out['comps'][1]['typical_retail']),
+                         (2, Decimal('120.00'), Decimal('300.00')))
+
+    def test_an_existing_product_uses_its_nearest_by_meaning_and_its_own_retail(self):
+        deluxe = self._product('KitchenAid Deluxe Stand Mixer', 'Small appliances', [('279', '100')], vector=0.0)
+        out = add_item.suggest_price(product_id=deluxe.pk)
+        self.assertEqual((out['method'], out['retail_used'], out['price']), ('vector', Decimal('279.00'), Decimal('111.60')))
+        self.assertEqual([c['product_id'] for c in out['comps']], [self.mixer_a.pk, self.mixer_b.pk])   # no microwave
+
+    def test_no_good_match_shows_nothing_and_says_why(self):
+        none = add_item.suggest_price(title='KitchenAid Artisan Stand Mixer', category='Kitchen & dining',
+                                      subcategory='Small appliances')
+        self.assertEqual((none['price'], none['missing']), (None, 'retail'))
+        thin = add_item.suggest_price(title='KitchenAid Mixer Mat', category='Kitchen & dining',
+                                      subcategory='Tools & gadgets', retail='20')
+        self.assertEqual((thin['price'], thin['missing'], thin['comps']), (None, 'match', []))
+        self.assertEqual(add_item.suggest_price(title='Stand Mixer', retail='499')['missing'], 'category')
+        self.assertIsNone(add_item.suggest_price(title='zz', category='Kitchen & dining', retail='499')['price'])
 
 
 class CheckInTests(AddItemBase):

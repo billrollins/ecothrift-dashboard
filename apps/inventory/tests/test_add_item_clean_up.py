@@ -5,11 +5,12 @@ from decimal import Decimal
 from unittest import mock
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils import timezone
 from PIL import Image
 
 from apps.core.models import AIUsage
 from apps.core.services.llm_router import LLMAPIError
-from apps.inventory.models import ItemCheckIn, Product
+from apps.inventory.models import Item, ItemCheckIn, Product, ProductProfile
 from apps.inventory.tests.test_add_item import API, AddItemBase, _llm
 
 SPARK = 'muse-spark-1.3-contributor'
@@ -78,6 +79,12 @@ class CleanUpTests(AddItemBase):
         blender = {**self.answer, 'title': 'Ninja Professional Blender 1000W', 'price': 60}
         r, _ = self._clean({'text': 'ninja professional blender 1000w'}, answer=blender)
         self.assertEqual((r.data['values']['price'], r.data['price_from']), (Decimal('60.00'), 'the AI'))
+        # Our sales fill in from the same kind at a similar retail (#104): the blender and one more like it.
+        with self.captureOnCommitCallbacks(execute=True):
+            other = Product.objects.create(title='Ninja Professional Blender 1200W', brand='Ninja', category=self.cat)
+            ProductProfile.objects.create(product=other, category='Kitchen & dining', subcategory='Small appliances')
+        Item.objects.create(product=other, sku='ITMCU0001', price=Decimal('30.00'), status='sold', sold_for=Decimal('30.00'),
+                            sold_at=timezone.now(), retail=Decimal('99.99'))
         r, _ = self._clean({'text': 'ninja professional blender 1000w'}, answer={**blender, 'price': 0})
         self.assertIsNotNone(r.data['values']['price'])
         self.assertIn('price', r.data['filled'])
