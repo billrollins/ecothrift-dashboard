@@ -40,6 +40,10 @@ class FloorPlan(models.Model):
     schema_version = models.PositiveIntegerField(default=CURRENT_SCHEMA_VERSION)
     revision = models.PositiveIntegerField(default=1)
     is_active = models.BooleanField(default=True)
+    # The store map (#105, Bill 2026-11-12): one plan per location is the Current one. Its layers of pins
+    # (MapPin) show on Facilities -> Store map. A superuser sets it; the pins move along when another plan
+    # of the same location is made Current.
+    is_current = models.BooleanField(default=False)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -51,6 +55,13 @@ class FloorPlan(models.Model):
 
     class Meta:
         ordering = ['-updated_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['location'],
+                condition=models.Q(is_current=True),
+                name='floorplan_one_current_per_location',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.name} ({self.location_id})'
@@ -166,3 +177,60 @@ class FloorPlanAsset(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.content_type})'
+
+
+class MapLayer(models.Model):
+    """A layer of pins on the store map (#105): Signage first; later security cameras, fire extinguishers,
+    FF&E, keys and security spots, shelves. Staff turn layers on and off on Facilities -> Store map.
+
+    ``ref_type`` names what a pin on this layer points at (``signage.sign``); blank = a plain pin with a
+    name and a note. New layers are added by a seed migration or in the Django admin.
+    """
+    slug = models.SlugField(max_length=40, unique=True)
+    name = models.CharField(max_length=80)
+    description = models.CharField(max_length=200, blank=True, default='')
+    color = models.CharField(max_length=7, default='#2563eb', help_text='Hex colour of the pins.')
+    ref_type = models.CharField(
+        max_length=40, blank=True, default='',
+        help_text='What a pin on this layer points at, e.g. signage.sign. Blank = plain pins.',
+    )
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return self.name
+
+
+class MapPin(models.Model):
+    """One pin on a plan's layer (#105). Its own row, so editing the plan drawing never moves or drops it.
+
+    ``x``/``y`` are plan inches (same frame as the plan document). ``ref_type`` + ``ref_id`` point at the
+    thing the pin stands for (a sign today; a camera, an extinguisher or a shelf later).
+    """
+    plan = models.ForeignKey(FloorPlan, on_delete=models.CASCADE, related_name='pins')
+    layer = models.ForeignKey(MapLayer, on_delete=models.PROTECT, related_name='pins')
+    x = models.FloatField()
+    y = models.FloatField()
+    name = models.CharField(max_length=120)
+    note = models.TextField(blank=True, default='')
+    ref_type = models.CharField(max_length=40, blank=True, default='')
+    ref_id = models.PositiveIntegerField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['layer__sort_order', 'name', 'id']
+        indexes = [models.Index(fields=['ref_type', 'ref_id'], name='floorplan_pin_ref_idx')]
+
+    def __str__(self):
+        return f'{self.name} ({self.layer_id})'

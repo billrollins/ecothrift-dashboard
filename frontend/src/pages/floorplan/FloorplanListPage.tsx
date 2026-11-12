@@ -7,6 +7,7 @@ import {
   Card,
   CardActionArea,
   CardContent,
+  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -21,6 +22,8 @@ import {
   Typography,
 } from '@mui/material';
 import MapIcon from '@mui/icons-material/Map';
+import StarIcon from '@mui/icons-material/Star';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
 import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { getFloorPlan } from '../../api/floorplan.api';
@@ -31,6 +34,7 @@ import {
   useCreateFloorPlan,
   useDeleteFloorPlan,
   useFloorPlans,
+  useMakeFloorPlanCurrent,
   useRenameFloorPlan,
   useSaveFloorPlan,
 } from '../../hooks/useFloorplans';
@@ -44,6 +48,8 @@ export default function FloorplanListPage() {
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
   const canEdit = canAccess(user, ['floorplan:write', 'studios:manage']);
+  // Marking the Current plan (the store map, #105) is the owner's.
+  const canMarkCurrent = Boolean(user?.is_superuser);
 
   const plansQuery = useFloorPlans();
   const locationsQuery = useQuery({
@@ -54,6 +60,20 @@ export default function FloorplanListPage() {
   const renameMutation = useRenameFloorPlan();
   const deleteMutation = useDeleteFloorPlan();
   const saveMutation = useSaveFloorPlan();
+  const makeCurrentMutation = useMakeFloorPlanCurrent();
+  const [currentTarget, setCurrentTarget] = useState<FloorPlanListItem | null>(null);
+
+  const handleMakeCurrent = () => {
+    if (!currentTarget) return;
+    makeCurrentMutation.mutate(currentTarget.id, {
+      onSuccess: (result) => {
+        setCurrentTarget(null);
+        const moved = result.pins_moved ? ` ${result.pins_moved} pins moved over to it.` : '';
+        enqueueSnackbar(`${result.name} is the Current plan.${moved}`, { variant: 'success' });
+      },
+      onError: () => enqueueSnackbar('Could not mark it Current.', { variant: 'error' }),
+    });
+  };
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -214,6 +234,7 @@ export default function FloorplanListPage() {
                   <Typography variant="subtitle1" sx={{ fontWeight: 600 }} noWrap>
                     {plan.name}
                   </Typography>
+                  {plan.is_current && <Chip label="Current" color="success" size="small" sx={{ ml: 'auto' }} />}
                 </Stack>
                 <Typography variant="body2" color="text.secondary">{plan.location_name}</Typography>
                 <Typography variant="caption" color="text.secondary">
@@ -221,8 +242,24 @@ export default function FloorplanListPage() {
                 </Typography>
               </CardContent>
             </CardActionArea>
-            {canEdit && (
+            {(canEdit || canMarkCurrent) && (
               <Stack direction="row" justifyContent="flex-end" sx={{ px: 1, pb: 1 }}>
+                {canMarkCurrent && (
+                  <Tooltip title={plan.is_current ? 'The Current plan (the store map)' : 'Make this the Current plan'}>
+                    <span>
+                      <IconButton
+                        size="small"
+                        aria-label={plan.is_current ? `${plan.name} is Current` : `Make ${plan.name} Current`}
+                        color={plan.is_current ? 'success' : 'default'}
+                        disabled={plan.is_current}
+                        onClick={() => setCurrentTarget(plan)}
+                      >
+                        {plan.is_current ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                )}
+                {canEdit && (<>
                 <Tooltip title="Export JSON">
                   <IconButton size="small" aria-label={`Export ${plan.name}`} onClick={() => void handleExport(plan)}>
                     <FileDownloadIcon fontSize="small" />
@@ -245,11 +282,29 @@ export default function FloorplanListPage() {
                     <DeleteIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
+                </>)}
               </Stack>
             )}
           </Card>
         ))}
       </Box>
+
+      {/* Make Current - the owner's; the pins on the old Current plan move over */}
+      <Dialog open={Boolean(currentTarget)} onClose={() => setCurrentTarget(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Make “{currentTarget?.name}” the Current plan?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Facilities → Store map shows the Current plan of {currentTarget?.location_name}, with its layers of pins.
+            Any pins on the plan that is Current now move over to this one, at the same spots.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCurrentTarget(null)}>Cancel</Button>
+          <Button variant="contained" onClick={handleMakeCurrent} disabled={makeCurrentMutation.isPending}>
+            Make Current
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Import dialog */}
       <Dialog open={Boolean(importState)} onClose={() => setImportState(null)} fullWidth maxWidth="xs">

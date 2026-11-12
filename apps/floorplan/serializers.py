@@ -1,10 +1,11 @@
 import re
 
+from django.apps import apps as django_apps
 from django.utils.text import slugify
 from rest_framework import serializers
 
 from .assets import sanitize_asset_upload
-from .models import FloorPlan, FloorPlanAsset, FloorPlanElementKind
+from .models import FloorPlan, FloorPlanAsset, FloorPlanElementKind, MapLayer, MapPin
 from .validation import validate_plan_document
 
 HEX_COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
@@ -25,9 +26,10 @@ class FloorPlanListSerializer(serializers.ModelSerializer):
         model = FloorPlan
         fields = [
             'id', 'name', 'location', 'location_name', 'schema_version',
-            'revision', 'created_by', 'created_by_name',
+            'revision', 'is_current', 'created_by', 'created_by_name',
             'created_at', 'updated_at',
         ]
+        read_only_fields = ['is_current']
 
     def get_created_by_name(self, obj):
         user = obj.created_by
@@ -42,7 +44,7 @@ class FloorPlanSerializer(FloorPlanListSerializer):
 
     class Meta(FloorPlanListSerializer.Meta):
         fields = FloorPlanListSerializer.Meta.fields + ['data']
-        read_only_fields = ['revision', 'schema_version']
+        read_only_fields = ['revision', 'schema_version', 'is_current']
 
     def validate_data(self, value):
         validate_plan_document(value)
@@ -162,3 +164,79 @@ class FloorPlanAssetUploadSerializer(serializers.Serializer):
             content_type=content_type,
             created_by=self.context['request'].user,
         )
+
+
+class MapLayerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MapLayer
+        fields = ['id', 'slug', 'name', 'description', 'color', 'ref_type', 'sort_order']
+
+
+# A pin may sit a little outside the drawn plan (a sign on the outside wall), never far off it.
+PIN_MARGIN = 240
+
+
+class MapPinSerializer(serializers.ModelSerializer):
+    """A pin on a plan layer. ``ref_type`` comes from the layer; ``ref_id`` is the thing it stands for."""
+    layer_slug = serializers.CharField(source='layer.slug', read_only=True)
+
+    class Meta:
+        model = MapPin
+        fields = [
+            'id', 'plan', 'layer', 'layer_slug', 'x', 'y', 'name', 'note',
+            'ref_type', 'ref_id', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['ref_type', 'created_at', 'updated_at']
+
+    def validate_plan(self, plan):
+        if not plan.is_active:
+            raise serializers.ValidationError('That floor plan was deleted.')
+        if self.instance is not None and plan.pk != self.instance.plan_id:
+            raise serializers.ValidationError('A pin stays on its plan; drop a new pin instead.')
+        return plan
+
+    def validate_layer(self, layer):
+        if not layer.is_active:
+            raise serializers.ValidationError('That layer is turned off.')
+        return layer
+
+    def validate_name(self, value):
+        value = (value or '').strip()
+        if not value:
+            raise serializers.ValidationError('Give the pin a name.')
+        return value
+
+    def validate(self, attrs):
+        plan = attrs.get('plan') or getattr(self.instance, 'plan', None)
+        layer = attrs.get('layer') or getattr(self.instance, 'layer', None)
+        if self.instance is not None and layer and layer.pk != self.instance.layer_id:
+            raise serializers.ValidationError({'layer': 'A pin stays on its layer.'})
+        if plan is not None:
+            settings_ = (plan.data or {}).get('settings') or {}
+            width = float(settings_.get('planWidth') or 0) or 100_000
+            height = float(settings_.get('planHeight') or 0) or 100_000
+            for key, limit in (('x', width), ('y', height)):
+                if key in attrs and not (-PIN_MARGIN <= attrs[key] <= limit + PIN_MARGIN):
+                    raise serializers.ValidationError({key: 'The pin is off the map.'})
+        if layer is not None:
+            attrs['ref_type'] = layer.ref_type
+            if not layer.ref_type:
+                attrs['ref_id'] = None
+            elif self.instance is None or 'ref_id' in attrs:
+                self._check_ref(layer.ref_type, attrs.get('ref_id'))
+        return attrs
+
+    @staticmethod
+    def _check_ref(ref_type, ref_id):
+        """A layer that points at records (``signage.sign``) needs a pin on a live one of them."""
+        if ref_id is None:
+            raise serializers.ValidationError({'ref_id': 'Pick what this pin stands for.'})
+        try:
+            model = django_apps.get_model(ref_type)
+        except (LookupError, ValueError):
+            raise serializers.ValidationError({'layer': f'This layer points at {ref_type}, which Dash does not know.'})
+        rows = model._default_manager.filter(pk=ref_id)
+        if any(f.name == 'is_active' for f in model._meta.fields):
+            rows = rows.filter(is_active=True)
+        if not rows.exists():
+            raise serializers.ValidationError({'ref_id': 'That one is gone.'})

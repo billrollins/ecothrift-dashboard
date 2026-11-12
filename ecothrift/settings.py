@@ -126,6 +126,7 @@ INSTALLED_APPS = [
     'apps.marketing',
     'apps.keys',
     'apps.supplies',
+    'apps.signage',  # store signs: list, print PDFs, pins on the store map (#106)
     'apps.esign',  # shared e-sign app, vendored from {master}/packages/esign (D22); host seam: apps/core/esign_host.py
 ]
 

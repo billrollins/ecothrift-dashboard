@@ -510,7 +510,7 @@ def ai_draft(data: dict[str, Any]) -> dict[str, Any]:
         value = answer.get(key)
         text = str(value) if isinstance(value, (str, int, float)) else ''
         # House rule: no em dashes on a screen or a sheet.
-        text = re.sub(r'\s*[—–]\s*', ', ', text)
+        text = re.sub(r'\s*[\u2014\u2013]\s*', ', ', text)
         return ' '.join(text.split())[:limit]
 
     return {

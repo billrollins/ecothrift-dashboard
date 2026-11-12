@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.281.0] -->
-<!-- Last reviewed: 2026-11-12 (2.281.0) -->
+<!-- Line 1 release: ## [2.282.0] -->
+<!-- Last reviewed: 2026-11-12 (2.282.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,26 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.282.0] - 2026-11-12
+
+User-facing theme: **Store Map: one Current floor plan with layers of pins, and Signage, the list of store signs with their print PDFs and where they hang (Dash Updates #105 and #106).**
+
+> **For Bill:** in Studios → Floorplans each plan now has a star. Tap it on the plan that matches the store today and it becomes the **Current** plan (only you can do this; there is one Current plan per store). Facilities → **Store map** shows the Current plan to every staff login, with layers you turn on and off. Each layer holds pins with a name and a note: managers tap **Add a pin**, tap the spot, name it, and drag a pin to move it. Signage is the first layer; cameras, fire extinguishers, fixtures, keys and shelves can be added the same way later. The pins are kept apart from the drawing, so editing the plan in Studios never moves or loses them, and if you later make a new plan Current, the pins move over to it at the same spots. Facilities → **Signage** is the list of store signs. Each sign has a name, a status you mark off as it goes (**To make**, **Printed**, **Up**), how many copies are up, a note, and its PDF: **Print** and **Download** right there, and managers add or replace the PDF from the page. Tap a sign and the store map beside it lights up where that sign hangs; tap a pin on the map and it shows that sign. Managers tap **Add a spot** and then the spot on the map, and drag a pin to move it. Every staff login can look and print; changing the list is for managers. The list starts empty: the only sign files I found are the three Thrift+ posters and the register sign in the off-site archive, and those wait for your word before they go in.
+
+### Added (#106: Signage)
+- New app `apps/signage`: `Sign` (name, status to make / printed / up, copies up, note, PDF in the shared file store `core.S3File`), migration `signage/0001_initial`, which also points the store map's Signage layer at signs (`ref_type = signage.sign`).
+- API `/api/signage/signs/` (staff read; Manager/Admin write under the new `signage:manage` item, Admin area): `?status=`, each sign's spot count on the Current map; `signs/{id}/pdf/` GET streams it (`?download=1` as a file), POST uploads a PDF (checked, 20 MB cap), DELETE takes it off. Renaming a sign renames its pins; removing a sign hides it and drops its pins.
+- Pins on a layer that points at records must name a live one (`ref_id` checked generically from the layer's `ref_type`), so later layers (FF&E, shelves) work the same way.
+- Facilities → **Signage** (`/facilities/signage`, `?sign=<id>` opens one): status filter with counts, Print / Download / open, the map with that sign's spots, Add a spot, drag, remove a spot. Store map: a sign pin offers **Open the sign**.
+- 10 new server tests, 3 new front-end tests.
+
+### Added (#105: Current plan and map layers)
+- `FloorPlan.is_current` (one per location, DB constraint), `MapLayer` and `MapPin` (migration `floorplan/0006_current_plan_layers_pins`, seeds the `signage` layer). `POST /api/floorplan/plans/{id}/make-current/` (superuser) moves the old Current plan's pins over; delete clears the flag; `is_current` is read-only otherwise.
+- `GET /api/floorplan/store-map/` (staff): the Current plan, layers, pins and the stores that have one. `layers/` (read-only) and `pins/` (staff read, Manager/Admin write under `floorplan:write`; a pin stays on its plan and layer and may sit at most 240" off the plan).
+- Facilities → **Store map** (`/facilities/store-map`): layer chips with counts, the plan drawn read-only with pins at one screen size at every zoom, a pin's name and note, Add a pin / drag to move / Edit / Remove for managers. `StoreMapView` is reusable (Signage uses it next).
+- Studios → Floorplans: a Current chip and the owner's star with a confirm.
+- 12 new server tests, 4 new front-end tests.
 
 ## [2.281.0] - 2026-11-12
 

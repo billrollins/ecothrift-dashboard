@@ -76,6 +76,7 @@
   "hr.time_entry:edit",
   "retail_qa:manage",
   "supplies:manage",
+  "signage:manage",
   "consignment:manage",
   "dashboard.goals:write",
   "buying:view",

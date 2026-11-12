@@ -4,7 +4,10 @@ import type {
   FloorPlanElementKind,
   FloorPlanElementKindPayload,
   FloorPlanListItem,
+  MapPin,
+  MapPinPayload,
   PlanDocument,
+  StoreMapResponse,
 } from '../types/floorplan.types';
 import api from './client';
 
@@ -34,6 +37,33 @@ export function renameFloorPlan(id: number, name: string) {
 
 export function deleteFloorPlan(id: number) {
   return api.delete(`/floorplan/plans/${id}/`);
+}
+
+/** Superuser: make this plan its location's Current plan. Pins on the old Current plan move to it. */
+export function makeFloorPlanCurrent(id: number) {
+  return api.post<FloorPlanListItem & { pins_moved: number }>(`/floorplan/plans/${id}/make-current/`);
+}
+
+// ── Store map (#105) ─────────────────────────────────────────────────────────
+
+export function getStoreMap(params?: { location?: number }) {
+  return api.get<StoreMapResponse>('/floorplan/store-map/', { params });
+}
+
+export function getMapPins(params: { plan?: number; layer?: number | string; ref_type?: string; ref_id?: number }) {
+  return api.get<MapPin[]>('/floorplan/pins/', { params });
+}
+
+export function createMapPin(payload: MapPinPayload) {
+  return api.post<MapPin>('/floorplan/pins/', payload);
+}
+
+export function updateMapPin(id: number, payload: Partial<Pick<MapPin, 'x' | 'y' | 'name' | 'note' | 'ref_id'>>) {
+  return api.patch<MapPin>(`/floorplan/pins/${id}/`, payload);
+}
+
+export function deleteMapPin(id: number) {
+  return api.delete(`/floorplan/pins/${id}/`);
 }
 
 // ── Element kinds (palette catalog) ──────────────────────────────────────────

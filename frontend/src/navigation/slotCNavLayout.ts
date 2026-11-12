@@ -97,7 +97,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     label: 'Facilities',
     // The building and its gear (#67): Supplies for everyone, Keys for the owner and Admins. Service vendors,
     // maintenance and fire-extinguisher checks (as routines) and the cameras link join when they exist.
-    itemIds: ['supplies'],
+    itemIds: ['storeMap', 'signage', 'supplies'],
     managerItemIds: ['keys'],
   },
   {
@@ -209,7 +209,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'facilities',
     label: 'Facilities',
     shortLabel: 'Facilities',
-    helper: 'Supplies and keys',
+    helper: 'Store map, signage, supplies and keys',
     icon: 'workbench',
     shortcutColor: '#DB2777',
     shortcutDigit: 8,

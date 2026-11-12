@@ -246,4 +246,4 @@ class ApiTests(Base):
 
     def test_no_dashes_in_the_words_staff_read(self):
         words = [r['label'] for r in floor_issues.reasons()] + [r['label_es'] for r in floor_issues.reasons()]
-        self.assertFalse([w for w in words if '—' in w or '–' in w])
+        self.assertFalse([w for w in words if '\u2014' in w or '\u2013' in w])

@@ -467,6 +467,21 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   },
   // Supply lists, the weekly count and (owner) the order (owner, 2026-10-26). Every staff login counts, so the
   // Facilities link is for everyone (it was on everyone's avatar menu before #67).
+  // The Current floor plan with layers of pins (#105): every staff login looks; managers place pins.
+  storeMap: {
+    id: 'storeMap',
+    path: '/facilities/store-map',
+    label: 'Store map',
+    icon: 'floorplan',
+  },
+  // Every store sign: its print PDF, status (to make, printed, up), copies up, and its pins (#106). Staff look and
+  // print; managers change it (signage:manage).
+  signage: {
+    id: 'signage',
+    path: '/facilities/signage',
+    label: 'Signage',
+    icon: 'print',
+  },
   supplies: {
     id: 'supplies',
     path: '/supplies',

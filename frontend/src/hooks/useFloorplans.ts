@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as floorplanApi from '../api/floorplan.api';
-import type { PlanDocument } from '../types/floorplan.types';
+import type { MapPin, MapPinPayload, PlanDocument } from '../types/floorplan.types';
 
 export function useFloorPlans(params?: { location?: number }) {
   return useQuery({
@@ -57,5 +57,56 @@ export function useDeleteFloorPlan() {
   return useMutation({
     mutationFn: (id: number) => floorplanApi.deleteFloorPlan(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['floorplans'] }),
+  });
+}
+
+export function useMakeFloorPlanCurrent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => floorplanApi.makeFloorPlanCurrent(id).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['floorplans'] });
+      queryClient.invalidateQueries({ queryKey: ['store-map'] });
+    },
+  });
+}
+
+// ── Store map (#105) ─────────────────────────────────────────────────────────
+
+export function useStoreMap(location?: number) {
+  return useQuery({
+    queryKey: ['store-map', location ?? null],
+    queryFn: () => floorplanApi.getStoreMap(location ? { location } : undefined).then((r) => r.data),
+  });
+}
+
+/** Pin writes refresh the store map and any per-thing pin lists (a sign's pins). */
+function invalidatePins(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['store-map'] });
+  queryClient.invalidateQueries({ queryKey: ['map-pins'] });
+}
+
+export function useCreateMapPin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: MapPinPayload) => floorplanApi.createMapPin(payload).then((r) => r.data),
+    onSuccess: () => invalidatePins(queryClient),
+  });
+}
+
+export function useUpdateMapPin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...payload }: { id: number } & Partial<Pick<MapPin, 'x' | 'y' | 'name' | 'note' | 'ref_id'>>) =>
+      floorplanApi.updateMapPin(id, payload).then((r) => r.data),
+    onSuccess: () => invalidatePins(queryClient),
+  });
+}
+
+export function useDeleteMapPin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => floorplanApi.deleteMapPin(id),
+    onSuccess: () => invalidatePins(queryClient),
   });
 }

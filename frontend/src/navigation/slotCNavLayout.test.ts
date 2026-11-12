@@ -379,12 +379,12 @@ describe('Sidebar = the workspace you are in (phase 1 redesign)', () => {
     ]);
   });
 
-  it('gives every staff login Supplies in Facilities, and Keys to the owner and Admins (#67)', () => {
-    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'facilities')?.itemIds).toEqual(['supplies']);
+  it('gives every staff login Store map, Signage and Supplies in Facilities, and Keys to the owner and Admins (#67, #105, #106)', () => {
+    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'facilities')?.itemIds).toEqual(['storeMap', 'signage', 'supplies']);
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'facilities')?.managerItemIds).toEqual(['keys']);
     expect(NAV_ITEM_CATALOG.supplies?.need).toBeUndefined();
     const employee = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS);
-    expect(employee.find((g) => g.id === 'facilities')?.items.map((i) => i.id)).toEqual(['supplies']);
+    expect(employee.find((g) => g.id === 'facilities')?.items.map((i) => i.id)).toEqual(['storeMap', 'signage', 'supplies']);
   });
 
   it('keeps Owner and Reports owner-only in the catalog', () => {

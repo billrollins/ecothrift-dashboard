@@ -160,6 +160,8 @@ export interface FloorPlanListItem {
   location_name: string;
   schema_version: number;
   revision: number;
+  /** The location's Current plan: the store map (#105). A superuser sets it. */
+  is_current: boolean;
   created_by: number | null;
   created_by_name: string | null;
   created_at: string;
@@ -168,6 +170,53 @@ export interface FloorPlanListItem {
 
 export interface FloorPlanDetail extends FloorPlanListItem {
   data: PlanDocument;
+}
+
+// ── Store map (#105): layers of pins on the Current plan ───────────────────
+
+/** A layer of pins (Signage first; cameras, extinguishers, FF&E, keys, shelves later). */
+export interface MapLayer {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  color: string;
+  /** What a pin on this layer points at, e.g. `signage.sign`; blank = plain pins. */
+  ref_type: string;
+  sort_order: number;
+}
+
+/** One pin; x/y are plan inches. Its own row, so editing the drawing never moves it. */
+export interface MapPin {
+  id: number;
+  plan: number;
+  layer: number;
+  layer_slug: string;
+  x: number;
+  y: number;
+  name: string;
+  note: string;
+  ref_type: string;
+  ref_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MapPinPayload {
+  plan: number;
+  layer: number;
+  x: number;
+  y: number;
+  name: string;
+  note?: string;
+  ref_id?: number | null;
+}
+
+export interface StoreMapResponse {
+  plan: FloorPlanDetail | null;
+  layers: MapLayer[];
+  pins: MapPin[];
+  locations: { id: number; name: string; plan_id: number; plan_name: string }[];
 }
 
 export interface FloorPlanAsset {

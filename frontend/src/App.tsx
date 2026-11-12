@@ -52,6 +52,10 @@ const LinkSignPage = lazy(() => import('./pages/esign/SignPages').then((m) => ({
 const InAppSignPage = lazy(() => import('./pages/esign/SignPages').then((m) => ({ default: m.InAppSignPage })));
 const MessagesPage = lazy(() => import('./pages/messages/MessagesPage'));
 const FloorplanListPage = lazy(() => import('./pages/floorplan/FloorplanListPage'));
+// Facilities -> Store map (#105): the Current floor plan with layers of pins.
+const StoreMapPage = lazy(() => import('./pages/floorplan/StoreMapPage'));
+// Facilities -> Signage (#106): store signs, their print PDFs, and their pins on the store map.
+const SignagePage = lazy(() => import('./pages/signage/SignagePage'));
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -463,6 +467,8 @@ function AppRoutes() {
         <Route path="/inventory/count/:id/shrink" element={<LegacyCountRedirect tab="shrinkage" />} />
         <Route path="/inventory/count/:id/report" element={<LegacyCountRedirect />} />
         <Route path="/floor-ops/floorplans" element={<FloorplanListPage />} />
+        <Route path="/facilities/store-map" element={<StoreMapPage />} />
+        <Route path="/facilities/signage" element={<SignagePage />} />
         <Route path="/pos/terminal" element={<TerminalPage />} />
         <Route path="/pos/test" element={<TestTerminalPage />} />
         <Route path="/pos/drawers" element={<DrawerListPage />} />

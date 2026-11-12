@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-10 (the menu starts in your department #86; Processing > Returns #83 and Floor issues #84) -->
+<!-- Last updated: 2026-11-12 (Facilities > Store map #105, Signage #106) -->
 # Eco-Thrift Dashboard — App Map for Navigation Consultation
 
 **Purpose:** Hand this document to a consulting AI (or UX reviewer) to evaluate whether the staff navbar, workspaces, and page grouping can be organized more clearly.
@@ -202,6 +202,8 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. T
 | **Tag errors** | `/inventory/tag-errors` | Bad tags by week, traced to who checked them in and the truck (Inventory menu, under PR Fix-it). |
 | **Floorplans** | `/floor-ops/floorplans` | List of store floorplans. |
 | **Floorplan editor** | `/floor-ops/floorplans/:id/edit` | Full-screen SVG editor (walls, fixtures, print). Outside main chrome. |
+| **Store map** | `/facilities/store-map` | Facilities: the location's Current floorplan with layers of pins (Signage first). All staff look; managers place, drag and edit pins (#105). |
+| **Signage** | `/facilities/signage` | Facilities: every store sign with its status (to make, printed, up), copies up, print PDF (Print / Download) and its spots on the store map. All staff look and print; managers change it (#106). |
 | **Routines** | `/routines` | Account menu. Phone-first My Routines / Catalog; fill-in and live preview in a 9:20 frame. |
 | **Routine runner / editor** | `/routines/run/:id`, `/routines/run/new?routine=&draft=`, `/routines/new`, `/routines/catalog` | Staff fill a run; `?draft=` resumes an in-progress submission. Superuser authors in the left form with a live phone preview. Retail QA kinds (section tally, cross-check, owner spot check, work cycle) carry their own runners instead of an authored checklist. |
 

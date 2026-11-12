@@ -241,7 +241,7 @@ class NoItemTests(Base):
 
 class AiTests(Base):
     def test_the_ai_drafts_words_and_saves_nothing(self):
-        answer = {'title': 'Vitamix 5200 Blender — 64 oz', 'size': '8 x 7 x 20 in', 'in_box': 'Base, 64 oz jar, lid, tamper',
+        answer = {'title': 'Vitamix 5200 Blender \u2014 64 oz', 'size': '8 x 7 x 20 in', 'in_box': 'Base, 64 oz jar, lid, tamper',
                   'condition': 'Like new', 'good_to_know': 'Variable speed'}
         with mock.patch('apps.core.services.llm_router.llm_chat_tool_input', return_value=(answer, 'm')) as llm:
             out = self.client.post(f'{BASE}ai/', {'item': self.item.pk, 'title': 'vitamix blender'}, format='json')

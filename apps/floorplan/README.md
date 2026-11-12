@@ -98,7 +98,11 @@ Base: `/api/floorplan/` — JWT auth (standard dashboard auth). All staff roles 
 | POST | `plans/` | Body `{name, location}`; server seeds a default empty document |
 | GET | `plans/{id}/` | Full document in `data` |
 | PATCH/PUT | `plans/{id}/` | Saving `data` requires `revision` (see below). `name` alone needs no revision |
-| DELETE | `plans/{id}/` | Soft delete (`is_active=False`) |
+| DELETE | `plans/{id}/` | Soft delete (`is_active=False`); clears `is_current` |
+| POST | `plans/{id}/make-current/` | Superuser. The location's Current plan; pins move over from the old one. Returns the list row + `pins_moved` |
+| GET | `store-map/` | Staff. `?location=<id>`: Current plan with data, layers, pins, and the stores that have one |
+| GET | `layers/` | Staff. Store-map layers (read-only) |
+| GET/POST/PATCH/DELETE | `pins/` | Staff read; Manager/Admin write. Filters `plan`, `layer`, `ref_type`, `ref_id` |
 | GET | `assets/` | Image asset library. `?location=<id>` returns that location's assets plus shared (location-less) ones |
 | POST | `assets/` | Multipart upload: `file` (SVG/PNG/JPEG, ≤512 KB) + optional `name`, `location`. Manager/Admin only |
 | DELETE | `assets/{id}/` | Soft delete + orphan sweep: unreferenced assets are hard-deleted; still-referenced ones stay soft-deleted and elements fall back to solid color |
@@ -154,6 +158,38 @@ Clients send the revision they loaded with each save:
 Saves are rejected (`400`, `code: invalid_document`) when the document is not an object, has the
 wrong `schema_version`, exceeds ~1 MB or 5000 objects, is missing a collection, has objects
 without string `id`s, or contains non-numeric / absurd (>100,000 in) coordinates.
+
+## Store map: the Current plan and its layers (#105)
+
+- **Current plan:** `FloorPlan.is_current`, at most one per location (DB constraint
+  `floorplan_one_current_per_location`). Only a superuser sets it:
+  `POST plans/{id}/make-current/` (the star on Studios → Floorplans). The pins on the
+  location's previous Current plan move to the new one at the same inches; marking the old plan
+  Current again moves them back. Deleting a plan clears its flag. `is_current` is read-only in
+  the plan serializers.
+- **Layers:** `MapLayer` rows (`slug`, `name`, `color`, `sort_order`, `ref_type`). Seeded:
+  `signage` (migration `0006`). Later layers (security cameras, fire extinguishers, FF&E, keys
+  and security spots, shelves) are new seed rows; `ref_type` names the record a pin points at
+  (blank = plain pins with a name and a note). Read-only API `layers/`; add or change layers by a
+  seed migration or the Django admin.
+- **Pins:** `MapPin` rows (`plan`, `layer`, `x`, `y` in plan inches, `name`, `note`, `ref_type`
+  copied from the layer, `ref_id`). They are their own rows, so saving the plan drawing never
+  moves or drops them. A pin stays on its plan and layer (PATCH refuses a change); `x`/`y` may sit
+  up to 240" outside the plan, never further. API `pins/` (`?plan=`, `?layer=` id or slug,
+  `?ref_type=` + `?ref_id=`): all staff read, Manager/Admin write (capability
+  `floorplan:write`), hard delete.
+- **One read for the page:** `GET store-map/?location=<id>` → `{plan (with data) | null, layers,
+  pins, locations}`; without `location`, the first store that has a Current plan.
+- **Page:** Facilities → Store map (`/facilities/store-map`,
+  `frontend/src/pages/floorplan/StoreMapPage.tsx`). `features/floorplan/StoreMapView.tsx` draws
+  the plan read-only with the pins on top (pins keep one size on screen at every zoom); it is
+  reusable for any page that shows a record's pins.
+- **Layers that point at records:** a layer's `ref_type` is `<app_label>.<model>`; a pin on it
+  must carry the `ref_id` of a live row of that model (checked in `MapPinSerializer`, generically
+  through `apps.get_model`). First one: `signage.sign` (Signage, `apps/signage`, migration
+  `signage/0001_initial` sets it). The Store map page links such a pin to its record (`REF_LINKS`
+  in `StoreMapPage.tsx`); those pins are placed from the record's own page (Facilities → Signage).
+- Not built yet: shelves as inventory locations (inventory locations are untouched).
 
 ## Editor shortcuts
 
