@@ -3,6 +3,7 @@
  * item, copies a picture and pastes it. These small rules read what was pasted or dragged in.
  */
 import type { SheetPhoto } from './sheetLayouts';
+import { placePicture } from './sheetCrop';
 import type { Rect } from './sheetPlan';
 
 /** Pixels per inch below which a picture may print fuzzy. */
@@ -30,12 +31,14 @@ export function findPicturesUrl(brand: string, title: string): string {
   return `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`;
 }
 
-/** 'fuzzy' when the picture has too few pixels for the space it prints in; flagged, never refused. */
-export function printQuality(photo: Pick<SheetPhoto, 'width' | 'height' | 'turn' | 'fit'>, rect: Rect): 'ok' | 'fuzzy' {
+/** 'fuzzy' when the picture has too few pixels for the space it prints in; flagged, never refused. Zooming in (#108)
+ * spreads the same pixels wider, so it counts. */
+export function printQuality(photo: Pick<SheetPhoto, 'width' | 'height' | 'turn' | 'fit' | 'zoom' | 'x' | 'y'>, rect: Rect): 'ok' | 'fuzzy' {
   if (!photo.width || !photo.height || !rect.w || !rect.h) return 'ok';
   const quarter = ((photo.turn % 180) + 180) % 180 === 90;
-  const [w, h] = quarter ? [photo.height, photo.width] : [photo.width, photo.height];
-  // Fit scales the whole picture into the space (the tighter side sets it); Fill scales it to cover the space.
-  const ppi = photo.fit === 'fill' ? Math.min(w / rect.w, h / rect.h) : Math.max(w / rect.w, h / rect.h);
+  const w = quarter ? photo.height : photo.width;
+  // How wide the picture prints, as it stands: Fit shows it whole, Fill covers the space, then the zoom.
+  const placed = placePicture(photo, rect, photo.fit === 'fill' || Boolean(rect.crop));
+  const ppi = w / placed.w;
   return ppi < FUZZY_PPI ? 'fuzzy' : 'ok';
 }

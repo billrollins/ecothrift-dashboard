@@ -19,6 +19,14 @@ export interface SheetPhoto {
   turn: number;
   /** Stands on plain white (the server trimmed a white border): its space may widen freely, white on white. */
   plain?: boolean;
+  /**
+   * The crop inside the photo's frame (#108): 1 shows it as Fit or Fill does; more is closer. The frame never moves.
+   * Missing on photos saved before #108 (read as 1, 0, 0).
+   */
+  zoom?: number;
+  /** How far the picture's centre moves in its frame, as a share of the frame's width and height. */
+  x?: number;
+  y?: number;
 }
 
 export const LAYOUTS: SheetLayout[] = ['one', 'two', 'big2', 'big3', 'grid4'];
@@ -91,9 +99,31 @@ export function isWide(photo: Pick<SheetPhoto, 'width' | 'height' | 'turn'> | un
   return w > h * 1.05;
 }
 
+/** A fact's label: the sheet's own when someone (or the AI) changed it, else the standard one (#108). */
+export function factLabel(key: FactKey, labels?: Partial<Record<FactKey, string>> | null): string {
+  return (labels?.[key] ?? '').trim() || FACT_LABEL[key];
+}
+export const LABEL_MAX = 30;
+
 /** The facts that print, in order: an empty one does not print, label included (D23). */
-export function printedFacts(facts: Partial<Record<FactKey, string>>): { key: FactKey; label: string; value: string }[] {
-  return FACT_KEYS.map((key) => ({ key, label: FACT_LABEL[key], value: (facts[key] ?? '').trim() })).filter((fact) => fact.value);
+export function printedFacts(
+  facts: Partial<Record<FactKey, string>>,
+  labels?: Partial<Record<FactKey, string>> | null,
+): { key: FactKey; label: string; value: string }[] {
+  return FACT_KEYS.map((key) => ({ key, label: factLabel(key, labels), value: (facts[key] ?? '').trim() })).filter((fact) => fact.value);
+}
+
+/**
+ * Picture contrast for a weak office printer (#108): one setting for the sheet, 0 as taken. Each step darkens the
+ * middle tones (a gamma curve, so white paper stays white and black stays black) and deepens the colours a little.
+ * Photos only: the words are already solid black.
+ */
+export const CONTRASTS = [0, 1, 2, 3] as const;
+export const CONTRAST_LABEL = ['As taken', 'More', 'Strong', 'Strongest'] as const;
+export function contrastCurve(step: number): { exponent: number; saturate: number } | null {
+  const n = Math.max(0, Math.min(3, Math.round(step || 0)));
+  if (!n) return null;
+  return { exponent: [1, 1.3, 1.65, 2.05][n], saturate: [1, 1.12, 1.22, 1.32][n] };
 }
 
 /**

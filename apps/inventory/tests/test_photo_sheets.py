@@ -1,6 +1,8 @@
 """Photo sheets (Dash Update #95): a letter-size sheet of photos and the full title, for items in a box."""
 import io
+import json
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest import mock
 
 from django.contrib.auth.models import Group
@@ -239,23 +241,133 @@ class NoItemTests(Base):
         self.assertEqual((out['show_price'], out['show_item_number']), (True, True))
 
 
-class AiTests(Base):
-    def test_the_ai_drafts_words_and_saves_nothing(self):
-        answer = {'title': 'Vitamix 5200 Blender \u2014 64 oz', 'size': '8 x 7 x 20 in', 'in_box': 'Base, 64 oz jar, lid, tamper',
-                  'condition': 'Like new', 'good_to_know': 'Variable speed'}
-        with mock.patch('apps.core.services.llm_router.llm_chat_tool_input', return_value=(answer, 'm')) as llm:
-            out = self.client.post(f'{BASE}ai/', {'item': self.item.pk, 'title': 'vitamix blender'}, format='json')
-        self.assertEqual(out.status_code, 200, out.content)
-        self.assertEqual(llm.call_args.kwargs['purpose'], 'SUGGEST_PRODUCT')
-        # No em dash ever reaches the sheet.
-        self.assertEqual(out.json()['title'], 'Vitamix 5200 Blender, 64 oz')
-        self.assertEqual(out.json()['facts']['in_box'], 'Base, 64 oz jar, lid, tamper')
-        self.assertFalse(PhotoSheet.objects.exists())
+class CropAndContrastTests(Base):
+    """#108: a picture moves and zooms inside its frame; one contrast setting for the sheet; labels; typed words."""
 
-    def test_a_failed_ai_says_so_plainly(self):
+    def test_the_crop_of_each_picture_is_saved_and_kept_sane(self):
+        body = self.sheet_body()
+        body['photos'][0].update({'zoom': 1.75, 'x': -0.2, 'y': 0.125})
+        body['photos'][1].update({'zoom': 99, 'x': 'left', 'y': -50})
+        out = self.client.post(BASE, body, format='json').json()
+        first, second = out['photos']
+        self.assertEqual((first['zoom'], first['x'], first['y']), (1.75, -0.2, 0.125))
+        # Nonsense is held to the limits; a word is no shift at all.
+        self.assertEqual((second['zoom'], second['x'], second['y']), (photo_sheets.ZOOM_MAX, 0.0, -photo_sheets.SHIFT_MAX))
+        # A picture saved before #108 reads as not cropped.
+        sheet = PhotoSheet.objects.get(pk=out['id'])
+        sheet.photos = [{k: v for k, v in sheet.photos[0].items() if k not in ('zoom', 'x', 'y')}]
+        sheet.save()
+        again = self.client.patch(f'{BASE}{out["id"]}/', {'photos': sheet.photos}, format='json').json()
+        self.assertEqual((again['photos'][0]['zoom'], again['photos'][0]['x']), (1.0, 0.0))
+
+    def test_contrast_is_one_of_the_steps_and_a_new_sheet_starts_at_the_last_one(self):
+        out = self.client.post(BASE, self.sheet_body(contrast=2), format='json').json()
+        self.assertEqual(out['contrast'], 2)
+        self.assertEqual(self.client.post(BASE, self.sheet_body(contrast=7), format='json').status_code, 400)
+        # The office printer is the same for every sheet.
+        other = Item.objects.create(sku='ITM0095009', product=Product.objects.create(title='Desk lamp'), price=Decimal('9'))
+        self.assertEqual(self.client.get(f'{BASE}start/', {'item': other.pk}).json()['draft']['contrast'], 2)
+
+    def test_labels_keep_only_the_changed_ones_and_typed_keeps_known_boxes(self):
+        body = self.sheet_body(labels={'size': 'Size, assembled', 'in_box': 'In the box', 'bogus': 'x', 'good_to_know': ''},
+                               typed=['title', 'size', 'label.size', 'hacker'])
+        out = self.client.post(BASE, body, format='json').json()
+        self.assertEqual(out['labels'], {'size': 'Size, assembled'})
+        self.assertEqual(out['typed'], ['title', 'size', 'label.size'])
+        # A sheet saved before #108 has no list: every word there counts as typed.
+        PhotoSheet.objects.filter(pk=out['id']).update(typed=None)
+        self.assertIsNone(self.client.get(f'{BASE}{out["id"]}/').json()['typed'])
+        # The next one of the same product starts with the labels, but none of its words count as this person's typing.
+        draft = self.client.get(f'{BASE}start/', {'item': self.twin.pk}).json()['draft']
+        self.assertEqual((draft['labels'], draft['typed']), ({'size': 'Size, assembled'}, []))
+
+
+def _answer(**extra):
+    answer = {
+        'title': 'Vitamix 5200 Blender \u2014 64 oz', 'name': 'Blender', 'brand': 'Vitamix', 'condition': 'Like new, tested',
+        'size': '8 x 7 x 20 in', 'in_box': 'Base, 64 oz jar, lid, tamper', 'good_to_know': 'Variable speed',
+        'labels': {'size': 'Size', 'in_box': 'In the box', 'condition': 'Condition', 'good_to_know': 'Works with'},
+        'caption': 'product', 'not_assembled': False,
+    }
+    answer.update(extra)
+    return SimpleNamespace(tool_input=answer, model_used='spark', text='')
+
+
+class AiTests(Base):
+    def ask(self, body, answer=None, fail=False):
         from apps.core.services.llm_router import LLMAPIError
 
-        with mock.patch('apps.core.services.llm_router.llm_chat_tool_input', side_effect=LLMAPIError('down')):
-            out = self.client.post(f'{BASE}ai/', {'title': 'Chair'}, format='json')
+        patch = (mock.patch('apps.core.services.llm_router.llm_complete', side_effect=LLMAPIError('down')) if fail
+                 else mock.patch('apps.core.services.llm_router.llm_complete', return_value=answer or _answer()))
+        with patch as llm:
+            out = self.client.post(f'{BASE}ai/', body, format='json')
+        return out, llm
+
+    def sent(self, llm) -> dict:
+        return json.loads(llm.call_args.kwargs['messages'][0]['content'][0]['text'])
+
+    def test_the_ai_answers_every_word_and_saves_nothing(self):
+        out, llm = self.ask({'item': self.item.pk, 'title': 'vitamix blender', 'typed': []})
+        self.assertEqual(out.status_code, 200, out.content)
+        data = out.json()
+        # No em dash ever reaches the sheet.
+        self.assertEqual(data['title'], 'Vitamix 5200 Blender, 64 oz')
+        self.assertEqual(data['facts']['in_box'], 'Base, 64 oz jar, lid, tamper')
+        self.assertEqual(data['labels']['good_to_know'], 'Works with')
+        self.assertEqual(data['brand'], 'Vitamix')
+        self.assertEqual(llm.call_args.kwargs['log_purpose'], 'SUGGEST_PRODUCT')
+        self.assertFalse(PhotoSheet.objects.exists())
+
+    def test_it_reads_the_manifest_row_the_item_its_events_and_the_pictures(self):
+        from apps.inventory.models import FloorIssue, ItemHistory, ManifestRow, PurchaseOrder, Vendor
+
+        po = PurchaseOrder.objects.create(vendor=Vendor.objects.create(name='V108', code='V108'), order_number='PO-108',
+                                          ordered_date='2026-11-01', status='paid')
+        row = ManifestRow.objects.create(purchase_order=po, row_number=4, title='VITAMIX 5200 BLNDR 64OZ BLK',
+                                         condition='Open box', unit_retail=Decimal('449.95'), notes='No tamper')
+        self.item.manifest_row = row
+        self.item.save(update_fields=['manifest_row'])
+        ItemHistory.objects.create(item=self.item, event_type='condition_change', old_value='good', new_value='like_new',
+                                   note='Tested, runs on every speed')
+        FloorIssue.objects.create(item=self.item, reason='missing_parts', note='Lid missing')
+        photo = self.photo()
+        out, llm = self.ask({'item': self.item.pk, 'title': 'Vitamix 5200', 'facts': {'size': 'Big'},
+                             'typed': ['size'], 'photos': [photo]})
+        self.assertEqual(out.status_code, 200, out.content)
+        sent = self.sent(llm)
+        self.assertEqual(sent['manifest_row']['title'], 'VITAMIX 5200 BLNDR 64OZ BLK')
+        self.assertEqual(sent['manifest_row']['notes'], 'No tamper')
+        self.assertEqual(sent['item']['condition'], 'Like new')
+        self.assertEqual(sent['item_events']['history'][0]['note'], 'Tested, runs on every speed')
+        self.assertEqual(sent['item_events']['floor_issues'][0]['note'], 'Lid missing')
+        self.assertEqual(sent['product']['title'], self.blender.title)
+        # The words a person typed are named, so the AI keeps them; an empty typed box is not.
+        self.assertEqual(sent['typed_by_person'], ['size'])
+        self.assertEqual(sent['pictures'], 1)
+        blocks = llm.call_args.kwargs['messages'][0]['content']
+        self.assertEqual([b['type'] for b in blocks], ['text', 'image'])
+        self.assertEqual(out.json()['read'], ['the product', 'the manifest row', 'the item', '2 item events', '1 picture'])
+
+    def test_a_product_sheet_reads_the_newest_row_matched_to_it(self):
+        from apps.inventory.models import ManifestRow, PurchaseOrder, Vendor
+
+        po = PurchaseOrder.objects.create(vendor=Vendor.objects.create(name='V108b', code='V108B'), order_number='PO-108b',
+                                          ordered_date='2026-11-01', status='paid')
+        ManifestRow.objects.create(purchase_order=po, row_number=1, title='OLD ROW', matched_product=self.blender)
+        ManifestRow.objects.create(purchase_order=po, row_number=2, title='NEW ROW', matched_product=self.blender)
+        _, llm = self.ask({'product': self.blender.pk, 'title': ''})
+        self.assertEqual(self.sent(llm)['manifest_row']['title'], 'NEW ROW')
+
+    def test_a_sheet_from_before_108_counts_every_word_as_typed(self):
+        _, llm = self.ask({'item': self.item.pk, 'title': 'Vitamix 5200', 'brand': 'Vitamix', 'typed': None})
+        self.assertEqual(self.sent(llm)['typed_by_person'][:3], ['title', 'brand', 'label.size'])
+
+    def test_a_failed_ai_says_so_plainly(self):
+        out, _ = self.ask({'title': 'Chair'}, fail=True)
         self.assertEqual(out.status_code, 400)
-        self.assertIn('Type the facts', out.json()['detail'])
+        self.assertIn('Type the words', out.json()['detail'])
+
+    def test_no_title_and_no_product_asks_for_one(self):
+        out, llm = self.ask({'title': ''})
+        self.assertEqual(out.status_code, 400)
+        llm.assert_not_called()

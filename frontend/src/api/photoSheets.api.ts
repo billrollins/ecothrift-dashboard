@@ -34,6 +34,15 @@ export interface PhotoSheetFields {
   caption: 'product' | 'item';
   /** In the box, not put together: printed bold with the condition. */
   not_assembled: boolean;
+  /** Picture contrast for a weak printer (#108): 0 as taken, 1 to 3 stronger. */
+  contrast: number;
+  /** Fact labels someone (or the AI) changed (#108); a missing key prints the standard label. */
+  labels: Partial<Record<FactKey, string>>;
+  /**
+   * The boxes a person typed (#108), so Clean up with AI leaves them alone: 'title', 'name', 'brand', a fact key,
+   * 'label.<fact key>', 'caption', 'not_assembled'. Null on a sheet saved before #108: every word counts as typed.
+   */
+  typed: string[] | null;
 }
 
 export interface PhotoSheetDTO extends PhotoSheetFields {
@@ -104,8 +113,20 @@ export async function getSheetPhoto(file: number) {
   return (await api.get<Blob>(`${B}/photos/${file}/`, { responseType: 'blob' })).data;
 }
 
-export async function draftSheetWithAi(body: {
-  item?: number | null; product?: number | null; title: string; brand: string; facts: Record<FactKey, string>;
-}) {
-  return (await api.post<{ title: string; name: string; facts: Record<FactKey, string>; model: string }>(`${B}/ai/`, body)).data;
+/** What Clean up with AI answers (#108): every word, and what it read in plain words. Nothing is saved. */
+export interface SheetAiDraft {
+  title: string;
+  name: string;
+  brand: string;
+  facts: Record<FactKey, string>;
+  labels: Record<FactKey, string>;
+  caption: 'product' | 'item';
+  not_assembled: boolean;
+  /** Like ["the product", "the manifest row", "the item", "3 item events", "2 pictures"]. */
+  read: string[];
+  model: string;
+}
+
+export async function draftSheetWithAi(body: PhotoSheetFields & { item?: number | null; product?: number | null }) {
+  return (await api.post<SheetAiDraft>(`${B}/ai/`, body)).data;
 }

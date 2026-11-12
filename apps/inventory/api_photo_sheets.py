@@ -4,7 +4,9 @@ Photo sheets (Dash Update #95): a letter-size sheet of photos with the full titl
 
 GET   /api/inventory/photo-sheets/?q=                 the newest sheets (the Photo sheets page)
 POST  /api/inventory/photo-sheets/                    a new sheet {"item"? | "product"?, "title", "brand", "facts",
-                                                      "layout", "orientation", "photos", "show_price", "show_item_number"}
+                                                      "layout", "orientation", "photos" (each with its crop: "zoom",
+                                                      "x", "y"), "show_price", "show_item_number", "contrast",
+                                                      "labels", "typed"}
 GET   /api/inventory/photo-sheets/start/?item=|product=|code=  the saved sheet of this item or product (or the item
                                                       number typed), and where a new one starts
 GET   /api/inventory/photo-sheets/<id>/               one sheet
@@ -13,7 +15,10 @@ POST  /api/inventory/photo-sheets/<id>/printed/       count one print
 POST  /api/inventory/photo-sheets/photos/             one photo (multipart "photo"); returns {"file", "width", "height"}
 POST  /api/inventory/photo-sheets/photos/link/        a picture link pasted or dragged in {"url"}; fetched and saved
 GET   /api/inventory/photo-sheets/photos/<file>/      a sheet photo
-POST  /api/inventory/photo-sheets/ai/                 "Clean up with AI": a tidy title and four facts (nothing saved)
+POST  /api/inventory/photo-sheets/ai/                 "Clean up with AI" (#108): every word and label, from the
+                                                      sheet, the product, the manifest row, the item, its events and
+                                                      the pictures; "typed" names the boxes a person typed (nothing
+                                                      saved)
 """
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, parser_classes, permission_classes

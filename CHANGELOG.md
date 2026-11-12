@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.283.0] -->
-<!-- Last reviewed: 2026-11-12 (2.283.0) -->
+<!-- Line 1 release: ## [2.284.0] -->
+<!-- Last reviewed: 2026-11-12 (2.284.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.284.0] - 2026-11-12
+
+User-facing theme: **Photo sheets: move and zoom a picture inside its frame, one picture contrast setting for a weak printer, and a Clean up with AI that cleans every word and label from all Dash knows (Dash Update #108).**
+
+> **For Bill:** on a photo sheet, click a picture on the sheet and it gets a blue ring. Drag it to move the picture inside its frame; zoom with the mouse wheel, two fingers on a phone, or the + and − and slider in the bar under the sheet. The frame and the layout never move, only what shows inside the frame. **Reset** puts that one picture back (in the bar, or the small round arrow on its tile), and **Done** or Esc lets go. It is saved with the sheet and prints exactly as the preview shows it. Under the pictures there is now **Picture contrast**: As taken, More, Strong, Strongest. Each step prints the pictures' middle tones darker for a printer that prints light; white stays white and the words were already solid black. A new sheet starts at the contrast of the last sheet saved, since it is the same printer. **Clean up with AI** now cleans every word and label on the sheet (the title, the short name, the brand, the condition, size, in the box, good to know, each fact's label, the picture line, and "not assembled") and reads everything Dash knows: the product, the truck's manifest row, the item, its history and notes, floor issues and disputes, and the sheet's pictures. A word anyone typed stays exactly as typed; every other word may be cleaned. It says what it read and marks what it changed "From AI: check it". Each fact's label can now be changed by hand too (Size could read "Size, assembled").
+
+### Added (#108: photo sheets)
+- Per-picture crop in the sheet's `photos` JSON: `zoom` (0.5 to 5, 1 = as Fit or Fill shows it), `x`, `y` (the picture centre's shift as a share of the frame). `sheetCrop.ts` places the picture and holds it in its frame (a bigger picture always covers it, a smaller one stays inside); `sheetPlan` never reads the crop, so frames do not move. Drag, wheel and two-finger pinch on the picked picture; a crop bar with zoom slider, Reset and Done; a tile Reset. A turn or a new Fit/Fill resets that picture's crop. "May print fuzzy" now counts the zoom.
+- `PhotoSheet.contrast` (0 to 3), `labels` (changed fact labels only) and `typed` (the boxes a person typed; null on older sheets, where every word counts as typed), migration `inventory/0133_photo_sheet_contrast`. Contrast is an SVG gamma curve plus a little saturation on the pictures only; a new sheet starts at the newest sheet's contrast.
+- Clean up with AI (`photo_sheets.ai_draft`) sends the sheet's words with `typed_by_person`, the product and its profile, the item's manifest row (for a product sheet, the newest row matched to it), the item, up to 25 history events, 15 live notes, floor issues and live disputes, and up to 4 sheet pictures as image blocks; it answers every word, each label, the caption and `not_assembled` (only ever ticks it). Model: Settings > AI for SUGGEST_PRODUCT, else Spark Contributor, as Add item's Clean up. The answer lists what it read.
+- 7 new server tests (crop, contrast, labels, typed, the AI's context); 11 new front-end tests (crop placement and limits, frames fixed, preview equals print, contrast curve, labels, the typed-words-win merge).
 
 ## [2.283.0] - 2026-11-12
 

@@ -1,8 +1,10 @@
 import JsBarcode from 'jsbarcode';
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { PhotoSheetFields, PhotoSheetItem } from '../../api/photoSheets.api';
+import { cropOf, dragCrop, placePicture, zoomCrop, type Crop } from './sheetCrop';
 import {
-  PAPER, TITLE_FIT, fitTitle, paperSize, printedFacts, sheetMoney, titleFitFor, type SheetOrientation, type SheetPhoto,
+  PAPER, TITLE_FIT, contrastCurve, factLabel, fitTitle, paperSize, printedFacts, sheetMoney, titleFitFor,
+  type SheetOrientation, type SheetPhoto,
 } from './sheetLayouts';
 import { FACTS_GAP, SIDE_WIDTHS, planSheet, type Rect, type SheetPlan } from './sheetPlan';
 
@@ -24,8 +26,11 @@ export interface PhotoSheetPaperProps {
   photoUrl: (file: number) => string | null;
   /** On screen only: an empty sheet shows where the photos go, and a tap picks a photo. Never on paper. */
   editing?: boolean;
+  /** The picture picked on the sheet (#108): outlined, and a drag moves it in its frame, a wheel or pinch zooms it. */
   picked?: number | null;
   onSlot?: (index: number) => void;
+  /** A picked picture moved or zoomed in its frame (#108). Without it the pictures cannot be moved. */
+  onCrop?: (index: number, crop: Crop) => void;
   /** Called with how the title settled (for the editor's note). */
   onTitleFit?: (fit: { pt: number; lines: number }) => void;
   /** Called with where each photo landed on the paper, in inches (for the editor's "may print fuzzy"). */
@@ -52,9 +57,14 @@ export function titleLines(fields: Pick<PhotoSheetFields, 'title' | 'name'>): { 
  * window prints it at full size. White paper, black words, no fills. The photos take the paper the words leave, each
  * in a space the shape of the photo (sheetPlan.ts).
  */
-export function PhotoSheetPaper({ fields, item, photoUrl, editing = false, picked = null, onSlot, onTitleFit, onPlan }: PhotoSheetPaperProps) {
+export function PhotoSheetPaper({ fields, item, photoUrl, editing = false, picked = null, onSlot, onCrop, onTitleFit, onPlan }: PhotoSheetPaperProps) {
   const { width, height } = paperSize(fields.orientation);
-  const facts = printedFacts({ ...fields.facts, condition: '' });
+  const facts = printedFacts({ ...fields.facts, condition: '' }, fields.labels);
+  const conditionLabel = factLabel('condition', fields.labels);
+  // One contrast filter per sheet (the preview and the print copy are both on the page, so the ids differ).
+  const filterId = `ps-contrast-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const curve = contrastCurve(fields.contrast);
+  const photoFilter = curve ? `url(#${filterId}) saturate(${curve.saturate})` : undefined;
   const condition = (fields.facts.condition ?? '').trim();
   const price = fields.show_price && item ? sheetMoney(item.price) : '';
   const sku = fields.show_item_number && item ? item.sku : '';
@@ -127,7 +137,7 @@ export function PhotoSheetPaper({ fields, item, photoUrl, editing = false, picke
         ) : null}
         {condition || fields.not_assembled ? (
           <div data-testid="photo-sheet-condition" style={{ fontSize: `${TYPE.condition}pt`, lineHeight: 1.2, marginTop: '0.1in', fontWeight: 600, overflowWrap: 'anywhere' }}>
-            {condition ? <><span style={{ fontWeight: 800 }}>Condition:</span> {condition}{fields.not_assembled ? ' ' : ''}</> : null}
+            {condition ? <><span style={{ fontWeight: 800 }}>{conditionLabel}:</span> {condition}{fields.not_assembled ? ' ' : ''}</> : null}
             {/* The picture shows it put together; the box holds it in pieces. The shopper must not miss that. */}
             {fields.not_assembled ? <span data-testid="photo-sheet-not-assembled" style={{ fontWeight: 800 }}>In the box, not assembled.</span> : null}
           </div>
@@ -135,6 +145,18 @@ export function PhotoSheetPaper({ fields, item, photoUrl, editing = false, picke
       </header>
 
       <div ref={bodyRef} data-testid="photo-sheet-body" style={{ flex: '1 1 auto', minHeight: 0, position: 'relative', marginTop: '0.18in' }}>
+        {curve ? (
+          // A gamma curve on each colour: the middle tones print darker on a weak printer, white and black stay put.
+          <svg aria-hidden="true" width="0" height="0" style={{ position: 'absolute', width: 0, height: 0 }} data-testid="photo-sheet-contrast" data-step={fields.contrast}>
+            <filter id={filterId} colorInterpolationFilters="sRGB">
+              <feComponentTransfer>
+                <feFuncR type="gamma" amplitude="1" exponent={curve.exponent} offset="0" />
+                <feFuncG type="gamma" amplitude="1" exponent={curve.exponent} offset="0" />
+                <feFuncB type="gamma" amplitude="1" exponent={curve.exponent} offset="0" />
+              </feComponentTransfer>
+            </filter>
+          </svg>
+        ) : null}
         {plan.photos.rects.map((rect, index) => {
           const photo = fields.photos[index];
           return (
@@ -147,6 +169,8 @@ export function PhotoSheetPaper({ fields, item, photoUrl, editing = false, picke
               editing={editing}
               picked={picked === index}
               onSlot={onSlot}
+              onCrop={onCrop}
+              filter={photoFilter}
             />
           );
         })}
@@ -239,7 +263,7 @@ function Facts({ facts, beside, scale }: { facts: { key: string; label: string; 
   );
 }
 
-function PhotoSpace({ index, rect, photo, url, editing, picked, onSlot }: {
+function PhotoSpace({ index, rect, photo, url, editing, picked, onSlot, onCrop, filter }: {
   index: number;
   rect: Rect;
   photo: SheetPhoto;
@@ -247,8 +271,15 @@ function PhotoSpace({ index, rect, photo, url, editing, picked, onSlot }: {
   editing: boolean;
   picked: boolean;
   onSlot?: (index: number) => void;
+  onCrop?: (index: number, crop: Crop) => void;
+  filter?: string;
 }) {
   const quarter = ((photo.turn % 180) + 180) % 180 === 90;
+  const cover = photo.fit === 'fill' || Boolean(rect.crop);
+  const placed = placePicture(photo, rect, cover);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const movable = editing && picked && Boolean(onCrop);
+  useCropGestures(frameRef, movable, index, photo, rect, cover, onCrop);
   let inner: ReactNode = null;
   if (url) {
     inner = (
@@ -257,16 +288,21 @@ function PhotoSpace({ index, rect, photo, url, editing, picked, onSlot }: {
         alt=""
         draggable={false}
         decoding="sync"
+        data-testid={`photo-sheet-picture-${index}`}
         style={{
           position: 'absolute',
-          left: '50%',
-          top: '50%',
-          // A quarter turn swaps the photo's sides, so it fills the space the right way round.
-          width: quarter ? `${rect.h}in` : '100%',
-          height: quarter ? `${rect.w}in` : '100%',
+          // The picture's own box, its centre shifted by the crop (sheetCrop.ts). A quarter turn swaps its sides first.
+          left: `calc(50% + ${placed.dx}in)`,
+          top: `calc(50% + ${placed.dy}in)`,
+          width: `${quarter ? placed.h : placed.w}in`,
+          height: `${quarter ? placed.w : placed.h}in`,
+          maxWidth: 'none',
           transform: `translate(-50%, -50%) rotate(${photo.turn}deg)`,
-          objectFit: photo.fit === 'fill' || rect.crop ? 'cover' : 'contain',
+          // The box has the picture's shape; cover only hides a pixel's rounding at an edge.
+          objectFit: 'cover',
           display: 'block',
+          filter,
+          pointerEvents: 'none',
         }}
       />
     );
@@ -275,8 +311,10 @@ function PhotoSpace({ index, rect, photo, url, editing, picked, onSlot }: {
   }
   return (
     <div
+      ref={frameRef}
       data-testid={`photo-sheet-slot-${index}`}
-      onClick={onSlot ? () => onSlot(index) : undefined}
+      data-zoom={placed.crop.zoom}
+      onClick={onSlot && !movable ? () => onSlot(index) : undefined}
       style={{
         position: 'absolute',
         left: `${rect.x}in`,
@@ -284,14 +322,98 @@ function PhotoSpace({ index, rect, photo, url, editing, picked, onSlot }: {
         width: `${rect.w}in`,
         height: `${rect.h}in`,
         overflow: 'hidden',
-        cursor: onSlot ? 'pointer' : undefined,
-        outline: editing && picked ? '7px solid #1f6feb' : undefined,
-        outlineOffset: -7,
+        cursor: movable ? 'grab' : onSlot ? 'pointer' : undefined,
+        // A picked picture takes every touch: a finger drags it, it does not scroll the page.
+        touchAction: movable ? 'none' : undefined,
       }}
     >
       {inner}
+      {/* The picked ring sits over the picture: a zoomed picture would cover an outline. Screen only. */}
+      {editing && picked ? (
+        <div className="ps-screen-only" style={{ position: 'absolute', inset: 0, border: '7px solid #1f6feb', pointerEvents: 'none' }} />
+      ) : null}
     </div>
   );
+}
+
+/**
+ * Drag to move the picked picture in its frame, the mouse wheel or a two-finger pinch to zoom it (#108). Moves are
+ * measured as a share of the frame on screen, so the preview's scale does not matter.
+ */
+function useCropGestures(
+  frameRef: React.RefObject<HTMLDivElement | null>,
+  movable: boolean,
+  index: number,
+  photo: SheetPhoto,
+  frame: Rect,
+  cover: boolean,
+  onCrop?: (index: number, crop: Crop) => void,
+) {
+  const live = useRef({ photo, frame, cover, onCrop, index });
+  live.current = { photo, frame, cover, onCrop, index };
+  useEffect(() => {
+    const node = frameRef.current;
+    if (!node || !movable) return undefined;
+    const pointers = new Map<number, { x: number; y: number }>();
+    let start: { crop: Crop; x: number; y: number; spread: number } | null = null;
+    const spreadOf = () => {
+      const [a, b] = Array.from(pointers.values());
+      return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+    };
+    const centre = () => {
+      const all = Array.from(pointers.values());
+      return { x: all.reduce((t, p) => t + p.x, 0) / all.length, y: all.reduce((t, p) => t + p.y, 0) / all.length };
+    };
+    const begin = () => {
+      const c = centre();
+      start = { crop: cropOf(live.current.photo), x: c.x, y: c.y, spread: spreadOf() };
+    };
+    const down = (event: PointerEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      node.setPointerCapture?.(event.pointerId);
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      node.style.cursor = 'grabbing';
+      begin();
+    };
+    const move = (event: PointerEvent) => {
+      if (!start || !pointers.has(event.pointerId)) return;
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const box = node.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+      const { photo: p, frame: f, cover: cv, onCrop: emit, index: i } = live.current;
+      const c = centre();
+      let crop = start.crop;
+      if (pointers.size > 1 && start.spread > 0) crop = zoomCrop(p, crop, crop.zoom * (spreadOf() / start.spread), f, cv);
+      crop = dragCrop(p, crop, (c.x - start.x) / box.width, (c.y - start.y) / box.height, f, cv);
+      emit?.(i, crop);
+    };
+    const up = (event: PointerEvent) => {
+      pointers.delete(event.pointerId);
+      node.style.cursor = 'grab';
+      if (pointers.size) begin();
+      else start = null;
+    };
+    const wheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const { photo: p, frame: f, cover: cv, onCrop: emit, index: i } = live.current;
+      const crop = cropOf(p);
+      emit?.(i, zoomCrop(p, crop, crop.zoom * Math.exp(-event.deltaY * 0.0015), f, cv));
+    };
+    node.addEventListener('pointerdown', down);
+    node.addEventListener('pointermove', move);
+    node.addEventListener('pointerup', up);
+    node.addEventListener('pointercancel', up);
+    // Not passive: the wheel zooms the picture, it does not scroll the page.
+    node.addEventListener('wheel', wheel, { passive: false });
+    return () => {
+      node.removeEventListener('pointerdown', down);
+      node.removeEventListener('pointermove', move);
+      node.removeEventListener('pointerup', up);
+      node.removeEventListener('pointercancel', up);
+      node.removeEventListener('wheel', wheel);
+    };
+  }, [frameRef, movable]);
 }
 
 /** The item number with its barcode (D25), drawn the way the price tags draw theirs. */

@@ -1,8 +1,11 @@
 import {
   Alert, Box, Button, ButtonBase, Checkbox, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle,
-  FormControlLabel, IconButton, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography, useMediaQuery,
-  useTheme,
+  FormControlLabel, IconButton, Slider, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
+  useMediaQuery, useTheme,
 } from '@mui/material';
+import AddRounded from '@mui/icons-material/AddRounded';
+import RemoveRounded from '@mui/icons-material/RemoveRounded';
+import RestartAltRounded from '@mui/icons-material/RestartAltRounded';
 import AutoAwesomeRounded from '@mui/icons-material/AutoAwesomeRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import ContentPasteRounded from '@mui/icons-material/ContentPasteRounded';
@@ -20,14 +23,17 @@ import { AddPhoto } from '../photos/AddPhoto';
 import { isPhotoFile, shrinkPhoto } from '../photos/photoFile';
 import { findPicturesUrl, pictureLinkFrom, printQuality } from './sheetPaste';
 import type { Rect } from './sheetPlan';
+import { ZOOM_MAX, ZOOM_MIN, cropOf, isCropped, setCrop, zoomCrop, type Crop } from './sheetCrop';
 import { PhotoSheetPaper, brandLine, titleLines } from './PhotoSheetPaper';
 import { PhotoSheetPrintRoot, printSheetNow, useSheetPhotoUrls } from './PhotoSheetPrint';
 import {
-  addPhotos, emptySheet, mergeAiDraft, removePhoto, setFit, sheetBody, swapPhotos, turnPhoto, withPhotos,
+  addPhotos, emptySheet, markTyped, mergeAiDraft, removePhoto, setFit, sheetBody, swapPhotos, turnPhoto, typedOf,
+  withPhotos,
 } from './sheetEdits';
 import {
-  FACT_KEYS, FACT_LABEL, FACT_MAX, LAYOUTS, LAYOUT_LABEL, LAYOUT_SLOTS, MAX_PHOTOS, ORIENTATIONS, ORIENTATION_LABEL,
-  layoutGrid, paperSize, sheetMoney, SLOT_AREAS, type FactKey, type SheetLayout, type SheetOrientation,
+  CONTRASTS, CONTRAST_LABEL, FACT_LABEL, FACT_MAX, LABEL_MAX, LAYOUTS, LAYOUT_LABEL, LAYOUT_SLOTS, MAX_PHOTOS,
+  ORIENTATIONS, ORIENTATION_LABEL, layoutGrid, paperSize, sheetMoney, SLOT_AREAS, type FactKey, type SheetLayout,
+  type SheetOrientation,
 } from './sheetLayouts';
 import { pickLayout } from './sheetPlan';
 
@@ -81,8 +87,10 @@ export function PhotoSheetEditor({ target, onClose, phone }: { target: PhotoShee
   const [ready, setReady] = useState(!hasTarget);
   const [dirty, setDirty] = useState(false);
   const [layoutChosen, setLayoutChosen] = useState(Boolean(target?.sheet));
-  const [titleTyped, setTitleTyped] = useState(Boolean(target?.sheet));
   const [fromAi, setFromAi] = useState<string[]>([]);
+  const [aiRead, setAiRead] = useState<string[] | null>(null);
+  // The picture picked on the sheet, to move and zoom in its frame (#108). The tiles' tap-to-swap is `picked`.
+  const [cropping, setCropping] = useState<number | null>(null);
   const [fromSheet, setFromSheet] = useState<{ id: number; sku: string } | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
   const [adding, setAdding] = useState(0);
@@ -104,12 +112,12 @@ export function PhotoSheetEditor({ target, onClose, phone }: { target: PhotoShee
       setSheet(data.sheet);
       setFields(fieldsOf(data.sheet));
       setLayoutChosen(true);
-      setTitleTyped(true);
     } else {
       const draft = data.draft;
       const base: PhotoSheetFields = {
         ...emptySheet(), title: draft.title, name: draft.name ?? '', brand: draft.brand, facts: { ...emptySheet().facts, ...draft.facts },
         photos: draft.photos, show_price: false, show_item_number: false,
+        contrast: draft.contrast ?? 0, labels: draft.labels ?? {}, typed: draft.typed ?? [],
         ...(draft.layout && draft.orientation ? { layout: draft.layout, orientation: draft.orientation } : pickLayout(draft.photos)),
       };
       setFields(base);
@@ -126,6 +134,28 @@ export function PhotoSheetEditor({ target, onClose, phone }: { target: PhotoShee
     setFields((current) => ({ ...current, ...next }));
     setDirty(true);
   }, []);
+  /** A person typed (or picked) these boxes: their words win over Clean up with AI from now on (#108). */
+  const typeIn = useCallback((keys: string[], next: Partial<PhotoSheetFields>) => {
+    setFields((current) => markTyped({ ...current, ...next }, ...keys));
+    setFromAi((filled) => filled.filter((key) => !keys.includes(key)));
+    setDirty(true);
+  }, []);
+  const crop = useCallback((index: number, next: Crop | null) => {
+    setFields((current) => ({ ...current, photos: setCrop(current.photos, index, next) }));
+    setDirty(true);
+  }, []);
+  // A picked picture that is taken off, or no longer prints, is no longer picked.
+  useEffect(() => {
+    if (cropping !== null && cropping >= Math.min(fields.photos.length, LAYOUT_SLOTS[fields.layout])) setCropping(null);
+  }, [cropping, fields.photos.length, fields.layout]);
+  useEffect(() => {
+    if (cropping === null) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setCropping(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [cropping]);
   const changePhotos = useCallback((edit: (photos: PhotoSheetFields['photos']) => PhotoSheetFields['photos']) => {
     setFields((current) => withPhotos(current, edit(current.photos), layoutChosen));
     setDirty(true);
@@ -274,16 +304,18 @@ export function PhotoSheetEditor({ target, onClose, phone }: { target: PhotoShee
   };
 
   const ai = useMutation({
-    mutationFn: () => draftSheetWithAi({ item: item?.id ?? null, product: product?.id ?? null, title: fields.title, brand: fields.brand, facts: fields.facts }),
+    // Everything on the sheet goes, pictures too; the server adds what Dash knows (#108).
+    mutationFn: () => draftSheetWithAi({ ...sheetBody(fields), item: item?.id ?? null, product: product?.id ?? null }),
     onSuccess: (draft) => {
-      // A title someone typed (or saved) stays; the one Dash filled in from the product may be tidied.
-      const merged = mergeAiDraft(fields, draft, { keepTitle: titleTyped });
+      // Every box a person typed keeps its words; the AI may clean up all the others.
+      const merged = mergeAiDraft(fields, draft);
       setFields(merged.fields);
       setFromAi(merged.filled);
+      setAiRead(draft.read ?? []);
       if (merged.filled.length) setDirty(true);
-      setError(merged.filled.length ? '' : 'The AI had nothing to add. Every box already says something.');
+      setError(merged.filled.length ? '' : 'The AI had nothing to change. The words you typed stay as they are.');
     },
-    onError: (err: unknown) => setError(errorText(err, 'The AI could not help this time. Type the facts, or try again.')),
+    onError: (err: unknown) => setError(errorText(err, 'The AI could not help this time. Type the words, or try again.')),
   });
 
   const close = () => {
@@ -397,6 +429,7 @@ export function PhotoSheetEditor({ target, onClose, phone }: { target: PhotoShee
           onSwap={(a, b) => changePhotos((photos) => swapPhotos(photos, a, b))}
           onFit={(index, fit) => changePhotos((photos) => setFit(photos, index, fit))}
           onTurn={(index) => changePhotos((photos) => turnPhoto(photos, index))}
+          onReset={(index) => crop(index, null)}
           onRemove={(index) => {
             setPicked(null);
             changePhotos((photos) => removePhoto(photos, index));
@@ -425,12 +458,32 @@ export function PhotoSheetEditor({ target, onClose, phone }: { target: PhotoShee
             exclusive
             size="small"
             value={fields.caption}
-            onChange={(_, value) => { if (value) change({ caption: value }); }}
+            onChange={(_, value) => { if (value) typeIn(['caption'], { caption: value }); }}
             aria-label="What the pictures are"
           >
             <ToggleButton value="product" sx={{ textTransform: 'none', fontWeight: 700, minHeight: 40 }} data-testid="photo-sheet-caption-product">Product picture</ToggleButton>
             <ToggleButton value="item" sx={{ textTransform: 'none', fontWeight: 700, minHeight: 40 }} data-testid="photo-sheet-caption-item">Photo of this item</ToggleButton>
           </ToggleButtonGroup>
+          {fromAi.includes('caption') ? <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mt: 0.5 }}>From AI: check it.</Typography> : null}
+        </Box>
+        <Box>
+          <Typography sx={{ fontSize: 13.5, fontWeight: 700, mb: 0.5 }}>Picture contrast</Typography>
+          <ToggleButtonGroup
+            exclusive
+            size="small"
+            value={fields.contrast ?? 0}
+            onChange={(_, value) => { if (value !== null && value !== undefined) change({ contrast: value }); }}
+            aria-label="Picture contrast"
+          >
+            {CONTRASTS.map((step) => (
+              <ToggleButton key={step} value={step} sx={{ textTransform: 'none', fontWeight: 700, minHeight: 40, px: 1.25 }} data-testid={`photo-sheet-contrast-${step}`}>
+                {CONTRAST_LABEL[step]}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+          <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mt: 0.5 }}>
+            For a printer that prints pictures light: darker middle tones, white stays white. The preview shows it as it prints.
+          </Typography>
         </Box>
       </Section>
 
@@ -454,11 +507,7 @@ export function PhotoSheetEditor({ target, onClose, phone }: { target: PhotoShee
         <TextField
           label="Full title"
           value={fields.title}
-          onChange={(event) => {
-            setTitleTyped(true);
-            setFromAi((keys) => keys.filter((key) => key !== 'title'));
-            change({ title: event.target.value.slice(0, 300) });
-          }}
+          onChange={(event) => typeIn(['title'], { title: event.target.value.slice(0, 300) })}
           multiline
           minRows={2}
           fullWidth
@@ -470,10 +519,7 @@ export function PhotoSheetEditor({ target, onClose, phone }: { target: PhotoShee
             label="Short name (prints big)"
             placeholder="Like L-shaped sleeper sofa"
             value={fields.name}
-            onChange={(event) => {
-              setFromAi((keys) => keys.filter((key) => key !== 'name'));
-              change({ name: event.target.value.slice(0, 80) });
-            }}
+            onChange={(event) => typeIn(['name'], { name: event.target.value.slice(0, 80) })}
             fullWidth
             size="small"
             helperText={fromAi.includes('name') ? 'From AI: check it.' : fields.name.trim() ? 'The full title prints smaller under it.' : 'A long title reads better with a few plain words on top.'}
@@ -483,46 +529,66 @@ export function PhotoSheetEditor({ target, onClose, phone }: { target: PhotoShee
         <TextField
           label="Brand (small, above the title)"
           value={fields.brand}
-          onChange={(event) => change({ brand: event.target.value.slice(0, 200) })}
+          onChange={(event) => typeIn(['brand'], { brand: event.target.value.slice(0, 200) })}
           fullWidth
           size="small"
-          helperText={fields.brand.trim() && !brandLine(fields.brand, titleLines(fields).big) ? 'The title starts with it, so it prints once.' : undefined}
+          helperText={fromAi.includes('brand') ? 'From AI: check it.' : fields.brand.trim() && !brandLine(fields.brand, titleLines(fields).big) ? 'The title starts with it, so it prints once.' : undefined}
         />
-        {(['condition', 'size', 'in_box', 'good_to_know'] as FactKey[]).map((key) => (
-          <TextField
-            key={key}
-            label={key === 'condition' ? 'Condition (prints bold, under the title)' : FACT_LABEL[key]}
-            placeholder={FACT_HINT[key]}
-            value={fields.facts[key]}
-            onChange={(event) => {
-              setFromAi((keys) => keys.filter((k) => k !== key));
-              change({ facts: { ...fields.facts, [key]: event.target.value.slice(0, FACT_MAX) } });
-            }}
-            fullWidth
-            size="small"
-            helperText={fromAi.includes(key) ? 'From AI: check it.' : undefined}
-            inputProps={{ 'data-testid': `photo-sheet-fact-input-${key}` }}
-          />
-        ))}
+        {(['condition', 'size', 'in_box', 'good_to_know'] as FactKey[]).map((key) => {
+          const labelKey = `label.${key}`;
+          const ai = [fromAi.includes(labelKey) ? 'label' : '', fromAi.includes(key) ? 'words' : ''].filter(Boolean);
+          return (
+            <Stack key={key} direction="row" spacing={1} alignItems="flex-start">
+              <TextField
+                label="Label"
+                value={fields.labels?.[key] ?? FACT_LABEL[key]}
+                onChange={(event) => typeIn([labelKey], { labels: { ...fields.labels, [key]: event.target.value.slice(0, LABEL_MAX) } })}
+                onBlur={() => {
+                  // An emptied label goes back to the standard one.
+                  if (!(fields.labels?.[key] ?? '').trim()) change({ labels: { ...fields.labels, [key]: FACT_LABEL[key] } });
+                }}
+                size="small"
+                sx={{ width: 150, flex: '0 0 auto' }}
+                inputProps={{ 'data-testid': `photo-sheet-label-input-${key}`, 'aria-label': `Label for ${FACT_LABEL[key]}` }}
+              />
+              <TextField
+                label={key === 'condition' ? 'Prints bold, under the title' : 'Words'}
+                placeholder={FACT_HINT[key]}
+                value={fields.facts[key]}
+                onChange={(event) => typeIn([key], { facts: { ...fields.facts, [key]: event.target.value.slice(0, FACT_MAX) } })}
+                fullWidth
+                size="small"
+                helperText={ai.length ? `From AI (${ai.join(' and ')}): check it.` : undefined}
+                inputProps={{ 'data-testid': `photo-sheet-fact-input-${key}`, 'aria-label': FACT_LABEL[key] }}
+              />
+            </Stack>
+          );
+        })}
         <FormControlLabel
           sx={{ mt: -1 }}
-          control={<Checkbox checked={fields.not_assembled} onChange={(event) => change({ not_assembled: event.target.checked })} data-testid="photo-sheet-not-assembled" />}
-          label="In the box, not assembled (prints bold, with the condition)"
+          control={<Checkbox checked={fields.not_assembled} onChange={(event) => typeIn(['not_assembled'], { not_assembled: event.target.checked })} data-testid="photo-sheet-not-assembled" />}
+          label={`In the box, not assembled (prints bold, with the condition)${fromAi.includes('not_assembled') ? '. From AI: check it.' : ''}`}
         />
         <Typography sx={{ color: 'text.secondary', fontSize: 13, mt: -1 }}>A box left empty does not print, label and all.</Typography>
         <Button
           variant="outlined"
           startIcon={ai.isPending ? <CircularProgress size={16} /> : <AutoAwesomeRounded />}
           onClick={() => ai.mutate()}
-          disabled={ai.isPending || (!fields.title.trim() && !product)}
+          disabled={ai.isPending || adding > 0 || (!fields.title.trim() && !product)}
           sx={{ alignSelf: 'flex-start', minHeight: 44 }}
           data-testid="photo-sheet-ai"
         >
           Clean up with AI
         </Button>
         <Typography sx={{ color: 'text.secondary', fontSize: 13, mt: -1 }}>
-          Fills the empty boxes from what Dash knows about the product. Check every word; you can change any of it.
+          Cleans up every word and label from all Dash knows: the product, the truck's manifest row, the item, its
+          history and notes, and the pictures. Words you typed stay. Check every word; you can change any of it.
         </Typography>
+        {aiRead ? (
+          <Typography sx={{ color: 'text.secondary', fontSize: 13, mt: -1 }} data-testid="photo-sheet-ai-read">
+            The AI read {aiRead.length ? joinWords(aiRead) : 'only the words on the sheet'}.
+          </Typography>
+        ) : null}
       </Section>
 
       <Section title="4. From the price tag (most sheets leave these off)">
@@ -562,14 +628,18 @@ export function PhotoSheetEditor({ target, onClose, phone }: { target: PhotoShee
       {phone ? (
         <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
           <Box sx={{ height: '46vh', p: 1.5, bgcolor: 'grey.200' }}>
-            <Preview fields={fields} item={item} photoUrl={photoUrl} picked={picked} onSlot={tapPhoto} onTitleFit={setTitleFit} onPlan={setRects} />
+            <Preview fields={fields} item={item} photoUrl={photoUrl} picked={cropping} onSlot={setCropping} onCrop={crop} onTitleFit={setTitleFit} onPlan={setRects} />
           </Box>
+          <CropBar fields={fields} rects={rects} index={cropping} onCrop={crop} onDone={() => setCropping(null)} />
           {controls}
         </Box>
       ) : (
         <Box sx={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 460px' }}>
-          <Box sx={{ minHeight: 0, p: 3, bgcolor: 'grey.200' }}>
-            <Preview fields={fields} item={item} photoUrl={photoUrl} picked={picked} onSlot={tapPhoto} onTitleFit={setTitleFit} onPlan={setRects} />
+          <Box sx={{ minHeight: 0, p: 3, pb: 1.5, bgcolor: 'grey.200', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Box sx={{ flex: 1, minHeight: 0 }}>
+              <Preview fields={fields} item={item} photoUrl={photoUrl} picked={cropping} onSlot={setCropping} onCrop={crop} onTitleFit={setTitleFit} onPlan={setRects} />
+            </Box>
+            <CropBar fields={fields} rects={rects} index={cropping} onCrop={crop} onDone={() => setCropping(null)} />
           </Box>
           <Box sx={{ minHeight: 0, overflowY: 'auto', borderLeft: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>{controls}</Box>
         </Box>
@@ -598,9 +668,79 @@ export function PhotoSheetEditor({ target, onClose, phone }: { target: PhotoShee
 function fieldsOf(sheet: PhotoSheetDTO): PhotoSheetFields {
   return {
     caption: sheet.caption ?? 'product', not_assembled: Boolean(sheet.not_assembled),
+    contrast: sheet.contrast ?? 0, labels: sheet.labels ?? {}, typed: Array.isArray(sheet.typed) ? sheet.typed : null,
     title: sheet.title, name: sheet.name ?? '', brand: sheet.brand, facts: { ...emptySheet().facts, ...sheet.facts }, layout: sheet.layout,
     orientation: sheet.orientation, photos: sheet.photos, show_price: sheet.show_price, show_item_number: sheet.show_item_number,
   };
+}
+
+/** "a, b and c". */
+function joinWords(parts: string[]): string {
+  if (parts.length <= 1) return parts.join('');
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+}
+
+/**
+ * Under the preview: what to do with a picture on the sheet, and the zoom, Reset and Done for the picked one (#108).
+ * Screen only; nothing here prints.
+ */
+function CropBar({ fields, rects, index, onCrop, onDone }: {
+  fields: PhotoSheetFields;
+  rects: Rect[];
+  index: number | null;
+  onCrop: (index: number, crop: Crop | null) => void;
+  onDone: () => void;
+}) {
+  const shown = Math.min(fields.photos.length, LAYOUT_SLOTS[fields.layout]);
+  if (!shown) return null;
+  const photo = index !== null ? fields.photos[index] : undefined;
+  const rect = index !== null ? rects[index] : undefined;
+  if (index === null || !photo || !rect) {
+    return (
+      // As tall as the bar, so the preview does not jump when a picture is picked.
+      <Typography sx={{ fontSize: 13.5, color: 'text.secondary', textAlign: 'center', minHeight: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }} data-testid="photo-sheet-crop-hint">
+        Click a picture on the sheet to move it in its frame or zoom it.
+      </Typography>
+    );
+  }
+  const cover = photo.fit === 'fill' || Boolean(rect.crop);
+  const now = cropOf(photo);
+  const zoomTo = (zoom: number) => onCrop(index, zoomCrop(photo, now, zoom, rect, cover));
+  // The slider moves in even steps however far in it is (a log scale): 0.5x, 1x, 2x and 4x sit evenly apart.
+  const toSlider = (zoom: number) => Math.log2(zoom);
+  return (
+    <Box
+      sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', bgcolor: 'background.paper', borderRadius: 2, px: 1.5, py: 0.5, minHeight: 48, boxSizing: 'border-box', boxShadow: 1 }}
+      data-testid="photo-sheet-crop-bar"
+    >
+      <Typography sx={{ fontSize: 13.5, fontWeight: 800, mr: 0.5 }}>
+        {index === 0 ? 'Main picture' : `Picture ${index + 1}`}: drag it to move it
+      </Typography>
+      <Tooltip title="Zoom out">
+        <IconButton size="small" onClick={() => zoomTo(now.zoom / 1.2)} disabled={now.zoom <= ZOOM_MIN + 0.001} aria-label="Zoom out" data-testid="photo-sheet-zoom-out"><RemoveRounded /></IconButton>
+      </Tooltip>
+      <Slider
+        size="small"
+        min={toSlider(ZOOM_MIN)}
+        max={toSlider(ZOOM_MAX)}
+        step={0.01}
+        value={toSlider(now.zoom)}
+        onChange={(_, value) => zoomTo(2 ** (value as number))}
+        aria-label="Zoom"
+        sx={{ width: 140 }}
+        data-testid="photo-sheet-zoom"
+      />
+      <Tooltip title="Zoom in">
+        <IconButton size="small" onClick={() => zoomTo(now.zoom * 1.2)} disabled={now.zoom >= ZOOM_MAX - 0.001} aria-label="Zoom in" data-testid="photo-sheet-zoom-in"><AddRounded /></IconButton>
+      </Tooltip>
+      <Typography sx={{ fontSize: 13, color: 'text.secondary', minWidth: 40 }}>{Math.round(now.zoom * 100)}%</Typography>
+      <Button size="small" startIcon={<RestartAltRounded />} onClick={() => onCrop(index, null)} disabled={!isCropped(photo)} sx={{ minHeight: 36 }} data-testid="photo-sheet-crop-reset">
+        Reset
+      </Button>
+      <Box sx={{ flex: 1 }} />
+      <Button size="small" variant="contained" onClick={onDone} sx={{ minHeight: 36 }} data-testid="photo-sheet-crop-done">Done</Button>
+    </Box>
+  );
 }
 
 function savedWords(sheet: PhotoSheetDTO, dirty: boolean): string {
@@ -639,6 +779,7 @@ function Preview(props: {
   photoUrl: (file: number) => string | null;
   picked: number | null;
   onSlot: (index: number) => void;
+  onCrop: (index: number, crop: Crop) => void;
   onTitleFit: (fit: { pt: number; lines: number }) => void;
   onPlan: (rects: Rect[]) => void;
 }) {
@@ -668,6 +809,7 @@ function Preview(props: {
             editing
             picked={props.picked}
             onSlot={props.onSlot}
+            onCrop={props.onCrop}
             onTitleFit={props.onTitleFit}
             onPlan={props.onPlan}
           />
@@ -737,7 +879,7 @@ function LayoutThumb({ layout, orientation }: { layout: SheetLayout; orientation
 }
 
 /** The photos in sheet order: tap one then another to swap (or drag one onto another), Fit or Fill, turn, remove. */
-function PhotoTiles({ rects, fields, photoUrl, picked, onTap, onSwap, onFit, onTurn, onRemove }: {
+function PhotoTiles({ rects, fields, photoUrl, picked, onTap, onSwap, onFit, onTurn, onReset, onRemove }: {
   rects: Rect[];
   fields: PhotoSheetFields;
   photoUrl: (file: number) => string | null;
@@ -746,6 +888,7 @@ function PhotoTiles({ rects, fields, photoUrl, picked, onTap, onSwap, onFit, onT
   onSwap: (a: number, b: number) => void;
   onFit: (index: number, fit: 'fit' | 'fill') => void;
   onTurn: (index: number) => void;
+  onReset: (index: number) => void;
   onRemove: (index: number) => void;
 }) {
   const dragging = useRef<number | null>(null);
@@ -814,6 +957,13 @@ function PhotoTiles({ rects, fields, photoUrl, picked, onTap, onSwap, onFit, onT
                 <ToggleButton value="fill" sx={{ px: 1.25, minHeight: 36, fontSize: 13, fontWeight: 700, textTransform: 'none' }} data-testid={`photo-sheet-fill-${index}`}>Fill</ToggleButton>
               </ToggleButtonGroup>
               <Box sx={{ flex: 1 }} />
+              {isCropped(photo) ? (
+                <Tooltip title="Moved or zoomed on the sheet: put it back">
+                  <IconButton size="small" onClick={() => onReset(index)} aria-label="Reset the move and zoom" sx={{ width: 36, height: 36 }} data-testid={`photo-sheet-tile-reset-${index}`}>
+                    <RestartAltRounded fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              ) : null}
               <Tooltip title="Turn">
                 <IconButton size="small" onClick={() => onTurn(index)} aria-label="Turn" sx={{ width: 36, height: 36 }}><RotateRightRounded fontSize="small" /></IconButton>
               </Tooltip>

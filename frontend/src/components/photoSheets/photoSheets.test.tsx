@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import type { PhotoSheetFields, PhotoSheetItem } from '../../api/photoSheets.api';
 import { PhotoSheetPaper, brandLine, titleLines } from './PhotoSheetPaper';
 import { printCss } from './PhotoSheetPrint';
-import { addPhotos, emptySheet, mergeAiDraft, swapPhotos, turnPhoto, withPhotos } from './sheetEdits';
-import { TITLE_FIT, fitTitle, isWide, printedFacts, titleFitFor, type SheetPhoto } from './sheetLayouts';
+import type { SheetAiDraft } from '../../api/photoSheets.api';
+import { dragCrop, isCropped, placePicture, setCrop, zoomCrop } from './sheetCrop';
+import { addPhotos, emptySheet, markTyped, mergeAiDraft, setFit, sheetBody, swapPhotos, turnPhoto, withPhotos } from './sheetEdits';
+import { TITLE_FIT, contrastCurve, fitTitle, isWide, printedFacts, titleFitFor, type SheetPhoto } from './sheetLayouts';
 import { PHOTO_GAP, photoAspect, pickLayout, planPhotos, planSheet } from './sheetPlan';
 import { findPicturesUrl, pictureLinkFrom, printQuality } from './sheetPaste';
 
@@ -288,15 +290,151 @@ describe('what the picture is, and what is in the box', () => {
   });
 });
 
-describe('Clean up with AI (D23)', () => {
-  it('fills only the boxes left empty; what someone typed stays', () => {
-    const fields = sheet();
-    const draft = { title: 'Ebern Designs Sleeper Sofa', name: '', facts: { size: '80 in', in_box: 'Sofa, 2 pillows', condition: 'Good', good_to_know: '' } };
-    const kept = mergeAiDraft(fields, draft, { keepTitle: true });
-    expect(kept.fields.facts).toEqual({ size: '78 x 34 x 33 in', in_box: 'Sofa, 2 pillows', condition: 'Like new', good_to_know: '' });
-    expect(kept.fields.title).toBe(fields.title);
-    expect(kept.filled).toEqual(['in_box']);
-    expect(mergeAiDraft(fields, draft, { keepTitle: false }).fields.title).toBe('Ebern Designs Sleeper Sofa');
+describe('Clean up with AI (D23; #108: every word, typed words win)', () => {
+  const draft = (over: Partial<SheetAiDraft> = {}): SheetAiDraft => ({
+    title: 'Ebern Designs Sleeper Sofa', name: 'Sleeper sofa', brand: 'Ebern Designs',
+    facts: { size: '80 in', in_box: 'Sofa, 2 pillows', condition: 'Good, small scuff', good_to_know: '' },
+    labels: { size: 'Size, assembled', in_box: 'In the box', condition: 'Condition', good_to_know: 'Good to know' },
+    caption: 'product', not_assembled: true, read: ['the item'], model: 'm', ...over,
+  });
+
+  it('cleans up every word nobody typed, and keeps every word a person typed', () => {
+    const fields = markTyped(sheet({ typed: [] }), 'size', 'label.condition');
+    const { fields: out, filled } = mergeAiDraft(fields, draft());
+    // Typed: kept word for word.
+    expect(out.facts.size).toBe('78 x 34 x 33 in');
+    // Not typed (Dash filled them): the AI's words, even over words already there.
+    expect(out.facts.condition).toBe('Good, small scuff');
+    expect(out.facts.in_box).toBe('Sofa, 2 pillows');
+    expect(out.title).toBe('Ebern Designs Sleeper Sofa');
+    expect(out.labels.size).toBe('Size, assembled');
+    expect(out.not_assembled).toBe(true);
+    expect(filled).toEqual(expect.arrayContaining(['title', 'condition', 'in_box', 'label.size', 'not_assembled']));
+    expect(filled).not.toContain('size');
+    // An empty answer never wipes words that are there.
+    expect(mergeAiDraft(sheet({ typed: [] }), draft({ facts: { size: '', in_box: '', condition: '', good_to_know: '' } })).fields.facts.size)
+      .toBe('78 x 34 x 33 in');
+  });
+
+  it('a box a person emptied may be filled; a sheet saved before #108 keeps every word', () => {
+    const emptied = markTyped(sheet({ typed: [], facts: { size: '', in_box: '', condition: 'Like new', good_to_know: '' } }), 'size');
+    expect(mergeAiDraft(emptied, draft()).fields.facts.size).toBe('80 in');
+    const old = sheet({ typed: null });
+    const { fields: out } = mergeAiDraft(old, draft());
+    expect(out.title).toBe(old.title);
+    expect(out.facts.condition).toBe('Like new');
+    // Only empty boxes take words there.
+    expect(out.facts.in_box).toBe('Sofa, 2 pillows');
+  });
+
+  it('never takes away "not assembled" and leaves a picked caption alone', () => {
+    const ticked = sheet({ typed: [], not_assembled: true });
+    expect(mergeAiDraft(ticked, draft({ not_assembled: false })).fields.not_assembled).toBe(true);
+    const picked = markTyped(sheet({ typed: [], caption: 'item' }), 'caption');
+    expect(mergeAiDraft(picked, draft({ caption: 'product' })).fields.caption).toBe('item');
+  });
+});
+
+describe('move and zoom a picture inside its frame (#108)', () => {
+  const frame = { x: 0, y: 0, w: 6, h: 4 };
+  const square = { file: 1, width: 1000, height: 1000, turn: 0, fit: 'fit' as const };
+
+  it('as it was: a Fit picture shows whole, a Fill picture covers the frame', () => {
+    expect(placePicture(square, frame, false)).toMatchObject({ w: 4, h: 4, dx: 0, dy: 0 });
+    expect(placePicture(square, frame, true)).toMatchObject({ w: 6, h: 6, dx: 0, dy: 0 });
+  });
+
+  it('zoomed in, the picture can move but never leaves a white gap at an edge', () => {
+    const zoomed = { ...square, zoom: 2 };
+    // 8 x 8 in a 6 x 4 frame: 1 inch of play sideways, 2 up and down.
+    const far = placePicture({ ...zoomed, x: 5, y: -5 }, frame, false);
+    expect([far.w, far.h, far.dx, far.dy]).toEqual([8, 8, 1, -2]);
+    expect(far.crop.x).toBeCloseTo(1 / 6, 3);
+    const dragged = dragCrop(square, { zoom: 2, x: 0, y: 0 }, 0.1, 0, frame, false);
+    expect(dragged.x).toBeCloseTo(0.1, 4);
+  });
+
+  it('a small picture stays wholly inside its frame', () => {
+    const placed = placePicture({ ...square, zoom: 0.5, x: 1, y: 1 }, frame, false);
+    expect([placed.w, placed.h]).toEqual([2, 2]);
+    expect(placed.dx).toBe(2);
+    expect(placed.dy).toBe(1);
+  });
+
+  it('zooming keeps the middle of the frame on the same part of the picture', () => {
+    const out = zoomCrop(square, { zoom: 2, x: 0.1, y: 0 }, 3, frame, false);
+    expect(out.zoom).toBe(3);
+    expect(out.x).toBeCloseTo(0.15, 4);
+  });
+
+  it('the frame never moves: the plan ignores the crop', () => {
+    const plain = planPhotos('one', [photo(1)], 7.7, 9);
+    const zoomed: SheetPhoto = { ...photo(1), zoom: 3, x: 0.4, y: -0.2 };
+    const cropped = planPhotos('one', [zoomed], 7.7, 9);
+    expect(cropped.rects).toEqual(plain.rects);
+  });
+
+  it('each picture keeps its own crop; Reset, a turn or a new Fit/Fill puts it back', () => {
+    const photos = setCrop([photo(1), photo(2)], 1, { zoom: 2, x: 0.1, y: -0.1 });
+    expect(isCropped(photos[0])).toBe(false);
+    expect(isCropped(photos[1])).toBe(true);
+    expect(isCropped(setCrop(photos, 1, null)[1])).toBe(false);
+    expect(isCropped(turnPhoto(photos, 1)[1])).toBe(false);
+    expect(isCropped(setFit(photos, 1, 'fill')[1])).toBe(false);
+    // Swapping carries the crop with its picture.
+    expect(isCropped(swapPhotos(photos, 0, 1)[0])).toBe(true);
+  });
+
+  it('zooming in counts toward "may print fuzzy"', () => {
+    const big = { file: 1, width: 1200, height: 900, turn: 0, fit: 'fit' as const };
+    const space = { x: 0, y: 0, w: 6, h: 4.5 };
+    expect(printQuality(big, space)).toBe('ok');
+    expect(printQuality({ ...big, zoom: 2.5 }, space)).toBe('fuzzy');
+  });
+
+  it('prints the picture where the preview shows it', () => {
+    const fields = sheet({ photos: [{ ...photo(1), zoom: 2, x: 0.1, y: 0 }] });
+    paper(fields);
+    const img = screen.getByTestId('photo-sheet-picture-0');
+    // Shifted right of the frame's middle (jsdom writes the inches as px).
+    expect(img.style.left).toMatch(/^calc\(50% \+ [\d.]+(in|px)\)$/);
+    expect(img.style.left).not.toBe('calc(50% + 0in)');
+    expect(parseFloat(img.style.width)).toBeGreaterThan(parseFloat(screen.getByTestId('photo-sheet-slot-0').style.width));
+  });
+});
+
+describe('picture contrast (#108)', () => {
+  it('prints the pictures through one contrast curve; as taken, no filter at all', () => {
+    paper(sheet({ contrast: 0 }));
+    expect(screen.queryByTestId('photo-sheet-contrast')).toBeNull();
+    expect(screen.getByTestId('photo-sheet-picture-0').style.filter).toBe('');
+    paper(sheet({ contrast: 2 }));
+    const svg = screen.getByTestId('photo-sheet-contrast');
+    const id = svg.querySelector('filter')?.getAttribute('id');
+    expect(screen.getAllByTestId('photo-sheet-picture-0')[1].style.filter).toContain(`url(#${id})`);
+  });
+
+  it('each step darkens the middle tones more; white stays white (a gamma curve)', () => {
+    const steps = [1, 2, 3].map((n) => contrastCurve(n)!.exponent);
+    expect(contrastCurve(0)).toBeNull();
+    expect(steps[0]).toBeGreaterThan(1);
+    expect(steps[1]).toBeGreaterThan(steps[0]);
+    expect(steps[2]).toBeGreaterThan(steps[1]);
+    // 1 to any power is 1: white paper stays white.
+    expect(1 ** steps[2]).toBe(1);
+  });
+});
+
+describe('labels (#108)', () => {
+  it('a changed label prints over its fact; the condition line takes its own', () => {
+    paper(sheet({ labels: { size: 'Size, assembled', condition: 'Shape' } }));
+    expect(within(screen.getAllByTestId('photo-sheet-fact-size')[0]).getByText('Size, assembled')).toBeTruthy();
+    expect(within(screen.getByTestId('photo-sheet-condition')).getByText('Shape:')).toBeTruthy();
+    expect(printedFacts({ size: '1 in' }, {}).map((f) => f.label)).toEqual(['Size']);
+  });
+
+  it('saves only the labels that differ from the standard ones', () => {
+    expect(sheetBody(sheet({ labels: { size: ' Size ', in_box: 'Comes with', good_to_know: '' } })).labels).toEqual({ in_box: 'Comes with' });
   });
 });
 

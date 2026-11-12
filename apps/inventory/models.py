@@ -3509,8 +3509,18 @@ class PhotoSheet(models.Model):
     # Which template (D24): one, two, big2, big3, grid4; and which way the paper turns.
     layout = models.CharField(max_length=12, default='one')
     orientation = models.CharField(max_length=10, choices=ORIENTATION_CHOICES, default='portrait')
-    # In sheet order: [{"file": <core.S3File id>, "width": px, "height": px, "fit": "fit"|"fill", "turn": 0|90|180|270}].
+    # In sheet order: [{"file": <core.S3File id>, "width": px, "height": px, "fit": "fit"|"fill", "turn": 0|90|180|270,
+    # "zoom": 1.0, "x": 0.0, "y": 0.0}]. zoom/x/y are the crop inside the photo's frame (#108): the frame never moves;
+    # x and y are the shift of the picture's centre, as a share of the frame's width and height.
     photos = models.JSONField(default=list, blank=True)
+    # Photo contrast for a weak office printer (#108): 0 as taken, 1 to 3 stronger. Photos only; the words are black.
+    contrast = models.PositiveSmallIntegerField(default=0)
+    # A fact's label when someone (or the AI) changed it, by fact key: {"size": "Size, put together"} (#108).
+    # A key left out prints the standard label.
+    labels = models.JSONField(default=dict, blank=True)
+    # The boxes a person typed (#108), so Clean up with AI leaves them alone: "title", "name", "brand", a fact key,
+    # "label.<fact key>", "caption", "not_assembled". Null on sheets saved before #108: every word there counts as typed.
+    typed = models.JSONField(null=True, blank=True)
     # Off unless wanted (D25): the item's price; its item number with a barcode (only for one tagged item).
     show_price = models.BooleanField(default=False)
     show_item_number = models.BooleanField(default=False)
