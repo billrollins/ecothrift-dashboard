@@ -10,6 +10,13 @@ export interface RowDisputeForm {
   note: string;
   /** Photos of the problem, held until the dispute is sent (Dash Update #101). */
   photos: File[];
+  /** A checked-in item the dispute is about (Dash Update #102); null = units not checked in. */
+  itemId?: number | null;
+}
+
+/** Picked from Prior check-ins: the item came, so the window starts on "Arrived broken" for one unit. */
+export function initialItemDisputeForm(itemId: number, defaultPct = 50): RowDisputeForm {
+  return { reason: 'broken', units: '1', pctLost: String(defaultPct), note: '', photos: [], itemId };
 }
 
 export const PARTIAL_REASONS: RowDisputeReason[] = ['missing_parts', 'other'];
@@ -33,11 +40,16 @@ function wholeNumber(text: string): number | null {
 /** What still stops the dispute, first problem first, in plain words. */
 export function rowDisputeProblems(form: RowDisputeForm, remaining: number): string[] {
   const out: string[] = [];
-  if (remaining <= 0) out.push('Nothing left on this row to dispute. Undo a dispute first, or dispute checked-in items.');
-  if (!form.reason) out.push('Pick what is wrong.');
-  const units = wholeNumber(form.units);
-  if (units == null || units < 1) out.push('Say how many units (at least 1).');
-  else if (units > remaining && remaining > 0) out.push(`Only ${remaining} unit${remaining === 1 ? '' : 's'} left on this row.`);
+  const forItem = form.itemId != null;
+  if (forItem) {
+    if (form.reason === 'did_not_come') out.push('This item is checked in, so it came. Pick what is wrong with it.');
+  } else {
+    if (remaining <= 0) out.push('Nothing left on this row to dispute. Undo a dispute first, or dispute checked-in items.');
+    const units = wholeNumber(form.units);
+    if (units == null || units < 1) out.push('Say how many units (at least 1).');
+    else if (units > remaining && remaining > 0) out.push(`Only ${remaining} unit${remaining === 1 ? '' : 's'} left on this row.`);
+  }
+  if (!form.reason) out.unshift('Pick what is wrong.');
   if (form.reason && PARTIAL_REASONS.includes(form.reason)) {
     const pct = wholeNumber(form.pctLost);
     if (pct == null || pct < 1 || pct > 100) out.push('How much of the value is lost: 1 to 100%.');
@@ -57,8 +69,9 @@ export function rowDisputePayload(processingRowId: number, form: RowDisputeForm)
   const reason = form.reason as RowDisputeReason;
   return {
     processing_row_id: processingRowId,
+    ...(form.itemId != null ? { item_id: form.itemId } : {}),
     reason,
-    units: wholeNumber(form.units) ?? 0,
+    units: form.itemId != null ? 1 : (wholeNumber(form.units) ?? 0),
     ...(PARTIAL_REASONS.includes(reason) ? { pct_lost: wholeNumber(form.pctLost) ?? 0 } : {}),
     ...(form.note.trim() ? { note: form.note.trim() } : {}),
   };

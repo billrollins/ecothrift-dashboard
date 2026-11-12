@@ -22,7 +22,7 @@ import { truckPalletsKey } from '../../../hooks/useTruckPallets';
 import { truckPlanKey, truckSummaryKey } from '../../../hooks/useTruckPlan';
 import { apiErrorMessage } from '../../../utils/apiError';
 import {
-  disputeRetail, initialRowDisputeForm, needsPhotos, PARTIAL_REASONS, rowDisputePayload, rowDisputePhotos,
+  disputeRetail, initialItemDisputeForm, initialRowDisputeForm, needsPhotos, PARTIAL_REASONS, rowDisputePayload, rowDisputePhotos,
   rowDisputeProblems, type RowDisputeForm,
 } from './rowDispute';
 
@@ -36,7 +36,7 @@ function DisputeLine({ d, onUndo, busy }: { d: RowDisputeDTO; onUndo: () => void
     <Stack direction="row" spacing={1} alignItems="center" sx={{ py: 0.75, borderTop: 1, borderColor: 'divider', opacity: undone ? 0.55 : 1 }}>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography variant="body2" sx={{ fontWeight: 700, textDecoration: undone ? 'line-through' : 'none' }}>
-          {d.units} · {d.reason_label}{PARTIAL_REASONS.includes(d.reason) ? ` · ${d.pct_lost}% of value lost` : ''}
+          {d.item_id != null ? (d.item_sku || 'Item') : d.units} · {d.reason_label}{PARTIAL_REASONS.includes(d.reason) ? ` · ${d.pct_lost}% of value lost` : ''}
         </Typography>
         <Typography variant="caption" color="text.secondary" component="div" noWrap title={d.note || undefined}>
           {[d.by, when, d.note].filter(Boolean).join(' · ')}
@@ -71,13 +71,20 @@ export function RowDisputeDialog({
   open,
   orderId,
   processingRowId,
+  items,
   onClose,
 }: {
   open: boolean;
   orderId: number;
   processingRowId: number | null;
+  /**
+   * Checked-in items to dispute instead of units (Dash Update #102: Prior check-ins' "Mark as disputed" opens this same
+   * window, so there is one dispute record). One item per dispute; they came, so "Did not come" is not offered.
+   */
+  items?: Array<{ id: number; sku: string }>;
   onClose: () => void;
 }) {
+  const itemMode = Boolean(items?.length);
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down('sm'));
   const qc = useQueryClient();
@@ -101,10 +108,14 @@ export function RowDisputeDialog({
       return;
     }
     if (data.data && !formFor) {
-      setForm(initialRowDisputeForm(data.data.row.remaining, data.data.default_pct_lost));
+      const taken = new Set(data.data.disputes.filter((d) => d.item_id != null && !d.undone_at).map((d) => d.item_id));
+      const first = items?.find((it) => !taken.has(it.id));
+      setForm(itemMode
+        ? initialItemDisputeForm(first?.id ?? items![0].id, data.data.default_pct_lost)
+        : initialRowDisputeForm(data.data.row.remaining, data.data.default_pct_lost));
       setFormFor(loadedFor);
     }
-  }, [open, data.data, formFor, loadedFor]);
+  }, [open, data.data, formFor, loadedFor, itemMode, items]);
 
   const refreshAll = () => {
     void qc.invalidateQueries({ queryKey: ['processing-workspace', orderId] });
@@ -136,9 +147,17 @@ export function RowDisputeDialog({
     },
   });
 
-  const problems = data.data ? rowDisputeProblems(form, remaining) : [];
   const busy = save.isPending || undo.isPending;
-  const reasons = data.data?.reasons ?? [];
+  const disputedItemIds = new Set(
+    (data.data?.disputes ?? []).filter((d) => d.item_id != null && !d.undone_at).map((d) => d.item_id as number),
+  );
+  const openItems = (items ?? []).filter((it) => !disputedItemIds.has(it.id));
+  const canDispute = itemMode ? openItems.length > 0 : remaining > 0;
+  const pickedItem = itemMode ? openItems.find((it) => it.id === form.itemId) ?? null : null;
+  const problems = data.data
+    ? [...(itemMode && !pickedItem ? ['Pick which item.'] : []), ...rowDisputeProblems(form, remaining)]
+    : [];
+  const reasons = (data.data?.reasons ?? []).filter((r) => !itemMode || r.value !== 'did_not_come');
   const partial = form.reason !== '' && PARTIAL_REASONS.includes(form.reason);
   const photosWanted = needsPhotos(form.reason);
   const photosMax = data.data?.photos_max ?? 6;
@@ -167,8 +186,23 @@ export function RowDisputeDialog({
               {row.disputed > 0 && <Chip size="small" color="warning" variant="outlined" label={`${row.disputed} disputed`} />}
             </Stack>
 
-            {remaining > 0 ? (
+            {canDispute ? (
               <>
+                {itemMode && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Which item</Typography>
+                    <ToggleButtonGroup
+                      exclusive
+                      value={form.itemId ?? null}
+                      onChange={(_, v) => v != null && set({ itemId: v })}
+                      size="small"
+                      aria-label="Which item"
+                      sx={{ display: 'flex', flexWrap: 'wrap', mt: 0.5, '& .MuiToggleButton-root': { textTransform: 'none' } }}
+                    >
+                      {openItems.map((it) => <ToggleButton key={it.id} value={it.id}>{it.sku || `Item ${it.id}`}</ToggleButton>)}
+                    </ToggleButtonGroup>
+                  </Box>
+                )}
                 <Box>
                   <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>What is wrong</Typography>
                   <ToggleButtonGroup
@@ -182,15 +216,17 @@ export function RowDisputeDialog({
                   </ToggleButtonGroup>
                 </Box>
                 <Stack direction="row" spacing={1.5}>
-                  <TextField
-                    label="How many units"
-                    value={form.units}
-                    onChange={(e) => set({ units: e.target.value })}
-                    size="small"
-                    inputProps={{ inputMode: 'numeric', 'aria-label': 'How many units' }}
-                    helperText={`Up to ${remaining}`}
-                    sx={{ width: 150 }}
-                  />
+                  {!itemMode && (
+                    <TextField
+                      label="How many units"
+                      value={form.units}
+                      onChange={(e) => set({ units: e.target.value })}
+                      size="small"
+                      inputProps={{ inputMode: 'numeric', 'aria-label': 'How many units' }}
+                      helperText={`Up to ${remaining}`}
+                      sx={{ width: 150 }}
+                    />
+                  )}
                   {partial && (
                     <TextField
                       label="Value lost"
@@ -245,15 +281,17 @@ export function RowDisputeDialog({
                   minRows={2}
                 />
                 <Typography variant="caption" color="text.secondary">
-                  No product or check-in is made. The units come off what is left to process and count in the truck's
-                  dispute (the header, Close the truck and the B-Stock list). Undo puts them back.
+                  {itemMode
+                    ? 'The item stays as it is. Its problem counts in the truck\'s dispute (the header, Close the truck and the B-Stock list). Undo takes it back off.'
+                    : 'No product or check-in is made. The units come off what is left to process and count in the truck\'s dispute (the header, Close the truck and the B-Stock list). Undo puts them back.'}
                   {atStake != null ? ` About ${money(atStake)} of manifest retail.` : ''}
                 </Typography>
               </>
             ) : (
               <Alert severity="info">
-                Nothing is left to process on this row. To change a dispute, undo it below; to dispute items already
-                checked in, open the row.
+                {itemMode
+                  ? 'Every item in this check-in is already disputed. To change one, undo it below.'
+                  : 'Nothing is left to process on this row. To change a dispute, undo it below; to dispute items already checked in, use Mark as disputed on the check-in.'}
               </Alert>
             )}
 
@@ -273,11 +311,13 @@ export function RowDisputeDialog({
         )}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} disabled={busy}>{remaining > 0 ? 'Cancel' : 'Close'}</Button>
-        {remaining > 0 && (
+        <Button onClick={onClose} disabled={busy}>{canDispute ? 'Cancel' : 'Close'}</Button>
+        {canDispute && (
           <Button variant="contained" color="warning" onClick={submit} disabled={busy || !row}
             startIcon={save.isPending ? <CircularProgress size={14} color="inherit" /> : undefined}>
-            Dispute {form.units.trim() || ''} unit{form.units.trim() === '1' ? '' : 's'}
+            {itemMode
+              ? `Dispute ${pickedItem?.sku || 'item'}`
+              : `Dispute ${form.units.trim() || ''} unit${form.units.trim() === '1' ? '' : 's'}`}
           </Button>
         )}
       </DialogActions>

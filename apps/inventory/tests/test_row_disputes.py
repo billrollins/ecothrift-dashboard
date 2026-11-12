@@ -235,6 +235,92 @@ class RowDisputeTests(TruckFinalizeBase):
         self.assertFalse(any(ln.get('photo_ids') for ln in affected_lines(self.order)))
         self.assertEqual(APIClient().get(f'/dispute/{dispute.token}/line-photo/{photo_id}/').status_code, 404)
 
+    # --- one dispute record (Dash Update #102) -------------------------------------------------------------------
+
+    def _items(self, idx=0):
+        mr, _ = self.rows[idx]
+        return list(Item.objects.filter(manifest_row=mr).order_by('id'))
+
+    def _numbers(self):
+        from apps.inventory.management.commands.fold_item_disputes import fingerprint
+
+        return fingerprint(self.order)
+
+    def test_a_checked_in_item_is_disputed_once_and_not_counted_again_as_received(self):
+        self._check_in(0, 10)
+        it = self._items()[0]
+        r = self._dispute(reason='broken', units=5, item_id=it.pk)            # units are always 1 for an item
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual((r.data['dispute']['units'], r.data['dispute']['item_id']), (1, it.pk))
+        u = self._line()['units']
+        self.assertEqual((u['received'], u['missing'], u['over'], u['broken']), (Decimal('10'), 0, 0, Decimal('1')))
+        _, pr = self.rows[0]
+        pr.refresh_from_db()
+        self.assertEqual((pr.qty_dispositioned, pr.queue_status), (10, 'disputed'))   # the item already counted
+        # Prior check-ins shows the red dispute sign for it (row_disputed on the item, in items and check-ins).
+        detail = self.client.get(f'/api/inventory/orders/{self.order.id}/processing-row-detail/',
+                                 {'processing_row_id': pr.id}).data['row']
+        flags = {i['id']: i['row_disputed'] for i in detail['items']}
+        self.assertEqual((flags[it.pk], sum(flags.values())), (True, 1))
+        batch_flags = [i['row_disputed'] for b in detail['itemCheckIns'] for i in b['items'] if i['id'] == it.pk]
+        self.assertEqual(batch_flags, [True])
+        self.assertIn('already disputed', self._dispute(reason='other', units=1, pct_lost=10, item_id=it.pk).data['detail'])
+        self.assertIn('it came', self._dispute(reason='did_not_come', units=1, item_id=self._items()[1].pk).data['detail'])
+        # Undo takes it off the numbers, and the item's own (blank) marks do not come back.
+        self.client.post(self._url(f'{r.data["dispute"]["id"]}/undo/'), {}, format='json')
+        self.assertEqual(self._line()['units']['broken'], 0)
+
+    def test_an_item_on_another_row_is_refused(self):
+        self._check_in(1, 1)
+        other = self._items(1)[0]
+        self.assertIn('not on row 1', self._dispute(idx=0, reason='broken', units=1, item_id=other.pk).data['detail'])
+
+    def _mark(self, item, **fields):
+        Item.objects.filter(pk=item.pk).update(**fields)
+
+    def test_fold_turns_item_marks_into_row_disputes_with_the_same_numbers(self):
+        from django.core.management import call_command
+
+        from apps.inventory.models import Dispute
+
+        self._check_in(0, 6)
+        self._check_in(1, 5)
+        a, b, c = self._items()[:3]
+        self._mark(a, status='lost', dispute_type='undelivered')
+        self._mark(b, status='scrapped', dispute_type='broken', dispute_pct_loss=100)
+        self._mark(c, dispute_type='missing_pieces', dispute_pct_loss=30, dispute_description='no lid')
+        salvage = self._items(1)[0]
+        self._mark(salvage, condition='salvage')
+        Dispute.objects.create(purchase_order=self.order, kind='processing', title='Processing dispute (broken) - 1 items',
+                               subject_item=b)
+        before = self._numbers()
+        out = io.StringIO()
+        call_command('fold_item_disputes', stdout=out)                       # dry run: nothing kept
+        self.assertIn('numbers match (undone: dry run)', out.getvalue())
+        self.assertIn('salvage items no longer counted Damaged 1', out.getvalue())
+        self.assertIn('salvage_trucks 1', out.getvalue())
+        self.assertFalse(ManifestRowDispute.objects.exists())
+        self.assertEqual(Dispute.objects.get().status, 'open')
+
+        call_command('fold_item_disputes', '--apply', stdout=io.StringIO())
+        self.assertEqual(self._numbers(), before)
+        got = {d.item_id: (d.reason, d.units, d.pct_lost) for d in ManifestRowDispute.objects.all()}
+        self.assertEqual(got, {a.pk: ('did_not_come', 1, 100), b.pk: ('broken', 1, 100), c.pk: ('missing_parts', 1, 30)})
+        self.assertIn('no lid', ManifestRowDispute.objects.get(item=c).note)
+        old = Dispute.objects.get()
+        self.assertEqual(old.status, 'resolved')
+        self.assertIn('Dash Update #102', old.description)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.processing_dispute_status, 'resolved')
+        # Run again: nothing more to fold, numbers still the same.
+        call_command('fold_item_disputes', '--apply', stdout=io.StringIO())
+        self.assertEqual(ManifestRowDispute.objects.count(), 3)
+        self.assertEqual(self._numbers(), before)
+        # The folded disputes show in the row's Dispute window, by item, with Undo.
+        _, pr = self.rows[0]
+        window = self.client.get(self._url(), {'processing_row': pr.id}).data
+        self.assertEqual({d['item_id'] for d in window['disputes']}, {a.pk, b.pk, c.pk})
+
     def test_only_staff(self):
         outsider = APIClient()
         outsider.force_authenticate(user=get_user_model().objects.create_user(email='x@example.com', first_name='X', last_name='Y', password='pw'))

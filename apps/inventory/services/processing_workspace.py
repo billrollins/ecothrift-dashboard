@@ -1194,9 +1194,10 @@ def refresh_processing_rows_denorm(
             items_by_mr[it.manifest_row_id].append(it)
     # P9 split families: siblings share a manifest line - attribute its items per row.
     split_attr = split_family_attribution(oid, mr_ids)
-    from apps.inventory.services.row_disputes import disputed_units_by_processing_row
+    from apps.inventory.services.row_disputes import disputed_rows, disputed_units_by_processing_row
 
     row_disputed_units = disputed_units_by_processing_row(oid, [p.pk for p in prs]) if mr_ids else {}
+    rows_disputed = disputed_rows(oid, [p.pk for p in prs]) if mr_ids else set()
 
     product_ids = {p.matched_product_id for p in prs if p.matched_product_id}
     products_by_id: dict[int, Product] = {}
@@ -1274,7 +1275,7 @@ def refresh_processing_rows_denorm(
         pr.item_ids = ids
         # Row disputes (#100): units disputed from the queue with no item count as handled and mark the row.
         row_disputed = row_disputed_units.get(pr.pk, 0)
-        pr.queue_status = 'disputed' if row_disputed else derive_row_queue_status(items)
+        pr.queue_status = 'disputed' if pr.pk in rows_disputed else derive_row_queue_status(items)
         pr.qty_dispositioned = row_qty_dispositioned(items) + row_disputed
         pr.distinct_product_count = distinct_product_count_for_items(items)
         primary_pid = primary_product_id_for_items(items)
@@ -1847,10 +1848,11 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
 
     primary = _row_primary_item(items)
     row_price = _workspace_price_from_bookmark_row(rw_vals)
-    from apps.inventory.services.row_disputes import disputed_units_by_processing_row
+    from apps.inventory.services.row_disputes import disputed_rows, disputed_units_by_processing_row
 
     member_ids = list(ProcessingRow.objects.filter(collapse_master_id=bk.pk).values_list('pk', flat=True))
     row_disputed = disputed_units_by_processing_row(order.pk, [bk.pk, *member_ids])   # #100: units disputed by row
+    rows_disputed = disputed_rows(order.pk, [bk.pk, *member_ids])                     # #102: any dispute, items too
     qty_disp = row_qty_dispositioned(items) + row_disputed.get(bk.pk, 0)
     qty_remaining = max(0, qty_target - qty_disp)
     qty_overage = max(0, qty_disp - qty_target)
@@ -1880,7 +1882,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         'tracking': bk.tracking if isinstance(bk.tracking, dict) else {},
         'items': [_serialize_item(i) for i in items],
         'itemCheckIns': _serialize_item_check_ins(bk, items_by_id),
-        'status': 'disputed' if row_disputed.get(bk.pk) else derive_row_queue_status(items),
+        'status': 'disputed' if bk.pk in rows_disputed else derive_row_queue_status(items),
         'rowDisputedUnits': row_disputed.get(bk.pk, 0),
         'condition': condition_db_to_ui(primary.condition) if primary else base['condition'],
         'price': row_price,
@@ -1927,7 +1929,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         }
         row_full['items'] = [_serialize_item(i) for i in all_items]
         row_full['itemCheckIns'] = batches
-        derived = 'disputed' if any(row_disputed.values()) else derive_row_queue_status(all_items)
+        derived = 'disputed' if rows_disputed else derive_row_queue_status(all_items)
         if derived != 'disputed':
             derived = (
                 'pending' if group_disp <= 0
@@ -1945,7 +1947,22 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         manifest_row=mr,
         link_rows=member_rows if member_rows else None,
     )
+    _mark_row_disputed_items(order.pk, row_full)
     return {'row': row_full}
+
+
+def _mark_row_disputed_items(order_id: int, row_full: dict[str, Any]) -> None:
+    """``row_disputed`` on every item dict in the row detail (Dash Update #102): Prior check-ins shows a red dispute
+    sign for an item with an active row dispute, as it did for the old item marks."""
+    from apps.inventory.services.row_disputes import active
+
+    ids = set(active(order_id).filter(item_id__isnull=False).values_list('item_id', flat=True))
+    for it in row_full.get('items') or []:
+        it['row_disputed'] = it.get('id') in ids
+    for batch in row_full.get('itemCheckIns') or []:
+        for it in batch.get('items') or []:
+            if isinstance(it, dict):
+                it['row_disputed'] = it.get('id') in ids
 
 
 def _attach_row_detail_extras(

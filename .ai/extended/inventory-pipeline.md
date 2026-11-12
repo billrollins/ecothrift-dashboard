@@ -178,7 +178,17 @@ the two partial reasons, a note, and the row's disputes with **Undo**. No produc
   Damaged / Damaged (partial) line carries `photo_ids` (frozen with the list when filed); the public page shows
   "Photos of the damage, by line" (link `/dispute/{token}/line-photo/{id}/`, only photos on that list) and the zip
   adds them as `Line N - Damaged - photo 1`. Undone disputes' photos leave the list.
-- Not yet: one dispute record everywhere and the old item marks and `Dispute` rows folded in (#102).
+- **One record (Dash Update #102, 2026-11-12).** `ManifestRowDispute.item` (`inventory/0132`) = a dispute about one
+  checked-in item: counts in the damaged / lost buckets only (not received, not the row's handled units; the row
+  reads Disputed via `row_disputes.disputed_rows`). Prior check-ins "Mark as disputed" opens `RowDisputeDialog` with
+  the check-in's on-shelf items (no "did not come"). `manifest_line_accounting` skips the own marks of any item a row
+  dispute names (`items_with_row_disputes`, undone ones too); item marks still count for unnamed items. Condition
+  Salvage no longer counts as Damaged (a selling condition, not a dispute; Mainline 11-12, guessed for Bill). Row
+  detail items carry `row_disputed`, so Prior check-ins' dispute icon is red at rest. `manage.py fold_item_disputes [--order X] [--apply]`
+  folds item marks (lost = did not come, scrapped / broken = broken, missing pieces = missing parts at %, other
+  types = other at %) and resolves open processing `Dispute` rows with a note; dry run by default; a truck whose
+  per-line numbers would move is STOPPED and left alone. Old `Dispute` rows still feed vendor metrics and "retail
+  processed" (resolved, not cancelled, keeps retail processed the same).
 
 ### Review surfaces (pre- vs post-finalize)
 

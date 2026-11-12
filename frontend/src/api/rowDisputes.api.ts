@@ -17,6 +17,9 @@ export interface RowDisputeDTO {
   id: number;
   /** Photos of the problem (Dash Update #101): every reason but did_not_come has at least one. */
   photos: RowDisputePhotoDTO[];
+  /** Set when the dispute is about one checked-in item (Dash Update #102). */
+  item_id: number | null;
+  item_sku: string;
   reason: RowDisputeReason;
   reason_label: string;
   units: number;
@@ -48,6 +51,8 @@ export interface RowDisputesResponse {
 
 export interface RowDisputeInput {
   processing_row_id: number;
+  /** A checked-in item on that row: the dispute is about it (units are 1). */
+  item_id?: number;
   reason: RowDisputeReason;
   units: number;
   pct_lost?: number;

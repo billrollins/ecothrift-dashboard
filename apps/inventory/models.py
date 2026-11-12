@@ -2851,6 +2851,11 @@ class ManifestRowDispute(models.Model):
         ProcessingRow, on_delete=models.SET_NULL, null=True, blank=True, related_name='row_disputes',
         help_text='The queue row it was entered on (its units are in that row\'s quantity).',
     )
+    item = models.ForeignKey(
+        'Item', on_delete=models.SET_NULL, null=True, blank=True, related_name='row_disputes',
+        help_text='Set when the dispute is about a checked-in item (Dash Update #102). The item is already counted as '
+                  'received and handled, so the dispute adds only to the damaged / lost numbers.',
+    )
     reason = models.CharField(max_length=20, choices=REASON_CHOICES)
     units = models.PositiveIntegerField()
     pct_lost = models.PositiveSmallIntegerField(default=100, help_text='Share of each unit\'s value lost, 1-100.')

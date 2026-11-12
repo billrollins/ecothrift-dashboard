@@ -4,6 +4,7 @@ Row disputes from the Processing queue (Dash Update #100, services/row_disputes.
 GET  /api/inventory/orders/<po>/row-disputes/?processing_row=<id>   the row, what is left, its disputes
 POST /api/inventory/orders/<po>/row-disputes/                       {processing_row_id, reason, units, pct_lost?, note?}
      as JSON, or as a form with ``photos`` files: every reason but did_not_come needs at least one (Dash Update #101)
+     ``item_id``: a dispute about one checked-in item on that row (Dash Update #102; units are 1)
 POST /api/inventory/orders/<po>/row-disputes/<id>/undo/             the units go back to the row
 """
 from django.shortcuts import get_object_or_404
@@ -30,7 +31,7 @@ def row_disputes_view(request, po_id: int):
             return Response(row_disputes.row_disputes(order, request.query_params.get('processing_row')))
         raw = request.data if hasattr(request.data, 'get') else {}
         # JSON or a form with photos (``photos``, one or more files); one value per field either way.
-        data = {k: raw.get(k) for k in ('processing_row_id', 'reason', 'units', 'pct_lost', 'note')}
+        data = {k: raw.get(k) for k in ('processing_row_id', 'item_id', 'reason', 'units', 'pct_lost', 'note')}
         photos = request.FILES.getlist('photos') if request.FILES else []
         return Response(row_disputes.create(request.user, order, data, photos), status=status.HTTP_201_CREATED)
     except row_disputes.RowDisputeError as e:

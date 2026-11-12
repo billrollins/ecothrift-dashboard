@@ -28,7 +28,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.core.models import S3File
-from apps.inventory.models import ManifestRowDispute, ManifestRowDisputePhoto, ProcessingRow, PurchaseOrder
+from apps.inventory.models import Item, ManifestRowDispute, ManifestRowDisputePhoto, ProcessingRow, PurchaseOrder
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +63,9 @@ def active(order: PurchaseOrder | int):
 
 
 def disputed_units_by_processing_row(order: PurchaseOrder | int, row_ids: list[int] | None = None) -> dict[int, int]:
-    """Active disputed units per queue row (they count as handled on that row)."""
-    qs = active(order).filter(processing_row_id__isnull=False)
+    """Active disputed units per queue row that count as handled on that row. A dispute about a checked-in item
+    adds nothing here: the item already counts."""
+    qs = active(order).filter(processing_row_id__isnull=False, item_id__isnull=True)
     if row_ids is not None:
         qs = qs.filter(processing_row_id__in=list(row_ids))
     out: dict[int, int] = defaultdict(int)
@@ -73,11 +74,33 @@ def disputed_units_by_processing_row(order: PurchaseOrder | int, row_ids: list[i
     return out
 
 
+def disputed_rows(order: PurchaseOrder | int, row_ids: list[int] | None = None) -> set[int]:
+    """Queue rows with any active dispute (units or a checked-in item): the row reads Disputed."""
+    qs = active(order).filter(processing_row_id__isnull=False)
+    if row_ids is not None:
+        qs = qs.filter(processing_row_id__in=list(row_ids))
+    return set(qs.values_list('processing_row_id', flat=True))
+
+
+def items_with_row_disputes(order: PurchaseOrder | int) -> list[int]:
+    """Items a row dispute names (active or undone): counted by row disputes only, never by their own marks."""
+    oid = order.pk if isinstance(order, PurchaseOrder) else int(order)
+    return list(
+        ManifestRowDispute.objects.filter(purchase_order_id=oid, item_id__isnull=False)
+        .values_list('item_id', flat=True).distinct()
+    )
+
+
 def accounting_by_manifest_row(order: PurchaseOrder | int) -> dict[int, dict[str, int]]:
-    """Per manifest row, in queue (processing) units like item counts: missing, broken, partial units and the
-    partial % summed over units (``partial_pct`` / 100 = units of value lost)."""
-    out: dict[int, dict[str, int]] = defaultdict(lambda: {'missing': 0, 'broken': 0, 'partial': 0, 'partial_pct': 0})
-    for mr_id, reason, units, pct in active(order).values_list('manifest_row_id', 'reason', 'units', 'pct_lost'):
+    """Per manifest row, in queue (processing) units like item counts: missing, broken, partial units, the partial %
+    summed over units (``partial_pct`` / 100 = units of value lost), and ``received``: the broken and partial units
+    with no item (they came but were never checked in; a checked-in item is already counted as received)."""
+    out: dict[int, dict[str, int]] = defaultdict(
+        lambda: {'missing': 0, 'broken': 0, 'partial': 0, 'partial_pct': 0, 'received': 0},
+    )
+    for mr_id, reason, units, pct, item_id in active(order).values_list(
+        'manifest_row_id', 'reason', 'units', 'pct_lost', 'item_id',
+    ):
         info = REASONS.get(reason)
         if info is None:
             continue
@@ -86,6 +109,8 @@ def accounting_by_manifest_row(order: PurchaseOrder | int) -> dict[int, dict[str
         bucket[info['bucket']] += units
         if info['partial']:
             bucket['partial_pct'] += units * max(0, min(100, int(pct or 0)))
+        if info['bucket'] != 'missing' and not item_id:
+            bucket['received'] += units
     return out
 
 
@@ -103,6 +128,25 @@ def _row(order: PurchaseOrder, processing_row_id: Any, *, lock: bool = False) ->
     return row
 
 
+def _item_for(order: PurchaseOrder, row: ProcessingRow, item_id: Any, reason: str) -> Item:
+    """The checked-in item a dispute is about (Dash Update #102): on this row (or its combined group), not already
+    disputed. It came, so "did not come" is not a reason for it."""
+    try:
+        pk = int(item_id)
+    except (TypeError, ValueError):
+        raise RowDisputeError('Pick an item.')
+    mr_ids = {row.manifest_row_id, *ProcessingRow.objects.filter(collapse_master_id=row.pk)
+              .exclude(manifest_row_id__isnull=True).values_list('manifest_row_id', flat=True)}
+    item = Item.objects.select_for_update().filter(pk=pk, purchase_order=order).first()
+    if item is None or item.manifest_row_id not in mr_ids:
+        raise RowDisputeError(f'That item is not on row {row.row_number}.')
+    if reason == ManifestRowDispute.REASON_DID_NOT_COME:
+        raise RowDisputeError(f'{item.sku or "This item"} is checked in, so it came. Pick what is wrong with it.')
+    if active(order).filter(item=item).exists():
+        raise RowDisputeError(f'{item.sku or "This item"} is already disputed. Undo that dispute first to change it.')
+    return item
+
+
 def remaining_units(row: ProcessingRow) -> int:
     return max(0, int(row.quantity or 0) - int(row.qty_dispositioned or 0))
 
@@ -117,6 +161,8 @@ def dispute_out(d: ManifestRowDispute) -> dict[str, Any]:
     return {
         'photos': [photo_out(p) for p in d.photos.all()],
         'id': d.pk,
+        'item_id': d.item_id,
+        'item_sku': d.item.sku if d.item_id and d.item else '',
         'reason': d.reason,
         'reason_label': info.get('label', d.reason),
         'units': d.units,
@@ -134,7 +180,7 @@ def row_disputes(order: PurchaseOrder, processing_row_id: Any) -> dict[str, Any]
     row = _row(order, processing_row_id)
     disputes = list(
         ManifestRowDispute.objects.filter(purchase_order=order, processing_row=row)
-        .select_related('created_by', 'undone_by')
+        .select_related('created_by', 'undone_by', 'item')
         .prefetch_related('photos__s3_file', 'photos__thumbnail_file')
     )
     return {
@@ -247,18 +293,24 @@ def create(user, order: PurchaseOrder, data: dict, photos: list | None = None) -
     try:
         with transaction.atomic():
             row = _row(order, data.get('processing_row_id'), lock=True)
-            left = remaining_units(row)
-            if left <= 0:
-                raise RowDisputeError(f'Row {row.row_number} has nothing left to dispute: every unit is checked in '
-                                      'or already disputed. Undo one first, or dispute the checked-in items.')
-            if units > left:
-                raise RowDisputeError(f'Row {row.row_number} has {left} unit{"" if left == 1 else "s"} left to dispute.')
+            item = _item_for(order, row, data.get('item_id'), reason) if data.get('item_id') not in (None, '') else None
+            if item is not None:
+                units = 1                   # one checked-in item: it already counts as received and handled
+            else:
+                left = remaining_units(row)
+                if left <= 0:
+                    raise RowDisputeError(f'Row {row.row_number} has nothing left to dispute: every unit is checked '
+                                          'in or already disputed. Undo one first, or dispute the checked-in items.')
+                if units > left:
+                    raise RowDisputeError(
+                        f'Row {row.row_number} has {left} unit{"" if left == 1 else "s"} left to dispute.')
             if REASONS[reason]['photos'] and not prepared:
                 raise RowDisputeError('Add a photo of the problem. Every reason but "did not come" needs at least '
                                       'one (B-Stock asks for them).')
             dispute = ManifestRowDispute.objects.create(
-                purchase_order=order, manifest_row_id=row.manifest_row_id, processing_row=row, reason=reason,
-                units=units, pct_lost=pct, note=note, created_by=user if getattr(user, 'pk', None) else None,
+                purchase_order=order, manifest_row_id=item.manifest_row_id if item else row.manifest_row_id,
+                processing_row=row, item=item, reason=reason, units=units, pct_lost=pct, note=note,
+                created_by=user if getattr(user, 'pk', None) else None,
             )
             _save_photos(user, order, dispute, prepared, saved_keys)
             _refresh(order, row)

@@ -62,7 +62,7 @@ import { ProcessingGoogleSearchButton } from './ProcessingGoogleSearchButton';
 import { PhotoSheetButton } from '../../../components/photoSheets/PhotoSheetButton';
 import { parseSearchTagsCsv } from './processingGoogleQuery';
 import { ProcessingCheckInDialog, type ProcessingCheckInSeed } from './ProcessingCheckInDialog';
-import { DisputeItemsDialog } from './DisputeItemsDialog';
+import { RowDisputeDialog } from './RowDisputeDialog';
 import { RestorationRequestDialog } from '../restorationRequest/RestorationRequestDialog';
 import { ProcessingRowSection } from './ProcessingRowSection';
 import { processingTokens } from './processingTokens';
@@ -2413,14 +2413,13 @@ export function ProcessingActiveCard({
 
       </Box>
 
-      <DisputeItemsDialog
+      {/* Dash Update #102: one dispute record. Mark as disputed opens the queue's Dispute window for these items. */}
+      <RowDisputeDialog
         open={disputeTarget != null}
-        items={disputeTarget?.items ?? []}
-        patch={(itemId, payload) => patchItem.mutateAsync({ itemId, payload })}
-        onClose={(result) => {
-          setDisputeTarget(null);
-          if (result?.saved) enqueueSnackbar(`${result.saved} item${result.saved === 1 ? '' : 's'} updated`, { variant: 'success' });
-        }}
+        orderId={orderId}
+        processingRowId={disputeTarget ? row.processing_row_id : null}
+        items={(disputeTarget?.items ?? []).filter((it) => it.status === 'on_shelf').map((it) => ({ id: it.id, sku: it.sku ?? '' }))}
+        onClose={() => setDisputeTarget(null)}
       />
       <RestorationRequestDialog
         open={restorationTarget != null}

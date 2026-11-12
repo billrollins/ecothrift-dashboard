@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.279.0] -->
-<!-- Last reviewed: 2026-11-12 (2.279.0) -->
+<!-- Line 1 release: ## [2.280.0] -->
+<!-- Last reviewed: 2026-11-12 (2.280.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.280.0] - 2026-11-12
+
+User-facing theme: **Disputes: one dispute record everywhere (Dash Update #102).**
+
+> **For Bill:** every dispute is now a row dispute. "Mark as disputed" on a Prior check-ins row opens the same Dispute window as the queue: pick the item, what is wrong, a photo, and it counts in the header, Close the truck and the B-Stock list, with Undo. The old item marks in production (150 "did not come", 15 broken, 1 missing pieces) move into row disputes with the same numbers, and the 162 old open disputes from May are marked resolved. That move is a one-time step run only after Mainline shows you the before and after. One guess for you to confirm: an item checked in as **Salvage** no longer counts as damaged in the truck claim (it was sold or shelved); to claim one, dispute it.
+
+### Changed (#102: one dispute record)
+- `ManifestRowDispute.item` (migration `inventory/0132_row_dispute_item`): a dispute about one checked-in item. It adds to the damaged / lost numbers only, never again to received or to the row's handled units; the row reads Disputed. API `POST …/row-disputes/` takes `item_id`.
+- Truck accounting (`manifest_line_accounting`): an item a row dispute names is counted by that dispute only. Item marks still count for items no row dispute names (older data until the fold runs).
+- **Salvage is a selling condition, not a dispute** (guessed for Bill): a Salvage item no longer counts as Damaged on the truck, Close the truck or the B-Stock list. In production that takes 57 items (all sold or on the shelf) off 13 trucks' claims; no truck is finalized and nothing was filed. To claim one, dispute it.
+- Prior check-ins "Mark as disputed" opens `RowDisputeDialog` for the check-in's items (one item per dispute, photos needed, no "did not come"). The old `DisputeItemsDialog` is gone. Its icon is now red whenever an item in the check-in is disputed (before, the red showed only on hover); the row detail's items carry `row_disputed`.
+- New `manage.py fold_item_disputes` (dry run by default, `--apply`, `--order`): turns item marks into row disputes linked to their items and resolves the old open processing `Dispute` rows; a truck whose per-line numbers would move is left alone and reported STOPPED.
+- 4 new server tests (two older truck tests now mark the broken unit scrapped instead of Salvage), 1 new front-end test plus one more check.
 
 ## [2.279.0] - 2026-11-12
 

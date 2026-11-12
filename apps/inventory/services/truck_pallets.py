@@ -349,15 +349,25 @@ def manifest_line_accounting(order: PurchaseOrder) -> list[dict[str, Any]]:
     # broken, marked with a dispute and its % of value lost. Counted as that share of a unit.
     disputed_n: dict[int, int] = defaultdict(int)
     disputed_pct: dict[int, int] = defaultdict(int)
-    is_broken = Q(status='scrapped') | Q(dispute_type='broken') | Q(condition='salvage')
-    is_disputed = ~Q(status__in=_NOT_RECEIVED_STATUSES) & ~is_broken & ~Q(dispute_type='')
+    # One dispute record (Dash Update #102): an item a row dispute is about (or was, before an undo) is counted by that
+    # row dispute only, never again by its own marks. Item marks still count for items no row dispute names (older
+    # data until `fold_item_disputes` runs, and status changes made elsewhere).
+    from apps.inventory.services.row_disputes import accounting_by_manifest_row, items_with_row_disputes
+
+    named = items_with_row_disputes(order)
+    own_marks = ~Q(pk__in=named) if named else Q()
+    # Salvage is a selling condition, not a dispute (Dash Update #102, Mainline 2026-11-12, guessed for Bill): a salvage
+    # item sold or shelved cannot be claimed. To claim one, dispute it.
+    is_broken = Q(status='scrapped') | Q(dispute_type='broken')
+    is_disputed = ~Q(status__in=_NOT_RECEIVED_STATUSES) & ~is_broken & ~Q(dispute_type='') & own_marks
+    is_broken = is_broken & own_marks
     for row in (
         Item.objects.filter(purchase_order=order, manifest_row_id__isnull=False)
         .values('manifest_row_id')
         .annotate(
             here=Count('pk', filter=~Q(status__in=_NOT_RECEIVED_STATUSES)),
             broken=Count('pk', filter=~Q(status__in=_NOT_RECEIVED_STATUSES) & is_broken),
-            lost=Count('pk', filter=Q(status='lost')),
+            lost=Count('pk', filter=Q(status='lost') & own_marks),
             disputed=Count('pk', filter=is_disputed),
             disputed_pct=Sum('dispute_pct_loss', filter=is_disputed),
         )
@@ -368,14 +378,12 @@ def manifest_line_accounting(order: PurchaseOrder) -> list[dict[str, Any]]:
         disputed_n[row['manifest_row_id']] = row['disputed']
         disputed_pct[row['manifest_row_id']] = row['disputed_pct'] or 0
 
-    # Row disputes from the Processing queue (Dash Update #100), no items: the same buckets as item disputes.
-    # Did not come = not received (marked missing); broken / wrong item = received broken; the rest = received,
-    # partly damaged at their % lost.
-    from apps.inventory.services.row_disputes import accounting_by_manifest_row
-
+    # Row disputes (Dash Updates #100, #102): did not come = not received (marked missing); broken / wrong item =
+    # received broken; the rest = received, partly damaged at their % lost. A dispute about a checked-in item adds
+    # nothing to received (the item is already counted there).
     for mr_id, b in accounting_by_manifest_row(order).items():
         lost[mr_id] += b['missing']
-        received[mr_id] += b['broken'] + b['partial']
+        received[mr_id] += b['received']
         broken[mr_id] += b['broken']
         disputed_n[mr_id] += b['partial']
         disputed_pct[mr_id] += b['partial_pct']

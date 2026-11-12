@@ -85,7 +85,9 @@ class TruckReportTests(TruckFinalizeBase):
     def test_missing_broken_added_and_refund(self):
         self._check_in(0, 8)            # line 1: 2 missing ($100)
         self._check_in(1, 4)            # line 2: 1 missing ($100)
-        self._check_in(1, 1, 'salvage')  # ...and the 5th arrived broken ($100)
+        self._check_in(1, 1)            # ...and the 5th arrived broken ($100)
+        from apps.inventory.models import Item
+        Item.objects.filter(pk=Item.objects.filter(manifest_row=self.rows[1][0]).latest('pk').pk).update(status='scrapped')
         rep = truck_report(self.order)
         t = rep['totals']
         self.assertEqual(t['units']['manifest'], 15)
@@ -97,6 +99,14 @@ class TruckReportTests(TruckFinalizeBase):
         self.assertEqual(rep['refund']['amount'], '28.50')
         self.assertEqual(rep['refund']['sale_price'], '200.00')
         self.assertEqual([line['row_number'] for line in rep['lines']], [1, 2])
+
+    def test_salvage_is_a_selling_condition_not_damage(self):
+        # Dash Update #102: a salvage item was received and sold or shelved; it is not claimed unless disputed.
+        self._check_in(0, 10)
+        self._check_in(1, 4)
+        self._check_in(1, 1, 'salvage')
+        t = truck_report(self.order)['totals']
+        self.assertEqual((t['units']['broken'], t['units']['missing']), (0, 0))
 
     def test_disputed_items_count_toward_the_claim_at_their_loss(self):
         # Dash Update #1 (Bill 2026-11-03): disputed items count toward the truck claim, each at its % of value lost.

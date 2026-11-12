@@ -75,6 +75,8 @@ describe('checkedInHistory', () => {
     ];
     expect(distinctProductCount(items)).toBe(2);
     expect(disputedItemCount(items)).toBe(1);
+    // Dash Update #102: an item a row dispute names counts as disputed too.
+    expect(disputedItemCount([...items, item({ id: 4, sku: 'D', row_disputed: true })])).toBe(2);
   });
 
   it('groups history rows by product sorted by total qty desc', () => {

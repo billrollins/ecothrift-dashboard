@@ -68,7 +68,9 @@ class AffectedLinesTests(DisputeBase):
     def test_missing_and_damaged_rows_in_bstock_columns(self):
         self._check_in(0, 7)              # 3 not received
         self._check_in(1, 4)
-        self._check_in(1, 1, 'salvage')   # 1 damaged
+        self._check_in(1, 1)              # 1 damaged
+        from apps.inventory.models import Item
+        Item.objects.filter(pk=Item.objects.filter(manifest_row=self.prs[1].manifest_row).latest('pk').pk).update(status='scrapped')
         lines = affected_lines(self.order)
         self.assertEqual(
             [(line['row_number'], line['issue'], line['units']) for line in lines],

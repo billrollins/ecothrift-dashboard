@@ -142,6 +142,7 @@ export function disputedItemCount(items: ProcessingWorkspaceItemDTO[]): number {
   return items.filter(
     (it) =>
       Boolean(it.dispute_type)
+      || Boolean(it.row_disputed)
       || it.dispute_pct_loss != null
       || it.status === 'scrapped'
       || it.status === 'lost',

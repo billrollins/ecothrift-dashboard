@@ -821,7 +821,12 @@ const CheckedInHistoryTableRow = memo(function CheckedInHistoryTableRow({
                 size="small"
                 aria-label={`Dispute (${qty} item${qty === 1 ? '' : 's'})`}
                 onClick={() => onDisputeCheckIn(row)}
-                sx={actionIconSx(row.items.some((it) => it.dispute_type) ? 'error.main' : 'text.secondary')}
+                data-disputed={row.items.some((it) => it.dispute_type || it.row_disputed) ? 'yes' : undefined}
+                sx={{
+                  ...actionIconSx('error.main'),
+                  // Dash Update #102: red at rest when an item here is disputed (a row dispute or an old item mark).
+                  ...(row.items.some((it) => it.dispute_type || it.row_disputed) ? { color: 'error.main' } : {}),
+                }}
               >
                 <ReportProblemOutlined sx={{ fontSize: 16 }} />
               </IconButton>

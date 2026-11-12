@@ -556,6 +556,8 @@ export interface ProcessingWorkspaceItemDTO {
   dispute_type: ProcessingItemDisputeType | null;
   dispute_pct_loss: number | null;
   dispute_description: string;
+  /** An active row dispute names this item (Dash Update #102; row detail only). */
+  row_disputed?: boolean;
 }
 
 /** What a Restoration item needs, which is also the state it is in now (owner, 2026-10-28). */

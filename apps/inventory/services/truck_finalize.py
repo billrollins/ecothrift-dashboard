@@ -7,7 +7,8 @@ Per manifest line (from ``truck_pallets.manifest_line_accounting``):
   after arrival, capped at the line. They come off what the truck should have held.
 - **Expected** = manifest - unfulfilled. **Received** = the line's received share in manifest units.
   **Missing** = expected - received (never below 0). **Over** = received above expected.
-- **Broken** = units received broken (scrapped, disputed broken, or salvage condition), in manifest units.
+- **Broken** = units received broken (scrapped, disputed broken; salvage condition no longer counts since Dash Update
+  #102), in manifest units.
 - **Disputed** = other items disputed in Processing (cosmetic, missing pieces, ...), each counted as its % of value
   lost, in manifest units (Dash Update #1, Bill 2026-11-03: disputed items count toward the claim).
 - **Added** = items checked in with no manifest line (units and their own retail).

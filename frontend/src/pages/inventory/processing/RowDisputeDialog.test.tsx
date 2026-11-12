@@ -40,12 +40,12 @@ const answer = (over: Partial<RowDisputesResponse['row']> = {}, disputes: RowDis
 const photo = () => new File(['jpeg'], 'cracked.jpg', { type: 'image/jpeg' });
 const form = (over: Partial<RowDisputeForm>): RowDisputeForm => ({ ...initialRowDisputeForm(5), ...over });
 
-function show() {
+function show(items?: Array<{ id: number; sku: string }>) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   const onClose = vi.fn();
   render(
     <QueryClientProvider client={client}>
-      <RowDisputeDialog open orderId={3} processingRowId={7} onClose={onClose} />
+      <RowDisputeDialog open orderId={3} processingRowId={7} items={items} onClose={onClose} />
     </QueryClientProvider>,
   );
   return { onClose };
@@ -155,8 +155,30 @@ describe('Dispute row window', () => {
     expect(api.createRowDispute).not.toHaveBeenCalled();
   });
 
+  it('Mark as disputed: one checked-in item, no units, no "did not come", already disputed items left out', async () => {
+    const taken = { id: 50, photos: [], item_id: 901, item_sku: 'ITM-A', reason: 'broken' as const, reason_label: 'Arrived broken',
+      units: 1, pct_lost: 100, note: '', by: 'Dana Tester', at: '2026-11-12T18:00:00Z', undone_at: null, undone_by: '' };
+    api.getRowDisputes.mockResolvedValue(answer({ remaining: 0 }, [taken]));
+    api.createRowDispute.mockResolvedValue({ ...answer({ remaining: 0 }), dispute: {} });
+    URL.createObjectURL = vi.fn(() => 'blob:test');
+    URL.revokeObjectURL = vi.fn();
+    const { onClose } = show([{ id: 901, sku: 'ITM-A' }, { id: 902, sku: 'ITM-B' }]);
+    expect(await screen.findByText('ITM-A · Arrived broken')).toBeInTheDocument();
+    expect(screen.queryByLabelText('How many units')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Did not come' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'ITM-A' })).not.toBeInTheDocument();      // already disputed
+    await userEvent.click(screen.getByRole('button', { name: 'Missing parts' }));
+    await userEvent.upload(screen.getByTestId('row-dispute-photo'), photo());
+    await userEvent.click(await screen.findByRole('button', { name: 'Dispute ITM-B' }));
+    await waitFor(() => expect(api.createRowDispute).toHaveBeenCalled());
+    expect(api.createRowDispute.mock.calls[0][1]).toEqual(
+      { processing_row_id: 7, item_id: 902, reason: 'missing_parts', units: 1, pct_lost: 50 },
+    );
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
   it('lists the row\'s disputes and Undo puts the units back', async () => {
-    const d = { id: 41, photos: [], reason: 'did_not_come' as const, reason_label: 'Did not come', units: 5, pct_lost: 100, note: 'never came',
+    const d = { id: 41, photos: [], item_id: null, item_sku: '', reason: 'did_not_come' as const, reason_label: 'Did not come', units: 5, pct_lost: 100, note: 'never came',
       by: 'Dana Tester', at: '2026-11-11T18:00:00Z', undone_at: null, undone_by: '' };
     api.getRowDisputes.mockResolvedValue(answer({ remaining: 0, disputed: 5 }, [d]));
     api.undoRowDispute.mockResolvedValue(answer({ remaining: 5, disputed: 0 }, [{ ...d, undone_at: '2026-11-11T19:00:00Z', undone_by: 'Dana Tester' }]));
