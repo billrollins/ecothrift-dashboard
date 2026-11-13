@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   AppBar,
@@ -36,6 +36,8 @@ import { AccountMenu } from './AccountMenu';
 import { useDashboardTab } from '../../navigation/dashboardTabs';
 import { hasRunner } from '../../pages/routines/todayRunner';
 import { PrintServerButton } from '../printing/PrintServerButton';
+import { KitPageContext } from '../page/kitSignal';
+import { pageTitleFor } from '../../navigation/pageRegistry';
 
 const DASHBOARD_BACKDROP = dashboardPalette.backdrop;
 
@@ -50,6 +52,9 @@ export default function MainLayout() {
   const lang = user?.language === 'es' ? 'es' : 'en';
   const navigate = useNavigate();
   const location = useLocation();
+  // Pages built with the kit (PageShell) mark themselves; while one is on screen the top bar names the page (#134).
+  const [kitPages, setKitPages] = useState(0);
+  const markKitPage = useCallback((delta: 1 | -1) => setKitPages((n) => Math.max(0, n + delta)), []);
   // The Dashboard is two tabs: Store (the olive numbers page) and My day (what /today was).
   const dashboardTab = useDashboardTab();
   const isDashboardPath = location.pathname === '/dashboard';
@@ -221,6 +226,11 @@ export default function MainLayout() {
                   </Typography>
                 </Box>
               ) : null}
+              {!isPhoneShell && kitPages > 0 ? (
+                <Typography variant="h6" component="h1" noWrap sx={{ fontWeight: 800, minWidth: 0, flexShrink: 1 }}>
+                  {pageTitleFor(location.pathname, location.search, location.hash)}
+                </Typography>
+              ) : null}
               {/* The empty middle: "this is not normal" banners (View as, training register) live here, never above
                   the page (Dash Updates #54). */}
               <Box
@@ -281,7 +291,9 @@ export default function MainLayout() {
               <Suspense fallback={<LoadingScreen message="Loading…" />}>
                 {/* Any SKU / product / order link on any page opens its object modal (pages may wrap their own). */}
                 <ObjectModalProvider>
-                  <Outlet />
+                  <KitPageContext.Provider value={markKitPage}>
+                    <Outlet />
+                  </KitPageContext.Provider>
                 </ObjectModalProvider>
               </Suspense>
             </AppErrorBoundary>

@@ -14,6 +14,7 @@
  * in with `withChecks`. Phase 2: the sidebar itself is generated from this list.
  */
 import { NAV_ITEM_CATALOG } from './navItemCatalog';
+import { navItemIsActive } from './navUtils';
 import { SLOT_C_NAV_GROUPS, SLOT_C_WORKSPACES } from './slotCNavLayout';
 
 /** The seven page types, plus `tool` (a full-screen station with its own layout) and `none` (reference sheets). */
@@ -232,4 +233,18 @@ export function designBrief(page: RegistryPage, origin = ''): string {
     'When it lands, Bill ticks the step on the Design Lab Pages tab.',
   ];
   return lines.join('\n');
+}
+
+/**
+ * The page's name for the top bar: the sidebar label of the page at this address (the most specific match wins).
+ * Empty when no sidebar page matches.
+ */
+export function pageTitleFor(pathname: string, search = '', hash = ''): string {
+  let best = { label: '', length: -1 };
+  for (const item of Object.values(NAV_ITEM_CATALOG)) {
+    if (item.legacy || !navItemIsActive(pathname, search, hash, item)) continue;
+    const length = item.path.length + (item.query ? 1000 : 0);
+    if (length > best.length) best = { label: item.label, length };
+  }
+  return best.label;
 }

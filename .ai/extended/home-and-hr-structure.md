@@ -22,4 +22,4 @@ Working design; decided items are marked. Build one page at a time, each its own
 - (none)
 
 ## Build order (proposed)
-1. Tabs + avatar menu (skeleton). 2. Time clock tab. 3. HR tab (staff). 4. Profile. 5. HR workspace split + Requests inbox. 6. Calendar: design with demos, then build.
+1. Tabs + avatar menu (skeleton): **done, v2.298.0** (BEAST MODE); placeholders in `frontend/src/pages/home/HomeTabs.tsx`, Time clock is still tab id `myday` (TodayPage). 2. Time clock tab. 3. HR tab (staff). 4. Profile. 5. HR workspace split + Requests inbox. 6. Calendar: design with demos, then build.

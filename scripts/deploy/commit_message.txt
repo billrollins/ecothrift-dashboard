@@ -1,13 +1,13 @@
-v2.299.0 — Design Lab: Universal Surfaces, the one window every object opens in
+v2.300.0 — Design Lab phase 2: kit pages get the top-bar title and phone cards
 
-User-facing theme: **Design Lab: Universal Surfaces, the one window every object opens in (Dash Update #134).**
+User-facing theme: **Design Lab phase 2: the top bar names kit pages, kit tables turn into cards on a phone, the theme fonts load everywhere (Dash Update #134).**
 
-> **For Bill:** Admin > Design Lab > Surfaces. The standard object window as ten elements (Bar, Identity, Numbers, Attention, Actions, Facts, Related, Photos, Notes, Timeline), a map of 19 objects and what each links to, with your Standard / Design / Done ticks, and each object on made-up data at desktop and phone size side by side. Clicking a related row opens that object. No real window changed yet: they move onto it one object at a time.
+> **For Bill:** pages built with the new page kit now get their title in the top bar (and never twice), and their tables turn into cards on a phone. Older pages look the same until they move to the kit, one page type at a time. The theme fonts now load for the whole app.
 
-### Added (Universal Surfaces, OOUX, Dash Update #134)
-- `components/surface/UniversalSurface.tsx` writes down the shape the object windows already share (components/objects, StaffWindow) as ten elements in order: Bar, Identity, Numbers, Attention (at most one), Actions (one main button, the rest under More), Facts, Related (opens in the same window, Back returns), Photos (the three-way photo picker), Notes, Timeline. Full screen on a phone with the main button kept at the bottom; no colours of its own.
-- `navigation/objectCatalog.ts`: 19 objects (Product, Item, Check-in, Category, Location, Auction, Order, Vendor, Restoration order, Purchase order, Supply, Sale, Register, Drawer, Customer, Staff member, Meeting, Incident, Delivery), their kinds, what each links to, and the window each uses today. "Location" is the thing an item is in (gondola shelf, showcase, rack, floor space, back-room bin). Calendar stays a page type: each thing on it opens its own surface.
-- Design Lab > Surfaces: the ten elements and their rules, the object map with ticks (saved with the page ticks as `surface-<object>`), each object desktop and phone side by side. The Pages and Surfaces tabs share one tick component (`designChecks.tsx`).
-- Tests: `navigation/objectCatalog.test.ts` (links only to known objects, a demo per object, tick ids the server accepts).
+### Changed (Design Lab phase 2: the shared shell pieces, Dash Update #134)
+- The top bar names the page on every page built with the kit: `PageShell` tells the shell it is there (`components/page/kitSignal.ts`) and MainLayout shows the page's sidebar name (`pageTitleFor` in `navigation/pageRegistry.ts`) as the page heading. Pages not on the kit keep their own titles and show nothing new, so no page has two titles. A kit page must not repeat its title in the body.
+- `PageShell` wraps its page in `StackOnPhone`, so every table on a kit page turns into cards on a phone. Older pages are untouched; turning it on for every page is one switch once they are checked.
+- The theme's fonts (Manrope, Nunito) load in `index.html` with the others (they loaded from the Design Lab only).
+- Tests: MainLayout names a kit page and leaves an older page alone; `pageTitleFor`.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

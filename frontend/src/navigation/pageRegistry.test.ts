@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NAV_ITEM_CATALOG } from './navItemCatalog';
-import { PAGE_REGISTRY, designBrief, nextStep, withChecks } from './pageRegistry';
+import { PAGE_REGISTRY, designBrief, nextStep, pageTitleFor, withChecks } from './pageRegistry';
 
 describe('page registry', () => {
   it('gives every sidebar page a page type (none left "not sorted")', () => {
@@ -34,5 +34,11 @@ describe('page registry', () => {
     expect(receiving.checkedBy).toBe('Bill');
     expect(nextStep(receiving)).toBe('done');
     expect(merged.find((p) => p.id === 'vendors')!.check.template).toBe(false);
+  });
+
+  it('names the page at an address for the top bar, the most specific sidebar page winning', () => {
+    expect(pageTitleFor('/inventory/vendors')).toBe('Vendors');
+    expect(pageTitleFor('/admin/design-lab')).toBe('Design Lab');
+    expect(pageTitleFor('/nowhere')).toBe('');
   });
 });

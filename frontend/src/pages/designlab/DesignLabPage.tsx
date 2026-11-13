@@ -9,11 +9,11 @@
  * The tab is kept in the URL (?view=report&device=phone) so a view can be linked or reloaded.
  */
 import { Box, Stack, Tab, Tabs, ThemeProvider, Typography } from '@mui/material';
-import { useEffect, type ComponentType } from 'react';
+import type { ComponentType } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import StackOnPhone from '../../components/page/StackOnPhone';
 import { PAGE_REGISTRY, PAGE_TEMPLATES, type PageTemplate } from '../../navigation/pageRegistry';
-import { ECO_FONT_HREF, ecoFonts, ecoTheme } from '../../theme/eco';
+import { ecoFonts, ecoTheme } from '../../theme/eco';
 import { DevicePicker, DeviceView } from './DeviceView';
 import IconsTab from './IconsTab';
 import PagesTab from './PagesTab';
@@ -42,19 +42,7 @@ const VIEWS: View[] = [
   { id: 'pages', label: 'Pages', View: PagesTab },
 ];
 
-/** Phase 1: the theme's fonts load with the Design Lab only (phase 2 moves them to index.html). */
-function useEcoFonts() {
-  useEffect(() => {
-    if (document.querySelector(`link[href="${ECO_FONT_HREF}"]`)) return;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = ECO_FONT_HREF;
-    document.head.appendChild(link);
-  }, []);
-}
-
 export default function DesignLabPage() {
-  useEcoFonts();
   const [params, setParams] = useSearchParams();
   const current = VIEWS.find((v) => v.id === params.get('view')) ?? VIEWS[0];
   const demo = current.demo;

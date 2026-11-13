@@ -3,7 +3,8 @@
  * every page is assembled from, so pages look alike without anyone copying styles. Colours come from the active theme
  * (no hex codes here), so the kit works under today's theme and the Eco-Thrift theme (theme/eco.ts).
  *
- * One rule first: the top bar names the page. A page body never repeats its title and never
+ * One rule first: the top bar names the page (PageShell tells the shell it is there: kitSignal.ts; MainLayout then
+ * shows the page's sidebar name in the top bar). A page body never repeats its title and never
  * opens with a tagline. It starts with the toolbar (if there is something to do) or the content.
  * A record page may open with the record's own name (an employee, a client): that is not the page title.
  *
@@ -22,6 +23,8 @@ import { Box, Card, Stack, Typography, type SxProps, type Theme } from '@mui/mat
 import { alpha, darken, useTheme } from '@mui/material/styles';
 import type { ComponentType, ReactNode } from 'react';
 import type { SvgIconProps } from '@mui/material/SvgIcon';
+import { useMarkKitPage } from './kitSignal';
+import StackOnPhone from './StackOnPhone';
 
 export type Tone = 'good' | 'wait' | 'problem' | 'info' | 'quiet';
 
@@ -32,13 +35,17 @@ function useToneColor(tone: Tone): string {
   return tone === 'quiet' ? theme.palette.text.secondary : theme.palette[TONE_PALETTE[tone]].main;
 }
 
-/** `narrow` for forms and settings, `wide` for reports and tables. */
+/**
+ * `narrow` for forms and settings, `wide` for reports and tables. Every table inside turns into cards on a phone
+ * (StackOnPhone), and the shell names the page in the top bar while a PageShell is on screen.
+ */
 export function PageShell({ width = 'standard', children }: { width?: 'narrow' | 'standard' | 'wide'; children: ReactNode }) {
+  useMarkKitPage();
   const maxWidth = { narrow: 760, standard: 1180, wide: 1480 }[width];
   return (
-    <Stack spacing={{ xs: 2, md: 3 }} sx={{ maxWidth, mx: 'auto', width: '100%' }}>
-      {children}
-    </Stack>
+    <StackOnPhone sx={{ maxWidth, mx: 'auto', width: '100%' }}>
+      <Stack spacing={{ xs: 2, md: 3 }}>{children}</Stack>
+    </StackOnPhone>
   );
 }
 

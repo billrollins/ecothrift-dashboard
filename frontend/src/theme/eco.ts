@@ -10,7 +10,7 @@
  * no text under 12px. When in doubt, the more legible option.
  *
  * Phase 1: only the Design Lab wears this theme (it wraps itself in a ThemeProvider). The rest of the app still uses
- * theme/index.ts until pages move over, one template at a time.
+ * theme/index.ts until pages move over, one template at a time. Its fonts (Manrope, Nunito) load in index.html.
  */
 import { alpha, createTheme, type ThemeOptions } from '@mui/material/styles';
 
@@ -59,10 +59,6 @@ export const ecoFonts = {
   body: '"Manrope", "Inter", "Segoe UI", system-ui, sans-serif',
   mono: '"DM Mono", ui-monospace, Consolas, monospace',
 } as const;
-
-/** Google Fonts for this theme. Phase 1 loads it from the Design Lab only (useEcoFonts); phase 2 moves it to index.html. */
-export const ECO_FONT_HREF =
-  'https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Nunito:wght@700;800;900&display=swap';
 
 /** Three levels of depth only. */
 export const ecoShadow = {

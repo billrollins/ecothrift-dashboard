@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.299.0] -->
-<!-- Last reviewed: 2026-11-13 (2.299.0) -->
+<!-- Line 1 release: ## [2.300.0] -->
+<!-- Last reviewed: 2026-11-13 (2.300.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.300.0] - 2026-11-13
+
+User-facing theme: **Design Lab phase 2: the top bar names kit pages, kit tables turn into cards on a phone, the theme fonts load everywhere (Dash Update #134).**
+
+> **For Bill:** pages built with the new page kit now get their title in the top bar (and never twice), and their tables turn into cards on a phone. Older pages look the same until they move to the kit, one page type at a time. The theme fonts now load for the whole app.
+
+### Changed (Design Lab phase 2: the shared shell pieces, Dash Update #134)
+- The top bar names the page on every page built with the kit: `PageShell` tells the shell it is there (`components/page/kitSignal.ts`) and MainLayout shows the page's sidebar name (`pageTitleFor` in `navigation/pageRegistry.ts`) as the page heading. Pages not on the kit keep their own titles and show nothing new, so no page has two titles. A kit page must not repeat its title in the body.
+- `PageShell` wraps its page in `StackOnPhone`, so every table on a kit page turns into cards on a phone. Older pages are untouched; turning it on for every page is one switch once they are checked.
+- The theme's fonts (Manrope, Nunito) load in `index.html` with the others (they loaded from the Design Lab only).
+- Tests: MainLayout names a kit page and leaves an older page alone; `pageTitleFor`.
 
 ## [2.299.0] - 2026-11-13
 

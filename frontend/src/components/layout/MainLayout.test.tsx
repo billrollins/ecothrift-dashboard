@@ -4,6 +4,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
+import type { ReactNode } from 'react';
+import { PageShell } from '../page/PageKit';
 import MainLayout from './MainLayout';
 
 vi.mock('../../contexts/AuthContext', () => ({
@@ -27,7 +29,7 @@ function Where() {
   return <div data-testid="where">{location.pathname}</div>;
 }
 
-function renderLayout(path = '/inventory/search') {
+function renderLayout(path = '/inventory/search', page: ReactNode = <Where />) {
   const client = new QueryClient();
   return render(
     <QueryClientProvider client={client}>
@@ -35,7 +37,7 @@ function renderLayout(path = '/inventory/search') {
         <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route element={<MainLayout />}>
-              <Route path="*" element={<Where />} />
+              <Route path="*" element={page} />
             </Route>
           </Routes>
         </MemoryRouter>
@@ -63,5 +65,13 @@ describe('MainLayout shell (staff navigation phase 1)', () => {
     renderLayout('/inventory/search');
     await user.click(screen.getByTestId('sidebar-logo'));
     expect(screen.getByTestId('where')).toHaveTextContent('/dashboard');
+  });
+
+  it('names a kit page in the top bar (the page body never repeats it), and leaves older pages as they are', () => {
+    const { unmount } = renderLayout('/inventory/vendors', <PageShell><div>vendor list</div></PageShell>);
+    expect(screen.getByRole('heading', { level: 1, name: 'Vendors' })).toBeInTheDocument();
+    unmount();
+    renderLayout('/inventory/vendors');
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
   });
 });
