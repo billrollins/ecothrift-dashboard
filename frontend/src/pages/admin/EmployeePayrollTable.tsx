@@ -8,6 +8,7 @@ import {
   type EmployeePayrollRow,
   sumEmployeePayroll,
 } from './payrollHours';
+import { StaffLink } from '../../components/staff/StaffLink';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
@@ -178,7 +179,7 @@ export function EmployeePayrollTable({
               <TableRow key={row.employee_id} hover>
                 <TableCell sx={{ width: COL.employee, maxWidth: COL.employee }}>
                   <Typography variant="body2" noWrap title={row.employee_name}>
-                    {row.employee_name}
+                    <StaffLink userId={row.employee_id}>{row.employee_name}</StaffLink>
                   </Typography>
                 </TableCell>
                 <TableCell align="right" sx={NUM}>

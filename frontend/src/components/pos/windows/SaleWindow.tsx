@@ -18,6 +18,7 @@ import { CopyId, Section, Stat, Timeline, type TimelineRow } from '../../objects
 import { SaleDetail } from '../SaleDetail';
 import { PriceFixDialog } from './PriceFixDialog';
 import { money, useRetailCopy, type CopyKey } from './retailCopy';
+import { StaffLink } from '../../staff/StaffLink';
 
 interface SaleCardData {
   id: number;
@@ -128,7 +129,8 @@ export function SaleWindow({ id }: { id: number }) {
           ) : null}
         </Stack>
         <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>
-          {[when(cart.completed_at ?? cart.created_at), c?.register?.name, cart.cashier_name].filter(Boolean).join(' · ')}
+          {[when(cart.completed_at ?? cart.created_at), c?.register?.name].filter(Boolean).join(' · ')}
+          {cart.cashier_name ? <> · <StaffLink userId={cart.cashier}>{cart.cashier_name}</StaffLink></> : null}
         </Typography>
         <Stack direction="row" spacing={{ xs: 2, md: 3 }} sx={{ pt: 0.5 }} flexWrap="wrap" useFlexGap>
           <Stat label={tr('total')} value={money(cart.total)} />

@@ -72,6 +72,7 @@ import {
   sumEmployeePayroll,
 } from './payrollHours';
 import { IconAdd as Add, IconConfirm as Check, IconDelete as Delete, IconEdit as Edit } from '../../icons/ecoIcons';
+import { StaffLink } from '../../components/staff/StaffLink';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const PAGE_MAX_WIDTH = 1680;
@@ -597,7 +598,10 @@ export default function TimePayrollPage() {
   // ── Columns ──────────────────────────────────────────────────
   const rosterColumns: GridColDef[] = [
     { field: 'date', headerName: 'Date', width: 112 },
-    { field: 'employee_name', headerName: 'Employee', width: 200 },
+    {
+      field: 'employee_name', headerName: 'Employee', width: 200,
+      renderCell: (p) => <StaffLink userId={p.row.employee_id as number}>{p.value as string}</StaffLink>,
+    },
     { field: 'shift_label', headerName: 'Shift', width: 200 },
     { field: 'clock_in', headerName: 'Start', width: 130, valueFormatter: (v, row) => fmtClockCell(v as string | null, row.date as string) },
     { field: 'clock_out', headerName: 'Stop', width: 130, valueFormatter: (v, row) => fmtClockCell(v as string | null, row.date as string) },
@@ -664,7 +668,10 @@ export default function TimePayrollPage() {
   ];
 
   const requestColumns: GridColDef[] = [
-    { field: 'employee_name', headerName: 'Employee', width: 180 },
+    {
+      field: 'employee_name', headerName: 'Employee', width: 180,
+      renderCell: (p) => <StaffLink userId={p.row.employee as number}>{p.value as string}</StaffLink>,
+    },
     { field: 'entry_date', headerName: 'Shift', width: 108 },
     {
       field: 'requested_clock_in',
@@ -1110,7 +1117,7 @@ export default function TimePayrollPage() {
           <Stack spacing={2} sx={{ mt: 1 }}>
             {editingRow ? (
               <Typography variant="body2" color="text.secondary">
-                {editingRow.employee_name}
+                <StaffLink userId={editingRow.employee_id}>{editingRow.employee_name}</StaffLink>
               </Typography>
             ) : (
               <FormControl fullWidth>
@@ -1195,7 +1202,7 @@ export default function TimePayrollPage() {
         <DialogContent>
           {reqTarget && (
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              {reqTarget.employee_name} - shift {reqTarget.entry_date}
+              <StaffLink userId={reqTarget.employee}>{reqTarget.employee_name}</StaffLink> - shift {reqTarget.entry_date}
             </Typography>
           )}
           <Stack spacing={2} sx={{ mt: 1 }}>

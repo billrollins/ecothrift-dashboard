@@ -49,7 +49,7 @@ function legacyStep(role: UserRole | null | undefined): number {
   return -1;
 }
 
-type AccessUser = { is_superuser?: boolean; role: User['role']; access?: string[] | null };
+export type AccessUser = { is_superuser?: boolean; role: User['role']; access?: string[] | null };
 
 /**
  * Does this person hold `need`? The owner always does. Items decide when the list names any (so a personal "no"

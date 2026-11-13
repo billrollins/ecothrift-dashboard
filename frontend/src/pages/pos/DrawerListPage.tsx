@@ -63,6 +63,7 @@ import { format } from 'date-fns';
 import { IconAdd as Add, IconRemove as Remove } from '../../icons/ecoIcons';
 import { TRAINING_REGISTER_LABEL, sortRegistersForSetup } from '../../utils/trainingRegister';
 import { ObjectLink, useObjectModal } from '../../components/objects/ObjectModal';
+import { StaffLink } from '../../components/staff/StaffLink';
 
 const DRAWER_LIST_PARAMS = { include_training: 1 };
 
@@ -376,7 +377,7 @@ export default function DrawerListPage() {
                   ) : (
                     <>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        Cashier: {drawer.current_cashier_name ?? '-'}
+                        Cashier: <StaffLink userId={drawer.current_cashier}>{drawer.current_cashier_name ?? '-'}</StaffLink>
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         Opened: {drawer.opened_at ? format(new Date(drawer.opened_at), 'PPp') : '-'}
@@ -537,7 +538,7 @@ export default function DrawerListPage() {
                               {(drawer.movements ?? []).map((m) => (
                                 <Typography key={m.id} variant="caption" color="text.secondary" display="block">
                                   {m.kind === 'paid_in' ? 'Paid in' : 'Paid out'} {formatCurrency(m.total)} @ {format(new Date(m.created_at), 'HH:mm')}: {m.reason}
-                                  {m.performed_by_name ? ` · ${m.performed_by_name}` : ''}
+                                  {m.performed_by_name ? <> · <StaffLink userId={m.performed_by}>{m.performed_by_name}</StaffLink></> : ''}
                                 </Typography>
                               ))}
                             </Box>

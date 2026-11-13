@@ -33,6 +33,7 @@ import {
 import { IncidentForm } from './incidents/IncidentForm';
 import { IncidentDetailDialog, StatusChip } from './incidents/IncidentDetailDialog';
 import { KIND_COPY, PLACE_COPY, useIncidentCopy } from './incidents/incidentCopy';
+import { StaffLink } from '../../components/staff/StaffLink';
 
 type Filter = 'open' | 'closed' | 'all';
 
@@ -57,7 +58,7 @@ function Row({ report, onOpen }: { report: IncidentSummary; onOpen: () => void }
           {pick(KIND_COPY[report.kind], report.kind_label)} · {pick(PLACE_COPY[report.place], report.place_label)}
         </Typography>
         <Typography variant="body2" color="text.secondary" noWrap>
-          {at(report.occurred_at)} · {report.reported_by_name}
+          {at(report.occurred_at)} · <StaffLink userId={report.reported_by}>{report.reported_by_name}</StaffLink>
         </Typography>
         <Typography variant="body2" noWrap>{report.what_happened}</Typography>
       </Box>

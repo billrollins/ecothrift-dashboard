@@ -51,6 +51,7 @@ import {
   togglePersonItem,
   type LayerKind,
 } from './permissionsLogic';
+import { StaffLink } from '../../../components/staff/StaffLink';
 
 type TabId = 'levels' | 'departments' | 'people' | 'history';
 const TABS: { id: TabId; label: string }[] = [
@@ -376,7 +377,7 @@ function PeopleTab({ data, onSave, onLevel }: {
                 {isOpen ? <ExpandMoreIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
               </IconButton>
               <Box sx={{ flex: 1, minWidth: 160 }}>
-                <Typography fontWeight={700}>{person.name}</Typography>
+                <Typography fontWeight={700}><StaffLink userId={person.id}>{person.name}</StaffLink></Typography>
                 <Typography variant="caption" color="text.secondary">
                   {[person.position, person.department?.name].filter(Boolean).join(' · ') || 'No department'}
                 </Typography>

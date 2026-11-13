@@ -48,6 +48,7 @@ import {
 } from './DepartmentDialogs';
 import { DEPARTMENT_SUBTITLE, deleteLockTooltip, errorDetail, startWorkspaceLabel } from './departmentUi';
 import { IconMore as MoreVert } from '../../../icons/ecoIcons';
+import { StaffLink } from '../../../components/staff/StaffLink';
 
 export default function DepartmentsPage() {
   const navigate = useNavigate();
@@ -339,7 +340,7 @@ function DepartmentRow({
       <TableCell align="right">{row.home_count ?? 0}</TableCell>
       <TableCell align="right">{row.shift_count ?? 0}</TableCell>
       <TableCell align="right">{row.section_count ?? 0}</TableCell>
-      <TableCell>{row.manager_name || '-'}</TableCell>
+      <TableCell>{row.manager_name ? <StaffLink userId={row.manager}>{row.manager_name}</StaffLink> : '-'}</TableCell>
       <TableCell>{startWorkspaceLabel(row.start_workspace)}</TableCell>
       <TableCell>
         <Chip

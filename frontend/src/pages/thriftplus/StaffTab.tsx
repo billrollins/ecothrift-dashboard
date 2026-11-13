@@ -41,6 +41,7 @@ import {
   type StaffMoney,
 } from '../../api/thriftplus.api';
 import { formatCurrency } from '../../utils/format';
+import { StaffLink } from '../../components/staff/StaffLink';
 
 const STAFF_KEY = ['thriftplus', 'staff-memberships'] as const;
 
@@ -301,7 +302,7 @@ function StaffRow({ row, canMerge, onMerge, onMergeLogin }: {
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
-            <Typography sx={{ fontWeight: 800 }}>{row.name}</Typography>
+            <Typography sx={{ fontWeight: 800 }}><StaffLink userId={row.user_id}>{row.name}</StaffLink></Typography>
             {row.role ? <Chip size="small" label={row.role} /> : null}
             {m ? (
               <Chip size="small" color={m.status === 'revoked' ? 'error' : 'success'} variant="outlined"

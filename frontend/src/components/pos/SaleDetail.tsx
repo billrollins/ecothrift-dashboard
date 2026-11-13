@@ -20,6 +20,7 @@ import type { Cart, CartLine } from '../../types/pos.types';
 import { CartCardBreakdown } from './CartCardBreakdown';
 import { CardTypeFixControls } from './CardTypeFixControls';
 import { useRetailCopy } from './windows/retailCopy';
+import { StaffLink } from '../staff/StaffLink';
 
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -69,12 +70,12 @@ export function SaleDetail({
       {/* When and who are in the window's header; who was covering is said here. */}
       {cart.covering_for_name ? (
         <Typography variant="body2" color="text.secondary">
-          {cart.cashier_name ?? '-'} ({tr('coveringFor')} {cart.covering_for_name})
+          <StaffLink userId={cart.cashier}>{cart.cashier_name ?? '-'}</StaffLink> ({tr('coveringFor')} {cart.covering_for_name})
         </Typography>
       ) : null}
       {cart.status === 'voided' && cart.voided_by_name && (
         <Typography variant="body2" color="error">
-          {tr('voidedBy')} {cart.voided_by_name}
+          {tr('voidedBy')} <StaffLink userId={cart.voided_by}>{cart.voided_by_name}</StaffLink>
           {cart.voided_at ? ` · ${format(new Date(cart.voided_at), 'PPp')}` : ''}
           {cart.void_reason ? ` · ${cart.void_reason}` : ''}
         </Typography>

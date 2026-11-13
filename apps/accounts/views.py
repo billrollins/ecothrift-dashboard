@@ -470,6 +470,8 @@ class UserViewSet(viewsets.ModelViewSet):
             from apps.hr.services.time_clock_utils import week_hours_by_user
 
             context['week_hours'] = week_hours_by_user()
+        if self.action == 'retrieve':
+            context['with_lock'] = True  # the staff window's Locked out chip (#136)
         return context
 
     def get_queryset(self):
@@ -621,6 +623,75 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return _send_staff_reset(user, request=request, requested_by_admin=True)
+
+    @action(detail=True, methods=['post'], url_path='password-reset')
+    def password_reset(self, request, pk=None):
+        """Password reset from the staff window (#136, Bill 2026-11-13): one 48-hour link, sent by email, by text from
+        our number, or both. One link both ways (a new link spends the last one, so two sends would kill the first).
+        Body: ``{"email": bool, "text": bool}``. Answers what happened to each, never the link."""
+        from apps.accounts.services.staff_password import (
+            SET_PASSWORD_TTL, is_staff_account, issue_staff_reset, staff_reset_link,
+        )
+        from apps.texting import service as texting
+        from apps.texting.models import TextMessage
+        from apps.webstore.emails import send_staff_password_reset
+
+        user = self.get_object()
+        want_email = bool(request.data.get('email'))
+        want_text = bool(request.data.get('text'))
+        if not (want_email or want_text):
+            return Response({'detail': 'Pick email, text, or both.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not is_staff_account(user):
+            return Response({'detail': 'Only staff reset here. A shopper uses the storefront.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if not user.is_active:
+            return Response({'detail': 'Reactivate this account first.'}, status=status.HTTP_400_BAD_REQUEST)
+        has_email = bool((user.email or '').strip())
+        has_phone = bool(texting.digits(user.phone))
+        if want_email and not has_email:
+            return Response({'detail': 'No email on file for them.'}, status=status.HTTP_400_BAD_REQUEST)
+        if want_text and not has_phone:
+            return Response({'detail': 'No mobile number on file for them.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            row = issue_staff_reset(user=user, request_ip=_client_ip(request), ttl=SET_PASSWORD_TTL)
+        except ValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+        link = staff_reset_link(row.token) + '&set=1'
+
+        result = {'email': None, 'text': None}
+        if want_email:
+            try:
+                send_staff_password_reset(email=user.email, reset_link=link, requested_by_admin=True,
+                                          lasts='48 hours')
+                result['email'] = {'sent': True, 'to': user.email, 'reason': ''}
+                AccountEvent.log(user, AccountEvent.KIND_RESET_SENT, actor=request.user)
+            except Exception:
+                logger.exception('Staff window reset email failed for user %s', user.pk)
+                result['email'] = {'sent': False, 'to': user.email, 'reason': 'The email did not go out.'}
+        if want_text:
+            from apps.accounts.services.usernames import assign_username
+
+            username = assign_username(user)
+            body = f'Eco-Thrift: set your Dash password here (works once, for 48 hours): {link}'
+            if username:
+                body += f' Your username: {username}'
+            message = texting.send_staff_text(phone=user.phone, key='set_password_link', body=body,
+                                              ref=f'accounts.user:{user.pk}', by=request.user)
+            sent = message.status == TextMessage.STATUS_SENT
+            result['text'] = {'sent': sent, 'to': texting.masked(message.phone),
+                              'reason': '' if sent else (message.reason or message.get_status_display())}
+            if sent:
+                AccountEvent.log(user, AccountEvent.KIND_LINK, actor=request.user)
+        parts = []
+        if result['email']:
+            parts.append(f"emailed to {user.email}" if result['email']['sent'] else 'the email failed')
+        if result['text']:
+            parts.append(f"texted to {result['text']['to']}" if result['text']['sent'] else
+                         f"the text did not go ({result['text']['reason']})")
+        any_sent = any(r and r['sent'] for r in result.values())
+        result['detail'] = ('Reset link ' if any_sent else 'Nothing sent: ') + ', '.join(parts) + '.'
+        result['expires_at'] = row.expires_at
+        return Response(result, status=status.HTTP_200_OK if any_sent else status.HTTP_502_BAD_GATEWAY)
 
     @action(detail=True, methods=['patch'])
     def consignee_profile(self, request, pk=None):

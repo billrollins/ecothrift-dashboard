@@ -109,8 +109,10 @@ def send_password_reset_link(*, email: str, magic_link: str) -> bool:
     return _send('Reset your Eco-Thrift password', body, email)
 
 
-def send_staff_password_reset(*, email: str, reset_link: str, requested_by_admin: bool = False) -> None:
-    """Staff password reset. Raises if the send fails - a silent drop locks someone out."""
+def send_staff_password_reset(*, email: str, reset_link: str, requested_by_admin: bool = False,
+                              lasts: str = 'one hour') -> None:
+    """Staff password reset. Raises if the send fails - a silent drop locks someone out. ``lasts``: how long the link
+    works, in words (one hour for forgot password; 48 hours from the staff window's Password reset)."""
     opening = (
         'An administrator started a password reset for your Eco-Thrift staff account.'
         if requested_by_admin
@@ -120,7 +122,7 @@ def send_staff_password_reset(*, email: str, reset_link: str, requested_by_admin
         f'{opening}\n\n'
         f'Set a new password:\n\n'
         f'{reset_link}\n\n'
-        f'This link is single-use and expires in one hour. '
+        f'This link is single-use and expires in {lasts}. '
         f'If you did not expect it, ignore this email and your password stays as it is.\n\n'
         f'- Eco-Thrift\n{PICKUP_ADDRESS} · {PICKUP_PHONE}'
     )

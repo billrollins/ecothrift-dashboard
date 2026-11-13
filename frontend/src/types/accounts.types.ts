@@ -85,6 +85,8 @@ export interface User {
   consignee?: ConsigneeProfile | null;
   /** Set on the People screens when this week is past 40 plus their overtime allowance. */
   hours_flag?: { hours: string; limit: string; text: string; link: string } | null;
+  /** Locked out of sign-in right now (too many wrong tries). One person's record only (the staff window); null in lists. */
+  locked_out?: boolean | null;
   /** View as (owner 2026-10-21): from `GET /api/auth/me/` only. Set while the owner sees Dash as this person. */
   view_as?: ViewAs | null;
   /** What they may open (People → Permissions, #53): item ids and dial steps. From sign-in and `/api/auth/me/` only;

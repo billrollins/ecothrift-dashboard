@@ -36,6 +36,7 @@ import {
 } from './DepartmentDialogs';
 import { deleteLockTooltip, errorDetail, startWorkspaceLabel } from './departmentUi';
 import { IconMore as MoreVert } from '../../../icons/ecoIcons';
+import { StaffLink } from '../../../components/staff/StaffLink';
 
 export default function DepartmentDetailPage() {
   const { slug } = useParams();
@@ -128,7 +129,7 @@ export default function DepartmentDetailPage() {
             />
           </Box>
           <Typography sx={{ fontSize: 14, color: ccTokens.ink2, mt: 0.5 }}>
-            {row?.manager_name ? `Manager ${row.manager_name}` : 'No manager'}
+            {row?.manager_name ? <>Manager <StaffLink userId={row.manager}>{row.manager_name}</StaffLink></> : 'No manager'}
             {row ? ` · Menu starts in ${startWorkspaceLabel(row.start_workspace)}` : ''}
           </Typography>
           {row?.description ? (
@@ -148,7 +149,7 @@ export default function DepartmentDetailPage() {
           <HubCard title="Home staff">
             {data?.home_staff.length ? data.home_staff.map((person) => (
               <Box key={person.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.6 }}>
-                <Typography sx={{ flex: 1 }}>{shortName(person.full_name)}</Typography>
+                <Typography sx={{ flex: 1 }}><StaffLink userId={person.id}>{shortName(person.full_name)}</StaffLink></Typography>
                 <Typography sx={{ fontSize: 13, color: ccTokens.ink2 }}>{person.role || '-'}</Typography>
                 <Chip
                   size="small"
@@ -167,7 +168,7 @@ export default function DepartmentDetailPage() {
           <HubCard title="Also scheduled here">
             {data?.also_scheduled_here.length ? data.also_scheduled_here.map((person) => (
               <Typography key={`${person.id}-${person.shift_name}`} sx={{ py: 0.5 }}>
-                {shortName(person.full_name)} · {person.shift_name}
+                <StaffLink userId={person.id}>{shortName(person.full_name)}</StaffLink> · {person.shift_name}
               </Typography>
             )) : (
               <Empty>No one from another home department is scheduled here</Empty>

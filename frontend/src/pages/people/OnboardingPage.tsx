@@ -44,6 +44,7 @@ import { useEmailReview } from './EmailReview';
 import { Checklist, CountDialog, HandbookText, I9Dialog, openHandbookPdf, StartOnboardingDialog } from './onboardingUi';
 import { dayText, errorText, shortDate } from './peopleUi';
 import { IconClose as CloseIcon } from '../../icons/ecoIcons';
+import { StaffLink } from '../../components/staff/StaffLink';
 
 function Row({ row, selected, onOpen }: { row: OnboardingRow; selected: boolean; onOpen: () => void }) {
   return (
@@ -63,7 +64,7 @@ function Row({ row, selected, onOpen }: { row: OnboardingRow; selected: boolean;
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography fontWeight={700} sx={{ flex: 1 }} noWrap>
-          {row.user.name}
+          <StaffLink userId={row.user.id}>{row.user.name}</StaffLink>
         </Typography>
         {row.overdue > 0 && <Chip size="small" color="error" label={`${row.overdue} overdue`} sx={{ height: 20, fontSize: 11 }} />}
         {row.status !== 'active' && <Chip size="small" label={row.status_label} sx={{ height: 20, fontSize: 11 }} />}
@@ -124,11 +125,11 @@ function Panel({ id, onClose }: { id: number; onClose: () => void }) {
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.2 }}>
-            {o.user.name}
+            <StaffLink userId={o.user.id}>{o.user.name}</StaffLink>
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             {o.position || 'New hire'} · first day {dayText(o.start_date)}
-            {o.start_time ? ` at ${o.start_time.slice(0, 5)}` : ''} · manager {o.manager?.name ?? '-'}
+            {o.start_time ? ` at ${o.start_time.slice(0, 5)}` : ''} · manager {o.manager ? <StaffLink userId={o.manager.id}>{o.manager.name}</StaffLink> : '-'}
           </Typography>
           <Typography variant="body2" sx={{ color: ccTokens.ink2 }}>
             Dash sign-in: {o.user.username || '-'}

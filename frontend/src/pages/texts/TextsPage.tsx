@@ -22,6 +22,7 @@ import {
 } from '@mui/material';
 import { PageHeader } from '../../components/common/PageHeader';
 import { getInbox, getThread, prettyPhone, replyToThread, type Conversation, type ThreadMessage } from '../../api/texting.api';
+import { StaffLink } from '../../components/staff/StaffLink';
 
 const MAX = 270; // our name and the STOP line take the rest of two texts
 
@@ -187,7 +188,9 @@ function ThreadPane({ phone, onBack }: { phone: string; onBack: () => void }) {
           Back
         </Button>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 800 }} noWrap>{name.title}</Typography>
+          <Typography sx={{ fontWeight: 800 }} noWrap>
+            {data.kind === 'staff' ? <StaffLink userId={data.user_id}>{name.title}</StaffLink> : name.title}
+          </Typography>
           <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }} noWrap>{name.sub}</Typography>
         </Box>
         {data.stopped ? <Chip size="small" color="warning" label="Said STOP" /> : null}

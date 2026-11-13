@@ -48,6 +48,7 @@ import { CheckInReadout, openCheckinPdf } from './checkinUi';
 import { dayText, errorText, shortDate } from './peopleUi';
 import { SignaturePad } from './SignaturePad';
 import { IconClose as CloseIcon } from '../../icons/ecoIcons';
+import { StaffLink } from '../../components/staff/StaffLink';
 
 function Row({ row, selected, onOpen }: { row: CheckInRow; selected: boolean; onOpen: () => void }) {
   return (
@@ -67,14 +68,14 @@ function Row({ row, selected, onOpen }: { row: CheckInRow; selected: boolean; on
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography fontWeight={700} sx={{ flex: 1 }} noWrap>
-          {row.user.name}: {row.day}-day check-in
+          <StaffLink userId={row.user.id}>{row.user.name}</StaffLink>: {row.day}-day check-in
         </Typography>
         {row.overdue && <Chip size="small" color="error" label="Overdue" sx={{ height: 20, fontSize: 11 }} />}
         {row.status !== 'scheduled' && <Chip size="small" label={row.status_label} sx={{ height: 20, fontSize: 11 }} />}
       </Box>
       <Typography variant="caption" color="text.secondary">
         {row.status === 'done' ? `Signed ${shortDate(row.signed_at)}` : `Due ${dayText(row.due_date)}`}
-        {row.manager ? ` · with ${row.manager.name}` : ''}
+        {row.manager ? <> · with <StaffLink userId={row.manager.id}>{row.manager.name}</StaffLink></> : ''}
         {row.status === 'scheduled' && row.started ? ' · started' : ''}
       </Typography>
     </Box>
@@ -240,11 +241,11 @@ function Panel({ id, onClose }: { id: number; onClose: () => void }) {
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
         <Box sx={{ flex: 1 }}>
           <Typography variant="h5" fontWeight={700}>
-            {c.user.name}: {c.day}-day check-in
+            <StaffLink userId={c.user.id}>{c.user.name}</StaffLink>: {c.day}-day check-in
           </Typography>
           <Typography variant="body2" color="text.secondary">
             Due {dayText(c.due_date)}
-            {c.manager ? ` · with ${c.manager.name}` : ''} · {c.status_label}
+            {c.manager ? <> · with <StaffLink userId={c.manager.id}>{c.manager.name}</StaffLink></> : ''} · {c.status_label}
           </Typography>
         </Box>
         <IconButton onClick={onClose} aria-label="Close">

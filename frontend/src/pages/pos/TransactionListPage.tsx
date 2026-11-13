@@ -32,6 +32,7 @@ import { format, startOfMonth, startOfWeek, subDays } from 'date-fns';
 import { IconSearch as Search } from '../../icons/ecoIcons';
 import { useSearchParams } from 'react-router-dom';
 import ReturnsGrid, { type ReturnsFilters } from '../../components/pos/returns/ReturnsGrid';
+import { StaffLink } from '../../components/staff/StaffLink';
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num ?? 0);
@@ -192,6 +193,7 @@ export default function TransactionListPage() {
       // Cover (2026-10-22): sold while stepping in for someone.
       valueGetter: (_value, row) =>
         row.covering_for_name ? `${row.cashier_name ?? '-'} (covering ${row.covering_for_name})` : row.cashier_name,
+      renderCell: (p) => <StaffLink userId={p.row.cashier as number | null}>{p.value as string}</StaffLink>,
     },
     {
       field: 'payment_method',

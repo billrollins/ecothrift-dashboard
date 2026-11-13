@@ -48,6 +48,7 @@ import { UNREAD_KEY } from '../../components/messages/MessagesEnvelope';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../i18n/useLanguage';
 import { ccTokens } from '../../theme';
+import { StaffLink } from '../../components/staff/StaffLink';
 
 export const THREADS_KEY = ['messages', 'threads'] as const;
 
@@ -169,7 +170,7 @@ function ThreadPane({ id, onBack }: { id: number; onBack?: () => void }) {
         {thread.messages.map((m) => (
           <Box key={m.id} sx={{ display: 'flex', justifyContent: m.mine ? 'flex-end' : 'flex-start', mb: 1.25 }}>
             <Box sx={{ maxWidth: { xs: '88%', md: '75%' }, p: 1.25, borderRadius: 2, bgcolor: m.mine ? ccTokens.goodTint : ccTokens.card, border: `1px solid ${ccTokens.line}` }}>
-              <Typography variant="caption" color="text.secondary">{m.mine ? 'You' : m.sender} · {when(m.created_at)}</Typography>
+              <Typography variant="caption" color="text.secondary">{m.mine ? 'You' : <StaffLink userId={m.sender_id}>{m.sender}</StaffLink>} · {when(m.created_at)}</Typography>
               <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.body}</Typography>
               {m.secret ? <SecretBox message={m} onShown={() => queryClient.invalidateQueries({ queryKey: ['messages', 'thread', id] })} /> : null}
               {m.mine ? (

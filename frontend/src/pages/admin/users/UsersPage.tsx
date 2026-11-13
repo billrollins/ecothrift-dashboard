@@ -15,7 +15,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Badge, Box, Tab, Tabs } from '@mui/material';
 import { PageHeader } from '../../../components/common/PageHeader';
 import CustomerDetailDrawer from '../../../components/users/CustomerDetailDrawer';
-import EmployeeDetailDrawer from '../../../components/users/EmployeeDetailDrawer';
+import { useStaffWindow } from '../../../components/staff/StaffLink';
 import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useCustomerStats, useEmployeeStats } from '../../../hooks/useEmployees';
@@ -46,7 +46,8 @@ export default function UsersPage() {
   const tab: UsersTab = requestedTab;
 
   const [customerId, setCustomerId] = useState<number | null>(deepLinkedCustomer);
-  const [employeeId, setEmployeeId] = useState<number | null>(null);
+  // A row opens the staff window (#136), the same one every staff name opens.
+  const openStaff = useStaffWindow();
 
   const customerStats = useCustomerStats();
   const members = useMembers();
@@ -136,19 +137,13 @@ export default function UsersPage() {
       {tab === 'members' ? (
         <MembersPanel />
       ) : (
-        <EmployeesPanel onSelect={setEmployeeId} />
+        <EmployeesPanel onSelect={(id) => openStaff?.(id)} />
       )}
 
       <CustomerDetailDrawer
         customerId={customerId}
         open={customerId != null}
         onClose={closeCustomer}
-      />
-
-      <EmployeeDetailDrawer
-        userId={employeeId}
-        open={employeeId != null}
-        onClose={() => setEmployeeId(null)}
       />
     </Box>
   );

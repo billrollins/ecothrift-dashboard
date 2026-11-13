@@ -34,6 +34,7 @@ import { IncidentReviewPanel } from './IncidentReviewPanel';
 import { IncidentSpotView } from './IncidentMap';
 import { MAX_PHOTOS } from './IncidentForm';
 import { FIELD_COPY, KIND_COPY, PLACE_COPY, ROLE_COPY, useIncidentCopy } from './incidentCopy';
+import { StaffLink } from '../../../components/staff/StaffLink';
 
 function Photo({ reportId, photoId }: { reportId: number; photoId: number }) {
   const { data } = useQuery({
@@ -171,7 +172,7 @@ export function IncidentDetailDialog({
         {report ? (
           <>
             <Typography variant="body2" color="text.secondary">
-              {t('happened')}: {at(report.occurred_at)} · {t('reportedBy')} {report.reported_by_name}, {at(report.created_at)}
+              {t('happened')}: {at(report.occurred_at)} · {t('reportedBy')} <StaffLink userId={report.reported_by}>{report.reported_by_name}</StaffLink>, {at(report.created_at)}
             </Typography>
             {review ? (
               <IncidentReviewPanel review={review} busy={busy || reviewing} onDecide={onReviewDecide}
@@ -214,7 +215,7 @@ export function IncidentDetailDialog({
             <Typography sx={{ fontWeight: 700 }}>{t('history')}</Typography>
             <Stack spacing={1.25}>
               <Typography variant="caption" color="text.secondary">
-                {at(report.created_at)} · {report.reported_by_name} {t('filed')}
+                {at(report.created_at)} · <StaffLink userId={report.reported_by}>{report.reported_by_name}</StaffLink> {t('filed')}
               </Typography>
               {report.notes.map((n) => <HistoryLine key={n.id} note={n} />)}
             </Stack>

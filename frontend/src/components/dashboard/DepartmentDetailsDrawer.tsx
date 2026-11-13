@@ -26,6 +26,7 @@ import { formatDashboardCurrency, shortDate } from './dashboardFormatters';
 import { periodLabel, processedItemsHref, type DetailsPeriod } from './departmentPeriods';
 import { DashboardPhoneSheet } from './phone/DashboardPhoneSheet';
 import { useDashboardLayout } from './useDashboardLayout';
+import { StaffLink } from '../staff/StaffLink';
 
 export interface DepartmentDetailsRequest {
   department: DepartmentDetailsKey;
@@ -173,7 +174,7 @@ function RestorationTable({ data }: { data: Extract<DepartmentDetails, { departm
         <TableBody>
           {data.rows.map((row) => (
             <TableRow key={row.user_id ?? 'none'}>
-              <TableCell sx={{ fontWeight: 800 }}>{row.name}</TableCell>
+              <TableCell sx={{ fontWeight: 800 }}><StaffLink userId={row.user_id}>{row.name}</StaffLink></TableCell>
               <TableCell align="right">{count(row.items)}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}>
                 {formatDashboardCurrency(row.value_added)}

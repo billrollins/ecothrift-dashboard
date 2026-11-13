@@ -35,6 +35,7 @@ import {
   type ScheduleRequest,
 } from '../../api/schedule.api';
 import { errorText, range } from './scheduleLayout';
+import { StaffLink } from '../../components/staff/StaffLink';
 
 const COPY = {
   ask: { en: 'Ask for a change', es: 'Pedir un cambio' },
@@ -190,7 +191,7 @@ export function DecideRow({ request, onDone }: { request: ScheduleRequest; onDon
   };
   return (
     <Box data-testid={`request-${request.id}`} sx={{ py: 1.25 }}>
-      <Typography fontWeight={700}>{request.employee_name}</Typography>
+      <Typography fontWeight={700}><StaffLink userId={request.employee}>{request.employee_name}</StaffLink></Typography>
       <Typography variant="body2">{describe(request)}</Typography>
       {request.note ? <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>“{request.note}”</Typography> : null}
       <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>

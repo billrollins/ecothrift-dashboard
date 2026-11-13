@@ -19,6 +19,7 @@ import { CardTypeFixControls } from './CardTypeFixControls';
 import { paymentMethodLabel, thriftPaymentParts } from '../../utils/posPayment';
 import { taxExemptText } from './TaxExemptDialog';
 import { IconClose as Close } from '../../icons/ecoIcons';
+import { StaffLink } from '../staff/StaffLink';
 
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -65,7 +66,7 @@ export function TransactionDetailDialog({ open, cart, onClose, onCartUpdated }: 
           <Box>
             <Typography variant="body2" color="text.secondary">
               {format(new Date(cart.completed_at ?? cart.created_at), 'PPp')} ·{' '}
-              {cart.cashier_name ?? '-'}
+              <StaffLink userId={cart.cashier}>{cart.cashier_name ?? '-'}</StaffLink>
               {cart.covering_for_name ? ` (covering for ${cart.covering_for_name})` : ''}
             </Typography>
             <Box sx={{ mt: 2 }}>

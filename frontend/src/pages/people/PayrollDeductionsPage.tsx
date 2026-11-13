@@ -7,6 +7,7 @@ import { getPayrollDeductions, getStaffPurchaseSettings, markPayrollEntered } fr
 import { PageHeader } from '../../components/common/PageHeader';
 import { ccTokens } from '../../theme';
 import { dayText, errorText, shortDate } from './peopleUi';
+import { StaffLink } from '../../components/staff/StaffLink';
 
 const money = (v: string | number) => `$${Number(v).toFixed(2)}`;
 
@@ -57,7 +58,7 @@ export default function PayrollDeductionsPage() {
               <Box key={row.employee.id} sx={{ p: 2, borderRadius: ccTokens.r, border: `1px solid ${ccTokens.line}`, bgcolor: ccTokens.card }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                   <Typography fontWeight={700} sx={{ flex: 1 }}>
-                    {row.employee.name}: {money(row.total)}
+                    <StaffLink userId={row.employee.id}>{row.employee.name}</StaffLink>: {money(row.total)}
                   </Typography>
                   {row.entered ? (
                     <Chip

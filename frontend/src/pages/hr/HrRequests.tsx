@@ -48,6 +48,7 @@ import {
 import { AskDialog, DecideRow, useRequestCopy } from '../people/ScheduleRequests';
 import { errorText } from '../people/scheduleLayout';
 import MyEsignDocuments from '../esign/MyEsignDocuments';
+import { StaffLink } from '../../components/staff/StaffLink';
 
 const COPY = {
   askChange: { en: 'Ask for a day off or new times', es: 'Pedir un día libre u otro horario' },
@@ -176,7 +177,7 @@ function AnswerRow({ question, onDone }: { question: HrQuestion; onDone: () => v
   };
   return (
     <Box data-testid={`question-${question.id}`} sx={{ py: 1.25 }}>
-      <Typography fontWeight={700}>{question.employee_name} · {t('questionKind')}</Typography>
+      <Typography fontWeight={700}><StaffLink userId={question.employee}>{question.employee_name}</StaffLink> · {t('questionKind')}</Typography>
       <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{question.question}</Typography>
       <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
         <TextField size="small" placeholder={t('answer')} value={answer} onChange={(e) => setAnswer(e.target.value)}
@@ -205,7 +206,7 @@ function TimeChangeRow({ request, onDone }: { request: ModificationRequest; onDo
   };
   return (
     <Box data-testid={`timechange-${request.id}`} sx={{ py: 1.25 }}>
-      <Typography fontWeight={700}>{request.employee_name} · {t('timeChange')}</Typography>
+      <Typography fontWeight={700}><StaffLink userId={request.employee}>{request.employee_name}</StaffLink> · {t('timeChange')}</Typography>
       <Typography variant="body2">{timeChangeText(request, at)}</Typography>
       {request.reason ? <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>“{request.reason}”</Typography> : null}
       <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>

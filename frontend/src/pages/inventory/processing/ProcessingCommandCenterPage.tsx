@@ -42,6 +42,7 @@ import {
 import { PageHeader } from '../../../components/common/PageHeader';
 import { ccTokens } from '../../../theme';
 import { formatCurrency, formatCurrencyWhole } from '../../../utils/format';
+import { StaffLink } from '../../../components/staff/StaffLink';
 
 export type Period = 'day' | 'week';
 
@@ -555,7 +556,7 @@ function PersonCard({ person, period, pace, me, shared, date }: RowProps) {
     <Paper variant="outlined" sx={{ p: 1.5, borderRadius: ccTokens.r }} data-testid={`processor-${person.user_id}`}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
         <Typography sx={{ fontSize: 16, fontWeight: 700 }}>
-          {person.name}{person.user_id === me ? ' (you)' : ''}
+          <StaffLink userId={person.user_id}>{person.name}</StaffLink>{person.user_id === me ? ' (you)' : ''}
         </Typography>
         {person.is_new ? <NewChip /> : null}
         <StandingText value={personStatus(person, numbers, pace, shared, period, date)} />
@@ -597,7 +598,7 @@ function PersonRows({ person, period, pace, me, shared, date }: RowProps) {
         <TableCell sx={noBottom}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             <Typography sx={{ fontWeight: 650, whiteSpace: 'nowrap' }}>
-              {person.name}{person.user_id === me ? ' (you)' : ''}
+              <StaffLink userId={person.user_id}>{person.name}</StaffLink>{person.user_id === me ? ' (you)' : ''}
             </Typography>
             {person.is_new ? <NewChip /> : null}
             <StandingText value={personStatus(person, numbers, pace, shared, period, date)} />

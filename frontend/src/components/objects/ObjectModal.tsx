@@ -12,6 +12,8 @@
  *
  * - An item opens the universal Item modal (`ItemCard.tsx`): read-only, every department's view, Edit for the editor.
  * - On a phone the modal is full screen.
+ * - A staff member opens the Staff window (`components/staff/StaffWindow.tsx`, Dash Update #136; its id is the User id):
+ *   `<StaffLink userId={7}>` around any staff name, avatar or EMP number.
  * - Retail windows (Retail 2, 2026-11-02): a register, a drawer, a sale, and a Transactions list (`type: 'history'`, its id is
  *   the scope as one string: `historyKey()` in `components/pos/windows/historyScope.ts`).
  *
@@ -49,6 +51,7 @@ const RegisterWindow = lazy(() =>
   import('../pos/windows/RegisterWindow').then((m) => ({ default: m.RegisterWindow })));
 const DrawerWindow = lazy(() =>
   import('../pos/windows/DrawerWindow').then((m) => ({ default: m.DrawerWindow })));
+const StaffWindow = lazy(() => import('../staff/StaffWindow').then((m) => ({ default: m.StaffWindow })));
 const MemberWindow = lazy(() => import('../pos/windows/MemberWindow').then((m) => ({ default: m.MemberWindow })));
 const SaleWindow = lazy(() => import('../pos/windows/SaleWindow').then((m) => ({ default: m.SaleWindow })));
 const TransactionsWindow = lazy(() =>
@@ -66,6 +69,8 @@ export type ObjectRef =
   | { type: 'sale'; id: number }
   /** A Thrift+ member: the id is the person's. */
   | { type: 'member'; id: number }
+  /** A staff member (Dash Update #136): the id is their User id. */
+  | { type: 'staff'; id: number }
   /** A Transactions list; the id is its scope (`historyKey`). */
   | { type: 'history'; id: string }
   /** A new check-in for a product: "add more of these". */
@@ -87,6 +92,7 @@ const LABEL: Record<ObjectRef['type'], string> = {
   drawer: 'Drawer',
   sale: 'Sale',
   member: 'Thrift+ member',
+  staff: 'Staff',
   history: 'Transactions',
   'truck-plan': 'Truck Plan',
   'close-truck': 'Close the truck',
@@ -94,10 +100,10 @@ const LABEL: Record<ObjectRef['type'], string> = {
 /** The retail windows' header word in Spanish (their staff read them in either language). */
 const LABEL_ES: Partial<Record<ObjectRef['type'], string>> = { register: 'Caja', drawer: 'Cajón', sale: 'Venta', history: 'Ventas', member: 'Miembro Thrift+' };
 
-type LinkType = 'product' | 'checkin' | 'item' | 'order' | 'vendor' | 'restoration' | 'register' | 'drawer' | 'sale' | 'member';
+type LinkType = 'product' | 'checkin' | 'item' | 'order' | 'vendor' | 'restoration' | 'register' | 'drawer' | 'sale' | 'member' | 'staff';
 
 export function parseObjectRef(raw: string | null | undefined): ObjectRef | null {
-  const m = (raw || '').match(/^(product|checkin|item|order|vendor|restoration|register|drawer|sale|member):(\d+)$/i);
+  const m = (raw || '').match(/^(product|checkin|item|order|vendor|restoration|register|drawer|sale|member|staff):(\d+)$/i);
   if (!m) return null;
   return { type: m[1].toLowerCase() as LinkType, id: Number.parseInt(m[2], 10) };
 }
@@ -212,7 +218,7 @@ export function ObjectModalProvider({
               )}
               <Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }}>
                 {label(current.type)}
-                {current.type !== 'new-checkin' && current.type !== 'order' && current.type !== 'history' && current.type !== 'truck-plan' && current.type !== 'close-truck' && (
+                {current.type !== 'new-checkin' && current.type !== 'order' && current.type !== 'staff' && current.type !== 'history' && current.type !== 'truck-plan' && current.type !== 'close-truck' && (
                   <Typography component="span" color="text.secondary" sx={{ ml: 1 }}>
                     #{current.id}
                   </Typography>
@@ -290,6 +296,7 @@ export function ObjectModalProvider({
                   {current.type === 'drawer' && <DrawerWindow id={current.id} />}
                   {current.type === 'sale' && <SaleWindow id={current.id} />}
                   {current.type === 'member' && <MemberWindow personId={current.id} />}
+                  {current.type === 'staff' && <StaffWindow userId={current.id} />}
                   {current.type === 'history' && <TransactionsWindow scopeKey={current.id} />}
                 </Suspense>
               </Box>

@@ -20,6 +20,7 @@ import {
   shiftDays,
 } from './shiftsLayout';
 import { IconMore as MoreVert } from '../../../icons/ecoIcons';
+import { StaffLink } from '../../../components/staff/StaffLink';
 
 const fieldSx = {
   '& .MuiInputBase-root': {
@@ -241,7 +242,7 @@ export function ShiftCard({
               minWidth: 0,
             }}
           >
-            {row.employee_name}
+            <StaffLink userId={row.employee}>{row.employee_name}</StaffLink>
           </Typography>
           <Box className="person-days">
             <DayPills

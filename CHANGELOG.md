@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.295.0] -->
-<!-- Last reviewed: 2026-11-13 (2.295.0) -->
+<!-- Line 1 release: ## [2.296.0] -->
+<!-- Last reviewed: 2026-11-13 (2.296.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,23 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.296.0] - 2026-11-13
+
+User-facing theme: **The staff window: one window for a staff member, opened from anywhere their name, avatar or EMP number shows, with a cleaner header and one Password reset that emails, texts, or both (Dash Update #136).**
+
+> **For Bill:** the employee drawer is now the **staff window**, and it opens wherever a staff name shows: Users > Employees and Cannot sign in, Schedule (names and requests), Time & payroll (roster, change requests, by employee, deductions), HR requests and incidents, Onboarding and Check-ins, Permissions, Departments and Shifts, Processing, sales and Transactions (cashier), Drawers, Texts, staff Messages, Thrift+ Staff and Dash Updates. A name you can open underlines when you point at it. The **header** has the photo circle, the name with a small **View as** next to it, the EMP number (with copy), the role, and chips only when something is off: **Inactive**, **Not on payroll**, **Locked out**, **No password**; under it the job, department, time here, last sign-in and pay. **Password reset** is one button (top right): it opens a window with **Email** and **Text** (both ticked when we have the email and the phone); it sends one link both ways, good for 48 hours, and says where each went. In person, **Show a QR instead** gives the old scan-on-their-phone link. Texting needs **Settings > People > Staff texts from our number** on, as for Cannot sign in. **Deactivate** (and **Unlock sign-in** when someone is locked out) are in the **⋮** menu by the header. The rest is in tabs: **Access**, **Profile**, **Employment**, and the new **Schedule and time** (this week's shifts and hours, call-ins, the last two weeks of punches). Who can open it is the same as before (you, or someone you gave Full on people); for managers names stay plain text, as today.
+
+### Added (staff window, Dash Update #136)
+- `frontend/src/components/staff/StaffWindow.tsx`: the window, a new `staff` type in the object window (`ObjectModal`, `openObject({ type: 'staff', id: userId })`; `?object=staff:7` style refs parse too). Replaces `components/users/EmployeeDetailDrawer.tsx` (removed). Tabs keep one minimum height so switching never jumps the window; the punch list scrolls in place.
+- `StaffLink` (`components/staff/StaffLink.tsx`): the one opener. Wraps a name, avatar or EMP number, looks exactly like it (same font, no layout change), stops the click from reaching the row under it, and is plain content when the viewer cannot open staff records (`canOpenStaffWindow`: `users.staff:manage` or `people:full`, the Users > Employees gate), when there is no id, or outside a window provider. `useStaffWindow()` for code that opens it directly (Users > Employees rows).
+- Wired (User id in brackets): Cannot sign in rows and their role/EMP line (`user_id`); Schedule name cells and the day-editor title (`person.id`); schedule change requests (`employee`); Time & payroll roster and change-request grids and the edit / request dialogs (`employee_id`, `employee`); Time & payroll By employee (`employee_id`); Payroll deductions (`employee.id`); HR requests questions and time changes (`employee`); HR incidents list and detail (`reported_by`); Onboarding list, detail and its manager (`user.id`, `manager.id`); Check-ins list and detail with the manager (`user.id`, `manager.id`); hired applicant's EMP number (`employee.user_id`); Permissions people (`id`); Processing command center cards and table (`user_id`); dashboard Restoration "finished by" (`user_id`); Shift cards (`employee`); Department home staff, also scheduled, and manager (`id`, `manager`); Departments list manager; Transactions list, Transactions window table, sale detail (cashier, voided by), Sale window header (`cashier`, `voided_by`); Drawers cashier and paid in/out by (`current_cashier`, `performed_by`); Texts thread header for a staff number (`user_id`); staff Messages sender (`sender_id`); Thrift+ Staff tab (`user_id`); Dash Updates table reporter (`submitted_by`).
+- Not wired, name only in the data (needs a serializer id first): time-entry history "by", incident note authors and closed by, schedule request decided by, HR question answered by, approvals requested/decided by, POS covering for, Drawer window cashier/opened by, deduction entered by, onboarding task done by, Texts message by, message thread started by, tag-error found/fixed by, item card checked in by, settings updated by. Left as they are on purpose: names that already open something (Processing "by person" and tag-error processor links filter to their items; inventory count "Counted by" lists the items), pickers and menus (View as picker, add-person menus, handoff and drawer pickers, e-sign signer checkboxes), and rows that are themselves one button (Texts inbox rows, Transactions window phone rows).
+
+### Changed (Password reset, Dash Update #136)
+- `POST /api/accounts/users/<id>/password-reset/` `{email, text}` (owner or Full, as the drawer was): one 48-hour set-password link, emailed and/or texted from our number (`send_staff_text`), one link both ways (a new link spends the last one). Answers each channel's result, never the link; 502 when nothing went. The emailed copy says 48 hours (`send_staff_password_reset(lasts=...)`).
+- `UserSerializer.locked_out`: true while too many wrong tries lock sign-in; only one person's record asks (the window), lists answer null.
+- The window's **Password reset** replaces "Set password" and "Send reset link" (the old endpoints stay for Cannot sign in and Onboarding). 6 server tests (`apps/accounts/tests/test_staff_window_reset.py`), 14 front-end tests (`StaffWindow.test.tsx`, `StaffLink.test.tsx`).
 
 ## [2.295.0] - 2026-11-13
 

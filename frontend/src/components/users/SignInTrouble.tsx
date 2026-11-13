@@ -24,6 +24,7 @@ import {
   type SignInTroubleRow,
 } from '../../api/accounts.api';
 import { SetPasswordLinkDialog } from './SetPasswordLinkDialog';
+import { StaffLink } from '../staff/StaffLink';
 
 export const SIGN_IN_TROUBLE_KEY = ['sign-in-trouble'] as const;
 
@@ -97,10 +98,10 @@ function TroubleRow({
       }}
     >
       <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', rowGap: 0.5 }}>
-        <Typography sx={{ fontWeight: 700 }}>{row.name}</Typography>
+        <Typography sx={{ fontWeight: 700 }}><StaffLink userId={row.user_id}>{row.name}</StaffLink></Typography>
         <Chip size="small" label={chip.label} color={chip.color} variant={row.state === 'locked' ? 'filled' : 'outlined'} />
         <Typography variant="caption" color="text.secondary">
-          {[row.role, row.employee_number].filter(Boolean).join(' · ')}
+          <StaffLink userId={row.user_id}>{[row.role, row.employee_number].filter(Boolean).join(' · ')}</StaffLink>
         </Typography>
       </Stack>
       <Typography variant="body2" sx={{ mt: 0.75 }}>

@@ -5,6 +5,7 @@ import { t } from '../../i18n/routines';
 import type { DashFixDTO } from '../../types/dashFixes.types';
 import { StatusChip } from './DashFixRow';
 import { formatShortDate, kindLabel, needsAnswer, projectLabel, waitingOn, type LineGroup } from './dashFixesModel';
+import { StaffLink } from '../staff/StaffLink';
 
 /** "Nov 2, 3:40 PM" so a status that just moved shows it. */
 function formatUpdated(iso: string | null | undefined): string {
@@ -112,7 +113,7 @@ export function DashFixTable({ groups, all, byId, lang, onOpen, testId, nextUp, 
                     {row.project ? projectLabel(row, all, lang) : <Box component="span" sx={{ color: 'text.secondary' }}>{kindLabel(row.kind, lang)}</Box>}
                   </TableCell>
                   <TableCell sx={CELL_SX}>
-                    <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.submitted_by_name ?? ''}</Box>
+                    <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><StaffLink userId={row.submitted_by}>{row.submitted_by_name ?? ''}</StaffLink></Box>
                     <Box sx={{ color: 'text.secondary', fontSize: 12 }}>{formatShortDate(row.created_at)}</Box>
                   </TableCell>
                   <TableCell sx={{ ...CELL_SX, fontWeight: 700 }}>{row.size}</TableCell>

@@ -94,6 +94,7 @@ import {
   type Person,
   type Section,
 } from './scheduleLayout';
+import { StaffLink } from '../../components/staff/StaffLink';
 
 const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
 
@@ -529,7 +530,7 @@ function ShiftDialog({ target, span, store, actuals, requests, onClose, onSaved 
   return (
     <Dialog open onClose={busy ? undefined : onClose} maxWidth="sm" fullWidth>
       <DialogTitle>
-        {target.person.name} · {format(parseISO(target.day), 'EEE MMM d')}
+        <StaffLink userId={target.person.id}>{target.person.name}</StaffLink> · {format(parseISO(target.day), 'EEE MMM d')}
       </DialogTitle>
       <DialogContent>
         {!callIn && requests.length ? (
@@ -903,7 +904,7 @@ function NameCell({ g, person, compact = false }: { g: Grid; person: Person; com
   return (
     <Stack direction="row" alignItems="center" spacing={0.75} sx={{ minWidth: 0 }}>
       <NowDot state={g.week.now?.[String(person.id)]} />
-      <Typography variant="body2" fontWeight={600} noWrap title={person.name} sx={{ fontSize: 13, minWidth: 0 }}>{name}</Typography>
+      <Typography variant="body2" fontWeight={600} noWrap title={person.name} sx={{ fontSize: 13, minWidth: 0 }}><StaffLink userId={person.id}>{name}</StaffLink></Typography>
       <CallInsBadge person={person} />
     </Stack>
   );

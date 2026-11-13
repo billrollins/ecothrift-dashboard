@@ -61,6 +61,7 @@ class UserSerializer(serializers.ModelSerializer):
     has_register_pin = serializers.SerializerMethodField()
     email_verified = serializers.SerializerMethodField()
     hours_flag = serializers.SerializerMethodField()
+    locked_out = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -70,13 +71,22 @@ class UserSerializer(serializers.ModelSerializer):
             'date_joined', 'updated_at',
             'last_login',
             'role', 'roles', 'full_name',
-            'has_password', 'has_register_pin', 'email_verified', 'hours_flag',
+            'has_password', 'has_register_pin', 'email_verified', 'hours_flag', 'locked_out',
             'employee', 'consignee',
         ]
         read_only_fields = [
             'id', 'is_superuser', 'date_joined', 'updated_at', 'last_login',
-            'has_password', 'email_verified', 'hours_flag',
+            'has_password', 'email_verified', 'hours_flag', 'locked_out',
         ]
+
+    def get_locked_out(self, obj):
+        """Locked out of sign-in right now (too many wrong tries). Only one person's record asks (the staff window,
+        #136: ``with_lock`` in the context); a list answers null rather than one cache read per row."""
+        if not self.context.get('with_lock'):
+            return None
+        from apps.accounts.services.sign_in_trouble import is_locked_now
+
+        return is_locked_now(obj)
 
     def get_hours_flag(self, obj):
         """The big red flag when this week is past 40 plus their overtime allowance. Only the People screens ask

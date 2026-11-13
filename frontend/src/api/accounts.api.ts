@@ -354,6 +354,28 @@ export function sendEmployeePasswordReset(userId: number): Promise<{ data: { det
   return api.post(`/accounts/users/${userId}/send-password-reset/`);
 }
 
+export interface StaffResetSend {
+  sent: boolean;
+  /** The email, or the masked phone. */
+  to: string;
+  reason: string;
+}
+
+export interface StaffResetResult {
+  email: StaffResetSend | null;
+  text: StaffResetSend | null;
+  detail: string;
+  expires_at: string;
+}
+
+/** The staff window's Password reset (#136): one 48-hour link, emailed, texted from our number, or both. */
+export function sendStaffPasswordReset(
+  userId: number,
+  how: { email: boolean; text: boolean },
+): Promise<{ data: StaffResetResult }> {
+  return api.post<StaffResetResult>(`/accounts/users/${userId}/password-reset/`, how);
+}
+
 export function sendCustomerPasswordReset(id: number): Promise<{ data: { detail: string } }> {
   return api.post(`/accounts/customers/${id}/send-password-reset-link/`);
 }

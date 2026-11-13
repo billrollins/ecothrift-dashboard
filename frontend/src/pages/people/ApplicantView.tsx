@@ -51,6 +51,7 @@ import { StartOnboardingDialog } from './onboardingUi';
 import { PracticeChip } from './PracticeDialog';
 import { answerText, errorText, shortDate, STAGE_LABEL, STAGES } from './peopleUi';
 import { IconBack as ArrowBackIcon, IconClose as CloseIcon } from '../../icons/ecoIcons';
+import { StaffLink } from '../../components/staff/StaffLink';
 
 const card = { p: { xs: 2, md: 2.5 }, borderRadius: ccTokens.r, border: `1px solid ${ccTokens.line}`, bgcolor: ccTokens.card };
 
@@ -491,7 +492,7 @@ export function ApplicantView({
       {app.employee && (
         <Box sx={{ mt: 1.25, p: 1.5, borderRadius: ccTokens.rSm, bgcolor: '#fff' }}>
           <Typography fontWeight={700}>
-            Employee {app.employee.employee_number} · {app.employee.position} · ${app.employee.pay_rate}/hr
+            Employee <StaffLink userId={app.employee.user_id}>{app.employee.employee_number}</StaffLink> · {app.employee.position} · ${app.employee.pay_rate}/hr
           </Typography>
           <Typography variant="body2" sx={{ color: ccTokens.ink2 }}>
             Starts {app.employee.hire_date}
