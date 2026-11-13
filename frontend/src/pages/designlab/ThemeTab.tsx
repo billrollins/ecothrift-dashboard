@@ -1,7 +1,7 @@
 /** Design Lab > Theme: every token of theme/eco.ts with its swatch and use, the fonts, and the MUI parts dressed in it. */
 import { Alert, Box, Button, Chip, LinearProgress, Stack, Switch, Tab, Tabs, TextField, Typography } from '@mui/material';
-import logoFull from '../../assets/logo-full-360x120.png';
-import logoWhite from '../../assets/logo-full-white-halfsize.png';
+import logoFull from '../../assets/eco-thrift-logo-color.svg';
+import logoWhite from '../../assets/eco-thrift-logo-white.svg';
 import { PageShell, Section, StatusPill } from '../../components/page/PageKit';
 import { ECO_ICONS } from '../../icons/ecoIcons';
 import { eco, ecoFonts, ecoShadow, type EcoToken } from '../../theme/eco';
@@ -81,7 +81,7 @@ export default function ThemeTab() {
         ))}
       </Box>
 
-      <Section title="Logo" hint="Leaf mark, wordmark and tagline stay together. Colour logo on light, white logo on Forest.">
+      <Section title="Logo" hint="Leaf mark, wordmark and tagline stay together. Colour logo on light, white logo on Forest. The vector masters are in design/brand/logo.">
         <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
           <Box sx={{ p: 3, borderRadius: '12px', border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', display: 'grid', placeItems: 'center' }}>
             <Box component="img" src={logoFull} alt="Eco-Thrift logo" sx={{ width: 240, maxWidth: '100%' }} />

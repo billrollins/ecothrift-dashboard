@@ -63,7 +63,7 @@
 | Colours (public site) | forest `#18452d`, deep `#0f2c1d`, tint `#ebf1ed`, ink `#1a1f1c`, page `#f4f6f5`, muted `#5b635e`, line `#d7dedb`, slate `#5c6b64` | `frontend-public/src/styles.css` |
 | Type (public site) | Spectral (display), Manrope (body) | same |
 | Scanner palette (Thrift+ app) | greens `#1d5424 #1f6b27 #3f9f35 #52b843 #237a26`, tints `#e7f3e0 #dcefd2`, page `#f2f2ee`, ink `#2a2d28` | `frontend/src/pages/thriftplus/scanner/scannerTheme.tsx` |
-| Eco-Thrift logo | full colour 10013 x 2459 px (print-ready to 20+ in wide); icon 2460 px; white 1466 px | `frontend/src/assets/logo-full-fullsize.png`, `logo-icon-fullsize.png`, `frontend-public/src/assets/logo-full-white-halfsize.png` |
+| Eco-Thrift logo | vector masters, any size (since 2026-11-13; the old PNGs in `frontend/src/assets` were removed in the logo swap, Dash Update #143) | `design/brand/logo/` (`pdf/` for print, `svg/` for screens; README says which file is for what) |
 | Thrift+ brush wordmark | 720 x 284 px only (scanner). Must be rebuilt at print size before use (see 05). Owner to confirm it is the official mark. | `frontend/src/assets/thriftplus/logo.webp` |
 
 The main session said the logo files were too small for print; that was the public-site copies. The staff app has the 10013 px master, which is enough.

@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
-import logoFooterImg from '../assets/logo-full-white-halfsize.png'
-import logoImg from '../assets/logo-full-halfsize.png'
+import logoFooterImg from '../assets/eco-thrift-logo-white.svg'
+import logoImg from '../assets/eco-thrift-logo-color.svg'
 import { useAuth } from '../auth'
 import { useCareers } from '../careers/api'
 import { useCart } from '../cart'

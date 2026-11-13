@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import logoImg from '../assets/logo-full-360x120.png';
+import logoImg from '../assets/eco-thrift-logo-color.svg';
 import {
   Box,
   Card,
@@ -74,7 +74,8 @@ export default function LoginPage() {
               component="img"
               src={logoImg}
               alt="Eco-Thrift"
-              sx={{ maxWidth: 280, height: 'auto', mb: 2 }}
+              // The old PNG's 3:1 box (280 x 93), so the form sits where it did.
+              sx={{ width: 280, maxWidth: '100%', aspectRatio: '3 / 1', objectFit: 'contain', mb: 2 }}
             />
             <Typography variant="h5" fontWeight={600} color="text.secondary">
               Sign in to your account

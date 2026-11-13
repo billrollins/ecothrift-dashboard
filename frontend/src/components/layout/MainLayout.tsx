@@ -24,8 +24,8 @@ import { PhoneTabBar } from './PhoneTabBar';
 import { phoneShellTitle, showsPhoneTabBar } from './phoneFirstRoutes';
 import { getAppVersion } from '../../api/core.api';
 import { useRememberPage } from '../dashFixes/rememberPage';
-import logo from '../../assets/logo-full-360x120.png';
-import logoIcon from '../../assets/logo-icon-32x32.png';
+import logo from '../../assets/eco-thrift-logo-color.svg';
+import logoIcon from '../../assets/eco-thrift-mark-color.svg';
 import { dashboardPalette } from '../dashboard/dashboardCardStyles';
 import { dutyColors } from '../duty/tokens';
 import { RESTORATION_BENCH_PATH } from '../../pages/restoration/restorationRoutes';
@@ -123,13 +123,13 @@ export default function MainLayout() {
           }}
           sx={{ maxWidth: '100%', borderRadius: 1 }}
         >
-          {/* The PNG has a clear band above and below the art (16 of 120 px each), so it is drawn taller than the
-              block and the clear bands overflow, hidden: the logo fills the block without making it taller. */}
+          {/* The vector master (design/brand/logo) has no clear band, so it is sized by width: the same 174 / 198 px
+              the old PNG's art drew at. The block keeps its fixed height, so the top line never moves. */}
           <Box
             component="img"
             src={logo}
             alt="Eco-Thrift"
-            sx={{ display: 'block', maxWidth: '100%', width: 'auto', height: isPhoneShell ? 58 : { xs: 58, sm: 66 } }}
+            sx={{ display: 'block', maxWidth: '100%', height: 'auto', width: isPhoneShell ? 174 : { xs: 174, sm: 198 } }}
           />
         </ButtonBase>
       </Box>

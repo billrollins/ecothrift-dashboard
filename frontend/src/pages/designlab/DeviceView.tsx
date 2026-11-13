@@ -15,7 +15,7 @@ import { Box, Stack, ThemeProvider, ToggleButton, ToggleButtonGroup, Typography,
 import { alpha, createTheme, useTheme, type Theme } from '@mui/material/styles';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import logoIcon from '../../assets/logo-icon-64x64.png';
+import logoIcon from '../../assets/eco-thrift-mark-color.svg';
 import StackOnPhone from '../../components/page/StackOnPhone';
 import { ecoThemeOptions } from '../../theme/eco';
 

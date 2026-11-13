@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.300.2] -->
-<!-- Last reviewed: 2026-11-13 (2.300.2) -->
+<!-- Line 1 release: ## [2.301.0] -->
+<!-- Last reviewed: 2026-11-13 (2.301.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.301.0] - 2026-11-13
+
+User-facing theme: **The new vector Eco-Thrift logo across Dash and ecothrift.us, at the same size and in the same place as the old one (Dash Update #143).**
+
+> **For Bill:** the sidebar, the sign-in pages, the phone top bar, the consignee bar, the Design Lab, the website header and footer, the "under construction" page and both favicons now use the vector logo from `design/brand/logo/`. It is sharp on phones and big screens. Nothing moved: every header, footer and sign-in card is the same height as before. The favicons are a little lighter green, because they now use the designer's true colours. The Social Studio photo mark uses a PNG made from the same master. Receipts, labels and price tags are unchanged.
+
+### Changed (logo swap, Dash Update #143)
+- Dash shows the masters' SVGs (`frontend/src/assets/eco-thrift-logo-color.svg`, `-white.svg`, `eco-thrift-mark-color.svg`): MainLayout (the sidebar logo is set by width, 198 px or 174 px, which is what the old PNG's art measured; the block keeps its fixed 64 / 56 px height; the phone top-bar mark is 32 px), ConsigneeLayout, LoginPage and AuthCard (each keeps the old PNG's box with `object-fit: contain`, so the menu and the form do not move), Design Lab ThemeTab and DeviceView.
+- ecothrift.us: the header and footer (`frontend-public/src/assets/eco-thrift-logo-color.svg`, `-white.svg`) and the holding page (`/static/site/eco-thrift-logo-color.svg`) are the same 244 x 60 and 220 x 54 boxes as before.
+- PNGs made from the master where SVG can't go: the Dash favicon (`eco-thrift-mark-color-32.png`), the site `favicon.png` (32 px) and `apple-touch-icon.png` (180 px on white), the Social Studio photo mark (`eco-thrift-logo-white-600w.png`, drawn into an exported canvas). The old public addresses `logo-full-halfsize.png` and `logo-full-240x80.png` are remade at their old sizes, so outside links show the new logo.
+- Removed the 18 old logo PNGs from `frontend/src/assets` and `frontend-public/src/assets` (none is used any more). `design/brand/logo/README.md` lists every copy in the apps and what it is made from.
+- Left alone: the print server's receipt and label logo, `frontend/src/printing/tagCanvas.ts` (`label-logo-bw.png`), and the Thrift+ app icons.
+- Checked in headless Edge at 1280 x 800 and 390 x 844, before and after: the top bar, sidebar logo block, sign-in card, website header and footer, and holding header measure the same.
 
 ## [2.300.2] - 2026-11-13
 

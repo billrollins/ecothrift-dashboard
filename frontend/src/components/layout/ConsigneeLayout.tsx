@@ -5,7 +5,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../contexts/AuthContext';
 import { LoadingScreen } from '../feedback/LoadingScreen';
-import logoImg from '../../assets/logo-full-360x120.png';
+import logoImg from '../../assets/eco-thrift-logo-color.svg';
 
 const navItems = [
   { path: '/consignee/items', label: 'My Items' },
@@ -35,9 +35,11 @@ export function ConsigneeLayout() {
             component="img"
             src={logoImg}
             alt="Eco-Thrift"
+            // The old PNG's 108 x 36 box (art 108 wide), so the menu beside it stays put.
             sx={{
               height: 36,
-              width: 'auto',
+              width: 108,
+              objectFit: 'contain',
             }}
           />
           <Box sx={{ display: 'flex', gap: 1, flexGrow: 1 }}>

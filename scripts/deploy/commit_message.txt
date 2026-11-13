@@ -1,12 +1,15 @@
-v2.300.2 — Brand: sign sources and the sign brand board saved in design/signage
+v2.301.0 — The new vector logo across Dash and ecothrift.us
 
-User-facing theme: **The store-sign sources and the sign brand board are saved with the app in `design/signage/`, files only (Dash Update #142; signs work #111 to #134).**
+User-facing theme: **The new vector Eco-Thrift logo across Dash and ecothrift.us, at the same size and in the same place as the old one (Dash Update #143).**
 
-> **For Bill:** the brand board every new store sign is built from (logo, colours, materials, type, pictograms, the Spanish footer, Warning A on a real door) is now kept with the app at `design/signage/brand-board.png`, together with the sign list, the sign samples so far (hours, Thrift+, register returns, AS IS, 18+, Employees only, the Warning looks) and the required-notices and trespass research. The board's logo section now names the new vector logo files. Nothing in Dash or on the website changes.
+> **For Bill:** the sidebar, the sign-in pages, the phone top bar, the consignee bar, the Design Lab, the website header and footer, the "under construction" page and both favicons now use the vector logo from `design/brand/logo/`. It is sharp on phones and big screens. Nothing moved: every header, footer and sign-in card is the same height as before. The favicons are a little lighter green, because they now use the designer's true colours. The Social Studio photo mark uses a PNG made from the same master. Receipts, labels and price tags are unchanged.
 
-### Added (sign sources, Dash Update #142)
-- `design/signage/` from the Retail Signage lane (8 commits, 58 files, no app code): `signs.md` (the full sign list), `copy/*.json` (sign words, Spanish under `es`), `templates/*.html.j2` (hours, Thrift+ Family and Sky, notice, Warning looks A to F, the brand board, the pictogram set), `art/` (logo PNGs, kraft, wood and denim plates, the Thrift+ sky, two wall photos, Warning photo plates, each photo with a JSON sidecar) and `research/` (Nebraska / Omaha required notices, trespass).
-- `design/signage/tools/`: `build.py` (copy + template to vector PDF through headless Edge, a 600 dpi flat PDF for the Canon PRO-100, a PNG preview and checks), `mockup.py` (a sign on a wall photo at true scale) and `brand_board.py` (Warning A, its door mock-up, then the board). They run from `workspace/signage/.venv` (jinja2, pymupdf, pillow, numpy, opencv-python-headless, qrcode).
-- `design/signage/brand-board.md` and `brand-board.png` (150 dpi, rebuilt on this branch): sign brand board v1. Section 1 points the logo at the vector masters in `design/brand/logo/` (`svg/` for builds, `pdf/` for print; v2.300.1) instead of `art/logos/*.png`. The templates still use `art/logos/eco-full-*.png` (21 places).
+### Changed (logo swap, Dash Update #143)
+- Dash shows the masters' SVGs (`frontend/src/assets/eco-thrift-logo-color.svg`, `-white.svg`, `eco-thrift-mark-color.svg`): MainLayout (the sidebar logo is set by width, 198 px or 174 px, which is what the old PNG's art measured; the block keeps its fixed 64 / 56 px height; the phone top-bar mark is 32 px), ConsigneeLayout, LoginPage and AuthCard (each keeps the old PNG's box with `object-fit: contain`, so the menu and the form do not move), Design Lab ThemeTab and DeviceView.
+- ecothrift.us: the header and footer (`frontend-public/src/assets/eco-thrift-logo-color.svg`, `-white.svg`) and the holding page (`/static/site/eco-thrift-logo-color.svg`) are the same 244 x 60 and 220 x 54 boxes as before.
+- PNGs made from the master where SVG can't go: the Dash favicon (`eco-thrift-mark-color-32.png`), the site `favicon.png` (32 px) and `apple-touch-icon.png` (180 px on white), the Social Studio photo mark (`eco-thrift-logo-white-600w.png`, drawn into an exported canvas). The old public addresses `logo-full-halfsize.png` and `logo-full-240x80.png` are remade at their old sizes, so outside links show the new logo.
+- Removed the 18 old logo PNGs from `frontend/src/assets` and `frontend-public/src/assets` (none is used any more). `design/brand/logo/README.md` lists every copy in the apps and what it is made from.
+- Left alone: the print server's receipt and label logo, `frontend/src/printing/tagCanvas.ts` (`label-logo-bw.png`), and the Thrift+ app icons.
+- Checked in headless Edge at 1280 x 800 and 390 x 844, before and after: the top bar, sidebar logo block, sign-in card, website header and footer, and holding header measure the same.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

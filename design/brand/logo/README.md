@@ -49,6 +49,20 @@ All three fonts are free Google Fonts. The logo files don't need them installed,
   - THRIFT AND WHOLESALE has a few letters 2 to 3 px off, because GIMP snaps each letter to whole pixels. This file keeps the font's true letter spacing.
 - The original EPS (`Media/Images/Brand/EcoThrift Logo - EPS.eps`) holds the same artwork as the AI file.
 
+## Copies in the apps
+The apps can't read this folder, so they keep copies. When the master changes, copy the SVGs again and scale the PNGs again from `png/` (Pillow, Lanczos).
+
+| Copy | Made from | Used by |
+|---|---|---|
+| `frontend/src/assets/eco-thrift-logo-color.svg`, `eco-thrift-logo-white.svg`, `eco-thrift-mark-color.svg` | `svg/`, as is | Dash: sidebar, phone top bar, sign-in, consignee bar, Design Lab |
+| `frontend/src/assets/eco-thrift-logo-white-600w.png` | `png/`, as is | Social Studio photo mark (drawn into a canvas that is exported) |
+| `frontend/src/assets/eco-thrift-mark-color-32.png` | `png/eco-thrift-mark-color-1024w.png`, scaled | Dash favicon |
+| `frontend-public/src/assets/eco-thrift-logo-color.svg`, `eco-thrift-logo-white.svg` | `svg/`, as is | ecothrift.us header and footer |
+| `frontend-public/public/eco-thrift-logo-color.svg` | `svg/`, as is | the holding page (`/static/site/`) |
+| `frontend-public/public/favicon.png` (32 px), `apple-touch-icon.png` (180 px on white), `logo-full-halfsize.png` (1466 x 360), `logo-full-240x80.png` | `png/`, scaled | ecothrift.us favicon, and the old public addresses |
+
+Not made from these files: the print server's receipt and label logo, `frontend/src/printing` (`label-logo-bw.png`), and the Thrift+ app icons.
+
 ## Rebuild
 `workspace/signage/.venv/Scripts/python.exe design/brand/logo/tools/make.py` remakes `svg/`, `pdf/`, `eps/` and `png/` in about 30 seconds.
 - It needs Edge, found on PATH, then in the `EDGE` env var, then in `docs/machines.md`.

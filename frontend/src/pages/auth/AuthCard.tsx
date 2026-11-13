@@ -7,7 +7,7 @@
  */
 import type { ReactNode } from 'react';
 import { Box, Card, CardContent, Typography } from '@mui/material';
-import logoImg from '../../assets/logo-full-360x120.png';
+import logoImg from '../../assets/eco-thrift-logo-color.svg';
 
 export const AUTH_MESSAGE_MIN_HEIGHT = 44;
 
@@ -51,7 +51,8 @@ export function AuthCard({
               component="img"
               src={logoImg}
               alt="Eco-Thrift"
-              sx={{ maxWidth: 280, height: 'auto', mb: 2 }}
+              // The old PNG's 3:1 box (280 x 93), so the card's fields sit where they did.
+              sx={{ width: 280, maxWidth: '100%', aspectRatio: '3 / 1', objectFit: 'contain', mb: 2 }}
             />
             <Typography variant="h5" fontWeight={600} color="text.secondary">
               {title}

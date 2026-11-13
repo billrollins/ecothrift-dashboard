@@ -4,7 +4,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box } from '@mui/material';
 import { fetchSocialPhotoBlob, type PhotoSize, type SocialPhoto } from '../../../api/marketing.api';
-import logoUrl from '../../../assets/logo-full-white-quartersize.png';
+// A PNG from the master (design/brand/logo/png), not the SVG: it is drawn into a canvas that is exported.
+import logoUrl from '../../../assets/eco-thrift-logo-white-600w.png';
 import { drawTagPhoto, loadImage, PHOTO_HEIGHTS, PHOTO_WIDTH } from './tagOverlay';
 
 type PhotoRef = Pick<SocialPhoto, 'id' | 'edited_at'>;
