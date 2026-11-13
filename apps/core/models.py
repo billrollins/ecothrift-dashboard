@@ -18,6 +18,12 @@ class WorkLocation(models.Model):
     def __str__(self):
         return self.name
 
+    @classmethod
+    def the_store(cls):
+        """Eco-Thrift has one store (Bill, 2026-11-13: Canfield, 8425 West Center Road). Anything that needs a
+        location and is not given one gets this: the first active location, else the first one."""
+        return cls.objects.filter(is_active=True).order_by('id').first() or cls.objects.order_by('id').first()
+
 
 class AppSetting(models.Model):
     """Key-value store for app-wide configuration."""

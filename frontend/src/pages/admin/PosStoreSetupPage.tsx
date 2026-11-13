@@ -149,12 +149,13 @@ export default function PosStoreSetupPage() {
   };
 
   const saveRegister = async () => {
-    if (regForm.location === '' || !regForm.name.trim() || !regForm.code.trim()) {
-      enqueueSnackbar('Location, name, and code are required.', { variant: 'warning' });
+    if (!regForm.name.trim() || !regForm.code.trim()) {
+      enqueueSnackbar('Name and code are required.', { variant: 'warning' });
       return;
     }
+    // One store (#130): a new register goes to it on the server; an edit keeps its location.
     const payload: Record<string, unknown> = {
-      location: regForm.location,
+      ...(regForm.location !== '' ? { location: regForm.location } : {}),
       name: regForm.name.trim(),
       code: regForm.code.trim(),
       starting_cash: regForm.starting_cash,
@@ -255,7 +256,6 @@ export default function PosStoreSetupPage() {
       { field: 'id', headerName: 'ID', width: 70 },
       { field: 'code', headerName: 'Code', width: 100 },
       { field: 'name', headerName: 'Name', flex: 1, minWidth: 140 },
-      { field: 'location_name', headerName: 'Location', width: 160 },
       {
         field: 'starting_cash',
         headerName: 'Starting cash',
@@ -305,9 +305,6 @@ export default function PosStoreSetupPage() {
             <Button size="small" onClick={() => openEditLocation(params.row)} startIcon={<Edit />}>
               Edit
             </Button>
-            <Button size="small" color="error" onClick={() => setDeleteLocId(params.row.id)}>
-              <Delete />
-            </Button>
           </Box>
         ),
       },
@@ -323,7 +320,7 @@ export default function PosStoreSetupPage() {
 
   return (
     <Box>
-      <PageHeader title="POS store setup" subtitle="Manage registers and store locations (Manager / Admin)." />
+      <PageHeader title="POS store setup" subtitle="Manage the registers and the store (Manager / Admin)." />
 
       <Alert severity="info" sx={{ mb: 2 }}>
         If registers disappeared after a data reset, run{' '}
@@ -337,24 +334,10 @@ export default function PosStoreSetupPage() {
       {!supLoading && supplemental == null && locations.length > 0 && (
         <Alert severity="warning" sx={{ mb: 2 }}>
           <Typography variant="body2" gutterBottom>
-            No supplemental drawer is available for POS cash operations (or the API cannot find one). Create one for a
-            store location, or run <code>setup_initial_data</code>.
+            No supplemental drawer is available for POS cash operations (or the API cannot find one). Create one for the
+            store, or run <code>setup_initial_data</code>.
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', mt: 1 }}>
-            <TextField
-              select
-              size="small"
-              label="Location"
-              value={suppBootstrapLoc === '' ? '' : suppBootstrapLoc}
-              onChange={(e) => setSuppBootstrapLoc(Number(e.target.value))}
-              sx={{ minWidth: 220 }}
-            >
-              {locations.map((l) => (
-                <MenuItem key={l.id} value={l.id}>
-                  {l.name}
-                </MenuItem>
-              ))}
-            </TextField>
             <Button
               variant="contained"
               color="warning"
@@ -369,7 +352,7 @@ export default function PosStoreSetupPage() {
 
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label="Registers" />
-        <Tab label="Locations" />
+        <Tab label="Store" />
       </Tabs>
 
       {tab === 0 && (
@@ -386,7 +369,7 @@ export default function PosStoreSetupPage() {
           </Box>
           {locations.length === 0 && (
             <Alert severity="warning" sx={{ mb: 2 }}>
-              Add a store location first (Locations tab), then create registers.
+              Add the store first (Store tab), then create registers.
             </Alert>
           )}
           <Box sx={{ height: 480 }}>
@@ -405,11 +388,14 @@ export default function PosStoreSetupPage() {
 
       {tab === 1 && (
         <Box>
-          <Box sx={{ mb: 2 }}>
-            <Button variant="contained" startIcon={<Add />} onClick={openAddLocation}>
-              Add location
-            </Button>
-          </Box>
+          {/* One store (#130): the button shows only on an empty database. */}
+          {locations.length === 0 && (
+            <Box sx={{ mb: 2 }}>
+              <Button variant="contained" startIcon={<Add />} onClick={openAddLocation}>
+                Add the store
+              </Button>
+            </Box>
+          )}
           <Box sx={{ height: 480 }}>
             <DataGrid
               rows={locations}
@@ -428,24 +414,6 @@ export default function PosStoreSetupPage() {
         <DialogTitle>{regDialog === 'add' ? 'Add register' : 'Edit register'}</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
-            <Grid size={{ xs: 12 }}>
-              <TextField
-                select
-                fullWidth
-                label="Location"
-                value={regForm.location === '' ? '' : regForm.location}
-                onChange={(e) =>
-                  setRegForm((f) => ({ ...f, location: Number(e.target.value) }))
-                }
-                disabled={locations.length === 0}
-              >
-                {locations.map((l) => (
-                  <MenuItem key={l.id} value={l.id}>
-                    {l.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth

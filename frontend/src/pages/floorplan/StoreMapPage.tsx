@@ -46,16 +46,22 @@ type PinDraft = { mode: 'new'; layer: number; point: StoreMapPoint; name: string
   | { mode: 'edit'; pin: MapPin; name: string; note: string };
 
 /**
- * Facilities → Store map (#105): the location's Current floor plan with layers of pins. Every staff login can look;
+ * Facilities → Store map (#105): the store's Current floor plan with layers of pins. Every staff login can look;
  * managers drop, edit, drag and remove pins. The plan itself is drawn in Studios → Floorplans.
  */
 export default function StoreMapPage() {
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
-  const canEdit = canAccess(user, ['floorplan:write', 'studios:manage']);
-  const [location, setLocation] = useState<number | undefined>(undefined);
-  const mapQuery = useStoreMap(location);
+  const canManage = canAccess(user, ['floorplan:write', 'studios:manage']);
+  // Versions (#130): a past Current plan with the pins it kept; read-only. Picked by its stretch as Current.
+  const [versionId, setVersionId] = useState<number | null>(null);
+  const [versionPlan, setVersionPlan] = useState<number | undefined>(undefined);
+  const mapQuery = useStoreMap(versionPlan);
   const plan = mapQuery.data?.plan ?? null;
+  const isHistory = Boolean(mapQuery.data?.is_history);
+  const canEdit = canManage && !isHistory;
+  const versions = mapQuery.data?.versions ?? [];
+  const shownVersion = versions.find((v) => v.id === versionId) ?? versions.find((v) => v.is_current) ?? null;
   const layers = useMemo(() => mapQuery.data?.layers ?? [], [mapQuery.data]);
   const pins = useMemo(() => mapQuery.data?.pins ?? [], [mapQuery.data]);
 
@@ -140,7 +146,9 @@ export default function StoreMapPage() {
   const layerById = new Map(layers.map((l) => [l.id, l]));
   const countFor = (layer: MapLayer) => pins.filter((p) => p.layer === layer.id).length;
   const shownPins = pins.filter((p) => visibleLayerIds.has(p.layer));
-  const storeOptions = mapQuery.data?.locations ?? [];
+  const fmtDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  const versionLabel = (v: { plan_name: string; started_at: string; ended_at: string | null }) =>
+    `${v.plan_name} · ${fmtDay(v.started_at)} – ${v.ended_at ? fmtDay(v.ended_at) : 'now'}`;
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -149,7 +157,9 @@ export default function StoreMapPage() {
           <Typography variant="h5" sx={{ fontWeight: 600 }}>Store map</Typography>
           {plan && (
             <Typography variant="body2" color="text.secondary">
-              {plan.location_name} · Current plan: {plan.name}
+              {isHistory
+                ? `Past version (read-only): ${plan.name}`
+                : `Current plan: ${plan.name}`}
               {canEdit && (
                 <>
                   {' · '}
@@ -159,17 +169,23 @@ export default function StoreMapPage() {
             </Typography>
           )}
         </Box>
-        {storeOptions.length > 1 && (
+        {versions.length > 1 && (
           <TextField
             select
             size="small"
-            label="Store"
-            value={plan?.location ?? ''}
-            onChange={(e) => setLocation(Number(e.target.value))}
-            sx={{ minWidth: 200 }}
+            label="Version"
+            value={shownVersion?.id ?? ''}
+            onChange={(e) => {
+              const picked = versions.find((v) => v.id === Number(e.target.value));
+              setVersionId(picked?.id ?? null);
+              setVersionPlan(picked && !picked.is_current ? picked.plan_id : undefined);
+              setSelectedId(null);
+              setPlacingLayer(null);
+            }}
+            sx={{ minWidth: 260 }}
           >
-            {storeOptions.map((s) => (
-              <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+            {versions.map((v) => (
+              <MenuItem key={v.id} value={v.id}>{versionLabel(v)}</MenuItem>
             ))}
           </TextField>
         )}

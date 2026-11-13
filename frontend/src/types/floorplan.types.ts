@@ -166,6 +166,10 @@ export interface FloorPlanListItem {
   created_by_name: string | null;
   created_at: string;
   updated_at: string;
+  /** Pins on the plan (#130). */
+  pin_count: number;
+  /** When it last stopped being Current; set = a past version (#130). */
+  last_current_end: string | null;
 }
 
 export interface FloorPlanDetail extends FloorPlanListItem {
@@ -217,12 +221,47 @@ export interface MapPinPayload {
   status?: MapPinStatus;
 }
 
+/** One stretch a plan was the Current one (#130); newest first. */
+export interface FloorPlanVersion {
+  id: number;
+  plan_id: number;
+  plan_name: string;
+  started_at: string;
+  ended_at: string | null;
+  is_current: boolean;
+  pin_count: number;
+}
+
 export interface StoreMapResponse {
   plan: FloorPlanDetail | null;
+  /** The plan shown is a past version (read-only). */
+  is_history: boolean;
   layers: MapLayer[];
   pins: MapPin[];
-  locations: { id: number; name: string; plan_id: number; plan_name: string }[];
+  versions: FloorPlanVersion[];
 }
+
+/** Scale + move that lines the old pins up on a new plan of another size (#130). Inches. */
+export interface PinTransform {
+  scale: number;
+  dx: number;
+  dy: number;
+}
+
+/** What Make current would do (`plans/{id}/current-preview/`). */
+export interface CurrentPreview {
+  already_current: boolean;
+  width: number;
+  height: number;
+  own_pins: number;
+  source: { id: number; name: string; is_current: boolean; width: number; height: number; pins: number } | null;
+  copies_pins: boolean;
+  same_size: boolean;
+  needs_align: boolean;
+}
+
+/** Make / Unset current answer: the plan row plus what was done, in words. */
+export type CurrentChangeResult = FloorPlanListItem & { changed: boolean; message: string; pins_copied?: number };
 
 export interface FloorPlanAsset {
   id: number;

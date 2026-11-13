@@ -32,6 +32,17 @@ class RegisterSerializer(serializers.ModelSerializer):
         # is_training is set only by migration or Django admin (2026-10-14): through the API, a manager could
         # turn a real register into practice (sales not recorded) or the other way round.
         read_only_fields = ['id', 'is_training']
+        # One store (#130): a new register belongs to it when no location is sent.
+        extra_kwargs = {'location': {'required': False}}
+
+    def create(self, validated_data):
+        if not validated_data.get('location'):
+            from apps.core.models import WorkLocation
+            store = WorkLocation.the_store()
+            if store is None:
+                raise serializers.ValidationError({'location': 'Add the store first.'})
+            validated_data['location'] = store
+        return super().create(validated_data)
 
 
 class DrawerHandoffSerializer(serializers.ModelSerializer):

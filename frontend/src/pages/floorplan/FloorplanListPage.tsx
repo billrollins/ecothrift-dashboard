@@ -15,7 +15,6 @@ import {
   DialogContentText,
   DialogTitle,
   IconButton,
-  MenuItem,
   Stack,
   TextField,
   Tooltip,
@@ -24,20 +23,18 @@ import {
 import MapIcon from '@mui/icons-material/Map';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
-import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { getFloorPlan } from '../../api/floorplan.api';
-import { getLocations } from '../../api/core.api';
 import { canAccess } from '../../auth/access';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   useCreateFloorPlan,
   useDeleteFloorPlan,
   useFloorPlans,
-  useMakeFloorPlanCurrent,
   useRenameFloorPlan,
   useSaveFloorPlan,
 } from '../../hooks/useFloorplans';
+import CurrentPlanDialog from '../../features/floorplan/CurrentPlanDialog';
 import { exportPlanJson } from '../../features/floorplan/exportPlan';
 import { parsePlanFile, type ParsedPlanFile } from '../../features/floorplan/planFile';
 import type { FloorPlanListItem } from '../../types/floorplan.types';
@@ -48,36 +45,18 @@ export default function FloorplanListPage() {
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
   const canEdit = canAccess(user, ['floorplan:write', 'studios:manage']);
-  // Marking the Current plan (the store map, #105) is the owner's.
+  // Making or unsetting the Current plan (the store map, #105 / #130) is the owner's.
   const canMarkCurrent = Boolean(user?.is_superuser);
 
   const plansQuery = useFloorPlans();
-  const locationsQuery = useQuery({
-    queryKey: ['workLocations'],
-    queryFn: () => getLocations().then((r) => r.data),
-  });
   const createMutation = useCreateFloorPlan();
   const renameMutation = useRenameFloorPlan();
   const deleteMutation = useDeleteFloorPlan();
   const saveMutation = useSaveFloorPlan();
-  const makeCurrentMutation = useMakeFloorPlanCurrent();
   const [currentTarget, setCurrentTarget] = useState<FloorPlanListItem | null>(null);
-
-  const handleMakeCurrent = () => {
-    if (!currentTarget) return;
-    makeCurrentMutation.mutate(currentTarget.id, {
-      onSuccess: (result) => {
-        setCurrentTarget(null);
-        const moved = result.pins_moved ? ` ${result.pins_moved} pins moved over to it.` : '';
-        enqueueSnackbar(`${result.name} is the Current plan.${moved}`, { variant: 'success' });
-      },
-      onError: () => enqueueSnackbar('Could not mark it Current.', { variant: 'error' }),
-    });
-  };
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newLocation, setNewLocation] = useState<number | ''>('');
   const [renameTarget, setRenameTarget] = useState<FloorPlanListItem | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<FloorPlanListItem | null>(null);
@@ -85,12 +64,11 @@ export default function FloorplanListPage() {
   const deleteConfirmed =
     deleteTarget != null && deleteConfirmText.trim().toLowerCase() === deleteTarget.name.trim().toLowerCase();
 
-  const locations = locationsQuery.data?.results ?? [];
-
+  // One store (#130): a new plan goes to it on the server, so there is no location to pick.
   const handleCreate = () => {
-    if (!newName.trim() || newLocation === '') return;
+    if (!newName.trim()) return;
     createMutation.mutate(
-      { name: newName.trim(), location: newLocation },
+      { name: newName.trim() },
       {
         onSuccess: (plan) => {
           setCreateOpen(false);
@@ -116,7 +94,7 @@ export default function FloorplanListPage() {
   // ── Import (create a plan from a JSON/YAML file) ──────────────────────────
 
   const importInputRef = useRef<HTMLInputElement>(null);
-  const [importState, setImportState] = useState<{ parsed: ParsedPlanFile; name: string; location: number | '' } | null>(null);
+  const [importState, setImportState] = useState<{ parsed: ParsedPlanFile; name: string } | null>(null);
 
   const handleImportFile = (file: File | undefined) => {
     if (!file) return;
@@ -127,7 +105,6 @@ export default function FloorplanListPage() {
         setImportState({
           parsed,
           name: parsed.name || file.name.replace(/\.(json|ya?ml)$/i, ''),
-          location: locations.length === 1 ? locations[0].id : '',
         });
       } catch (err) {
         enqueueSnackbar(err instanceof Error ? err.message : 'Could not read the file.', { variant: 'error' });
@@ -138,9 +115,9 @@ export default function FloorplanListPage() {
   };
 
   const handleImportCreate = () => {
-    if (!importState || !importState.name.trim() || importState.location === '') return;
+    if (!importState || !importState.name.trim()) return;
     createMutation.mutate(
-      { name: importState.name.trim(), location: importState.location },
+      { name: importState.name.trim() },
       {
         onSuccess: (plan) => {
           saveMutation.mutate(
@@ -234,9 +211,21 @@ export default function FloorplanListPage() {
                   <Typography variant="subtitle1" sx={{ fontWeight: 600 }} noWrap>
                     {plan.name}
                   </Typography>
-                  {plan.is_current && <Chip label="Current" color="success" size="small" sx={{ ml: 'auto' }} />}
+                  {/* Reserved slot: the chip comes and goes without moving the name (no layout shift). */}
+                  <Box sx={{ ml: 'auto', minWidth: 96, display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+                    {plan.is_current ? (
+                      <Chip label="Current" color="success" size="small" />
+                    ) : plan.last_current_end ? (
+                      <Chip label="Past version" size="small" variant="outlined" />
+                    ) : null}
+                  </Box>
                 </Stack>
-                <Typography variant="body2" color="text.secondary">{plan.location_name}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {plan.pin_count === 1 ? '1 pin' : `${plan.pin_count ?? 0} pins`}
+                  {!plan.is_current && plan.last_current_end
+                    ? ` · Current until ${new Date(plan.last_current_end).toLocaleDateString()}`
+                    : ''}
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Updated {new Date(plan.updated_at).toLocaleString()}
                 </Typography>
@@ -245,13 +234,12 @@ export default function FloorplanListPage() {
             {(canEdit || canMarkCurrent) && (
               <Stack direction="row" justifyContent="flex-end" sx={{ px: 1, pb: 1 }}>
                 {canMarkCurrent && (
-                  <Tooltip title={plan.is_current ? 'The Current plan (the store map)' : 'Make this the Current plan'}>
+                  <Tooltip title={plan.is_current ? 'The Current plan (the store map). Click to unset it.' : 'Make this the Current plan'}>
                     <span>
                       <IconButton
                         size="small"
-                        aria-label={plan.is_current ? `${plan.name} is Current` : `Make ${plan.name} Current`}
+                        aria-label={plan.is_current ? `Unset ${plan.name} as Current` : `Make ${plan.name} Current`}
                         color={plan.is_current ? 'success' : 'default'}
-                        disabled={plan.is_current}
                         onClick={() => setCurrentTarget(plan)}
                       >
                         {plan.is_current ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
@@ -289,22 +277,8 @@ export default function FloorplanListPage() {
         ))}
       </Box>
 
-      {/* Make Current - the owner's; the pins on the old Current plan move over */}
-      <Dialog open={Boolean(currentTarget)} onClose={() => setCurrentTarget(null)} fullWidth maxWidth="xs">
-        <DialogTitle>Make “{currentTarget?.name}” the Current plan?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Facilities → Store map shows the Current plan of {currentTarget?.location_name}, with its layers of pins.
-            Any pins on the plan that is Current now move over to this one, at the same spots.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCurrentTarget(null)}>Cancel</Button>
-          <Button variant="contained" onClick={handleMakeCurrent} disabled={makeCurrentMutation.isPending}>
-            Make Current
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Make or unset Current - the owner's (#130). The old Current plan stays as a past version with its pins. */}
+      <CurrentPlanDialog plan={currentTarget} onClose={() => setCurrentTarget(null)} />
 
       {/* Import dialog */}
       <Dialog open={Boolean(importState)} onClose={() => setImportState(null)} fullWidth maxWidth="xs">
@@ -321,17 +295,6 @@ export default function FloorplanListPage() {
               autoFocus
               fullWidth
             />
-            <TextField
-              select
-              label="Store location"
-              value={importState?.location ?? ''}
-              onChange={(e) => importState && setImportState({ ...importState, location: Number(e.target.value) })}
-              fullWidth
-            >
-              {locations.map((loc) => (
-                <MenuItem key={loc.id} value={loc.id}>{loc.name}</MenuItem>
-              ))}
-            </TextField>
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -339,7 +302,7 @@ export default function FloorplanListPage() {
           <Button
             variant="contained"
             onClick={handleImportCreate}
-            disabled={!importState?.name.trim() || importState?.location === '' || createMutation.isPending || saveMutation.isPending}
+            disabled={!importState?.name.trim() || createMutation.isPending || saveMutation.isPending}
           >
             {createMutation.isPending || saveMutation.isPending ? 'Importing…' : 'Import'}
           </Button>
@@ -358,17 +321,6 @@ export default function FloorplanListPage() {
               autoFocus
               fullWidth
             />
-            <TextField
-              select
-              label="Store location"
-              value={newLocation}
-              onChange={(e) => setNewLocation(Number(e.target.value))}
-              fullWidth
-            >
-              {locations.map((loc) => (
-                <MenuItem key={loc.id} value={loc.id}>{loc.name}</MenuItem>
-              ))}
-            </TextField>
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -376,7 +328,7 @@ export default function FloorplanListPage() {
           <Button
             variant="contained"
             onClick={handleCreate}
-            disabled={!newName.trim() || newLocation === '' || createMutation.isPending}
+            disabled={!newName.trim() || createMutation.isPending}
           >
             Create
           </Button>

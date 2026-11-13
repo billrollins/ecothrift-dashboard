@@ -95,12 +95,14 @@ Base: `/api/floorplan/` — JWT auth (standard dashboard auth). All staff roles 
 | Method | Path | Notes |
 |---|---|---|
 | GET | `plans/` | Paginated list, no `data` field. Filter: `?location=<id>` |
-| POST | `plans/` | Body `{name, location}`; server seeds a default empty document |
+| POST | `plans/` | Body `{name, location?}`; no location = the one store (#130); server seeds a default empty document |
 | GET | `plans/{id}/` | Full document in `data` |
 | PATCH/PUT | `plans/{id}/` | Saving `data` requires `revision` (see below). `name` alone needs no revision |
 | DELETE | `plans/{id}/` | Soft delete (`is_active=False`); clears `is_current` |
-| POST | `plans/{id}/make-current/` | Superuser. The location's Current plan; pins move over from the old one. Returns the list row + `pins_moved` |
-| GET | `store-map/` | Staff. `?location=<id>`: Current plan with data, layers, pins, and the stores that have one |
+| GET | `plans/{id}/current-preview/` | Superuser. What Make current would do: where the pins come from, both sizes, `needs_align` |
+| POST | `plans/{id}/make-current/` | Superuser. Body `{transform?: {scale, dx, dy}}`. The old Current plan stays as a past version with its pins; this plan gets a copy. 409 `align_required` when the sizes differ and no transform is sent. Returns the list row + `changed`, `message`, `pins_copied` |
+| POST | `plans/{id}/unset-current/` | Superuser. The plan stops being Current (keeps its pins). Returns the list row + `changed`, `message` |
+| GET | `store-map/` | Staff. The Current plan with data, layers, pins, `versions` (every stretch a plan was Current) and `is_history`; `?plan=<id>` shows a past version |
 | GET | `layers/` | Staff. Store-map layers (read-only) |
 | GET/POST/PATCH/DELETE | `pins/` | Staff read; Manager/Admin write. Filters `plan`, `layer`, `ref_type`, `ref_id` |
 | GET | `assets/` | Image asset library. `?location=<id>` returns that location's assets plus shared (location-less) ones |
@@ -162,11 +164,20 @@ without string `id`s, or contains non-numeric / absurd (>100,000 in) coordinates
 ## Store map: the Current plan and its layers (#105)
 
 - **Current plan:** `FloorPlan.is_current`, at most one per location (DB constraint
-  `floorplan_one_current_per_location`). Only a superuser sets it:
-  `POST plans/{id}/make-current/` (the star on Studios → Floorplans). The pins on the
-  location's previous Current plan move to the new one at the same inches; marking the old plan
-  Current again moves them back. Deleting a plan clears its flag. `is_current` is read-only in
-  the plan serializers.
+  `floorplan_one_current_per_location`). Only a superuser sets or unsets it (the star on
+  Studios → Floorplans: Make current / Unset current); both always answer with a `message` saying
+  what was done. Deleting a plan clears its flag. `is_current` is read-only in the plan serializers.
+- **Versions (#130):** each stretch a plan is Current is a `FloorPlanCurrentPeriod` (`started_at`,
+  `ended_at`, who, `pins_copied`, `transform`). Replacing the Current plan never moves pins: the old
+  plan keeps its pins as a past version, and the new plan (when it has no pins yet) gets a copy of
+  the pins of the plan that was Current last. Logic in `versions.py`. When the two plans differ in
+  size (planWidth / planHeight), the owner lines the old plan and its pins up on the new one in
+  the dialog (`features/floorplan/AlignPinsStep.tsx`: uniform scale + move, the old plan drawn
+  faint on top, drag or type) and the copies go through `x' = x·scale + dx`, `y' = y·scale + dy`;
+  a copy that lands more than 240" off the plan is set at its edge. Pins on a plan that is not
+  Current are history: the pin API refuses to add, change or delete them, and `?ref_type=` pin
+  lists return only Current-plan pins. Making a past version Current again keeps its own pins.
+  Store map → Version shows any past version with its pins, read-only.
 - **Layers:** `MapLayer` rows (`slug`, `name`, `color`, `sort_order`, `ref_type`). Seeded:
   `signage` (migration `0006`). Later layers (security cameras, fire extinguishers, FF&E, keys
   and security spots, shelves) are new seed rows; `ref_type` names the record a pin points at
@@ -178,8 +189,10 @@ without string `id`s, or contains non-numeric / absurd (>100,000 in) coordinates
   up to 240" outside the plan, never further. API `pins/` (`?plan=`, `?layer=` id or slug,
   `?ref_type=` + `?ref_id=`): all staff read, Manager/Admin write (capability
   `floorplan:write`), hard delete.
-- **One read for the page:** `GET store-map/?location=<id>` → `{plan (with data) | null, layers,
-  pins, locations}`; without `location`, the first store that has a Current plan.
+- **One read for the page:** `GET store-map/` → `{plan (with data) | null, is_history, layers, pins,
+  versions}`. Eco-Thrift has one store (Bill 2026-11-13); the store's Current plan is shown
+  (`WorkLocation.the_store()`). Folding old extra locations into it: `manage.py fold_locations`
+  (dry run unless `--apply`).
 - **Page:** Facilities → Store map (`/facilities/store-map`,
   `frontend/src/pages/floorplan/StoreMapPage.tsx`). `features/floorplan/StoreMapView.tsx` draws
   the plan read-only with the pins on top (pins keep one size on screen at every zoom); it is

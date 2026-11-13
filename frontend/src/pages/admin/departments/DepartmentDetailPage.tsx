@@ -129,7 +129,6 @@ export default function DepartmentDetailPage() {
           </Box>
           <Typography sx={{ fontSize: 14, color: ccTokens.ink2, mt: 0.5 }}>
             {row?.manager_name ? `Manager ${row.manager_name}` : 'No manager'}
-            {row?.location_name ? ` · ${row.location_name}` : ''}
             {row ? ` · Menu starts in ${startWorkspaceLabel(row.start_workspace)}` : ''}
           </Typography>
           {row?.description ? (

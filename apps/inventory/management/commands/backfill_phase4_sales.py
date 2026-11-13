@@ -1,7 +1,7 @@
 """
 Backfill Phase 4: legacy V1/V2 POS carts and cart lines into V3 Cart / CartLine (psycopg reads).
 
-Infrastructure: WorkLocation "Eco-Thrift Main", Register code BACKFILL, system User backfill@system.local,
+Infrastructure: the one store's WorkLocation (#130; "Eco-Thrift Main" only on an empty DB), Register code BACKFILL, system User backfill@system.local,
 one Drawer per distinct sale date (America/Chicago) on that register.
 
 Idempotency: without --clean, aborts if any Cart exists on the backfill register. --clean deletes those
@@ -311,6 +311,10 @@ class Command(BaseCommand):
     def _ensure_work_location(self, dry_run: bool, db: str) -> WorkLocation | None:
         if dry_run:
             return None
+        # One store (#130): the backfill register belongs to it, never to a location of its own.
+        store = WorkLocation.objects.using(db).filter(is_active=True).order_by("id").first()
+        if store:
+            return store
         wl, _ = WorkLocation.objects.using(db).get_or_create(
             name=WORK_LOCATION_NAME,
             defaults={"address": "", "phone": ""},

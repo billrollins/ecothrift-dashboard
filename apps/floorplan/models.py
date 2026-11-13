@@ -67,6 +67,32 @@ class FloorPlan(models.Model):
         return f'{self.name} ({self.location_id})'
 
 
+class FloorPlanCurrentPeriod(models.Model):
+    """When a plan was the Current one (#130, Bill 2026-11-13: "Versions would be nice").
+
+    Each time the owner makes a plan Current a period opens; replacing it or unsetting it closes the period. The
+    replaced plan keeps its pins as they were, so the store map can show any past version with its layers.
+    """
+    plan = models.ForeignKey(FloorPlan, on_delete=models.CASCADE, related_name='current_periods')
+    started_at = models.DateTimeField()
+    ended_at = models.DateTimeField(null=True, blank=True)
+    started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    ended_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    # Pins copied onto the plan when it became Current, and how (scale + move) when its size differed.
+    pins_copied = models.PositiveIntegerField(default=0)
+    transform = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-started_at', '-id']
+
+    def __str__(self):
+        return f'{self.plan_id} from {self.started_at:%Y-%m-%d}'
+
+
 class FloorPlanElementKind(models.Model):
     """A reusable element type available in the editor palette.
 

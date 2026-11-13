@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import FloorPlan, FloorPlanAsset, MapLayer, MapPin
+from .models import FloorPlan, FloorPlanAsset, FloorPlanCurrentPeriod, MapLayer, MapPin
 
 
 @admin.register(FloorPlan)
@@ -15,6 +15,12 @@ class FloorPlanAssetAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'location', 'content_type', 'is_active', 'updated_at')
     list_filter = ('location', 'is_active', 'content_type')
     search_fields = ('name',)
+
+
+@admin.register(FloorPlanCurrentPeriod)
+class FloorPlanCurrentPeriodAdmin(admin.ModelAdmin):
+    list_display = ('id', 'plan', 'started_at', 'ended_at', 'pins_copied')
+    list_select_related = ('plan',)
 
 
 @admin.register(MapLayer)

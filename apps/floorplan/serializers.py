@@ -21,15 +21,35 @@ class FloorPlanListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views (excludes `data`)."""
     location_name = serializers.CharField(source='location.name', read_only=True)
     created_by_name = serializers.SerializerMethodField()
+    # One store (#130): a new plan goes to it when no location is sent.
+    location = serializers.PrimaryKeyRelatedField(
+        queryset=FloorPlan._meta.get_field('location').related_model.objects.all(), required=False,
+    )
+    # Pins on the plan, and when it last stopped being Current (null = never; set = a past version).
+    pin_count = serializers.SerializerMethodField()
+    last_current_end = serializers.SerializerMethodField()
 
     class Meta:
         model = FloorPlan
         fields = [
             'id', 'name', 'location', 'location_name', 'schema_version',
             'revision', 'is_current', 'created_by', 'created_by_name',
-            'created_at', 'updated_at',
+            'created_at', 'updated_at', 'pin_count', 'last_current_end',
         ]
         read_only_fields = ['is_current']
+        # The one-Current-per-location constraint would make `location` required here; is_current is read-only and
+        # the database keeps the rule.
+        validators = []
+
+    def get_pin_count(self, obj):
+        value = getattr(obj, 'pin_count', None)
+        return value if value is not None else obj.pins.count()
+
+    def get_last_current_end(self, obj):
+        if hasattr(obj, 'last_current_end'):
+            return obj.last_current_end
+        last = obj.current_periods.exclude(ended_at__isnull=True).order_by('-ended_at').first()
+        return last.ended_at if last else None
 
     def get_created_by_name(self, obj):
         user = obj.created_by
@@ -209,6 +229,9 @@ class MapPinSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         plan = attrs.get('plan') or getattr(self.instance, 'plan', None)
         layer = attrs.get('layer') or getattr(self.instance, 'layer', None)
+        if plan is not None and not plan.is_current:
+            # #130: pins go on the Current plan; a past version keeps its pins as history.
+            raise serializers.ValidationError({'plan': f'Pins go on the Current plan. “{plan.name}” is not Current.'})
         if self.instance is not None and layer and layer.pk != self.instance.layer_id:
             raise serializers.ValidationError({'layer': 'A pin stays on its layer.'})
         if plan is not None:

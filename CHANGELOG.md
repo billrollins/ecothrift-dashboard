@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.289.0] -->
-<!-- Last reviewed: 2026-11-12 (2.289.0) -->
+<!-- Line 1 release: ## [2.290.0] -->
+<!-- Last reviewed: 2026-11-12 (2.290.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,23 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.290.0] - 2026-11-12
+
+User-facing theme: **Studios > Floorplans: the owner makes a plan Current or unsets it at any time and is told what happened; replacing the Current plan keeps the old one as a dated past version with its pins, and a new plan of another size gets the pins after the owner lines them up. Eco-Thrift is one store (Dash Update #130).**
+
+> **For Bill:** on Studios → Floorplans the star is yours and always works. On a plan that is not Current it opens **Make Current**: the plan that was Current stays as a **past version** with its pins, and the new one gets a copy of them. If the new plan is a different size, the window shows the new plan with the old one laid over it in orange, pins and all: drag it (or type a scale and a move) until the walls match, then **Copy the pins and make Current**. Pins that would land off the plan show red and are set at its edge. On the Current plan the star opens **Unset current** (the store map then shows no plan until you pick one; the pins stay). Every time, a message says exactly what was done. Each card says how many pins it has and, for a past version, until when it was Current. On Facilities → Store map, **Version** shows any past plan with the pins it had, read-only. One store: new floor plans and registers need no location, and the location pickers are gone (floor plans, store map, POS store setup, employees, departments). Folding the three locations into one (Canfield, 8425 West Center Road) is a step Mainline runs in production.
+
+### Added (#130: floor plan versions, one store)
+- `FloorPlanCurrentPeriod` (plan, started/ended at and by, `pins_copied`, `transform`): each stretch a plan is Current. Migration `floorplan/0008_floorplan_current_periods` (opens a period for every plan that is Current now, started at its last change), after #129's `0007_mappin_status`.
+- `apps/floorplan/versions.py`: `make_current` (old plan keeps its pins; the new plan, when it has none, gets a copy of the last Current plan's pins, every field carried; a size difference needs `{scale, dx, dy}`; copies more than 240" off the plan are set at its edge), `unset_current`, `preview`.
+- API: `GET plans/{id}/current-preview/`, `POST plans/{id}/make-current/ {transform?}` (409 `align_required` without one when sizes differ), `POST plans/{id}/unset-current/`; both answer with `changed` and `message`. Plan rows carry `pin_count` and `last_current_end`. `store-map/` returns `versions` and `is_history`, takes `?plan=` for a past version, and shows the store's own Current plan (`?location=` and `locations` are gone).
+- Pins on a plan that is not Current are history: add, change and delete are refused; `?ref_type=` pin lists return Current-plan pins only.
+- `WorkLocation.the_store()`; a new floor plan or register without a location goes to it. `manage.py fold_locations [--apply] [--into ID] [--name] [--address]`: moves every row that points at another location (found through the foreign keys) to the kept one, ends another location's Current plan as a past version, deletes the emptied locations and renames the kept one "Canfield" at 8425 West Center Road, Omaha NE 68124. Dry run by default (runs in a transaction, checks constraints, rolls back). `setup_initial_data` names the store "Canfield"; `backfill_phase4_sales` uses the store instead of creating "Eco-Thrift Main".
+- Frontend: `CurrentPlanDialog` and `AlignPinsStep` (scale/move fields apply on Enter or leaving the field; drag the old plan; Best guess / No change), `pinTransform.ts`. Floorplans cards keep a fixed chip slot (Current / Past version). Store map: **Version** picker in place of the store picker. Location fields removed from Floorplans create/import, POS store setup (register form, supplemental drawer, the Location column; the Locations tab is **Store**: edit only, Add only on an empty database), the employee drawer and the department dialog.
+
+### Tests
+- 13 server tests for versions (unset, already Current, owner only, same-size copy, align required, transform applied, edge clamp, bad transform, back to a past version, unset then make, history pins locked, list fields, delete closes the period, create without a location), 3 for `fold_locations` (dry run changes nothing, apply leaves one store with the office plan as a past version, two supplemental drawers stop it); store-map tests updated (pins are copied, not moved). 3 vitest for the transform. Browser check on local: align, drag, scale, make Current, Unset, Version picker, POS store setup.
 
 ## [2.289.0] - 2026-11-12
 

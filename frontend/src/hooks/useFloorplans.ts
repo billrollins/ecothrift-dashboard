@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as floorplanApi from '../api/floorplan.api';
-import type { MapPin, MapPinPayload, PlanDocument } from '../types/floorplan.types';
+import type { MapPin, MapPinPayload, PinTransform, PlanDocument } from '../types/floorplan.types';
 
 export function useFloorPlans(params?: { location?: number }) {
   return useQuery({
@@ -23,7 +23,7 @@ export function useFloorPlan(id: number | null) {
 export function useCreateFloorPlan() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name: string; location: number }) =>
+    mutationFn: (data: { name: string; location?: number }) =>
       floorplanApi.createFloorPlan(data).then((r) => r.data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['floorplans'] }),
   });
@@ -60,23 +60,47 @@ export function useDeleteFloorPlan() {
   });
 }
 
+/** Owner (#130): what Make current would do for this plan. */
+export function useCurrentPreview(id: number | null) {
+  return useQuery({
+    queryKey: ['floorplan-current-preview', id],
+    queryFn: () => floorplanApi.getCurrentPreview(id as number).then((r) => r.data),
+    enabled: id != null,
+    staleTime: 0,
+  });
+}
+
+function invalidateCurrent(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['floorplans'] });
+  queryClient.invalidateQueries({ queryKey: ['store-map'] });
+  queryClient.invalidateQueries({ queryKey: ['map-pins'] });
+  queryClient.invalidateQueries({ queryKey: ['floorplan-current-preview'] });
+}
+
 export function useMakeFloorPlanCurrent() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => floorplanApi.makeFloorPlanCurrent(id).then((r) => r.data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['floorplans'] });
-      queryClient.invalidateQueries({ queryKey: ['store-map'] });
-    },
+    mutationFn: ({ id, transform }: { id: number; transform?: PinTransform }) =>
+      floorplanApi.makeFloorPlanCurrent(id, transform).then((r) => r.data),
+    onSuccess: () => invalidateCurrent(queryClient),
+  });
+}
+
+export function useUnsetFloorPlanCurrent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => floorplanApi.unsetFloorPlanCurrent(id).then((r) => r.data),
+    onSuccess: () => invalidateCurrent(queryClient),
   });
 }
 
 // ── Store map (#105) ─────────────────────────────────────────────────────────
 
-export function useStoreMap(location?: number) {
+/** The Current plan, or with `plan` a past version of it (#130). */
+export function useStoreMap(plan?: number) {
   return useQuery({
-    queryKey: ['store-map', location ?? null],
-    queryFn: () => floorplanApi.getStoreMap(location ? { location } : undefined).then((r) => r.data),
+    queryKey: ['store-map', plan ?? null],
+    queryFn: () => floorplanApi.getStoreMap(plan ? { plan } : undefined).then((r) => r.data),
   });
 }
 

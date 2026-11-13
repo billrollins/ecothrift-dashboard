@@ -1,11 +1,14 @@
 import type { PaginatedResponse } from '../types/common.types';
 import type {
+  CurrentChangeResult,
+  CurrentPreview,
   FloorPlanDetail,
   FloorPlanElementKind,
   FloorPlanElementKindPayload,
   FloorPlanListItem,
   MapPin,
   MapPinPayload,
+  PinTransform,
   PlanDocument,
   StoreMapResponse,
 } from '../types/floorplan.types';
@@ -19,7 +22,8 @@ export function getFloorPlan(id: number) {
   return api.get<FloorPlanDetail>(`/floorplan/plans/${id}/`);
 }
 
-export function createFloorPlan(data: { name: string; location: number }) {
+/** One store (#130): the server puts a new plan in it. */
+export function createFloorPlan(data: { name: string; location?: number }) {
   return api.post<FloorPlanDetail>('/floorplan/plans/', data);
 }
 
@@ -39,14 +43,28 @@ export function deleteFloorPlan(id: number) {
   return api.delete(`/floorplan/plans/${id}/`);
 }
 
-/** Superuser: make this plan its location's Current plan. Pins on the old Current plan move to it. */
-export function makeFloorPlanCurrent(id: number) {
-  return api.post<FloorPlanListItem & { pins_moved: number }>(`/floorplan/plans/${id}/make-current/`);
+/** Superuser (#130): what Make current would do (where the pins come from, sizes, whether to line them up). */
+export function getCurrentPreview(id: number) {
+  return api.get<CurrentPreview>(`/floorplan/plans/${id}/current-preview/`);
+}
+
+/**
+ * Superuser: make this plan the Current plan. The old one stays as a past version with its pins; this plan gets a
+ * copy (through `transform` when the sizes differ, else HTTP 409 `align_required`).
+ */
+export function makeFloorPlanCurrent(id: number, transform?: PinTransform) {
+  return api.post<CurrentChangeResult>(`/floorplan/plans/${id}/make-current/`, transform ? { transform } : {});
+}
+
+/** Superuser (#130): the plan stops being Current; it keeps its pins. */
+export function unsetFloorPlanCurrent(id: number) {
+  return api.post<CurrentChangeResult>(`/floorplan/plans/${id}/unset-current/`);
 }
 
 // ── Store map (#105) ─────────────────────────────────────────────────────────
 
-export function getStoreMap(params?: { location?: number }) {
+/** `plan` = a past version to show instead of the Current plan (#130). */
+export function getStoreMap(params?: { plan?: number }) {
   return api.get<StoreMapResponse>('/floorplan/store-map/', { params });
 }
 

@@ -64,7 +64,7 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.MIGRATE_HEADING('Creating work location...'))
         location, created = WorkLocation.objects.get_or_create(
-            name='Omaha - Canfield',
+            name='Canfield',  # the one store (#130)
             defaults={
                 'address': '8425 West Center Road, Omaha NE 68124',
                 'phone': '(402) 881-9861',
@@ -73,7 +73,7 @@ class Command(BaseCommand):
             },
         )
         status = 'Created' if created else 'Already exists'
-        self.stdout.write(f'  {status}: WorkLocation "Omaha - Canfield"')
+        self.stdout.write(f'  {status}: WorkLocation "Canfield"')
         return location
 
     def _create_department(self, location, manager):

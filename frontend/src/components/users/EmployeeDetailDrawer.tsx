@@ -521,21 +521,6 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
                         </MenuItem>
                       ))}
                     </TextField>
-                    <TextField
-                      select
-                      label="Work location"
-                      size="small"
-                      fullWidth
-                      value={profile.work_location}
-                      onChange={(e) => setP('work_location', e.target.value)}
-                    >
-                      <MenuItem value="">Not assigned</MenuItem>
-                      {locationOptions.map((l) => (
-                        <MenuItem key={l.id} value={String(l.id)}>
-                          {l.name}
-                        </MenuItem>
-                      ))}
-                    </TextField>
                   </Stack>
                   <Stack direction="row" spacing={1.5}>
                     <TextField

@@ -188,17 +188,7 @@ export function DepartmentFormDialog({
             minRows={2}
             autoFocus={!canEditHard}
           />
-          <TextField
-            select
-            label="Location"
-            value={location}
-            onChange={(event) => setLocation(event.target.value === '' ? '' : Number(event.target.value))}
-          >
-            <MenuItem value="">None</MenuItem>
-            {(locations.data ?? []).map((row) => (
-              <MenuItem key={row.id} value={row.id}>{row.name}</MenuItem>
-            ))}
-          </TextField>
+          {/* No Location field: Eco-Thrift has one store (#130); a department keeps what it had. */}
           <TextField
             select
             label="Manager"

@@ -41,20 +41,22 @@ class StoreMapTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.data['is_current'])
 
-    def test_one_current_per_location_and_pins_move_along(self):
+    def test_one_current_per_location_and_the_old_plan_keeps_its_pins(self):
         self.make_current(self.plan_a)
         MapPin.objects.create(plan=self.plan_a, layer=self.signage, x=10, y=20, name='Exit sign')
         other = FloorPlan.objects.create(name='Annex plan', location=self.other_store)
         self.make_current(other)
 
         resp = self.make_current(self.plan_b)
-        self.assertEqual(resp.data['pins_moved'], 1)
+        self.assertEqual(resp.data['pins_copied'], 1)
+        self.assertIn('Plan A', resp.data['message'])
         self.plan_a.refresh_from_db()
         other.refresh_from_db()
         self.assertFalse(self.plan_a.is_current)
-        self.assertTrue(other.is_current)  # another store keeps its own
-        pin = MapPin.objects.get()
-        self.assertEqual((pin.plan_id, pin.x, pin.y), (self.plan_b.id, 10, 20))
+        self.assertTrue(other.is_current)  # another location keeps its own
+        # Versions (#130): the old plan keeps its pin as history; the new one has a copy at the same spot.
+        self.assertEqual(list(self.plan_a.pins.values_list('x', 'y')), [(10, 20)])
+        self.assertEqual(list(self.plan_b.pins.values_list('x', 'y', 'name')), [(10, 20, 'Exit sign')])
 
     def test_is_current_cannot_be_set_through_patch(self):
         self.client.force_authenticate(user=self.manager)
@@ -88,14 +90,19 @@ class StoreMapTests(TestCase):
         MapPin.objects.create(plan=self.plan_a, layer=self.signage, x=1, y=2, name='Exit')
         MapPin.objects.create(plan=self.plan_b, layer=self.signage, x=1, y=2, name='Not on the map')
         self.client.force_authenticate(user=self.employee)
-        resp = self.client.get(f'/api/floorplan/store-map/?location={self.store.id}')
+        resp = self.client.get('/api/floorplan/store-map/')
         self.assertEqual(resp.data['plan']['id'], self.plan_a.id)
+        self.assertFalse(resp.data['is_history'])
         self.assertEqual([p['name'] for p in resp.data['pins']], ['Exit'])
-        self.assertEqual(resp.data['locations'][0]['plan_id'], self.plan_a.id)
+        self.assertEqual([v['plan_id'] for v in resp.data['versions']], [self.plan_a.id])
 
     # ---- pins ----
 
+    def pins_go_on_a_current_plan(self):
+        self.make_current(self.plan_a)
+
     def test_pins_are_for_managers_to_change(self):
+        self.pins_go_on_a_current_plan()
         body = {'plan': self.plan_a.id, 'layer': self.plain.id, 'x': 50, 'y': 60, 'name': 'By the door'}
         self.client.force_authenticate(user=self.employee)
         self.assertEqual(self.client.post('/api/floorplan/pins/', body, format='json').status_code, 403)
@@ -107,6 +114,7 @@ class StoreMapTests(TestCase):
         self.assertEqual(len(self.client.get(f'/api/floorplan/pins/?plan={self.plan_a.id}').data), 1)
 
     def test_pin_off_the_map_is_refused(self):
+        self.pins_go_on_a_current_plan()
         self.client.force_authenticate(user=self.manager)
         body = {'plan': self.plan_a.id, 'layer': self.plain.id, 'x': 99_999, 'y': 60, 'name': 'Far'}
         resp = self.client.post('/api/floorplan/pins/', body, format='json')
@@ -114,6 +122,7 @@ class StoreMapTests(TestCase):
         self.assertIn('x', resp.data)
 
     def test_pin_ref_follows_the_layer(self):
+        self.pins_go_on_a_current_plan()
         cams = MapLayer.objects.create(slug='cameras', name='Cameras', ref_type='')
         self.client.force_authenticate(user=self.manager)
         resp = self.client.post('/api/floorplan/pins/', {
@@ -123,6 +132,7 @@ class StoreMapTests(TestCase):
         self.assertEqual((resp.data['ref_type'], resp.data['ref_id']), ('', None))
 
     def test_moving_a_pin_and_saving_the_plan_keeps_it(self):
+        self.pins_go_on_a_current_plan()
         pin = MapPin.objects.create(plan=self.plan_a, layer=self.signage, x=1, y=2, name='Exit')
         self.client.force_authenticate(user=self.manager)
         resp = self.client.patch(f'/api/floorplan/pins/{pin.id}/', {'x': 30, 'y': 40}, format='json')
@@ -137,6 +147,7 @@ class StoreMapTests(TestCase):
         self.assertEqual((pin.plan_id, pin.x, pin.y), (self.plan_a.id, 30, 40))
 
     def test_a_pin_stays_on_its_plan(self):
+        self.pins_go_on_a_current_plan()
         pin = MapPin.objects.create(plan=self.plan_a, layer=self.signage, x=1, y=2, name='Exit')
         self.client.force_authenticate(user=self.manager)
         resp = self.client.patch(f'/api/floorplan/pins/{pin.id}/', {'plan': self.plan_b.id}, format='json')
