@@ -1,5 +1,6 @@
 """Texting webhooks. Twilio posts a customer's reply here (the toll-free number's "A message comes in" webhook):
-STOP puts the number on the stop list, HELP answers the submitted help text (``service.handle_inbound``).
+STOP puts the number on the stop list, HELP answers the submitted help text (``service.handle_inbound``). Every text is
+kept for the Texts inbox (``service.record_inbound``, #132).
 
 Twilio signs each post with the account's auth token (``TWILIO_AUTH_TOKEN``). With the token set, a post without a good
 signature is refused. Without it, STOP and HELP still work (stopping is always safe) but START is ignored: only a signed
@@ -50,7 +51,15 @@ def inbound(request):
     verified = signature_ok(request)
     if _token() and not verified:
         return HttpResponseForbidden('Bad signature.')
-    phone = service.digits(request.POST.get('From', ''))
+    sender = request.POST.get('From', '')
+    body = request.POST.get('Body', '')
+    if sender:
+        try:
+            media = int(request.POST.get('NumMedia', '0') or 0)
+        except ValueError:
+            media = 0
+        service.record_inbound(sender, body, provider_sid=request.POST.get('MessageSid', ''), media=media)
+    phone = service.digits(sender)
     if not phone:
         return _twiml(None)
-    return _twiml(service.handle_inbound(phone, request.POST.get('Body', ''), verified=verified))
+    return _twiml(service.handle_inbound(phone, body, verified=verified))

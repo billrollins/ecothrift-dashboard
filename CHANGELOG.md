@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.293.0] -->
-<!-- Last reviewed: 2026-11-13 (2.293.0) -->
+<!-- Line 1 release: ## [2.294.0] -->
+<!-- Last reviewed: 2026-11-13 (2.294.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.294.0] - 2026-11-13
+
+User-facing theme: **Texts through our Twilio number: "Text it" on a set-password link sends from (888) 812-7905, and a new Texts page shows every text people send to that number, with replies from Dash (Dash Update #132).**
+
+> **For Bill:** owner and managers now have **Texts** (avatar menu, and a **Texts** row on the bell with the number of new ones). Every text anyone sends to (888) 812-7905 is kept there, one row per number, named when the number belongs to a staff member (or a Thrift+ member). Open one to read the whole conversation and **reply from our number** (replies have their own switch, off until Twilio's toll-free approval covers them; until then they are kept on the page but not sent). STOP, START and HELP are still answered automatically (they show as already read), and a number that said STOP cannot be replied to. On **Users > Cannot sign in**, the employee drawer and Onboarding, **Text it** on a set-password link now texts it from our number and says "Texted to ***-0101"; if our number cannot send it, the button turns into **Text from my phone** (the old way). All of this is behind **Settings > People > Texts**: **Staff texts from our number** (off until the Twilio keys are in the server; while off, Text it opens your phone as before) and **Replies from the Texts page**.
+
+### Added (texting: staff texts and the Texts inbox)
+- `apps/texting`: `InboundText` (every text to our number: number, words, time, matched staff member, STOP/START/HELP word, picture count, Twilio id, read by/when; migration `0004_inbound_texts`, which also adds the `staff` text kind and two switches, both off: `texting.staff_texts` and `texting.inbox_replies`). The webhook keeps each text before the unchanged STOP / START / HELP handling; a Twilio retry of the same message is kept once.
+- `service.send_staff_text` (set-password links, inbox replies): no consent row, never to a number on the stop list, "Eco-Thrift:" first and the STOP line; held with the reason until the switch is on, the Twilio key is set, and it is production (`staff_waiting_on`); a reply also needs `texting.inbox_replies` (the toll-free verification was submitted for sign-in codes and links only). Link tokens are hidden in the record. Sign-in texts now share the same send step. D20 is lifted for these texts only (Bill, 2026-11-13); every consent-based text stays parked.
+- API (owner and managers): `GET /api/texting/status/`, `GET /api/texting/inbox/`, `GET /api/texting/inbox/<number>/` (marks read), `POST /api/texting/inbox/<number>/reply/`, `POST /api/texting/set-password-link/` (the words are built from the link's own token, never taken from the screen).
+- Front end: the **Texts** page (`/texts`), its avatar-menu item and bell row, the switch on Settings > People, and **Text it** in the set-password dialog. 7 server tests, 5 front-end tests.
 
 ## [2.293.0] - 2026-11-13
 

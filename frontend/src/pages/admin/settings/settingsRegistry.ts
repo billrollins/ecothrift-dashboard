@@ -242,6 +242,21 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'people',
     kind: 'html',
   },
+  // Dash Update #132 (Bill 2026-11-13): staff texts and Texts replies from our toll-free number.
+  'texting.staff_texts': {
+    label: 'Staff texts from our number',
+    help: 'On: "Text it" on a set-password link goes out from (888) 812-7905. Off: "Text it" opens your own phone. Needs the Twilio keys in the server config.',
+    tab: 'people',
+    kind: 'switch',
+    defaultValue: false,
+  },
+  'texting.inbox_replies': {
+    label: 'Replies from the Texts page',
+    help: 'On (with staff texts on): replies written on the Texts page go out from (888) 812-7905. Off: they are kept on the page but not sent. Turn on only once the Twilio toll-free verification covers replies, not just sign-in codes and links.',
+    tab: 'people',
+    kind: 'switch',
+    defaultValue: false,
+  },
   // Edited by its own page or panel; never a row here.
   'hiring.careers': { label: 'Careers page', help: 'Edited in People → Jobs.', tab: 'people', kind: 'hidden' },
   ai_price_check: { label: 'Last AI price check', help: 'Settings → AI: Estimate API costs.', tab: 'system', kind: 'state' },

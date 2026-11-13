@@ -312,6 +312,7 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
     sections: [
       { id: 'permissions', title: 'Permissions', access: 'all', help: 'Levels, departments and each person now live on People → Permissions.', custom: ['permissions'] },
       { id: 'email', title: 'Email', keys: ['mailbox.email_signature'] },
+      { id: 'texts', title: 'Texts', access: 'superuser', help: 'Texts from our number, (888) 812-7905. Read and answer them on the Texts page (avatar menu).', keys: ['texting.staff_texts', 'texting.inbox_replies'] },
       { id: 'careers', title: 'Careers page', help: 'Jobs, the application form and its emails are edited in People → Jobs.', custom: ['careers-link'] },
     ],
   },

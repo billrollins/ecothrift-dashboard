@@ -203,6 +203,8 @@ export const STRINGS: Record<string, { en: string; es: string }> = {
   routinesDue: { en: 'Routines due', es: 'Rutinas pendientes' },
   approvalsWaiting: { en: 'Approvals waiting', es: 'Aprobaciones pendientes' },
   dashFixes: { en: 'Dash Updates', es: 'Cambios de Dash' },
+  texts: { en: 'Texts', es: 'Mensajes de texto' },
+  textsUnread: { en: 'new', es: 'nuevos' },
   safeSwap: { en: 'Office cash: swap with the safe', es: 'Efectivo de oficina: intercambiar con la caja fuerte' },
   reportFix: { en: 'Ask for an update', es: 'Pedir un cambio' },
   fxPageSub: { en: 'Everything planned for Dash, in the order it is getting done.', es: 'Todo lo planeado para Dash, en el orden en que se hace.' },

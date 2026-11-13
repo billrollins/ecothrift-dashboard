@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   hours: 'none' as string,
   buying: { ending: [], unrecorded: [], count: 0, tone: 'none' } as Record<string, unknown>,
   safe: false,
+  texts: 0,
 }));
 
 vi.mock('../../hooks/useAuth', () => ({
@@ -22,6 +23,9 @@ vi.mock('../../hooks/useAuth', () => ({
     logout: vi.fn(),
     hasRole: () => false,
   }),
+}));
+vi.mock('../../api/texting.api', () => ({
+  useUnreadTexts: (enabled: boolean) => (enabled ? state.texts : 0),
 }));
 vi.mock('../../hooks/useSafe', () => ({
   useSafe: () => ({ data: state.safe ? { needs_swap: true } : undefined }),
@@ -76,6 +80,7 @@ describe('NotificationBell', () => {
     state.superuser = false;
     state.unread = 0;
     state.approvals = 0;
+    state.texts = 0;
     state.work = { count: 0, nagCount: 0, nagTone: 'none', owed: [], next: null };
     state.hours = 'none';
     state.buying = { ending: [], unrecorded: [], count: 0, tone: 'none' };
@@ -149,5 +154,25 @@ describe('NotificationBell', () => {
     await userEvent.setup().click(await screen.findByTestId('notification-bell'));
     expect(await screen.findByTestId('bell-row-safe')).toHaveTextContent('Office cash: swap with the safe');
     state.safe = false;
+  });
+
+  it('shows the owner and managers new texts to our number and opens Texts (#132)', async () => {
+    const user = userEvent.setup();
+    state.superuser = true;
+    state.texts = 2;
+    renderBell();
+    await waitFor(() => expect(screen.getByTestId('notification-bell-badge')).toHaveTextContent('2'));
+    await user.click(screen.getByTestId('notification-bell'));
+    expect(count('bell-row-texts')).toBe('2');
+    await user.click(screen.getByTestId('bell-row-texts'));
+    expect(screen.getByTestId('where')).toHaveTextContent('/texts');
+  });
+
+  it('has no Texts row for staff who are not managers', async () => {
+    const user = userEvent.setup();
+    state.texts = 2;
+    renderBell();
+    await user.click(screen.getByTestId('notification-bell'));
+    expect(screen.queryByTestId('bell-row-texts')).not.toBeInTheDocument();
   });
 });

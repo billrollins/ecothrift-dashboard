@@ -5,6 +5,8 @@
   No consent row, no text.
 - ``TextMessage``: every text Dash sends, or would have sent. Until texting is live (master's ``notify`` package,
   the Eco-Thrift Twilio key, the approved 10DLC campaign) each one is recorded as **held**: nothing leaves.
+- ``InboundText``: every text that comes in to our toll-free number (Dash Update #132, Bill 2026-11-13): kept for the
+  Texts inbox, with the staff member the number belongs to when it matches one.
 """
 from __future__ import annotations
 
@@ -17,11 +19,14 @@ class TextConsent(models.Model):
     KIND_JOB = 'job'
     KIND_THRIFTPLUS = 'thriftplus'
     KIND_NEWS = 'news'
+    KIND_STAFF = 'staff'
     KIND_ALL = 'all'
     KIND_CHOICES = [
         (KIND_JOB, 'Job application texts'),
         (KIND_THRIFTPLUS, 'Thrift+ account texts'),  # T59 (the register and My account ticks)
         (KIND_NEWS, 'Store news texts'),  # T59: a separate tick, marketing texts
+        # #132 (Bill 2026-11-13, D20 lifted for these): set-password links staff ask for, and replies from the Texts inbox.
+        (KIND_STAFF, 'Staff texts and replies'),
         (KIND_ALL, 'Every text (STOP)'),
     ]
 
@@ -112,3 +117,26 @@ class TextMessage(models.Model):
 
     def __str__(self) -> str:
         return f'{self.key} → {self.phone} ({self.status})'
+
+
+class InboundText(models.Model):
+    """A text someone sent to our number (Twilio's "a message comes in" webhook). Every one is kept. STOP / START / HELP
+    are still handled by ``service.handle_inbound``; those arrive already read, since Dash answered them itself."""
+
+    phone = models.CharField(max_length=20, db_index=True, help_text='10 digits for a US number, else as Twilio gave it.')
+    body = models.TextField(blank=True, default='')
+    received_at = models.DateTimeField(default=timezone.now, db_index=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                             related_name='+', help_text='The staff member whose phone this is, when it matches one.')
+    keyword = models.CharField(max_length=10, blank=True, default='', help_text='stop, start or help when it was one.')
+    media = models.PositiveSmallIntegerField(default=0, help_text='Pictures attached (not kept).')
+    provider_sid = models.CharField(max_length=64, blank=True, default='', db_index=True)
+    read_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    read_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                related_name='+')
+
+    class Meta:
+        ordering = ['-received_at', '-id']
+
+    def __str__(self) -> str:
+        return f'{self.phone} {self.received_at:%Y-%m-%d %H:%M}'

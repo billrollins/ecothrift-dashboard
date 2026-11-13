@@ -2,10 +2,15 @@
  * Set password (T61, Bill 2026-10-06; house standard D16): a one-time link, good for 48 hours, shown here once with
  * a QR. The person scans it on their phone (or opens the link) and picks their own password. Nothing is emailed,
  * and nobody types a password for anyone else.
+ *
+ * Text it (#132, Bill 2026-11-13): with staff texts on, Dash texts the link from our number, (888) 812-7905; otherwise
+ * (or if that text fails) it opens this phone's Messages with the link written in, as before.
  */
 import { useEffect, useState } from 'react';
 import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from '@mui/material';
 import QRCode from 'qrcode';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { getTextingStatus, textSetPasswordLink } from '../../api/texting.api';
 import { getSetPasswordLink, type SetPasswordLink } from '../../api/accounts.api';
 
 type Props = {
@@ -14,7 +19,7 @@ type Props = {
   onClose: () => void;
   /** Where the link comes from (default: Admin → Users). Onboarding passes its own, open to managers for new hires. */
   fetchLink?: (userId: number) => Promise<{ data: SetPasswordLink }>;
-  /** Their phone (#121): Text it opens this phone's Messages with the link written in. */
+  /** Their phone (#121): Text it texts the link from our number (#132), or opens this phone's Messages with it. */
   phone?: string;
 };
 
@@ -29,8 +34,19 @@ export function SetPasswordLinkDialog({ userId, name, onClose, fetchLink = getSe
   const [qr, setQr] = useState('');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const texting = useQuery({
+    queryKey: ['texting', 'status'],
+    queryFn: () => getTextingStatus().then((r) => r.data),
+    enabled: userId != null,
+    retry: false,
+  });
+  const ourNumber = Boolean(texting.data?.staff_texts_live);
+  const sendText = useMutation({
+    mutationFn: ({ url, to }: { url: string; to: string }) => textSetPasswordLink(url, to).then((r) => r.data),
+  });
 
   useEffect(() => {
+    sendText.reset();
     setLink(null);
     setQr('');
     setError('');
@@ -47,6 +63,20 @@ export function SetPasswordLinkDialog({ userId, name, onClose, fetchLink = getSe
         setError(detail || 'Could not make the link.');
       });
   }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const textTo = phone || link?.phone || '';
+  const smsBody =
+    `Eco-Thrift Dash: set your password here (works once, for 48 hours): ${link?.link ?? ''}` +
+    (link?.username ? ` Your username: ${link.username}` : '');
+  // Our number failed or held it: fall back to this phone's Messages.
+  const textFailed = sendText.isError || (sendText.data != null && !sendText.data.sent);
+  const textNote = sendText.isPending
+    ? 'Texting it from (888) 812-7905…'
+    : sendText.data?.sent
+      ? `Texted to ${sendText.data.to} from (888) 812-7905.`
+      : textFailed
+        ? `Could not text it from our number${sendText.data?.reason ? ` (${sendText.data.reason})` : ''}. Text it from your phone instead.`
+        : '';
 
   const copy = async () => {
     if (!link) return;
@@ -82,21 +112,31 @@ export function SetPasswordLinkDialog({ userId, name, onClose, fetchLink = getSe
               Works once, for 48 hours (until {new Date(link.expires_at).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}).
               Their current password keeps working until they use it. Making a new link cancels this one.
             </Typography>
+            {textTo && ourNumber ? (
+              // A fixed slot so nothing moves when the note appears.
+              <Typography
+                data-testid="set-password-text-note"
+                sx={{ fontSize: 13, minHeight: 20, textAlign: 'center', color: textFailed ? 'error.main' : 'text.secondary' }}
+              >
+                {textNote}
+              </Typography>
+            ) : null}
           </Stack>
         )}
       </DialogContent>
       <DialogActions>
-        {link && (phone || link.phone) ? (
+        {link && textTo && ourNumber && !textFailed ? (
           <Button
-            component="a"
-            href={smsHref(
-              phone || link.phone || '',
-              `Eco-Thrift Dash: set your password here (works once, for 48 hours): ${link.link}` +
-                (link.username ? ` Your username: ${link.username}` : ''),
-            )}
+            onClick={() => sendText.mutate({ url: link.link, to: textTo })}
+            disabled={sendText.isPending || Boolean(sendText.data?.sent)}
             sx={{ textTransform: 'none' }}
+            data-testid="set-password-text-ours"
           >
-            Text it
+            {sendText.data?.sent ? 'Texted' : 'Text it'}
+          </Button>
+        ) : link && textTo ? (
+          <Button component="a" href={smsHref(textTo, smsBody)} sx={{ textTransform: 'none' }} data-testid="set-password-text-phone">
+            {textFailed ? 'Text from my phone' : 'Text it'}
           </Button>
         ) : null}
         {link && (

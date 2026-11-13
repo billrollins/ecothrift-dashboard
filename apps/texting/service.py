@@ -18,6 +18,13 @@ Thrift+ sign-in texts (Phase 4, owner 2026-10-20) are a separate path: ``send_si
 for, or a link staff text them). They need no consent row, only that the number is not on the stop list, and they have
 their own switch, ``thrift_plus.own_number_codes`` (``own_number_on``). ``handle_inbound`` is Twilio's STOP / HELP webhook
 (``views.py``).
+
+Staff texts (Dash Update #132, Bill 2026-11-13: D20 lifted for these) are a third path: ``send_staff_text`` (a set-password
+link staff asked for, a reply from the Texts inbox). Like sign-in texts they need no consent row, only no STOP; they go
+out from our number when the ``texting.staff_texts`` switch is on and the sender is ready (``staff_waiting_on``), and are
+recorded as held otherwise. Inbox replies also need their own switch, ``texting.inbox_replies`` (off while the toll-free
+verification covers only sign-in codes and links; Mainline 2026-11-13) (the screen then falls back to the sender's own phone). Every text that comes in is kept
+(``record_inbound``, ``InboundText``) for the Texts inbox.
 """
 from __future__ import annotations
 
@@ -28,7 +35,7 @@ from decouple import config
 from django.conf import settings
 from django.utils import timezone
 
-from apps.texting.models import EmailConsent, TextConsent, TextMessage
+from apps.texting.models import EmailConsent, InboundText, TextConsent, TextMessage
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +49,8 @@ MESSAGES_URL = 'https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json'
 TIMEOUT = 10
 OWN_NUMBER_SETTING = 'thrift_plus.own_number_codes'
 LIVE_SETTING = 'texting.live'
+STAFF_SETTING = 'texting.staff_texts'  # #132: staff texts (set-password links) go out from our number
+REPLIES_SETTING = 'texting.inbox_replies'  # #132: free-form replies from the Texts inbox, too (needs Twilio to cover them)
 MAX_LENGTH = 320  # two text segments
 
 # True now that _deliver() below really sends through Twilio (Phase 4, 2026-10-20). Nothing leaves until the other gates
@@ -49,7 +58,8 @@ MAX_LENGTH = 320  # two text segments
 WIRED = True
 
 # D20 (Bill, 2026-10-08; standards T73): email first, texting parked. No text tick is offered anywhere and nothing is
-# texted; the records and this code stay. Set False only when Bill brings texting back.
+# texted; the records and this code stay. Set False only when Bill brings texting back. Not for staff texts: Bill lifted
+# D20 for those on 2026-11-13 (#132; ``send_staff_text``), and sign-in texts have their own switch.
 PARKED = True
 
 _STOP = re.compile(r'\bSTOP\b')
@@ -244,23 +254,19 @@ def stopped(phone: str) -> bool:
     return not TextConsent.objects.filter(phone=number, opted_in=True, id__gt=newest.id).exists()
 
 
-def send_sign_in_text(*, phone: str, key: str, body: str, ref: str = '', by=None) -> TextMessage:
-    """Text a sign-in code or link from our number (``key``: ``sign_in_code`` or ``sign_in_link``). Recorded either way:
-    sent, failed, or not sent because the number said STOP. The code or the link's token is kept hidden in the record."""
-    number = digits(phone)
-    text = shape(body)
-    kept = text
-    if key == 'sign_in_code':
-        kept = re.sub(r'\b\d{6}\b', '######', text)
-    elif key == 'sign_in_link':
-        kept = re.sub(r'signin=\S+', 'signin=######', text)
-    kind = TextConsent.KIND_THRIFTPLUS
+def _send_direct(*, number: str, kind: str, key: str, text: str, kept: str, ref: str, by,
+                 held: str = '') -> TextMessage:
+    """A text that needs no consent row, only no STOP (sign-in texts, staff texts). ``held``: why it may not go out from
+    our number right now (recorded as held, nothing leaves). Recorded either way, with ``kept`` as the words."""
     if not number:
         return TextMessage.objects.create(phone='', kind=kind, key=key, body=kept,
                                           status=TextMessage.STATUS_NO_NUMBER, ref=ref, by=by)
     if stopped(number):
         return TextMessage.objects.create(phone=number, kind=kind, key=key, body=kept,
                                           status=TextMessage.STATUS_OPTED_OUT, reason='Replied STOP', ref=ref, by=by)
+    if held:
+        return TextMessage.objects.create(phone=number, kind=kind, key=key, body=kept,
+                                          status=TextMessage.STATUS_HELD, reason=held[:200], ref=ref, by=by)
     try:
         ok, provider_id, error = _deliver(number, text)
     except Exception as exc:  # noqa: BLE001 - a text never breaks the action that sent it
@@ -269,6 +275,112 @@ def send_sign_in_text(*, phone: str, key: str, body: str, ref: str = '', by=None
         phone=number, kind=kind, key=key, body=kept, ref=ref, by=by,
         status=TextMessage.STATUS_SENT if ok else TextMessage.STATUS_FAILED, reason=error[:200],
         provider_id=provider_id, sent_at=timezone.now() if ok else None,
+    )
+
+
+def send_sign_in_text(*, phone: str, key: str, body: str, ref: str = '', by=None) -> TextMessage:
+    """Text a sign-in code or link from our number (``key``: ``sign_in_code`` or ``sign_in_link``). Recorded either way:
+    sent, failed, or not sent because the number said STOP. The code or the link's token is kept hidden in the record."""
+    text = shape(body)
+    kept = text
+    if key == 'sign_in_code':
+        kept = re.sub(r'\b\d{6}\b', '######', text)
+    elif key == 'sign_in_link':
+        kept = re.sub(r'signin=\S+', 'signin=######', text)
+    return _send_direct(number=digits(phone), kind=TextConsent.KIND_THRIFTPLUS, key=key, text=text, kept=kept,
+                        ref=ref, by=by)
+
+
+# ── Staff texts from our own number (#132, Bill 2026-11-13) ─────────────────
+#
+# A set-password link a staff member asked for, and a reply to someone who texted us. Not marketing: no consent row,
+# only no STOP. They go out when the ``texting.staff_texts`` switch is on and the sender is ready; otherwise they are
+# recorded as held and the screen offers the sender's own phone instead (the old way).
+
+
+def _setting_on(key: str) -> bool:
+    from apps.core.models import AppSetting
+
+    row = AppSetting.objects.filter(key=key).first()
+    return bool(row and (row.value is True or str(row.value).lower() in ('true', '1', 'yes', 'on')))
+
+
+def staff_texts_on() -> bool:
+    return _setting_on(STAFF_SETTING)
+
+
+def staff_waiting_on(key: str = '') -> list[str]:
+    """What still stands between Dash and a staff text from our number (empty = it goes out). ``key='reply'``: an
+    inbox reply, which also needs the replies switch."""
+    missing = []
+    if not sender_configured():
+        missing.append('the Eco-Thrift Twilio key')
+    if not staff_texts_on():
+        missing.append('the staff texts switch (Settings, People)')
+    if key == 'reply' and not _setting_on(REPLIES_SETTING):
+        missing.append('the replies switch (Settings, People; on once Twilio covers replies)')
+    if settings.DEBUG or getattr(settings, 'RUNNING_TESTS', False):
+        missing.append('production (dev never texts)')
+    return missing
+
+
+def staff_live() -> bool:
+    return not staff_waiting_on()
+
+
+def hide_tokens(text: str) -> str:
+    """The words as kept in the record: a link's one-time token never is."""
+    return re.sub(r'(token|signin)=[^\s&]+', r'\1=######', text)
+
+
+def send_staff_text(*, phone: str, key: str, body: str, ref: str = '', by=None) -> TextMessage:
+    """Text a staff text from our number (``key``: ``set_password_link``, ``reply``). Recorded either way; held (nothing
+    leaves) until ``staff_live``."""
+    text = shape(body)
+    missing = staff_waiting_on(key)
+    held = ('Staff texts are not on yet. Waiting on: ' + '; '.join(missing) + '.') if missing else ''
+    return _send_direct(number=digits(phone), kind=TextConsent.KIND_STAFF, key=key, text=text, kept=hide_tokens(text),
+                        ref=ref, by=by, held=held)
+
+
+# ── Inbound: every text kept (#132) ─────────────────────────────────────────
+
+
+def staff_for(number: str):
+    """The staff member whose phone is this number (an active one first; None when no one, or more than one, has it)."""
+    from django.contrib.auth import get_user_model
+
+    if not number:
+        return None
+    matches = [u for u in get_user_model().objects.filter(phone__contains=number[-4:]).exclude(phone='')
+               if digits(u.phone) == number]
+    active = [u for u in matches if u.is_active] or matches
+    return active[0] if len(active) == 1 else None
+
+
+def keyword_of(body: str) -> str:
+    """stop, start or help when the whole message is one of those words (as the carriers read it), else ''."""
+    word = re.sub(r'[^A-Za-z]', '', body or '').upper()
+    if word in STOP_WORDS:
+        return 'stop'
+    if word in START_WORDS:
+        return 'start'
+    if word in HELP_WORDS:
+        return 'help'
+    return ''
+
+
+def record_inbound(phone: str, body: str, *, provider_sid: str = '', media: int = 0) -> InboundText:
+    """Keep a text that came in. A STOP / START / HELP is kept already read: Dash (or Twilio) answered it."""
+    number = digits(phone) or re.sub(r'[^\d+]', '', phone or '')[:20]
+    if provider_sid:
+        found = InboundText.objects.filter(provider_sid=provider_sid[:64]).first()
+        if found:
+            return found  # Twilio retried the same message
+    keyword = keyword_of(body)
+    return InboundText.objects.create(
+        phone=number, body=(body or '')[:2000], user=staff_for(digits(phone)), keyword=keyword, media=max(0, media),
+        provider_sid=provider_sid[:64], read_at=timezone.now() if keyword else None,
     )
 
 

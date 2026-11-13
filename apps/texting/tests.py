@@ -271,3 +271,121 @@ class InboundWebhookTests(TestCase):
         self.assertEqual(Client().get(self.URL).status_code, 405)
         self.assertEqual(self.post('STOP', sender='abc').status_code, 200)
         self.assertFalse(TextConsent.objects.exists())
+
+
+class InboxTests(TestCase):
+    """#132: every text that comes in is kept, matched to staff by number; owner and managers read and reply in Texts;
+    staff texts (set-password links, replies) go out from our number only when live, and never to a STOP."""
+
+    URL = '/api/texting/inbound/'
+    PHONE = '4028675309'
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        from rest_framework.test import APIClient
+
+        from apps.accounts.models import User
+
+        def staff(first, role, **kw):
+            user = User.objects.create_user(email=f'{first.lower()}@example.com', first_name=first, last_name='Test',
+                                            password='Shelf-life-42', **kw)
+            user.groups.add(Group.objects.get_or_create(name=role)[0])
+            return user
+
+        self.boss = staff('Bill', 'Admin', is_superuser=True, is_staff=True)
+        self.clerk = staff('Ana', 'Employee', phone='(402) 867-5309')
+        self.api = APIClient()
+        self.api.force_authenticate(self.boss)
+
+    def inbound(self, body, sid='SM1', sender='+14028675309', media='0'):
+        with mock.patch('apps.texting.views.config', side_effect=lambda name, default='': default):
+            return Client().post(self.URL, {'From': sender, 'Body': body, 'MessageSid': sid, 'NumMedia': media},
+                                 secure=True)
+
+    def live(self, sent=True):
+        return mock.patch.multiple(service, staff_waiting_on=mock.Mock(return_value=[]),
+                                   _deliver=mock.Mock(return_value=(sent, 'SMout' if sent else '', '' if sent else 'no')))
+
+    def test_every_text_is_kept_once_matched_to_staff_and_keywords_arrive_read(self):
+        from apps.texting.models import InboundText
+
+        self.inbound('Running 10 min late')
+        self.inbound('Running 10 min late')  # Twilio retried the same message
+        self.inbound('STOP', sid='SM2')
+        self.inbound('hello', sid='SM3', sender='+15005550006')
+        self.assertEqual(InboundText.objects.count(), 3)
+        late = InboundText.objects.get(provider_sid='SM1')
+        self.assertEqual((late.phone, late.user, late.read_at), (self.PHONE, self.clerk, None))
+        self.assertIsNotNone(InboundText.objects.get(provider_sid='SM2').read_at)
+        self.assertIsNone(InboundText.objects.get(provider_sid='SM3').user)
+        self.assertTrue(service.stopped(self.PHONE))  # STOP handling unchanged
+
+    def test_inbox_unread_and_opening_marks_read(self):
+        self.inbound('Running 10 min late')
+        self.inbound('Can I swap Sat?', sid='SM2')
+        rows = self.api.get('/api/texting/inbox/').data
+        self.assertEqual(rows['unread'], 2)
+        self.assertEqual(rows['conversations'][0]['name'], 'Ana Test')
+        self.assertEqual(rows['conversations'][0]['unread'], 2)
+        thread = self.api.get(f'/api/texting/inbox/{self.PHONE}/').data
+        self.assertEqual([m['body'] for m in thread['messages']], ['Running 10 min late', 'Can I swap Sat?'])
+        self.assertEqual(self.api.get('/api/texting/status/').data['unread'], 0)
+
+    def test_employees_cannot_read_the_inbox(self):
+        self.api.force_authenticate(self.clerk)
+        self.assertEqual(self.api.get('/api/texting/inbox/').status_code, 403)
+        self.assertEqual(self.api.get('/api/texting/status/').status_code, 403)
+
+    def test_reply_is_held_until_live_then_sent_and_never_to_a_stop(self):
+        self.inbound('Running 10 min late')
+        held = self.api.post(f'/api/texting/inbox/{self.PHONE}/reply/', {'body': 'Thanks, see you soon'}, format='json')
+        self.assertEqual(held.data['message']['status'], TextMessage.STATUS_HELD)
+        self.assertIn('Waiting on', held.data['message']['reason'])
+        with self.live():
+            sent = self.api.post(f'/api/texting/inbox/{self.PHONE}/reply/', {'body': 'Thanks'}, format='json')
+        self.assertEqual(sent.data['message']['status'], TextMessage.STATUS_SENT)
+        self.assertEqual(sent.data['message']['body'], 'Eco-Thrift: Thanks Reply STOP to opt out.')
+        self.assertEqual(TextMessage.objects.filter(kind='staff', key='reply', by=self.boss).count(), 2)
+        self.inbound('STOP', sid='SM9')
+        with self.live() as mocks:
+            stopped = self.api.post(f'/api/texting/inbox/{self.PHONE}/reply/', {'body': 'Hi?'}, format='json')
+        self.assertEqual(stopped.data['message']['status'], TextMessage.STATUS_OPTED_OUT)
+        self.assertEqual(self.api.post(f'/api/texting/inbox/{self.PHONE}/reply/', {'body': ''}, format='json').status_code, 400)
+        self.assertEqual(self.api.post('/api/texting/inbox/4025550000/reply/', {'body': 'x'}, format='json').status_code, 400)
+
+    def test_set_password_link_texted_from_our_number_with_the_token_hidden(self):
+        link = self.api.post(f'/api/accounts/users/{self.clerk.pk}/set-password-link/').data['link']
+        token = link.split('token=')[1].split('&')[0]
+        held = self.api.post('/api/texting/set-password-link/', {'link': link}, format='json').data
+        self.assertEqual((held['status'], held['sent']), (TextMessage.STATUS_HELD, False))
+        with self.live():
+            sent = self.api.post('/api/texting/set-password-link/', {'link': link}, format='json').data
+            service._deliver.assert_called_once()
+            words = service._deliver.call_args[0][1]
+        self.assertEqual((sent['sent'], sent['to']), (True, '***-***-5309'))
+        self.assertIn(token, words)
+        self.assertTrue(words.startswith('Eco-Thrift: set your Dash password'))
+        kept = TextMessage.objects.filter(key='set_password_link').latest('id')
+        self.assertNotIn(token, kept.body)
+        self.assertIn('token=######', kept.body)
+        bad = self.api.post('/api/texting/set-password-link/', {'link': 'https://dash.ecothrift.us/reset-password?token=nope'},
+                            format='json')
+        self.assertEqual(bad.status_code, 400)
+
+    def test_replies_need_their_own_switch_on_top_of_staff_texts(self):
+        AppSetting.objects.update_or_create(key=service.STAFF_SETTING, defaults={'value': True})
+        self.assertTrue(any('replies switch' in m for m in service.staff_waiting_on('reply')))
+        self.assertFalse(any('replies switch' in m for m in service.staff_waiting_on('set_password_link')))
+        self.inbound('Running 10 min late')
+        thread = self.api.get(f'/api/texting/inbox/{self.PHONE}/').data
+        self.assertFalse(thread['replies_live'])
+        AppSetting.objects.update_or_create(key=service.REPLIES_SETTING, defaults={'value': True})
+        self.assertFalse(any('replies switch' in m for m in service.staff_waiting_on('reply')))
+
+    def test_staff_texts_wait_on_the_key_the_switch_and_production(self):
+        missing = service.staff_waiting_on()
+        self.assertTrue(any('Twilio key' in m for m in missing))
+        self.assertTrue(any('switch' in m for m in missing))
+        AppSetting.objects.update_or_create(key=service.STAFF_SETTING, defaults={'value': True})
+        self.assertFalse(any('switch' in m for m in service.staff_waiting_on()))
+        self.assertFalse(service.staff_live())  # a test run never texts

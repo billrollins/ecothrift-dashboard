@@ -23,6 +23,7 @@ import LockReset from '@mui/icons-material/LockReset';
 import Logout from '@mui/icons-material/Logout';
 import Person from '@mui/icons-material/Person';
 import PhotoCameraOutlined from '@mui/icons-material/PhotoCameraOutlined';
+import SmsOutlined from '@mui/icons-material/SmsOutlined';
 import SpaceDashboardOutlined from '@mui/icons-material/SpaceDashboardOutlined';
 import StorefrontOutlined from '@mui/icons-material/StorefrontOutlined';
 import StarOutlineRounded from '@mui/icons-material/StarOutlineRounded';
@@ -79,7 +80,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
  * it. HR is workspace 0 for everyone and Supplies is in Facilities, so neither is lost from the menu.
  */
 export function AccountMenu() {
-  const { user, logout, setLanguage, viewAs, stopViewAs } = useAuth();
+  const { user, logout, setLanguage, viewAs, stopViewAs, hasRole } = useAuth();
   const lang = user?.language === 'es' ? 'es' : 'en';
   const navigate = useNavigate();
   const location = useLocation();
@@ -198,6 +199,12 @@ export function AccountMenu() {
           <ListItemIcon><MailOutline fontSize="small" /></ListItemIcon>
           <ListItemText primary={t('messages', lang)} />
         </MenuItem>
+        {user.is_superuser || hasRole('Manager') ? (
+          <MenuItem key="texts" data-testid="account-menu-texts" onClick={() => go('/texts')}>
+            <ListItemIcon><SmsOutlined fontSize="small" /></ListItemIcon>
+            <ListItemText primary={t('texts', lang)} />
+          </MenuItem>
+        ) : null}
         <MenuItem key="photo-drops" data-testid="account-menu-photo-drops" onClick={() => go('/photo-drops')}>
           <ListItemIcon><PhotoCameraOutlined fontSize="small" /></ListItemIcon>
           <ListItemText primary={t('phDrops', lang)} />

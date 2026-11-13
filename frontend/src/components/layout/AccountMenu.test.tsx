@@ -30,6 +30,7 @@ vi.mock('../../hooks/useAuth', () => ({
     logout: auth.logout,
     viewAs: auth.viewAs,
     stopViewAs: vi.fn(),
+    hasRole: (role: string) => auth.role === 'Admin' || (auth.role === 'Manager' && role !== 'Admin'),
   }),
 }));
 

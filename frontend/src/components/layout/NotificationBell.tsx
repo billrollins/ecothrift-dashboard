@@ -12,6 +12,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { useBuyingNags } from '../../hooks/useBuyingNags';
 import { useHoursNag } from '../../hooks/useHoursNag';
 import { useDashFixCount } from '../../hooks/useDashFixes';
+import { useUnreadTexts } from '../../api/texting.api';
+import SmsOutlined from '@mui/icons-material/SmsOutlined';
 import { useSafe } from '../../hooks/useSafe';
 import AccountBalanceOutlined from '@mui/icons-material/AccountBalanceOutlined';
 import { useMyWork } from '../../hooks/useMyWork';
@@ -65,6 +67,9 @@ export function NotificationBell() {
   const dashFixes = useDashFixCount(Boolean(user));
   // The office cash needs a swap with the safe (Retail 5, 2026-11-02): owner and managers only.
   const safeAlert = useSafe(Boolean(user?.is_superuser) || hasRole('Manager')).data?.needs_swap ? 1 : 0;
+  // Texts to our toll-free number not read yet (#132): owner and managers.
+  const textsAllowed = Boolean(user?.is_superuser) || hasRole('Manager');
+  const texts = useUnreadTexts(textsAllowed);
 
   const messages = inbox.messages;
   const messageKey = messages.map((row) => row.id).join(',');
@@ -78,8 +83,8 @@ export function NotificationBell() {
 
   const nag = nagSummary(work, messages.map((row) => row.run_id), hours.level, buying);
   const routines = nag.tone === 'none' ? 0 : nag.count;
-  const total = unread + routines + approvals + dashFixes + safeAlert;
-  const hot = unread > 0 || approvals > 0 || dashFixes > 0 || safeAlert > 0 || nag.tone === 'red';
+  const total = unread + routines + approvals + dashFixes + safeAlert + texts;
+  const hot = unread > 0 || texts > 0 || approvals > 0 || dashFixes > 0 || safeAlert > 0 || nag.tone === 'red';
   const badgeColor = hot ? RED : AMBER;
   const close = () => setAnchor(null);
 
@@ -164,6 +169,17 @@ export function NotificationBell() {
             onClick={() => go('/messages')}
             testId="bell-row-messages"
           />
+          {textsAllowed ? (
+            <BellRow
+              icon={<SmsOutlined />}
+              label={t('texts', lang)}
+              sub={texts ? `${texts} ${t('textsUnread', lang)}` : undefined}
+              count={texts}
+              color={RED}
+              onClick={() => go('/texts')}
+              testId="bell-row-texts"
+            />
+          ) : null}
           <BellRow
             icon={<ChecklistRounded />}
             label={t('routinesDue', lang)}
