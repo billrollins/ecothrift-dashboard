@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.294.0] -->
-<!-- Last reviewed: 2026-11-13 (2.294.0) -->
+<!-- Line 1 release: ## [2.295.0] -->
+<!-- Last reviewed: 2026-11-13 (2.295.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.295.0] - 2026-11-13
+
+User-facing theme: **Wi-Fi time clock pilot retired and removed (Dash Update #63).**
+
+> **For Bill:** the pilot is gone, as you asked. Using only Wi-Fi it would have paid you 21 of your 59 real hours from Nov 3 to 13: phones drop off Wi-Fi when idle, so some days it never saw you, it caught 1 of 5 clock-ins and no clock-outs. Every part of it is removed from Dash (the Me-page card, the store PC helper, its tables). Nothing about real clock-ins or payroll changes. What we built, the numbers and why it failed are written up in .ai/reference/reports/2026-11-13-wifi-clock-pilot-retired.md, with all the code and data saved in the off-site archive, so it can be picked up again later.
+
+### Removed (Wi-Fi time clock pilot, Dash Update #63)
+- Bill retired the pilot 11-13: in shadow mode it caught 21 of 58.9 real hours (Nov 3 to 13), never saw the phone on 4 of 9 days, matched 1 of 5 clock-ins, logged no clock-outs, and asked 4 to 8 false "was this a break?" questions a day. Phones drop off Wi-Fi when idle.
+- Removed: `apps/hr/wifi_clock.py`, `wifi_views.py`, `kiosk_service.py` (only the pilot read it), `apps/hr/approval_kinds.py` (request kind `hr.wifi_clock_pilot`), the `/api/hr/wifi-clock/` URLs, the Me-page Wi-Fi card and its API calls, `scripts/wifi_clock/` (helper and installer), tests. Migrations `hr/0026_retire_wifi_clock_pilot` (drops the four pilot tables) and `accounts/0022_retire_wifi_clock_pilot` (drops `EmployeeProfile.wifi_mac`). Production rows were exported first.
+- Record of what was built, the numbers and why it failed: `.ai/reference/reports/2026-11-13-wifi-clock-pilot-retired.md`; code, history, data and a repo bundle in the off-site archive it names. The helper task on the store PC was stopped and removed. `gate_on_miss` on routines stays; its hint now says no clock-in check reads it.
+- Test fix: `test_ai_settings` expected 22 AI actions; v2.293.0 added the incident review action (23).
 
 ## [2.294.0] - 2026-11-13
 

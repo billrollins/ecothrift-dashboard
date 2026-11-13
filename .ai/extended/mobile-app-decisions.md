@@ -27,9 +27,9 @@ Step 1 of the "Mobile app" project (#66 audit + design → #67 organize desktop 
 - Every Home page goes through the critic/fix cycle: `.ai/extended/critic-fix-cycle.md` (up to 10 rounds, to A+).
 
 ## Carried into the shell (#68 / the build)
-- **Web push** in the staff app shell (permission asked once, service worker, keys on Heroku; Dash has no push today) plus an in-app pop-up fallback, for the Wi-Fi clock Yes/No questions. Needed after the Wi-Fi pilot report (after 2026-11-11), before staff use it (D23).
-- Parked: a never-blocking "connect to the store Wi-Fi" nudge at clock-in (`useTimeClockActions.clockIn`).
-- Android 16: Chrome's "Nearby devices / local network" permission is needed for the Wi-Fi clock one-tap turn-on (from #63).
+- **Web push** in the staff app shell (permission asked once, service worker, keys on Heroku; Dash has no push today) plus an in-app pop-up fallback, for staff questions (first planned for the Wi-Fi clock Yes/No questions; that pilot was retired 2026-11-13), before staff use it (D23).
+- Dropped 2026-11-13 with the Wi-Fi clock pilot (see `.ai/reference/reports/2026-11-13-wifi-clock-pilot-retired.md`): a never-blocking "connect to the store Wi-Fi" nudge at clock-in (`useTimeClockActions.clockIn`).
+- (Retired with the Wi-Fi clock, 2026-11-13) Android 16: Chrome's "Nearby devices / local network" permission was needed for the Wi-Fi clock one-tap turn-on (from #63).
 
 ## Starting bottom bars (from the design doc; each app's own design can change them)
 | App | Bottom buttons after Home | In More | On a computer |

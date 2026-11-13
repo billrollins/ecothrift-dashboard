@@ -37,7 +37,6 @@ import { getThreads } from '../../api/messages.api';
 import { getSupplyLists } from '../../api/supplies.api';
 import { HoursPayPanel } from '../../components/hr/HoursPayPanel';
 import { MyWeek } from '../../components/hr/MyWeek';
-import WifiClockCard from './WifiClockCard';
 import ChangePasswordDialog from '../../components/users/ChangePasswordDialog';
 import { useAuth } from '../../contexts/AuthContext';
 import { ccTokens } from '../../theme';
@@ -456,7 +455,6 @@ export default function MePage({ compact = false }: { compact?: boolean }) {
         </Box>
       ) : (
         <>
-          {compact ? <WifiClockCard /> : null}
           {blocks.supplies}
           {blocks.details}
           {blocks.security}

@@ -36,14 +36,16 @@ class AiModelResolutionTests(TestCase):
     def test_seed_rows(self):
         # + Thrift+ families, QA triage, hiring's careers file (hiring 0002), Social Studio post ideas (marketing 0003),
         # keys (keys 0002), the supply-item fill (supplies 0002), the buying miss review (buying 0042, Dash #78);
-        # the supervisor brief left 10-21
-        self.assertEqual(AiAction.objects.count(), 22)
+        # the incident review (hr 0025, Dash #133); the supervisor brief left 10-21
+        self.assertEqual(AiAction.objects.count(), 23)
         self.assertEqual(AiAction.objects.filter(purpose__in=['THRIFTPLUS_FAMILY', 'QA_TRIAGE']).count(), 2)
         self.assertFalse(AiAction.objects.filter(purpose='SUPERVISOR_BRIEF').exists())
         self.assertFalse(AiAction.objects.filter(model__isnull=False).exclude(purpose__in=[
             'SOCIAL_POST', 'KEYS', 'SUPPLY_FILL',
             # Dash #78: buying volume on Spark, the monthly miss review on Opus 5.5 (buying 0042)
             'KEY_MAPPING', 'CATEGORY_AI', 'TITLE_CATEGORY_ESTIMATE', 'BUYING_MISS_REVIEW',
+            # Dash #133: incident reports' AI review on Spark (hr 0025)
+            'INCIDENT_REVIEW',
         ]).exists())
         self.assertEqual(
             set(AiModel.objects.values_list('slug', flat=True)),

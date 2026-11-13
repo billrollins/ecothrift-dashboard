@@ -6,7 +6,6 @@ from .views import (
     pay_period_numbers_view, pay_period_close_view, pay_period_reopen_view,
 )
 from . import schedule_views as sched
-from . import wifi_views as wifi
 from . import question_views
 from . import incident_views
 
@@ -36,11 +35,5 @@ urlpatterns = [
     path('schedule/clear-week/', sched.schedule_clear_week_view, name='schedule-clear-week'),
     path('schedule/my-week/', sched.my_week_view, name='schedule-my-week'),
     # Wi-Fi time clock pilot (D23): store PC helper (device token), email answers, setup request
-    path('wifi-clock/phones/', wifi.WifiPhonesView.as_view(), name='wifi-clock-phones'),
-    path('wifi-clock/heartbeat/', wifi.WifiHeartbeatView.as_view(), name='wifi-clock-heartbeat'),
-    path('wifi-clock/claim/', wifi.WifiClaimView.as_view(), name='wifi-clock-claim'),
-    path('wifi-clock/me/', wifi.WifiMeView.as_view(), name='wifi-clock-me'),
-    path('wifi-clock/answer/<str:token>/', wifi.wifi_answer_view, name='wifi-clock-answer'),
-    path('wifi-clock/stage-setup/', wifi.WifiStageSetupView.as_view(), name='wifi-clock-stage-setup'),
     path('', include(router.urls)),
 ]

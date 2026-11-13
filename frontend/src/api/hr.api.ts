@@ -482,13 +482,3 @@ export const askHrQuestion = (question: string) => api.post<HrQuestion>('/hr/que
 export const answerHrQuestion = (id: number, answer: string) =>
   api.post<HrQuestion>(`/hr/questions/${id}/answer/`, { answer });
 
-/** Wi-Fi time clock pilot (D23): my status, and turning it on or off from Thrift+ Staff. */
-export interface WifiClockStatus {
-  eligible: boolean;
-  on: boolean;
-  helper_ready: boolean;
-}
-
-export const getWifiClock = () => api.get<WifiClockStatus>('/hr/wifi-clock/me/');
-export const startWifiClock = () => api.post<{ join_url: string }>('/hr/wifi-clock/me/', { action: 'start' });
-export const turnOffWifiClock = () => api.post<WifiClockStatus>('/hr/wifi-clock/me/', { action: 'off' });
