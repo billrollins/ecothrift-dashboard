@@ -193,3 +193,26 @@ export function reportScreenError(report: ScreenErrorReport): Promise<unknown> {
   const token = getAccessToken();
   return apiPublic.post('/core/errors/report/', report, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
 }
+
+/** Design Lab page checklist (#134): ticks per page id, saved on the server (Admin > Design Lab > Pages). */
+export type DesignStep = 'template' | 'design' | 'done';
+export interface DesignPageCheck {
+  template: boolean;
+  design: boolean;
+  done: boolean;
+  /** Who ticked last, and when (ISO). */
+  by?: string;
+  at?: string;
+}
+export type DesignPageChecks = Record<string, DesignPageCheck>;
+
+export async function getDesignPageChecks(): Promise<DesignPageChecks> {
+  const { data } = await api.get<{ checks: DesignPageChecks }>('/core/design-lab/checks/');
+  return data.checks;
+}
+
+/** Tick or untick one step; the server keeps the steps in order and returns every page's ticks. */
+export async function setDesignPageCheck(page: string, step: DesignStep, on: boolean): Promise<DesignPageChecks> {
+  const { data } = await api.put<{ checks: DesignPageChecks }>('/core/design-lab/checks/', { page, step, on });
+  return data.checks;
+}

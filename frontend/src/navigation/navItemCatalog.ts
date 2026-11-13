@@ -560,6 +560,15 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     superuserOnly: true,
     need: ['admin:full'],
   },
+  designLab: {
+    id: 'designLab',
+    path: '/admin/design-lab',
+    label: 'Design Lab',
+    // #134: the Eco-Thrift theme, icons and one demo per page type at desktop and phone size, plus the page registry.
+    icon: 'studio',
+    superuserOnly: true,
+    need: ['admin:full'],
+  },
   // Everything planned for Dash (replaces Enhancements). Reached from the avatar menu and the bell; in no workspace sidebar.
   dashFixes: {
     id: 'dashFixes',

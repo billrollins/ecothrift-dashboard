@@ -188,8 +188,9 @@ describe('Studios, Admin, HR and Retail placement (#67)', () => {
     expect(NAV_ITEM_CATALOG.contractors?.superuserOnly).toBe(true);
     expect(NAV_ITEM_CATALOG.superRequests).toMatchObject({ label: 'Approvals', superuserOnly: true });
     expect(NAV_ITEM_CATALOG.adminRoutines?.superuserOnly).toBe(true);
-    expect(admin?.guestItemIds).toEqual(['icons']); // owner-only tool, under the line
+    expect(admin?.guestItemIds).toEqual(['designLab', 'icons']); // owner-only tools, under the line
     expect(NAV_ITEM_CATALOG.icons?.superuserOnly).toBe(true);
+    expect(NAV_ITEM_CATALOG.designLab?.superuserOnly).toBe(true);
   });
 
   it('puts every studio under Studios', () => {

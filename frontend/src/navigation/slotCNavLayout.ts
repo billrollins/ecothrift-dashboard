@@ -107,7 +107,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     roles: ['Manager', 'Admin'],
     // Contractors (#21) is the owner's, off the staff side.
     itemIds: ['owner', 'superRequests', 'contractors', 'adminRoutines', 'settings'],
-    guestItemIds: ['icons'],
+    guestItemIds: ['designLab', 'icons'],
   },
   {
     id: 'hr',

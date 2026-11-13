@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.296.0] -->
-<!-- Last reviewed: 2026-11-13 (2.296.0) -->
+<!-- Line 1 release: ## [2.297.0] -->
+<!-- Last reviewed: 2026-11-13 (2.297.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.297.0] - 2026-11-13
+
+User-facing theme: **Design Lab, phase 1: the Eco-Thrift app theme, the page kit, and a superuser Design Lab page with every page type at desktop and phone size, plus a page registry (Dash Update #134).**
+
+> **For Bill:** Admin > Design Lab. Tabs: Theme (every colour, font and part, from the sign brand board), Icons, one tab per page type (Overview, List and detail, Record, Calendar, Report, Form, Settings) showing the desktop page and the same page on a phone screen side by side, and Pages: all 82 Dash pages by workspace with their page type, a Template / Design / Done tick box for each that you tick yourself (saved, with who and when), an Open button and a Copy brief button for the coder. No other page changes yet; pages move onto the new look one page type at a time.
+
+### Added (Design Lab phase 1, Dash Update #134; modelled on Dark Horse's)
+- `frontend/src/theme/eco.ts`: one theme file of named tokens (canvas, card, fill, line, ink, inkSoft about 9:1, inkFaint; forest, leaf as the one accent, mint, kraft, oat, bark, denim, sky, mist; good, wait, problem, info each with a soft wash and a text shade), Nunito for titles and Manrope for reading, three shadows, and the MUI theme built from them. Only the Design Lab wears it in phase 1 (its fonts load from the Design Lab too).
+- `frontend/src/components/page/PageKit.tsx` (PageShell, PageToolbar, Section, StatTile, StatusPill, FilterBar, EmptyState, FieldRow) and `StackOnPhone.tsx` (every table becomes cards under 600px; `eco-no-stack` opts out): no colours of their own; the top bar names the page, the body never repeats it.
+- `frontend/src/navigation/pageRegistry.ts`: every sidebar page with its page type (seven types, plus Tool for full-screen stations and Reference), phone- or desktop-first, its workspace, and the checklist (on its template, design approved, done); `designBrief` writes the hand-off text. The owner ticks the steps on the Pages tab: `/api/core/design-lab/checks/` (superusers; `apps/core/design_lab.py`) keeps them in one AppSetting (`design_lab.page_checks`, every change in AppSettingHistory), steps kept in order. No migration. The sidebar is not generated from it yet (phase 2).
+- `/admin/design-lab` (superusers, Admin sidebar beside Icons): Theme, Icons, seven page-type demos on made-up Eco-Thrift data, and Pages. On a desk each page type shows side by side (desktop laid out at 1200px and zoomed to fit, a 390px phone screen whose breakpoints answer as a phone), or Desktop or Phone alone (`?device=`); a real phone sees the phone page.
+- Tests: `apps/core/tests/test_design_lab.py` (ticks in order, history, bad input, owner only), `theme/eco.test.ts` (contrast and the 12px floor), `navigation/pageRegistry.test.ts` (every sidebar page has a type, listed once; the brief), `components/page/StackOnPhone.test.tsx`.
 
 ## [2.296.0] - 2026-11-13
 

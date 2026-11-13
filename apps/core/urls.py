@@ -1,5 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from .design_lab import page_checks as design_lab_page_checks
 from .dash_fixes import DashFixCoderListView, DashFixCoderView, DashFixViewSet
 from .photo_drops import PhotoDropViewSet
 from .views import (
@@ -38,6 +39,7 @@ urlpatterns = [
     path('printing/price-tag-in-dash/', price_tag_switch, name='price-tag-in-dash'),
     path('printing/price-tag-design/', price_tag_design_switch, name='price-tag-design'),
     path('printing/tag-marks/', tag_marks, name='tag-marks'),
+    path('design-lab/checks/', design_lab_page_checks, name='design-lab-checks'),
     path('dev-log/config/', dev_log_config, name='dev-log-config'),
     path('dev-log/line/', dev_log_line, name='dev-log-line'),
     path('errors/', app_errors, name='app-errors'),

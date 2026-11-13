@@ -149,7 +149,7 @@ export default function StoreMapPage() {
   const shownPins = pins.filter((p) => visibleLayerIds.has(p.layer));
   const fmtDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   const versionLabel = (v: { plan_name: string; started_at: string; ended_at: string | null }) =>
-    `${v.plan_name} · ${fmtDay(v.started_at)} – ${v.ended_at ? fmtDay(v.ended_at) : 'now'}`;
+    `${v.plan_name} · ${fmtDay(v.started_at)} to ${v.ended_at ? fmtDay(v.ended_at) : 'now'}`;
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
