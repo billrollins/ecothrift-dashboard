@@ -156,6 +156,7 @@ class TimeEntryRosterSerializer(serializers.Serializer):
     week_end = serializers.DateField()
     weekly_cumulative_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
     is_open = serializers.BooleanField()
+    on_payroll = serializers.BooleanField(default=True)
 
 
 class TimeEntryModificationRequestSerializer(serializers.ModelSerializer):

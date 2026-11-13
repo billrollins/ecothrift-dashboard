@@ -8,6 +8,11 @@
  *
  * The access cell is always painted and only changes colour, so a row never
  * resizes when someone is deactivated.
+ *
+ * #121 (Bill 2026-11-13): the list asks the server for staff only (`staff=1`). It used to take the first 200 logins
+ * of every kind by last name, customers too, so staff late in the alphabet (Phillip, Rollins) never showed. Family
+ * who are not paid carry a "Not on payroll" mark. Cannot sign in (the toggle, or the Locked out number on the strip)
+ * swaps the table for who is locked out or has no password, with Unlock and the reset links.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -31,6 +36,7 @@ import {
 import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import { getDepartments, mergeCurrentDepartments } from '../../../api/hr.api';
 import {
@@ -66,12 +72,17 @@ import { OverHoursChip } from '../../../components/hr/OverHoursFlag';
 import { levelForPay, type PayLevelKey } from '../../../utils/payLevels';
 import { maskPhoneInput, stripPhone } from '../../../utils/formatPhone';
 import { IconAdd as Add, IconSearch as Search } from '../../../icons/ecoIcons';
+import { SignInTroubleList, useSignInTrouble } from '../../../components/users/SignInTrouble';
+import type { SignInTroubleRow } from '../../../api/accounts.api';
 
 type Props = {
   onSelect: (userId: number) => void;
 };
 
-type ActiveFilter = '1' | '0' | '';
+type ActiveFilter = '1' | '0' | '' | 'trouble';
+
+/** ?show=cannot-sign-in opens the Cannot sign in view (the strip's Locked out number links here). */
+export const CANNOT_SIGN_IN = 'cannot-sign-in';
 type RoleFilter = '' | 'Admin' | 'Manager' | 'Employee';
 
 const STAFF_ROLES: UserRole[] = ['Admin', 'Manager', 'Employee'];
@@ -80,6 +91,7 @@ const EMPLOYMENT_LABELS: Record<string, string> = {
   full_time: 'Full time',
   part_time: 'Part time',
   seasonal: 'Seasonal',
+  as_needed: 'As needed',
 };
 
 const ROLE_COLOR: Record<string, 'error' | 'warning' | 'default'> = {
@@ -152,12 +164,21 @@ function applyEmployeePatch(user: User, patch?: EmployeePatch): User {
  * A blank last_login is not evidence of anything. Sign-in times were only
  * stamped from Aug 2026 on, so long-serving staff still read as blank.
  */
-function accessState(user: User): { label: string; tone: 'good' | 'warn' | 'muted'; hint: string } {
+function accessState(
+  user: User,
+  trouble?: SignInTroubleRow,
+): { label: string; tone: 'good' | 'warn' | 'muted'; hint: string } {
+  if (trouble?.locked_now) {
+    return { label: 'Locked out', tone: 'warn', hint: trouble.summary };
+  }
   if (!user.is_active) {
     return { label: 'Inactive', tone: 'warn', hint: 'Cannot sign in. Records are kept.' };
   }
   if (!user.has_password) {
     return { label: 'No password', tone: 'warn', hint: 'Cannot sign in yet. Send a reset link.' };
+  }
+  if (trouble?.state === 'was_locked') {
+    return { label: 'Active', tone: 'good', hint: trouble.summary };
   }
   return {
     label: 'Active',
@@ -166,6 +187,21 @@ function accessState(user: User): { label: string; tone: 'good' | 'warn' | 'mute
       ? `Last signed in ${formatDay(user.last_login)}.`
       : 'No sign-in recorded yet for this account.',
   };
+}
+
+/** Family who are not paid (#121): a small grey mark beside the name, on desk and phone. */
+function NotOnPayrollChip({ user }: { user: User }) {
+  if (user.employee?.on_payroll !== false) return null;
+  return (
+    <Tooltip title="Left out of pay sheets, pay exports and labor cost. Still on the schedule and the time clock.">
+      <Chip
+        size="small"
+        label="Not on payroll"
+        variant="outlined"
+        sx={{ height: 20, fontSize: '0.68rem', flexShrink: 0 }}
+      />
+    </Tooltip>
+  );
 }
 
 function jobLine(user: User): string {
@@ -179,8 +215,16 @@ function jobLine(user: User): string {
   return bits.join(' · ') || 'Position not set';
 }
 
-function EmployeeMobileRow({ user, onSelect }: { user: User; onSelect: (id: number) => void }) {
-  const state = accessState(user);
+function EmployeeMobileRow({
+  user,
+  onSelect,
+  trouble,
+}: {
+  user: User;
+  onSelect: (id: number) => void;
+  trouble?: SignInTroubleRow;
+}) {
+  const state = accessState(user, trouble);
   return (
     <Box
       component="button"
@@ -211,6 +255,7 @@ function EmployeeMobileRow({ user, onSelect }: { user: User; onSelect: (id: numb
         trailing={
           <>
             {user.hours_flag ? <OverHoursChip flag={user.hours_flag} /> : null}
+            <NotOnPayrollChip user={user} />
             <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', flexShrink: 0 }}>
               {user.employee?.employee_number || '-'}
             </Typography>
@@ -241,7 +286,24 @@ export default function EmployeesPanel({ onSelect }: Props) {
   const ownerViews = Boolean(viewer?.is_superuser && !viewer.view_as);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [activeFilter, setActiveFilter] = useState<ActiveFilter>('1');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [listFilter, setListFilter] = useState<Exclude<ActiveFilter, 'trouble'>>('1');
+  const showTrouble = searchParams.get('show') === CANNOT_SIGN_IN;
+  const activeFilter: ActiveFilter = showTrouble ? 'trouble' : listFilter;
+  const setActiveFilter = (next: ActiveFilter) => {
+    const params = new URLSearchParams(searchParams);
+    if (next === 'trouble') params.set('show', CANNOT_SIGN_IN);
+    else {
+      params.delete('show');
+      setListFilter(next);
+    }
+    setSearchParams(params, { replace: true });
+  };
+  const trouble = useSignInTrouble();
+  const troubleById = useMemo(
+    () => new Map((trouble.data?.rows ?? []).map((r) => [r.user_id, r])),
+    [trouble.data],
+  );
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('');
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({ ...EMPTY_FORM });
@@ -263,9 +325,10 @@ export default function EmployeesPanel({ onSelect }: Props) {
 
   const { data, isLoading, isError } = useUsers({
     page_size: 200,
+    staff: 1,
     search: search || undefined,
     role: roleFilter || undefined,
-    is_active: activeFilter || undefined,
+    is_active: listFilter || undefined,
     ordering: 'last_name',
   });
 
@@ -389,7 +452,14 @@ export default function EmployeesPanel({ onSelect }: Props) {
             secondary={row.email}
             seed={row.email || String(row.id)}
             muted={!row.is_active}
-            trailing={row.hours_flag ? <OverHoursChip flag={row.hours_flag} /> : undefined}
+            trailing={
+              row.hours_flag || row.employee?.on_payroll === false ? (
+                <>
+                  {row.hours_flag ? <OverHoursChip flag={row.hours_flag} /> : null}
+                  <NotOnPayrollChip user={row} />
+                </>
+              ) : undefined
+            }
           />
         ),
       },
@@ -561,12 +631,12 @@ export default function EmployeesPanel({ onSelect }: Props) {
         width: 118,
         sortable: false,
         renderCell: ({ row }) => {
-          const state = accessState(row);
+          const state = accessState(row, troubleById.get(row.id));
           return <StateChip label={state.label} tone={state.tone} hint={state.hint} />;
         },
       },
     ],
-    [departmentOptions, levelOptions, roleOptions, saveAccount, saveProfile, typeOptions],
+    [departmentOptions, levelOptions, roleOptions, saveAccount, saveProfile, troubleById, typeOptions],
   );
 
   useEffect(() => {
@@ -671,6 +741,14 @@ export default function EmployeesPanel({ onSelect }: Props) {
           <ToggleButton value="" sx={{ textTransform: 'none', px: 1.5 }}>
             All
           </ToggleButton>
+          <ToggleButton
+            value="trouble"
+            data-testid="employees-cannot-sign-in"
+            sx={{ textTransform: 'none', px: 1.5 }}
+          >
+            Cannot sign in
+            {trouble.data && trouble.data.rows.length > 0 ? ` (${trouble.data.rows.length})` : ''}
+          </ToggleButton>
         </ToggleButtonGroup>
         <Button
           variant="contained"
@@ -682,7 +760,11 @@ export default function EmployeesPanel({ onSelect }: Props) {
         </Button>
       </Stack>
 
-      {isMobile ? (
+      {showTrouble ? (
+        <Box sx={{ ...GRID_FILL_SX, overflowY: 'auto' }}>
+          <SignInTroubleList rows={trouble.data?.rows} loading={trouble.isLoading} />
+        </Box>
+      ) : isMobile ? (
         <Stack spacing={1} sx={{ minHeight: 200 }}>
           {rows.length === 0 ? (
             <Stack
@@ -695,7 +777,14 @@ export default function EmployeesPanel({ onSelect }: Props) {
               </Typography>
             </Stack>
           ) : (
-            rows.map((row) => <EmployeeMobileRow key={row.id} user={row} onSelect={onSelect} />)
+            rows.map((row) => (
+              <EmployeeMobileRow
+                key={row.id}
+                user={row}
+                onSelect={onSelect}
+                trouble={troubleById.get(row.id)}
+              />
+            ))
           )}
         </Stack>
       ) : (

@@ -448,11 +448,13 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
                 {'detail': 'date_from and date_to are required.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        qs = TimeEntry.objects.filter(
+        from apps.hr.services.payroll_people import on_payroll_entries
+
+        qs = on_payroll_entries(TimeEntry.objects.filter(
             clock_out__isnull=False,
             date__gte=date_from,
             date__lte=date_to,
-        ).select_related('employee', 'employee__employee')
+        )).select_related('employee', 'employee__employee')
         rows = {}
         for entry in qs:
             key = entry.employee_id

@@ -30,3 +30,8 @@ def record_failure(name: str, address: str | None) -> bool:
 
 def clear(name: str) -> None:
     cache.delete(_key('name', name))
+
+
+def clear_address(address: str) -> None:
+    """The owner's Unlock: also forget the wrong tries from the address the lockout came from (the store's own)."""
+    cache.delete(_key('ip', address))

@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import UserViewSet, CustomerViewSet, LoginMergeViewSet, pay_levels_view
 from . import access_views
 from . import messages_views as msg
+from . import sign_in_views
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='user')
@@ -24,5 +25,10 @@ urlpatterns = [
     path('access/level/', access_views.access_level_view, name='access-level'),
     path('access/history/', access_views.access_history_view, name='access-history'),
     path('pay-levels/', pay_levels_view, name='pay-levels'),
+    # Cannot sign in (#121): locked out / no password, Unlock, reset links.
+    path('sign-in-trouble/', sign_in_views.sign_in_trouble_view, name='sign-in-trouble'),
+    path('sign-in-trouble/<int:pk>/unlock/', sign_in_views.unlock_view, name='sign-in-trouble-unlock'),
+    path('sign-in-trouble/<int:pk>/email-link/', sign_in_views.email_link_view, name='sign-in-trouble-email'),
+    path('sign-in-trouble/<int:pk>/link/', sign_in_views.set_link_view, name='sign-in-trouble-link'),
     path('', include(router.urls)),
 ]

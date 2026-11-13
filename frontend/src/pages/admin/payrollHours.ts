@@ -99,6 +99,8 @@ export function buildEmployeePayrollRows(
   const byEmp = new Map<number, EmployeePayrollRow>();
   for (const row of roster) {
     if (row.is_open) continue;
+    // Not on payroll (family, #121): on the roster, never on the pay sheet.
+    if (row.on_payroll === false) continue;
     const hours = parseHours(row.total_hours);
     const rate = parseHours(row.pay_rate);
     let emp = byEmp.get(row.employee_id);

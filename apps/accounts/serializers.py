@@ -21,7 +21,7 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
         model = EmployeeProfile
         fields = [
             'id', 'employee_number', 'department', 'department_name', 'department_start_workspace',
-            'position', 'employment_type', 'pay_rate', 'level', 'overtime_allowance_hours', 'hire_date',
+            'position', 'employment_type', 'pay_rate', 'on_payroll', 'level', 'overtime_allowance_hours', 'hire_date',
             'termination_date', 'termination_type', 'termination_type_display',
             'termination_notes', 'work_location', 'work_location_name',
             'emergency_name', 'emergency_phone', 'notes', 'created_at',
@@ -117,9 +117,10 @@ class UserCreateSerializer(serializers.ModelSerializer):
     department = serializers.IntegerField(write_only=True, required=False, allow_null=True)
     position = serializers.CharField(write_only=True, required=False, default='')
     employment_type = serializers.ChoiceField(
-        choices=['full_time', 'part_time', 'seasonal'],
+        choices=[c for c, _label in EmployeeProfile.EMPLOYMENT_TYPES],
         write_only=True, required=False, default='full_time',
     )
+    on_payroll = serializers.BooleanField(write_only=True, required=False, default=True)
     pay_rate = serializers.DecimalField(
         max_digits=8, decimal_places=2, write_only=True, required=False, default=0,
     )
@@ -139,7 +140,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'email', 'username', 'first_name', 'last_name', 'phone', 'password', 'role', 'is_active',
-            'department', 'position', 'employment_type', 'pay_rate', 'level',
+            'department', 'position', 'employment_type', 'pay_rate', 'on_payroll', 'level',
             'hire_date', 'work_location',
             'commission_rate', 'payout_method',
         ]
@@ -163,6 +164,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         position = validated_data.pop('position', '')
         employment_type = validated_data.pop('employment_type', 'full_time')
         pay_rate = validated_data.pop('pay_rate', 0)
+        on_payroll = validated_data.pop('on_payroll', True)
         level = validated_data.pop('level', None)
         hire_date = validated_data.pop('hire_date', None)
         work_location = validated_data.pop('work_location', None)
@@ -193,6 +195,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
                 position=position,
                 employment_type=employment_type,
                 pay_rate=pay_rate,
+                on_payroll=on_payroll,
                 # Not told: the level the pay rate falls in (Entry when no pay is set yet).
                 level=level or pay_levels.level_for_pay(pay_rate),
                 hire_date=hire_date or timezone.localdate(),

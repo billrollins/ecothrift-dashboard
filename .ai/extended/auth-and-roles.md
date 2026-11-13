@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-03 (Staff permissions #53: areas and dials, levels, departments, exceptions, History) -->
+<!-- Last updated: 2026-11-13 (#121 Cannot sign in) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -296,3 +296,22 @@ hasRole(role) => roleRank(user.role) >= roleRank(role)
 - Redirected from staff routes to `/consignee`
 - `/consignee` (summary), `/consignee/items`, `/consignee/payouts`
 - Uses `ConsigneeLayout`; backend endpoints `my/items/`, `my/payouts/`, `my/summary/` scoped to own data
+
+## Cannot sign in (Dash Update #121, 2026-11-13)
+
+- **Lockout** (`services/lockout.py`): 5 wrong tries on one username or email (or 30 from one address) lock it for 15
+  minutes from the last wrong try, in the database cache (every dyno sees it). The 5th logs `AccountEvent` `locked_out`.
+  A new password from a reset link now ends the lockout (`sign_in_trouble.clear_lock`).
+- **The list** (`services/sign_in_trouble.py`, `GET /api/accounts/sign-in-trouble/`, managers and the owner): active
+  staff locked out now, locked out today, or with no password, each with a plain sentence of what happened and when
+  (the lockouts, a link made or emailed, a new password, Unlock, signed in again). `locked_out_today` is on the Users
+  stats strip.
+- **Help:** `POST .../<id>/unlock/` (the owner and the Admin level; clears the username, the email and the address of
+  the last lockout; logs `unlocked`); `.../<id>/email-link/` (managers; a one-hour emailed reset link, logs
+  `reset_emailed`); `.../<id>/link/` (a 48-hour set-password link plus the person's phone, for Text it / Copy / QR; a
+  manager gets it only for an Employee, never for a manager or the owner).
+- **Screens:** Users → Employees: the LOCKED OUT number on the strip and the Cannot sign in toggle
+  (`?show=cannot-sign-in`), the Access cell says Locked out. Managers: a one-line Sign-in bar on HR → Requests with Help.
+- `GET /api/accounts/users/?staff=1` returns Admin, Manager and Employee logins only; the Employees list and the staff
+  pickers (Time & payroll, Drawers, Transactions, delivery drivers) use it, since a page of 200 of every login by last
+  name was filled by customers.

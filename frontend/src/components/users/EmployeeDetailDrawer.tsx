@@ -13,10 +13,12 @@ import {
   Chip,
   Divider,
   Drawer,
+  FormControlLabel,
   IconButton,
   InputAdornment,
   MenuItem,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material';
@@ -60,6 +62,7 @@ const EMPLOYMENT_LABELS: Record<string, string> = {
   full_time: 'Full time',
   part_time: 'Part time',
   seasonal: 'Seasonal',
+  as_needed: 'As needed',
 };
 
 const TERMINATION_TYPES: [string, string][] = [
@@ -95,6 +98,7 @@ type ProfileForm = {
   position: string;
   employment_type: string;
   pay_rate: string;
+  on_payroll: boolean;
   level: string;
   overtime_allowance_hours: string;
   hire_date: string;
@@ -113,7 +117,7 @@ const EMPTY_ACCOUNT: AccountForm = {
 };
 
 const EMPTY_PROFILE: ProfileForm = {
-  position: '', employment_type: 'full_time', pay_rate: '', level: 'entry', overtime_allowance_hours: '0', hire_date: '',
+  position: '', employment_type: 'full_time', pay_rate: '', on_payroll: true, level: 'entry', overtime_allowance_hours: '0', hire_date: '',
   department: '', work_location: '', emergency_name: '', emergency_phone: '',
   termination_date: '', termination_type: '', termination_notes: '', notes: '',
 };
@@ -162,6 +166,7 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
       position: p?.position || '',
       employment_type: p?.employment_type || 'full_time',
       pay_rate: p?.pay_rate || '',
+      on_payroll: p?.on_payroll !== false,
       level: p?.level || 'entry',
       overtime_allowance_hours: String(Number(p?.overtime_allowance_hours ?? 0)),
       hire_date: p?.hire_date || '',
@@ -178,7 +183,7 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
 
   const setA = (key: keyof AccountForm, value: string) =>
     setAccount((prev) => ({ ...prev, [key]: value }));
-  const setP = (key: keyof ProfileForm, value: string) =>
+  const setP = (key: keyof ProfileForm, value: string | boolean) =>
     setProfile((prev) => ({ ...prev, [key]: value }));
 
   const saving = updateUser.isPending || updateProfile.isPending;
@@ -208,6 +213,7 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
             position: profile.position.trim(),
             employment_type: profile.employment_type,
             pay_rate: profile.pay_rate || 0,
+            on_payroll: profile.on_payroll,
             level: profile.level,
             overtime_allowance_hours: profile.overtime_allowance_hours || 0,
             hire_date: profile.hire_date || null,
@@ -575,6 +581,27 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
                       helperText="0 means no overtime. Past 40 plus this is flagged red."
                     />
                   </Stack>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={profile.on_payroll}
+                        onChange={(e) => setP('on_payroll', e.target.checked)}
+                        inputProps={{ 'aria-label': 'On payroll' }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {profile.on_payroll ? 'On payroll' : 'Not on payroll'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Off: left out of pay sheets, pay exports and labor cost. Still on the
+                          schedule and the time clock.
+                        </Typography>
+                      </Box>
+                    }
+                    sx={{ alignItems: 'flex-start', ml: 0, '& .MuiSwitch-root': { mt: -0.5 } }}
+                  />
                 </Stack>
               ) : (
                 <Box sx={{ minHeight: 200, display: 'flex', alignItems: 'center' }}>

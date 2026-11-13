@@ -32,15 +32,45 @@ function Metric({
   sub,
   tone = 'neutral',
   hint,
+  onClick,
+  testId,
 }: {
   label: string;
   value: string;
   sub: string;
   tone?: Tone;
   hint?: string;
+  /** A cell that opens the list behind its number (#121: Locked out → Cannot sign in). */
+  onClick?: () => void;
+  testId?: string;
 }) {
   const cell = (
-    <Stack spacing={0} sx={{ minWidth: 92, flexShrink: 0 }}>
+    <Stack
+      spacing={0}
+      data-testid={testId}
+      {...(onClick
+        ? {
+            component: 'button' as const,
+            type: 'button' as const,
+            onClick,
+          }
+        : {})}
+      sx={{
+        minWidth: 92,
+        flexShrink: 0,
+        ...(onClick
+          ? {
+              textAlign: 'left',
+              font: 'inherit',
+              p: 0,
+              border: 0,
+              bgcolor: 'transparent',
+              cursor: 'pointer',
+              '&:hover .metric-sub': { textDecoration: 'underline' },
+            }
+          : {}),
+      }}
+    >
       <Typography
         sx={{
           fontSize: '0.62rem',
@@ -66,6 +96,7 @@ function Metric({
       </Typography>
       <Typography
         variant="caption"
+        className="metric-sub"
         sx={{ color: 'text.secondary', whiteSpace: 'nowrap', fontSize: '0.66rem' }}
       >
         {sub}
@@ -187,7 +218,13 @@ export function MemberStatsStrip({ rows, needsReply }: { rows?: MemberRow[]; nee
   );
 }
 
-export function EmployeeStatsStrip({ stats }: { stats?: EmployeeStats | null }) {
+export function EmployeeStatsStrip({
+  stats,
+  onLockedClick,
+}: {
+  stats?: EmployeeStats | null;
+  onLockedClick?: () => void;
+}) {
   return (
     <Strip>
       <Metric
@@ -215,6 +252,15 @@ export function EmployeeStatsStrip({ stats }: { stats?: EmployeeStats | null }) 
         sub={stats?.no_password ? 'cannot sign in' : 'everyone can sign in'}
         tone={stats?.no_password ? 'warn' : 'good'}
         hint="Active staff with no usable password. Send them a reset link."
+      />
+      <Metric
+        label="Locked out"
+        value={num(stats?.locked_out_today)}
+        sub={stats?.locked_out_today ? 'today: see who' : 'nobody today'}
+        tone={stats?.locked_out_today ? 'warn' : 'good'}
+        hint="Too many wrong passwords today. Open Cannot sign in to unlock them or send a reset link."
+        onClick={onLockedClick}
+        testId="users-strip-locked-out"
       />
     </Strip>
   );

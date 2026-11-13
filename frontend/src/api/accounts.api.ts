@@ -289,6 +289,8 @@ export interface EmployeeStats {
   on_the_clock: number;
   new_hires_90d: number;
   no_password: number;
+  /** Active staff locked out today or right now (#121). */
+  locked_out_today?: number;
 }
 
 export function getCustomers(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<Customer> }> {
@@ -338,6 +340,8 @@ export interface SetPasswordLink {
   link: string;
   expires_at: string;
   username: string | null;
+  /** The person's phone, when known, for Text it (#121). */
+  phone?: string;
 }
 
 export function getSetPasswordLink(userId: number): Promise<{ data: SetPasswordLink }> {
@@ -444,4 +448,53 @@ export async function mergeCustomerLogin(staffUser: number, sourceUser: number):
     staff_user: staffUser, source_user: sourceUser,
   });
   return data;
+}
+
+// ── Cannot sign in (#121): locked out or no password, with one-tap help ─────────────
+export type SignInTroubleState = 'locked' | 'was_locked' | 'no_password';
+
+export interface SignInTroubleRow {
+  user_id: number;
+  name: string;
+  first_name: string;
+  role: string;
+  employee_number: string;
+  is_owner: boolean;
+  has_email: boolean;
+  phone: string;
+  state: SignInTroubleState;
+  locked_now: boolean;
+  locked_at: string | null;
+  locks_today: number;
+  /** One plain sentence: what happened and when. */
+  headline: string;
+  /** What happened since, oldest first (a link sent, a new password, signed in again). */
+  after: string[];
+  summary: string;
+  can_unlock: boolean;
+  can_link: boolean;
+}
+
+export interface SignInTrouble {
+  locked_today: number;
+  locked_now: number;
+  no_password: number;
+  rows: SignInTroubleRow[];
+}
+
+export function getSignInTrouble(): Promise<{ data: SignInTrouble }> {
+  return api.get<SignInTrouble>('/accounts/sign-in-trouble/');
+}
+
+export function unlockSignIn(userId: number): Promise<{ data: { detail: string; was_locked: boolean } }> {
+  return api.post(`/accounts/sign-in-trouble/${userId}/unlock/`);
+}
+
+export function emailSignInLink(userId: number): Promise<{ data: { detail: string } }> {
+  return api.post(`/accounts/sign-in-trouble/${userId}/email-link/`);
+}
+
+/** A 48-hour set-password link to text or show as a QR (a manager gets one only for an Employee). */
+export function getSignInTroubleLink(userId: number): Promise<{ data: SetPasswordLink }> {
+  return api.post<SetPasswordLink>(`/accounts/sign-in-trouble/${userId}/link/`);
 }

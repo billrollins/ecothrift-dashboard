@@ -39,8 +39,9 @@ def payroll_people(request):
     """Who can be picked for payroll deduction at the register: active staff (the check runs per person)."""
     from apps.accounts.models import User
 
-    users = User.objects.filter(is_active=True, groups__name__in=service.STAFF_ROLES).distinct().order_by(
-        'first_name', 'last_name')
+    # Off payroll (family, #121) has no paycheck to deduct from.
+    users = (User.objects.filter(is_active=True, groups__name__in=service.STAFF_ROLES)
+             .exclude(employee__on_payroll=False).distinct().order_by('first_name', 'last_name'))
     return Response([{'id': u.pk, 'name': (u.full_name or '').strip() or u.email} for u in users])
 
 

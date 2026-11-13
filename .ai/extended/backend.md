@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-10 (Department start_workspace, Dash Updates #86) -->
+<!-- Last updated: 2026-11-13 (#121 on_payroll, as_needed) -->
 
 # Eco-Thrift Dashboard â€” Backend Context
 
@@ -114,7 +114,7 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** â
 | Model | Key Fields |
 |-------|------------|
 | **User** | email (unique), first_name, last_name, phone, is_active, is_staff, **language** (`en`/`es`, default `en`), date_joined, updated_at; `role` property (first group), `roles` property (all groups as list) |
-| **EmployeeProfile** | user (1:1), employee_number, department (FK hr.Department), position, employment_type, pay_rate, hire_date, termination_date, **termination_type** (choices: voluntary_resignation, job_abandonment, retirement, layoff, etc.), **termination_notes**, work_location (FK core.WorkLocation) |
+| **EmployeeProfile** | user (1:1), employee_number, department (FK hr.Department), position, employment_type (full_time, part_time, seasonal, **as_needed**), pay_rate, **on_payroll** (#121: off = family who are not paid; left out of the payroll sheet, the pay numbers and CSV, the Owner page labor cost and payroll deduction; the roster keeps their shifts with pay 0 and `on_payroll: false`; helper `apps/hr/services/payroll_people.py`), hire_date, termination_date, **termination_type** (choices: voluntary_resignation, job_abandonment, retirement, layoff, etc.), **termination_notes**, work_location (FK core.WorkLocation) |
 | **ConsigneeProfile** | user (1:1), consignee_number, commission_rate, payout_method, status (active/paused/closed), join_date |
 | ~~**CustomerProfile**~~ | **Deprecated (T62, 2026-10-20): nothing reads or writes it.** A customer is a non-staff `User` in the `Customer` group (the website login) plus its Thrift+ `Person` (`Person.user`). Email confirmed = `Person.email_verified_at`; notes = `Account.notes`; member number = the member code; since = `Account.created_at`. Rows were carried by `thriftplus.0026_carry_customer_profiles`; a later release drops the model and table. |
 
@@ -155,7 +155,7 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** â
 | **TimeEntryChange** | entry (FK, kept with SET_NULL on purge), action (`added` / `edited` / `deleted` / `approved` / `request_applied` / `forgotten_fixed`), actor, at, before/after JSON, note. Every change after the punch (`services/time_changes.py`); read only in Django admin. |
 | **TimeEntryModificationRequest** | time_entry (FK TimeEntry), employee (FK User), requested_clock_in/out, requested_break_minutes, reason, status (pending/approved/denied), reviewed_by, review_note, **deleted_at**, **deleted_by** |
 
-**Pay (owner 2026-10-21, `services/pay_periods.py`):** overtime = hours past 40 in a Mon-Sun week, paid at **1.5x** (the profile's overtime allowance only sets when the red flag shows). `GET /api/hr/pay-periods/numbers/?date_from=` (superuser; `&download=csv` for a file): per person regular hours, overtime hours, rate, overtime rate, gross for the pay period holding that day, for QuickBooks Online (payroll is run there). Finished shifts only; open shifts are flagged. `POST /api/hr/pay-periods/close/` and `reopen/` `{date_from}` (superuser); a period with someone clocked in can't close. `my_pay` `total_pay` includes overtime at 1.5 and returns `overtime_hours`.
+**Pay (owner 2026-10-21, `services/pay_periods.py`):** overtime = hours past 40 in a Mon-Sun week, paid at **1.5x** (the profile's overtime allowance only sets when the red flag shows). `GET /api/hr/pay-periods/numbers/?date_from=` (superuser; `&download=csv` for a file): per person regular hours, overtime hours, rate, overtime rate, gross for the pay period holding that day, for QuickBooks Online (payroll is run there). Finished shifts only; open shifts are flagged. People off payroll (`EmployeeProfile.on_payroll`, #121) are left out. `POST /api/hr/pay-periods/close/` and `reopen/` `{date_from}` (superuser); a period with someone clocked in can't close. `my_pay` `total_pay` includes overtime at 1.5 and returns `overtime_hours`.
 
 **Own time (owner 2026-10-21):** nobody changes their own time entries through the API (`time_changes.refuse_own`, 403): update, delete, approve, bulk approve/delete. Staff self-create is a punch now (supplied clock_in/clock_out/status/break are dropped); a typed `break_minutes` at clock-out only counts from a manager clocking out someone else. They ask with a time change request. The owner (superuser) may change their own. `GET â€¦/time-entries/{id}/history/` (Manager+) lists the trail.
 

@@ -117,6 +117,7 @@ class EmployeeProfile(models.Model):
         ('full_time', 'Full Time'),
         ('part_time', 'Part Time'),
         ('seasonal', 'Seasonal'),
+        ('as_needed', 'As needed'),   # family who help now and then (Raylan, Sawyer; #121)
     ]
     TERMINATION_TYPES = [
         ('voluntary_resignation', 'Voluntary Resignation'),
@@ -139,6 +140,10 @@ class EmployeeProfile(models.Model):
     position = models.CharField(max_length=100, blank=True, default='')
     employment_type = models.CharField(max_length=20, choices=EMPLOYMENT_TYPES, default='full_time')
     pay_rate = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    # On payroll (Bill 2026-11-12, #121): off = family who are not paid (no Rollins is on payroll). Left out of every
+    # pay sheet, pay export and labor-cost total (``apps.hr.services.payroll_people``); still on the schedule, the time
+    # clock and every staff list, marked "Not on payroll".
+    on_payroll = models.BooleanField(default=True)
     # Pay level (owner 2026-10-20): Entry, Senior, Manager. The ranges are the ``hr.pay_levels`` setting.
     LEVEL_CHOICES = [('entry', 'Entry'), ('senior', 'Senior'), ('manager', 'Manager')]
     level = models.CharField(max_length=10, choices=LEVEL_CHOICES, default='entry')
@@ -324,6 +329,8 @@ class AccountEvent(models.Model):
     KIND_PASSWORD_SET = 'password_set'
     KIND_PASSWORD_CHANGED = 'password_changed'
     KIND_LOCKED = 'locked_out'
+    KIND_UNLOCKED = 'unlocked'              # the owner's Unlock (Cannot sign in, #121)
+    KIND_RESET_SENT = 'reset_emailed'       # someone emailed this person a reset link
     KIND_MERGED_IN = 'login_merged_in'      # on the staff login (services/login_merge.py)
     KIND_MERGED_INTO = 'merged_into_staff'  # on the customer login that merged in
     KIND_PIN_SET = 'register_pin_set'
@@ -336,6 +343,7 @@ class AccountEvent(models.Model):
         (KIND_USERNAME, 'Username changed'), (KIND_LINK, 'Set-password link issued'),
         (KIND_PASSWORD_SET, 'Password set from a link'), (KIND_PASSWORD_CHANGED, 'Password changed'),
         (KIND_LOCKED, 'Locked out (too many wrong tries)'),
+        (KIND_UNLOCKED, 'Unlocked'), (KIND_RESET_SENT, 'Reset link emailed'),
         (KIND_MERGED_IN, 'A customer login merged in'), (KIND_MERGED_INTO, 'Merged into a staff login'),
         (KIND_PIN_SET, 'Register PIN set'), (KIND_PIN_CLEARED, 'Register PIN cleared'),
         (KIND_SIGNED_OUT_ALL, 'Signed out on all devices'),

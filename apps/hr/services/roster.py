@@ -70,7 +70,10 @@ def build_time_roster(date_from, date_to) -> list[dict]:
         week_keys.add(week_key)
 
         hours = shift_hours(entry)
-        rate = _pay_rate_for(entry)
+        # Off payroll (family, #121): the shift stays on the roster, its pay is 0 and the row says so.
+        profile = getattr(entry.employee, 'employee', None)
+        on_payroll = profile is None or bool(profile.on_payroll)
+        rate = _pay_rate_for(entry) if on_payroll else Decimal('0')
 
         rows.append({
             'id': entry.id,
@@ -90,6 +93,7 @@ def build_time_roster(date_from, date_to) -> list[dict]:
             'week_start': ws.isoformat(),
             'week_end': we.isoformat(),
             'is_open': entry.clock_out is None,
+            'on_payroll': on_payroll,
         })
 
     week_totals = _week_partition_totals(week_keys)

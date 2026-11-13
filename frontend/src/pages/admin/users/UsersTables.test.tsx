@@ -15,6 +15,14 @@ const state = vi.hoisted(() => ({
   saveCustomer: vi.fn(),
   viewer: { id: 1, is_superuser: false, view_as: null } as Record<string, unknown>,
   startViewAs: vi.fn(),
+  trouble: [] as Array<Record<string, unknown>>,
+}));
+
+vi.mock('../../../components/users/SignInTrouble', () => ({
+  useSignInTrouble: () => ({ data: { rows: state.trouble }, isLoading: false }),
+  SignInTroubleList: ({ rows }: { rows?: Array<{ user_id: number; summary: string }> }) => (
+    <div data-testid="trouble-list">{(rows || []).map((r) => r.summary).join(' / ')}</div>
+  ),
 }));
 
 vi.mock('../../../contexts/AuthContext', () => ({
@@ -87,12 +95,14 @@ vi.mock('../../../hooks/useIsMobileLayout', () => ({
   useIsMobileLayout: () => false,
 }));
 
-function wrap(node: ReactNode) {
+function wrap(node: ReactNode, path = '/hr/people/staff') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={client}>
-      <SnackbarProvider>{node}</SnackbarProvider>
-    </QueryClientProvider>,
+    <MemoryRouter initialEntries={[path]}>
+      <QueryClientProvider client={client}>
+        <SnackbarProvider>{node}</SnackbarProvider>
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -122,6 +132,7 @@ const EMPLOYEE = {
 describe('EmployeesPanel directory', () => {
   beforeEach(() => {
     state.users = [EMPLOYEE];
+    state.trouble = [];
     state.viewer = { id: 1, is_superuser: false, view_as: null };
     state.startViewAs.mockReset().mockResolvedValue(undefined);
     state.saveProfile.mockReset().mockResolvedValue({});
@@ -159,11 +170,28 @@ describe('EmployeesPanel directory', () => {
       },
     }];
     const user = userEvent.setup();
-    wrap(<MemoryRouter><EmployeesPanel onSelect={() => {}} /></MemoryRouter>);
+    wrap(<EmployeesPanel onSelect={() => {}} />);
     expect(screen.getByTestId('over-hours-chip')).toHaveTextContent('Over hours 43.2/40');
     const level = await screen.findByLabelText('Level for Ana Reyes');
     await user.selectOptions(level, 'senior');
     expect(state.saveProfile).toHaveBeenCalledWith({ userId: 11, data: { level: 'senior' } });
+  });
+
+  it('marks family who are not on payroll (#121)', () => {
+    state.users = [EMPLOYEE, { ...EMPLOYEE, id: 12, full_name: 'Carrie Rollins', employee: { ...EMPLOYEE.employee, on_payroll: false } }];
+    wrap(<EmployeesPanel onSelect={() => {}} />);
+    expect(screen.getAllByText('Not on payroll')).toHaveLength(1);
+  });
+
+  it('says Locked out on the row and opens Cannot sign in from the link (#121)', () => {
+    state.trouble = [{ user_id: 11, state: 'locked', locked_now: true, summary: 'Locked out at 9:35 am today.' }];
+    const { unmount } = wrap(<EmployeesPanel onSelect={() => {}} />);
+    expect(screen.getByText('Locked out')).toBeInTheDocument();
+    expect(screen.getByTestId('employees-cannot-sign-in')).toHaveTextContent('Cannot sign in (1)');
+    unmount();
+    wrap(<EmployeesPanel onSelect={() => {}} />, '/hr/people/staff?show=cannot-sign-in');
+    expect(screen.getByTestId('trouble-list')).toHaveTextContent('Locked out at 9:35 am today.');
+    expect(screen.queryByTestId('headers')).not.toBeInTheDocument();
   });
 
   it('saves department and job on the row', async () => {

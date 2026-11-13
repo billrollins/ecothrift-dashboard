@@ -58,7 +58,7 @@ function formFromDay(day?: DeliveryDayDetail | null): FormState {
 export function DeskDayDialog({ open, onClose, day, onSaved }: Props) {
   const { enqueueSnackbar } = useSnackbar();
   const { create, update } = useDeliveryDayMutations();
-  const { data: users } = useUsers({ is_active: true });
+  const { data: users } = useUsers({ is_active: true, staff: 1, page_size: 200 });
   const [form, setForm] = useState<FormState>(() => formFromDay(day));
   const [reason, setReason] = useState('');
   const isEdit = Boolean(day);

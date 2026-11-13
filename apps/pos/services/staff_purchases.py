@@ -83,6 +83,12 @@ def _period(day: date) -> tuple[date, date]:
     return payroll_period_bounds(day)
 
 
+def _on_payroll(user) -> bool:
+    from apps.hr.services.payroll_people import is_on_payroll
+
+    return is_on_payroll(user)
+
+
 def last_paycheck(user, *, today: date | None = None) -> dict:
     """The gross for the pay period before this one: time-clock hours times the pay rate."""
     from apps.hr.models import TimeEntry
@@ -136,6 +142,8 @@ def eligibility(user, *, cashier=None, amount: Decimal | None = None, today: dat
         out['reason'] = 'Payroll deduction is switched off (Settings → Store).'
     elif not is_staff_member(user):
         out['reason'] = 'Only active staff can pay by payroll deduction.'
+    elif not _on_payroll(user):
+        out['reason'] = 'Not on payroll, so there is no paycheck to take it from.'
     elif cashier is not None and cashier.pk == user.pk:
         out['reason'] = 'Someone else rings up your purchase. Never ring your own sale.'
     elif last['gross'] <= 0:

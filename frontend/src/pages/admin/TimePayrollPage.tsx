@@ -324,7 +324,8 @@ export default function TimePayrollPage() {
   });
   const pendingCount = pendingCountData ?? 0;
 
-  const { data: usersData } = useUsers({ page_size: 200 });
+  // Staff only, asked of the server: the first 200 of every login (customers too) missed staff late in the alphabet.
+  const { data: usersData } = useUsers({ page_size: 200, staff: 1 });
   const staffOptions = useMemo(
     () => (usersData?.results ?? []).filter((u) => u.role && u.role !== 'Consignee'),
     [usersData],
@@ -630,6 +631,15 @@ export default function TimePayrollPage() {
       headerAlign: 'right',
       cellClassName: 'tabular',
       valueFormatter: (v) => fmtMoney(v as string),
+      // Family who are not paid (#121): the shift stays, the pay cell says why it is blank.
+      renderCell: ({ row, formattedValue }) =>
+        row.on_payroll === false ? (
+          <Typography variant="caption" color="text.secondary" noWrap>
+            Not on payroll
+          </Typography>
+        ) : (
+          formattedValue
+        ),
     },
     {
       field: 'actions',

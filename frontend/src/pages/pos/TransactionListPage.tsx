@@ -103,7 +103,7 @@ export default function TransactionListPage() {
   const { openObject } = useObjectModal();
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
 
-  const { data: usersData } = useUsers({ page_size: 200 });
+  const { data: usersData } = useUsers({ page_size: 200, staff: 1 });
   // Staff only: who can ring a sale or take a return (not Thrift+ members or consignors).
   const users = (usersData?.results ?? []).filter((u: { role?: string | null }) => ['Admin', 'Manager', 'Employee'].includes(u.role ?? ''));
 

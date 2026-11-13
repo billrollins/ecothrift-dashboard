@@ -168,4 +168,12 @@ def employee_stats() -> dict:
         'new_hires_90d': new_hires,
         # Active staff who cannot sign in at all - a reset link fixes it.
         'no_password': active_staff.filter(NO_PASSWORD).count(),
+        # Locked out today, or right now (#121): Users → Employees → Cannot sign in says who and what happened.
+        'locked_out_today': _locked_out_today(),
     }
+
+
+def _locked_out_today() -> int:
+    from apps.accounts.services.sign_in_trouble import locked_out_today_count
+
+    return locked_out_today_count()

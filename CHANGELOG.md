@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.287.0] -->
-<!-- Last reviewed: 2026-11-12 (2.287.0) -->
+<!-- Line 1 release: ## [2.288.0] -->
+<!-- Last reviewed: 2026-11-12 (2.288.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.288.0] - 2026-11-12
+
+User-facing theme: **Family workers on the staff list and off payroll, every staff member back on Users → Employees, and a Cannot sign in view with Unlock and reset links (Dash Update #121).**
+
+> **For Bill:** Open **HR → People → Staff** (Admin → Users → Employees). Everyone is there now, you, Carrie and Ray included: the list used to stop at about the letter N because it loaded the first 200 logins of every kind, customers too. Family who are not paid show a grey **Not on payroll** mark beside their name; open a person to find the **On payroll** switch under Pay (off = left out of the pay numbers, the QuickBooks CSV, the payroll sheet and the Owner page labor cost, but still on the schedule and the time clock). Employment type has a new choice, **As needed**. On the numbers strip at the top, the new **LOCKED OUT** number counts who was locked out today; tap it (or the **Cannot sign in** button above the list) to see each person with what happened and when, for example "Locked out at 9:35 am today after 5 wrong passwords. Ray set a new password at 9:37 am.", and one tap to **Unlock**, **Text a reset link** (opens Messages on your phone with the link written in) or **Email a reset link**. Managers see a one-line **Sign-in** bar at the top of **HR → Requests** ("Ray Phillip is locked out (9:35 am)") with **Help**, where they can text or email Ray a reset link. Raylan and Sawyer are added, and you, Carrie and them taken off payroll, by a command run after the ship.
+
+### Added (#121: family workers, Cannot sign in)
+- `EmployeeProfile.on_payroll` (default on) and the employment type `as_needed`; migration `accounts/0021_family_on_payroll` (also the account event kinds `unlocked` and `reset_emailed`). Off payroll is left out of every pay number (`apps/hr/services/payroll_people.py`): `TimeEntryViewSet.payroll`, `pay_periods.period_numbers` and its CSV, `owner_page.labor_cost` (labor hours and cost), and payroll deduction at the register (`staff_purchases.eligibility` refuses, the people picker leaves them out). The Time & payroll roster keeps their shifts with pay 0, `on_payroll: false` and "Not on payroll" in the Pay cell; the per-person pay table skips them. Schedule, time clock and staff lists are unchanged. The drawer has the On payroll switch; the list a Not on payroll mark; create accepts `on_payroll`.
+- Cannot sign in: `services/sign_in_trouble.py` and `GET /api/accounts/sign-in-trouble/` (managers and the owner): active staff locked out now, locked out today or with no password, each with a plain sentence of what happened and when. `POST .../<id>/unlock/` (owner and Admin level: clears the lock on the username, the email and the address of the last lockout), `.../<id>/email-link/` (managers: a one-hour emailed reset link), `.../<id>/link/` (a 48-hour set-password link with the person's phone; a manager gets it only for an Employee). `locked_out_today` on `GET /api/accounts/users/stats/`. Users → Employees: LOCKED OUT on the strip, the Cannot sign in toggle (`?show=cannot-sign-in`), Access says Locked out. HR → Requests: the managers' Sign-in bar (fixed height). The set-password dialog has **Text it** (`sms:` with the link, sent from the phone; Dash sends nothing).
+- `manage.py family_workers` (dry run unless `--apply`): checks Bill (`--bill-id`, default 1) and Carrie (`--carrie-id`, default 2) are Rollins with employee records; Carrie Full time; Bill and Carrie $0 and off payroll; creates Raylan and Sawyer (`--raylan-email/--raylan-phone`, `--sawyer-email/--sawyer-phone`; skipped without an email, never guessed) as Employees, As needed, $0, off payroll, no password; Carrie as the emergency contact on Bill, Raylan and Sawyer (`--carrie-phone`, else her login's phone; the old contact is reported); any other active staff Rollins off payroll. Safe to run twice.
+
+### Fixed (#121)
+- Users → Employees showed 5 of 9 active staff: it asked for the first 200 active logins of every kind by last name (customers included) and dropped the non-staff in the browser, so staff after about "N" (Phillip, Rollins) never arrived. `GET /api/accounts/users/?staff=1` now filters on the server; the same fix for the staff pickers in Time & payroll (which also listed customers), Drawers, Transactions and the delivery drivers.
+- A new password from a reset link did not end a lockout, so someone who reset within the 15 minutes was still locked out. It now clears it.
+- 18 new server tests (`apps/hr/tests/test_family_workers.py`, `apps/accounts/tests/test_sign_in_trouble.py`).
 
 ## [2.287.0] - 2026-11-12
 

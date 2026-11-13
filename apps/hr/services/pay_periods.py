@@ -130,7 +130,10 @@ def period_numbers(start: date) -> dict:
     from apps.hr.services.roster import shift_hours
 
     start, end = payroll_period_bounds(start)
-    entries = (TimeEntry.objects.filter(date__gte=start, date__lte=end)
+    from apps.hr.services.payroll_people import on_payroll_entries
+
+    # Off payroll (family, #121) is left out of the pay numbers and the CSV.
+    entries = (on_payroll_entries(TimeEntry.objects.filter(date__gte=start, date__lte=end))
                .select_related('employee', 'employee__employee').order_by('employee__last_name', 'employee__first_name'))
     weeks: dict[int, dict[date, Decimal]] = defaultdict(lambda: defaultdict(Decimal))
     people: dict[int, dict] = {}

@@ -6,7 +6,7 @@ export type UserRole = 'Admin' | 'Manager' | 'Employee' | 'Consignee' | 'Custome
 /**
  * Employment type for EmployeeProfile
  */
-export type EmploymentType = 'full_time' | 'part_time' | 'seasonal';
+export type EmploymentType = 'full_time' | 'part_time' | 'seasonal' | 'as_needed';
 
 /**
  * Payout method for ConsigneeProfile
@@ -23,6 +23,8 @@ export interface EmployeeProfile {
   position: string;
   employment_type: EmploymentType;
   pay_rate: string;
+  /** Off = not paid (family, #121): left out of every pay sheet, pay export and labor cost. */
+  on_payroll?: boolean;
   /** Pay level; the ranges are the hr.pay_levels setting. */
   level?: 'entry' | 'senior' | 'manager';
   /** Hours past the weekly 40 this person is cleared for (0 = no overtime). */

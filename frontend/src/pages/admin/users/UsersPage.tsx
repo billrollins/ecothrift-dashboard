@@ -20,7 +20,7 @@ import { canAccess } from '../../../auth/access';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useCustomerStats, useEmployeeStats } from '../../../hooks/useEmployees';
 import { useIsMobileLayout } from '../../../hooks/useIsMobileLayout';
-import EmployeesPanel from './EmployeesPanel';
+import EmployeesPanel, { CANNOT_SIGN_IN } from './EmployeesPanel';
 import MembersPanel, { useMembers } from './MembersPanel';
 import { EmployeeStatsStrip, MemberStatsStrip } from './UsersStatsStrip';
 import { PAGE_FILL_SX } from '../../../components/common/gridChrome';
@@ -57,6 +57,7 @@ export default function UsersPage() {
     if (next === 'employees') nextParams.delete('tab');
     else nextParams.set('tab', 'members');
     nextParams.delete('customer');
+    nextParams.delete('show');
     setSearchParams(nextParams, { replace: true });
   };
 
@@ -82,7 +83,14 @@ export default function UsersPage() {
         {tab === 'members' ? (
           <MemberStatsStrip rows={members.data} needsReply={customerStats.data?.needs_reply} />
         ) : (
-          <EmployeeStatsStrip stats={employeeStats.data} />
+          <EmployeeStatsStrip
+            stats={employeeStats.data}
+            onLockedClick={() => {
+              const nextParams = new URLSearchParams(searchParams);
+              nextParams.set('show', CANNOT_SIGN_IN);
+              setSearchParams(nextParams, { replace: true });
+            }}
+          />
         )}
       </Box>
 

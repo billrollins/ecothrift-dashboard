@@ -123,4 +123,6 @@ export interface TimeEntryRosterRow {
   week_end: string;
   weekly_cumulative_hours: string;
   is_open: boolean;
+  /** Off = family who are not paid (#121): pay is 0 and they are left out of the pay sheet. */
+  on_payroll?: boolean;
 }

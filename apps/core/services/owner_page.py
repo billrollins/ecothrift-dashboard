@@ -130,8 +130,12 @@ def labor_cost(start: date, end: date) -> tuple[Decimal, Decimal]:
     from apps.hr.models import TimeEntry
     from apps.hr.services.roster import _pay_rate_for, shift_hours
 
+    from apps.hr.services.payroll_people import on_payroll_entries
+
+    # Off payroll (family, #121) costs nothing: left out of labor hours and labor cost.
     hours, pay = ZERO, ZERO
-    for entry in TimeEntry.objects.filter(date__gte=start, date__lte=end).select_related('employee', 'employee__employee'):
+    entries = on_payroll_entries(TimeEntry.objects.filter(date__gte=start, date__lte=end))
+    for entry in entries.select_related('employee', 'employee__employee'):
         h = shift_hours(entry)
         hours += h
         pay += h * _pay_rate_for(entry)

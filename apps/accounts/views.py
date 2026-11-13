@@ -371,6 +371,8 @@ def _send_staff_reset(user, *, request, requested_by_admin: bool):
             status=status.HTTP_502_BAD_GATEWAY,
         )
 
+    if requested_by_admin and getattr(request, 'user', None) is not None and request.user.is_authenticated:
+        AccountEvent.log(user, AccountEvent.KIND_RESET_SENT, actor=request.user)
     return Response({'detail': f'Reset link sent to {user.email}.'})
 
 
@@ -427,6 +429,10 @@ def reset_password_view(request):
             new_password=request.data.get('new_password') or '',
         )
         AccountEvent.log(user, AccountEvent.KIND_PASSWORD_SET, actor=user)
+        # A new password ends a lockout (#121): Ray reset his within two minutes and was still locked for 15.
+        from apps.accounts.services.sign_in_trouble import clear_lock
+
+        clear_lock(user)
     except ValidationError as exc:
         detail = exc.detail
         if isinstance(detail, dict):
@@ -471,6 +477,12 @@ class UserViewSet(viewsets.ModelViewSet):
         role = self.request.query_params.get('role')
         if role:
             qs = qs.filter(groups__name=role)
+        # ?staff=1: Admin, Manager and Employee logins only (#121). Without it a page of 200 by last name was filled
+        # by customers, and staff late in the alphabet (Phillip, Rollins) never reached the Employees list.
+        if self.request.query_params.get('staff') in ('1', 'true'):
+            from apps.accounts.services.stats import STAFF_ROLE_NAMES
+
+            qs = qs.filter(groups__name__in=STAFF_ROLE_NAMES)
         is_active = self.request.query_params.get('is_active')
         if is_active is not None:
             qs = qs.filter(is_active=is_active.lower() in ('true', '1'))

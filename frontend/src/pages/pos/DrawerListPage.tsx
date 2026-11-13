@@ -146,7 +146,7 @@ export default function DrawerListPage() {
       : registers.filter((r: { id: number }) => r.id === myRegisterId),
   );
 
-  const { data: usersData } = useUsers({ page_size: 200 });
+  const { data: usersData } = useUsers({ page_size: 200, staff: 1 });
   const usersForHandoff = usersData?.results ?? [];
 
   const handleOpenDrawer = async (opening: CashCount): Promise<CountCheck | null> => {

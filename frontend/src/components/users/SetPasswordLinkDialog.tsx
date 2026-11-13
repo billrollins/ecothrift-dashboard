@@ -14,9 +14,17 @@ type Props = {
   onClose: () => void;
   /** Where the link comes from (default: Admin → Users). Onboarding passes its own, open to managers for new hires. */
   fetchLink?: (userId: number) => Promise<{ data: SetPasswordLink }>;
+  /** Their phone (#121): Text it opens this phone's Messages with the link written in. */
+  phone?: string;
 };
 
-export function SetPasswordLinkDialog({ userId, name, onClose, fetchLink = getSetPasswordLink }: Props) {
+/** ``sms:`` with the message written in. Opens Messages on a phone; nothing is sent by Dash. */
+export function smsHref(phone: string, body: string): string {
+  const digits = phone.replace(/[^\d+]/g, '');
+  return `sms:${digits}?&body=${encodeURIComponent(body)}`;
+}
+
+export function SetPasswordLinkDialog({ userId, name, onClose, fetchLink = getSetPasswordLink, phone }: Props) {
   const [link, setLink] = useState<SetPasswordLink | null>(null);
   const [qr, setQr] = useState('');
   const [error, setError] = useState('');
@@ -78,6 +86,19 @@ export function SetPasswordLinkDialog({ userId, name, onClose, fetchLink = getSe
         )}
       </DialogContent>
       <DialogActions>
+        {link && (phone || link.phone) ? (
+          <Button
+            component="a"
+            href={smsHref(
+              phone || link.phone || '',
+              `Eco-Thrift Dash: set your password here (works once, for 48 hours): ${link.link}` +
+                (link.username ? ` Your username: ${link.username}` : ''),
+            )}
+            sx={{ textTransform: 'none' }}
+          >
+            Text it
+          </Button>
+        ) : null}
         {link && (
           <Button onClick={() => void copy()} sx={{ textTransform: 'none' }}>
             {copied ? 'Copied' : 'Copy link'}

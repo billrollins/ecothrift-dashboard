@@ -33,6 +33,7 @@ import { es as esLocale } from 'date-fns/locale';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../i18n/useLanguage';
 import { canAccess } from '../../auth/access';
+import { SignInTroubleBar } from '../../components/users/SignInTrouble';
 import { getScheduleRequests, type ScheduleRequest } from '../../api/schedule.api';
 import {
   answerHrQuestion,
@@ -227,6 +228,8 @@ export default function HrRequests() {
   const canSchedule = canAccess(user, ['hr.schedule:write', 'people:manage']);
   const canTime = canAccess(user, ['hr.mod_requests:triage', 'admin:full']);
   const canAnswer = canAccess(user, ['hr.questions:answer', 'people:manage']);
+  // Cannot sign in (#121): managers see who is locked out and send the reset link.
+  const canHelpSignIn = canAccess(user, ['people:manage']);
 
   const schedule = useQuery({ queryKey: ['scheduleRequests', 'hr'], queryFn: async () => (await getScheduleRequests()).data });
   const times = useQuery({
@@ -269,6 +272,7 @@ export default function HrRequests() {
 
   return (
     <Stack spacing={1.5} sx={{ maxWidth: 900 }} data-testid="hr-requests">
+      {canHelpSignIn ? <SignInTroubleBar /> : null}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
         <Button variant="contained" onClick={() => setAsking('change')}>{t('askChange')}</Button>
         <Button variant="outlined" onClick={() => setAsking('question')}>{t('askQuestion')}</Button>
