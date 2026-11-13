@@ -1,13 +1,11 @@
-v2.300.0 — Design Lab phase 2: kit pages get the top-bar title and phone cards
+v2.300.1 — Brand: the Eco-Thrift logo as vector master files
 
-User-facing theme: **Design Lab phase 2: the top bar names kit pages, kit tables turn into cards on a phone, the theme fonts load everywhere (Dash Update #134).**
+User-facing theme: **The Eco-Thrift logo as vector master files: 23 versions in SVG, PDF, EPS and PNG, made from the designer's original and Bill's 2025 update (Dash Update #134).**
 
-> **For Bill:** pages built with the new page kit now get their title in the top bar (and never twice), and their tables turn into cards on a phone. Older pages look the same until they move to the kit, one page type at a time. The theme fonts now load for the whole app.
+> **For Bill:** `design/brand/logo/` (and your OneDrive Brand folder, "Vector Logo 2026-11-13"). The main logo, the logo with the store line, the leaf mark, the words alone and the 2021 stacked logo, each in colour, colour on dark, black, white and forest green. The README says which file to use where. Nothing in Dash or on the website uses them yet.
 
-### Changed (Design Lab phase 2: the shared shell pieces, Dash Update #134)
-- The top bar names the page on every page built with the kit: `PageShell` tells the shell it is there (`components/page/kitSignal.ts`) and MainLayout shows the page's sidebar name (`pageTitleFor` in `navigation/pageRegistry.ts`) as the page heading. Pages not on the kit keep their own titles and show nothing new, so no page has two titles. A kit page must not repeat its title in the body.
-- `PageShell` wraps its page in `StackOnPhone`, so every table on a kit page turns into cards on a phone. Older pages are untouched; turning it on for every page is one switch once they are checked.
-- The theme's fonts (Manrope, Nunito) load in `index.html` with the others (they loaded from the Design Lab only).
-- Tests: MainLayout names a kit page and leaves an older page alone; `pageTitleFor`.
+### Added (brand, Dash Update #134)
+- `design/brand/logo/`: the leaf mark and the 2021 wordmark translated exactly from the designer's Illustrator file (every shape and both gradients). Bill's 2025 lockup is rebuilt from his GIMP file in the real fonts: Varela Round with GIMP's synthetic bold (each edge widened by 1/48 em), Crimson Pro Bold and Montserrat Bold. Each piece is placed by its ink in that file, within 2.5 px (0.1 mm) at 600 dpi. All filled paths: no fonts, strokes or pictures inside. EPS files are level 3, so the gradients stay vector.
+- `design/brand/logo/tools/make.py` rebuilds `svg/`, `pdf/`, `eps/` and `png/` in about 30 seconds (Edge from `docs/machines.md`, PyMuPDF from the sign tool venv); `source/` keeps the designer's AI file.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

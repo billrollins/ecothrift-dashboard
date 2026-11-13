@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.300.0] -->
-<!-- Last reviewed: 2026-11-13 (2.300.0) -->
+<!-- Line 1 release: ## [2.300.1] -->
+<!-- Last reviewed: 2026-11-13 (2.300.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.300.1] - 2026-11-13
+
+User-facing theme: **The Eco-Thrift logo as vector master files: 23 versions in SVG, PDF, EPS and PNG, made from the designer's original and Bill's 2025 update (Dash Update #134).**
+
+> **For Bill:** `design/brand/logo/` (and your OneDrive Brand folder, "Vector Logo 2026-11-13"). The main logo, the logo with the store line, the leaf mark, the words alone and the 2021 stacked logo, each in colour, colour on dark, black, white and forest green. The README says which file to use where. Nothing in Dash or on the website uses them yet.
+
+### Added (brand, Dash Update #134)
+- `design/brand/logo/`: the leaf mark and the 2021 wordmark translated exactly from the designer's Illustrator file (every shape and both gradients). Bill's 2025 lockup is rebuilt from his GIMP file in the real fonts: Varela Round with GIMP's synthetic bold (each edge widened by 1/48 em), Crimson Pro Bold and Montserrat Bold. Each piece is placed by its ink in that file, within 2.5 px (0.1 mm) at 600 dpi. All filled paths: no fonts, strokes or pictures inside. EPS files are level 3, so the gradients stay vector.
+- `design/brand/logo/tools/make.py` rebuilds `svg/`, `pdf/`, `eps/` and `png/` in about 30 seconds (Edge from `docs/machines.md`, PyMuPDF from the sign tool venv); `source/` keeps the designer's AI file.
 
 ## [2.300.0] - 2026-11-13
 
