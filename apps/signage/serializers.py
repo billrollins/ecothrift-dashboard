@@ -84,7 +84,10 @@ class SignSerializer(serializers.ModelSerializer):
         votes = self._votes(obj)
         if not votes:
             return None
+        block = votes.get('approve_block')
         return {k: v for k, v in votes.items() if k in ('my_needed', 'has_voted')} | {
+            # #128: why this reader cannot approve yet (button text), or None. Only managers see the button.
+            'approve_block': block['label'] if block else None,
             'results': None if not votes['results'] else {
                 k: votes['results'][k]
                 for k in ('needed_yes', 'needed_no', 'needed_pct', 'voters', 'top_version_id', 'top_version_label')

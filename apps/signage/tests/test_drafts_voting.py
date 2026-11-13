@@ -38,6 +38,12 @@ class DraftVotingTests(TestCase):
     def as_(self, user):
         self.client.force_authenticate(user=user)
 
+    def full_vote(self, user, best):
+        """A yes and a best picked: what counts toward the 3 votes (#128)."""
+        self.as_(user)
+        self.client.post(self.url('vote/'), {'needed': True}, format='json')
+        self.client.post(self.url('rank/'), {'version': best.id}, format='json')
+
     def test_new_signs_are_drafts_and_old_ones_production(self):
         self.as_(self.manager)
         resp = self.client.post('/api/signage/signs/', {'name': 'Restrooms', 'quantity': 2}, format='json')
@@ -115,6 +121,8 @@ class DraftVotingTests(TestCase):
     def test_approve_moves_the_draft_to_production_with_the_winner(self):
         pdf = S3File.objects.create(key='signage/b.pdf', filename='b.pdf')
         SignVersion.objects.filter(pk=self.b.pk).update(pdf=pdf)
+        for user in (self.ann, self.bob, self.manager):
+            self.full_vote(user, self.b)
         self.as_(self.manager)
         row = self.client.post(self.url('approve/'), {'version': self.b.id}, format='json').data
         self.assertEqual((row['stage'], row['status'], row['chosen_version'], row['pdf_name']),
@@ -152,3 +160,99 @@ class DraftVotingTests(TestCase):
             stream.return_value = HttpResponse(PNG, content_type='image/png')
             self.assertEqual(self.client.get(self.url(f'versions/{self.a.id}/preview/')).status_code, 200)
 
+
+
+class ApproveGateTests(TestCase):
+    """#128 (Bill 2026-11-13): 3 people vote (the approver among them) before a draft is approved; themes are the
+    owner's alone."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.manager = make_user('manager', 'Manager')
+        self.ann = make_user('ann', 'Employee')
+        self.bob = make_user('bob', 'Employee')
+        self.cat = make_user('cat', 'Employee')
+        self.owner = make_user('owner', 'Admin')
+        self.owner.is_superuser = True
+        self.owner.save(update_fields=['is_superuser'])
+        self.draft = Sign.objects.create(name='Restrooms', quantity=2)
+        self.a = SignVersion.objects.create(sign=self.draft, label='A', position=1)
+        self.b = SignVersion.objects.create(sign=self.draft, label='B', position=2)
+
+    def url(self, sign, tail=''):
+        return f'/api/signage/signs/{sign.id}/{tail}'
+
+    def full_vote(self, user, sign=None, best=None):
+        sign = sign or self.draft
+        self.client.force_authenticate(user=user)
+        self.client.post(self.url(sign, 'vote/'), {'needed': True}, format='json')
+        self.client.post(self.url(sign, 'rank/'), {'version': (best or sign.versions.first()).id}, format='json')
+
+    def approve(self, user, sign=None, version=None):
+        sign = sign or self.draft
+        self.client.force_authenticate(user=user)
+        return self.client.post(self.url(sign, 'approve/'), {'version': (version or self.a).id}, format='json')
+
+    def block(self, user, sign=None):
+        self.client.force_authenticate(user=user)
+        return self.client.get(self.url(sign or self.draft)).data['votes']['approve_block']
+
+    def test_the_approver_must_have_voted(self):
+        for user in (self.ann, self.bob, self.cat):
+            self.full_vote(user)
+        self.assertEqual(self.block(self.manager), 'Vote first')
+        resp = self.approve(self.manager)
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('Vote first', resp.data['detail'])
+        self.assertEqual(Sign.objects.get(pk=self.draft.pk).stage, 'draft')
+
+    def test_three_full_votes_counting_the_approver(self):
+        self.full_vote(self.manager)
+        self.assertEqual(self.block(self.manager), 'Needs 2 more votes')
+        resp = self.approve(self.manager)
+        self.assertEqual(resp.status_code, 400)
+        self.assertTrue(resp.data['detail'].startswith('Needs 2 more votes'))
+        self.full_vote(self.ann)
+        self.assertEqual(self.block(self.manager), 'Needs 1 more vote')
+        self.assertEqual(self.approve(self.manager).status_code, 400)
+        self.full_vote(self.bob)
+        self.assertIsNone(self.block(self.manager))
+        resp = self.approve(self.manager)
+        self.assertEqual((resp.status_code, resp.data['stage']), (200, 'production'))
+
+    def test_a_yes_no_without_a_ranking_does_not_count(self):
+        self.full_vote(self.manager)
+        self.full_vote(self.ann)
+        self.client.force_authenticate(user=self.bob)
+        self.client.post(self.url(self.draft, 'vote/'), {'needed': False}, format='json')
+        self.assertEqual(self.block(self.manager), 'Needs 1 more vote')
+        self.assertEqual(self.approve(self.manager).status_code, 400)
+
+    def test_a_theme_is_the_owners_alone(self):
+        theme = Sign.objects.create(name='Green and kraft', kind='theme')
+        v1 = SignVersion.objects.create(sign=theme, label='One', position=1)
+        for user in (self.manager, self.ann, self.owner):
+            self.full_vote(user, theme, v1)
+        self.assertEqual(self.block(self.manager, theme), 'Owner approves themes')
+        resp = self.approve(self.manager, theme, v1)
+        self.assertEqual((resp.status_code, resp.data['detail']), (403, 'Only the owner approves a theme.'))
+        self.assertIsNone(self.block(self.owner, theme))
+        self.assertEqual(self.approve(self.owner, theme, v1).status_code, 200)
+
+    def test_the_owner_also_needs_three_votes(self):
+        theme = Sign.objects.create(name='Blue', kind='theme')
+        v1 = SignVersion.objects.create(sign=theme, label='One', position=1)
+        self.assertEqual(self.block(self.owner, theme), 'Vote first')
+        self.full_vote(self.owner, theme, v1)
+        self.assertEqual(self.block(self.owner, theme), 'Needs 2 more votes')
+        self.assertEqual(self.approve(self.owner, theme, v1).status_code, 400)
+
+    def test_switching_a_production_version(self):
+        """No votes on production signs: a manager switches a sign's version; a theme's stays the owner's."""
+        sign = Sign.objects.create(name='Hours', stage='production')
+        s1 = SignVersion.objects.create(sign=sign, label='One', position=1)
+        self.assertEqual(self.approve(self.manager, sign, s1).status_code, 200)
+        theme = Sign.objects.create(name='Kraft', kind='theme', stage='production')
+        t1 = SignVersion.objects.create(sign=theme, label='One', position=1)
+        self.assertEqual(self.approve(self.manager, theme, t1).status_code, 403)
+        self.assertEqual(self.approve(self.owner, theme, t1).status_code, 200)

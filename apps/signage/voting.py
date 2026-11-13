@@ -3,12 +3,17 @@
 Each person says whether a draft is needed (yes/no) and ranks its versions: they pick the best (1), then the next
 best (2), and so on. Nobody sees how others voted until they have voted themselves: a yes/no in and a best picked.
 After that nothing is hidden from them.
+
+Approving a draft (#128, Bill 2026-11-13): only after at least ``MIN_VOTERS`` people have fully voted (a yes/no and a
+ranking), and the person approving is one of them. A theme is approved by the owner (superuser) alone.
 """
 from __future__ import annotations
 
 from collections import defaultdict
 
-from .models import SignNeedVote, SignVersionRank
+from .models import Sign, SignNeedVote, SignVersionRank
+
+MIN_VOTERS = 3
 
 
 def has_voted(my_needed, my_ranks: dict, version_count: int) -> bool:
@@ -44,8 +49,45 @@ def vote_context(signs, user) -> dict:
             'my_ranks': my_ranks,
             'has_voted': voted,
             'results': results(versions, needs[sign.id], ranks[sign.id]) if voted else None,
+            'approve_block': approve_block(sign, user, full_voters(len(versions), needs[sign.id], ranks[sign.id])),
         }
     return out
+
+
+def full_voters(version_count: int, need_rows, rank_rows) -> set:
+    """Who has fully voted on one draft: a yes/no in and, when it has versions, at least a best picked."""
+    ranked = {r['user_id'] for r in rank_rows}
+    return {v['user_id'] for v in need_rows if version_count == 0 or v['user_id'] in ranked}
+
+
+def approve_block(sign, user, voter_ids: set) -> dict | None:
+    """Why this person cannot approve this draft yet, or None when they can.
+
+    ``{'label': short text for the button, 'detail': the plain sentence the API answers with}``.
+    """
+    if sign.kind == Sign.KIND_THEME and not user.is_superuser:
+        return {'label': 'Owner approves themes', 'detail': 'Only the owner approves a theme.'}
+    if user.id not in voter_ids:
+        return {
+            'label': 'Vote first',
+            'detail': 'Vote first: say yes or no and rank the versions. Only someone who voted can approve a draft.',
+        }
+    missing = MIN_VOTERS - len(voter_ids)
+    if missing > 0:
+        votes = 'vote' if missing == 1 else 'votes'
+        return {
+            'label': f'Needs {missing} more {votes}',
+            'detail': f'Needs {missing} more {votes}: {MIN_VOTERS} people (you included) must vote before a draft is '
+                      f'approved.',
+        }
+    return None
+
+
+def approve_block_now(sign, user) -> dict | None:
+    """``approve_block`` read fresh from the database (the approve endpoint's check)."""
+    need_rows = SignNeedVote.objects.filter(sign=sign).values('user_id', 'needed')
+    rank_rows = SignVersionRank.objects.filter(sign=sign).values('user_id')
+    return approve_block(sign, user, full_voters(sign.versions.count(), need_rows, rank_rows))
 
 
 def results(versions, need_rows, rank_rows) -> dict:

@@ -123,6 +123,24 @@ describe('SignagePage: Production (#106, #122)', () => {
     expect(screen.getByLabelText('Edit Restrooms')).toBeTruthy();
     expect(screen.getByLabelText('Add the PDF of Restrooms')).toBeTruthy();
   });
+
+  it('#128: only the owner switches the version of a theme', async () => {
+    state.user = { id: 1, role: 'Manager', is_superuser: false };
+    state.signs = [
+      sign(3, 'Kraft theme', 'up', { kind: 'theme', versions: [version(5, 'One'), version(6, 'Two')], chosen_version: 5 }),
+      sign(4, 'Exit', 'up', { versions: [version(7, 'Red'), version(8, 'Blue')], chosen_version: 7 }),
+    ];
+    const view = renderPage(PROD);
+    await userEvent.click(screen.getByLabelText('Open Kraft theme'));
+    expect(screen.queryByRole('button', { name: 'Use this' })).toBeNull();
+    await userEvent.click(screen.getByLabelText('Open Exit'));
+    expect(screen.getByRole('button', { name: 'Use this' })).toBeTruthy();
+    view.unmount();
+    state.user = { id: 9, role: 'Admin', is_superuser: true };
+    renderPage(PROD);
+    await userEvent.click(screen.getByLabelText('Open Kraft theme'));
+    expect(screen.getByRole('button', { name: 'Use this' })).toBeTruthy();
+  });
 });
 
 describe('SignagePage: Drafts (#122)', () => {
@@ -134,7 +152,7 @@ describe('SignagePage: Drafts (#122)', () => {
       sign(10, 'You are on camera', 'to_make', {
         stage: 'draft', location: 'Entrance', quantity: 8,
         versions: [version(1, 'A'), version(2, 'B')],
-        votes: { my_needed: null, has_voted: false, results: null },
+        votes: { my_needed: null, has_voted: false, results: null, approve_block: 'Vote first' },
       }),
       sign(11, 'Sold AS IS', 'to_make', {
         stage: 'draft', quantity: 3,
@@ -142,6 +160,7 @@ describe('SignagePage: Drafts (#122)', () => {
         votes: {
           my_needed: true, has_voted: true,
           results: { needed_yes: 3, needed_no: 1, needed_pct: 75, voters: 4, top_version_id: 4, top_version_label: 'D' },
+          approve_block: null,
         },
       }),
       sign(1, 'Thrift+ Meet', 'up'),
@@ -184,5 +203,21 @@ describe('SignagePage: Drafts (#122)', () => {
     renderPage('/facilities/signage?draft=11');
     expect(screen.getByRole('button', { name: 'Approve into production' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Add a version' })).toBeTruthy();
+  });
+
+  it('#128: the approve button stays in place, disabled, until 3 people (you included) have voted', () => {
+    state.user = { id: 1, role: 'Manager', is_superuser: false };
+    renderPage('/facilities/signage?draft=10');
+    const button = screen.getByRole('button', { name: 'Vote first' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Approve into production' })).toBeNull();
+  });
+
+  it('#128: shows how many votes are missing', () => {
+    state.user = { id: 1, role: 'Manager', is_superuser: false };
+    const [, voted] = state.signs;
+    state.signs[1] = { ...voted, votes: { ...voted.votes!, approve_block: 'Needs 2 more votes' } };
+    renderPage('/facilities/signage?draft=11');
+    expect((screen.getByRole('button', { name: 'Needs 2 more votes' }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

@@ -42,6 +42,8 @@ export interface SignVotes {
   /** A yes/no in and the best picked. Results show only after that. */
   has_voted: boolean;
   results: SignVoteResults | null;
+  /** #128: why you cannot approve this draft yet ("Vote first", "Needs 2 more votes", "Owner approves themes"), or null. */
+  approve_block: string | null;
 }
 
 export interface SignNote {

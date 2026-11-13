@@ -301,22 +301,24 @@ export default function DraftDialog({
           {/* A manager's tools */}
           {canManage && (
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}>
+              {/* #128: 3 people's votes (yours included) first; a theme is the owner's. Fixed width: no shift as the text changes. */}
               <Button
                 variant="contained"
                 color="success"
-                disabled={sign.versions.length === 0}
+                disabled={sign.versions.length === 0 || !!votes?.approve_block}
                 onClick={() => {
                   setApproving(results?.top_version_id ?? versions[0]?.id ?? '');
                   setApproveOpen(true);
                 }}
+                sx={{ width: 230 }}
               >
-                Approve into production
+                {votes?.approve_block ?? 'Approve into production'}
               </Button>
               <Button startIcon={<EditIcon />} onClick={() => onEdit(sign)}>Edit</Button>
               <Button color="error" startIcon={<DeleteIcon />} onClick={() => onRemove(sign)}>Remove draft</Button>
             </Stack>
           )}
-          {canManage && approveOpen && (
+          {canManage && approveOpen && !votes?.approve_block && (
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
               <TextField
                 select

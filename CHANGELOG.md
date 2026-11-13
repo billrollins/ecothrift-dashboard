@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.286.0] -->
-<!-- Last reviewed: 2026-11-12 (2.286.0) -->
+<!-- Line 1 release: ## [2.287.0] -->
+<!-- Last reviewed: 2026-11-12 (2.287.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.287.0] - 2026-11-12
+
+User-facing theme: **Facilities > Signage: a draft is approved only after 3 people have voted (the one approving among them), and themes are approved by the owner alone (Dash Update #128).**
+
+> **For Bill:** in a draft, **Approve into production** now waits for votes. Until 3 people (you included) have each said yes or no and ranked the versions, the button stays where it is, greyed out, and says what is missing: **Vote first** if you have not voted yet, or **Needs 2 more votes** / **Needs 1 more vote**. A yes or no without a ranking does not count yet. Signs keep the manager rule: any manager who has voted can approve once there are 3 votes. A **theme** is yours alone: managers see **Owner approves themes**, and on the Production tab only you see **Use this** on a theme's versions. The server refuses the same things with the same plain words, so nobody gets around it from another screen.
+
+### Changed (#128: 3 votes before approving)
+- `apps/signage/voting.py`: `MIN_VOTERS = 3`; `full_voters()` (a need vote plus, when the draft has versions, a rank); `approve_block()` returns why this person cannot approve (theme and not superuser; not a full voter; fewer than 3 full voters) as a button label and a sentence; `approve_block_now()` reads it fresh for the endpoint.
+- `POST /api/signage/signs/{id}/approve/`: a theme by a non-owner → 403 "Only the owner approves a theme." (draft or production); a draft that fails the gate → 400 with the sentence ("Vote first: ..." / "Needs N more votes: 3 people (you included) must vote before a draft is approved."). Switching the version of a production sign is unchanged.
+- Each draft's `votes` carries `approve_block` (label or null) for the reader. No migration.
+- Page: the approve button keeps a fixed width (no shift as its text changes), is disabled with the label while blocked; Production hides **Use this** on a theme unless the reader is the owner.
+- Tests: 6 server tests (approver must have voted, 3 counting the approver, need vote without a rank, theme owner-only, owner also needs 3, production switch) and 3 page tests (Vote first, Needs 2 more votes, theme Use this); the old approve test now votes first.
 
 ## [2.286.0] - 2026-11-12
 

@@ -138,7 +138,7 @@ function DraftResult({ sign }: { sign: Sign }) {
 
 /**
  * Facilities → Signage (#106, #122). **Drafts**: staff vote whether each sign is needed and rank its versions; a
- * manager approves the winner into production. **Production**: the signs to make, printed and up, with their preview,
+ * manager approves the winner into production once 3 people have voted (#128); themes are the owner's. **Production**: the signs to make, printed and up, with their preview,
  * versions, print file, and where each hangs on the store map.
  */
 export default function SignagePage() {
@@ -450,7 +450,7 @@ export default function SignagePage() {
                   <Typography variant="caption" component="div" noWrap title={v.label} sx={{ fontWeight: inUse ? 700 : 400 }}>
                     {inUse ? 'In use' : v.label}
                   </Typography>
-                  {canEdit && !inUse && (
+                  {canEdit && !inUse && (selected.kind !== 'theme' || user?.is_superuser) && (
                     <Button
                       size="small"
                       sx={{ minWidth: 0, p: 0, fontSize: 12 }}

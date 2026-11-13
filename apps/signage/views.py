@@ -15,7 +15,7 @@ from apps.floorplan.models import MapPin
 from .files import save_version_files, validate_png
 from .models import SIGN_REF_TYPE, Sign, SignNeedVote, SignNote, SignVersion, SignVersionRank
 from .serializers import SignSerializer
-from .voting import pick_next, vote_context
+from .voting import approve_block_now, pick_next, vote_context
 
 
 def current_pin_counts(sign_ids=None):
@@ -42,7 +42,8 @@ class SignViewSet(viewsets.ModelViewSet):
       missing) and ``label``; ``DELETE signs/{id}/versions/{vid}/``. Anyone on staff:
       ``GET signs/{id}/versions/{vid}/pdf/`` or ``.../preview/``.
     - ``POST signs/{id}/approve/ {version}`` (managers): a draft goes to production with that version; on a production
-      sign it switches the version in use. The version's PDF becomes the sign's print PDF.
+      sign it switches the version in use. The version's PDF becomes the sign's print PDF. A draft needs 3 people's
+      full votes, the approver's among them (#128); a theme is the owner's alone, draft or production.
     - Delete hides the sign and drops its pins from the store map. Renaming a sign renames its pins.
     """
     lookup_value_regex = r'\d+'
@@ -236,6 +237,12 @@ class SignViewSet(viewsets.ModelViewSet):
         version = sign.versions.filter(pk=request.data.get('version')).first()
         if not version:
             return Response({'detail': 'Pick the winning version.'}, status=status.HTTP_400_BAD_REQUEST)
+        if sign.kind == Sign.KIND_THEME and not request.user.is_superuser:
+            return Response({'detail': 'Only the owner approves a theme.'}, status=status.HTTP_403_FORBIDDEN)
+        if sign.stage == Sign.STAGE_DRAFT:
+            block = approve_block_now(sign, request.user)
+            if block:
+                return Response({'detail': block['detail']}, status=status.HTTP_400_BAD_REQUEST)
         fields = ['chosen_version', 'pdf', 'updated_at']
         sign.chosen_version = version
         sign.pdf = version.pdf
