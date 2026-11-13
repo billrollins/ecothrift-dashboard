@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.291.0] -->
-<!-- Last reviewed: 2026-11-12 (2.291.0) -->
+<!-- Line 1 release: ## [2.292.0] -->
+<!-- Last reviewed: 2026-11-13 (2.292.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.292.0] - 2026-11-13
+
+User-facing theme: **Buying: a quick search of the live auction list (find_lots).**
+
+> **For Bill:** this is for Mainline's own use when you ask "is there a truck for X?". It reads only what B-Stock listed in the last hour or so (the same list as Buying > Auctions), shows whether a lot is Buy Now or an auction with its real end, retail per unit (gear vs diapers), the price now, landed %, and the most to bid at 20%. No change to any page.
+
+### Added (buying: find live lots)
+- `python manage.py find_lots --q <words> [--min-per-unit N] [--max-landed 0.25]`: searches the same live list as Buying > Auctions (lots a B-Stock search returned in the last 3 hours) and prints, per lot, Buy Now or auction, retail per unit, the price (Buy Now price or current bid), landed % now, the most to bid at 20% landed, the real end (the Buy Now window end for Buy Now lots), manifest state and the link. Read only. Made after a baby-gear search on 11-13 read raw rows and showed lots that had already sold. 2 tests.
 
 ## [2.291.0] - 2026-11-12
 
