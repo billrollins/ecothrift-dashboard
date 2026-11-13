@@ -78,6 +78,7 @@ const TEMPLATE: Record<string, PageTemplate> = {
   hrRequests: 'list-detail', profile: 'record',
   // Dash Home tabs (2026-11-13): HR (staff view), Calendar (being designed), Messages
   homeHr: 'overview', homeCalendar: 'calendar', homeMessages: 'list-detail',
+  photoDrops: 'list-detail',
   // Buying
   auctions: 'list-detail', estimateProfit: 'form', vendors: 'list-detail', orders: 'list-detail', preprocessing: 'tool',
   wishlist: 'list-detail', auctionsOld: 'list-detail', watchlist: 'list-detail', reportCards: 'report',

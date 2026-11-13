@@ -19,7 +19,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsManagerOrAdmin
+from apps.accounts.permissions import IsManagerOrAdmin, IsOwner
 from apps.texting import service
 from apps.texting.models import InboundText, TextMessage
 
@@ -48,12 +48,13 @@ def texting_status(request):
     return Response({
         'staff_texts_live': service.staff_live(),
         'waiting_on': service.staff_waiting_on(),
-        'unread': unread_count(),
+        # Only the owner reads the inbox (2026-11-13), so only the owner sees its unread count.
+        'unread': unread_count() if request.user.is_superuser else 0,
     })
 
 
 @api_view(['GET'])
-@permission_classes([IsManagerOrAdmin])
+@permission_classes([IsOwner])  # Bill 2026-11-13: texts cost money and must stay private; owner only
 def inbox(request):
     rows = list(
         InboundText.objects.values('phone')
@@ -99,7 +100,7 @@ def _thread(number: str) -> dict:
 
 
 @api_view(['GET'])
-@permission_classes([IsManagerOrAdmin])
+@permission_classes([IsOwner])  # Bill 2026-11-13: texts cost money and must stay private; owner only
 def conversation(request, number: str):
     number = service.digits(number) or number
     if not InboundText.objects.filter(phone=number).exists():
@@ -109,7 +110,7 @@ def conversation(request, number: str):
 
 
 @api_view(['POST'])
-@permission_classes([IsManagerOrAdmin])
+@permission_classes([IsOwner])  # Bill 2026-11-13: texts cost money and must stay private; owner only
 def reply(request, number: str):
     number = service.digits(number)
     if not number or not InboundText.objects.filter(phone=number).exists():

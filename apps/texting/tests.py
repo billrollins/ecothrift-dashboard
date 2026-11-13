@@ -336,6 +336,24 @@ class InboxTests(TestCase):
         self.assertEqual(self.api.get('/api/texting/inbox/').status_code, 403)
         self.assertEqual(self.api.get('/api/texting/status/').status_code, 403)
 
+    def test_only_the_owner_reads_the_inbox_managers_see_no_unread(self):
+        # Bill 2026-11-13: texts cost money and need to be secure; the owner alone sees them.
+        from django.contrib.auth.models import Group
+
+        from apps.accounts.models import User
+
+        self.inbound('Running 10 min late')
+        manager = User.objects.create_user(email='mia@example.com', first_name='Mia', last_name='Test',
+                                           password='Shelf-life-42')
+        manager.groups.add(Group.objects.get_or_create(name='Manager')[0])
+        self.api.force_authenticate(manager)
+        self.assertEqual(self.api.get('/api/texting/inbox/').status_code, 403)
+        self.assertEqual(self.api.get(f'/api/texting/inbox/{self.PHONE}/').status_code, 403)
+        self.assertEqual(self.api.post(f'/api/texting/inbox/{self.PHONE}/reply/', {'body': 'x'}, format='json').status_code, 403)
+        self.assertEqual(self.api.get('/api/texting/status/').data['unread'], 0)
+        self.api.force_authenticate(self.boss)
+        self.assertEqual(self.api.get('/api/texting/status/').data['unread'], 1)
+
     def test_reply_is_held_until_live_then_sent_and_never_to_a_stop(self):
         self.inbound('Running 10 min late')
         held = self.api.post(f'/api/texting/inbox/{self.PHONE}/reply/', {'body': 'Thanks, see you soon'}, format='json')

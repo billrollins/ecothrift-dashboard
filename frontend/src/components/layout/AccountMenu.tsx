@@ -18,8 +18,6 @@ import BuildCircleOutlined from '@mui/icons-material/BuildCircleOutlined';
 import FeedbackOutlined from '@mui/icons-material/FeedbackOutlined';
 import LockReset from '@mui/icons-material/LockReset';
 import Logout from '@mui/icons-material/Logout';
-import PhotoCameraOutlined from '@mui/icons-material/PhotoCameraOutlined';
-import SmsOutlined from '@mui/icons-material/SmsOutlined';
 import StarOutlineRounded from '@mui/icons-material/StarOutlineRounded';
 import TranslateOutlined from '@mui/icons-material/TranslateOutlined';
 import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
@@ -68,11 +66,11 @@ function SectionLabel({ children }: { children: ReactNode }) {
 
 /**
  * The avatar menu (Bill 2026-11-13): no Home links (Store, Time clock, HR, Routines, Calendar, Messages and Profile are
- * the Home tabs). Texts (managers) and Photo drops stay here until they get another way in; then Dash Updates, the
- * owner's Owner page, Language, View as, password and sign out.
+ * the Home tabs). Dash Updates, the owner's Owner page, Language, View as, password and sign out. Texts is an Owner page
+ * tab (owner only); Photo drops is in the Processing sidebar and the photo drawer's "See all".
  */
 export function AccountMenu() {
-  const { user, logout, setLanguage, viewAs, stopViewAs, hasRole } = useAuth();
+  const { user, logout, setLanguage, viewAs, stopViewAs } = useAuth();
   const lang = user?.language === 'es' ? 'es' : 'en';
   const navigate = useNavigate();
   const location = useLocation();
@@ -159,17 +157,6 @@ export function AccountMenu() {
             <Typography sx={{ fontSize: 12.5, color: SECTION_LABEL_INK }}>{roleText}</Typography>
           ) : null}
         </Box>
-
-        {user.is_superuser || hasRole('Manager') ? (
-          <MenuItem key="texts" data-testid="account-menu-texts" onClick={() => go('/texts')}>
-            <ListItemIcon><SmsOutlined fontSize="small" /></ListItemIcon>
-            <ListItemText primary={t('texts', lang)} />
-          </MenuItem>
-        ) : null}
-        <MenuItem key="photo-drops" data-testid="account-menu-photo-drops" onClick={() => go('/photo-drops')}>
-          <ListItemIcon><PhotoCameraOutlined fontSize="small" /></ListItemIcon>
-          <ListItemText primary={t('phDrops', lang)} />
-        </MenuItem>
 
         <Divider key="div-dash" component="li" sx={{ my: 0.5 }} />
         <MenuItem key="dash-fixes" data-testid="account-menu-dash-fixes" onClick={() => go('/dash-updates')}>

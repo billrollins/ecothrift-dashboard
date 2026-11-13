@@ -197,6 +197,7 @@ export const STRINGS: Record<string, { en: string; es: string }> = {
   onShiftSince: { en: 'On shift since {time}', es: 'En turno desde {time}' },
   notClockedIn: { en: 'Not clocked in', es: 'Sin entrar' },
   timeClock: { en: 'Time clock', es: 'Reloj de turno' },
+  phSeeAll: { en: 'See all', es: 'Ver todas' },
   todaysShift: { en: "Today's shift", es: 'Turno de hoy' },
   clockOutConfirm: { en: 'Clock out now, {time}?', es: 'Salir ahora, {time}?' },
   clockInConfirm: { en: 'Clock in to {shift} now, {time}?', es: 'Entrar a {shift} ahora, {time}?' },

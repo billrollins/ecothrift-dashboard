@@ -136,12 +136,12 @@ describe('Owner page (2026-10-21)', () => {
     expect(aiMoney('0')).toBe('$0.00');
   });
 
-  it('is one page with tabs: Overview, Reports, Approvals, Dash Updates; each tab has its own address', async () => {
+  it('is one page with tabs: Overview, Reports, Approvals, Dash Updates, Texts; each tab has its own address', async () => {
     media.desktop = true;
     renderPage('/owner/reports');
     expect(screen.getByRole('heading', { level: 1, name: 'Owner' })).toBeInTheDocument();
     const tabs = screen.getAllByRole('tab').map((t) => t.textContent);
-    expect(tabs).toEqual(['Overview', 'Reports', 'Approvals', 'Dash Updates']);
+    expect(tabs).toEqual(['Overview', 'Reports', 'Approvals', 'Dash Updates', 'Texts']);
     expect(screen.getByTestId('owner-tab-reports')).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByTestId('owner-supply-spend')).not.toBeInTheDocument();
   });

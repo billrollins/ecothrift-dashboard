@@ -57,6 +57,8 @@ import { formatCurrency, formatCurrencyWhole } from '../../utils/format';
 const ReportsPage = lazy(() => import('../reports/ReportsPage'));
 const RequestsPage = lazy(() => import('../admin/RequestsPage'));
 const DashFixesPage = lazy(() => import('../dashFixes/DashFixesPage'));
+// Texts (#132): the inbox for our toll-free number; owner only since 2026-11-13 (texts cost money and must stay private).
+const TextsPage = lazy(() => import('../texts/TextsPage'));
 
 /** The Owner page's tabs, one URL each. */
 const OWNER_TABS = [
@@ -64,6 +66,7 @@ const OWNER_TABS = [
   { key: 'reports', path: '/owner/reports', label: 'Reports' },
   { key: 'approvals', path: '/owner/approvals', label: 'Approvals' },
   { key: 'updates', path: '/owner/updates', label: 'Dash Updates' },
+  { key: 'texts', path: '/owner/texts', label: 'Texts' },
 ] as const;
 /** Catalog items that are tabs here now, so the Owner pages list leaves them out. */
 const TAB_ITEMS = new Set(['owner', 'reports', 'superRequests']);
@@ -416,6 +419,7 @@ export default function OwnerPage() {
         {current.key === 'reports' ? <ReportsPage embedded /> : null}
         {current.key === 'approvals' ? <RequestsPage embedded /> : null}
         {current.key === 'updates' ? <DashFixesPage embedded /> : null}
+        {current.key === 'texts' ? <TextsPage /> : null}
       </Suspense>
     </Box>
   );

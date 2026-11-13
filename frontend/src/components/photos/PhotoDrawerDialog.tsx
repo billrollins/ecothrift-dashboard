@@ -1,4 +1,4 @@
-import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
+import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Link, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { getPhotoDropFile, markPhotoDropUsed, type PhotoDropDTO } from '../../api/photoDrops.api';
 import { photoDropsKey, usePhotoDrops, useSteadyDrops } from '../../hooks/usePhotoDrops';
@@ -94,7 +94,13 @@ export function PhotoDrawerDialog({
       fullScreen={isPhone}
       data-testid="photo-drawer-dialog"
     >
-      <DialogTitle sx={{ fontWeight: 800 }}>{t('phMyDrawer', lang)}</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 2 }}>
+        {t('phMyDrawer', lang)}
+        {/* Every drop, used or not (2026-11-13: Photo drops left the avatar menu). A new tab keeps this form open. */}
+        <Link href="/photo-drops" target="_blank" rel="noopener" underline="hover" sx={{ fontSize: 14, fontWeight: 600 }}>
+          {t('phSeeAll', lang)}
+        </Link>
+      </DialogTitle>
       <DialogContent sx={{ minHeight: 220 }}>
         {error ? <Alert severity="error" sx={{ mb: 1.5 }}>{error}</Alert> : null}
         {isError ? <Alert severity="error" sx={{ mb: 1.5 }}>{t('phOpenFailed', lang)}</Alert> : null}

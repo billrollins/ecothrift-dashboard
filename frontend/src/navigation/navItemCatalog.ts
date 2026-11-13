@@ -16,6 +16,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     // Routines and Hours & pay open inside Today.
     pathAliases: ['/routines', '/pay'],
   },
+  /** Every photo dropped into the photo drawer (#93); in Processing since 2026-11-13 (was the avatar menu). */
+  photoDrops: {
+    id: 'photoDrops',
+    path: '/photo-drops',
+    label: 'Photo drops',
+    icon: 'upload',
+  },
   /** Dash Home tabs (2026-11-13): HR, Calendar and Messages; icons for the tab bars only. */
   homeHr: {
     id: 'homeHr',

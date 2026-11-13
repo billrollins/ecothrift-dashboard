@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.301.0] -->
-<!-- Last reviewed: 2026-11-13 (2.301.0) -->
+<!-- Line 1 release: ## [2.302.0] -->
+<!-- Last reviewed: 2026-11-13 (2.302.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.302.0] - 2026-11-13
+
+User-facing theme: **Texts are owner only, on your Owner page; Photo drops moved to Processing; the avatar menu is final.**
+
+> **For Bill:** as you asked, only you can read texts now: the Texts inbox is a tab on your Owner page, and managers can no longer open it or see its unread count (they can still text a staff member a set-password link). Photo drops left the avatar menu: it is in the Processing sidebar, and the photo drawer has a "See all" link that opens in a new tab. The avatar menu is now Dash Updates, Ask for an update, Language, Change password and Sign out, plus your Owner page and View as.
+
+### Changed (avatar menu final; Texts owner only)
+- Texts (#132) is owner only (Bill 2026-11-13: "texts cost money and need to be secure; for now I, owner, only see them, and it's just an inbox"). The inbox, a conversation and replies need the owner (`IsOwner`); managers get 403. `texting/status/` shows the unread count to the owner only (0 for managers). Managers can still text a set-password link (`set-password-link/`, unchanged).
+- Texts is a tab of the Owner page (`/owner/texts`); `/texts` redirects there. It left the avatar menu.
+- Photo drops left the avatar menu: it is in the Processing sidebar (after My numbers) and the photo drawer has a "See all" link (opens in a new tab so the form stays). Catalog item `photoDrops`; page registry list-detail.
+- The avatar menu is now: Dash Updates, Ask for an update, Owner page and View as (owner), Language, Change password, Sign out.
+- Tests: owner-only inbox and unread count (server); Owner page tabs, Processing sidebar (front end).
 
 ## [2.301.0] - 2026-11-13
 

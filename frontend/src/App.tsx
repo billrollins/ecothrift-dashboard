@@ -66,7 +66,6 @@ const RoutinesPage = lazy(() => import('./pages/routines/RoutinesPage'));
 import { PendingBstockLoginNotice } from './pages/routines/runners/PendingBstockLoginNotice';
 const TimePayrollPage = lazy(() => import('./pages/admin/TimePayrollPage'));
 const DashFixesPage = lazy(() => import('./pages/dashFixes/DashFixesPage'));
-const TextsPage = lazy(() => import('./pages/texts/TextsPage'));
 const PhotoDropsPage = lazy(() => import('./pages/photoDrops/PhotoDropsPage'));
 const IconsPage = lazy(() => import('./pages/admin/IconsPage'));
 const DesignLabPage = lazy(() => import('./pages/designlab/DesignLabPage'));
@@ -312,15 +311,8 @@ function AppRoutes() {
             </Suspense>
           }
         />
-        {/* Texts (#132): texts to our toll-free number, owner and managers (the API checks). */}
-        <Route
-          path="/texts"
-          element={
-            <Suspense fallback={<LoadingScreen message="Loading…" />}>
-              <TextsPage />
-            </Suspense>
-          }
-        />
+        {/* Texts (#132) moved to the Owner page (owner only, 2026-11-13); the old address goes there. */}
+        <Route path="/texts" element={<Navigate to="/owner/texts" replace />} />
         <Route
           path="/me"
           element={
