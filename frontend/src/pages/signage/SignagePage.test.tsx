@@ -49,11 +49,10 @@ vi.mock('../../hooks/useFloorplans', () => {
 vi.mock('../../hooks/useFloorplanAssets', () => ({ useFloorPlanAssets: () => ({ data: [] }) }));
 vi.mock('../../hooks/useFloorplanElementKinds', () => ({ useFloorPlanElementKinds: () => ({ data: undefined }) }));
 
-function sign(id: number, name: string, status: Sign['status'], extra: Partial<Sign> = {}): Sign {
-  const labels = { to_make: 'To make', printed: 'Printed', up: 'Up' } as const;
+function sign(id: number, name: string, extra: Partial<Sign> = {}): Sign {
   return {
-    id, name, stage: 'production', kind: 'sign', slug: null, dash_update: null, location: '', quantity: 1, status, status_label: labels[status], copies_up: 0, note: '',
-    pdf_name: null, pdf_size: null, pins: 0, versions: [], chosen_version: null, preview_version: null, votes: null,
+    id, name, stage: 'production', kind: 'sign', slug: null, dash_update: null, location: '', quantity: 1, note: '',
+    pdf_name: null, pdf_size: null, pins: 0, pins_up: 0, versions: [], chosen_version: null, preview_version: null, votes: null,
     notes: [], approved_at: null, created_at: '', updated_at: '', ...extra,
   };
 }
@@ -79,67 +78,71 @@ function renderPage(url = '/facilities/signage') {
 
 const PROD = '/facilities/signage?tab=production';
 
-describe('SignagePage: Production (#106, #122)', () => {
+describe('SignagePage: Production (#106, #122, #129)', () => {
   beforeEach(() => {
     state.user = { id: 7, role: 'Employee', is_superuser: false };
     state.updateSign.mockReset();
     state.signs = [
-      sign(1, 'Thrift+ Meet', 'up', { copies_up: 2, pins: 2, pdf_name: 'meet.pdf', location: 'Front door' }),
-      sign(2, 'Restrooms', 'to_make'),
+      sign(1, 'Thrift+ Meet', { quantity: 3, pins: 2, pins_up: 1, pdf_name: 'meet.pdf', location: 'Front door' }),
+      sign(2, 'Restrooms'),
     ];
   });
 
-  it('staff see compact rows with status, copies and spots, but no editing', () => {
+  it('#129: rows say how many spots are up, with no sign status', () => {
     renderPage(PROD);
     expect(screen.getByText('Thrift+ Meet')).toBeTruthy();
-    expect(screen.getByText('Front door · 2 up · 2 on the map')).toBeTruthy();
-    expect(screen.getByText('0 up · not on the map')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /New sign/ })).toBeNull();
-    expect(screen.queryByLabelText('Status of Restrooms')).toBeNull();
+    expect(screen.getByText('1 of 2 up · 1 to place · Front door')).toBeTruthy();
+    expect(screen.getByText('Not on the map')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /New/ })).toBeNull();
+    expect(screen.queryByText(/To make|Printed/)).toBeNull();
     expect(screen.getByText('The store map is not set up yet: no floor plan is marked Current (Studios → Floorplans, the star).')).toBeTruthy();
   });
 
-  it('opening a sign shows Print and Download', async () => {
+  it('#129: the drop-down holds Versions, Print and Download; staff get no editing', async () => {
     renderPage(PROD);
-    await userEvent.click(screen.getByLabelText('Open Thrift+ Meet'));
-    expect(screen.getByRole('button', { name: 'Print' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();
-    expect(screen.queryByLabelText('Edit Thrift+ Meet')).toBeNull();
+    await userEvent.click(screen.getByLabelText('Versions, print and more for Thrift+ Meet'));
+    expect(screen.getByRole('menuitem', { name: /Versions \(0\)/ })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Print' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Download' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).toBeNull();
   });
 
-  it('filters by status', async () => {
+  it('#129: filters by To hang / All up', async () => {
+    state.signs = [...state.signs, sign(3, 'Exit', { pins: 2, pins_up: 2 })];
     renderPage(PROD);
-    await userEvent.click(screen.getByText('To make (1)'));
+    expect(screen.getByText('To hang (2)')).toBeTruthy();
+    await userEvent.click(screen.getByText('All up (1)'));
     expect(screen.queryByText('Thrift+ Meet')).toBeNull();
-    expect(screen.getByText('Restrooms')).toBeTruthy();
+    expect(screen.getByText('Exit')).toBeTruthy();
   });
 
-  it('managers get New sign, a status picker and edit tools', async () => {
+  it('#129: picking a sign keeps every row the same and the map bar names it', async () => {
     state.user = { id: 1, role: 'Manager', is_superuser: false };
     renderPage(PROD);
-    expect(screen.getByRole('button', { name: /New sign/ })).toBeTruthy();
-    expect(screen.getByLabelText('Status of Restrooms')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /New/ })).toBeTruthy();
     await userEvent.click(screen.getByLabelText('Open Restrooms'));
-    expect(screen.getByLabelText('Edit Restrooms')).toBeTruthy();
-    expect(screen.getByLabelText('Add the PDF of Restrooms')).toBeTruthy();
+    expect(screen.getByLabelText('Open Restrooms').getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByText(/not on the map yet/)).toBeTruthy();
+    await userEvent.click(screen.getByLabelText('Versions, print and more for Restrooms'));
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Add the PDF' })).toBeTruthy();
   });
 
-  it('#128: only the owner switches the version of a theme', async () => {
+  it('#128: only the owner switches the version of a theme (in the gallery)', async () => {
     state.user = { id: 1, role: 'Manager', is_superuser: false };
     state.signs = [
-      sign(3, 'Kraft theme', 'up', { kind: 'theme', versions: [version(5, 'One'), version(6, 'Two')], chosen_version: 5 }),
-      sign(4, 'Exit', 'up', { versions: [version(7, 'Red'), version(8, 'Blue')], chosen_version: 7 }),
+      sign(3, 'Kraft theme', { kind: 'theme', versions: [version(5, 'One'), version(6, 'Two')], chosen_version: 5, preview_version: 6 }),
+      sign(4, 'Exit', { versions: [version(7, 'Red'), version(8, 'Blue')], chosen_version: 7, preview_version: 8 }),
     ];
     const view = renderPage(PROD);
-    await userEvent.click(screen.getByLabelText('Open Kraft theme'));
-    expect(screen.queryByRole('button', { name: 'Use this' })).toBeNull();
-    await userEvent.click(screen.getByLabelText('Open Exit'));
-    expect(screen.getByRole('button', { name: 'Use this' })).toBeTruthy();
+    await userEvent.click(screen.getByLabelText('See Kraft theme larger'));
+    // The gallery opens on the sign's picture; this one is not the version in use.
+    expect(screen.getByText('Kraft theme: Two')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Use this version' })).toBeNull();
     view.unmount();
-    state.user = { id: 9, role: 'Admin', is_superuser: true };
     renderPage(PROD);
-    await userEvent.click(screen.getByLabelText('Open Kraft theme'));
-    expect(screen.getByRole('button', { name: 'Use this' })).toBeTruthy();
+    await userEvent.click(screen.getByLabelText('See Exit larger'));
+    expect(screen.getByRole('button', { name: 'Use this version' })).toBeTruthy();
   });
 });
 
@@ -149,12 +152,12 @@ describe('SignagePage: Drafts (#122)', () => {
     state.rank.mockReset();
     state.vote.mockReset();
     state.signs = [
-      sign(10, 'You are on camera', 'to_make', {
+      sign(10, 'You are on camera', {
         stage: 'draft', location: 'Entrance', quantity: 8,
         versions: [version(1, 'A'), version(2, 'B')],
         votes: { my_needed: null, has_voted: false, results: null, approve_block: 'Vote first' },
       }),
-      sign(11, 'Sold AS IS', 'to_make', {
+      sign(11, 'Sold AS IS', {
         stage: 'draft', quantity: 3,
         versions: [version(3, 'C', { my_rank: 2, avg_rank: 1.8 }), version(4, 'D', { my_rank: 1, avg_rank: 1.2, firsts: 3 })],
         votes: {
@@ -163,7 +166,7 @@ describe('SignagePage: Drafts (#122)', () => {
           approve_block: null,
         },
       }),
-      sign(1, 'Thrift+ Meet', 'up'),
+      sign(1, 'Thrift+ Meet'),
     ];
   });
 

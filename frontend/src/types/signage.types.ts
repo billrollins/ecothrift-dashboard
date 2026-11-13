@@ -1,14 +1,10 @@
-/** Store signs (#106). Where each copy hangs is a store-map pin on the Signage layer. */
-export type SignStatus = 'to_make' | 'printed' | 'up';
+/**
+ * Store signs (#106). Where each copy hangs is a store-map pin on the Signage layer.
+ * #129: a sign is only Draft or Production; each spot on the map says To hang or Up (`MapPin.status`).
+ */
 
 /** #122: a sign starts as a draft (staff vote); a manager approves it into production. */
 export type SignStage = 'draft' | 'production';
-
-export const SIGN_STATUSES: { value: SignStatus; label: string }[] = [
-  { value: 'to_make', label: 'To make' },
-  { value: 'printed', label: 'Printed' },
-  { value: 'up', label: 'Up' },
-];
 
 /** `MapPin.ref_type` of a pin that stands for a sign. */
 export const SIGN_REF_TYPE = 'signage.sign';
@@ -65,14 +61,13 @@ export interface Sign {
   dash_update: number | null;
   location: string;
   quantity: number;
-  status: SignStatus;
-  status_label: string;
-  copies_up: number;
   note: string;
   pdf_name: string | null;
   pdf_size: number | null;
   /** Spots on the Current store map. */
   pins: number;
+  /** Of those, the spots marked Up (#129). */
+  pins_up: number;
   versions: SignVersion[];
   chosen_version: number | null;
   /** The version whose PNG stands for the sign. */
@@ -85,4 +80,4 @@ export interface Sign {
   updated_at: string;
 }
 
-export type SignPayload = Partial<Pick<Sign, 'name' | 'stage' | 'location' | 'quantity' | 'status' | 'copies_up' | 'note'>>;
+export type SignPayload = Partial<Pick<Sign, 'name' | 'stage' | 'location' | 'quantity' | 'note'>>;

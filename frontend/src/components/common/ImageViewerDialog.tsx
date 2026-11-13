@@ -66,6 +66,8 @@ export interface ImageViewerDialogProps {
   hasNext?: boolean;
   /** Shown in the title area, e.g. "3 / 12". */
   positionLabel?: string | null;
+  /** More buttons beside Download (e.g. Signage's "Use this version"). */
+  extraActions?: React.ReactNode;
 }
 
 const MIN_ZOOM = 1;
@@ -106,6 +108,7 @@ export function ImageViewerDialog({
   hasNext = false,
   positionLabel = null,
   replaceUsedWhere,
+  extraActions,
 }: ImageViewerDialogProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
@@ -620,6 +623,7 @@ export function ImageViewerDialog({
             onPhotos={(files) => void handleReplacePick(files[0])}
           />
         ) : null}
+        {!editMode ? extraActions : null}
         <Box sx={{ flex: 1 }} />
         {editMode ? (
           <Stack direction="row" spacing={1}>

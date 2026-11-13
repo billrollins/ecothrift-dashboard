@@ -125,8 +125,8 @@ class DraftVotingTests(TestCase):
             self.full_vote(user, self.b)
         self.as_(self.manager)
         row = self.client.post(self.url('approve/'), {'version': self.b.id}, format='json').data
-        self.assertEqual((row['stage'], row['status'], row['chosen_version'], row['pdf_name']),
-                         ('production', 'to_make', self.b.id, 'b.pdf'))
+        self.assertEqual((row['stage'], row['chosen_version'], row['pdf_name']),
+                         ('production', self.b.id, 'b.pdf'))
         self.assertEqual(row['preview_version'], self.b.id)
         self.assertIsNone(row['votes'])
         # The version in use cannot be deleted; another can.

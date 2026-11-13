@@ -64,6 +64,8 @@ export default function MainLayout() {
   // Routines and its Admin control room draw their own panes edge to edge.
   const isRoutines = location.pathname.startsWith('/routines') || location.pathname.startsWith('/admin/routines');
   const isRetailQa = location.pathname.startsWith('/admin/retail-qa');
+  // Signage (#129): the store map takes the full height under the top bar; the page lays itself out edge to edge.
+  const isSignage = location.pathname.startsWith('/facilities/signage');
   const isStaffRoutines = location.pathname.startsWith('/routines');
   const isFloorDesk = !isMobile && (isDashboard || isToday || isStaffRoutines);
   const isPhoneShell = isMobile && showsPhoneTabBar(location.pathname, location.search);
@@ -248,8 +250,8 @@ export default function MainLayout() {
             display: 'flex',
             flexDirection: 'column',
             overflowX: 'hidden',
-            overflowY: isRestorationBench || isRoutines || isRetailQa || (isMobile && isTodayRunner) ? 'hidden' : 'auto',
-            p: isFieldMobile || isRoutines || isRetailQa || isFloorDesk || isToday || (isPhoneShell && isDashboard)
+            overflowY: isRestorationBench || isRoutines || isRetailQa || isSignage || (isMobile && isTodayRunner) ? 'hidden' : 'auto',
+            p: isFieldMobile || isRoutines || isRetailQa || isSignage || isFloorDesk || isToday || (isPhoneShell && isDashboard)
               ? 0
               : isRestoration
                 ? { xs: 0.75, md: 1 }

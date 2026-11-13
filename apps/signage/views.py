@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import Count, Max, Prefetch
+from django.db.models import Count, Max, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -19,11 +19,13 @@ from .voting import approve_block_now, pick_next, vote_context
 
 
 def current_pin_counts(sign_ids=None):
-    """Spots per sign on the Current store maps (pins on other plans are history, not where a sign hangs)."""
+    """``{sign id: (spots, spots up)}`` on the Current store maps (pins on other plans are history, not where a sign
+    hangs)."""
     qs = MapPin.objects.filter(ref_type=SIGN_REF_TYPE, plan__is_current=True, plan__is_active=True)
     if sign_ids is not None:
         qs = qs.filter(ref_id__in=sign_ids)
-    return dict(qs.values('ref_id').annotate(n=Count('id')).values_list('ref_id', 'n'))
+    rows = qs.values('ref_id').annotate(n=Count('id'), up=Count('id', filter=Q(status=MapPin.STATUS_UP)))
+    return {r['ref_id']: (r['n'], r['up']) for r in rows}
 
 
 # What every staff member may do; everything else is a manager's.
@@ -33,7 +35,8 @@ STAFF_ACTIONS = {'list', 'retrieve', 'vote', 'rank', 'notes', 'note_detail', 've
 class SignViewSet(viewsets.ModelViewSet):
     """Store signs (#106) with drafts and staff voting (#122).
 
-    - ``GET signs/?stage=draft|production&status=to_make|printed|up``.
+    - ``GET signs/?stage=draft|production``. A sign is only Draft or Production; To hang / Up is on each map spot
+      (``MapPin.status``, #129).
     - ``GET signs/{id}/pdf/`` streams the print PDF (``?download=1`` as a file); ``POST`` a multipart ``file`` to set or
       replace it; ``DELETE`` takes it off. Files live in the shared file store (``core.S3File``).
     - Drafts: ``POST signs/{id}/vote/ {needed}``; ``POST signs/{id}/rank/ {version}`` gives that version the person's
@@ -69,9 +72,6 @@ class SignViewSet(viewsets.ModelViewSet):
         stage = self.request.query_params.get('stage')
         if stage in dict(Sign.STAGE_CHOICES):
             qs = qs.filter(stage=stage)
-        wanted = self.request.query_params.get('status')
-        if wanted in dict(Sign.STATUS_CHOICES):
-            qs = qs.filter(status=wanted)
         return qs
 
     def _context_for(self, signs):
@@ -248,9 +248,8 @@ class SignViewSet(viewsets.ModelViewSet):
         sign.pdf = version.pdf
         if sign.stage == Sign.STAGE_DRAFT:
             sign.stage = Sign.STAGE_PRODUCTION
-            sign.status = Sign.STATUS_TO_MAKE
             sign.approved_by = request.user
             sign.approved_at = timezone.now()
-            fields += ['stage', 'status', 'approved_by', 'approved_at']
+            fields += ['stage', 'approved_by', 'approved_at']
         sign.save(update_fields=fields)
         return self._out(sign)

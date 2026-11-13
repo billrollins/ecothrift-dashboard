@@ -41,6 +41,13 @@ interface StoreMapViewProps {
   showNames?: boolean;
   /** Tallest the map may be before it scrolls (px). */
   maxHeight?: number | string;
+  /**
+   * Fill the parent's height (#129): the box takes all the room it is given and the whole store fits inside it at
+   * the first zoom step, however tall the plan is. The parent needs a height.
+   */
+  fill?: boolean;
+  /** A pin's own colour (e.g. by its status); the layer colour when it gives none. */
+  pinColor?: (pin: MapPin) => string | undefined;
 }
 
 /**
@@ -62,6 +69,8 @@ export default function StoreMapView({
   onPinMove,
   showNames = false,
   maxHeight = '70vh',
+  fill = false,
+  pinColor,
 }: StoreMapViewProps) {
   const { planWidth, planHeight } = doc.settings;
   const labelSettings = doc.settings.labels ?? DEFAULT_LABEL_SETTINGS;
@@ -78,6 +87,20 @@ export default function StoreMapView({
     setDrag(next);
   };
 
+  // fill: the scroll box's size, so zoom 1 fits the whole plan inside it.
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const [box, setBox] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!fill || !el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) setBox({ w: width, h: height });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fill]);
+
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg || typeof ResizeObserver === 'undefined') return;
@@ -91,6 +114,8 @@ export default function StoreMapView({
   // Inches per screen pixel, so pins keep one size on screen at every zoom.
   const inchPerPx = viewW / Math.max(1, svgWidthPx);
   const pinR = PIN_RADIUS_PX * inchPerPx;
+  // fill: the widest the plan can be while all of it shows in the box (whole pixels, so no scroll bar at zoom 1).
+  const fitWidthPx = fill && box ? Math.floor(Math.min(box.w, (box.h * viewW) / viewH)) : null;
 
   const layerById = useMemo(() => new Map(layers.map((l) => [l.id, l])), [layers]);
   const shownPins = useMemo(() => {
@@ -141,7 +166,12 @@ export default function StoreMapView({
   };
 
   return (
-    <Box sx={{ position: 'relative', border: 1, borderColor: 'divider', borderRadius: 1, bgcolor: '#fff' }}>
+    <Box
+      sx={{
+        position: 'relative', border: 1, borderColor: 'divider', borderRadius: 1, bgcolor: '#fff',
+        ...(fill ? { height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' } : {}),
+      }}
+    >
       <Stack
         direction="row"
         spacing={0.5}
@@ -177,14 +207,19 @@ export default function StoreMapView({
           Tap the map where it goes
         </Typography>
       )}
-      <Box sx={{ overflow: 'auto', maxHeight }}>
+      <Box ref={boxRef} sx={fill ? { overflow: 'auto', flex: 1, minHeight: 0 } : { overflow: 'auto', maxHeight }}>
         <svg
           ref={svgRef}
           role="img"
           aria-label="Store map"
           viewBox={`${-MAP_MARGIN} ${-MAP_MARGIN} ${viewW} ${viewH}`}
-          width={`${zoom * 100}%`}
-          style={{ display: 'block', cursor: placing ? 'crosshair' : 'default', touchAction: drag ? 'none' : 'auto' }}
+          width={fitWidthPx != null ? fitWidthPx * zoom : `${zoom * 100}%`}
+          style={{
+            display: 'block',
+            margin: fitWidthPx != null ? '0 auto' : undefined,
+            cursor: placing ? 'crosshair' : 'default',
+            touchAction: drag ? 'none' : 'auto',
+          }}
           onClick={handleBackgroundClick}
           onPointerMove={handlePointerMove}
           onPointerUp={finishDrag}
@@ -214,7 +249,7 @@ export default function StoreMapView({
           </g>
           {shownPins.map((pin) => {
             const layer = layerById.get(pin.layer);
-            const color = layer?.color ?? '#2563eb';
+            const color = pinColor?.(pin) ?? layer?.color ?? '#2563eb';
             const highlighted = highlightedPinIds?.has(pin.id) ?? false;
             const dragging = drag?.pin.id === pin.id;
             const x = dragging ? drag.point.x : pin.x;

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.288.0] -->
-<!-- Last reviewed: 2026-11-12 (2.288.0) -->
+<!-- Line 1 release: ## [2.289.0] -->
+<!-- Last reviewed: 2026-11-12 (2.289.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.289.0] - 2026-11-12
+
+User-facing theme: **Facilities > Signage: the store map fills the screen on the right and never moves; the list is on the left; a sign is only Draft or Production, and each spot on the map is To hang or Up (Dash Update #129).**
+
+> **For Bill:** the Signage page is now two sides. **Left:** Signage, **New**, the Drafts / Production tabs, the filters (**All · To hang · All up**) and the list. **Right:** the store map, from just under the top bar to the bottom of the screen, the whole store in view. Picking a sign only lights up its pins and dims the rest: the map and the list do not move. The old per-sign status (To make / Printed / Up) and "copies up" are gone: a sign is a **Draft** or in **Production**, and each **spot on the map** is **To hang** (orange) or **Up** (green). Tap a pin and the bar over the map says whose spot it is, with **To hang | Up** to switch it and a bin to take it off; with a sign picked, **Add a spot** puts a new one (it starts as To hang). Each row says "1 of 2 up · 1 to place · Front door". Where the status used to be, each row has an **Options** drop-down: **Versions**, **Print**, **Download**, Open the PDF, and for managers Add a version, Replace the PDF, Edit, Remove. Tap a sign's picture for the gallery (arrows walk the versions; the one in use says so; managers have **Use this version**); the rows of thumbnails are gone. What each sign said before carries over: a sign marked Up has all its spots Up, otherwise its "copies up" count marks that many of its spots Up. Drafts and voting are unchanged. On a phone the list is on top and the map below, each with a fixed share of the screen.
+
+### Changed (#129: Signage layout and spot status)
+- `floorplan.MapPin.status` (`wanted` "To hang" / `up` "Up", default `wanted`), served and patchable on `/api/floorplan/pins/` (managers) and in `/api/floorplan/store-map/`. Migration `floorplan/0007_mappin_status`.
+- Data migration `signage/0003_pin_status_from_sign`: a sign with status Up → all its pins `up`; otherwise its first `copies_up` pins (oldest first) → `up`. `Sign.status` and `Sign.copies_up` stay in the table (and the Django admin) as the record, but the API no longer serves or takes them; `?status=` is gone from the sign list; approving a draft no longer writes the status.
+- Signs carry `pins_up` beside `pins` (spots on the Current map, and those Up).
+- Page: `MainLayout` gives `/facilities/signage` no padding and no page scroll; the page is a left column (380 px; 420 from lg; on a phone the top 42%) and the map side. Rows are a fixed 64 px whatever is picked; the filter row and the map bar are a fixed 44 px, so nothing shifts as the text changes. The row drop-down replaces the status picker; the picture opens the gallery (`VersionViewer` with the in-use mark and **Use this version**, owner-only on a theme as before). Edit no longer has Status / Up fields.
+- `StoreMapView`: optional `fill` (takes its parent's height; zoom 1 fits the whole plan in the box) and `pinColor` (a pin's own colour). `ImageViewerDialog`: optional `extraActions`. Both default to the old behaviour (the Store Map page is unchanged).
+- Tests: server — spots and spots up per sign, a spot is To hang until a manager marks it Up (staff 403, bad value 400), the API no longer serves status / copies up, the data migration step; page — rows and their counts, the drop-down (staff and manager), the To hang / All up filters, a picked row keeps its place, the theme gallery rule.
 
 ## [2.288.0] - 2026-11-12
 

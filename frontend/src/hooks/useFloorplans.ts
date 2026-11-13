@@ -97,7 +97,7 @@ export function useCreateMapPin() {
 export function useUpdateMapPin() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...payload }: { id: number } & Partial<Pick<MapPin, 'x' | 'y' | 'name' | 'note' | 'ref_id'>>) =>
+    mutationFn: ({ id, ...payload }: { id: number } & Partial<Pick<MapPin, 'x' | 'y' | 'name' | 'note' | 'ref_id' | 'status'>>) =>
       floorplanApi.updateMapPin(id, payload).then((r) => r.data),
     onSuccess: () => invalidatePins(queryClient),
   });

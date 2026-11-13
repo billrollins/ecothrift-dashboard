@@ -58,7 +58,7 @@ export function createMapPin(payload: MapPinPayload) {
   return api.post<MapPin>('/floorplan/pins/', payload);
 }
 
-export function updateMapPin(id: number, payload: Partial<Pick<MapPin, 'x' | 'y' | 'name' | 'note' | 'ref_id'>>) {
+export function updateMapPin(id: number, payload: Partial<Pick<MapPin, 'x' | 'y' | 'name' | 'note' | 'ref_id' | 'status'>>) {
   return api.patch<MapPin>(`/floorplan/pins/${id}/`, payload);
 }
 

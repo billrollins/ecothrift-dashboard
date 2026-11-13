@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from '@mui/material';
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
 import { getSignVersionFile } from '../../api/signage.api';
 import { ImageViewerDialog } from '../../components/common/ImageViewerDialog';
 import { useSignPreview } from '../../hooks/useSignage';
 import { IconUpload as UploadIcon } from '../../icons/ecoIcons';
 import { downloadBlob } from '../../utils/downloadBlob';
-import { SIGN_STATUSES, type Sign, type SignStage, type SignStatus, type SignVersion } from '../../types/signage.types';
+import type { Sign, SignStage, SignVersion } from '../../types/signage.types';
 
 /** A version's PNG preview; tap it to see it larger (when ``onOpen`` is given). */
 export function SignThumb({
@@ -63,29 +63,41 @@ export function SignThumb({
   );
 }
 
-/** The larger look at a version, with its PDF to download; arrows walk the sign's versions. */
+/**
+ * The sign's picture gallery: one version at a time, larger, with its PDF to download; arrows walk the versions.
+ * #129: on a production sign it marks the version in use, and a manager can switch to the one shown (``onUse``).
+ */
 export function VersionViewer({
   sign,
   versions,
   index,
   onIndex,
   onClose,
+  onUse,
 }: {
   sign: Sign;
   versions: SignVersion[];
   index: number | null;
   onIndex: (i: number) => void;
   onClose: () => void;
+  onUse?: (version: SignVersion) => void;
 }) {
   const version = index != null ? versions[index] : null;
   const { url } = useSignPreview(sign.id, version?.has_preview ? version.id : null);
+  const inUse = version != null && version.id === sign.chosen_version;
+  const title = version ? `${sign.name}: ${version.label}${inUse ? ' (in use)' : ''}` : '';
   return (
     <ImageViewerDialog
       open={version != null}
       onClose={onClose}
       src={url}
-      alt={version ? `${sign.name}: ${version.label}` : ''}
-      title={version ? `${sign.name}: ${version.label}` : ''}
+      alt={title}
+      title={title}
+      extraActions={
+        onUse && version && !inUse ? (
+          <Button onClick={() => onUse(version)}>Use this version</Button>
+        ) : null
+      }
       canEdit={false}
       downloadLabel="Download the PDF"
       onDownload={
@@ -112,22 +124,19 @@ export type SignForm = {
   location: string;
   quantity: number;
   note: string;
-  status: SignStatus;
-  copies_up: number;
 };
 
 export const emptyForm = (stage: SignStage): SignForm => ({
-  id: null, stage, name: '', location: '', quantity: 1, note: '', status: 'to_make', copies_up: 0,
+  id: null, stage, name: '', location: '', quantity: 1, note: '',
 });
 
 export const formOf = (sign: Sign): SignForm => ({
   id: sign.id, stage: sign.stage, name: sign.name, location: sign.location, quantity: sign.quantity, note: sign.note,
-  status: sign.status, copies_up: sign.copies_up,
 });
 
 const clamp = (v: string) => Math.max(0, Math.min(500, Number(v) || 0));
 
-/** New or edit, drafts and production alike: name, where it goes, how many, notes (+ status and copies up). */
+/** New or edit, drafts and production alike: name, where it goes, how many, notes. To hang / Up is on each map spot. */
 export function SignEditDialog({
   form,
   onChange,
@@ -159,33 +168,15 @@ export function SignEditDialog({
               placeholder="Entrance, each register, back hall"
               inputProps={{ maxLength: 255 }}
             />
-            <Stack direction="row" spacing={2}>
-              <TextField
-                label="How many"
-                type="number"
-                value={form.quantity}
-                onChange={(e) => onChange({ ...form, quantity: clamp(e.target.value) })}
-                inputProps={{ min: 0, max: 500 }}
-                sx={{ width: 120 }}
-              />
-              {!isDraft && (
-                <>
-                  <TextField select label="Status" value={form.status} onChange={(e) => onChange({ ...form, status: e.target.value as SignStatus })} sx={{ flex: 1 }}>
-                    {SIGN_STATUSES.map((s) => (
-                      <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField
-                    label="Up"
-                    type="number"
-                    value={form.copies_up}
-                    onChange={(e) => onChange({ ...form, copies_up: clamp(e.target.value) })}
-                    inputProps={{ min: 0, max: 500 }}
-                    sx={{ width: 80 }}
-                  />
-                </>
-              )}
-            </Stack>
+            <TextField
+              label="How many copies"
+              type="number"
+              value={form.quantity}
+              onChange={(e) => onChange({ ...form, quantity: clamp(e.target.value) })}
+              inputProps={{ min: 0, max: 500 }}
+              sx={{ width: 160 }}
+              helperText={isDraft ? undefined : 'Each copy is a spot on the map: To hang, then Up.'}
+            />
             <TextField
               label="Notes"
               value={form.note}

@@ -209,7 +209,17 @@ class MapPin(models.Model):
 
     ``x``/``y`` are plan inches (same frame as the plan document). ``ref_type`` + ``ref_id`` point at the
     thing the pin stands for (a sign today; a camera, an extinguisher or a shelf later).
+
+    ``status`` (#129, Bill 2026-11-13): each spot says whether its copy is still to hang or is up. It replaced the
+    sign's own To make / Printed / Up and its "copies up" count.
     """
+    STATUS_WANTED = 'wanted'
+    STATUS_UP = 'up'
+    STATUS_CHOICES = [
+        (STATUS_WANTED, 'To hang'),
+        (STATUS_UP, 'Up'),
+    ]
+
     plan = models.ForeignKey(FloorPlan, on_delete=models.CASCADE, related_name='pins')
     layer = models.ForeignKey(MapLayer, on_delete=models.PROTECT, related_name='pins')
     x = models.FloatField()
@@ -218,6 +228,7 @@ class MapPin(models.Model):
     note = models.TextField(blank=True, default='')
     ref_type = models.CharField(max_length=40, blank=True, default='')
     ref_id = models.PositiveIntegerField(null=True, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_WANTED)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

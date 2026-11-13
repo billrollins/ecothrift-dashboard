@@ -23,7 +23,7 @@ const layers: MapLayer[] = [
 function pin(id: number, layer: number, name: string): MapPin {
   return {
     id, plan: 9, layer, layer_slug: layer === 1 ? 'signage' : 'cameras', x: 50, y: 60, name, note: '',
-    ref_type: '', ref_id: null, created_at: '', updated_at: '',
+    ref_type: '', ref_id: null, status: 'wanted', created_at: '', updated_at: '',
   };
 }
 

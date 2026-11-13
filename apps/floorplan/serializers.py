@@ -184,7 +184,7 @@ class MapPinSerializer(serializers.ModelSerializer):
         model = MapPin
         fields = [
             'id', 'plan', 'layer', 'layer_slug', 'x', 'y', 'name', 'note',
-            'ref_type', 'ref_id', 'created_at', 'updated_at',
+            'ref_type', 'ref_id', 'status', 'created_at', 'updated_at',
         ]
         read_only_fields = ['ref_type', 'created_at', 'updated_at']
 

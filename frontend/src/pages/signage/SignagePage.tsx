@@ -6,20 +6,26 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Divider,
   IconButton,
+  ListItemIcon,
+  ListItemText,
+  Menu,
   MenuItem,
-  Paper,
   Stack,
   Tab,
   Tabs,
-  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
 import AddLocationAltIcon from '@mui/icons-material/AddLocationAlt';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import CollectionsOutlinedIcon from '@mui/icons-material/CollectionsOutlined';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -44,28 +50,43 @@ import { migratePlanDocument } from '../../features/floorplan/migrations';
 import { buildPaletteIndex, elementKindToPaletteEntry, STATIC_PALETTE } from '../../features/floorplan/palette';
 import StoreMapView from '../../features/floorplan/StoreMapView';
 import { IconAdd as AddIcon, IconDelete as DeleteIcon, IconDownload as DownloadIcon, IconEdit as EditIcon, IconPrint as PrintIcon, IconUpload as UploadIcon } from '../../icons/ecoIcons';
-import type { MapPin, PlanDocument } from '../../types/floorplan.types';
-import { SIGN_REF_TYPE, SIGN_STATUSES, type Sign, type SignStage, type SignStatus } from '../../types/signage.types';
+import type { MapPin, MapPinStatus, PlanDocument } from '../../types/floorplan.types';
+import { SIGN_REF_TYPE, type Sign, type SignStage, type SignVersion } from '../../types/signage.types';
 import DraftDialog, { errorText } from './DraftDialog';
 import { AddVersionDialog, emptyForm, formOf, SignEditDialog, SignThumb, VersionViewer, type SignForm } from './SignParts';
 
-const STATUS_COLOR: Record<SignStatus, 'default' | 'warning' | 'success'> = {
-  to_make: 'default',
-  printed: 'warning',
-  up: 'success',
+/** #129: each spot on the map is still to hang, or its copy is up. */
+const SPOT_STATUS: Record<MapPinStatus, { label: string; color: string }> = {
+  wanted: { label: 'To hang', color: '#ea580c' },
+  up: { label: 'Up', color: '#16a34a' },
 };
+
+type Filter = 'all' | 'to_hang' | 'up';
+
+/** Copies still to hang: spots not up, plus copies not on the map yet. */
+const toHang = (sign: Sign) => Math.max(sign.quantity, sign.pins) - sign.pins_up;
+
+/** Height of the fixed rows (filters, the map's bar): they never grow, so nothing below them moves. */
+const BAR_HEIGHT = 44;
+/** One list row; every row is this tall, selected or not. */
+const ROW_HEIGHT = 64;
 
 function safeFilename(name: string) {
   return `${name.replace(/[^\w\- ]+/g, '').trim() || 'sign'}.pdf`;
 }
 
-/** One compact row: a small preview, the name, one line under it, and whatever belongs on the right. */
+function sortedVersions(sign: Sign) {
+  return [...sign.versions].sort((a, b) => a.position - b.position || a.id - b.id);
+}
+
+/** One list row: the picture (tap = the gallery), the name, one line under it, and its control on the right. */
 function SignRow({
   sign,
   sub,
   right,
   selected,
   onOpen,
+  onPicture,
   rowRef,
 }: {
   sign: Sign;
@@ -73,6 +94,7 @@ function SignRow({
   right: React.ReactNode;
   selected?: boolean;
   onOpen: () => void;
+  onPicture?: () => void;
   rowRef?: (el: HTMLDivElement | null) => void;
 }) {
   return (
@@ -82,36 +104,36 @@ function SignRow({
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onOpen();
         }
       }}
       aria-label={`Open ${sign.name}`}
+      aria-pressed={selected}
       sx={{
         display: 'flex',
         alignItems: 'center',
-        gap: 1.25,
+        gap: 1,
         px: 1,
-        py: 0.75,
-        minHeight: 56,
+        height: ROW_HEIGHT,
+        flexShrink: 0,
         cursor: 'pointer',
         borderBottom: 1,
         borderColor: 'divider',
+        // The selected row is marked by colour and a left bar drawn inside its box: no size change.
         bgcolor: selected ? 'action.selected' : 'transparent',
+        boxShadow: selected ? (t) => `inset 3px 0 0 ${t.palette.primary.main}` : 'none',
         '&:hover': { bgcolor: selected ? 'action.selected' : 'action.hover' },
-        '&:last-of-type': { borderBottom: 0 },
       }}
     >
-      <SignThumb signId={sign.id} versionId={sign.preview_version} size={36} height={46} alt={sign.name} />
+      <SignThumb signId={sign.id} versionId={sign.preview_version} size={38} height={50} alt={sign.name} onOpen={onPicture} />
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Typography
-          variant="body2"
-          sx={{ fontWeight: 600, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-        >
+        <Typography variant="body2" noWrap title={sign.name} sx={{ fontWeight: 600, lineHeight: 1.3 }}>
           {sign.name}
         </Typography>
-        <Typography variant="caption" color="text.secondary" noWrap component="div">{sub}</Typography>
+        <Typography variant="caption" color="text.secondary" noWrap component="div" title={sub}>{sub}</Typography>
       </Box>
       <Box sx={{ flexShrink: 0, textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>{right}</Box>
     </Box>
@@ -125,30 +147,30 @@ function DraftResult({ sign }: { sign: Sign }) {
     return <Chip size="small" color="primary" variant="outlined" label="Vote on the best" />;
   }
   return (
-    <Box sx={{ maxWidth: { xs: 112, sm: 220 } }}>
-      <Typography variant="caption" component="div" sx={{ fontWeight: 600 }}>
+    <Box sx={{ width: { xs: 96, sm: 120 } }}>
+      <Typography variant="caption" component="div" noWrap sx={{ fontWeight: 600 }}>
         {r.needed_pct != null ? `${r.needed_pct}% needed` : 'No yes/no yet'}
       </Typography>
       {r.top_version_label && (
-        <Typography variant="caption" color="text.secondary" component="div" noWrap>Top: {r.top_version_label}</Typography>
+        <Typography variant="caption" color="text.secondary" component="div" noWrap title={r.top_version_label}>Top: {r.top_version_label}</Typography>
       )}
     </Box>
   );
 }
 
 /**
- * Facilities → Signage (#106, #122). **Drafts**: staff vote whether each sign is needed and rank its versions; a
- * manager approves the winner into production once 3 people have voted (#128); themes are the owner's. **Production**: the signs to make, printed and up, with their preview,
- * versions, print file, and where each hangs on the store map.
+ * Facilities → Signage (#106, #122, #129). The list and its controls on the left; the store map fills the rest of the
+ * screen on the right and never moves when a sign is picked. **Drafts**: staff vote; a manager approves the winner
+ * once 3 people have voted (#128); themes are the owner's. **Production**: every sign to print, its picture (tap it
+ * for the gallery), a drop-down with Versions / Print / Download, and its spots on the map, each To hang or Up.
  */
 export default function SignagePage() {
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
   const canEdit = canAccess(user, ['signage:manage', 'admin:manage']);
   const theme = useTheme();
-  // Below lg the list and an open sign take turns (Back returns to the list); from lg they sit side by side.
-  const narrow = useMediaQuery(theme.breakpoints.down('lg'));
-  const phone = useMediaQuery(theme.breakpoints.down('sm'));
+  // Below md the list sits over the map (a fixed share of the height each); from md the list is on the left.
+  const stacked = useMediaQuery(theme.breakpoints.down('md'));
   const [params, setParams] = useSearchParams();
 
   const signsQuery = useSigns();
@@ -173,9 +195,10 @@ export default function SignagePage() {
     setParams(next, { replace: true });
   };
 
-  const [filter, setFilter] = useState<SignStatus | 'all'>('all');
-  const shown = filter === 'all' ? production : production.filter((s) => s.status === filter);
-  const countOf = (status: SignStatus) => production.filter((s) => s.status === status).length;
+  const [filter, setFilter] = useState<Filter>('all');
+  const matches = (sign: Sign, f: Filter) => f === 'all' || (f === 'to_hang' ? toHang(sign) > 0 : toHang(sign) === 0);
+  const shown = production.filter((s) => matches(s, filter));
+  const countOf = (f: Filter) => production.filter((s) => matches(s, f)).length;
 
   const selectedId = Number(params.get('sign')) || null;
   const selected = production.find((s) => s.id === selectedId) ?? null;
@@ -183,9 +206,10 @@ export default function SignagePage() {
   const openDraftId = Number(params.get('draft')) || null;
   const openDraft = drafts.find((s) => s.id === openDraftId) ?? null;
 
+  // A pin tapped on the map brings its row into view inside the list (the list scrolls, the page does not).
   const rowRefs = useRef(new Map<number, HTMLDivElement | null>());
   useEffect(() => {
-    if (selectedId != null) rowRefs.current.get(selectedId)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (selectedId != null) rowRefs.current.get(selectedId)?.scrollIntoView({ block: 'nearest' });
   }, [selectedId]);
 
   // ── The store map, Signage layer only ──────────────────────────────────────
@@ -211,16 +235,19 @@ export default function SignagePage() {
       return null;
     }
   }, [plan]);
-  const selectedPins = useMemo(
-    () => new Set(signPins.filter((p) => selected && p.ref_id === selected.id).map((p) => p.id)),
-    [signPins, selected],
-  );
   const [placing, setPlacing] = useState(false);
-  const [tappedPin, setTappedPin] = useState<MapPin | null>(null);
+  const [tappedPinId, setTappedPinId] = useState<number | null>(null);
+  // Read from the live pins, so a status change shows at once.
+  const tappedPin = signPins.find((p) => p.id === tappedPinId) ?? null;
   useEffect(() => {
     setPlacing(false);
-    setTappedPin(null);
+    setTappedPinId((id) => (id != null && signPins.find((p) => p.id === id)?.ref_id === selectedId ? id : null));
+    // Only when the sign changes; signPins is read for the check, not watched.
   }, [selectedId]);
+  const highlighted = useMemo(() => {
+    if (tappedPin) return new Set([tappedPin.id]);
+    return new Set(signPins.filter((p) => selected && p.ref_id === selected.id).map((p) => p.id));
+  }, [signPins, selected, tappedPin]);
 
   // ── Writes ─────────────────────────────────────────────────────────────────
   const createSign = useCreateSign();
@@ -231,7 +258,7 @@ export default function SignagePage() {
   const addVersion = useAddSignVersion();
   const approve = useApproveSign();
   const queryClient = useQueryClient();
-  // A spot added or removed changes the sign's count on the list.
+  // A spot added, removed or marked Up changes the sign's counts on the list.
   const refreshSigns = () => queryClient.invalidateQueries({ queryKey: signsQueryKey });
   const createPin = useCreateMapPin();
   const updatePin = useUpdateMapPin();
@@ -241,8 +268,10 @@ export default function SignagePage() {
   const [uploadFor, setUploadFor] = useState<Sign | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [busyPdf, setBusyPdf] = useState<number | null>(null);
-  const [viewing, setViewing] = useState<number | null>(null);
-  const [addingVersion, setAddingVersion] = useState(false);
+  // The gallery: which sign, and which of its versions is showing.
+  const [gallery, setGallery] = useState<{ signId: number; index: number } | null>(null);
+  const [addingVersionFor, setAddingVersionFor] = useState<Sign | null>(null);
+  const [menu, setMenu] = useState<{ sign: Sign; anchor: HTMLElement } | null>(null);
 
   const failed = (fallback: string) => (err: unknown) => enqueueSnackbar(errorText(err, fallback), { variant: 'error' });
 
@@ -254,8 +283,7 @@ export default function SignagePage() {
   const saveForm = async () => {
     if (!form || !form.name.trim()) return;
     const payload = {
-      name: form.name.trim(), stage: form.stage, location: form.location.trim(), quantity: form.quantity,
-      note: form.note.trim(), ...(form.stage === 'production' ? { status: form.status, copies_up: form.copies_up } : {}),
+      name: form.name.trim(), stage: form.stage, location: form.location.trim(), quantity: form.quantity, note: form.note.trim(),
     };
     try {
       const sign = form.id == null
@@ -273,9 +301,6 @@ export default function SignagePage() {
       failed('Could not save the sign.')(err);
     }
   };
-
-  const setStatus = (sign: Sign, status: SignStatus) =>
-    updateSign.mutate({ id: sign.id, status }, { onError: failed('Could not change the status.') });
 
   const removeSign = (sign: Sign) => {
     const spots = sign.stage === 'draft' ? '' : ` Its ${sign.pins} spot(s) leave the store map.`;
@@ -349,230 +374,85 @@ export default function SignagePage() {
     );
   };
 
+  /** The gallery opens on the version that stands for the sign (the one in use), else the first. */
+  const openGallery = (sign: Sign) => {
+    const versions = sortedVersions(sign);
+    if (versions.length === 0) return;
+    setGallery({ signId: sign.id, index: Math.max(0, versions.findIndex((v) => v.id === sign.preview_version)) });
+  };
+  const gallerySign = gallery ? signs.find((s) => s.id === gallery.signId) ?? null : null;
+
+  const switchVersion = (sign: Sign, v: SignVersion) =>
+    approve.mutate(
+      { id: sign.id, version: v.id },
+      { onSuccess: () => enqueueSnackbar(`Now printing ${v.label}.`, { variant: 'success' }), onError: failed('Could not switch the version.') },
+    );
+
   const addSpot = (x: number, y: number) => {
     if (!selected || !plan || !signLayer) return;
     setPlacing(false);
     createPin.mutate(
       { plan: plan.id, layer: signLayer.id, x, y, name: selected.name, ref_id: selected.id },
-      { onSuccess: refreshSigns, onError: failed('Could not add the spot.') },
+      {
+        onSuccess: (pin) => {
+          setTappedPinId(pin.id);
+          void refreshSigns();
+        },
+        onError: failed('Could not add the spot.'),
+      },
     );
   };
+
+  const setSpotStatus = (pin: MapPin, status: MapPinStatus) =>
+    updatePin.mutate({ id: pin.id, status }, { onSuccess: refreshSigns, onError: failed('Could not change the spot.') });
 
   const removeSpot = (pin: MapPin) =>
     deletePin.mutate(pin.id, {
       onSuccess: () => {
-        setTappedPin(null);
+        setTappedPinId(null);
         void refreshSigns();
       },
       onError: failed('Could not remove the spot.'),
     });
 
-  const selectedVersions = selected ? [...selected.versions].sort((a, b) => a.position - b.position || a.id - b.id) : [];
-  const chosenIndex = selected ? selectedVersions.findIndex((v) => v.id === selected.chosen_version) : -1;
-  const editingSign = form?.id != null ? signs.find((s) => s.id === form.id) ?? null : null;
+  // ── The left side: title, tabs, filters, list ─────────────────────────────
+  const productionSub = (sign: Sign) => {
+    const placed = sign.pins === 0 ? 'Not on the map' : `${sign.pins_up} of ${sign.pins} up`;
+    const unplaced = sign.quantity > sign.pins && sign.pins > 0 ? `${sign.quantity - sign.pins} to place` : null;
+    return [placed, unplaced, sign.location || null].filter(Boolean).join(' · ');
+  };
 
-  // ── Production: the selected sign, then its spots on the map ───────────────
-  const detail = selected && (
-    <Paper variant="outlined" sx={{ p: 1.5 }}>
-      <Stack direction="row" spacing={1.5} alignItems="flex-start">
-        <SignThumb
-          signId={selected.id}
-          versionId={selected.preview_version}
-          size={phone ? 96 : 120}
-          height={phone ? 124 : 155}
-          alt={selected.name}
-          onOpen={selected.preview_version ? () => setViewing(Math.max(0, selectedVersions.findIndex((v) => v.id === selected.preview_version))) : undefined}
-        />
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.25 }}>{selected.name}</Typography>
-          <Typography variant="body2" color="text.secondary">
-            {selected.location || 'No place given'} · {selected.quantity} needed · {selected.copies_up} up
-          </Typography>
-          {selected.note && <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-wrap' }}>{selected.note}</Typography>}
-          <Stack direction="row" spacing={0.5} alignItems="center" useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
-            {selected.pdf_name ? (
-              <>
-                <Button size="small" variant="contained" startIcon={<PrintIcon />} disabled={busyPdf === selected.id} onClick={() => void printPdf(selected)}>
-                  Print
-                </Button>
-                <Button size="small" startIcon={<DownloadIcon />} disabled={busyPdf === selected.id} onClick={() => void downloadPdf(selected)}>
-                  Download
-                </Button>
-                <Tooltip title={`Open ${selected.pdf_name}`}>
-                  <IconButton size="small" aria-label={`Open the PDF of ${selected.name}`} disabled={busyPdf === selected.id} onClick={() => void openPdf(selected)}>
-                    <OpenInNewIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </>
-            ) : (
-              <Typography variant="caption" color="text.secondary">No PDF yet</Typography>
-            )}
-            {canEdit && (
-              <>
-                <Tooltip title={selected.pdf_name ? 'Replace the PDF' : 'Add the PDF'}>
-                  <IconButton
-                    size="small"
-                    aria-label={`${selected.pdf_name ? 'Replace' : 'Add'} the PDF of ${selected.name}`}
-                    onClick={() => {
-                      setUploadFor(selected);
-                      fileRef.current?.click();
-                    }}
-                  >
-                    <UploadIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Edit">
-                  <IconButton size="small" aria-label={`Edit ${selected.name}`} onClick={() => openForm(formOf(selected))}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Remove">
-                  <IconButton size="small" color="error" aria-label={`Remove ${selected.name}`} onClick={() => removeSign(selected)}>
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </>
-            )}
-          </Stack>
-        </Box>
-      </Stack>
-      {(selectedVersions.length > 0 || canEdit) && (
-        <Box sx={{ mt: 1.5 }}>
-          <Typography variant="caption" color="text.secondary">Versions</Typography>
-          <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', pb: 0.5, mt: 0.5 }}>
-            {selectedVersions.map((v, i) => {
-              const inUse = v.id === selected.chosen_version;
-              return (
-                <Box key={v.id} sx={{ width: 76, flex: '0 0 auto' }}>
-                  <Box sx={{ outline: inUse ? 2 : 0, outlineColor: 'success.main', borderRadius: 1 }}>
-                    <SignThumb signId={selected.id} versionId={v.has_preview ? v.id : null} size={76} height={98} alt={`${selected.name}: ${v.label}`} onOpen={() => setViewing(i)} />
-                  </Box>
-                  <Typography variant="caption" component="div" noWrap title={v.label} sx={{ fontWeight: inUse ? 700 : 400 }}>
-                    {inUse ? 'In use' : v.label}
-                  </Typography>
-                  {canEdit && !inUse && (selected.kind !== 'theme' || user?.is_superuser) && (
-                    <Button
-                      size="small"
-                      sx={{ minWidth: 0, p: 0, fontSize: 12 }}
-                      onClick={() =>
-                        approve.mutate(
-                          { id: selected.id, version: v.id },
-                          { onSuccess: () => enqueueSnackbar(`Now printing ${v.label}.`, { variant: 'success' }), onError: failed('Could not switch the version.') },
-                        )
-                      }
-                    >
-                      Use this
-                    </Button>
-                  )}
-                </Box>
-              );
-            })}
-            {canEdit && (
-              <Button variant="outlined" onClick={() => setAddingVersion(true)} sx={{ width: 76, height: 98, flex: '0 0 auto', minWidth: 0, borderStyle: 'dashed', fontSize: 12 }}>
-                Add a version
-              </Button>
-            )}
-          </Box>
-        </Box>
-      )}
-      {chosenIndex < 0 && selectedVersions.length > 0 && (
-        <Typography variant="caption" color="text.secondary">No version chosen yet: the PDF above is the one that prints.</Typography>
-      )}
-    </Paper>
-  );
+  const rowMenuButton = (sign: Sign) =>
+    stacked ? (
+      <IconButton size="small" aria-label={`Versions, print and more for ${sign.name}`} onClick={(e) => setMenu({ sign, anchor: e.currentTarget })}>
+        <MoreVertIcon fontSize="small" />
+      </IconButton>
+    ) : (
+      <Button
+        size="small"
+        variant="outlined"
+        color="inherit"
+        endIcon={<ArrowDropDownIcon />}
+        aria-label={`Versions, print and more for ${sign.name}`}
+        onClick={(e) => setMenu({ sign, anchor: e.currentTarget })}
+        sx={{ width: 100, justifyContent: 'space-between', borderColor: 'divider', fontSize: 13, py: 0.25 }}
+      >
+        {busyPdf === sign.id ? <CircularProgress size={14} /> : 'Options'}
+      </Button>
+    );
 
-  const map = plan && doc && signLayer && (
-    <Stack spacing={1}>
-      <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" useFlexGap flexWrap="wrap">
-        <Typography variant="body2" color="text.secondary">
-          {selected ? (
-            <>Where <b>{selected.name}</b> hangs{selectedPins.size === 0 ? ': not on the map yet' : ''}</>
-          ) : (
-            'Every sign on the store map. Tap a sign or a pin.'
-          )}
-        </Typography>
-        <Stack direction="row" spacing={1} alignItems="center">
-          {canEdit && selected && (
-            placing ? (
-              <Button size="small" onClick={() => setPlacing(false)}>Cancel</Button>
-            ) : (
-              <Button size="small" variant="outlined" startIcon={<AddLocationAltIcon />} onClick={() => setPlacing(true)}>
-                Add a spot
-              </Button>
-            )
-          )}
-          <Button size="small" component={RouterLink} to="/facilities/store-map">Store map</Button>
-        </Stack>
-      </Stack>
-      <StoreMapView
-        doc={doc}
-        layers={[signLayer]}
-        pins={signPins}
-        visibleLayerIds={new Set([signLayer.id])}
-        assets={assetMap}
-        kindIndex={kindIndex}
-        highlightedPinIds={selectedPins}
-        dimOthers={Boolean(selected)}
-        placing={placing}
-        onMapClick={(pt) => addSpot(pt.x, pt.y)}
-        onPinClick={(pin) => {
-          setTappedPin(pin);
-          if (pin.ref_id != null && pin.ref_id !== selectedId) {
-            const target = production.find((s) => s.id === pin.ref_id);
-            if (filter !== 'all' && target?.status !== filter) setFilter('all');
-            select(pin.ref_id);
-          }
-        }}
-        onPinMove={canEdit ? (pin, pt) => updatePin.mutate({ id: pin.id, x: pt.x, y: pt.y }, { onError: failed('Could not move the spot.') }) : undefined}
-        maxHeight="65vh"
-      />
-      {canEdit && (
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ minHeight: 32 }}>
-          <Typography variant="caption" color="text.secondary">Drag a pin to move it.</Typography>
-          {tappedPin && signPins.some((p) => p.id === tappedPin.id) && (
-            <Button size="small" color="error" onClick={() => removeSpot(tappedPin)}>
-              Remove this spot of {tappedPin.name}
-            </Button>
-          )}
-        </Stack>
-      )}
-    </Stack>
-  );
-
-  const showList = !(narrow && selected);
-
-  return (
-    <Box sx={{ p: { xs: 1.5, md: 3 } }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 1 }}>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="h5" sx={{ fontWeight: 600 }}>Signage</Typography>
-          <Typography variant="body2" color="text.secondary">
-            {tab === 'draft' ? 'Vote on the signs in the making.' : 'Every store sign, its file to print, and where it hangs.'}
-          </Typography>
-        </Box>
-        {canEdit && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => openForm(emptyForm(tab))} sx={{ flexShrink: 0 }}>
-            {tab === 'draft' ? 'New draft' : 'New sign'}
-          </Button>
-        )}
-      </Stack>
-
-      <Tabs value={tab} onChange={(_, t: SignStage) => setTab(t)} sx={{ mb: 1.5, borderBottom: 1, borderColor: 'divider' }}>
-        <Tab value="draft" label={`Drafts (${drafts.length})`} />
-        <Tab value="production" label={`Production (${production.length})`} />
-      </Tabs>
-
+  const list = (
+    <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
       {signsQuery.isLoading && (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
           <CircularProgress />
         </Box>
       )}
-      {signsQuery.isError && <Alert severity="error">Could not load the signs.</Alert>}
-
+      {signsQuery.isError && <Alert severity="error" sx={{ m: 1 }}>Could not load the signs.</Alert>}
       {tab === 'draft' && signsQuery.data && (
-        <Paper variant="outlined" sx={{ maxWidth: 820 }}>
+        <>
           {drafts.length === 0 && (
-            <Alert severity="info" sx={{ m: 1 }}>No drafts right now.{canEdit ? ' Add one with New draft.' : ''}</Alert>
+            <Alert severity="info" sx={{ m: 1 }}>No drafts right now.{canEdit ? ' Add one with New.' : ''}</Alert>
           )}
           {drafts.map((sign) => (
             <SignRow
@@ -583,83 +463,250 @@ export default function SignagePage() {
               onOpen={() => setParam('draft', String(sign.id))}
             />
           ))}
-        </Paper>
-      )}
-
-      {tab === 'production' && signsQuery.data && (
-        <>
-          {showList && (
-            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mb: 1.5 }}>
-              <Chip size="small" label={`All (${production.length})`} onClick={() => setFilter('all')} color={filter === 'all' ? 'primary' : 'default'} variant={filter === 'all' ? 'filled' : 'outlined'} />
-              {SIGN_STATUSES.map((s) => (
-                <Chip
-                  key={s.value}
-                  size="small"
-                  label={`${s.label} (${countOf(s.value)})`}
-                  onClick={() => setFilter(s.value)}
-                  color={filter === s.value ? 'primary' : 'default'}
-                  variant={filter === s.value ? 'filled' : 'outlined'}
-                />
-              ))}
-            </Stack>
-          )}
-          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', lg: 'minmax(320px, 400px) minmax(0, 1fr)' }, alignItems: 'start' }}>
-            {showList && (
-              <Paper variant="outlined" sx={{ maxHeight: { lg: '78vh' }, overflow: { lg: 'auto' } }}>
-                {shown.length === 0 && (
-                  <Alert severity="info" sx={{ m: 1 }}>
-                    {production.length === 0 ? `No signs in production yet.${canEdit ? ' Approve a draft, or add one with New sign.' : ''}` : 'No signs with that status.'}
-                  </Alert>
-                )}
-                {shown.map((sign) => (
-                  <SignRow
-                    key={sign.id}
-                    sign={sign}
-                    selected={sign.id === selectedId}
-                    rowRef={(el) => {
-                      rowRefs.current.set(sign.id, el);
-                    }}
-                    sub={[sign.location || null, `${sign.copies_up} up`, sign.pins === 0 ? 'not on the map' : `${sign.pins} on the map`].filter(Boolean).join(' · ')}
-                    right={
-                      canEdit ? (
-                        <TextField
-                          select
-                          size="small"
-                          value={sign.status}
-                          onChange={(e) => setStatus(sign, e.target.value as SignStatus)}
-                          sx={{ minWidth: 104, '& .MuiSelect-select': { py: 0.5, fontSize: 13 } }}
-                          inputProps={{ 'aria-label': `Status of ${sign.name}` }}
-                        >
-                          {SIGN_STATUSES.map((s) => (
-                            <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
-                          ))}
-                        </TextField>
-                      ) : (
-                        <Chip size="small" label={sign.status_label} color={STATUS_COLOR[sign.status]} />
-                      )
-                    }
-                    onOpen={() => select(sign.id === selectedId ? null : sign.id)}
-                  />
-                ))}
-              </Paper>
-            )}
-            <Stack spacing={1.5} sx={{ minWidth: 0 }}>
-              {narrow && selected && (
-                <Box>
-                  <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => select(null)}>All signs</Button>
-                </Box>
-              )}
-              {detail}
-              {mapQuery.data && !plan && (
-                <Alert severity="info">
-                  The store map is not set up yet: no floor plan is marked Current (Studios → Floorplans, the star).
-                </Alert>
-              )}
-              {(!narrow || selected) && map}
-            </Stack>
-          </Box>
         </>
       )}
+      {tab === 'production' && signsQuery.data && (
+        <>
+          {shown.length === 0 && (
+            <Alert severity="info" sx={{ m: 1 }}>
+              {production.length === 0 ? `No signs in production yet.${canEdit ? ' Approve a draft, or add one with New.' : ''}` : 'No signs here.'}
+            </Alert>
+          )}
+          {shown.map((sign) => (
+            <SignRow
+              key={sign.id}
+              sign={sign}
+              selected={sign.id === selectedId}
+              rowRef={(el) => {
+                rowRefs.current.set(sign.id, el);
+              }}
+              sub={productionSub(sign)}
+              right={rowMenuButton(sign)}
+              onOpen={() => select(sign.id === selectedId ? null : sign.id)}
+              onPicture={sign.versions.length > 0 ? () => openGallery(sign) : undefined}
+            />
+          ))}
+        </>
+      )}
+    </Box>
+  );
+
+  const left = (
+    <Box
+      sx={{
+        width: { xs: '100%', md: 380, lg: 420 },
+        height: { xs: '42%', md: '100%' },
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+        borderRight: { md: 1 },
+        borderBottom: { xs: 1, md: 0 },
+        borderColor: { xs: 'divider', md: 'divider' },
+        bgcolor: 'background.paper',
+      }}
+    >
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1.5, pt: 1, flexShrink: 0 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, flex: 1 }}>Signage</Typography>
+        {canEdit && (
+          <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => openForm(emptyForm(tab))}>
+            New
+          </Button>
+        )}
+      </Stack>
+      <Tabs
+        value={tab}
+        onChange={(_, t: SignStage) => setTab(t)}
+        variant="fullWidth"
+        sx={{ minHeight: 40, flexShrink: 0, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 40, py: 0 } }}
+      >
+        <Tab value="draft" label={`Drafts (${drafts.length})`} />
+        <Tab value="production" label={`Production (${production.length})`} />
+      </Tabs>
+      {/* One fixed-height row under the tabs on both: filters on Production, a line of help on Drafts. */}
+      <Stack direction="row" alignItems="center" spacing={0.75} sx={{ height: BAR_HEIGHT, px: 1.5, flexShrink: 0, borderBottom: 1, borderColor: 'divider', overflow: 'hidden' }}>
+        {tab === 'production' ? (
+          ([['all', 'All'], ['to_hang', 'To hang'], ['up', 'All up']] as [Filter, string][]).map(([f, label]) => (
+            <Chip
+              key={f}
+              size="small"
+              label={`${label} (${countOf(f)})`}
+              onClick={() => setFilter(f)}
+              color={filter === f ? 'primary' : 'default'}
+              variant={filter === f ? 'filled' : 'outlined'}
+            />
+          ))
+        ) : (
+          <Typography variant="caption" color="text.secondary" noWrap>Vote on the signs in the making. Tap one to see it.</Typography>
+        )}
+      </Stack>
+      {list}
+    </Box>
+  );
+
+  // ── The right side: one fixed bar, then the map filling the rest ─────────
+  const spotOf = tappedPin ? production.find((s) => s.id === tappedPin.ref_id) ?? null : null;
+  const legend = (
+    <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexShrink: 0 }}>
+      {(Object.keys(SPOT_STATUS) as MapPinStatus[]).map((k) => (
+        <Stack key={k} direction="row" spacing={0.5} alignItems="center">
+          <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: SPOT_STATUS[k].color }} />
+          <Typography variant="caption" color="text.secondary">{SPOT_STATUS[k].label}</Typography>
+        </Stack>
+      ))}
+    </Stack>
+  );
+  let barText: React.ReactNode;
+  let barActions: React.ReactNode = null;
+  if (placing && selected) {
+    barText = <>Tap the map where <b>{selected.name}</b> goes</>;
+    barActions = <Button size="small" onClick={() => setPlacing(false)}>Cancel</Button>;
+  } else if (tappedPin) {
+    barText = <>A spot of <b>{tappedPin.name}</b></>;
+    barActions = (
+      <Stack direction="row" spacing={0.5} alignItems="center">
+        {canEdit ? (
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={tappedPin.status}
+            onChange={(_, v: MapPinStatus | null) => v && v !== tappedPin.status && setSpotStatus(tappedPin, v)}
+            aria-label="This spot"
+          >
+            {(Object.keys(SPOT_STATUS) as MapPinStatus[]).map((k) => (
+              <ToggleButton key={k} value={k} sx={{ py: 0.25, px: 1.25, textTransform: 'none' }}>{SPOT_STATUS[k].label}</ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        ) : (
+          <Chip size="small" label={SPOT_STATUS[tappedPin.status].label} sx={{ bgcolor: SPOT_STATUS[tappedPin.status].color, color: '#fff' }} />
+        )}
+        {canEdit && (
+          <Tooltip title="Take this spot off the map">
+            <IconButton size="small" color="error" aria-label={`Remove this spot of ${tappedPin.name}`} onClick={() => removeSpot(tappedPin)}>
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Stack>
+    );
+  } else if (selected) {
+    barText = selected.pins === 0
+      ? <><b>{selected.name}</b>: not on the map yet</>
+      : <><b>{selected.name}</b>: {selected.pins_up} of {selected.pins} up</>;
+    barActions = canEdit ? (
+      <Button size="small" variant="outlined" startIcon={<AddLocationAltIcon />} onClick={() => setPlacing(true)}>
+        Add a spot
+      </Button>
+    ) : null;
+  } else {
+    barText = 'Every sign on the store map. Tap a sign or a pin.';
+    barActions = <Button size="small" component={RouterLink} to="/facilities/store-map">Store map</Button>;
+  }
+
+  const right = (
+    <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', p: 1, gap: 0.5 }}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ height: BAR_HEIGHT, flexShrink: 0, minWidth: 0 }}>
+        <Typography variant="body2" color="text.secondary" noWrap sx={{ flex: 1, minWidth: 0 }}>{barText}</Typography>
+        {!stacked && legend}
+        <Box sx={{ flexShrink: 0 }}>{barActions}</Box>
+      </Stack>
+      <Box sx={{ flex: 1, minHeight: 0 }}>
+        {mapQuery.isLoading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+            <CircularProgress />
+          </Box>
+        )}
+        {mapQuery.data && !plan && (
+          <Alert severity="info">
+            The store map is not set up yet: no floor plan is marked Current (Studios → Floorplans, the star).
+          </Alert>
+        )}
+        {plan && doc && signLayer && (
+          <StoreMapView
+            fill
+            doc={doc}
+            layers={[signLayer]}
+            pins={signPins}
+            visibleLayerIds={new Set([signLayer.id])}
+            assets={assetMap}
+            kindIndex={kindIndex}
+            highlightedPinIds={highlighted}
+            dimOthers={Boolean(selected) || Boolean(tappedPin)}
+            pinColor={(pin) => SPOT_STATUS[pin.status]?.color}
+            placing={placing}
+            onMapClick={(pt) => addSpot(pt.x, pt.y)}
+            onPinClick={(pin) => {
+              setTappedPinId(pin.id);
+              if (pin.ref_id != null && pin.ref_id !== selectedId) {
+                const target = production.find((s) => s.id === pin.ref_id);
+                if (target && !matches(target, filter)) setFilter('all');
+                select(pin.ref_id);
+              }
+            }}
+            onPinMove={canEdit ? (pin, pt) => updatePin.mutate({ id: pin.id, x: pt.x, y: pt.y }, { onError: failed('Could not move the spot.') }) : undefined}
+          />
+        )}
+      </Box>
+      {stacked && <Box sx={{ flexShrink: 0, display: 'flex', justifyContent: 'center' }}>{legend}</Box>}
+    </Box>
+  );
+
+  // ── The row's drop-down: versions, print, download (and a manager's tools) ──
+  const menuSign = menu ? signs.find((s) => s.id === menu.sign.id) ?? menu.sign : null;
+  const closeMenu = () => setMenu(null);
+  const menuItems = menuSign
+    ? [
+        <MenuItem key="versions" disabled={menuSign.versions.length === 0} onClick={() => { closeMenu(); openGallery(menuSign); }}>
+          <ListItemIcon><CollectionsOutlinedIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>Versions ({menuSign.versions.length})</ListItemText>
+        </MenuItem>,
+        <MenuItem key="print" disabled={!menuSign.pdf_name} onClick={() => { closeMenu(); void printPdf(menuSign); }}>
+          <ListItemIcon><PrintIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>Print</ListItemText>
+        </MenuItem>,
+        <MenuItem key="download" disabled={!menuSign.pdf_name} onClick={() => { closeMenu(); void downloadPdf(menuSign); }}>
+          <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>Download</ListItemText>
+        </MenuItem>,
+        <MenuItem key="open" disabled={!menuSign.pdf_name} onClick={() => { closeMenu(); void openPdf(menuSign); }}>
+          <ListItemIcon><OpenInNewIcon fontSize="small" /></ListItemIcon>
+          <ListItemText primary="Open the PDF" secondary={menuSign.pdf_name ?? 'No PDF yet'} secondaryTypographyProps={{ noWrap: true, sx: { maxWidth: 200 } }} />
+        </MenuItem>,
+        ...(canEdit
+          ? [
+              <Divider key="d" />,
+              <MenuItem key="add-version" onClick={() => { closeMenu(); setAddingVersionFor(menuSign); }}>
+                <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>Add a version</ListItemText>
+              </MenuItem>,
+              <MenuItem key="pdf" onClick={() => { closeMenu(); setUploadFor(menuSign); fileRef.current?.click(); }}>
+                <ListItemIcon><UploadIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>{menuSign.pdf_name ? 'Replace the PDF' : 'Add the PDF'}</ListItemText>
+              </MenuItem>,
+              <MenuItem key="edit" onClick={() => { closeMenu(); openForm(formOf(menuSign)); }}>
+                <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
+                <ListItemText>Edit</ListItemText>
+              </MenuItem>,
+              <MenuItem key="remove" onClick={() => { closeMenu(); removeSign(menuSign); }} sx={{ color: 'error.main' }}>
+                <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
+                <ListItemText>Remove</ListItemText>
+              </MenuItem>,
+            ]
+          : []),
+      ]
+    : [];
+
+  const editingSign = form?.id != null ? signs.find((s) => s.id === form.id) ?? null : null;
+  const galleryVersions = gallerySign ? sortedVersions(gallerySign) : [];
+
+  return (
+    <Box sx={{ flex: 1, minHeight: 0, height: '100%', display: 'flex', flexDirection: stacked ? 'column' : 'row', overflow: 'hidden' }}>
+      {left}
+      {right}
+
+      <Menu anchorEl={menu?.anchor ?? null} open={Boolean(menu)} onClose={closeMenu} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
+        {menuItems}
+      </Menu>
 
       <input
         ref={fileRef}
@@ -681,17 +728,24 @@ export default function SignagePage() {
         onRemove={removeSign}
       />
 
-      {selected && (
-        <VersionViewer sign={selected} versions={selectedVersions} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} />
+      {gallerySign && (
+        <VersionViewer
+          sign={gallerySign}
+          versions={galleryVersions}
+          index={gallery?.index ?? null}
+          onIndex={(index) => setGallery({ signId: gallerySign.id, index })}
+          onClose={() => setGallery(null)}
+          onUse={canEdit && (gallerySign.kind !== 'theme' || user?.is_superuser) ? (v) => switchVersion(gallerySign, v) : undefined}
+        />
       )}
       <AddVersionDialog
-        open={addingVersion && Boolean(selected)}
-        onClose={() => setAddingVersion(false)}
+        open={Boolean(addingVersionFor)}
+        onClose={() => setAddingVersionFor(null)}
         saving={addVersion.isPending}
         onSave={(v) =>
-          selected &&
+          addingVersionFor &&
           addVersion.mutate(
-            { id: selected.id, ...v },
+            { id: addingVersionFor.id, ...v },
             { onSuccess: () => enqueueSnackbar('Version added.', { variant: 'success' }), onError: failed('Could not add the version.') },
           )
         }

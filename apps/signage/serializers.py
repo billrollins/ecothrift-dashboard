@@ -18,15 +18,17 @@ class SignNoteSerializer(serializers.ModelSerializer):
 
 
 class SignSerializer(serializers.ModelSerializer):
-    """A store sign. ``pins`` = spots on the Current store maps (filled by the view); the PDF is its own endpoint.
+    """A store sign. ``pins`` = spots on the Current store maps and ``pins_up`` = those marked Up (filled by the
+    view); the PDF is its own endpoint. #129: the sign itself is only Draft or Production (``stage``); To hang / Up
+    lives on each spot (``MapPin.status``). ``Sign.status`` and ``copies_up`` stay in the table but are not served.
 
     Drafts (#122) carry the reader's own votes and, once they have voted, everyone's results (``votes``, filled by
     the view). Versions are listed in their upload order; the page sorts them by average rank.
     """
-    status_label = serializers.CharField(source='get_status_display', read_only=True)
     pdf_name = serializers.SerializerMethodField()
     pdf_size = serializers.SerializerMethodField()
     pins = serializers.SerializerMethodField()
+    pins_up = serializers.SerializerMethodField()
     versions = serializers.SerializerMethodField()
     preview_version = serializers.SerializerMethodField()
     votes = serializers.SerializerMethodField()
@@ -35,8 +37,8 @@ class SignSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sign
         fields = [
-            'id', 'name', 'stage', 'kind', 'slug', 'dash_update', 'location', 'quantity', 'status', 'status_label', 'copies_up', 'note',
-            'pdf_name', 'pdf_size', 'pins', 'versions', 'chosen_version', 'preview_version', 'votes', 'notes',
+            'id', 'name', 'stage', 'kind', 'slug', 'dash_update', 'location',  'quantity', 'note',
+            'pdf_name', 'pdf_size', 'pins', 'pins_up', 'versions', 'chosen_version', 'preview_version', 'votes', 'notes',
             'approved_at', 'created_at', 'updated_at',
         ]
         read_only_fields = ['slug', 'dash_update', 'chosen_version', 'approved_at', 'created_at', 'updated_at']
@@ -48,7 +50,10 @@ class SignSerializer(serializers.ModelSerializer):
         return obj.pdf.size if obj.pdf_id else None
 
     def get_pins(self, obj):
-        return (self.context.get('pin_counts') or {}).get(obj.id, 0)
+        return (self.context.get('pin_counts') or {}).get(obj.id, (0, 0))[0]
+
+    def get_pins_up(self, obj):
+        return (self.context.get('pin_counts') or {}).get(obj.id, (0, 0))[1]
 
     def _votes(self, obj):
         return (self.context.get('votes') or {}).get(obj.id)
@@ -102,11 +107,6 @@ class SignSerializer(serializers.ModelSerializer):
 
     def validate_location(self, value):
         return (value or '').strip()
-
-    def validate_copies_up(self, value):
-        if value > 500:
-            raise serializers.ValidationError('That is more copies than the store has walls.')
-        return value
 
     def validate_quantity(self, value):
         if value > 500:

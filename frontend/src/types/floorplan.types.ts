@@ -198,9 +198,13 @@ export interface MapPin {
   note: string;
   ref_type: string;
   ref_id: number | null;
+  /** #129: a sign's spot is still to hang (`wanted`) or its copy is up. */
+  status: MapPinStatus;
   created_at: string;
   updated_at: string;
 }
+
+export type MapPinStatus = 'wanted' | 'up';
 
 export interface MapPinPayload {
   plan: number;
@@ -210,6 +214,7 @@ export interface MapPinPayload {
   name: string;
   note?: string;
   ref_id?: number | null;
+  status?: MapPinStatus;
 }
 
 export interface StoreMapResponse {
