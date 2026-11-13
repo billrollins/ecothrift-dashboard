@@ -7,9 +7,7 @@
 import {
   Box,
   Button,
-  Checkbox,
   Chip,
-  FormControlLabel,
   InputAdornment,
   Snackbar,
   Stack,
@@ -23,9 +21,9 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { getDesignPageChecks, setDesignPageCheck, type DesignStep } from '../../api/core.api';
+import type { DesignStep } from '../../api/core.api';
+import { Ticks, useDesignChecks } from './designChecks';
 import { useSearchParams } from 'react-router-dom';
 import { EmptyState, FilterBar, PageShell, PageToolbar, Section, StatTile, StatusPill } from '../../components/page/PageKit';
 import { ECO_ICONS } from '../../icons/ecoIcons';
@@ -44,47 +42,16 @@ import {
 type Show = 'needs' | 'all';
 type GroupBy = 'workspace' | 'type';
 
-const STEPS: { id: DesignStep; label: string }[] = [
-  { id: 'template', label: 'Template' },
-  { id: 'design', label: 'Design' },
-  { id: 'done', label: 'Done' },
-];
-const CHECKS_KEY = ['design-lab', 'checks'];
-
 function typeLabel(page: RegistryPage) {
   if (page.template === 'unsorted') return 'Not sorted';
   if (page.template === 'none') return 'Reference';
   return templateInfo(page.template)?.label ?? page.template;
 }
 
-function shortDate(iso?: string) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-/** The three steps as tick boxes, in order: ticking one ticks the ones before it, unticking one the ones after. */
+/** The three steps as tick boxes (designChecks.tsx); a reference sheet needs none. */
 function Checklist({ page, onTick, busy }: { page: RegistryPage; onTick: (step: DesignStep, on: boolean) => void; busy: boolean }) {
   if (page.template === 'none') return <StatusPill tone="quiet" label="No design needed" />;
-  return (
-    <Box>
-      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-        {STEPS.map((s) => (
-          <FormControlLabel
-            key={s.id}
-            label={s.label}
-            disabled={busy}
-            control={<Checkbox size="small" color="success" checked={page.check[s.id]} onChange={(e) => onTick(s.id, e.target.checked)} />}
-            slotProps={{ typography: { variant: 'body2', sx: { fontWeight: 600 } } }}
-            sx={{ mr: 0.5, ml: -0.5 }}
-          />
-        ))}
-      </Stack>
-      {page.checkedBy ? (
-        <Typography variant="caption" component="div">{page.checkedBy}, {shortDate(page.checkedAt)}</Typography>
-      ) : null}
-    </Box>
-  );
+  return <Ticks check={{ ...page.check, by: page.checkedBy, at: page.checkedAt }} busy={busy} onTick={onTick} />;
 }
 
 export default function PagesTab() {
@@ -93,14 +60,8 @@ export default function PagesTab() {
   const [show, setShow] = useState<Show>('needs');
   const [groupBy, setGroupBy] = useState<GroupBy>('workspace');
   const [copied, setCopied] = useState('');
-  const queryClient = useQueryClient();
-  const checksQuery = useQuery({ queryKey: CHECKS_KEY, queryFn: getDesignPageChecks });
-  const tick = useMutation({
-    mutationFn: ({ page, step, on }: { page: string; step: DesignStep; on: boolean }) => setDesignPageCheck(page, step, on),
-    onSuccess: (checks) => queryClient.setQueryData(CHECKS_KEY, checks),
-    onError: () => setCopied('Not saved: the tick did not reach the server. Try again.'),
-  });
-  const registry = useMemo(() => withChecks(PAGE_REGISTRY, checksQuery.data), [checksQuery.data]);
+  const { checks, tick } = useDesignChecks(() => setCopied('Not saved: the tick did not reach the server. Try again.'));
+  const registry = useMemo(() => withChecks(PAGE_REGISTRY, checks), [checks]);
 
   const counts = useMemo(() => {
     const designed = registry.filter((p) => p.template !== 'none');

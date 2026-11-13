@@ -4,6 +4,7 @@
  *   Theme   every token with its swatch and use, the fonts, the MUI parts dressed in it
  *   Icons   the icon set and where each one is used
  *   one tab per page type, at desktop and phone size side by side (a real phone sees the phone page)
+ *   Surfaces the Universal Surface every object opens in (OOUX): its ten elements, the object map, each object
  *   Pages   the page registry: every page, its type and design checklist, open it or copy its brief
  * The tab is kept in the URL (?view=report&device=phone) so a view can be linked or reloaded.
  */
@@ -16,6 +17,7 @@ import { ECO_FONT_HREF, ecoFonts, ecoTheme } from '../../theme/eco';
 import { DevicePicker, DeviceView } from './DeviceView';
 import IconsTab from './IconsTab';
 import PagesTab from './PagesTab';
+import SurfacesTab from './SurfacesTab';
 import ThemeTab from './ThemeTab';
 import { CalendarDemo, FormDemo, ListDetailDemo, OverviewDemo, RecordDemo, ReportDemo, SettingsDemo } from './demos';
 
@@ -36,6 +38,7 @@ const VIEWS: View[] = [
   { id: 'theme', label: 'Theme', View: ThemeTab },
   { id: 'icons', label: 'Icons', View: IconsTab },
   ...PAGE_TEMPLATES.map((t) => ({ id: t.id, label: t.label, demo: t })),
+  { id: 'surfaces', label: 'Surfaces', View: SurfacesTab },
   { id: 'pages', label: 'Pages', View: PagesTab },
 ];
 

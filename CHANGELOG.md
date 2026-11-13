@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.298.0] -->
-<!-- Last reviewed: 2026-11-13 (2.298.0) -->
+<!-- Line 1 release: ## [2.299.0] -->
+<!-- Last reviewed: 2026-11-13 (2.299.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.299.0] - 2026-11-13
+
+User-facing theme: **Design Lab: Universal Surfaces, the one window every object opens in (Dash Update #134).**
+
+> **For Bill:** Admin > Design Lab > Surfaces. The standard object window as ten elements (Bar, Identity, Numbers, Attention, Actions, Facts, Related, Photos, Notes, Timeline), a map of 19 objects and what each links to, with your Standard / Design / Done ticks, and each object on made-up data at desktop and phone size side by side. Clicking a related row opens that object. No real window changed yet: they move onto it one object at a time.
+
+### Added (Universal Surfaces, OOUX, Dash Update #134)
+- `components/surface/UniversalSurface.tsx` writes down the shape the object windows already share (components/objects, StaffWindow) as ten elements in order: Bar, Identity, Numbers, Attention (at most one), Actions (one main button, the rest under More), Facts, Related (opens in the same window, Back returns), Photos (the three-way photo picker), Notes, Timeline. Full screen on a phone with the main button kept at the bottom; no colours of its own.
+- `navigation/objectCatalog.ts`: 19 objects (Product, Item, Check-in, Category, Location, Auction, Order, Vendor, Restoration order, Purchase order, Supply, Sale, Register, Drawer, Customer, Staff member, Meeting, Incident, Delivery), their kinds, what each links to, and the window each uses today. "Location" is the thing an item is in (gondola shelf, showcase, rack, floor space, back-room bin). Calendar stays a page type: each thing on it opens its own surface.
+- Design Lab > Surfaces: the ten elements and their rules, the object map with ticks (saved with the page ticks as `surface-<object>`), each object desktop and phone side by side. The Pages and Surfaces tabs share one tick component (`designChecks.tsx`).
+- Tests: `navigation/objectCatalog.test.ts` (links only to known objects, a demo per object, tick ids the server accepts).
 
 ## [2.298.0] - 2026-11-13
 

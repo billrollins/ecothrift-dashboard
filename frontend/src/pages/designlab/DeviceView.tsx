@@ -8,9 +8,11 @@
  * out at 1200px (a real desktop) and zoomed down to fit when the column is narrower.
  *
  * Both screens carry a stand-in top bar that names the page: the page body never repeats its title (kit rule).
+ * A Universal Surface (`surface`) has its own bar: on a desk it is drawn as a window over a dimmed page, on a phone
+ * it is the whole screen.
  */
 import { Box, Stack, ThemeProvider, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery } from '@mui/material';
-import { createTheme, useTheme, type Theme } from '@mui/material/styles';
+import { alpha, createTheme, useTheme, type Theme } from '@mui/material/styles';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import logoIcon from '../../assets/logo-icon-64x64.png';
@@ -27,6 +29,8 @@ const DEVICES: { id: Device; label: string }[] = [
 
 const PHONE = { width: 390, height: 780 };
 const DESKTOP_WIDTH = 1200;
+/** A surface is a window, not a page: drawn at a real window's width over a dimmed page. */
+const SURFACE_WIDTH = 1100;
 
 function useWindowWidth() {
   const [width, setWidth] = useState(() => window.innerWidth);
@@ -90,7 +94,7 @@ function TopBar({ title, compact }: { title: string; compact?: boolean }) {
  * A desktop screen. `layoutWidth` set: laid out at that width and zoomed to the column (side by side). Not set: the
  * column's own width, as it is.
  */
-function DesktopScreen({ title, layoutWidth, children }: { title: string; layoutWidth?: number; children: ReactNode }) {
+function DesktopScreen({ title, layoutWidth, surface, children }: { title: string; layoutWidth?: number; surface?: boolean; children: ReactNode }) {
   const { ref, width } = useMeasuredWidth();
   const virtual = layoutWidth ? Math.max(width, layoutWidth) : width;
   const zoom = width && virtual ? width / virtual : 1;
@@ -100,8 +104,18 @@ function DesktopScreen({ title, layoutWidth, children }: { title: string; layout
       {width ? (
         <ThemeProvider theme={theme}>
           <Box sx={{ width: virtual, zoom }}>
-            <TopBar title={title} />
-            <StackOnPhone sx={{ p: 3 }}>{children}</StackOnPhone>
+            {surface ? (
+              <Box sx={(t) => ({ p: '30px', bgcolor: alpha(t.palette.text.primary, 0.32) })}>
+                <Box sx={{ maxWidth: 1040, mx: 'auto', borderRadius: '18px', overflow: 'hidden', boxShadow: 12 }}>
+                  <StackOnPhone>{children}</StackOnPhone>
+                </Box>
+              </Box>
+            ) : (
+              <>
+                <TopBar title={title} />
+                <StackOnPhone sx={{ p: 3 }}>{children}</StackOnPhone>
+              </>
+            )}
           </Box>
         </ThemeProvider>
       ) : null}
@@ -109,7 +123,7 @@ function DesktopScreen({ title, layoutWidth, children }: { title: string; layout
   );
 }
 
-function PhoneScreen({ title, children }: { title: string; children: ReactNode }) {
+function PhoneScreen({ title, surface, children }: { title: string; surface?: boolean; children: ReactNode }) {
   const theme = useScreenTheme(PHONE.width);
   return (
     <Box sx={{ position: { lg: 'sticky' }, top: { lg: 72 }, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
@@ -125,9 +139,9 @@ function PhoneScreen({ title, children }: { title: string; children: ReactNode }
       >
         <ThemeProvider theme={theme}>
           <Box sx={{ width: PHONE.width, height: PHONE.height, borderRadius: '26px', overflow: 'hidden', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
-            <TopBar title={title} compact />
-            <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
-              <StackOnPhone sx={{ p: 1.5, pb: 3 }}>{children}</StackOnPhone>
+            {surface ? null : <TopBar title={title} compact />}
+            <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <StackOnPhone sx={surface ? { flex: 1, display: 'flex', flexDirection: 'column' } : { p: 1.5, pb: 3 }}>{children}</StackOnPhone>
             </Box>
           </Box>
         </ThemeProvider>
@@ -164,18 +178,18 @@ export function DevicePicker() {
 }
 
 /** One page type, at desktop and phone size. On a real phone: the page as it is, nothing around it. */
-export function DeviceView({ title, View }: { title: string; View: ComponentType }) {
+export function DeviceView({ title, View, surface }: { title: string; View: ComponentType; surface?: boolean }) {
   const theme = useTheme();
   const onPhone = useMediaQuery(theme.breakpoints.down('md'));
   const [device] = useDevice();
 
   if (onPhone) return <StackOnPhone><View /></StackOnPhone>;
-  if (device === 'desktop') return <DesktopScreen title={title}><View /></DesktopScreen>;
-  if (device === 'phone') return <PhoneScreen title={title}><View /></PhoneScreen>;
+  if (device === 'desktop') return <DesktopScreen title={title} surface={surface}><View /></DesktopScreen>;
+  if (device === 'phone') return <PhoneScreen title={title} surface={surface}><View /></PhoneScreen>;
   return (
     <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { md: '1fr', lg: `minmax(0, 1fr) ${PHONE.width + 20}px` }, alignItems: 'start' }}>
-      <DesktopScreen title={title} layoutWidth={DESKTOP_WIDTH}><View /></DesktopScreen>
-      <PhoneScreen title={title}><View /></PhoneScreen>
+      <DesktopScreen title={title} layoutWidth={surface ? SURFACE_WIDTH : DESKTOP_WIDTH} surface={surface}><View /></DesktopScreen>
+      <PhoneScreen title={title} surface={surface}><View /></PhoneScreen>
     </Box>
   );
 }

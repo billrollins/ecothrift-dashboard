@@ -1,14 +1,13 @@
-v2.298.0 — Dash Home: seven tabs, everyone lands on Store, a short avatar menu
+v2.299.0 — Design Lab: Universal Surfaces, the one window every object opens in
 
-User-facing theme: **Dash Home: seven tabs, everyone lands on Store, and a short avatar menu (step 1 of the Home and HR plan).**
+User-facing theme: **Design Lab: Universal Surfaces, the one window every object opens in (Dash Update #134).**
 
-> **For Bill:** the Home page now has the tabs you laid out: Store, Time clock (the old Today, for now), HR, Routines, Calendar, Messages and Profile, on the desk and on the phone. Everyone opens on Store; clocking in is still the time button in the header. HR shows Files, Requests and Report an incident, with Training and SOPs marked coming soon. Routines shows today's to-do list. Calendar says it is being designed and links to this week's schedule. Messages and Profile show today's pages until they are rebuilt. The avatar menu lost every Home link; it keeps Dash Updates, Language and Sign out, your Owner page and View as, plus Texts (managers) and Photo drops until they get another home. The rest of the plan (Time clock, HR tab, Profile, the managers' HR workspace, Calendar) is with Mainline as separate updates.
+> **For Bill:** Admin > Design Lab > Surfaces. The standard object window as ten elements (Bar, Identity, Numbers, Attention, Actions, Facts, Related, Photos, Notes, Timeline), a map of 19 objects and what each links to, with your Standard / Design / Done ticks, and each object on made-up data at desktop and phone size side by side. Clicking a related row opens that object. No real window changed yet: they move onto it one object at a time.
 
-### Changed (Dash Home, step 1 of .ai/extended/home-and-hr-structure.md)
-- Dash Home has seven tabs: Store, Time clock, HR, Routines, Calendar, Messages, Profile (desk tab bar and phone bar). Everyone lands on Store (was: staff landed on Today); a remembered tab still wins. Time clock is the old Today/My day tab (id `myday` kept so clock, bell and routine links still work); its rebuild is Dash Update step 2.
-- New tabs (`pages/home/HomeTabs.tsx`): HR (Files, Requests, Report an incident; Training and SOPs "coming soon"), Routines (today's to-do list; opening one still runs it on Time clock), Calendar (being designed; a link to this week's schedule for now), Messages (the messages page), Profile (the current /me page until its rebuild).
-- The routines-waiting badge moved from Today to the Routines tab (`FLOOR_TABS.badgeId`).
-- Avatar menu: no Home links any more (Store, Today, Schedule, Profile, Requests, Messages removed; they are Home tabs). Kept: Texts (managers), Photo drops, Dash Updates, Ask for an update, Owner page (owner), Language, View as (owner), Change password, Sign out.
-- Page registry: the HR, Calendar and Messages tab items are Home pages. Tests rewritten for the new tabs and menu.
+### Added (Universal Surfaces, OOUX, Dash Update #134)
+- `components/surface/UniversalSurface.tsx` writes down the shape the object windows already share (components/objects, StaffWindow) as ten elements in order: Bar, Identity, Numbers, Attention (at most one), Actions (one main button, the rest under More), Facts, Related (opens in the same window, Back returns), Photos (the three-way photo picker), Notes, Timeline. Full screen on a phone with the main button kept at the bottom; no colours of its own.
+- `navigation/objectCatalog.ts`: 19 objects (Product, Item, Check-in, Category, Location, Auction, Order, Vendor, Restoration order, Purchase order, Supply, Sale, Register, Drawer, Customer, Staff member, Meeting, Incident, Delivery), their kinds, what each links to, and the window each uses today. "Location" is the thing an item is in (gondola shelf, showcase, rack, floor space, back-room bin). Calendar stays a page type: each thing on it opens its own surface.
+- Design Lab > Surfaces: the ten elements and their rules, the object map with ticks (saved with the page ticks as `surface-<object>`), each object desktop and phone side by side. The Pages and Surfaces tabs share one tick component (`designChecks.tsx`).
+- Tests: `navigation/objectCatalog.test.ts` (links only to known objects, a demo per object, tick ids the server accepts).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
