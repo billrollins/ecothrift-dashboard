@@ -69,6 +69,7 @@ const DashFixesPage = lazy(() => import('./pages/dashFixes/DashFixesPage'));
 const PhotoDropsPage = lazy(() => import('./pages/photoDrops/PhotoDropsPage'));
 const IconsPage = lazy(() => import('./pages/admin/IconsPage'));
 const DesignLabPage = lazy(() => import('./pages/designlab/DesignLabPage'));
+const DesignLabDemoPage = lazy(() => import('./pages/designlab/DemoPage'));
 const KeysPage = lazy(() => import('./pages/admin/keys/KeysPage'));
 const AdminRoutinesPage = lazy(() => import('./pages/admin/routines/AdminRoutinesPage'));
 const RetailQaPage = lazy(() => import('./pages/admin/retailqa/RetailQaPage'));
@@ -633,6 +634,14 @@ function AppRoutes() {
           element={
             <AccessRoute need={['admin:full']}>
               <DesignLabPage />
+            </AccessRoute>
+          }
+        />
+        <Route
+          path="/admin/design-lab/demo/:template"
+          element={
+            <AccessRoute need={['admin:full']}>
+              <DesignLabDemoPage />
             </AccessRoute>
           }
         />

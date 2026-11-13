@@ -1,14 +1,35 @@
-v2.302.0 — Texts owner only on the Owner page; Photo drops in Processing; avatar menu final
+v2.303.0 — Design Lab round 3: rich page types, live demos, object windows as modals
 
-User-facing theme: **Texts are owner only, on your Owner page; Photo drops moved to Processing; the avatar menu is final.**
+User-facing theme: **Design Lab round 3: three rich page types (Data table, Command center, Station) built from Orders, Processing and the bench; every page type opens as a live demo page; object windows open as real modals; new Elements and Registry tabs (Dash Update #134).**
 
-> **For Bill:** as you asked, only you can read texts now: the Texts inbox is a tab on your Owner page, and managers can no longer open it or see its unread count (they can still text a staff member a set-password link). Photo drops left the avatar menu: it is in the Processing sidebar, and the photo drawer has a "See all" link that opens in a new tab. The avatar menu is now Dash Updates, Ask for an update, Language, Change password and Sign out, plus your Owner page and View as.
+> **For Bill:** Admin > Design Lab now has six tabs: Theme, Icons, Templates, Windows, Elements, Registry. The empty band above the tabs is gone.
+> - **Templates:** "Open live demo" opens each page type in a new tab inside the real Dash shell on made-up data, exactly as it would look live. "Phone" shows the same live page at phone width.
+> - **Three new page types, copied from your best pages:** Data table (Orders: KPI strip, views, rich two-line money columns), Command center (Processing: order strip, stat band, scanner first, dense queue, work card in place), Station (the bench: dark deck, panes, big finish keys).
+> - **Windows** open as real pop-up windows; clicking a related row inside opens it in the same window, with Back.
+> - **Elements** shows every building block with a live preview.
+> - **Registry** (was Pages) tracks pages, templates, windows and elements, each with your tick boxes.
 
-### Changed (avatar menu final; Texts owner only)
-- Texts (#132) is owner only (Bill 2026-11-13: "texts cost money and need to be secure; for now I, owner, only see them, and it's just an inbox"). The inbox, a conversation and replies need the owner (`IsOwner`); managers get 403. `texting/status/` shows the unread count to the owner only (0 for managers). Managers can still text a set-password link (`set-password-link/`, unchanged).
-- Texts is a tab of the Owner page (`/owner/texts`); `/texts` redirects there. It left the avatar menu.
-- Photo drops left the avatar menu: it is in the Processing sidebar (after My numbers) and the photo drawer has a "See all" link (opens in a new tab so the form stays). Catalog item `photoDrops`; page registry list-detail.
-- The avatar menu is now: Dash Updates, Ask for an update, Owner page and View as (owner), Language, Change password, Sign out.
-- Tests: owner-only inbox and unread count (server); Owner page tabs, Processing sidebar (front end).
+### Added (Design Lab round 3, Dash Update #134)
+- **Rich kit** (`components/page/RichKit.tsx`), the parts the worked pages already share, written once with no colours of their own:
+  - MicroLabel, KpiStrip/Kpi, StatBand/StatGroup/StatBlock, FactStrip/Fact;
+  - ScanBar (focused, Enter acts, Esc clears, fixed status slot);
+  - ChipRail, BulkBar, Pane/PaneHeader/PaneBody;
+  - TwoLine and `bandTone`;
+  - `denseTableSx` and `dataGridSx`.
+  
+  The theme gains a `deck` palette entry (a station's dark band, deep green: `deck`, `deckRaised`, `deckInk`, `deckLabel`, `deckAccent`).
+- **Three page types** in `navigation/pageRegistry.ts`: `data-table`, `command-center`, `station`.
+  - Orders, Auctions, Transactions and Search are now Data table; Processing, Preprocessing and both Command Centers are Command center; the Bench, Register, Test register, Thrift+ Staff, Quick reprice and Run count are Station.
+  - "Tool" is now "Editor" (Label Studio, the store map, floorplans, the studios, PR Fix-it).
+  - Each type names a real page for its demo (`demoTitle`).
+- **Live demos**: `/admin/design-lab/demo/<type>` (`pages/designlab/DemoPage.tsx`), inside the shell with the Eco-Thrift theme. The top bar names a real page of that type (`pageTitleFor`). New demos in `pages/designlab/demos/`: DataTableDemo, CommandCenterDemo, StationDemo.
+- **Object windows open as real modals** (`pages/designlab/WindowDialog.tsx`; full screen on a phone; a related row swaps in place with Back). The Universal Surface is renamed **Object window**: `components/objectWindow/ObjectWindow.tsx`, `windowDemos.ts`, `windowCheckId`. Saved ticks keep their `surface-<object>` ids.
+- **Tabs**: Templates (`TemplatesTab.tsx`, with a 390 px phone frame of the live page), Windows, Elements (`ElementsTab.tsx`, `elementCatalog.tsx`), Registry (`RegistryTab.tsx`). Old `?view=pages` and `?view=surfaces` links still land on the right tab.
+
+### Changed
+- The Design Lab's tab bar sticks right under the top bar. It stuck 24 px low: the page area's padding.
+- `StackOnPhone`: when a table's first column is left out on a phone (a tick box), the next cell heads the card.
+- Removed the side-by-side frames (`DeviceView.tsx`); the live demos replace them.
+- Tests: `pages/designlab/designLab.test.ts` (a demo for every page type, element ids), StackOnPhone (hidden first column), pageRegistry (demo titles).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

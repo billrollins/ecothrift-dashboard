@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ECO_ICONS } from '../icons/ecoIcons';
-import { SURFACE_DEMOS } from '../pages/designlab/surfaceDemos';
-import { OBJECTS, OBJECT_GROUPS, surfaceCheckId } from './objectCatalog';
+import { WINDOW_DEMOS } from '../pages/designlab/windowDemos';
+import { OBJECTS, OBJECT_GROUPS, windowCheckId } from './objectCatalog';
 
 const ids = new Set(OBJECTS.map((o) => o.id));
 
-describe('object catalog (Universal Surfaces)', () => {
+describe('object catalog (Object windows)', () => {
   it('lists each object once, in a known group, with a real icon', () => {
     expect(ids.size).toBe(OBJECTS.length);
     OBJECTS.forEach((o) => {
@@ -20,7 +20,7 @@ describe('object catalog (Universal Surfaces)', () => {
 
   it('has a Design Lab demo for every object, whose related blocks are links the catalog names', () => {
     OBJECTS.forEach((o) => {
-      const demo = SURFACE_DEMOS[o.id];
+      const demo = WINDOW_DEMOS[o.id];
       expect(demo, o.id).toBeDefined();
       (demo.related ?? []).forEach((r) => expect(o.related, `${o.id} demo -> ${r.object}`).toContain(r.object));
       expect((demo.stats ?? []).length).toBeLessThanOrEqual(4);
@@ -28,6 +28,6 @@ describe('object catalog (Universal Surfaces)', () => {
   });
 
   it('saves its ticks under an id the server accepts', () => {
-    OBJECTS.forEach((o) => expect(surfaceCheckId(o.id)).toMatch(/^[A-Za-z][A-Za-z0-9_-]{0,59}$/));
+    OBJECTS.forEach((o) => expect(windowCheckId(o.id)).toMatch(/^[A-Za-z][A-Za-z0-9_-]{0,59}$/));
   });
 });

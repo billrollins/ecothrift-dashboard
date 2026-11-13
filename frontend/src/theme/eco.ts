@@ -49,9 +49,25 @@ export const eco = {
   info: '#22406B', // new, for your information (denim), 10.4:1
   infoSoft: '#E6EFF5',
   infoText: '#1B3356',
+  // The deck: the dark band across the top of a station (the restoration bench), deep green, never jet black
+  deck: '#1F2A26',
+  deckRaised: '#26332E',
+  deckInk: '#F4F7F5', // 14.6:1 on the deck
+  deckLabel: '#A3B5AA', // 7.3:1 on the deck
+  deckAccent: '#8FD3A6', // SKUs and highlights on the deck
 } as const;
 
 export type EcoToken = keyof typeof eco;
+
+/** The deck (a station's dark top band) as a palette entry, so the kit reads it from the theme. */
+declare module '@mui/material/styles' {
+  interface Palette {
+    deck?: { main: string; raised: string; ink: string; label: string; accent: string };
+  }
+  interface PaletteOptions {
+    deck?: { main: string; raised: string; ink: string; label: string; accent: string };
+  }
+}
 
 /** Title font (Nunito, rounded and friendly, board pairing 1) for titles only; Manrope for everything you read or type. */
 export const ecoFonts = {
@@ -87,6 +103,7 @@ export const ecoThemeOptions: ThemeOptions = {
     info: { main: eco.info, light: eco.infoSoft, dark: eco.infoText, contrastText: '#FFFFFF' },
     text: { primary: eco.ink, secondary: eco.inkSoft, disabled: eco.inkFaint },
     divider: eco.line,
+    deck: { main: eco.deck, raised: eco.deckRaised, ink: eco.deckInk, label: eco.deckLabel, accent: eco.deckAccent },
     action: {
       hover: alpha(eco.ink, 0.04),
       selected: alpha(eco.leaf, 0.12),

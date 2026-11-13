@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.302.0] -->
-<!-- Last reviewed: 2026-11-13 (2.302.0) -->
+<!-- Line 1 release: ## [2.303.0] -->
+<!-- Last reviewed: 2026-11-13 (2.303.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,40 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.303.0] - 2026-11-13
+
+User-facing theme: **Design Lab round 3: three rich page types (Data table, Command center, Station) built from Orders, Processing and the bench; every page type opens as a live demo page; object windows open as real modals; new Elements and Registry tabs (Dash Update #134).**
+
+> **For Bill:** Admin > Design Lab now has six tabs: Theme, Icons, Templates, Windows, Elements, Registry. The empty band above the tabs is gone.
+> - **Templates:** "Open live demo" opens each page type in a new tab inside the real Dash shell on made-up data, exactly as it would look live. "Phone" shows the same live page at phone width.
+> - **Three new page types, copied from your best pages:** Data table (Orders: KPI strip, views, rich two-line money columns), Command center (Processing: order strip, stat band, scanner first, dense queue, work card in place), Station (the bench: dark deck, panes, big finish keys).
+> - **Windows** open as real pop-up windows; clicking a related row inside opens it in the same window, with Back.
+> - **Elements** shows every building block with a live preview.
+> - **Registry** (was Pages) tracks pages, templates, windows and elements, each with your tick boxes.
+
+### Added (Design Lab round 3, Dash Update #134)
+- **Rich kit** (`components/page/RichKit.tsx`), the parts the worked pages already share, written once with no colours of their own:
+  - MicroLabel, KpiStrip/Kpi, StatBand/StatGroup/StatBlock, FactStrip/Fact;
+  - ScanBar (focused, Enter acts, Esc clears, fixed status slot);
+  - ChipRail, BulkBar, Pane/PaneHeader/PaneBody;
+  - TwoLine and `bandTone`;
+  - `denseTableSx` and `dataGridSx`.
+  
+  The theme gains a `deck` palette entry (a station's dark band, deep green: `deck`, `deckRaised`, `deckInk`, `deckLabel`, `deckAccent`).
+- **Three page types** in `navigation/pageRegistry.ts`: `data-table`, `command-center`, `station`.
+  - Orders, Auctions, Transactions and Search are now Data table; Processing, Preprocessing and both Command Centers are Command center; the Bench, Register, Test register, Thrift+ Staff, Quick reprice and Run count are Station.
+  - "Tool" is now "Editor" (Label Studio, the store map, floorplans, the studios, PR Fix-it).
+  - Each type names a real page for its demo (`demoTitle`).
+- **Live demos**: `/admin/design-lab/demo/<type>` (`pages/designlab/DemoPage.tsx`), inside the shell with the Eco-Thrift theme. The top bar names a real page of that type (`pageTitleFor`). New demos in `pages/designlab/demos/`: DataTableDemo, CommandCenterDemo, StationDemo.
+- **Object windows open as real modals** (`pages/designlab/WindowDialog.tsx`; full screen on a phone; a related row swaps in place with Back). The Universal Surface is renamed **Object window**: `components/objectWindow/ObjectWindow.tsx`, `windowDemos.ts`, `windowCheckId`. Saved ticks keep their `surface-<object>` ids.
+- **Tabs**: Templates (`TemplatesTab.tsx`, with a 390 px phone frame of the live page), Windows, Elements (`ElementsTab.tsx`, `elementCatalog.tsx`), Registry (`RegistryTab.tsx`). Old `?view=pages` and `?view=surfaces` links still land on the right tab.
+
+### Changed
+- The Design Lab's tab bar sticks right under the top bar. It stuck 24 px low: the page area's padding.
+- `StackOnPhone`: when a table's first column is left out on a phone (a tick box), the next cell heads the card.
+- Removed the side-by-side frames (`DeviceView.tsx`); the live demos replace them.
+- Tests: `pages/designlab/designLab.test.ts` (a demo for every page type, element ids), StackOnPhone (hidden first column), pageRegistry (demo titles).
 
 ## [2.302.0] - 2026-11-13
 

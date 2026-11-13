@@ -1,11 +1,11 @@
 /**
  * The object catalog (OOUX; Dash Update #134, Bill 2026-11-13): every thing Dash keeps, the kinds it comes in, and the
- * other things it is tied to. Each object opens in one Universal Surface (components/surface/UniversalSurface.tsx),
- * the same window for every user wherever it is clicked. The Design Lab's Surfaces tab shows each one on made-up data
- * (/admin/design-lab?view=surfaces&object=item), with its checklist (the owner ticks: on the standard, design, done;
- * saved with the page ticks under the id `surface-<object>`).
+ * other things it is tied to. Each object opens in one object window (components/objectWindow/ObjectWindow.tsx),
+ * the same window for every user wherever it is clicked. The Design Lab's Windows tab shows each one on made-up data
+ * (/admin/design-lab?view=windows; each opens as a real modal), with its checklist (the owner ticks: on the standard,
+ * design, done; saved with the page ticks under the id `surface-<object>`, its name before the rename).
  *
- * Calendar is not an object: it is a page type. Each thing on a calendar (a delivery, a meeting) opens its own surface.
+ * Calendar is not an object: it is a page type. Each thing on a calendar (a delivery, a meeting) opens its own window.
  */
 import type { EcoIconName } from '../icons/ecoIcons';
 
@@ -26,7 +26,7 @@ export interface ObjectInfo {
   icon: EcoIconName;
   /** What it is, in one line. */
   what: string;
-  /** The kinds it comes in (one surface; a chip says which). */
+  /** The kinds it comes in (one window; a chip says which). */
   kinds?: string[];
   /** How its ID reads. */
   idFormat: string;
@@ -70,6 +70,6 @@ export function objectInfo(id: ObjectId): ObjectInfo {
 }
 
 /** The id the checklist ticks are saved under (shared with the page registry's ticks). */
-export function surfaceCheckId(id: ObjectId): string {
+export function windowCheckId(id: ObjectId): string {
   return `surface-${id}`;
 }

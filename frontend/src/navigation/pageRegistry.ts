@@ -17,10 +17,13 @@ import { NAV_ITEM_CATALOG } from './navItemCatalog';
 import { navItemIsActive } from './navUtils';
 import { SLOT_C_NAV_GROUPS, SLOT_C_WORKSPACES } from './slotCNavLayout';
 
-/** The seven page types, plus `tool` (a full-screen station with its own layout) and `none` (reference sheets). */
+/** The page types, plus `tool` (an editor with its own layout) and `none` (reference sheets). */
 export type PageTemplate =
   | 'overview'
+  | 'data-table'
   | 'list-detail'
+  | 'command-center'
+  | 'station'
   | 'record'
   | 'calendar'
   | 'report'
@@ -41,6 +44,8 @@ export interface PageChecklist {
 export interface TemplateInfo {
   id: PageTemplate;
   label: string;
+  /** The page name its live demo shows in the top bar (a real page of that type). */
+  demoTitle: string;
   first: PageFirst;
   /** What the page does on a phone, in a few words. */
   phone: string;
@@ -50,18 +55,26 @@ export interface TemplateInfo {
 
 /** The page types in Design Lab order. `tool` and `none` have no demo. */
 export const PAGE_TEMPLATES: TemplateInfo[] = [
-  { id: 'overview', label: 'Overview', first: 'mobile', phone: 'the numbers, then what needs you', use: 'A workspace or a person at a glance: a few numbers, today, what needs a hand.' },
-  { id: 'list-detail', label: 'List and detail', first: 'desktop', phone: 'the detail opens full screen', use: 'Browse many things (trucks, vendors, staff), open one beside the list.' },
-  { id: 'record', label: 'Record', first: 'desktop', phone: 'opens with the record, not the page title', use: 'One thing in full: an item, a person, a truck, with its tabs and history.' },
-  { id: 'calendar', label: 'Calendar', first: 'mobile', phone: 'one day at a time', use: 'Things on days: deliveries, shifts, interviews.' },
-  { id: 'report', label: 'Report', first: 'desktop', phone: 'columns fold away, totals stay', use: 'Numbers for a period: totals, a chart, a table with a total row.' },
-  { id: 'form', label: 'Form', first: 'mobile', phone: 'one column, the button always in reach', use: 'Fill something in or tick through a checklist.' },
-  { id: 'settings', label: 'Settings', first: 'mobile', phone: 'saves as you change it', use: 'Switches and rules that are set once and left.' },
+  { id: 'overview', label: 'Overview', demoTitle: 'Processing', first: 'mobile', phone: 'the numbers, then what needs you', use: 'A workspace or a person at a glance: a few numbers, today, what needs a hand.' },
+  { id: 'data-table', label: 'Data table', demoTitle: 'Orders', first: 'desktop', phone: 'rows become cards, the key column and status stay', use: 'Many records with rich columns: saved views, filters, sorting, totals, bulk actions, a row that opens its window (Orders, Transactions, Search).' },
+  { id: 'list-detail', label: 'List and detail', demoTitle: 'Receiving', first: 'desktop', phone: 'the detail opens full screen', use: 'Browse many things (trucks, vendors, staff), open one beside the list.' },
+  { id: 'record', label: 'Record', demoTitle: 'Item', first: 'desktop', phone: 'opens with the record, not the page title', use: 'One thing in full: an item, a person, a truck, with its tabs and history.' },
+  { id: 'command-center', label: 'Command center', demoTitle: 'Processing', first: 'desktop', phone: 'the queue, then one item at a time', use: 'A working station for a whole shift: live counters, a queue, the item being worked, and its tools side by side, keyboard and scanner first (Processing, Preprocessing).' },
+  { id: 'station', label: 'Station', demoTitle: 'Bench', first: 'desktop', phone: 'one big task per screen, buttons a thumb can hit', use: 'Full screen, one job, touch and scanner first: the restoration bench, the register, a count.' },
+  { id: 'calendar', label: 'Calendar', demoTitle: 'Delivery schedule', first: 'mobile', phone: 'one day at a time', use: 'Things on days: deliveries, shifts, interviews.' },
+  { id: 'report', label: 'Report', demoTitle: 'Sales report', first: 'desktop', phone: 'columns fold away, totals stay', use: 'Numbers for a period: totals, a chart, a table with a total row.' },
+  { id: 'form', label: 'Form', demoTitle: 'Price an item', first: 'mobile', phone: 'one column, the button always in reach', use: 'Fill something in or tick through a checklist.' },
+  { id: 'settings', label: 'Settings', demoTitle: 'POS setup', first: 'mobile', phone: 'saves as you change it', use: 'Switches and rules that are set once and left.' },
 ];
 
 export const TOOL_TEMPLATE: TemplateInfo = {
-  id: 'tool', label: 'Tool', first: 'desktop', phone: 'its own layout', use: 'A full-screen station with its own layout (the register, the bench, a scanner, an editor). Uses the theme and the kit pieces, not a page type.',
+  id: 'tool', label: 'Editor', demoTitle: '', first: 'desktop', phone: 'its own layout', use: 'A canvas editor with its own layout (Label Studio, the store map, floorplans, the studios). Uses the theme and the kit pieces, not a page type.',
 };
+
+/** Where a page type's live demo opens: inside the real Dash shell, on made-up data. */
+export function templateDemoPath(id: PageTemplate): string {
+  return `/admin/design-lab/demo/${id}`;
+}
 
 export function templateInfo(id: PageTemplate): TemplateInfo | undefined {
   if (id === 'tool') return TOOL_TEMPLATE;
@@ -80,20 +93,20 @@ const TEMPLATE: Record<string, PageTemplate> = {
   homeHr: 'overview', homeCalendar: 'calendar', homeMessages: 'list-detail',
   photoDrops: 'list-detail',
   // Buying
-  auctions: 'list-detail', estimateProfit: 'form', vendors: 'list-detail', orders: 'list-detail', preprocessing: 'tool',
+  auctions: 'data-table', estimateProfit: 'form', vendors: 'list-detail', orders: 'data-table', preprocessing: 'command-center',
   wishlist: 'list-detail', auctionsOld: 'list-detail', watchlist: 'list-detail', reportCards: 'report',
   assumptions: 'settings',
   // Processing
-  receiving: 'list-detail', processing: 'tool', processingMyNumbers: 'overview', processingCommandCenter: 'overview',
+  receiving: 'list-detail', processing: 'command-center', processingMyNumbers: 'overview', processingCommandCenter: 'command-center',
   processingReturns: 'list-detail', processingFloorIssues: 'list-detail', processingPhotoSheets: 'list-detail',
   // Restoration
-  restorationQueue: 'overview', tars: 'tool', restorationPartsRequests: 'list-detail', restorationTracking: 'list-detail',
+  restorationQueue: 'overview', tars: 'station', restorationPartsRequests: 'list-detail', restorationTracking: 'list-detail',
   restorations: 'overview', restorationReturns: 'overview',
   // Retail and inventory
-  posTerminal: 'tool', posTestTerminal: 'tool', posTransactions: 'list-detail', customers: 'list-detail',
-  posDrawers: 'list-detail', thriftPlusFinalize: 'tool', thriftPlusMembers: 'list-detail', quickReprice: 'tool',
-  prFixit: 'tool', posPrintables: 'list-detail', retailQa: 'overview', posCash: 'list-detail', posSetup: 'settings',
-  thriftPlus: 'overview', inventories: 'list-detail', inventoryWorkbench: 'list-detail', inventoryCount: 'tool',
+  posTerminal: 'station', posTestTerminal: 'station', posTransactions: 'data-table', customers: 'list-detail',
+  posDrawers: 'list-detail', thriftPlusFinalize: 'station', thriftPlusMembers: 'list-detail', quickReprice: 'station',
+  prFixit: 'tool', posPrintables: 'list-detail', retailQa: 'command-center', posCash: 'list-detail', posSetup: 'settings',
+  thriftPlus: 'overview', inventories: 'list-detail', inventoryWorkbench: 'data-table', inventoryCount: 'station',
   inventoryReview: 'list-detail', tagErrors: 'list-detail', floorplans: 'tool',
   // Online Sales
   onlineSalesListings: 'list-detail', onlineSalesHolds: 'list-detail', onlineSalesCustomers: 'list-detail',
@@ -220,7 +233,7 @@ export function nextStep(page: RegistryPage): keyof PageChecklist | null {
 export function designBrief(page: RegistryPage, origin = ''): string {
   const info = page.template === 'unsorted' ? undefined : templateInfo(page.template);
   const step = nextStep(page);
-  const demo = info && info.id !== 'tool' ? `${origin}/admin/design-lab?view=${info.id}` : `${origin}/admin/design-lab?view=theme`;
+  const demo = info && info.id !== 'tool' ? `${origin}${templateDemoPath(info.id)}` : `${origin}/admin/design-lab?view=theme`;
   const lines = [
     `Design update: ${page.label} (${origin}${page.path}), ${page.workspaceLabel} workspace.`,
     info
@@ -241,6 +254,9 @@ export function designBrief(page: RegistryPage, origin = ''): string {
  * Empty when no sidebar page matches.
  */
 export function pageTitleFor(pathname: string, search = '', hash = ''): string {
+  // A page type's live demo shows the name of a real page of that type, exactly as it would look live.
+  const demo = pathname.match(/^\/admin\/design-lab\/demo\/([a-z-]+)/);
+  if (demo) return PAGE_TEMPLATES.find((t) => t.id === demo[1])?.demoTitle ?? '';
   let best = { label: '', length: -1 };
   for (const item of Object.values(NAV_ITEM_CATALOG)) {
     if (item.legacy || !navItemIsActive(pathname, search, hash, item)) continue;

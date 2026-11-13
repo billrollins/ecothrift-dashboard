@@ -1,5 +1,11 @@
 /**
- * Design Lab > Pages: the page registry (navigation/pageRegistry.ts). Every sidebar page with its page type and its
+ * Design Lab > Registry: everything the design system tracks, each with the owner's checklist ticks.
+ *   Pages      every sidebar page (navigation/pageRegistry.ts): open it in a new tab, copy its brief; its page type opens
+ *              that type's live demo in a new tab
+ *   Templates  every page type: open its live demo
+ *   Windows    every object window (navigation/objectCatalog.ts): opens as a real modal
+ *   Elements   every kit element (elementCatalog.tsx): previews in a modal
+ * The Pages part, as before: the page registry (navigation/pageRegistry.ts). Every sidebar page with its page type and its
  * design checklist, by workspace or by page type. After a design change, filter to the pages that still need it,
  * open each one, and copy its brief for a coder. The owner ticks each step here; the ticks are saved on the server
  * (/api/core/design-lab/checks/, steps kept in order).
@@ -8,6 +14,7 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
   InputAdornment,
   Snackbar,
   Stack,
@@ -24,7 +31,9 @@ import {
 import { useMemo, useState } from 'react';
 import type { DesignStep } from '../../api/core.api';
 import { Ticks, useDesignChecks } from './designChecks';
-import { useSearchParams } from 'react-router-dom';
+import { ELEMENTS, elementCheckId, type ElementInfo } from './elementCatalog';
+import { useOpenDemoWindow } from './WindowDialog';
+import { OBJECTS, windowCheckId } from '../../navigation/objectCatalog';
 import { EmptyState, FilterBar, PageShell, PageToolbar, Section, StatTile, StatusPill } from '../../components/page/PageKit';
 import { ECO_ICONS } from '../../icons/ecoIcons';
 import {
@@ -34,6 +43,7 @@ import {
   TOOL_TEMPLATE,
   designBrief,
   nextStep,
+  templateDemoPath,
   templateInfo,
   withChecks,
   type RegistryPage,
@@ -54,8 +64,7 @@ function Checklist({ page, onTick, busy }: { page: RegistryPage; onTick: (step: 
   return <Ticks check={{ ...page.check, by: page.checkedBy, at: page.checkedAt }} busy={busy} onTick={onTick} />;
 }
 
-export default function PagesTab() {
-  const [, setParams] = useSearchParams();
+function PagesRegistry() {
   const [query, setQuery] = useState('');
   const [show, setShow] = useState<Show>('needs');
   const [groupBy, setGroupBy] = useState<GroupBy>('workspace');
@@ -104,7 +113,7 @@ export default function PagesTab() {
 
   const openType = (page: RegistryPage) => {
     if (page.template === 'unsorted' || page.template === 'none' || page.template === 'tool') return;
-    setParams({ view: page.template });
+    window.open(templateDemoPath(page.template), '_blank', 'noopener');
   };
 
   return (
@@ -206,6 +215,98 @@ export default function PagesTab() {
       ))}
 
       <Snackbar open={Boolean(copied)} autoHideDuration={2500} onClose={() => setCopied('')} message={copied} />
+    </PageShell>
+  );
+}
+
+// ---- The rest of the registry: templates, windows, elements -------------------------------------------------
+
+type Kind = 'pages' | 'templates' | 'windows' | 'elements';
+const KINDS: { id: Kind; label: string }[] = [
+  { id: 'pages', label: 'Pages' }, { id: 'templates', label: 'Templates' }, { id: 'windows', label: 'Windows' }, { id: 'elements', label: 'Elements' },
+];
+
+interface Entry { id: string; checkId: string; name: string; detail: string; group: string; open: () => void; openLabel: string }
+
+function EntryRegistry({ entries, labels }: { entries: Entry[]; labels?: string[] }) {
+  const [msg, setMsg] = useState('');
+  const { checks, tick } = useDesignChecks(() => setMsg('Not saved: the tick did not reach the server. Try again.'));
+  const busy = tick.isPending ? tick.variables?.page : undefined;
+  const groups = [...new Set(entries.map((e) => e.group))];
+  const done = entries.filter((e) => checks?.[e.checkId]?.design).length;
+  return (
+    <>
+      <Typography variant="body2" sx={{ fontWeight: 700 }}>{entries.length} in all · {done} design approved</Typography>
+      {groups.map((g) => (
+        <Section key={g} title={`${g} · ${entries.filter((e) => e.group === g).length}`} flush>
+          <Table size="small">
+            <TableHead><TableRow><TableCell>Name</TableCell><TableCell>Checklist</TableCell><TableCell align="right">Actions</TableCell></TableRow></TableHead>
+            <TableBody>
+              {entries.filter((e) => e.group === g).map((e) => (
+                <TableRow key={e.id} hover>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{e.name}</Typography>
+                    <Typography variant="caption" component="div">{e.detail}</Typography>
+                  </TableCell>
+                  <TableCell><Ticks check={checks?.[e.checkId]} labels={labels} busy={busy === e.checkId} onTick={(step, on) => tick.mutate({ page: e.checkId, step, on })} /></TableCell>
+                  <TableCell align="right"><Button size="small" variant="outlined" onClick={e.open}>{e.openLabel}</Button></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Section>
+      ))}
+      <Snackbar open={Boolean(msg)} autoHideDuration={3000} onClose={() => setMsg('')} message={msg} />
+    </>
+  );
+}
+
+function ElementDialog({ element, onClose }: { element: ElementInfo | null; onClose: () => void }) {
+  return (
+    <Dialog open={Boolean(element)} onClose={onClose} maxWidth="md" fullWidth>
+      {element ? (
+        <Box sx={{ p: 2.5, bgcolor: 'background.default' }}>
+          <Stack direction="row" alignItems="center" sx={{ mb: 1 }}>
+            <Typography variant="h5" sx={{ flex: 1 }}>{element.name}</Typography>
+            <Button onClick={onClose}>Close</Button>
+          </Stack>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{element.use}</Typography>
+          <Box sx={{ p: 2, borderRadius: '12px', border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}><element.Preview /></Box>
+          <Typography sx={{ mt: 1.5, fontFamily: 'ui-monospace, Consolas, monospace', fontSize: '0.75rem', color: 'text.secondary' }}>{element.code}</Typography>
+        </Box>
+      ) : null}
+    </Dialog>
+  );
+}
+
+export default function RegistryTab() {
+  const [kind, setKind] = useState<Kind>('pages');
+  const [element, setElement] = useState<ElementInfo | null>(null);
+  const openWindow = useOpenDemoWindow();
+  const entries: Record<Exclude<Kind, 'pages'>, Entry[]> = {
+    templates: PAGE_TEMPLATES.map((t) => ({
+      id: t.id, checkId: `template-${t.id}`, name: t.label, detail: `${t.first === 'mobile' ? 'Phone' : 'Desktop'} first · on a phone ${t.phone}`,
+      group: 'Page types', open: () => window.open(templateDemoPath(t.id), '_blank', 'noopener'), openLabel: 'Open demo',
+    })),
+    windows: OBJECTS.map((o) => ({
+      id: o.id, checkId: windowCheckId(o.id), name: o.label, detail: o.window ? `Window today: ${o.window}` : 'No window yet: to build',
+      group: o.group, open: () => openWindow(o.id), openLabel: 'Open',
+    })),
+    elements: ELEMENTS.map((e) => ({
+      id: e.id, checkId: elementCheckId(e.id), name: e.name, detail: e.use, group: e.group, open: () => setElement(e), openLabel: 'Preview',
+    })),
+  };
+  return (
+    <PageShell width="wide">
+      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+        {KINDS.map((k) => (
+          <Chip key={k.id} label={k.label} color={kind === k.id ? 'primary' : 'default'} variant={kind === k.id ? 'filled' : 'outlined'} onClick={() => setKind(k.id)} />
+        ))}
+      </Stack>
+      {kind === 'pages' ? <PagesRegistry /> : (
+        <EntryRegistry key={kind} entries={entries[kind]} labels={kind === 'windows' ? ['Standard', 'Design', 'Done'] : kind === 'templates' ? ['Demo', 'Design', 'Done'] : ['Built', 'Design', 'Done']} />
+      )}
+      <ElementDialog element={element} onClose={() => setElement(null)} />
     </PageShell>
   );
 }

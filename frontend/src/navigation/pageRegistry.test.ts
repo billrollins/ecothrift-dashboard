@@ -24,7 +24,7 @@ describe('page registry', () => {
     const brief = designBrief(receiving, 'https://dash.example');
     expect(brief).toContain('Receiving (https://dash.example/inventory/receiving)');
     expect(brief).toContain('List and detail');
-    expect(brief).toContain('/admin/design-lab?view=list-detail');
+    expect(brief).toContain('/admin/design-lab/demo/list-detail');
   });
 
   it('merges the owner\'s saved ticks and moves the next step on', () => {
@@ -40,5 +40,6 @@ describe('page registry', () => {
     expect(pageTitleFor('/inventory/vendors')).toBe('Vendors');
     expect(pageTitleFor('/admin/design-lab')).toBe('Design Lab');
     expect(pageTitleFor('/nowhere')).toBe('');
+    expect(pageTitleFor('/admin/design-lab/demo/data-table')).toBe('Orders');
   });
 });

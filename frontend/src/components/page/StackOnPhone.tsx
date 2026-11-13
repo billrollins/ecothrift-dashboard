@@ -124,8 +124,8 @@ export default function StackOnPhone({ sx, ...props }: BoxProps) {
                 },
                 '& .MuiTypography-noWrap': { whiteSpace: 'normal' },
               },
-              // The first cell is the card's title.
-              '& > tbody > tr > *:first-of-type': {
+              // The first cell is the card's title (or the next one, when the first is left out on a phone: a tick box).
+              '& > tbody > tr > *:first-of-type, & > tbody > tr > *[data-phone="hide"]:first-of-type + *': {
                 display: 'block',
                 textAlign: 'left',
                 fontWeight: 600,

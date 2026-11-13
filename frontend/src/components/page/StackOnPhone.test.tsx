@@ -64,4 +64,20 @@ describe('StackOnPhone', () => {
     const { container } = render(<Sample className="eco-no-stack" />);
     expect(cells(container).every((td) => td.dataset.label === undefined)).toBe(true);
   });
+
+  it('labels rows after a left-out first column (a tick box), so the next cell can head the card', () => {
+    const { container } = render(
+      <StackOnPhone>
+        <Table>
+          <TableHead><TableRow><TableCell data-phone="hide" /><TableCell>Title</TableCell><TableCell>Price</TableCell></TableRow></TableHead>
+          <TableBody><TableRow><TableCell><input type="checkbox" /></TableCell><TableCell>Bed frame</TableCell><TableCell>$16.50</TableCell></TableRow></TableBody>
+        </Table>
+      </StackOnPhone>,
+    );
+    const [tick, title, price] = cells(container);
+    expect(tick.dataset.phone).toBe('hide');
+    expect(title.dataset.label).toBe('Title');
+    expect(price.dataset.label).toBe('Price');
+  });
 });
+

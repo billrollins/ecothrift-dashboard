@@ -1,22 +1,22 @@
 /**
- * The Universal Surface (Dash Update #134, Bill 2026-11-13): the one window every object opens in, anywhere in Dash
- * (OOUX: one object, one surface, the same for every user). It writes down the shape the object windows already share
+ * The object window (Dash Update #134, Bill 2026-11-13): the one window every object opens in, anywhere in Dash
+ * (OOUX: one object, one window, the same for every user). It writes down the shape the object windows already share
  * (components/objects: Item, Product, Order, Vendor, Restoration; windowParts.tsx) as ten elements, in this order:
  *
- *   1 Bar        what it is: the object's icon and name, its number; Back (when one surface opened another), Full page, Close
+ *   1 Bar        what it is: the object's icon and name, its number; Back (when one window opened another), Full page, Close
  *   2 Identity   the ID with a copy button, one status, kind chips, the name, one line under it
  *   3 Numbers    up to four big numbers
  *   4 Attention  the one thing that needs doing now, if any (never more than one)
  *   5 Actions    one main button; everything else under More
  *   6 Facts      titled groups of label and value; an empty value is left out, an empty group says so
- *   7 Related    every object it is tied to; each opens its own surface in the same window (Back returns)
+ *   7 Related    every object it is tied to; each opens its own window in place (Back returns)
  *   8 Photos     the universal photo picker: take a photo, my photo drawer, a file
  *   9 Notes      who, when, what
  *  10 Timeline   what happened to it, newest first
  *
- * On a phone the surface is the whole screen: one column (Numbers, Attention, Facts, Related, Photos, Notes, Timeline)
+ * On a phone the window is the whole screen: one column (Numbers, Attention, Facts, Related, Photos, Notes, Timeline)
  * and the main button stays in reach at the bottom. No colours of its own: everything comes from the theme.
- * The catalog of objects and what each one shows: navigation/objectCatalog.ts. On show: /admin/design-lab?view=surfaces.
+ * The catalog of objects and what each one shows: navigation/objectCatalog.ts. On show: /admin/design-lab?view=windows (each opens as a real modal).
  */
 import { Box, Button, ButtonBase, IconButton, Stack, Tooltip, Typography, useMediaQuery } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
@@ -40,7 +40,7 @@ export interface SurfaceRelatedGroup {
 export interface SurfaceNote { who: string; when: string; text: string }
 export interface SurfaceEvent { when: string; label: string; detail?: string }
 
-export interface SurfaceProps {
+export interface ObjectWindowProps {
   /** 1 Bar */
   objectLabel: string;
   Icon?: IconType;
@@ -75,7 +75,7 @@ export interface SurfaceProps {
   timeline?: SurfaceEvent[];
 }
 
-/** A titled block inside the surface. */
+/** A titled block inside the window. */
 function Block({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <Box component="section" sx={{ border: 1, borderColor: 'divider', borderRadius: '12px', bgcolor: 'background.paper', p: { xs: 1.5, md: 2 }, minWidth: 0 }}>
@@ -225,7 +225,7 @@ function Timeline({ events }: { events: SurfaceEvent[] }) {
   );
 }
 
-export function UniversalSurface(props: SurfaceProps) {
+export function ObjectWindow(props: ObjectWindowProps) {
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down('sm'));
   const { Icon } = props;

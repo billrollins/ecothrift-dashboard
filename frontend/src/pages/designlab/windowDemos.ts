@@ -1,17 +1,17 @@
 /**
- * Made-up data for each object's Universal Surface in the Design Lab (navigation/objectCatalog.ts). Nothing here is
+ * Made-up data for each object's object window in the Design Lab (navigation/objectCatalog.ts). Nothing here is
  * real: it exists to judge the one surface on every object. A related block names the object it links to; its title
  * and icon come from the catalog.
  */
-import type { SurfaceProps, SurfaceLink } from '../../components/surface/UniversalSurface';
+import type { ObjectWindowProps, SurfaceLink } from '../../components/objectWindow/ObjectWindow';
 import type { ObjectId } from '../../navigation/objectCatalog';
 
 export interface DemoRelated { object: ObjectId; title?: string; total?: number; rows: SurfaceLink[] }
-export type SurfaceDemo = Omit<SurfaceProps, 'objectLabel' | 'Icon' | 'related' | 'number'> & { related?: DemoRelated[] };
+export type WindowDemo = Omit<ObjectWindowProps, 'objectLabel' | 'Icon' | 'related' | 'number'> & { related?: DemoRelated[] };
 
 const on = { tone: 'good' as const, label: 'On the floor' };
 
-export const SURFACE_DEMOS: Record<ObjectId, SurfaceDemo> = {
+export const WINDOW_DEMOS: Record<ObjectId, WindowDemo> = {
   product: {
     id: 'PRD-18342', status: { tone: 'good', label: 'Active' }, chips: ['Furniture', 'Dressers'], title: 'Walnut 6-drawer dresser',
     subtitle: 'Mid-century style · 58 x 18 x 32 in', primary: 'Edit', more: ['Merge', 'Google it', 'Print tags'],
