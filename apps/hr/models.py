@@ -642,3 +642,125 @@ class WifiPilotEvent(models.Model):
 
     def __str__(self):
         return f'{self.kind} {self.at:%Y-%m-%d %H:%M}'
+
+
+class IncidentReport(models.Model):
+    """Something that happened on site and could come up again: a customer falls, a car bumps another in the parking
+    lot, a dog bites, an upset visitor (Samantha + Bill, Dash Updates #131, 2026-11-13; the trigger was a customer who
+    wandered into the back and fell down the stairs). Any staff member files one on a phone from HR -> Incidents right
+    after it happens; managers and the owner read every report, add follow-up notes and close it.
+
+    Nothing is ever deleted. An edit keeps the old text: each change is an ``IncidentNote`` of kind ``edit`` whose
+    ``changes`` hold the old and new values.
+    """
+
+    KIND_FALL = 'fall'
+    KIND_INJURY = 'injury'
+    KIND_VEHICLE = 'vehicle'
+    KIND_ANIMAL = 'animal'
+    KIND_CONDUCT = 'conduct'
+    KIND_THEFT = 'theft'
+    KIND_DAMAGE = 'damage'
+    KIND_HEALTH = 'health'
+    KIND_OTHER = 'other'
+    KIND_CHOICES = [
+        (KIND_FALL, 'Fall or slip'),
+        (KIND_INJURY, 'Other injury'),
+        (KIND_HEALTH, 'Someone felt sick'),
+        (KIND_VEHICLE, 'Car or parking lot'),
+        (KIND_ANIMAL, 'Animal'),
+        (KIND_CONDUCT, 'Upset or unsafe behavior'),
+        (KIND_THEFT, 'Theft'),
+        (KIND_DAMAGE, 'Damage to property'),
+        (KIND_OTHER, 'Something else'),
+    ]
+
+    PLACE_CHOICES = [
+        ('sales_floor', 'Sales floor'),
+        ('checkout', 'Checkout'),
+        ('entrance', 'Entrance or doors'),
+        ('restroom', 'Restrooms'),
+        ('back', 'Back of the store (processing, Restoration)'),
+        ('break_room', 'Break room'),
+        ('stairs', 'Stairs or back hallway'),
+        ('dock', 'Loading dock or donations door'),
+        ('parking', 'Parking lot'),
+        ('outside', 'Outside or sidewalk'),
+        ('other', 'Somewhere else'),
+    ]
+
+    STATUS_OPEN = 'open'
+    STATUS_CLOSED = 'closed'
+    STATUS_CHOICES = [(STATUS_OPEN, 'Open'), (STATUS_CLOSED, 'Closed')]
+
+    occurred_at = models.DateTimeField(db_index=True)
+    kind = models.CharField(max_length=12, choices=KIND_CHOICES)
+    place = models.CharField(max_length=12, choices=PLACE_CHOICES)
+    place_detail = models.CharField(max_length=200, blank=True, default='')
+    # The spot on the store map (an "Incidents" layer pin), when the reporter marked one.
+    map_pin = models.ForeignKey(
+        'floorplan.MapPin', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    # Who was involved: [{"role": customer|visitor|staff|vendor|other, "name": "", "contact": ""}].
+    people = models.JSONField(default=list, blank=True)
+    what_happened = models.TextField()
+    injuries = models.TextField(blank=True, default='')
+    first_aid = models.BooleanField(default=False)
+    called_911 = models.BooleanField(default=False)
+    witnesses = models.TextField(blank=True, default='')
+    cameras = models.CharField(max_length=300, blank=True, default='')
+    follow_up = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=8, choices=STATUS_CHOICES, default=STATUS_OPEN, db_index=True)
+    reported_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='incident_reports',
+    )
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    closed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-occurred_at', '-id']
+
+    def __str__(self):
+        return f'Incident {self.pk}: {self.get_kind_display()} ({self.occurred_at:%Y-%m-%d})'
+
+
+class IncidentNote(models.Model):
+    """The report's history, oldest first: follow-up notes, edits (old and new text kept), closing and reopening."""
+
+    KIND_NOTE = 'note'
+    KIND_EDIT = 'edit'
+    KIND_CLOSED = 'closed'
+    KIND_REOPENED = 'reopened'
+    KIND_PHOTO = 'photo'
+    KIND_CHOICES = [
+        (KIND_NOTE, 'Note'), (KIND_EDIT, 'Edit'), (KIND_CLOSED, 'Closed'), (KIND_REOPENED, 'Reopened'),
+        (KIND_PHOTO, 'Photo added'),
+    ]
+
+    report = models.ForeignKey(IncidentReport, on_delete=models.PROTECT, related_name='notes')
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=KIND_NOTE)
+    body = models.TextField(blank=True, default='')
+    # An edit: {"field": {"old": ..., "new": ...}}.
+    changes = models.JSONField(default=dict, blank=True)
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+
+
+class IncidentPhoto(models.Model):
+    """A photo on a report (the scene, an injury, a car). Kept for good like the report."""
+
+    report = models.ForeignKey(IncidentReport, on_delete=models.PROTECT, related_name='photos')
+    file = models.ForeignKey('core.S3File', on_delete=models.PROTECT, related_name='+')
+    position = models.PositiveSmallIntegerField(default=0)
+    added_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['position', 'id']

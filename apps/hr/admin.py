@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import (
-    CallIn, Department, PayPeriodClose, ScheduledShift, Shift, ShiftAssignment, TimeEntry, TimeEntryChange,
+    CallIn, Department, IncidentNote, IncidentPhoto, IncidentReport, PayPeriodClose, ScheduledShift, Shift,
+    ShiftAssignment, TimeEntry, TimeEntryChange,
 )
 
 
@@ -60,3 +61,31 @@ class ScheduledShiftAdmin(admin.ModelAdmin):
 class CallInAdmin(admin.ModelAdmin):
     list_display = ('employee', 'shift_date', 'kind', 'called_at', 'reason', 'recorded_by')
     list_filter = ('kind',)
+
+
+class _NoDelete(admin.ModelAdmin):
+    """Incident reports are a record (#131): nothing is ever deleted, here too."""
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(IncidentReport)
+class IncidentReportAdmin(_NoDelete):
+    list_display = ('id', 'occurred_at', 'kind', 'place', 'status', 'reported_by')
+    list_filter = ('status', 'kind', 'place')
+    search_fields = ('what_happened', 'place_detail', 'witnesses')
+    raw_id_fields = ('map_pin', 'reported_by', 'closed_by')
+
+
+@admin.register(IncidentNote)
+class IncidentNoteAdmin(_NoDelete):
+    list_display = ('report', 'kind', 'author', 'created_at')
+    list_filter = ('kind',)
+    raw_id_fields = ('report', 'author')
+
+
+@admin.register(IncidentPhoto)
+class IncidentPhotoAdmin(_NoDelete):
+    list_display = ('report', 'position', 'added_by', 'created_at')
+    raw_id_fields = ('report', 'file', 'added_by')

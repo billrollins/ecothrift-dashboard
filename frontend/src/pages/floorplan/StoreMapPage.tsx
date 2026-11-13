@@ -39,6 +39,7 @@ import type { MapLayer, MapPin, PlanDocument } from '../../types/floorplan.types
 /** Where a pin that stands for a record opens that record (one line per kind of layer that has one). */
 const REF_LINKS: Record<string, { label: string; to: (id: number) => string }> = {
   'signage.sign': { label: 'Open the sign', to: (id) => `/facilities/signage?sign=${id}` },
+  'hr.incident': { label: 'Open the report', to: (id) => `/hr/incidents?report=${id}` },
 };
 
 /** What the pin dialog is doing: a new pin at a spot, or editing one. */

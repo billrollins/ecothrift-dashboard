@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.290.0] -->
-<!-- Last reviewed: 2026-11-12 (2.290.0) -->
+<!-- Line 1 release: ## [2.291.0] -->
+<!-- Last reviewed: 2026-11-12 (2.291.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.291.0] - 2026-11-12
+
+User-facing theme: **HR > Incidents: any staff member writes up an incident on site (a fall, a car in the lot, an animal, an upset visitor) on a phone right after it happens; managers and the owner follow up and close it; nothing is ever deleted (Dash Update #131).**
+
+> **For Bill:** staff file one from **HR > Incidents** (avatar menu > HR, the new **Incidents** tab) with the red **Report an incident** button. The form is one phone screen: when, what kind, where (a place list, an exact spot, and **Mark it on the store map** to drop a red pin), who was involved (customer, visitor, staff, vendor; name and phone if given), what happened, injuries and help given (first aid, 911 called), witnesses, cameras that may have it, photos, and follow-up needed. It is stamped with who sent it and when. **You get a Dash message** (the bell's Messages row) on each new report, with a line that opens it. **You and managers see every report** on the same Incidents tab (Open / Closed / All), add follow-up notes, and **Close** or **Reopen** one; staff see their own and can fix their report while it is open. An edit keeps the old text: the report's History shows "was … now …" for every change. Reports, notes and photos cannot be deleted (not in Dash, not in the Django admin). Each marked spot also shows on **Facilities > Store map** on a new **Incidents** layer (red pins, named only by kind and date) so you can see where things keep happening.
+
+### Added (#131: incident reports)
+- `hr.IncidentReport` (when, kind, place + exact spot, optional `map_pin`, people as JSON `[{role, name, contact}]`, what happened, injuries, first aid, 911, witnesses, cameras, follow-up, status open/closed, reported by, closed by/at), `hr.IncidentNote` (history: note, edit with `changes` = old/new per field, closed, reopened, photo added) and `hr.IncidentPhoto` (`core.S3File`, up to 8). All `PROTECT`; admin has no delete. Migration `hr/0024_incident_reports`.
+- Data migration `floorplan/0009_incidents_layer` (after #130's `0008_floorplan_current_periods`): adds only the `incidents` map layer (red, `ref_type` `hr.incident`); no plan or pin is touched.
+- API `/api/hr/incidents/` (team members only): list `{can_manage, reports}` (own reports unless Manager/Admin/owner or a People grant at Manage), create (multipart with photos, or JSON), retrieve, PATCH (the reporter while open, or a manager; each changed field logged with its old value; moving the map spot replaces the pin and logs both spots), `notes/`, `photos/` (add; stream one), `close/` and `reopen/` (managers). No delete. A spot must be on a Current plan and on the map.
+- The owner notice: on each new report, a Dash staff message from the reporter to each active superuser (not to the reporter), sent after the save commits; a failed notice never loses the report.
+- Page: HR tab **Incidents** for every staff login (`HrIncidents`, `incidents/IncidentForm`, `IncidentDetailDialog`, `IncidentMap` using the shared `StoreMapView`, `AddPhoto` and `PickedPhotos`), English and Spanish. Full screen on a phone. `?report=<id>` opens a report. Fixed slots so nothing moves: the map-spot row, the form's message line, the list's status chip and counts. Store map: an Incidents pin's panel links to its report.
+- Tests: server — file and the owner's message (none to self), staff see only their own, required text and no future time, an edit keeps the old text (no line when nothing changed), notes/close/reopen rights, no delete, photos on filing and later, the map spot (pin named by kind and date only, move logged, not-Current plan and off-map refused), customers refused.
 
 ## [2.290.0] - 2026-11-12
 

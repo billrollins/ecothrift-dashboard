@@ -4,6 +4,7 @@
  * person can open its page (the same permission dials as the sidebar), so staff see Me and Schedule, managers also
  * People, Hiring and Onboarding, and the owner Time & payroll. Requests (#59) is first: every HR request in one place.
  * Its Documents section (#62, the owner) sends documents to staff to e-sign; staff sign theirs on Requests.
+ * Incidents (#131): anyone reports an incident on site; managers and the owner follow up.
  */
 import { Box, LinearProgress, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 'react';
@@ -12,6 +13,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { resolveNavItems, type NavAccessUser } from '../../navigation/navResolve';
 
 const HrRequests = lazy(() => import('./HrRequests'));
+const HrIncidents = lazy(() => import('./HrIncidents'));
 const HrDocumentsPage = lazy(() => import('../esign/HrDocumentsPage'));
 const MePage = lazy(() => import('../me/MePage'));
 const SchedulePage = lazy(() => import('../people/SchedulePage'));
@@ -47,6 +49,8 @@ export const HR_TABS: HrTab[] = [
   },
   { key: 'me', label: 'Me', sections: [{ key: 'me', label: 'Me', page: MePage }] },
   { key: 'schedule', label: 'Schedule', sections: [{ key: 'week', label: 'Schedule', page: SchedulePage }] },
+  // Incident reports (#131): every staff login files one; managers and the owner see them all.
+  { key: 'incidents', label: 'Incidents', sections: [{ key: 'all', label: 'Incidents', page: HrIncidents }] },
   {
     key: 'people',
     label: 'People',
