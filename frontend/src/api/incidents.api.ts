@@ -24,9 +24,10 @@ export interface IncidentSpot {
 
 export interface IncidentNoteDTO {
   id: number;
-  kind: 'note' | 'edit' | 'closed' | 'reopened' | 'photo';
+  kind: 'note' | 'edit' | 'closed' | 'reopened' | 'photo' | 'ai_review';
   body: string;
-  changes: Record<string, { old: unknown; new: unknown }>;
+  /** An edit: {field: {old, new}}. An AI review keeps its own shape (see IncidentReviewNoteChanges). */
+  changes: Record<string, { old: unknown; new: unknown }> | IncidentReviewNoteChanges;
   author_name: string;
   created_at: string;
 }
@@ -54,6 +55,31 @@ export interface IncidentSummary {
   note_count: number;
 }
 
+/** The boxes the AI review may tidy (#133). */
+export type IncidentTextField = 'place_detail' | 'what_happened' | 'injuries' | 'witnesses' | 'cameras' | 'follow_up';
+
+export interface IncidentReviewNoteChanges {
+  model: string;
+  done: boolean;
+  fields: Partial<Record<IncidentTextField, { old: string; new: string; choice: '' | 'kept' | 'reverted' }>>;
+  questions: { field: IncidentTextField; question: string; answer: string }[];
+}
+
+/** The report's open AI review (#133). `now` says which text the box holds: the original, the tidied, or neither. */
+export interface IncidentReview {
+  id: number;
+  created_at: string;
+  author_name: string;
+  fields: {
+    field: IncidentTextField;
+    old: string;
+    new: string;
+    choice: '' | 'kept' | 'reverted';
+    now: 'old' | 'new' | 'changed';
+  }[];
+  questions: { index: number; field: IncidentTextField; question: string; answer: string }[];
+}
+
 export interface IncidentDetail extends IncidentSummary {
   witnesses: string;
   cameras: string;
@@ -61,6 +87,7 @@ export interface IncidentDetail extends IncidentSummary {
   map_pin: (IncidentSpot & { id: number }) | null;
   photos: number[];
   notes: IncidentNoteDTO[];
+  ai_review: IncidentReview | null;
 }
 
 /** What the form sends. `map` undefined = leave the spot as it is; null = no spot. */
@@ -113,3 +140,17 @@ export const setIncidentStatus = (id: number, action: 'close' | 'reopen', note =
 
 export const getIncidentPhoto = (id: number, photoId: number) =>
   api.get<Blob>(`${BASE}/${id}/photos/${photoId}/`, { responseType: 'blob' });
+
+// AI review (#133). `lang` picks the words for the questions and the history lines.
+type Lang = 'en' | 'es';
+
+export const runIncidentReview = (id: number, lang: Lang) =>
+  api.post<IncidentDetail>(`${BASE}/${id}/ai-review/`, { lang }, { timeout: 90_000 });
+
+export const decideIncidentReview = (id: number, choice: 'keep' | 'revert', field: IncidentTextField | null, lang: Lang) =>
+  api.post<IncidentDetail & { skipped: number }>(`${BASE}/${id}/ai-review/decide/`, { choice, field, lang });
+
+export const answerIncidentReview = (id: number, index: number, answer: string, lang: Lang) =>
+  api.post<IncidentDetail>(`${BASE}/${id}/ai-review/answer/`, { index, answer, lang });
+
+export const finishIncidentReview = (id: number) => api.post<IncidentDetail>(`${BASE}/${id}/ai-review/done/`, {});

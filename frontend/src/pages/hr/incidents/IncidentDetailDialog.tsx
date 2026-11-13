@@ -21,8 +21,16 @@ import {
   useTheme,
 } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
+import AutoAwesomeRounded from '@mui/icons-material/AutoAwesomeRounded';
 import { AddPhoto } from '../../../components/photos/AddPhoto';
-import { getIncidentPhoto, type IncidentDetail, type IncidentNoteDTO } from '../../../api/incidents.api';
+import {
+  getIncidentPhoto,
+  type IncidentDetail,
+  type IncidentNoteDTO,
+  type IncidentReviewNoteChanges,
+  type IncidentTextField,
+} from '../../../api/incidents.api';
+import { IncidentReviewPanel } from './IncidentReviewPanel';
 import { IncidentSpotView } from './IncidentMap';
 import { MAX_PHOTOS } from './IncidentForm';
 import { FIELD_COPY, KIND_COPY, PLACE_COPY, ROLE_COPY, useIncidentCopy } from './incidentCopy';
@@ -82,6 +90,19 @@ function HistoryLine({ note }: { note: IncidentNoteDTO }) {
     if (field === 'map') return t('spot');
     return String(value);
   };
+  if (note.kind === 'ai_review') {
+    const review = note.changes as IncidentReviewNoteChanges;
+    return (
+      <Box data-testid="incident-history-ai_review">
+        <Typography variant="caption" color="text.secondary">
+          {at(note.created_at)} · {note.author_name} {t('aiRan')}
+        </Typography>
+        <Typography variant="body2">
+          {Object.keys(review.fields ?? {}).length} {t('aiSuggested')} · {(review.questions ?? []).length} {t('aiAsked')}
+        </Typography>
+      </Box>
+    );
+  }
   const head = note.kind === 'closed' ? t('closedIt') : note.kind === 'reopened' ? t('reopenedIt')
     : note.kind === 'edit' ? t('changed') : '';
   return (
@@ -90,7 +111,7 @@ function HistoryLine({ note }: { note: IncidentNoteDTO }) {
         {at(note.created_at)} · {note.author_name}{head ? ` ${head}` : ''}
       </Typography>
       {note.body ? <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{note.body}</Typography> : null}
-      {Object.entries(note.changes ?? {}).map(([field, change]) => (
+      {Object.entries((note.changes ?? {}) as Record<string, { old: unknown; new: unknown }>).map(([field, change]) => (
         <Typography key={field} variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
           <b>{pick(FIELD_COPY[field], field)}</b> · {t('was')}: <s>{show(field, change.old)}</s> · {t('nowIs')}: {show(field, change.new)}
         </Typography>
@@ -111,10 +132,17 @@ export interface IncidentDetailDialogProps {
   onNote: (body: string) => Promise<unknown>;
   onStatus: (action: 'close' | 'reopen') => Promise<unknown>;
   onPhotos: (files: File[]) => Promise<unknown>;
+  /** AI review (#133). */
+  reviewing: boolean;
+  onReview: () => Promise<unknown>;
+  onReviewDecide: (choice: 'keep' | 'revert', field: IncidentTextField | null) => Promise<unknown>;
+  onReviewAnswer: (index: number, answer: string) => Promise<unknown>;
+  onReviewDone: () => Promise<unknown>;
 }
 
 export function IncidentDetailDialog({
   report, loading, missing, canManage, myId, busy, onClose, onEdit, onNote, onStatus, onPhotos,
+  reviewing, onReview, onReviewDecide, onReviewAnswer, onReviewDone,
 }: IncidentDetailDialogProps) {
   const { t, pick, at } = useIncidentCopy();
   const theme = useTheme();
@@ -123,6 +151,11 @@ export function IncidentDetailDialog({
   const open = Boolean(report) || loading || missing;
   useEffect(() => setNote(''), [report?.id]);
   const canEdit = Boolean(report && (canManage || (report.reported_by === myId && report.status === 'open')));
+  const review = report?.ai_review ?? null;
+  // A box under review shows inside the review (original and tidied), not twice; one changed since shows as it is now.
+  const inReview = new Set<string>(review?.fields.filter((f) => f.now !== 'changed').map((f) => f.field) ?? []);
+  const fact = (field: IncidentTextField, label: string, value: string) =>
+    inReview.has(field) ? null : <Fact label={label} value={value} />;
 
   return (
     <Dialog open={open} onClose={onClose} fullScreen={phone} fullWidth maxWidth="sm" data-testid="incident-detail">
@@ -132,7 +165,7 @@ export function IncidentDetailDialog({
         </Box>
         {report ? <StatusChip status={report.status} /> : null}
       </DialogTitle>
-      <Box sx={{ height: 4 }}>{busy || loading ? <LinearProgress /> : null}</Box>
+      <Box sx={{ height: 4 }}>{busy || loading || reviewing ? <LinearProgress /> : null}</Box>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         {missing ? <Alert severity="info">{t('notFound')}</Alert> : null}
         {report ? (
@@ -140,7 +173,11 @@ export function IncidentDetailDialog({
             <Typography variant="body2" color="text.secondary">
               {t('happened')}: {at(report.occurred_at)} · {t('reportedBy')} {report.reported_by_name}, {at(report.created_at)}
             </Typography>
-            <Fact label={t('whereDetail')} value={report.place_detail} />
+            {review ? (
+              <IncidentReviewPanel review={review} busy={busy || reviewing} onDecide={onReviewDecide}
+                onAnswer={onReviewAnswer} onDone={onReviewDone} />
+            ) : null}
+            {fact('place_detail', t('whereDetail'), report.place_detail)}
             <Box>
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>{t('who')}</Typography>
               {report.people.length ? report.people.map((p, i) => (
@@ -149,15 +186,15 @@ export function IncidentDetailDialog({
                 </Typography>
               )) : <Typography variant="body2">{t('noPeople')}</Typography>}
             </Box>
-            <Fact label={t('what')} value={report.what_happened} />
+            {fact('what_happened', t('what'), report.what_happened)}
             <Fact label={t('injuries')} value={[
-              report.injuries,
+              inReview.has('injuries') ? '' : report.injuries,
               report.first_aid ? t('firstAid') : '',
               report.called_911 ? t('called911') : '',
             ].filter(Boolean).join('\n')} />
-            <Fact label={t('witnesses')} value={report.witnesses} />
-            <Fact label={t('cameras')} value={report.cameras} />
-            <Fact label={t('followUp')} value={report.follow_up} />
+            {fact('witnesses', t('witnesses'), report.witnesses)}
+            {fact('cameras', t('cameras'), report.cameras)}
+            {fact('follow_up', t('followUp'), report.follow_up)}
             {report.map_pin ? (
               <Box>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>{t('spot')}</Typography>
@@ -193,7 +230,14 @@ export function IncidentDetailDialog({
         ) : null}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2, flexWrap: 'wrap', gap: 1 }}>
-        {report && canEdit ? <Button onClick={onEdit} disabled={busy} data-testid="incident-edit">{t('edit')}</Button> : null}
+        {report && canEdit ? <Button onClick={onEdit} disabled={busy || reviewing} data-testid="incident-edit">{t('edit')}</Button> : null}
+        {report && canEdit ? (
+          // One width whatever it says, so nothing beside it moves while the AI works.
+          <Button onClick={() => void onReview().catch(() => undefined)} disabled={busy || reviewing}
+            startIcon={<AutoAwesomeRounded />} sx={{ minWidth: 150 }} data-testid="incident-ai-review-run">
+            {reviewing ? t('aiReviewing') : review ? t('aiReviewAgain') : t('aiReview')}
+          </Button>
+        ) : null}
         {report && canManage ? (
           report.status === 'open' ? (
             <Button color="success" variant="outlined" disabled={busy} onClick={() => void onStatus('close').catch(() => undefined)}

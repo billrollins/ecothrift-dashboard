@@ -729,16 +729,19 @@ class IncidentReport(models.Model):
 
 
 class IncidentNote(models.Model):
-    """The report's history, oldest first: follow-up notes, edits (old and new text kept), closing and reopening."""
+    """The report's history, oldest first: follow-up notes, edits (old and new text kept), closing and reopening,
+    AI reviews (#133)."""
 
     KIND_NOTE = 'note'
     KIND_EDIT = 'edit'
     KIND_CLOSED = 'closed'
     KIND_REOPENED = 'reopened'
     KIND_PHOTO = 'photo'
+    # An AI review (#133): ``changes`` hold the tidied wording and the questions (apps/hr/incident_ai.py).
+    KIND_AI_REVIEW = 'ai_review'
     KIND_CHOICES = [
         (KIND_NOTE, 'Note'), (KIND_EDIT, 'Edit'), (KIND_CLOSED, 'Closed'), (KIND_REOPENED, 'Reopened'),
-        (KIND_PHOTO, 'Photo added'),
+        (KIND_PHOTO, 'Photo added'), (KIND_AI_REVIEW, 'AI review'),
     ]
 
     report = models.ForeignKey(IncidentReport, on_delete=models.PROTECT, related_name='notes')

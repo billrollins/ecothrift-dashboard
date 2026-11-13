@@ -16,6 +16,10 @@ import { useAuth } from '../../hooks/useAuth';
 import {
   addIncidentNote,
   addIncidentPhotos,
+  answerIncidentReview,
+  decideIncidentReview,
+  finishIncidentReview,
+  runIncidentReview,
   createIncident,
   getIncident,
   getIncidents,
@@ -23,6 +27,7 @@ import {
   updateIncident,
   type IncidentDetail,
   type IncidentSummary,
+  type IncidentTextField,
   type IncidentWrite,
 } from '../../api/incidents.api';
 import { IncidentForm } from './incidents/IncidentForm';
@@ -73,7 +78,7 @@ function Row({ report, onOpen }: { report: IncidentSummary; onOpen: () => void }
 }
 
 export default function HrIncidents() {
-  const { t } = useIncidentCopy();
+  const { t, lang } = useIncidentCopy();
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
@@ -115,6 +120,18 @@ export default function HrIncidents() {
     onSuccess: refresh,
     onError: (err) => enqueueSnackbar(errorText(err, t('couldNot')), { variant: 'error' }),
   });
+  // AI review (#133): its own pending flag, so the button can say it is reviewing while the AI works.
+  const review = useMutation({
+    mutationFn: async () => (await runIncidentReview(selectedId as number, lang)).data,
+    onSuccess: refresh,
+    onError: (err) => enqueueSnackbar(errorText(err, t('couldNot')), { variant: 'error' }),
+  });
+  const decide = (choice: 'keep' | 'revert', field: IncidentTextField | null) =>
+    act.mutateAsync(async () => {
+      const res = await decideIncidentReview(selectedId as number, choice, field, lang);
+      if (res.data.skipped) enqueueSnackbar(t('aiSkipped'), { variant: 'warning' });
+      return res;
+    });
   const save = useMutation({
     mutationFn: async ({ payload, photos }: { payload: IncidentWrite; photos: File[] }) =>
       (editing ? await updateIncident(editing.id, payload) : await createIncident(payload, photos)).data,
@@ -175,6 +192,11 @@ export default function HrIncidents() {
         onNote={(body) => act.mutateAsync(() => addIncidentNote(selectedId as number, body))}
         onStatus={(action) => act.mutateAsync(() => setIncidentStatus(selectedId as number, action))}
         onPhotos={(files) => act.mutateAsync(() => addIncidentPhotos(selectedId as number, files))}
+        reviewing={review.isPending}
+        onReview={() => review.mutateAsync()}
+        onReviewDecide={decide}
+        onReviewAnswer={(index, answer) => act.mutateAsync(() => answerIncidentReview(selectedId as number, index, answer, lang))}
+        onReviewDone={() => act.mutateAsync(() => finishIncidentReview(selectedId as number))}
       />
       <IncidentForm
         open={formOpen}

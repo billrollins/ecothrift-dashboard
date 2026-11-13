@@ -75,6 +75,33 @@ const COPY = {
   notFound: { en: 'That report is not here.', es: 'Ese reporte no está aquí.' },
   spot: { en: 'Spot on the store map', es: 'Lugar en el mapa' },
   noPeople: { en: 'Nobody listed', es: 'Nadie anotado' },
+  // AI review (#133)
+  aiReview: { en: 'AI review', es: 'Revisión con IA' },
+  aiReviewing: { en: 'Reviewing…', es: 'Revisando…' },
+  aiReviewAgain: { en: 'Review again', es: 'Revisar otra vez' },
+  aiIntro: {
+    en: 'The AI tidied the wording and asked about anything missing. It does not add facts. Nothing changes until you pick; the original is always kept in the history.',
+    es: 'La IA arregló el texto y preguntó lo que falta. No agrega datos. Nada cambia hasta que elijas; el original siempre queda en el historial.',
+  },
+  aiNothing: { en: 'Nothing to tidy and no questions: the report reads well.', es: 'Nada que arreglar y sin preguntas: el reporte se entiende bien.' },
+  aiOriginal: { en: 'Original', es: 'Original' },
+  aiTidied: { en: 'Tidied', es: 'Arreglado' },
+  aiKeep: { en: 'Keep', es: 'Mantener' },
+  aiRevert: { en: 'Revert', es: 'Regresar' },
+  aiKeepAll: { en: 'Keep all', es: 'Mantener todo' },
+  aiRevertAll: { en: 'Revert all', es: 'Regresar todo' },
+  aiChangedSince: { en: 'Changed since the review: review again.', es: 'Cambió después: revisa otra vez.' },
+  aiQuestions: { en: 'Questions from the AI', es: 'Preguntas de la IA' },
+  aiQuestionsHint: { en: 'Answer what you know. Each answer is added to the report as its own line.', es: 'Contesta lo que sepas. Cada respuesta se agrega al reporte en su propia línea.' },
+  aiAnswer: { en: 'Your answer', es: 'Tu respuesta' },
+  aiSaveAnswer: { en: 'Add to report', es: 'Agregar al reporte' },
+  aiAnswered: { en: 'Added to', es: 'Agregado a' },
+  aiGoesInto: { en: 'Will be added to', es: 'Se agregará a' },
+  aiDone: { en: 'Done with the review', es: 'Terminar la revisión' },
+  aiSkipped: { en: 'Some boxes changed after the review and were left as they are.', es: 'Algunas casillas cambiaron después de la revisión y se dejaron igual.' },
+  aiRan: { en: 'ran an AI review', es: 'hizo una revisión con IA' },
+  aiSuggested: { en: 'wording changes suggested', es: 'cambios de texto sugeridos' },
+  aiAsked: { en: 'questions', es: 'preguntas' },
 } satisfies Record<string, Copy>;
 
 export const KIND_COPY: Record<IncidentKind, Copy> = {

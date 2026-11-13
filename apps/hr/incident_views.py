@@ -12,6 +12,12 @@ report. Nothing is deleted: an edit keeps the old text in the report's history.
     POST /api/hr/incidents/<id>/photos/     more photos
     GET  /api/hr/incidents/<id>/photos/<photo_id>/
     POST /api/hr/incidents/<id>/close/  and  /reopen/   managers; {note} optional
+
+AI review (#133, apps/hr/incident_ai.py), for whoever may edit the report; each takes {lang: en|es} optional:
+    POST /api/hr/incidents/<id>/ai-review/          run it; the report's ``ai_review`` holds the result
+    POST /api/hr/incidents/<id>/ai-review/decide/   {choice: keep|revert, field?}  no field = every box
+    POST /api/hr/incidents/<id>/ai-review/answer/   {index, answer}
+    POST /api/hr/incidents/<id>/ai-review/done/
 """
 import json
 import logging
@@ -27,6 +33,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsManagerOrAdmin, IsTeamMember
 from apps.core.files import save_upload, stream_s3
 
+from . import incident_ai
 from .models import IncidentNote, IncidentPhoto, IncidentReport
 
 logger = logging.getLogger(__name__)
@@ -100,6 +107,7 @@ def report_payload(row: IncidentReport, *, full: bool = True) -> dict:
                 }
                 for n in row.notes.all()
             ],
+            'ai_review': incident_ai.review_payload(row),
         })
     return out
 
@@ -257,10 +265,13 @@ class IncidentReportViewSet(viewsets.GenericViewSet):
             transaction.on_commit(lambda: notify_owner(IncidentReport.objects.select_related('reported_by').get(pk=row.pk)))
         return self._out(row.pk, status.HTTP_201_CREATED)
 
+    def _check_can_edit(self, row: IncidentReport) -> None:
+        if not self._can_manage() and not (row.reported_by_id == self.request.user.pk and row.status == row.STATUS_OPEN):
+            raise PermissionDenied('A manager edits a closed report.')
+
     def partial_update(self, request, pk=None):
         row = self.get_object()
-        if not self._can_manage() and not (row.reported_by_id == request.user.pk and row.status == row.STATUS_OPEN):
-            raise PermissionDenied('A manager edits a closed report.')
+        self._check_can_edit(row)
         current = {f: getattr(row, f) for f in EDITABLE}
         merged = {**{f: (v.isoformat() if f == 'occurred_at' else v) for f, v in current.items()}, **_form_data(request)}
         merged.pop('photos', None)
@@ -355,6 +366,49 @@ class IncidentReportViewSet(viewsets.GenericViewSet):
             row.save(update_fields=['status', 'closed_by', 'closed_at', 'updated_at'])
             IncidentNote.objects.create(report=row, kind=kind, body=note, author=request.user)
         return self._out(row.pk)
+
+    # ── AI review (#133) ──
+    def _review_call(self, request, fn):
+        row = self.get_object()
+        self._check_can_edit(row)
+        lang = 'es' if str(request.data.get('lang') or '') == 'es' else 'en'
+        try:
+            extra = fn(row, lang) or {}
+        except incident_ai.ReviewError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        out = report_payload(self.get_queryset().get(pk=row.pk))
+        return Response({**out, **extra})
+
+    def _open_review(self, row: IncidentReport) -> IncidentNote:
+        note = incident_ai.latest_review(row)
+        if note is None:
+            raise incident_ai.ReviewError('This review is finished. Run the AI review again.')
+        return note
+
+    @action(detail=True, methods=['post'], url_path='ai-review')
+    def ai_review(self, request, pk=None):
+        def run(row, lang):
+            incident_ai.run_review(row, request.user, lang=lang)
+        return self._review_call(request, run)
+
+    @action(detail=True, methods=['post'], url_path='ai-review/decide')
+    def ai_review_decide(self, request, pk=None):
+        def run(row, lang):
+            field = request.data.get('field') or None
+            skipped = incident_ai.decide(row, self._open_review(row), request.user,
+                                         choice=str(request.data.get('choice') or ''), field=field, lang=lang)
+            return {'skipped': skipped}
+        return self._review_call(request, run)
+
+    @action(detail=True, methods=['post'], url_path='ai-review/answer')
+    def ai_review_answer(self, request, pk=None):
+        return self._review_call(request, lambda row, lang: incident_ai.answer(
+            row, self._open_review(row), request.user, index=request.data.get('index'),
+            text=str(request.data.get('answer') or ''), lang=lang))
+
+    @action(detail=True, methods=['post'], url_path='ai-review/done')
+    def ai_review_done(self, request, pk=None):
+        return self._review_call(request, lambda row, lang: incident_ai.finish(self._open_review(row)))
 
     @action(detail=True, methods=['post'])
     def close(self, request, pk=None):

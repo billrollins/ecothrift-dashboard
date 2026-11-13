@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.292.0] -->
-<!-- Last reviewed: 2026-11-13 (2.292.0) -->
+<!-- Line 1 release: ## [2.293.0] -->
+<!-- Last reviewed: 2026-11-13 (2.293.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.293.0] - 2026-11-13
+
+User-facing theme: **HR > Incidents: an AI review tidies a report's wording and asks about what is missing; you keep or revert each change and answer the questions into the report (Dash Update #133).**
+
+> **For Bill:** open a report in **HR > Incidents** and tap **AI review** (next to Edit; whoever may edit the report sees it). In about 10–15 seconds a review card opens at the top. **Each box the AI tidied** (exact spot, what happened, injuries, witnesses, cameras, follow-up) shows the **Original** and the **Tidied** wording with **Keep** and **Revert**, plus **Keep all** / **Revert all**. Nothing changes until someone taps: Keep puts the tidied words in, Revert puts the original back, and every change is in the report's History with the old text ("was … now …"), so the original is never lost. **Questions from the AI** (who, when, where, injuries, witnesses, cameras, what happens next) each have an answer box: **Add to report** adds the answer to the right box as its own line, also in History. **Done with the review** closes the card; **Review again** runs a fresh one. The AI may only reword: it is told never to add a fact, and a tidied box that brings in a number the original does not have, or grows much longer, is thrown out. It runs on Spark Contributor (about $0.0004 a review); **Settings > AI** has a new row, "HR: AI review of an incident report", to switch the model. English and Spanish.
+
+### Added (#133: incident AI review)
+- `apps/hr/incident_ai.py`: `run_review` (house router `llm_complete`, purpose `INCIDENT_REVIEW`, Spark Contributor at low effort unless Settings > AI picks a model; logged to AIUsage with the user, failures too), `decide` (keep / revert one box or all; a box someone changed since the review is never overwritten: one box answers 400, "all" skips it and says so), `answer` (adds the answer to the question's box as its own line; a box in the review gets the line in both versions so Keep / Revert still work; one answer per question; refused when it would not fit), `finish`. The guard `tidy_is_safe` drops a tidied box with new numbers, an empty one, or one more than 1.4× + 60 characters longer. At most 6 questions, each tied to a box.
+- The review is kept as an `IncidentNote` of the new kind `ai_review` (`changes` = model, done, fields old/new/choice, questions with answers); a new run closes an open one. Keep, Revert and answers are ordinary `edit` notes with a short line saying where they came from. Migration `hr/0025_incident_ai_review` (the new note kind; seeds the Settings > AI purpose `INCIDENT_REVIEW`, model Spark Contributor when nobody has picked one).
+- API: `POST /api/hr/incidents/<id>/ai-review/`, `ai-review/decide/ {choice, field?}`, `ai-review/answer/ {index, answer}`, `ai-review/done/`, each with `{lang}`; same rights as editing the report. The report carries `ai_review` (the open review, each box marked `now` = old / new / changed).
+- Page: `IncidentReviewPanel` in the report dialog (boxes under review show only inside the card), the **AI review** button with a fixed width, History line "ran an AI review: N wording changes suggested · N questions". Fixed slots so nothing moves: Keep / Revert keep their width and check mark slot, the "changed since the review" line keeps its row, answer boxes are one line.
+- Tests: 11 server tests (review changes nothing, unsafe tidy dropped, Keep then Revert with the original in History, Keep all / Revert all as one edit, Revert first changes nothing, a box changed since is not overwritten, answers saved into the box and Keep still works, Done and a new run, who may run it, an AI failure changes nothing and is logged, the safety check). Browser check at phone width on local with a real Spark call.
 
 ## [2.292.0] - 2026-11-13
 
