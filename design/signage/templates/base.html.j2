@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ name }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Nunito:wght@700;800;900&display=block" rel="stylesheet">
+<style>
+/* Eco-Thrift sign family (Retail Signage, 2026-11-12). 1rem = 1 inch on a Letter sheet; larger sheets scale by width. */
+@page { size: {{ w_in }}in {{ h_in }}in; margin: 0; }
+:root {
+  --forest: #1d5424;   /* S collection --gt */
+  --green: #237a26;    /* --gd */
+  --leaf: #3f9f35;     /* --g */
+  --mint: #e7f1e3;
+  --paper: #ffffff;
+  --page: #f2f2ee;     /* --dpage */
+  --ink: #1b1f1b;
+  --muted: #6b716b;
+  --rule: #c9d3c6;
+  --sun: #f2c230;
+}
+html { font-size: {{ '%.4f' % (96 * w_in / 8.5) }}px; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: {{ w_in }}in; height: {{ h_in }}in; }
+body { background: var(--paper); color: var(--ink); font-family: 'Manrope', sans-serif;
+       -webkit-print-color-adjust: exact; print-color-adjust: exact; overflow: hidden; }
+.sheet { position: relative; width: {{ w_in }}in; height: {{ h_in }}in; overflow: hidden; }
+.num { font-family: 'Nunito', sans-serif; font-weight: 900; letter-spacing: -0.01em; }
+.label { font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; }
+{% block style %}{% endblock %}
+</style>
+</head>
+<body><div class="sheet">{% block body %}{% endblock %}</div></body>
+</html>

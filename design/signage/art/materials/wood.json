@@ -1,0 +1,13 @@
+{
+  "provider": "google",
+  "model": "gemini-3-pro-image 4:3 4K",
+  "prompt": "Straight-on photograph of a wall of reclaimed barn wood planks running horizontally and filling the entire frame edge to edge: five planks in slightly different warm brown and silver grey tones, weathered grain, old nail holes, saw marks, narrow dark gaps between the boards. Even soft daylight, true colour, sharp focus across the whole frame, the camera square to the surface. Texture only, nothing on it. No people, no hands, no faces, no text, no letters, no numbers, no logos, no signs, no stickers, no watermarks.",
+  "size": [
+    2400,
+    1792
+  ],
+  "date": "2026-11-13 12:03",
+  "seconds": 38,
+  "picked": "2026-11-13, brand board (#134): Google gemini-3-pro-image over BFL flux-2-max, both judged at 100% (BFL kraft had smudges that read as letters)",
+  "source_crop": null
+}

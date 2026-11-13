@@ -1,0 +1,52 @@
+{
+  "_sign": "S8 18+ items (Dash Update #119). Glass cases with 18+ items (crossbows, knives, non-nicotine vapes) and the 18+ shelf behind the counter. Legal memo: 18+ is a store rule for these; graphic adult items are kept out of view.",
+  "signs": {
+    "s8": {
+      "badge": "18+",
+      "h1": "18+ items",
+      "sub": "ID checked every time.",
+      "_": "[J7 customer words: \"18+ items: ID checked every time.\"]"
+    }
+  },
+  "template": "notice.html.j2",
+  "need": [
+    "18+",
+    "ID checked every time."
+  ],
+  "variants": {
+    "A-badge-5x7": {
+      "size": "5x7",
+      "sign": "s8",
+      "look": "badge",
+      "k": 1.6,
+      "badge": 1.9,
+      "h1": 0.62,
+      "sub": 0.36,
+      "logo_w": 3.2,
+      "two_up": true
+    },
+    "B-band-5x7": {
+      "size": "5x7",
+      "sign": "s8",
+      "look": "band",
+      "k": 1.6,
+      "band_h": 62,
+      "h1": 0.85,
+      "sub": 0.42,
+      "logo_w": 3.4,
+      "two_up": true
+    },
+    "C-badge-7x5": {
+      "size": "7x5",
+      "sign": "s8",
+      "look": "badge",
+      "k": 1.15,
+      "badge": 1.25,
+      "h1": 0.8,
+      "sub": 0.38,
+      "logo_w": 2.2,
+      "two_up": true,
+      "logo_bottom": true
+    }
+  }
+}

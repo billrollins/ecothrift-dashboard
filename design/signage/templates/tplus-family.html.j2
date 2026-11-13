@@ -1,0 +1,97 @@
+{% extends 'base.html.j2' %}
+{# Thrift+ explained, Family look (the store-hours family): white page, forest frame, equal mint boxes in customer order,
+   live type and vector QR only. v.panel = join | bucks | returns | one. 13 x 19 in: 1rem = 1.53 in. #}
+{% set p = (join if v.panel == 'join' else bucks if v.panel == 'bucks' else returns if v.panel == 'returns' else one) %}
+{% block style %}
+.frame { position: absolute; inset: 0.28rem; border: 0.04rem solid var(--forest); border-radius: 0.2rem;
+         display: flex; flex-direction: column; padding: 0.36rem 0.4rem 0.3rem; }
+.head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 0.2rem;
+        border-bottom: 0.015rem solid var(--rule); }
+.tp { height: 0.62rem; }
+.eco { width: 2.3rem; }
+.pill { align-self: flex-start; margin-top: 0.3rem; background: var(--green); color: #fff; font-size: 0.15rem; font-weight: 800;
+        letter-spacing: 0.12em; text-transform: uppercase; padding: 0.05rem 0.14rem; border-radius: 0.2rem; }
+h1 { text-wrap: balance; margin-top: 0.12rem; font-size: 0.86rem; font-weight: 800; line-height: 0.98; color: var(--forest); letter-spacing: -0.02em; }
+h1.long { font-size: 0.72rem; }
+.sub { margin-top: 0.1rem; font-size: 0.27rem; font-weight: 700; color: var(--ink); }
+.steps { flex: 1; min-height: 0; margin-top: 0.3rem; display: grid; gap: 0.14rem; }
+.box { background: var(--mint); border-radius: 0.12rem; padding: 0.16rem 0.22rem; display: flex; align-items: center; gap: 0.2rem; }
+.n { flex: none; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--forest); color: #fff;
+     display: flex; align-items: center; justify-content: center; font-size: 0.3rem; }
+.bt { flex: 1; }
+.bh { font-size: 0.29rem; font-weight: 800; line-height: 1.1; color: var(--forest); }
+.bx { margin-top: 0.05rem; font-size: 0.2rem; font-weight: 600; line-height: 1.25; }
+.qrbox { flex: none; text-align: center; }
+.qrbox .qr { width: 1.12rem; height: 1.12rem; display: block; }
+.qrbox .u { margin-top: 0.03rem; font-size: 0.13rem; font-weight: 800; color: var(--forest); }
+.done { margin-top: 0.14rem; background: var(--forest); color: #fff; border-radius: 0.12rem; padding: 0.14rem 0.22rem;
+        font-size: 0.22rem; font-weight: 800; text-align: center; }
+.notes { margin-top: 0.1rem; display: flex; justify-content: space-between; font-size: 0.16rem; font-weight: 700; color: var(--muted); }
+.pair { margin-top: 0.3rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.14rem; }
+.card { border-radius: 0.12rem; padding: 0.18rem 0.22rem 0.22rem; min-height: 1.55rem; }
+.card .tag { font-size: 0.14rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+.card .ch { margin-top: 0.08rem; font-size: 0.36rem; font-weight: 800; line-height: 1.05; }
+.card .ct { margin-top: 0.06rem; font-size: 0.2rem; font-weight: 600; line-height: 1.25; }
+.card.m { background: var(--forest); color: #fff; }
+.card.nm { background: var(--page); border: 0.015rem solid var(--rule); }
+.card.nm .tag { color: var(--muted); }
+.nmline { margin-top: 0.12rem; text-align: center; font-size: 0.2rem; font-weight: 800; color: var(--ink);
+          background: var(--page); border: 0.015rem solid var(--rule); border-radius: 0.12rem; padding: 0.1rem; }
+.joinrow { margin-top: 0.14rem; display: flex; align-items: center; gap: 0.24rem; border: 0.02rem solid var(--forest);
+           border-radius: 0.12rem; padding: 0.14rem 0.22rem; }
+.joinrow .qr { width: 1.0rem; height: 1.0rem; flex: none; }
+.joinrow .jt { font-size: 0.26rem; font-weight: 800; color: var(--forest); line-height: 1.15; }
+.joinrow .ju { font-size: 0.18rem; font-weight: 700; color: var(--ink); margin-top: 0.04rem; }
+.foot { margin-top: 0.22rem; padding-top: 0.14rem; border-top: 0.015rem solid var(--rule); display: flex; gap: 0.2rem; align-items: flex-end; }
+.fine { flex: 1; font-size: 0.125rem; font-weight: 600; line-height: 1.4; color: var(--ink); }
+.fine .es { margin-top: 0.04rem; color: var(--green); font-weight: 700; }
+.fine .arr { width: 0.16rem; height: 0.1rem; vertical-align: 0.005rem; }
+.tq { flex: none; text-align: center; }
+.tq .qr { width: 0.66rem; height: 0.66rem; display: block; }
+.tq div { font-size: 0.1rem; font-weight: 800; letter-spacing: 0.14em; }
+{% endblock %}
+{% block body %}
+<div class="frame">
+  <div class="head">
+    <img class="tp" src="{{ art }}/logos/thriftplus-forest.png" alt="Thrift+">
+    <img class="eco" src="{{ art }}/logos/eco-full-color.png" alt="Eco-Thrift">
+  </div>
+  <div class="pill">{{ p.label }}</div>
+  <h1{% if p.h1|length > 20 %} class="long"{% endif %}>{{ p.h1 }}</h1>
+  <div class="sub">{{ p.sub }}</div>
+
+  {% if v.panel == 'returns' %}
+  <div class="pair">
+    <div class="card m"><div class="tag">{{ p.member.tag }}</div><div class="ch">{{ p.member.h }}</div><div class="ct">{{ p.member.t }}</div></div>
+    <div class="card nm"><div class="tag">{{ p.nonmember.tag }}</div><div class="ch">{{ p.nonmember.h }}</div><div class="ct">{{ p.nonmember.t }}</div></div>
+  </div>
+  {% endif %}
+
+  <div class="steps" style="grid-template-rows: repeat({{ p.steps|length }}, minmax(0, 1fr))">
+    {% for s in p.steps %}
+    <div class="box">
+      {% if v.panel != 'returns' %}<div class="n num">{{ loop.index }}</div>{% endif %}
+      <div class="bt"><div class="bh">{{ s.h }}</div><div class="bx">{{ s.t }}</div></div>
+      {% if s.qr %}<div class="qrbox">{{ qr(s.qr) }}<div class="u">{{ s.url }}</div></div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if v.panel == 'join' %}
+  <div class="done">{{ p.done }}</div>
+  <div class="notes">{% for n in p.notes %}<span>{{ n }}</span>{% endfor %}</div>
+  {% elif v.panel == 'one' %}
+  <div class="nmline">{{ p.nonmember }}</div>
+  <div class="joinrow">{{ qr('https://ecothrift.us/join') }}<div><div class="jt">{{ join.steps[0].t }}</div><div class="ju">{{ join.steps[0].url }}</div></div></div>
+  {% endif %}
+
+  <div class="foot">
+    <div class="fine">
+      <div>{{ terms }}</div>
+      {% for f in p.fine or [] %}<div>{{ f }}</div>{% endfor %}
+      <div class="es">{{ spanish|replace('→', '')|trim }} <svg class="arr" viewBox="0 0 16 10"><path d="M0 5h13M9 1l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></div>
+    </div>
+    <div class="tq">{{ qr('https://ecothrift.us/terms') }}<div>TERMS</div></div>
+  </div>
+</div>
+{% endblock %}

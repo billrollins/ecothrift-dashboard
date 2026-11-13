@@ -1,0 +1,12 @@
+{
+  "provider": "bfl",
+  "model": "flux-2-max 2048x1536",
+  "prompt": "Documentary photograph: the back of a small one-storey retail building on an overcast afternoon. A closed corrugated steel roll-up loading dock door in a tan brick wall, a concrete dock edge with yellow-painted bumpers, an empty cracked asphalt lot in front, the edge of a galvanised chain-link fence in the near left foreground slightly out of focus. Flat grey sky, muted natural colours, eye-level 35mm lens. Quiet and empty. No vehicles. No people, no hands, no faces, no text, no letters, no numbers, no logos, no signs, no stickers, no watermarks.",
+  "size": [
+    2048,
+    1536
+  ],
+  "date": "2026-11-13 10:19",
+  "seconds": 37,
+  "picked": "2026-11-13, Theme Warning F (#124): best of xAI grok-imagine-image-2.0, OpenAI gpt-image-2, Google gemini-3-pro-image and BFL flux-2-max on the AI-slop gate at 100%"
+}

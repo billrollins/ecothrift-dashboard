@@ -1,0 +1,12 @@
+{
+  "provider": "google",
+  "model": "gemini-3-pro-image 4:3 4K",
+  "prompt": "Documentary photograph, close up: a white bullet-style CCTV security camera on a short white wall bracket, mounted high on a painted light grey concrete block wall inside a store back hallway. The camera sits in the upper right third of the frame and points down toward the lower left. Plenty of plain block wall in the left half and the bottom of the frame. Soft overcast daylight from the upper left, natural colours, shot on a 50mm lens at eye level looking slightly up, sharp focus on the camera, the wall gently soft. Real, slightly worn, ordinary. No people, no hands, no faces, no text, no letters, no numbers, no logos, no signs, no stickers, no watermarks.",
+  "size": [
+    4800,
+    3584
+  ],
+  "date": "2026-11-13 10:19",
+  "seconds": 34,
+  "picked": "2026-11-13, Theme Warning F (#124): best of xAI grok-imagine-image-2.0, OpenAI gpt-image-2, Google gemini-3-pro-image and BFL flux-2-max on the AI-slop gate at 100%"
+}

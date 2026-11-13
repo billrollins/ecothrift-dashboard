@@ -1,0 +1,293 @@
+{
+  "_sign": "S2 Thrift+ explained: a trio (Join, ThriftBucks, 3-day returns) or one sign. Dash Update #113. Replaces Thrift+ posters 1 to 3 (10-15).",
+  "_sources": "Every line is rulebook customer words (.ai/extended/thrift-plus-decisions.md, rule in brackets) unless marked (Claude): those wait on Bill.",
+  "eco": "eco-full-color.png",
+  "join": {
+    "label": "Free to join. Nothing owed.",
+    "_label": "[C1, owner 10-14]",
+    "h1": "Join Thrift+",
+    "sub": "Join on your phone in a minute.",
+    "_sub": "[J8 owner 11-03]",
+    "steps": [
+      {
+        "h": "Scan",
+        "t": "Scan this with your phone's camera.",
+        "_": "[Join QR words, J16]",
+        "qr": "https://ecothrift.us/join",
+        "url": "ecothrift.us/join"
+      },
+      {
+        "h": "Your name and phone",
+        "t": "Continue with Google, or your mobile number. We'll text you a 6-digit code.",
+        "_": "[J18]"
+      },
+      {
+        "h": "Selfie",
+        "t": "Your photo protects your ThriftBucks.",
+        "_": "[J4]"
+      },
+      {
+        "h": "Agree to the terms",
+        "t": "Read the Thrift+ terms, then tap I agree.",
+        "_": "[J5 owner 11-03]"
+      }
+    ],
+    "done": "You're a Thrift+ member. Show your member QR at the register.",
+    "_done": "[J8 owner 11-03]",
+    "notes": [
+      "No smartphone? Ask at the register.",
+      "Thrift+ is for adults 18 and older."
+    ],
+    "_notes": "(Claude) from J22 Assisted join and J1 who can join; no customer words exist for either"
+  },
+  "bucks": {
+    "label": "Once you are a member",
+    "_label": "[approved poster 2, 10-15]",
+    "h1": "Get ThriftBucks.",
+    "sub": "ThriftBucks grow as an item sits.",
+    "_sub": "[P3]",
+    "steps": [
+      {
+        "h": "Scan any tag",
+        "t": "The Thrift+ app shows its ThriftBucks.",
+        "_": "[P8: shown in the Thrift+ scanner]",
+        "qr": "https://ecothrift.us/scan",
+        "url": "ecothrift.us/scan"
+      },
+      {
+        "h": "Keep them",
+        "t": "Use them next visit at full value, within 30 days.",
+        "_": "[F1, B12]"
+      },
+      {
+        "h": "Or redeem instantly",
+        "t": "At 50% of their value, off today's price. Just tell the cashier.",
+        "_": "[B1]"
+      }
+    ],
+    "fine": [
+      "ThriftBucks on most items.",
+      "ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value.",
+      "ThriftBucks are set by Eco-Thrift, can change from day to day, and are shown in the Thrift+ scanner and at the register."
+    ],
+    "_fine": "[P1, B12, P8]"
+  },
+  "returns": {
+    "label": "Thrift+ 3-day returns",
+    "h1": "3 days to bring it back.",
+    "_h1": "[approved poster 1 line, 10-15]",
+    "sub": "Any reason, on qualifying items.",
+    "_sub": "[W1]",
+    "member": {
+      "tag": "Member",
+      "h": "3-day returns",
+      "t": "80% of what you paid, tax included, back as Thrift+ credit.",
+      "_": "[W3]"
+    },
+    "nonmember": {
+      "tag": "Non-member",
+      "h": "All sales final.",
+      "t": "Sold AS IS.",
+      "_": "[W9]"
+    },
+    "steps": [
+      {
+        "h": "How do I return it?",
+        "t": "Bring the item and your member QR or phone number to any register within 3 days.",
+        "_": "[W7]"
+      },
+      {
+        "h": "What qualifies?",
+        "t": "Items marked 3-day returns in the app and on your receipt.",
+        "_": "[A3, approved poster 3]"
+      },
+      {
+        "h": "Not returnable",
+        "t": "Items marked AS IS, or broken, damaged or heavily used after the sale.",
+        "_": "[W6, W7]"
+      }
+    ],
+    "fine": [
+      "Every item is sold AS IS. Thrift+ 3-day returns are a return privilege, not a warranty.",
+      "Thrift+ credit never expires."
+    ],
+    "_fine": "[W1, V2 exception, W3]"
+  },
+  "one": {
+    "label": "New at Eco-Thrift",
+    "h1": "Meet Thrift+",
+    "sub": "ThriftBucks, 3-day returns and more!",
+    "_sub": "[V3]",
+    "steps": [
+      {
+        "h": "Free to join. Nothing owed.",
+        "t": "Join on your phone in a minute.",
+        "_": "[C1, J8]"
+      },
+      {
+        "h": "ThriftBucks grow as an item sits.",
+        "t": "Use them next visit at full value, within 30 days. Or redeem instantly at 50%.",
+        "_": "[P3, F1, B1]"
+      },
+      {
+        "h": "3-day returns",
+        "t": "Any reason, on qualifying items. 80% back as Thrift+ credit.",
+        "_": "[W1]"
+      }
+    ],
+    "nonmember": "Non-members: All sales final. Sold AS IS.",
+    "_nonmember": "[W9]",
+    "fine": [
+      "ThriftBucks on most items.",
+      "ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value.",
+      "Every item is sold AS IS. Thrift+ 3-day returns are a return privilege, not a warranty."
+    ]
+  },
+  "terms": "Full Thrift+ terms and 3-day returns: ecothrift.us/terms, or just ask at any register.",
+  "_terms": "[approved footer, 10-15]",
+  "spanish": "En español: Thrift+ es gratis. Escanee aquí para español o visite ecothrift.us/terms →",
+  "_spanish": "[V5, every poster]",
+  "template": "tplus-family.html.j2",
+  "need": [
+    "Thrift+",
+    "ecothrift.us/terms",
+    "En español"
+  ],
+  "banned": [
+    "\\bearn",
+    "store credit",
+    "\\bpoints\\b",
+    "\\bdiscount",
+    "\\brewards?\\b(?! ?:)",
+    "(?<!not a )warrant",
+    "\\bmember price",
+    "\\bbank",
+    "instantbucks"
+  ],
+  "variants": {
+    "F1-join": {
+      "size": "poster",
+      "panel": "join",
+      "qr": [
+        "https://ecothrift.us/join",
+        "https://ecothrift.us/terms"
+      ],
+      "need": [
+        "Join Thrift+",
+        "I agree",
+        "Free to join. Nothing owed."
+      ]
+    },
+    "F2-thriftbucks": {
+      "size": "poster",
+      "panel": "bucks",
+      "qr": [
+        "https://ecothrift.us/scan",
+        "https://ecothrift.us/terms"
+      ],
+      "need": [
+        "ThriftBucks",
+        "50%",
+        "30 days",
+        "No cash value"
+      ]
+    },
+    "F3-returns": {
+      "size": "poster",
+      "panel": "returns",
+      "qr": [
+        "https://ecothrift.us/terms"
+      ],
+      "need": [
+        "3-day returns",
+        "80%",
+        "tax included",
+        "All sales final",
+        "AS IS",
+        "not a warranty"
+      ]
+    },
+    "F4-one": {
+      "size": "poster",
+      "panel": "one",
+      "qr": [
+        "https://ecothrift.us/join",
+        "https://ecothrift.us/terms"
+      ],
+      "need": [
+        "Free to join. Nothing owed.",
+        "ThriftBucks",
+        "3-day returns",
+        "No cash value",
+        "All sales final",
+        "AS IS"
+      ]
+    },
+    "S1-join": {
+      "size": "poster",
+      "panel": "join",
+      "qr": [
+        "https://ecothrift.us/join",
+        "https://ecothrift.us/terms"
+      ],
+      "need": [
+        "Join Thrift+",
+        "I agree",
+        "Free to join. Nothing owed."
+      ],
+      "template": "tplus-sky.html.j2",
+      "sky": 0
+    },
+    "S2-thriftbucks": {
+      "size": "poster",
+      "panel": "bucks",
+      "qr": [
+        "https://ecothrift.us/scan",
+        "https://ecothrift.us/terms"
+      ],
+      "need": [
+        "ThriftBucks",
+        "50%",
+        "30 days",
+        "No cash value"
+      ],
+      "template": "tplus-sky.html.j2",
+      "sky": 1
+    },
+    "S3-returns": {
+      "size": "poster",
+      "panel": "returns",
+      "qr": [
+        "https://ecothrift.us/terms"
+      ],
+      "need": [
+        "3-day returns",
+        "80%",
+        "tax included",
+        "All sales final",
+        "AS IS",
+        "not a warranty"
+      ],
+      "template": "tplus-sky.html.j2",
+      "sky": 2
+    },
+    "S4-one": {
+      "size": "poster",
+      "panel": "one",
+      "qr": [
+        "https://ecothrift.us/join",
+        "https://ecothrift.us/terms"
+      ],
+      "need": [
+        "Free to join. Nothing owed.",
+        "ThriftBucks",
+        "3-day returns",
+        "No cash value",
+        "All sales final",
+        "AS IS"
+      ],
+      "template": "tplus-sky.html.j2",
+      "sky": 1
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{% extends 'warn-base.html.j2' %}
+{# E: Stop red. Full-bleed signal red, white Poppins: caps headline, a white disc with the pictogram cut in red, lines
+   split by short white bars, reversed white logo. Colours: #C8102E, white. #}
+{% import 'warn-icons.html.j2' as ic %}
+{% set s = signs[v.sign] %}
+{% block fonts %}family=Poppins:wght@600;900{% endblock %}
+{% block style %}
+:root { --r: #C8102E; }
+body { font-family: 'Poppins', sans-serif; color: #fff; background: var(--r); }
+.sheet { background: var(--r); display: flex; flex-direction: column; align-items: center; text-align: center; padding: {{ v.pad or 0.6 }}rem 0.5rem 0.5rem; }
+.grow { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.pic { width: {{ v.pic or 2.9 }}rem; height: {{ v.pic or 2.9 }}rem; flex: none; margin-bottom: {{ v.pic_m or 0.4 }}rem; }
+h1 { font-weight: 900; font-size: {{ v.h1 or 1.15 }}rem; line-height: 0.98; text-transform: uppercase; letter-spacing: -0.01em; }
+.lines { margin-top: {{ v.lines_m or 0.35 }}rem; display: flex; flex-direction: column; align-items: center; }
+.line { font-weight: 600; font-size: {{ v.line or 0.4 }}rem; line-height: 1.2; }
+.sep { width: 0.5rem; height: 0.045rem; background: #fff; margin: {{ v.sep_m or 0.16 }}rem 0; }
+.logo { width: {{ v.logo_w or 2.6 }}rem; flex: none; }
+{% endblock %}
+{% block body %}
+<div class="grow">
+  {{ ic.pictogram(s.icon, '#ffffff', '#C8102E', 'solid') }}
+  <h1>{% for l in s.h1_lines %}{{ l }}{% if not loop.last %}<br>{% endif %}{% endfor %}</h1>
+  <div class="lines">{% for l in s.lines %}{% if not loop.first %}<div class="sep"></div>{% endif %}<div class="line">{{ l }}</div>{% endfor %}</div>
+</div>
+<img class="logo" src="{{ art }}/logos/eco-full-white.png" alt="Eco-Thrift">
+{% endblock %}

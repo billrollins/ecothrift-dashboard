@@ -1,0 +1,32 @@
+{
+  "_sign": "S5 Returns and AS IS at each register (Dash Update #117). Customers see it before they pay (legal memo Q12: signs at the register and on the floor, then the receipt).",
+  "_replaces": "Nothing: the old 'Register sign' in Signage (row 4) is the Department Days promo of Nov 2 to 7 (expired), not a returns sign.",
+  "spanish": "En español: Thrift+ es gratis. Escanee aquí para español o visite ecothrift.us/terms →",
+  "signs": {
+    "s5": {
+      "label": "Before you pay",
+      "_label": "(Claude)",
+      "h1": "Returns",
+      "pair": [
+        {"style": "dark", "tag": "Thrift+ member", "h": "3-day returns", "t": "Any reason, on qualifying items. 80% of what you paid, tax included, back as Thrift+ credit.", "_": "[W1, W3]"},
+        {"style": "light", "tag": "Non-member", "h": "All sales final.", "t": "Sold AS IS.", "_": "[W9]"}
+      ],
+      "qrs": [
+        {"url": "https://ecothrift.us/join", "h": "Free to join. Nothing owed.", "u": "ecothrift.us/join", "_": "[C1, J16]"},
+        {"url": "https://ecothrift.us/terms", "h": "Full terms", "u": "ecothrift.us/terms", "_": "[W8]"}
+      ],
+      "fine": ["Every item is sold AS IS. Thrift+ 3-day returns are a return privilege, not a warranty."],
+      "_fine": "[W1, V2 exception: the register sheet]",
+      "spanish": true
+    }
+  },
+  "template": "notice.html.j2",
+  "need": ["3-day returns", "80%", "tax included", "All sales final", "AS IS", "not a warranty", "ecothrift.us/terms"],
+  "banned": ["\\bearn", "store credit", "\\bdiscount", "(?<!not a )warrant", "\\bguest\\b"],
+  "qr": ["https://ecothrift.us/join", "https://ecothrift.us/terms"],
+  "variants": {
+    "A-frame-landscape": {"size": "letter-land", "sign": "s5", "look": "frame", "k": 0.8, "h1": 0.8, "logo_w": 2.6},
+    "B-band-landscape": {"size": "letter-land", "sign": "s5", "look": "band", "k": 0.8, "band_h": 24, "h1": 0.8},
+    "C-frame-portrait": {"size": "letter", "sign": "s5", "look": "frame", "stack": true, "h1": 0.95, "logo_w": 3.0}
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "_sign": "S10 Employees only (Dash Update #120): every door from the floor to the back (Processing, Restoration, Testing, offices, break rooms, security room). A printed informational sign (ADA 216.3: non-glare, high contrast; print on matte or luster, not gloss). S24 ELECTRICAL ROOM rides along, only if there is a panel room (IFC 2024 603.4.1).",
+  "signs": {
+    "s10": {
+      "h1": "Employees only",
+      "_": "(Jes / list S10)"
+    },
+    "s24": {
+      "h1": "ELECTRICAL ROOM",
+      "_": "[IFC 2024 603.4.1: \"ELECTRICAL ROOM\" or similar approved wording]",
+      "accent": "ink"
+    }
+  },
+  "template": "notice.html.j2",
+  "variants": {
+    "A-frame-7x5": {
+      "size": "7x5",
+      "sign": "s10",
+      "look": "frame",
+      "k": 1.15,
+      "h1": 0.92,
+      "logo_w": 2.4,
+      "logo_bottom": true,
+      "two_up": true,
+      "need": [
+        "Employees only"
+      ]
+    },
+    "B-band-7x5": {
+      "size": "7x5",
+      "sign": "s10",
+      "look": "band",
+      "k": 1.15,
+      "band_h": 62,
+      "h1": 1.0,
+      "logo_w": 2.4,
+      "two_up": true,
+      "need": [
+        "Employees only"
+      ]
+    },
+    "C-frame-5x7": {
+      "size": "5x7",
+      "sign": "s10",
+      "look": "frame",
+      "k": 1.6,
+      "h1": 0.62,
+      "logo_w": 3.2,
+      "logo_bottom": true,
+      "two_up": true,
+      "need": [
+        "Employees only"
+      ]
+    },
+    "D-electrical-7x5": {
+      "size": "7x5",
+      "sign": "s24",
+      "look": "frame",
+      "k": 1.15,
+      "h1": 0.85,
+      "logo_w": 2.2,
+      "logo_bottom": true,
+      "two_up": true,
+      "need": [
+        "ELECTRICAL ROOM"
+      ]
+    }
+  }
+}

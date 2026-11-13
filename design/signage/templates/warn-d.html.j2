@@ -1,0 +1,34 @@
+{% extends 'warn-base.html.j2' %}
+{# D: Quiet notice. Black and white only, Zilla Slab, flush left on a wide margin, open white, a heavy top rule,
+   hairline list, a small thin line icon top right, small ink logo bottom left. Colours: #000, #fff, #6B6B6B. #}
+{% import 'warn-icons.html.j2' as ic %}
+{% set s = signs[v.sign] %}
+{% block fonts %}family=Zilla+Slab:wght@500;600;700{% endblock %}
+{% block style %}
+:root { --k: #000; --g: #6B6B6B; --m: {{ v.margin or 1.35 }}rem; }
+body { font-family: 'Zilla Slab', serif; color: var(--k); }
+.toprule { position: absolute; left: 0; right: 0; top: 0; height: 3%; background: var(--k); }
+.col { position: absolute; left: var(--m); right: 0.75rem; top: 3%; bottom: 0; display: flex; flex-direction: column; padding-top: {{ v.pad or 0.75 }}rem; }
+.hdr { display: flex; justify-content: space-between; align-items: flex-start; }
+.lab { font-weight: 600; font-size: {{ v.lab or 0.26 }}rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--g); padding-top: 0.06rem; }
+.pic { width: {{ v.pic or 1.05 }}rem; height: {{ v.pic or 1.05 }}rem; flex: none; }
+h1 { margin-top: {{ v.h1_m or 0.35 }}rem; font-weight: 700; font-size: {{ v.h1 or 1.3 }}rem; line-height: 0.98; letter-spacing: -0.015em; }
+.hair { height: 0.018rem; background: var(--k); margin-top: {{ v.hair_m or 0.5 }}rem; }
+.list .i { font-weight: 500; font-size: {{ v.line or 0.36 }}rem; line-height: 1.2; padding: {{ v.i_pad or 0.16 }}rem 0;
+           border-bottom: 0.012rem solid var(--g); }
+.list .i:last-child { border-bottom: 0; }
+.space { flex: 1; }
+.sign { border-top: 0.012rem solid var(--g); padding: 0.18rem 0 {{ v.bottom or 0.55 }}rem; }
+.sign img { height: {{ v.logo_h or 0.5 }}rem; width: auto; display: block; }
+{% endblock %}
+{% block body %}
+<div class="toprule"></div>
+<div class="col">
+  <div class="hdr"><div class="lab">{{ s.label }}</div>{% if s.icon == 'noentry' %}{{ ic.noentry('#000000', '#000000', 'line') }}{% else %}{{ ic.camera('#000000', None, 'line') }}{% endif %}</div>
+  <h1>{% for l in s.h1_lines %}{{ l }}{% if loop.last %}.{% else %}<br>{% endif %}{% endfor %}</h1>
+  <div class="hair"></div>
+  <div class="list">{% for l in s.lines %}<div class="i">{{ l }}</div>{% endfor %}</div>
+  <div class="space"></div>
+  <div class="sign"><img src="{{ art }}/logos/eco-full-ink.png" alt="Eco-Thrift"></div>
+</div>
+{% endblock %}

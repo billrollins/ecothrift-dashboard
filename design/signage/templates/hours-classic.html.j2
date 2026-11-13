@@ -1,0 +1,36 @@
+{% extends 'base.html.j2' %}
+{# A. Classic: white page, thin forest frame, the logo, two blocks (open days, closed day). #}
+{% block style %}
+.frame { position: absolute; inset: 0.42rem; border: 0.06rem solid var(--forest); border-radius: 0.28rem;
+         display: flex; flex-direction: column; align-items: center; padding: 0.7rem 0.6rem 0.55rem; }
+.logo { width: 5.4rem; }
+.label { margin-top: 0.55rem; font-size: 0.3rem; color: var(--green); }
+.blocks { flex: 1; width: 100%; display: flex; flex-direction: column; justify-content: center; gap: 0.42rem; }
+.block { text-align: center; }
+.days { font-size: 0.56rem; font-weight: 800; line-height: 1.1; }
+.time { margin-top: 0.08rem; font-size: 1.12rem; line-height: 1; color: var(--forest); white-space: nowrap; }
+.time .to { font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 0.42rem; color: var(--ink); margin: 0 0.12rem; vertical-align: 0.26rem; }
+.closed { margin-top: 0.06rem; font-size: 0.8rem; line-height: 1; color: var(--muted); }
+.rule { width: 3.2rem; height: 0.03rem; background: var(--rule); margin: 0 auto; }
+.foot { font-size: 0.3rem; font-weight: 700; color: var(--forest); }
+{% endblock %}
+{% block body %}
+<div class="frame">
+  <img class="logo" src="{{ art }}/logos/eco-full-color.png" alt="Eco-Thrift">
+  <div class="label">{{ label }}</div>
+  <div class="blocks">
+    <div class="block">
+      <div class="days">{{ hours.open_range }}</div>
+      <div class="time num">{{ hours.open }}<span class="to">to</span>{{ hours.close }}</div>
+    </div>
+    <div class="rule"></div>
+    {% for d in hours.closed_days %}
+    <div class="block">
+      <div class="days">{{ d }}</div>
+      <div class="closed num">Closed</div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="foot">{{ site }}</div>
+</div>
+{% endblock %}

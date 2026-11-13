@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.300.1] -->
-<!-- Last reviewed: 2026-11-13 (2.300.1) -->
+<!-- Line 1 release: ## [2.300.2] -->
+<!-- Last reviewed: 2026-11-13 (2.300.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.300.2] - 2026-11-13
+
+User-facing theme: **The store-sign sources and the sign brand board are saved with the app in `design/signage/`, files only (Dash Update #142; signs work #111 to #134).**
+
+> **For Bill:** the brand board every new store sign is built from (logo, colours, materials, type, pictograms, the Spanish footer, Warning A on a real door) is now kept with the app at `design/signage/brand-board.png`, together with the sign list, the sign samples so far (hours, Thrift+, register returns, AS IS, 18+, Employees only, the Warning looks) and the required-notices and trespass research. The board's logo section now names the new vector logo files. Nothing in Dash or on the website changes.
+
+### Added (sign sources, Dash Update #142)
+- `design/signage/` from the Retail Signage lane (8 commits, 58 files, no app code): `signs.md` (the full sign list), `copy/*.json` (sign words, Spanish under `es`), `templates/*.html.j2` (hours, Thrift+ Family and Sky, notice, Warning looks A to F, the brand board, the pictogram set), `art/` (logo PNGs, kraft, wood and denim plates, the Thrift+ sky, two wall photos, Warning photo plates, each photo with a JSON sidecar) and `research/` (Nebraska / Omaha required notices, trespass).
+- `design/signage/tools/`: `build.py` (copy + template to vector PDF through headless Edge, a 600 dpi flat PDF for the Canon PRO-100, a PNG preview and checks), `mockup.py` (a sign on a wall photo at true scale) and `brand_board.py` (Warning A, its door mock-up, then the board). They run from `workspace/signage/.venv` (jinja2, pymupdf, pillow, numpy, opencv-python-headless, qrcode).
+- `design/signage/brand-board.md` and `brand-board.png` (150 dpi, rebuilt on this branch): sign brand board v1. Section 1 points the logo at the vector masters in `design/brand/logo/` (`svg/` for builds, `pdf/` for print; v2.300.1) instead of `art/logos/*.png`. The templates still use `art/logos/eco-full-*.png` (21 places).
 
 ## [2.300.1] - 2026-11-13
 

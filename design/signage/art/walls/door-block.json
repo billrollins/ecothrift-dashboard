@@ -1,0 +1,46 @@
+{
+  "provider": "google",
+  "model": "gemini-3-pro-image 4:3 4K",
+  "prompt": "Documentary photograph, straight-on at eye level: a plain closed steel back-room door painted light grey, set in a white painted concrete block wall in the back hallway of a small store. The door and its frame are centred and square to the camera, the whole door visible from the floor to above the frame, plain wall on both sides, a strip of sealed concrete floor at the bottom. Even ceiling light, natural colours, 35mm lens, sharp focus. Ordinary and clean. No people, no hands, no faces, no text, no letters, no numbers, no logos, no signs, no stickers, no watermarks.",
+  "size": [
+    3200,
+    2389
+  ],
+  "date": "2026-11-13 12:03",
+  "seconds": 43,
+  "picked": "2026-11-13, brand board (#134): Google gemini-3-pro-image over BFL flux-2-max, both judged at 100% (BFL kraft had smudges that read as letters)",
+  "source_crop": null,
+  "ref": {
+    "px": [
+      [
+        1227,
+        519
+      ],
+      [
+        1977,
+        519
+      ],
+      [
+        1977,
+        2193
+      ],
+      [
+        1227,
+        2193
+      ]
+    ],
+    "in": [
+      38.4,
+      85.7
+    ]
+  },
+  "ref_top_in": 85.7,
+  "scale_note": "Scale from the 8 in concrete block courses (234.5 px at 4800 wide = 29.3 px/in). The ref is the door leaf (about 38 x 86 in; the AI door is a little oversized). Floor at the door sill.",
+  "spots": {
+    "door": {
+      "x_in": 19.2,
+      "center_h_in": 60,
+      "note": "centre of the door at 60 in"
+    }
+  }
+}

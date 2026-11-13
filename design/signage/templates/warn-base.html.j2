@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ name }}</title>
+{# Warning theme, round 2 (Dash Update #124). Each look loads its own Google font; briefs in
+   workspace/signage/theme-warning/briefs.md. 1rem = 1/8.5 of the sheet width (1 in on Letter). s = the sign's words. #}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?{% block fonts %}{% endblock %}&display=block" rel="stylesheet">
+<style>
+@page { size: {{ w_in }}in {{ h_in }}in; margin: 0; }
+html { font-size: {{ '%.4f' % (96 * w_in / 8.5) }}px; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: {{ w_in }}in; height: {{ h_in }}in; }
+body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; overflow: hidden; }
+.sheet { position: relative; width: {{ w_in }}in; height: {{ h_in }}in; overflow: hidden; }
+svg { display: block; }
+{% block style %}{% endblock %}
+</style>
+</head>
+<body><div class="sheet">{% block body %}{% endblock %}</div></body>
+</html>

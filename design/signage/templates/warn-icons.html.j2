@@ -1,0 +1,69 @@
+{# Warning theme pictograms (Dash Update #124), vector, 100 x 100 viewBox. No human figures (trespass research: never a
+   group of people). style: solid (square ends) | round (rounded strokes) | line (thin outline). #}
+
+{% macro noentry(disc, bar, style='solid', cls='pic') -%}
+<svg class="{{ cls }}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+{%- if style == 'line' %}
+  <circle cx="50" cy="50" r="45" fill="none" stroke="{{ disc }}" stroke-width="3"/>
+  <rect x="20" y="42" width="60" height="16" fill="none" stroke="{{ disc }}" stroke-width="3"/>
+{%- elif style == 'round' %}
+  <circle cx="50" cy="50" r="49" fill="{{ disc }}"/>
+  <line x1="24" y1="50" x2="76" y2="50" stroke="{{ bar }}" stroke-width="15" stroke-linecap="round"/>
+{%- else %}
+  <circle cx="50" cy="50" r="49" fill="{{ disc }}"/>
+  <rect x="17" y="40" width="66" height="20" fill="{{ bar }}"/>
+{%- endif %}
+</svg>
+{%- endmacro %}
+
+{# The CCTV camera on its own: body tilted down to the left, hood, lens, arm and wall plate. #}
+{% macro camera_glyph(c, style='solid') -%}
+{#- One silhouette: hood on top of the body (touching), lens at the front, tilted down to the left; a thick bracket from
+    under the back of the body to a wall plate centred on it. #}
+{%- if style == 'line' %}
+  <g fill="none" stroke="{{ c }}" stroke-width="2.6" stroke-linejoin="round">
+    <g transform="rotate(-15 48 38)">
+      <path d="M12 22 H84 V30 H78 V52 H18 V30 H12 Z"/>
+      <rect x="7" y="33" width="11" height="16"/>
+    </g>
+    <path d="M58 51 V68 H80"/>
+    <rect x="80" y="56" width="8" height="24"/>
+  </g>
+{%- else %}
+  {%- set r = 3 if style == 'round' else 0 %}
+  <g fill="{{ c }}">
+    <g transform="rotate(-15 48 38)">
+      <rect x="12" y="22" width="72" height="9" rx="{{ r }}"/>
+      <rect x="18" y="29" width="60" height="23" rx="{{ r * 2 }}"/>
+      <rect x="7" y="33" width="12" height="16" rx="{{ r }}"/>
+    </g>
+    <path d="M58 48 V68 H82" fill="none" stroke="{{ c }}" stroke-width="9" stroke-linejoin="{{ 'round' if r else 'miter' }}" stroke-linecap="{{ 'round' if r else 'butt' }}"/>
+    <rect x="80" y="55" width="10" height="26" rx="{{ r }}"/>
+  </g>
+{%- endif %}
+{%- endmacro %}
+
+{# Camera inside a disc (disc = None for the bare glyph). The glyph is scaled into the disc. #}
+{% macro camera(c, disc=None, style='solid', cls='pic') -%}
+<svg class="{{ cls }}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+{%- if disc %}
+  <circle cx="50" cy="50" r="49" fill="{{ disc }}"/>
+  <g transform="translate(14 13) scale(0.72)">{{ camera_glyph(c, style) }}</g>
+{%- else %}
+  {{ camera_glyph(c, style) }}
+{%- endif %}
+</svg>
+{%- endmacro %}
+
+{# ANSI Z535 safety alert symbol: triangle with an exclamation mark. #}
+{% macro alert(tri, mark, cls='alert') -%}
+<svg class="{{ cls }}" viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg">
+  <path d="M50 2 L98 88 H2 Z" fill="{{ tri }}" stroke="{{ tri }}" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M44 30 H56 L54 62 H46 Z" fill="{{ mark }}"/>
+  <circle cx="50" cy="74" r="6.5" fill="{{ mark }}"/>
+</svg>
+{%- endmacro %}
+
+{% macro pictogram(icon, fg, bg, style='solid', cls='pic') -%}
+{%- if icon == 'noentry' %}{{ noentry(fg, bg, style, cls) }}{% else %}{{ camera(bg, fg, style, cls) }}{% endif -%}
+{%- endmacro %}

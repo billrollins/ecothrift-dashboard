@@ -1,0 +1,39 @@
+{% extends 'warn-base.html.j2' %}
+{# A: Safety label. ANSI Z535 three-panel: orange signal band, ruled panels, Barlow Condensed, everything left-aligned,
+   small ink logo as a maker's mark;
+   the Spanish footer line on the left (brand board #134). Colours: #FF7A00, #111111, white. #}
+{% import 'warn-icons.html.j2' as ic %}
+{% set s = signs[v.sign] %}
+{% block fonts %}family=Barlow+Condensed:wght@600;700&family=Barlow:wght@500{% endblock %}
+{% block style %}
+:root { --or: #FF7A00; --k: #111111; --rule: {{ v.rule or 0.07 }}rem; }
+body { font-family: 'Barlow Condensed', sans-serif; color: var(--k); }
+.label { position: absolute; inset: {{ v.inset or 0.4 }}in; border: var(--rule) solid var(--k); display: flex; flex-direction: column; }
+.band { flex: none; height: {{ v.band or 14 }}%; background: var(--or); border-bottom: var(--rule) solid var(--k);
+        display: flex; align-items: center; gap: 0.28rem; padding: 0 0.4rem; }
+.band .alert { height: 64%; width: auto; }
+.band .sig { font-weight: 700; font-size: {{ v.sig or 1.25 }}rem; letter-spacing: 0.05em; line-height: 1; padding-top: 0.04rem; }
+.head { flex: none; padding: {{ v.head_pad or 0.3 }}rem 0.4rem; border-bottom: var(--rule) solid var(--k); }
+.head h1 { font-weight: 700; font-size: {{ v.h1 or 1.6 }}rem; line-height: 0.9; text-transform: uppercase; letter-spacing: 0.005em; }
+.row { flex: 1; min-height: 0; display: grid; grid-template-columns: {{ v.sym_col or 40 }}% 1fr; border-bottom: var(--rule) solid var(--k); }
+.sym { border-right: var(--rule) solid var(--k); display: flex; align-items: center; justify-content: center; padding: 0.35rem; }
+.sym .pic { width: 100%; height: auto; max-height: 100%; }
+.msg { display: flex; flex-direction: column; }
+.msg .r { flex: 1; display: flex; align-items: center; padding: 0.1rem 0.32rem; font-weight: 600; font-size: {{ v.line or 0.5 }}rem;
+          line-height: 1.05; border-bottom: {{ (v.rule or 0.07) * 0.4 }}rem solid var(--k); }
+.msg .r:last-child { border-bottom: 0; }
+.foot { flex: none; height: {{ v.foot or 8 }}%; display: flex; align-items: center; justify-content: flex-end; gap: 0.3rem; padding: 0 0.4rem; }
+.foot .es { flex: 1; font-family: 'Barlow', sans-serif; font-weight: 500; font-size: {{ v.es or 0.27 }}rem; line-height: 1.15; }
+.foot img { height: 52%; width: auto; }
+{% endblock %}
+{% block body %}
+<div class="label">
+  <div class="band">{{ ic.alert('#111111', '#FF7A00') }}<div class="sig">{{ s.signal }}</div></div>
+  <div class="head"><h1>{% for l in s.h1_lines %}{{ l }}{% if not loop.last %}<br>{% endif %}{% endfor %}</h1></div>
+  <div class="row">
+    <div class="sym">{{ ic.pictogram(s.icon, '#111111', '#ffffff', 'solid') }}</div>
+    <div class="msg">{% for l in s.lines %}<div class="r">{{ l }}</div>{% endfor %}</div>
+  </div>
+  <div class="foot">{% if s.es %}<div class="es" lang="es">{{ s.es }}</div>{% endif %}<img src="{{ art }}/logos/eco-full-ink.png" alt="Eco-Thrift"></div>
+</div>
+{% endblock %}

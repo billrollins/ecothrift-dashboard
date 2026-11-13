@@ -1,0 +1,144 @@
+{
+  "_sign": "Eco-Thrift sign brand board v1 (Dash Update #134). Build with tools/brand_board.py (it renders Warning A and the wall mock-up first). Rules: brand-board.md. Contrast is WCAG, against white (#FFFFFF) or ink (#1B1F1B) type; 4.5:1 for text, 3:1 for big words only.",
+  "template": "brand-board.html.j2",
+  "need": [
+    "another chance for everything",
+    "Prohibido el paso",
+    "Sign brand board"
+  ],
+  "palette": [
+    {
+      "name": "Green",
+      "role": "The brand: the logo, Staff and Thrift+",
+      "colors": [
+        {
+          "name": "Forest",
+          "hex": "#1D5424",
+          "rgb": "29 84 36",
+          "on": "#FFFFFF",
+          "text": "white 9.0:1",
+          "edge": false
+        },
+        {
+          "name": "Leaf",
+          "hex": "#3F9F35",
+          "rgb": "63 159 53",
+          "on": "#FFFFFF",
+          "text": "white, big words only 3.4:1",
+          "edge": false
+        },
+        {
+          "name": "Mint",
+          "hex": "#E7F1E3",
+          "rgb": "231 241 227",
+          "on": "#1B1F1B",
+          "text": "ink 14.4:1",
+          "edge": true
+        }
+      ]
+    },
+    {
+      "name": "Brown",
+      "role": "Thrift and reuse, from the kraft and the wood: Customer",
+      "colors": [
+        {
+          "name": "Bark",
+          "hex": "#4B3424",
+          "rgb": "75 52 36",
+          "on": "#FFFFFF",
+          "text": "white 11.6:1",
+          "edge": false
+        },
+        {
+          "name": "Kraft",
+          "hex": "#B98E65",
+          "rgb": "185 142 101",
+          "on": "#1B1F1B",
+          "text": "ink 5.7:1",
+          "edge": false
+        },
+        {
+          "name": "Oat",
+          "hex": "#F1E8DA",
+          "rgb": "241 232 218",
+          "on": "#1B1F1B",
+          "text": "ink 13.7:1",
+          "edge": true
+        }
+      ]
+    },
+    {
+      "name": "Blue",
+      "role": "Calm and clear, from the denim and the sky: Information",
+      "colors": [
+        {
+          "name": "Denim",
+          "hex": "#22406B",
+          "rgb": "34 64 107",
+          "on": "#FFFFFF",
+          "text": "white 10.4:1",
+          "edge": false
+        },
+        {
+          "name": "Sky",
+          "hex": "#92B6D0",
+          "rgb": "146 182 208",
+          "on": "#1B1F1B",
+          "text": "ink 7.8:1",
+          "edge": false
+        },
+        {
+          "name": "Mist",
+          "hex": "#E6EFF5",
+          "rgb": "230 239 245",
+          "on": "#1B1F1B",
+          "text": "ink 14.3:1",
+          "edge": true
+        }
+      ]
+    },
+    {
+      "name": "Neutral",
+      "role": "Words and paper: every theme",
+      "colors": [
+        {
+          "name": "Ink",
+          "hex": "#1B1F1B",
+          "rgb": "27 31 27",
+          "on": "#FFFFFF",
+          "text": "white 16.7:1",
+          "edge": false
+        },
+        {
+          "name": "Stone",
+          "hex": "#6B716B",
+          "rgb": "107 113 107",
+          "on": "#FFFFFF",
+          "text": "white 5.0:1",
+          "edge": false
+        },
+        {
+          "name": "Page",
+          "hex": "#F2F2EE",
+          "rgb": "242 242 238",
+          "on": "#1B1F1B",
+          "text": "ink 14.9:1",
+          "edge": true
+        },
+        {
+          "name": "Paper",
+          "hex": "#FFFFFF",
+          "rgb": "255 255 255",
+          "on": "#1B1F1B",
+          "text": "ink 16.7:1",
+          "edge": true
+        }
+      ]
+    }
+  ],
+  "variants": {
+    "board": {
+      "size": "tabloid-land"
+    }
+  }
+}

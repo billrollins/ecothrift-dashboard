@@ -1,11 +1,12 @@
-v2.300.1 — Brand: the Eco-Thrift logo as vector master files
+v2.300.2 — Brand: sign sources and the sign brand board saved in design/signage
 
-User-facing theme: **The Eco-Thrift logo as vector master files: 23 versions in SVG, PDF, EPS and PNG, made from the designer's original and Bill's 2025 update (Dash Update #134).**
+User-facing theme: **The store-sign sources and the sign brand board are saved with the app in `design/signage/`, files only (Dash Update #142; signs work #111 to #134).**
 
-> **For Bill:** `design/brand/logo/` (and your OneDrive Brand folder, "Vector Logo 2026-11-13"). The main logo, the logo with the store line, the leaf mark, the words alone and the 2021 stacked logo, each in colour, colour on dark, black, white and forest green. The README says which file to use where. Nothing in Dash or on the website uses them yet.
+> **For Bill:** the brand board every new store sign is built from (logo, colours, materials, type, pictograms, the Spanish footer, Warning A on a real door) is now kept with the app at `design/signage/brand-board.png`, together with the sign list, the sign samples so far (hours, Thrift+, register returns, AS IS, 18+, Employees only, the Warning looks) and the required-notices and trespass research. The board's logo section now names the new vector logo files. Nothing in Dash or on the website changes.
 
-### Added (brand, Dash Update #134)
-- `design/brand/logo/`: the leaf mark and the 2021 wordmark translated exactly from the designer's Illustrator file (every shape and both gradients). Bill's 2025 lockup is rebuilt from his GIMP file in the real fonts: Varela Round with GIMP's synthetic bold (each edge widened by 1/48 em), Crimson Pro Bold and Montserrat Bold. Each piece is placed by its ink in that file, within 2.5 px (0.1 mm) at 600 dpi. All filled paths: no fonts, strokes or pictures inside. EPS files are level 3, so the gradients stay vector.
-- `design/brand/logo/tools/make.py` rebuilds `svg/`, `pdf/`, `eps/` and `png/` in about 30 seconds (Edge from `docs/machines.md`, PyMuPDF from the sign tool venv); `source/` keeps the designer's AI file.
+### Added (sign sources, Dash Update #142)
+- `design/signage/` from the Retail Signage lane (8 commits, 58 files, no app code): `signs.md` (the full sign list), `copy/*.json` (sign words, Spanish under `es`), `templates/*.html.j2` (hours, Thrift+ Family and Sky, notice, Warning looks A to F, the brand board, the pictogram set), `art/` (logo PNGs, kraft, wood and denim plates, the Thrift+ sky, two wall photos, Warning photo plates, each photo with a JSON sidecar) and `research/` (Nebraska / Omaha required notices, trespass).
+- `design/signage/tools/`: `build.py` (copy + template to vector PDF through headless Edge, a 600 dpi flat PDF for the Canon PRO-100, a PNG preview and checks), `mockup.py` (a sign on a wall photo at true scale) and `brand_board.py` (Warning A, its door mock-up, then the board). They run from `workspace/signage/.venv` (jinja2, pymupdf, pillow, numpy, opencv-python-headless, qrcode).
+- `design/signage/brand-board.md` and `brand-board.png` (150 dpi, rebuilt on this branch): sign brand board v1. Section 1 points the logo at the vector masters in `design/brand/logo/` (`svg/` for builds, `pdf/` for print; v2.300.1) instead of `art/logos/*.png`. The templates still use `art/logos/eco-full-*.png` (21 places).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

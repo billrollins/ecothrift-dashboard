@@ -1,0 +1,32 @@
+{% extends 'base.html.j2' %}
+{# B. Green band: forest band on top (white logo, the open days), the time large on white, Closed Sunday as a grey bar. #}
+{% block style %}
+.band { position: absolute; left: 0; right: 0; top: 0; height: 47%; background: var(--forest); color: #fff;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0.6rem; }
+.logo { width: 5rem; }
+.open { margin-top: 0.5rem; font-size: 0.68rem; font-weight: 800; line-height: 1.08; text-align: center; }
+.pill { margin-top: 0.36rem; background: var(--sun); color: var(--forest); font-size: 0.3rem; font-weight: 800;
+        letter-spacing: 0.06em; text-transform: uppercase; padding: 0.09rem 0.26rem; border-radius: 0.3rem; }
+.lower { position: absolute; left: 0; right: 0; top: 47%; bottom: 0; display: flex; flex-direction: column;
+         align-items: center; justify-content: center; padding: 0.5rem 0.6rem 0.75rem; gap: 0.38rem; }
+.label { font-size: 0.3rem; color: var(--green); }
+.time { font-size: 1.2rem; line-height: 1; color: var(--forest); white-space: nowrap; }
+.time .to { font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 0.44rem; color: var(--ink); margin: 0 0.12rem; vertical-align: 0.28rem; }
+.closedbar { background: var(--page); border: 0.02rem solid var(--rule); border-radius: 0.16rem; padding: 0.14rem 0.42rem;
+             font-size: 0.44rem; font-weight: 800; color: var(--ink); }
+.closedbar span { color: var(--muted); }
+.foot { position: absolute; left: 0; right: 0; bottom: 0.5rem; text-align: center; font-size: 0.28rem; font-weight: 700; color: var(--forest); }
+{% endblock %}
+{% block body %}
+<div class="band">
+  <img class="logo" src="{{ art }}/logos/eco-full-white.png" alt="Eco-Thrift">
+  <div class="open">Open<br>{{ hours.open_range }}</div>
+  {% if v.new_monday %}<div class="pill">{{ new_monday }}</div>{% endif %}
+</div>
+<div class="lower">
+  <div class="label">{{ label }}</div>
+  <div class="time num">{{ hours.open }}<span class="to">to</span>{{ hours.close }}</div>
+  {% for d in hours.closed_days %}<div class="closedbar"><span>Closed</span> {{ d }}</div>{% endfor %}
+</div>
+<div class="foot">{{ site }}</div>
+{% endblock %}

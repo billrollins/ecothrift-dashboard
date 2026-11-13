@@ -1,0 +1,98 @@
+{
+  "_sign": "S6 Sold AS IS (floor) and S7 Clothing and soft goods: All sales final (Dash Update #118), one template. Legal memo Q12: AS IS shown on signs before the sale.",
+  "spanish": "En español: Thrift+ es gratis. Escanee aquí para español o visite ecothrift.us/terms →",
+  "signs": {
+    "s6": {
+      "h1": "Every item is sold AS IS.",
+      "_h1": "[W1: every item is still sold AS IS as to its condition; W9]",
+      "pair": [
+        {
+          "style": "dark",
+          "tag": "Thrift+ member",
+          "h": "3-day returns",
+          "t": "On qualifying items.",
+          "_": "[W1]"
+        },
+        {
+          "style": "light",
+          "tag": "Non-member",
+          "h": "All sales final.",
+          "_": "[W9]"
+        }
+      ],
+      "fine": [
+        "Full terms: ecothrift.us/terms, or just ask at any register."
+      ],
+      "spanish": true
+    },
+    "s7": {
+      "label": "Clothing and soft goods",
+      "h1": "All sales final.",
+      "sub": "Sold AS IS. No Thrift+ 3-day returns.",
+      "_sub": "(Claude) from W6: clothing and soft goods do not qualify (the owner's 10-14 guide while the AI does not mark items)",
+      "fine": [
+        "Full terms: ecothrift.us/terms, or just ask at any register."
+      ],
+      "spanish": true
+    }
+  },
+  "template": "notice.html.j2",
+  "need": [
+    "AS IS",
+    "All sales final"
+  ],
+  "banned": [
+    "\\bearn",
+    "store credit",
+    "(?<!not a )warrant",
+    "\\bguest\\b"
+  ],
+  "variants": {
+    "S6-A-frame": {
+      "size": "letter-land",
+      "sign": "s6",
+      "look": "frame",
+      "k": 0.8,
+      "h1": 0.72,
+      "logo_w": 2.6,
+      "need": [
+        "3-day returns"
+      ]
+    },
+    "S6-B-band": {
+      "size": "letter-land",
+      "sign": "s6",
+      "look": "band",
+      "k": 0.8,
+      "band_h": 30,
+      "h1": 0.7,
+      "need": [
+        "3-day returns"
+      ]
+    },
+    "S7-A-frame": {
+      "size": "letter-land",
+      "sign": "s7",
+      "look": "frame",
+      "k": 0.8,
+      "h1": 1.05,
+      "sub": 0.4,
+      "logo_w": 2.6,
+      "need": [
+        "Clothing"
+      ]
+    },
+    "S7-B-band": {
+      "size": "letter-land",
+      "sign": "s7",
+      "look": "band",
+      "k": 0.8,
+      "band_h": 62,
+      "h1": 0.95,
+      "sub": 0.38,
+      "need": [
+        "Clothing"
+      ]
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "_sign": "S1 Store hours (front door). Dash Update #112.",
+  "_sources": {
+    "hours": "Live from https://ecothrift.us/api/webstore/config/ (Dash setting online_sales.hours) at build time. 2026-11-12: 9 AM - 6 PM, Monday - Saturday, Closed Sunday.",
+    "site": "Dash public_base_url",
+    "new_monday": "Jes 11-11: the hours sign must show the store is open Mondays now too."
+  },
+  "hours": "live",
+  "label": "Store hours",
+  "title": "Store hours",
+  "site": "ecothrift.us",
+  "new_monday": "Now open Mondays",
+  "new_tag": "Now open",
+  "template": "hours-classic.html.j2",
+  "need": ["Monday", "Sunday", "Closed", "9 AM", "6 PM", "ecothrift.us"],
+  "variants": {
+    "A-classic-letter": {"size": "letter", "template": "hours-classic.html.j2"},
+    "B-band-letter": {"size": "letter", "template": "hours-band.html.j2", "new_monday": true, "need": ["Now open Mondays"]},
+    "C-week-letter": {"size": "letter", "template": "hours-week.html.j2", "new_monday": true},
+    "C-week-tabloid": {"size": "tabloid", "template": "hours-week.html.j2", "new_monday": true}
+  }
+}

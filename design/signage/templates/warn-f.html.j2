@@ -1,0 +1,33 @@
+{% extends 'warn-base.html.j2' %}
+{# F: Real place. Photo-led: a real photograph of the sign's subject fills the top of the sheet and fades into a
+   near-black panel; Archivo words flush left, one leaf-green bar, white logo bottom left. Plates in art/warning/ (each
+   with a JSON sidecar: provider, model, prompt). Colours: #141414, white, #C9C9C9, #3F9F35. #}
+{% set s = signs[v.sign] %}
+{% block fonts %}family=Archivo:wght@500;800{% endblock %}
+{% block style %}
+:root { --panel: #141414; --leaf: #3F9F35; --photo: {{ v.photo_h or 56 }}%; }
+body { font-family: 'Archivo', sans-serif; background: var(--panel); color: #fff; }
+.sheet { background: var(--panel); }
+.photo { position: absolute; left: 0; right: 0; top: 0; height: var(--photo); background: url('{{ art }}/warning/{{ s.photo }}') {{ v.pos or 'center' }} / cover no-repeat; }
+.fade { position: absolute; left: 0; right: 0; top: calc(var(--photo) * 0.62); height: calc(var(--photo) * 0.38 + 1px);
+        background: linear-gradient(to bottom, rgba(20,20,20,0) 0%, rgba(20,20,20,0.55) 45%, rgba(20,20,20,0.92) 80%, #141414 100%); }
+.panel { position: absolute; left: 0.6rem; right: 0.6rem; top: calc(var(--photo) - {{ v.lift or 0.9 }}rem); bottom: 0.5rem;
+         display: flex; flex-direction: column; }
+.bar { width: 0.9rem; height: 0.09rem; background: var(--leaf); }
+h1 { margin-top: 0.18rem; font-weight: 800; font-size: {{ v.h1 or 1.0 }}rem; line-height: 0.98; letter-spacing: -0.02em; }
+.lines { margin-top: {{ v.lines_m or 0.3 }}rem; }
+.line { font-weight: 500; font-size: {{ v.line or 0.36 }}rem; line-height: 1.32; color: #C9C9C9; }
+.space { flex: 1; }
+.logo { width: {{ v.logo_w or 2.3 }}rem; display: block; }
+{% endblock %}
+{% block body %}
+<div class="photo"></div>
+<div class="fade"></div>
+<div class="panel">
+  <div class="bar"></div>
+  <h1>{% for l in s.h1_lines %}{{ l }}{% if not loop.last %}<br>{% endif %}{% endfor %}</h1>
+  <div class="lines">{% for l in s.lines %}<div class="line">{{ l }}</div>{% endfor %}</div>
+  <div class="space"></div>
+  <img class="logo" src="{{ art }}/logos/eco-full-white.png" alt="Eco-Thrift">
+</div>
+{% endblock %}

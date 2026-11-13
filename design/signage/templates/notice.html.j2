@@ -1,0 +1,81 @@
+{% extends 'base.html.j2' %}
+{# Family notice: the store-hours family (white page, forest frame, Manrope / Nunito, Eco-Thrift logo) for policy and
+   door signs: #117 register returns, #118 AS IS floor and clothing, #119 18+ items, #120 Employees only.
+   The copy picks the parts: s = the sign's words (copy[v.sign]); v.look = frame | band | badge. 1rem = width / 8.5. #}
+{% set s = signs[v.sign] %}
+{% set k = v.k or 1 %}
+{% block style %}
+.frame { position: absolute; inset: {{ 0.42 * k }}rem; border: {{ 0.06 * k }}rem solid var(--{{ s.accent or 'forest' }});
+         border-radius: {{ 0.28 * k }}rem; display: flex; flex-direction: column; align-items: center;
+         padding: {{ 0.42 * k }}rem {{ 0.5 * k }}rem {{ 0.34 * k }}rem; text-align: center; }
+.band { position: absolute; left: 0; right: 0; top: 0; height: {{ v.band_h or 38 }}%; background: var(--{{ s.accent or 'forest' }}); color: #fff;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; padding: {{ 0.3 * k }}rem; text-align: center; }
+.body { position: absolute; left: 0; right: 0; top: {{ v.band_h or 38 }}%; bottom: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; padding: {{ 0.3 * k }}rem {{ 0.5 * k }}rem {{ 0.4 * k }}rem; text-align: center; }
+.logo { width: {{ (v.logo_w or 3.2) * k }}rem; }
+.label { font-size: {{ 0.24 * k }}rem; color: var(--green); margin-bottom: {{ 0.08 * k }}rem; }
+.band .label { color: #fff; opacity: 0.85; }
+h1 { font-size: {{ (v.h1 or 0.9) * k }}rem; font-weight: 800; line-height: 1.02; color: var(--{{ s.accent or 'forest' }}); letter-spacing: -0.015em; text-wrap: balance; }
+.band h1 { color: #fff; }
+.sub { margin-top: {{ 0.1 * k }}rem; font-size: {{ (v.sub or 0.34) * k }}rem; font-weight: 700; line-height: 1.2; text-wrap: balance; }
+.grow { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; justify-content: center; gap: {{ 0.2 * k }}rem; }
+.pair { display: grid; grid-template-columns: {% if v.stack %}1fr{% else %}1fr 1fr{% endif %}; gap: {{ 0.16 * k }}rem; width: 100%; text-align: left; }
+.card { border-radius: {{ 0.14 * k }}rem; padding: {{ 0.18 * k }}rem {{ 0.24 * k }}rem; }
+.card .tag { font-size: {{ 0.15 * k }}rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+.card .ch { margin-top: {{ 0.06 * k }}rem; font-size: {{ (v.ch or 0.38) * k }}rem; font-weight: 800; line-height: 1.05; }
+.card .ct { margin-top: {{ 0.06 * k }}rem; font-size: {{ (v.ct or 0.21) * k }}rem; font-weight: 600; line-height: 1.25; }
+.card.dark { background: var(--forest); color: #fff; }
+.card.light { background: var(--page); border: {{ 0.015 * k }}rem solid var(--rule); }
+.card.light .tag { color: var(--muted); }
+.line { font-size: {{ (v.line or 0.24) * k }}rem; font-weight: 700; line-height: 1.3; text-wrap: balance; }
+.badge { flex: none; width: {{ (v.badge or 2.2) * k }}rem; height: {{ (v.badge or 2.2) * k }}rem; border-radius: 50%; border: {{ 0.12 * k }}rem solid var(--{{ s.accent or 'forest' }});
+         display: flex; align-items: center; justify-content: center; color: var(--{{ s.accent or 'forest' }}); font-size: {{ (v.badge or 2.2) * 0.42 * k }}rem; margin: 0 auto; }
+.qrrow { display: flex; gap: {{ 0.3 * k }}rem; justify-content: center; align-items: center; text-align: left; }
+.qrrow .q { display: flex; align-items: center; gap: {{ 0.14 * k }}rem; }
+.qrrow .qr { width: {{ (v.qr or 0.9) * k }}rem; height: {{ (v.qr or 0.9) * k }}rem; flex: none; }
+.qrrow .qh { font-size: {{ 0.2 * k }}rem; font-weight: 800; color: var(--forest); line-height: 1.15; }
+.qrrow .qu { font-size: {{ 0.16 * k }}rem; font-weight: 700; }
+.fine { margin-top: {{ 0.12 * k }}rem; font-size: {{ (v.fine or 0.15) * k }}rem; font-weight: 600; line-height: 1.35; color: var(--ink); }
+.fine .es { color: var(--green); font-weight: 700; }
+.fine .arr { width: {{ 0.18 * k }}rem; height: {{ 0.11 * k }}rem; }
+.foot { margin-top: {{ 0.16 * k }}rem; }
+{% endblock %}
+
+{% macro parts() %}
+  {% if s.pair %}<div class="pair">{% for c in s.pair %}<div class="card {{ c.style }}">{% if c.tag %}<div class="tag">{{ c.tag }}</div>{% endif %}<div class="ch">{{ c.h }}</div>{% if c.t %}<div class="ct">{{ c.t }}</div>{% endif %}</div>{% endfor %}</div>{% endif %}
+  {% for l in s.lines or [] %}<div class="line">{{ l }}</div>{% endfor %}
+  {% if s.qrs and not v.no_qr %}<div class="qrrow">{% for q in s.qrs %}<div class="q">{{ qr(q.url) }}<div><div class="qh">{{ q.h }}</div><div class="qu">{{ q.u }}</div></div></div>{% endfor %}</div>{% endif %}
+{% endmacro %}
+{% macro fine() %}
+  {% if (s.fine or s.spanish) and not v.no_fine %}<div class="fine">{% for f in s.fine or [] %}<div>{{ f }}</div>{% endfor %}{% if s.spanish %}<div class="es">{{ spanish|replace('→', '')|trim }} <svg class="arr" viewBox="0 0 16 10"><path d="M0 5h13M9 1l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></div>{% endif %}</div>{% endif %}
+{% endmacro %}
+
+{% block body %}
+{% if v.look == 'band' %}
+<div class="band">
+  {% if s.label %}<div class="label">{{ s.label }}</div>{% endif %}
+  <h1>{{ s.h1 }}</h1>
+  {% if s.sub %}<div class="sub">{{ s.sub }}</div>{% endif %}
+</div>
+<div class="body">
+  <div class="grow">{{ parts() }}</div>
+  {{ fine() }}
+  <img class="logo foot" src="{{ art }}/logos/eco-full-color.png" alt="Eco-Thrift">
+</div>
+{% else %}
+<div class="frame">
+  {% if not v.logo_bottom %}<img class="logo" src="{{ art }}/logos/eco-full-color.png" alt="Eco-Thrift">{% endif %}
+  <div class="grow">
+    {% if v.look == 'badge' %}<div class="badge num">{{ s.badge }}</div>{% endif %}
+    <div>
+      {% if s.label %}<div class="label">{{ s.label }}</div>{% endif %}
+      <h1>{{ s.h1 }}</h1>
+      {% if s.sub %}<div class="sub">{{ s.sub }}</div>{% endif %}
+    </div>
+    {{ parts() }}
+  </div>
+  {{ fine() }}
+  {% if v.logo_bottom %}<img class="logo foot" src="{{ art }}/logos/eco-full-color.png" alt="Eco-Thrift">{% endif %}
+</div>
+{% endif %}
+{% endblock %}

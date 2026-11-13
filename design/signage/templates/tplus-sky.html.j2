@@ -1,0 +1,118 @@
+{% extends 'base.html.j2' %}
+{# Thrift+ explained, Sky look: the approved 10-15 poster language (sky plate across the top, white logo bar, green
+   cards left, the real app in a phone on the right, footer strip), rebuilt with today's rules. 13 x 19 in: 1rem = 1.53 in.
+   The sky is one panorama for the wall of three (sky_trio.jpg, 5850 x 1230): each poster shows its third (v.sky = 0, 1, 2).
+   No CSS masks (Chrome rasterises them at 72 dpi): the fade into the page is a vector gradient laid over the photo. #}
+{% set p = (join if v.panel == 'join' else bucks if v.panel == 'bucks' else returns if v.panel == 'returns' else one) %}
+{% set shot = 'scan_lamp.png' if v.panel in ('join', 'one') else 'tag_lamp.png' %}
+{% block style %}
+body { background: var(--page); }
+.sky { position: absolute; left: 0; right: 0; top: 0; height: 4.3rem; overflow: hidden; }
+.sky img { position: absolute; top: 0; height: 100%; width: 300%; left: {{ -100 * (v.sky or 0) }}%; object-fit: cover; }
+.sky .fade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(242,242,238,0) 35%, rgba(242,242,238,0.75) 72%, #f2f2ee 100%); }
+.bar { position: absolute; left: 0.24rem; right: 0.24rem; top: 0.22rem; height: 0.66rem; background: #fff; border-radius: 0.16rem;
+       box-shadow: 0 0.02rem 0.08rem rgba(0,0,0,0.12); display: flex; align-items: center; justify-content: space-between; padding: 0 0.26rem; }
+.bar .tp { height: 0.5rem; }
+.bar .eco { width: 2.1rem; }
+.left { position: absolute; left: 0.34rem; width: 4.85rem; top: 1.18rem; bottom: 1.42rem; display: flex; flex-direction: column; }
+.pill { align-self: flex-start; background: var(--green); color: #fff; font-size: 0.14rem; font-weight: 800; letter-spacing: 0.12em;
+        text-transform: uppercase; padding: 0.05rem 0.14rem; border-radius: 0.2rem; }
+h1 { margin-top: 0.1rem; font-size: 0.74rem; font-weight: 800; line-height: 0.98; color: var(--forest); letter-spacing: -0.02em; text-wrap: balance; }
+h1.long { font-size: 0.6rem; }
+.sub { margin-top: 0.1rem; font-size: 0.22rem; font-weight: 700; }
+.stack { flex: 1; min-height: 0; margin-top: 0.26rem; background: var(--leaf); border-radius: 0.16rem; color: #fff;
+         display: grid; padding: 0.06rem 0.22rem; }
+.step { display: flex; align-items: center; gap: 0.18rem; border-bottom: 0.012rem solid rgba(255,255,255,0.35); }
+.step:last-child { border-bottom: none; }
+.n { flex: none; width: 0.44rem; height: 0.44rem; border-radius: 50%; background: #fff; color: var(--forest);
+     display: flex; align-items: center; justify-content: center; font-size: 0.26rem; }
+.sh { font-size: 0.25rem; font-weight: 800; line-height: 1.1; }
+.st { margin-top: 0.04rem; font-size: 0.17rem; font-weight: 600; line-height: 1.25; }
+.step .qr { width: 0.86rem; height: 0.86rem; flex: none; border-radius: 0.04rem; }
+.qrc { flex: none; text-align: center; font-size: 0.11rem; font-weight: 800; }
+.pair { margin-top: 0.26rem; display: grid; gap: 0.12rem; }
+.card { border-radius: 0.16rem; padding: 0.16rem 1.0rem 0.16rem 0.22rem; position: relative; overflow: hidden; }
+.card.m { background: var(--leaf); color: #fff; }
+.card.nm { background: #fff; }
+.card .ch { font-size: 0.34rem; font-weight: 800; line-height: 1.05; }
+.card .ct { margin-top: 0.05rem; font-size: 0.18rem; font-weight: 600; line-height: 1.25; }
+.ribbon { position: absolute; right: -0.42rem; top: 0.2rem; transform: rotate(38deg); width: 1.9rem; text-align: center;
+          font-size: 0.13rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; padding: 0.04rem 0; }
+.card.m .ribbon { background: #fff; color: var(--forest); }
+.card.nm .ribbon { background: var(--ink); color: #fff; }
+.boxes { margin-top: 0.16rem; display: grid; gap: 0.1rem; flex: 1; min-height: 0; }
+.wb { background: #fff; border-radius: 0.12rem; padding: 0.1rem 0.18rem; display: flex; flex-direction: column; justify-content: center; }
+.wb .sh { color: var(--forest); font-size: 0.2rem; }
+.wb .st { color: var(--ink); font-size: 0.15rem; }
+.phone { position: absolute; right: 0.34rem; top: 1.18rem; width: 2.82rem; height: 6.1rem; background: #1d211d; border-radius: 0.42rem;
+         padding: 0.09rem; box-shadow: 0 0.06rem 0.2rem rgba(0,0,0,0.25); }
+.phone .scr { width: 100%; height: 100%; border-radius: 0.34rem; overflow: hidden; background: #fff; }
+.phone img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+.under { position: absolute; right: 0.34rem; width: 2.82rem; top: 7.46rem; bottom: 1.42rem; display: flex; flex-direction: column; gap: 0.12rem; }
+.qcard { background: #fff; border-radius: 0.14rem; padding: 0.14rem; display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; }
+.qcard .qr { width: 1.5rem; height: 1.5rem; }
+.qcard .qt { margin-top: 0.06rem; font-size: 0.2rem; font-weight: 800; color: var(--forest); text-align: center; line-height: 1.15; }
+.qcard .qu { font-size: 0.15rem; font-weight: 700; }
+.note { background: #fff; border-radius: 0.12rem; padding: 0.1rem 0.14rem; font-size: 0.15rem; font-weight: 700; text-align: center; }
+.done { background: var(--forest); color: #fff; border-radius: 0.12rem; padding: 0.12rem 0.16rem; font-size: 0.18rem; font-weight: 800; text-align: center; }
+.foot { position: absolute; left: 0.34rem; right: 0.34rem; bottom: 0.3rem; height: 0.96rem; padding-top: 0.12rem;
+        border-top: 0.015rem solid var(--rule); display: flex; gap: 0.2rem; align-items: flex-end; }
+.night .fade { background: linear-gradient(180deg, rgba(242,242,238,0) 58%, rgba(242,242,238,0.8) 82%, #f2f2ee 100%); }
+.night-type h1, .night-type .sub { color: #fff; text-shadow: 0 0.01rem 0.06rem rgba(0,0,0,0.35); }
+.fine { flex: 1; font-size: 0.12rem; font-weight: 600; line-height: 1.4; }
+.fine .es { margin-top: 0.03rem; color: var(--green); font-weight: 700; }
+.fine .arr { width: 0.16rem; height: 0.1rem; }
+.tq { flex: none; text-align: center; }
+.tq .qr { width: 0.66rem; height: 0.66rem; display: block; }
+.tq div { font-size: 0.1rem; font-weight: 800; letter-spacing: 0.14em; }
+{% endblock %}
+{% block body %}
+<div class="sky{% if v.sky == 2 %} night{% endif %}"><img src="{{ art }}/thriftplus/sky_trio.jpg" alt=""><div class="fade"></div></div>
+<div class="bar"><img class="tp" src="{{ art }}/logos/thriftplus-forest.png" alt="Thrift+"><img class="eco" src="{{ art }}/logos/eco-full-color.png" alt="Eco-Thrift"></div>
+
+<div class="left{% if v.sky == 2 %} night-type{% endif %}">
+  <div class="pill">{{ p.label }}</div>
+  <h1{% if p.h1|length > 20 %} class="long"{% endif %}>{{ p.h1 }}</h1>
+  <div class="sub">{{ p.sub }}</div>
+  {% if v.panel == 'returns' %}
+  <div class="pair">
+    <div class="card m"><div class="ribbon">{{ p.member.tag }}</div><div class="ch">{{ p.member.h }}</div><div class="ct">{{ p.member.t }}</div></div>
+    <div class="card nm"><div class="ribbon">{{ p.nonmember.tag }}</div><div class="ch">{{ p.nonmember.h }}</div><div class="ct">{{ p.nonmember.t }}</div></div>
+  </div>
+  <div class="boxes" style="grid-template-rows: repeat(3, minmax(0, 1fr))">
+    {% for s in p.steps %}<div class="wb"><div class="sh">{{ s.h }}</div><div class="st">{{ s.t }}</div></div>{% endfor %}
+  </div>
+  {% else %}
+  <div class="stack" style="grid-template-rows: repeat({{ p.steps|length }}, minmax(0, 1fr))">
+    {% for s in p.steps %}
+    <div class="step"><div class="n num">{{ loop.index }}</div><div style="flex:1"><div class="sh">{{ s.h }}</div><div class="st">{{ s.t }}</div></div>
+      {% if s.qr and v.panel == 'join' %}<div class="qrc">{{ qr(s.qr) }}<div>{{ s.url }}</div></div>{% endif %}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<div class="phone"><div class="scr"><img src="{{ art }}/thriftplus/{{ shot }}" alt="The Thrift+ app"></div></div>
+<div class="under">
+  {% if v.panel == 'join' %}
+    <div class="done">{{ p.done }}</div>
+    {% for n in p.notes %}<div class="note">{{ n }}</div>{% endfor %}
+  {% elif v.panel == 'bucks' %}
+    <div class="qcard">{{ qr('https://ecothrift.us/scan') }}<div class="qt">Scan for the app</div><div class="qu">ecothrift.us/scan</div></div>
+  {% elif v.panel == 'returns' %}
+    <div class="qcard">{{ qr('https://ecothrift.us/terms') }}<div class="qt">Full terms</div><div class="qu">ecothrift.us/terms</div></div>
+  {% else %}
+    <div class="qcard">{{ qr('https://ecothrift.us/join') }}<div class="qt">{{ join.h1 }}</div><div class="qu">ecothrift.us/join</div></div>
+    <div class="note">{{ p.nonmember }}</div>
+  {% endif %}
+</div>
+
+<div class="foot">
+  <div class="fine">
+    <div>{{ terms }}</div>
+    {% for f in p.fine or [] %}<div>{{ f }}</div>{% endfor %}
+    <div class="es">{{ spanish|replace('→', '')|trim }} <svg class="arr" viewBox="0 0 16 10"><path d="M0 5h13M9 1l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></div>
+  </div>
+  <div class="tq">{{ qr('https://ecothrift.us/terms') }}<div>TERMS</div></div>
+</div>
+{% endblock %}

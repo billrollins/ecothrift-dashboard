@@ -1,0 +1,163 @@
+{
+  "_sign": "Theme: Warning, round 2 (Dash Update #124): five looks (A to E), each shown on the same two sample signs. Briefs: workspace/signage/theme-warning/briefs.md. Words: S3 and S4 in signs.md; legal rules in research/trespass.md (never 'property closed', no people, say video).",
+  "signs": {
+    "trespass": {
+      "signal": "WARNING",
+      "label": "Notice",
+      "h1": "No trespassing",
+      "h1_lines": [
+        "No",
+        "trespassing"
+      ],
+      "lines": [
+        "Private property",
+        "Employees and deliveries only",
+        "Area under video surveillance",
+        "Violators will be prosecuted"
+      ],
+      "icon": "noentry",
+      "_": "S3 (signs.md, research/trespass.md)",
+      "photo": "trespass.jpg",
+      "es": "Prohibido el paso. Propiedad privada. Área bajo videovigilancia."
+    },
+    "camera": {
+      "signal": "NOTICE",
+      "label": "Notice",
+      "h1": "You are on camera",
+      "h1_lines": [
+        "You are",
+        "on camera"
+      ],
+      "lines": [
+        "This store is under video surveillance."
+      ],
+      "icon": "camera",
+      "_": "S4 (signs.md: say video, not audio)",
+      "photo": "camera.jpg",
+      "es": "Aviso: esta tienda está bajo videovigilancia."
+    }
+  },
+  "template": "warn-a.html.j2",
+  "need": [],
+  "banned": [
+    "property closed",
+    "audio",
+    "20-156"
+  ],
+  "variants": {
+    "A-trespass": {
+      "size": "outdoor-12x18",
+      "template": "warn-a.html.j2",
+      "sign": "trespass",
+      "need": [
+        "No trespassing",
+        "Violators will be prosecuted"
+      ],
+      "h1": 1.38
+    },
+    "A-camera": {
+      "size": "letter",
+      "template": "warn-a.html.j2",
+      "sign": "camera",
+      "need": [
+        "You are on camera"
+      ]
+    },
+    "B-trespass": {
+      "size": "outdoor-12x18",
+      "template": "warn-b.html.j2",
+      "sign": "trespass",
+      "need": [
+        "No trespassing",
+        "Violators will be prosecuted"
+      ],
+      "h1": 1.28,
+      "pic": 2.6,
+      "gap": 0.3
+    },
+    "B-camera": {
+      "size": "letter",
+      "template": "warn-b.html.j2",
+      "sign": "camera",
+      "need": [
+        "You are on camera"
+      ],
+      "h1": 1.5,
+      "pic": 2.2
+    },
+    "C-trespass": {
+      "size": "outdoor-12x18",
+      "template": "warn-c.html.j2",
+      "sign": "trespass",
+      "need": [
+        "No trespassing",
+        "Violators will be prosecuted"
+      ],
+      "h1": 1.2,
+      "foot": 8.5
+    },
+    "C-camera": {
+      "size": "letter",
+      "template": "warn-c.html.j2",
+      "sign": "camera",
+      "need": [
+        "You are on camera"
+      ],
+      "foot": 9
+    },
+    "D-trespass": {
+      "size": "outdoor-12x18",
+      "template": "warn-d.html.j2",
+      "sign": "trespass",
+      "need": [
+        "No trespassing",
+        "Violators will be prosecuted"
+      ]
+    },
+    "D-camera": {
+      "size": "letter",
+      "template": "warn-d.html.j2",
+      "sign": "camera",
+      "need": [
+        "You are on camera"
+      ]
+    },
+    "E-trespass": {
+      "size": "outdoor-12x18",
+      "template": "warn-e.html.j2",
+      "sign": "trespass",
+      "need": [
+        "No trespassing",
+        "Violators will be prosecuted"
+      ]
+    },
+    "E-camera": {
+      "size": "letter",
+      "template": "warn-e.html.j2",
+      "sign": "camera",
+      "need": [
+        "You are on camera"
+      ]
+    },
+    "F-trespass": {
+      "size": "outdoor-12x18",
+      "template": "warn-f.html.j2",
+      "sign": "trespass",
+      "h1": 1.05,
+      "pos": "center 60%",
+      "need": [
+        "No trespassing",
+        "Violators will be prosecuted"
+      ]
+    },
+    "F-camera": {
+      "size": "letter",
+      "template": "warn-f.html.j2",
+      "sign": "camera",
+      "pos": "58% 20%",
+      "need": [
+        "You are on camera"
+      ]
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{% extends 'warn-base.html.j2' %}
+{# C: Good neighbour. Icon-led: a giant round pictogram, forest Nunito sentence-case words, one leaf rule, red only in the
+   trespass disc, a forest footer bar with the white logo. Colours: #1D5424, #3F9F35, #D62828, white. #}
+{% import 'warn-icons.html.j2' as ic %}
+{% set s = signs[v.sign] %}
+{% block fonts %}family=Nunito:wght@800;900{% endblock %}
+{% block style %}
+:root { --forest: #1D5424; --leaf: #3F9F35; --red: #D62828; }
+body { font-family: 'Nunito', sans-serif; color: var(--forest); }
+.top { position: absolute; left: 0; right: 0; top: 0; bottom: {{ v.foot or 7 }}%; display: flex; flex-direction: column;
+       align-items: center; text-align: center; padding: {{ v.top_pad or 0.55 }}rem 0.5rem 0.4rem; }
+.pic { width: {{ v.pic or 4.2 }}rem; height: {{ v.pic or 4.2 }}rem; flex: none; }
+.words { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+h1 { font-weight: 900; font-size: {{ v.h1 or 1.05 }}rem; line-height: 1.02; letter-spacing: -0.01em; text-wrap: balance; }
+.rule { width: 1.1rem; height: 0.07rem; border-radius: 0.04rem; background: var(--leaf); margin: {{ v.rule_m or 0.22 }}rem 0; }
+.line { font-weight: 800; font-size: {{ v.line or 0.38 }}rem; line-height: 1.5; text-wrap: balance; }
+.foot { position: absolute; left: 0; right: 0; bottom: 0; height: {{ v.foot or 7 }}%; background: var(--forest);
+        display: flex; align-items: center; justify-content: center; }
+.foot img { height: 62%; width: auto; }
+{% endblock %}
+{% block body %}
+<div class="top">
+  {{ ic.pictogram(s.icon, '#D62828' if s.icon == 'noentry' else '#1D5424', '#ffffff', 'round') }}
+  <div class="words">
+    <h1>{{ s.h1 }}</h1>
+    <div class="rule"></div>
+    {% for l in s.lines %}<div class="line">{{ l }}</div>{% endfor %}
+  </div>
+</div>
+<div class="foot"><img src="{{ art }}/logos/eco-full-white.png" alt="Eco-Thrift"></div>
+{% endblock %}

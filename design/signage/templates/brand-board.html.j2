@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ name }}</title>
+{# Eco-Thrift sign brand board v1 (Dash Update #134). Tabloid landscape. Every value here is the source of truth that
+   design/signage/brand-board.md describes; round-3 themes take their colours, type, pictograms and logo rules from it.
+   Built by tools/brand_board.py (it renders Warning A and the wall mock-up first, into this folder). #}
+{% import 'brand-icons.html.j2' as bi %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Nunito:wght@900&family=Barlow+Condensed:wght@700&family=Barlow:wght@500&family=Fraunces:opsz,wght@9..144,700&display=block" rel="stylesheet">
+<style>
+@page { size: {{ w_in }}in {{ h_in }}in; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: {{ w_in }}in; height: {{ h_in }}in; }
+body { background: #F2F2EE; color: #1B1F1B; font-family: 'Manrope', sans-serif; font-weight: 500;
+       -webkit-print-color-adjust: exact; print-color-adjust: exact; overflow: hidden; }
+svg { display: block; }
+img { display: block; }
+.board { position: absolute; inset: 0.45in; display: grid; gap: 0.2in;
+         grid-template-rows: 0.6in 3.4in 2.45in 1fr; }
+.row { display: grid; gap: 0.2in; min-height: 0; }
+.r2 { grid-template-columns: 6.2in 1fr; }
+.r3 { grid-template-columns: 1fr 6.9in; }
+.r4 { grid-template-columns: 6.2in 3.75in 1fr; }
+.card { background: #fff; border-radius: 0.12in; padding: 0.16in 0.2in 0.18in; display: flex; flex-direction: column; min-height: 0; }
+.lab { font-size: 7.5pt; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: #3F9F35; }
+h2 { font-size: 13pt; font-weight: 800; color: #1D5424; line-height: 1.15; margin: 0.02in 0 0.1in; }
+.note { font-size: 7.5pt; color: #6B716B; line-height: 1.3; }
+.body { flex: 1; min-height: 0; }
+
+/* header */
+.head { display: flex; align-items: center; gap: 0.3in; }
+.head .logo { height: 0.56in; }
+.head .t { flex: 1; border-left: 1.5pt solid #C9D3C6; padding-left: 0.3in; }
+.head h1 { font-size: 22pt; font-weight: 800; color: #1D5424; line-height: 1; }
+.head .sub { font-size: 9.5pt; color: #1B1F1B; margin-top: 0.05in; }
+.head .meta { text-align: right; font-size: 8pt; color: #6B716B; line-height: 1.4; }
+
+/* logo */
+.logo-body { display: grid; grid-template-rows: 1fr 0.82in; gap: 0.12in; }
+.anat { display: grid; grid-template-columns: 3.45in 1fr; gap: 0.2in; align-items: center; }
+.cs { position: relative; padding: 0.19in; border: 0.75pt dashed #3F9F35; background: repeating-linear-gradient(45deg, #E7F1E3 0 3pt, #fff 3pt 6pt); }
+.cs .in { background: #fff; }
+.cs img { width: 100%; }
+.cs .x { position: absolute; font-size: 7pt; font-weight: 800; color: #3F9F35; }
+.parts { display: flex; gap: 0.1in; font-size: 7pt; color: #6B716B; margin-top: 0.05in; padding: 0 0.19in; }
+.rules { font-size: 7.5pt; line-height: 1.3; }
+.rules p { margin-bottom: 0.05in; }
+.rules b { color: #1D5424; }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.1in; }
+.tile { border-radius: 0.07in; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; overflow: hidden; }
+.tile img.l { width: 76%; position: relative; }
+.tile .cap { position: absolute; left: 0.06in; bottom: 0.04in; font-size: 6.5pt; font-weight: 700; }
+.tile .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.tile .plate { position: relative; background: #fff; border-radius: 0.05in; padding: 0.06in 0.08in; width: 84%; }
+.tile .plate img { width: 100%; }
+
+/* colour */
+.fams { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.14in; flex: 1; min-height: 0; }
+.fam { display: flex; flex-direction: column; gap: 0.06in; min-height: 0; }
+.fam .fh { font-size: 8.5pt; font-weight: 800; color: #1B1F1B; }
+.fam .fr { font-size: 7pt; color: #6B716B; line-height: 1.25; height: 0.22in; }
+.sw { flex: 1; border-radius: 0.06in; padding: 0.06in 0.09in; display: flex; flex-direction: column; justify-content: space-between; }
+.sw .n { font-size: 9.5pt; font-weight: 800; display: flex; justify-content: space-between; align-items: baseline; }
+.sw .n span { font-size: 7pt; font-weight: 700; }
+.sw .v { font-size: 7pt; font-weight: 600; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.edge { box-shadow: inset 0 0 0 0.75pt #C9D3C6; }
+.signal { margin-top: 0.1in; display: flex; align-items: center; gap: 0.12in; font-size: 7.5pt; }
+.signal .chip { background: #FF7A00; color: #1B1F1B; font-weight: 800; padding: 0.04in 0.12in; border-radius: 0.05in; font-size: 8pt; }
+
+/* materials */
+.mats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.14in; flex: 1; min-height: 0; }
+.mat { display: flex; flex-direction: column; min-height: 0; }
+.mat .ph { flex: 1; border-radius: 0.07in; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
+.mat .ph > img.bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.mat .ph .pan { position: relative; padding: 0.06in 0.13in; border-radius: 0.05in; font-size: 12pt; line-height: 1.1; }
+.mat .mn { font-size: 8.5pt; font-weight: 800; margin-top: 0.06in; }
+.mat .mu { font-size: 7pt; color: #6B716B; line-height: 1.25; }
+
+/* type */
+.pairs { display: flex; flex-direction: column; gap: 0.09in; flex: 1; }
+.pair { flex: 1; display: grid; grid-template-columns: 1fr 1.75in; gap: 0.15in; align-items: center; border-top: 0.75pt solid #E3E7E1; padding-top: 0.06in; }
+.pair:first-child { border-top: 0; padding-top: 0; }
+.pair .hd { line-height: 1; color: #1D5424; }
+.pair .tx { font-size: 9pt; margin-top: 0.03in; }
+.pair .m { font-size: 7pt; color: #6B716B; line-height: 1.3; }
+.pair .m b { color: #1B1F1B; font-size: 7.5pt; }
+
+/* pictograms */
+.picts { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: 1fr 1fr; gap: 0.08in 0.12in; flex: 1; min-height: 0; }
+.pict { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 0.05in; }
+.pict svg { width: 0.56in; height: 0.56in; flex: none; }
+.pict .pe { font-size: 8.5pt; font-weight: 800; line-height: 1.1; }
+.pict .ps { font-size: 7pt; color: #6B716B; line-height: 1.15; margin-top: 0.02in; }
+
+/* spanish */
+.mini { border: 1.25pt solid #1B1F1B; border-radius: 0.04in; height: 1.0in; display: flex; flex-direction: column; overflow: hidden; }
+.mini .top { flex: 1; padding: 0.08in 0.1in; display: flex; flex-direction: column; gap: 0.05in; justify-content: center; }
+.mini .top i { display: block; height: 0.09in; background: #D9DDD7; border-radius: 0.02in; }
+.mini .top .en { font-family: 'Barlow Condensed'; font-weight: 700; font-size: 15pt; line-height: 1; }
+.mini .ft { height: 0.3in; border-top: 0.75pt solid #1B1F1B; display: flex; align-items: center; justify-content: space-between; padding: 0 0.1in; gap: 0.08in; }
+.mini .ft .es { font-family: 'Barlow'; font-weight: 500; font-size: 7pt; line-height: 1.15; }
+.mini .ft img { height: 0.15in; }
+ol.sp { margin-top: 0.1in; padding-left: 0.16in; font-size: 7.5pt; line-height: 1.3; }
+ol.sp li { margin-bottom: 0.035in; }
+
+/* family member */
+.fm { display: grid; grid-template-columns: 1.33in 1fr; gap: 0.16in; flex: 1; min-height: 0; }
+.fm .sign { display: flex; flex-direction: column; }
+.fm .sign img { width: 100%; box-shadow: 0 0.02in 0.08in rgba(0,0,0,0.18); }
+.fm .wall { position: relative; border-radius: 0.07in; overflow: hidden; }
+.fm .wall img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 45%; }
+.fm .cap { font-size: 7pt; color: #6B716B; line-height: 1.25; margin-top: 0.06in; }
+.fm .wcap { position: absolute; left: 0.07in; bottom: 0.06in; right: 0.07in; background: rgba(255,255,255,0.92); border-radius: 0.04in; padding: 0.04in 0.07in; font-size: 7pt; line-height: 1.25; }
+</style>
+</head>
+<body>
+{% set A = art %}
+<div class="board">
+
+  <div class="head">
+    <img class="logo" src="{{ A }}/logos/eco-full-color.png" alt="Eco-Thrift">
+    <div class="t">
+      <h1>Sign brand board</h1>
+      <div class="sub">One foundation for every store sign: Customer, Information, Warning, Staff and Thrift+.</div>
+    </div>
+    <div class="meta">Version 1 · Nov 13, 2026<br>Dash Update #134 · design/signage/brand-board.md</div>
+  </div>
+
+  <div class="row r2">
+    <div class="card">
+      <div class="lab">Logo</div>
+      <h2>Leaf mark, wordmark, tagline. Always together on a sign.</h2>
+      <div class="body logo-body">
+        <div class="anat">
+          <div>
+            <div class="cs"><div class="in"><img src="{{ A }}/logos/eco-full-color.png" alt="Eco-Thrift"></div>
+              <span class="x" style="left:0.07in;top:50%;transform:translateY(-50%)">x</span>
+              <span class="x" style="right:0.07in;top:50%;transform:translateY(-50%)">x</span>
+              <span class="x" style="top:0.02in;left:50%">x</span>
+              <span class="x" style="bottom:0.01in;left:50%">x</span>
+            </div>
+            <div class="parts"><span style="width:0.95in;text-align:center">Leaf mark</span><span style="flex:1;text-align:center">Wordmark, with the tagline under it</span></div>
+          </div>
+          <div class="rules">
+            <p><b>Tagline:</b> another chance for everything &amp; everyone. Lower case, as drawn.</p>
+            <p><b>Clear space:</b> x on every side, x = one quarter of the logo's height.</p>
+            <p><b>Smallest:</b> the full logo 2 in wide. Smaller than that, use the leaf mark alone, 0.5 in or more.</p>
+            <p><b>Never</b> stretch it, recolour it, or set it on a busy photo without a plate.</p>
+          </div>
+        </div>
+        <div class="tiles">
+          <div class="tile edge" style="background:#fff"><img class="l" src="{{ A }}/logos/eco-full-color.png" alt=""><span class="cap" style="color:#6B716B">On light: full colour</span></div>
+          <div class="tile" style="background:#1D5424"><img class="l" src="{{ A }}/logos/eco-full-white.png" alt=""><span class="cap" style="color:#E7F1E3">On dark: white</span></div>
+          <div class="tile edge" style="background:#fff"><img class="l" src="{{ A }}/logos/eco-full-ink.png" alt=""><span class="cap" style="color:#6B716B">One colour: ink</span></div>
+          <div class="tile"><img class="bg" src="{{ A }}/materials/kraft.jpg" alt=""><div class="plate"><img src="{{ A }}/logos/eco-full-color.png" alt=""></div><span class="cap" style="color:#1B1F1B">On photo: on a plate</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="lab">Colour</div>
+      <h2>Green, brown and blue, with four neutrals. Exact values.</h2>
+      <div class="fams">
+        {% for fam in palette %}
+        <div class="fam">
+          <div class="fh">{{ fam.name }}</div>
+          <div class="fr">{{ fam.role }}</div>
+          {% for c in fam.colors %}
+          <div class="sw{% if c.edge %} edge{% endif %}" style="background:{{ c.hex }};color:{{ c.on }}">
+            <div class="n">{{ c.name }}<span>{{ c.text }}</span></div>
+            <div class="v">{{ c.hex }} · RGB {{ c.rgb }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+      <div class="signal"><span class="chip">Signal #FF7A00</span><span>Safety orange, RGB 255 122 0: Warning signs only, never decoration. Ink type on it.</span></div>
+    </div>
+  </div>
+
+  <div class="row r3">
+    <div class="card">
+      <div class="lab">Materials</div>
+      <h2>Real thrift textures. Words always sit on a solid panel.</h2>
+      <div class="mats">
+        <div class="mat"><div class="ph"><img class="bg" src="{{ A }}/materials/kraft.jpg" alt=""><div class="pan" style="background:#1D5424;color:#fff;font-family:Nunito;font-weight:900">Housewares</div></div>
+          <div class="mn">Kraft cardboard</div><div class="mu">Customer: department and price headers</div></div>
+        <div class="mat"><div class="ph"><img class="bg" src="{{ A }}/materials/wood.jpg" alt=""><div class="pan" style="background:#fff;color:#1D5424;font-family:Nunito;font-weight:900;display:flex;align-items:center;gap:0.06in"><svg viewBox="0 0 100 100" style="width:0.24in;height:0.24in">{{ bi.glyph('restroom', '#1D5424', '#fff') }}</svg>Restrooms</div></div>
+          <div class="mn">Reclaimed wood</div><div class="mu">Information: wayfinding boards and maps</div></div>
+        <div class="mat"><div class="ph"><img class="bg" src="{{ A }}/materials/denim.jpg" alt=""><div class="pan" style="background:#F1E8DA;color:#22406B;font-family:Nunito;font-weight:900">Clothing</div></div>
+          <div class="mn">Denim</div><div class="mu">Clothing department; an Information accent</div></div>
+        <div class="mat"><div class="ph"><img class="bg" src="{{ A }}/thriftplus/sky_trio.jpg" alt="" style="object-position:42% 30%"><img src="{{ A }}/logos/thriftplus-white.png" alt="Thrift+" style="position:relative;width:52%"></div>
+          <div class="mn">Thrift+ sky</div><div class="mu">The poster sky: Thrift+ signs, and the sky for Customer</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="lab">Type</div>
+      <h2>Three Google Font pairings. One pairing per sign.</h2>
+      <div class="pairs">
+        <div class="pair"><div><div class="hd" style="font-family:Nunito;font-weight:900;font-size:21pt">Housewares</div><div class="tx">Lamps, dishes and decor, priced by our team.</div></div>
+          <div class="m"><b>1 Friendly</b><br>Nunito 900 + Manrope 600<br>Customer, Thrift+, Information</div></div>
+        <div class="pair"><div><div class="hd" style="font-family:'Barlow Condensed';font-weight:700;font-size:22pt;color:#1B1F1B;text-transform:uppercase">Employees only</div><div class="tx" style="font-family:Barlow;font-weight:500">Deliveries use the back door.</div></div>
+          <div class="m"><b>2 Plain-spoken</b><br>Barlow Condensed 700 + Barlow 500<br>Warning, Staff, hours lists</div></div>
+        <div class="pair"><div><div class="hd" style="font-family:Fraunces;font-weight:700;font-size:20pt">Furniture</div><div class="tx">Big items? A team member will help you load.</div></div>
+          <div class="m"><b>3 Warm</b><br>Fraunces 700 + Manrope 600<br>Customer headers, quiet plaques</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row r4">
+    <div class="card">
+      <div class="lab">Pictograms</div>
+      <h2>One style: solid, plain, read at a glance from across the room.</h2>
+      <div class="picts">
+        {% for k in ['restroom', 'exit', 'hours', 'returns', 'id', 'camera', 'noentry', 'staff'] %}
+        <div class="pict">{{ bi.icon(k, '#1B1F1B', '#ffffff') }}<div><div class="pe">{{ bi.LABELS[k][0] }}</div><div class="ps">{{ bi.LABELS[k][1] }}</div></div></div>
+        {% endfor %}
+      </div>
+      <div class="note" style="margin-top:0.08in">Ink on light or white on dark, one colour per glyph. No faces, hands or small detail.</div>
+    </div>
+
+    <div class="card">
+      <div class="lab">Spanish footer</div>
+      <h2>Every sign except Staff.</h2>
+      <div class="mini">
+        <div class="top"><div class="en">NO TRESPASSING</div><i style="width:70%"></i><i style="width:52%"></i></div>
+        <div class="ft"><span class="es" lang="es">Prohibido el paso. Propiedad privada.</span><img src="{{ A }}/logos/eco-full-ink.png" alt=""></div>
+      </div>
+      <ol class="sp">
+        <li>A band at the foot, under a rule: Spanish on the left, the logo on the right.</li>
+        <li>The headline and the key line in Spanish. Never more than the English says.</li>
+        <li>The sign's text font, regular weight, about half the size of its smallest English line.</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="lab">First family member</div>
+      <h2>Warning A, safety label. On a real door at true scale.</h2>
+      <div class="fm">
+        <div class="sign"><img src="A-camera-board.png" alt="Warning A: You are on camera">
+          <div class="cap">Barlow pair, Ink and Signal, ink logo, Spanish footer. Letter.</div></div>
+        <div class="wall"><img src="mockup-door.png" alt="">
+          <div class="wcap">The same sign on a back-room door, centred at 60 in: tools/mockup.py, ready for real store photos.</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

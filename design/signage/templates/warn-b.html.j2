@@ -1,0 +1,31 @@
+{% extends 'warn-base.html.j2' %}
+{# B: Dock hazard. Hazard-tape stripe frame round a yellow field, Big Shoulders Stencil headline, black reverse bars with
+   yellow caps, black disc pictogram, ink logo. Colours: #FFD000, #0D0D0D. #}
+{% import 'warn-icons.html.j2' as ic %}
+{% set s = signs[v.sign] %}
+{% block fonts %}family=Big+Shoulders+Stencil+Display:wght@900&family=Big+Shoulders+Display:wght@800{% endblock %}
+{% block style %}
+:root { --y: #FFD000; --k: #0D0D0D; --tape: {{ v.tape or 0.7 }}rem; --st: {{ v.stripe or 0.34 }}rem; }
+body { font-family: 'Big Shoulders Display', sans-serif; color: var(--k); }
+.sheet { background: repeating-linear-gradient(-45deg, var(--k) 0 var(--st), var(--y) var(--st) calc(var(--st) * 2)); }
+.field { position: absolute; inset: var(--tape); background: var(--y); outline: 0.05rem solid var(--k);
+         display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0.35rem 0.3rem 0.3rem; }
+.grow { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: {{ v.gap or 0.22 }}rem; }
+.pic { width: {{ v.pic or 2.3 }}rem; height: {{ v.pic or 2.3 }}rem; flex: none; }
+h1 { font-family: 'Big Shoulders Stencil Display', sans-serif; font-weight: 900; font-size: {{ v.h1 or 1.9 }}rem;
+     line-height: 0.86; text-transform: uppercase; letter-spacing: 0.01em; }
+.bars { width: 100%; display: flex; flex-direction: column; gap: 0.09rem; }
+.bar { background: var(--k); color: var(--y); font-weight: 800; text-transform: uppercase; font-size: {{ v.line or 0.46 }}rem;
+       letter-spacing: 0.04em; line-height: 1; padding: 0.11rem 0.15rem 0.09rem; }
+.logo { width: {{ v.logo_w or 2.6 }}rem; margin-top: 0.2rem; }
+{% endblock %}
+{% block body %}
+<div class="field">
+  <div class="grow">
+    {{ ic.pictogram(s.icon, '#0D0D0D', '#FFD000', 'solid') }}
+    <h1>{% for l in s.h1_lines %}{{ l }}{% if not loop.last %}<br>{% endif %}{% endfor %}</h1>
+    <div class="bars">{% for l in s.lines %}<div class="bar">{{ l }}</div>{% endfor %}</div>
+  </div>
+  <img class="logo" src="{{ art }}/logos/eco-full-ink.png" alt="Eco-Thrift">
+</div>
+{% endblock %}

@@ -1,0 +1,51 @@
+{
+  "provider": "google",
+  "model": "gemini-3-pro-image 4:3 4K",
+  "prompt": "Documentary photograph, straight-on at eye level: a plain warm white painted wall inside a bright small secondhand store near the front entrance. The wall is square to the camera and fills most of the frame, a light wood baseboard and polished concrete floor at the bottom, a glass entry door with an aluminium frame at the right edge of the frame, the end of a clothing rack at the left edge. Soft daylight and ceiling light, natural colours, 35mm lens, sharp focus. No people, no hands, no faces, no text, no letters, no numbers, no logos, no signs, no stickers, no watermarks.",
+  "size": [
+    3200,
+    2283
+  ],
+  "date": "2026-11-13 12:04",
+  "seconds": 32,
+  "picked": "2026-11-13, brand board (#134): Google gemini-3-pro-image over BFL flux-2-max, both judged at 100% (BFL kraft had smudges that read as letters)",
+  "source_crop": [
+    0,
+    160,
+    4800,
+    3584
+  ],
+  "ref": {
+    "px": [
+      [
+        267,
+        -21
+      ],
+      [
+        2267,
+        -21
+      ],
+      [
+        2267,
+        1979
+      ],
+      [
+        267,
+        1979
+      ]
+    ],
+    "in": [
+      100,
+      100
+    ]
+  },
+  "ref_top_in": 100,
+  "scale_note": "Estimated 30 px/in at 4800 wide (the 4.7 in baseboard, the glass entry door); a real store photo gets a tape-measured ref. Top 160 px cropped off (an exit sign at the corner).",
+  "spots": {
+    "wall": {
+      "x_in": 50,
+      "center_h_in": 60,
+      "note": "middle of the wall at 60 in"
+    }
+  }
+}
