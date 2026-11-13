@@ -125,14 +125,14 @@ describe('DashboardPage tabs (Store | Today)', () => {
     expect(screen.queryByRole('region', { name: 'Sales' })).not.toBeInTheDocument();
   });
 
-  it('opens Today for an Employee with no tab chosen, then follows the remembered tab', async () => {
-    renderPage('/dashboard');
-    await waitFor(() => expect(screen.getByText('my day content')).toBeInTheDocument());
-  });
-
-  it('follows the tab remembered for this user', () => {
-    localStorage.setItem('ecothrift.dashboard.tab.v1.2', 'store');
+  it('lands an Employee on Store with no tab chosen (everyone lands on Store, 2026-11-13)', () => {
     renderPage('/dashboard');
     expect(screen.getByRole('region', { name: 'Sales' })).toBeInTheDocument();
+  });
+
+  it('follows the tab remembered for this user', async () => {
+    localStorage.setItem('ecothrift.dashboard.tab.v1.2', 'myday');
+    renderPage('/dashboard');
+    await waitFor(() => expect(screen.getByText('my day content')).toBeInTheDocument());
   });
 });

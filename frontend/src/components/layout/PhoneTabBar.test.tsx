@@ -44,54 +44,53 @@ function renderBar(path = '/dashboard?tab=store') {
   );
 }
 
-describe('PhoneTabBar', () => {
+describe('PhoneTabBar (Dash Home tabs, 2026-11-13)', () => {
   beforeEach(() => {
     authState.role = 'Employee';
     authState.language = 'en';
     localStorage.clear();
   });
 
-  it('renders Store and Today, nothing else', () => {
+  it('renders the seven Home tabs in order', () => {
     renderBar();
     const labels = screen.getAllByRole('button').map((node) => node.textContent?.replace(/^\d+/, '').trim());
-    expect(labels).toEqual(['Store', 'Today']);
+    expect(labels).toEqual(['Store', 'Time clock', 'HR', 'Routines', 'Calendar', 'Messages', 'Profile']);
     expect(screen.queryByRole('button', { name: /settings/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /routines/i })).not.toBeInTheDocument();
   });
 
   it('marks the tab from the URL', () => {
     renderBar('/dashboard?tab=myday');
-    expect(screen.getByRole('button', { name: /today/i })).toHaveClass('Mui-selected');
+    expect(screen.getByRole('button', { name: /time clock/i })).toHaveClass('Mui-selected');
     expect(screen.getByRole('button', { name: /store/i })).not.toHaveClass('Mui-selected');
   });
 
-  it('keeps Today selected for old Today and routine links', () => {
+  it('keeps Time clock selected for old Today and hours links', () => {
     renderBar('/today?hours=1');
-    expect(screen.getByRole('button', { name: /today/i })).toHaveClass('Mui-selected');
+    expect(screen.getByRole('button', { name: /time clock/i })).toHaveClass('Mui-selected');
   });
 
-  it('uses the role default with nothing remembered: Today for an Employee, Store for an Admin', () => {
+  it('lands on Store with nothing remembered, for every role', () => {
     renderBar('/dashboard');
-    expect(screen.getByRole('button', { name: /today/i })).toHaveClass('Mui-selected');
+    expect(screen.getByRole('button', { name: /store/i })).toHaveClass('Mui-selected');
   });
 
-  it('opens the other tab and remembers the choice per user', async () => {
+  it('opens another tab and remembers the choice per user', async () => {
     const user = userEvent.setup();
     renderBar('/dashboard?tab=store');
-    await user.click(screen.getByRole('button', { name: /today/i }));
-    expect(screen.getByTestId('where')).toHaveTextContent('/dashboard?tab=myday');
-    expect(localStorage.getItem('ecothrift.dashboard.tab.v1.1')).toBe('myday');
+    await user.click(screen.getByRole('button', { name: /^profile$/i }));
+    expect(screen.getByTestId('where')).toHaveTextContent('/dashboard?tab=profile');
+    expect(localStorage.getItem('ecothrift.dashboard.tab.v1.1')).toBe('profile');
   });
 
-  it('shows the due-today count on Today', () => {
+  it('shows the routines-waiting count on Routines', () => {
     renderBar();
-    expect(screen.getByLabelText('2 waiting')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /routines/i })).toContainElement(screen.getByLabelText('2 waiting'));
   });
 
   it('labels the tabs in Spanish when the user language is es', () => {
     authState.language = 'es';
     renderBar();
     expect(screen.getByRole('button', { name: /tienda/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /hoy/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reloj/i })).toBeInTheDocument();
   });
 });

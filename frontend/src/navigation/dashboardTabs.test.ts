@@ -15,12 +15,18 @@ const owner = { id: 4, role: 'Employee', is_superuser: true };
 describe('dashboard tabs', () => {
   beforeEach(() => localStorage.clear());
 
-  it('defaults to Store for Manager, Admin and the owner, and Today for an Employee', () => {
+  it('lands everyone on Store (Bill 2026-11-13)', () => {
     expect(defaultDashboardTab(manager)).toBe('store');
     expect(defaultDashboardTab(admin)).toBe('store');
     expect(defaultDashboardTab(owner)).toBe('store');
-    expect(defaultDashboardTab(employee)).toBe('myday');
-    expect(defaultDashboardTab(null)).toBe('myday');
+    expect(defaultDashboardTab(employee)).toBe('store');
+    expect(defaultDashboardTab(null)).toBe('store');
+  });
+
+  it('knows all seven Home tabs', () => {
+    for (const tab of ['store', 'myday', 'hr', 'routines', 'calendar', 'messages', 'profile']) {
+      expect(resolveDashboardTab('/dashboard', `?tab=${tab}`, employee)).toBe(tab);
+    }
   });
 
   it('remembers the last choice per user', () => {
@@ -36,7 +42,7 @@ describe('dashboard tabs', () => {
   it('ignores junk in storage', () => {
     localStorage.setItem('ecothrift.dashboard.tab.v1.1', 'settings');
     expect(loadDashboardTab(1)).toBeNull();
-    expect(resolveDashboardTab('/dashboard', '', employee)).toBe('myday');
+    expect(resolveDashboardTab('/dashboard', '', employee)).toBe('store');
   });
 
   it('lets the URL win over the remembered tab', () => {

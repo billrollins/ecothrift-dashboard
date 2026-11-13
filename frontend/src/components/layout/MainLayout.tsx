@@ -54,6 +54,8 @@ export default function MainLayout() {
   const dashboardTab = useDashboardTab();
   const isDashboardPath = location.pathname === '/dashboard';
   const isDashboard = isDashboardPath && dashboardTab === 'store';
+  // The other Home tabs (HR, Routines, Calendar, Messages, Profile) draw the same Home band edge to edge.
+  const isHomeTab = isDashboardPath && dashboardTab !== 'store' && dashboardTab !== 'myday';
   const isToday = (isDashboardPath && dashboardTab === 'myday')
     || location.pathname === '/today' || location.pathname.startsWith('/today/');
   // A routine open on Today draws its own pane edge to edge, like the runner always did.
@@ -67,7 +69,7 @@ export default function MainLayout() {
   // Signage (#129): the store map takes the full height under the top bar; the page lays itself out edge to edge.
   const isSignage = location.pathname.startsWith('/facilities/signage');
   const isStaffRoutines = location.pathname.startsWith('/routines');
-  const isFloorDesk = !isMobile && (isDashboard || isToday || isStaffRoutines);
+  const isFloorDesk = !isMobile && (isDashboard || isToday || isStaffRoutines || isHomeTab);
   const isPhoneShell = isMobile && showsPhoneTabBar(location.pathname, location.search);
 
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
@@ -251,7 +253,7 @@ export default function MainLayout() {
             flexDirection: 'column',
             overflowX: 'hidden',
             overflowY: isRestorationBench || isRoutines || isRetailQa || isSignage || (isMobile && isTodayRunner) ? 'hidden' : 'auto',
-            p: isFieldMobile || isRoutines || isRetailQa || isSignage || isFloorDesk || isToday || (isPhoneShell && isDashboard)
+            p: isFieldMobile || isRoutines || isRetailQa || isSignage || isFloorDesk || isToday || isHomeTab || (isPhoneShell && isDashboard)
               ? 0
               : isRestoration
                 ? { xs: 0.75, md: 1 }

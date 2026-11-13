@@ -69,11 +69,16 @@ export function showsPhoneTabBar(pathname: string, search = ''): boolean {
 export function phoneShellTitle(
   pathname: string,
   language?: string | null,
-  tab?: 'store' | 'myday',
+  tab?: string,
 ): string {
   const path = normalizePath(pathname);
   if (matchesPrefix(path, '/today')) return t('myDay', language);
-  if (matchesPrefix(path, '/dashboard') && tab === 'myday') return t('myDay', language);
+  if (matchesPrefix(path, '/dashboard') && tab === 'myday') return t('timeClock', language);
+  if (matchesPrefix(path, '/dashboard') && tab === 'hr') return t('hrTab', language);
+  if (matchesPrefix(path, '/dashboard') && tab === 'routines') return t('routines', language);
+  if (matchesPrefix(path, '/dashboard') && tab === 'calendar') return t('calendarTab', language);
+  if (matchesPrefix(path, '/dashboard') && tab === 'messages') return t('messagesTab', language);
+  if (matchesPrefix(path, '/dashboard') && tab === 'profile') return t('profileTab', language);
   if (matchesPrefix(path, '/routines')) return t('routines', language);
   return t('dashboard', language);
 }

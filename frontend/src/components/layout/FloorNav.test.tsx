@@ -46,15 +46,17 @@ function renderNav(path = '/dashboard?tab=store') {
   );
 }
 
-describe('FloorNav (Store | Today)', () => {
+const TABS = ['Store', 'Time clock', 'HR', 'Routines', 'Calendar', 'Messages', 'Profile'];
+
+describe('FloorNav (Dash Home tabs, 2026-11-13)', () => {
   beforeEach(() => {
     authState.role = 'Employee';
     localStorage.clear();
   });
 
-  it('renders Store then Today, and no Settings tab for anyone', () => {
+  it('renders the seven Home tabs in order, and no Settings tab for anyone', () => {
     renderNav();
-    expect(screen.getAllByRole('tab').map((node) => node.getAttribute('aria-label'))).toEqual(['Store', 'Today']);
+    expect(screen.getAllByRole('tab').map((node) => node.getAttribute('aria-label'))).toEqual(TABS);
     authState.role = 'Manager';
     renderNav();
     expect(screen.queryByRole('tab', { name: 'Settings' })).not.toBeInTheDocument();
@@ -63,44 +65,40 @@ describe('FloorNav (Store | Today)', () => {
   it('marks Store as selected on ?tab=store', () => {
     renderNav('/dashboard?tab=store');
     expect(screen.getByRole('tab', { name: 'Store' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'Today' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: 'Time clock' })).toHaveAttribute('aria-selected', 'false');
   });
 
-  it('defaults to Today for an Employee and Store for a Manager when nothing is remembered', () => {
-    renderNav('/dashboard');
-    expect(screen.getByRole('tab', { name: 'Today' })).toHaveAttribute('aria-selected', 'true');
-  });
-
-  it('defaults to Store for a Manager', () => {
-    authState.role = 'Manager';
+  it('lands everyone on Store when nothing is remembered', () => {
     renderNav('/dashboard');
     expect(screen.getByRole('tab', { name: 'Store' })).toHaveAttribute('aria-selected', 'true');
-  });
-
-  it('prefers the remembered tab over the role default', () => {
     authState.role = 'Manager';
-    localStorage.setItem('ecothrift.dashboard.tab.v1.1', 'myday');
     renderNav('/dashboard');
-    expect(screen.getByRole('tab', { name: 'Today' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getAllByRole('tab', { name: 'Store' })[1]).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('treats a routine or the hours panel in the URL as Today', () => {
-    authState.role = 'Manager';
+  it('prefers the remembered tab', () => {
+    localStorage.setItem('ecothrift.dashboard.tab.v1.1', 'hr');
+    renderNav('/dashboard');
+    expect(screen.getByRole('tab', { name: 'HR' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('treats a routine or the hours panel in the URL as Time clock', () => {
     renderNav('/dashboard?run=12');
-    expect(screen.getByRole('tab', { name: 'Today' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Time clock' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('shows the due-today count on Today', () => {
+  it('shows the routines-waiting count on Routines, not on Time clock', () => {
     renderNav();
-    expect(screen.getByLabelText('2 waiting')).toBeInTheDocument();
+    const routines = screen.getByRole('tab', { name: 'Routines' });
+    expect(routines).toContainElement(screen.getByLabelText('2 waiting'));
   });
 
-  it('opens the other tab and remembers it for this user', async () => {
+  it('opens another tab and remembers it for this user', async () => {
     const user = userEvent.setup();
     renderNav('/dashboard?tab=store');
-    await user.click(screen.getByRole('tab', { name: 'Today' }));
-    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=myday');
-    expect(localStorage.getItem('ecothrift.dashboard.tab.v1.1')).toBe('myday');
+    await user.click(screen.getByRole('tab', { name: 'HR' }));
+    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=hr');
+    expect(localStorage.getItem('ecothrift.dashboard.tab.v1.1')).toBe('hr');
   });
 
   it('does not navigate when the active tab is clicked', async () => {

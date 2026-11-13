@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.297.0] -->
-<!-- Last reviewed: 2026-11-13 (2.297.0) -->
+<!-- Line 1 release: ## [2.298.0] -->
+<!-- Last reviewed: 2026-11-13 (2.298.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.298.0] - 2026-11-13
+
+User-facing theme: **Dash Home: seven tabs, everyone lands on Store, and a short avatar menu (step 1 of the Home and HR plan).**
+
+> **For Bill:** the Home page now has the tabs you laid out: Store, Time clock (the old Today, for now), HR, Routines, Calendar, Messages and Profile, on the desk and on the phone. Everyone opens on Store; clocking in is still the time button in the header. HR shows Files, Requests and Report an incident, with Training and SOPs marked coming soon. Routines shows today's to-do list. Calendar says it is being designed and links to this week's schedule. Messages and Profile show today's pages until they are rebuilt. The avatar menu lost every Home link; it keeps Dash Updates, Language and Sign out, your Owner page and View as, plus Texts (managers) and Photo drops until they get another home. The rest of the plan (Time clock, HR tab, Profile, the managers' HR workspace, Calendar) is with Mainline as separate updates.
+
+### Changed (Dash Home, step 1 of .ai/extended/home-and-hr-structure.md)
+- Dash Home has seven tabs: Store, Time clock, HR, Routines, Calendar, Messages, Profile (desk tab bar and phone bar). Everyone lands on Store (was: staff landed on Today); a remembered tab still wins. Time clock is the old Today/My day tab (id `myday` kept so clock, bell and routine links still work); its rebuild is Dash Update step 2.
+- New tabs (`pages/home/HomeTabs.tsx`): HR (Files, Requests, Report an incident; Training and SOPs "coming soon"), Routines (today's to-do list; opening one still runs it on Time clock), Calendar (being designed; a link to this week's schedule for now), Messages (the messages page), Profile (the current /me page until its rebuild).
+- The routines-waiting badge moved from Today to the Routines tab (`FLOOR_TABS.badgeId`).
+- Avatar menu: no Home links any more (Store, Today, Schedule, Profile, Requests, Messages removed; they are Home tabs). Kept: Texts (managers), Photo drops, Dash Updates, Ask for an update, Owner page (owner), Language, View as (owner), Change password, Sign out.
+- Page registry: the HR, Calendar and Messages tab items are Home pages. Tests rewritten for the new tabs and menu.
 
 ## [2.297.0] - 2026-11-13
 

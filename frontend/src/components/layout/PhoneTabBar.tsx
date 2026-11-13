@@ -50,7 +50,7 @@ export function PhoneTabBar() {
             key={tab.id}
             value={tab.id}
             label={t(tab.labelKey, lang)}
-            icon={<TabIcon item={item} count={badges[tab.navId] ?? 0} tone={tones[tab.navId]} />}
+            icon={<TabIcon item={item} count={badges[tab.badgeId ?? tab.navId] ?? 0} tone={tones[tab.badgeId ?? tab.navId]} />}
             onClick={() => {
               saveDashboardTab(user?.id, tab.id);
               if (tab.id === activeTab) return;

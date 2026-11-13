@@ -82,58 +82,30 @@ describe('AccountMenu (me)', () => {
     expect(within(header).getByText('Employee')).toBeInTheDocument();
   });
 
-  it('gives an Employee the Home list (#67) and Dash: no Owner section', async () => {
+  it('has no Home links (they are the Home tabs) and no Owner section for an Employee (Bill 2026-11-13)', async () => {
     await openMenu();
-    expect(screen.getByText('Home')).toBeInTheDocument();
-    const order = ['store', 'my-day', 'schedule', 'me', 'requests', 'messages']
-      .map((id) => screen.getByTestId(`account-menu-${id}`).textContent);
-    expect(order).toEqual(['Store', 'Today', 'Schedule', 'Profile', 'Requests', 'Messages']);
+    for (const id of ['store', 'my-day', 'schedule', 'me', 'requests', 'messages']) {
+      expect(screen.queryByTestId(`account-menu-${id}`)).not.toBeInTheDocument();
+    }
+    expect(screen.queryByText('Home')).not.toBeInTheDocument();
     expect(screen.getByTestId('account-menu-dash-fixes')).toBeInTheDocument();
-    // HR is workspace 0 and Supplies is in Facilities now, for everyone.
-    expect(screen.queryByTestId('account-menu-hr')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('account-menu-supplies')).not.toBeInTheDocument();
-    expect(screen.queryByText('Owner')).not.toBeInTheDocument();
     expect(screen.queryByTestId('account-menu-owner')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('account-menu-reports')).not.toBeInTheDocument();
-    expect(screen.queryByText(/time off/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('account-menu-texts')).not.toBeInTheDocument();
   });
 
-  it('shows Schedule to a Manager (its current gate) but not the Owner section', async () => {
-    auth.role = 'Manager';
-    await openMenu();
-    expect(screen.getByTestId('account-menu-schedule')).toBeInTheDocument();
-    expect(screen.queryByTestId('account-menu-owner')).not.toBeInTheDocument();
-  });
-
-  it('shows the OWNER section (Owner page, Reports) to the superuser only', async () => {
-    auth.role = 'Admin';
+  it('shows the OWNER section (Owner page) to the superuser only', async () => {
     auth.superuser = true;
     const user = await openMenu();
     expect(screen.getByText('Owner')).toBeInTheDocument();
+    expect(screen.queryByTestId('account-menu-reports')).not.toBeInTheDocument();
     await user.click(screen.getByTestId('account-menu-owner'));
     expect(screen.getByTestId('where')).toHaveTextContent('/owner');
   });
 
-  it('has one OWNER link (Reports is a tab of the Owner page), and opens Profile, Today, Store and Requests', async () => {
-    auth.role = 'Admin';
-    auth.superuser = true;
-    let user = await openMenu();
-    expect(screen.queryByTestId('account-menu-reports')).not.toBeInTheDocument();
-    await user.click(screen.getByTestId('account-menu-me'));
-    expect(screen.getByTestId('where')).toHaveTextContent('/me');
-
-    user = userEvent.setup();
-    await user.click(screen.getByTestId('account-menu-button'));
-    await user.click(screen.getByTestId('account-menu-my-day'));
-    expect(screen.getByTestId('where')).toHaveTextContent('/dashboard?tab=myday');
-
-    await user.click(screen.getByTestId('account-menu-button'));
-    await user.click(screen.getByTestId('account-menu-store'));
-    expect(screen.getByTestId('where')).toHaveTextContent('/dashboard?tab=store');
-
-    await user.click(screen.getByTestId('account-menu-button'));
-    await user.click(screen.getByTestId('account-menu-requests'));
-    expect(screen.getByTestId('where')).toHaveTextContent('/hr');
+  it('opens Dash Updates', async () => {
+    const user = await openMenu();
+    await user.click(screen.getByTestId('account-menu-dash-fixes'));
+    expect(screen.getByTestId('where')).toHaveTextContent('/dash-updates');
   });
 
   it('keeps the Back-to row while viewing as someone, the language toggle, and Sign out', async () => {
@@ -149,16 +121,14 @@ describe('AccountMenu (me)', () => {
   it('is in Spanish for a Spanish user', async () => {
     auth.language = 'es';
     await openMenu();
-    expect(screen.getByText('Inicio')).toBeInTheDocument();
-    expect(screen.getByText('Solicitudes')).toBeInTheDocument();
-    expect(screen.getByText('Perfil')).toBeInTheDocument();
     expect(screen.getByText('Empleado')).toBeInTheDocument();
     expect(screen.getByTestId('account-menu-sign-out')).toHaveTextContent('Cerrar sesion');
   });
 
   it('draws section labels at 12px, semibold, dark ink with a divider above', async () => {
+    auth.superuser = true;
     await openMenu();
-    const label = screen.getByText('Home');
+    const label = screen.getByText('Owner');
     const style = getComputedStyle(label);
     expect(style.fontSize).toBe('12px');
     expect(Number(style.fontWeight)).toBeGreaterThanOrEqual(600);

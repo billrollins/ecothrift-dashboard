@@ -16,6 +16,25 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     // Routines and Hours & pay open inside Today.
     pathAliases: ['/routines', '/pay'],
   },
+  /** Dash Home tabs (2026-11-13): HR, Calendar and Messages; icons for the tab bars only. */
+  homeHr: {
+    id: 'homeHr',
+    path: '/dashboard?tab=hr',
+    label: 'HR',
+    icon: 'staff',
+  },
+  homeCalendar: {
+    id: 'homeCalendar',
+    path: '/dashboard?tab=calendar',
+    label: 'Calendar',
+    icon: 'calendar',
+  },
+  homeMessages: {
+    id: 'homeMessages',
+    path: '/dashboard?tab=messages',
+    label: 'Messages',
+    icon: 'messages',
+  },
   routines: {
     id: 'routines',
     path: '/routines',

@@ -75,6 +75,8 @@ const TEMPLATE: Record<string, PageTemplate> = {
   // Home and account
   dashboard: 'overview', today: 'overview', routines: 'form', documents: 'list-detail', dashFixes: 'list-detail',
   hrRequests: 'list-detail', profile: 'record',
+  // Dash Home tabs (2026-11-13): HR (staff view), Calendar (being designed), Messages
+  homeHr: 'overview', homeCalendar: 'calendar', homeMessages: 'list-detail',
   // Buying
   auctions: 'list-detail', estimateProfit: 'form', vendors: 'list-detail', orders: 'list-detail', preprocessing: 'tool',
   wishlist: 'list-detail', auctionsOld: 'list-detail', watchlist: 'list-detail', reportCards: 'report',
@@ -131,7 +133,7 @@ export const HOME_WORKSPACE = { id: 'home', label: 'Home and account' };
 /** Pages no workspace lists: reached from another page, the avatar menu, or kept alive at an old address. */
 export const NO_WORKSPACE = { id: 'none', label: 'Not in a workspace sidebar' };
 /** Home pages and the avatar menu: for everyone, outside the workspaces. */
-const HOME_IDS = new Set(['dashboard', 'today', 'routines', 'documents', 'dashFixes', 'profile']);
+const HOME_IDS = new Set(['dashboard', 'today', 'routines', 'documents', 'dashFixes', 'profile', 'homeHr', 'homeCalendar', 'homeMessages']);
 
 /** The workspace that lists the page as its own; for a page only ever a shortcut (owner tools), the first that links it. */
 function ownWorkspace(itemId: string) {

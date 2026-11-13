@@ -54,8 +54,8 @@ export function FloorNav() {
             key={tab.id}
             item={item}
             label={t(tab.labelKey, lang)}
-            count={badges[tab.navId] ?? 0}
-            tone={tones[tab.navId]}
+            count={badges[tab.badgeId ?? tab.navId] ?? 0}
+            tone={tones[tab.badgeId ?? tab.navId]}
             active={tab.id === activeTab}
             onPick={() => pick(tab.id)}
           />

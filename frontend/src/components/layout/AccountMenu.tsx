@@ -14,27 +14,19 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import AssignmentOutlined from '@mui/icons-material/AssignmentOutlined';
-import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined';
 import BuildCircleOutlined from '@mui/icons-material/BuildCircleOutlined';
 import FeedbackOutlined from '@mui/icons-material/FeedbackOutlined';
-import MailOutline from '@mui/icons-material/MailOutline';
 import LockReset from '@mui/icons-material/LockReset';
 import Logout from '@mui/icons-material/Logout';
-import Person from '@mui/icons-material/Person';
 import PhotoCameraOutlined from '@mui/icons-material/PhotoCameraOutlined';
 import SmsOutlined from '@mui/icons-material/SmsOutlined';
-import SpaceDashboardOutlined from '@mui/icons-material/SpaceDashboardOutlined';
-import StorefrontOutlined from '@mui/icons-material/StorefrontOutlined';
 import StarOutlineRounded from '@mui/icons-material/StarOutlineRounded';
 import TranslateOutlined from '@mui/icons-material/TranslateOutlined';
 import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { t } from '../../i18n/routines';
-import { dashboardTabHref, saveDashboardTab } from '../../navigation/dashboardTabs';
 import { resolveNavItems } from '../../navigation/navResolve';
-import { NAV_ITEM_CATALOG } from '../../navigation/navItemCatalog';
 import { ReportFixDialog } from '../dashFixes/ReportFixDialog';
 import { sourcePage } from '../dashFixes/rememberPage';
 import ChangePasswordDialog from '../users/ChangePasswordDialog';
@@ -75,9 +67,9 @@ function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 /**
- * The avatar menu is Home (#67, Bill 2026-11-04): Store, Today, Schedule, Profile, Requests, Messages, the same list the
- * phone app's Home will show. Then Dash Updates, and for the owner the Owner page. Language, View as and sign out close
- * it. HR is workspace 0 for everyone and Supplies is in Facilities, so neither is lost from the menu.
+ * The avatar menu (Bill 2026-11-13): no Home links (Store, Time clock, HR, Routines, Calendar, Messages and Profile are
+ * the Home tabs). Texts (managers) and Photo drops stay here until they get another way in; then Dash Updates, the
+ * owner's Owner page, Language, View as, password and sign out.
  */
 export function AccountMenu() {
   const { user, logout, setLanguage, viewAs, stopViewAs, hasRole } = useAuth();
@@ -97,13 +89,7 @@ export function AccountMenu() {
     close();
     navigate(path);
   };
-  const goDashboardTab = (tab: 'store' | 'myday') => {
-    saveDashboardTab(user.id, tab);
-    go(dashboardTabHref(tab));
-  };
-
-  // Everyone sees the week's Schedule (Dash Updates #6). Owner is the owner's (Reports is one of its tabs).
-  const schedule = NAV_ITEM_CATALOG.schedule;
+  // Owner is the owner's (Reports is one of its tabs).
   const ownerItems = resolveNavItems(user, ['owner']);
   const ownerPage = ownerItems.find((item) => item.id === 'owner');
   const roleText = user.role ? (ROLE_KEYS[user.role] ? t(ROLE_KEYS[user.role], lang) : user.role) : '';
@@ -174,31 +160,6 @@ export function AccountMenu() {
           ) : null}
         </Box>
 
-        <SectionLabel key="sec-home">{t('sectionHome', lang)}</SectionLabel>
-        <MenuItem key="store" data-testid="account-menu-store" onClick={() => goDashboardTab('store')}>
-          <ListItemIcon><StorefrontOutlined fontSize="small" /></ListItemIcon>
-          <ListItemText primary={t('store', lang)} />
-        </MenuItem>
-        <MenuItem key="today" data-testid="account-menu-my-day" onClick={() => goDashboardTab('myday')}>
-          <ListItemIcon><SpaceDashboardOutlined fontSize="small" /></ListItemIcon>
-          <ListItemText primary={t('today', lang)} />
-        </MenuItem>
-        <MenuItem key="schedule" data-testid="account-menu-schedule" onClick={() => go(schedule.path)}>
-          <ListItemIcon><CalendarMonthOutlined fontSize="small" /></ListItemIcon>
-          <ListItemText primary={t('schedule', lang)} />
-        </MenuItem>
-        <MenuItem key="me" data-testid="account-menu-me" onClick={() => go('/me')}>
-          <ListItemIcon><Person fontSize="small" /></ListItemIcon>
-          <ListItemText primary={t('profile', lang)} />
-        </MenuItem>
-        <MenuItem key="requests" data-testid="account-menu-requests" onClick={() => go('/hr')}>
-          <ListItemIcon><AssignmentOutlined fontSize="small" /></ListItemIcon>
-          <ListItemText primary={t('requests', lang)} />
-        </MenuItem>
-        <MenuItem key="messages" data-testid="account-menu-messages" onClick={() => go('/messages')}>
-          <ListItemIcon><MailOutline fontSize="small" /></ListItemIcon>
-          <ListItemText primary={t('messages', lang)} />
-        </MenuItem>
         {user.is_superuser || hasRole('Manager') ? (
           <MenuItem key="texts" data-testid="account-menu-texts" onClick={() => go('/texts')}>
             <ListItemIcon><SmsOutlined fontSize="small" /></ListItemIcon>

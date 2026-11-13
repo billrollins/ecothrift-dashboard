@@ -4,14 +4,14 @@ import { useAuth } from '../hooks/useAuth';
 import { hasRunner } from '../pages/routines/todayRunner';
 
 /**
- * The Dashboard has two tabs and nothing else: Store (today's numbers) and My day (what /today showed:
- * shift, routines, hours and pay). The tab lives in the URL (`/dashboard?tab=myday`); with no `tab` in the
- * URL the last choice per user wins, and a first-time visitor gets Store (Manager / Admin / owner) or
- * My day (Employee).
+ * Dash Home (Bill 2026-11-13, .ai/extended/home-and-hr-structure.md): Store · Time clock · HR · Routines · Calendar ·
+ * Messages · Profile. The tab lives in the URL (`/dashboard?tab=hr`); with no `tab` the last choice per user wins, and a
+ * first-time visitor lands on Store (everyone). `myday` is the Time clock tab's id (it was My day / Today; the id stays so
+ * routine and clock links keep working).
  */
-export type DashboardTab = 'store' | 'myday';
+export type DashboardTab = 'store' | 'myday' | 'hr' | 'routines' | 'calendar' | 'messages' | 'profile';
 
-export const DASHBOARD_TAB_IDS: readonly DashboardTab[] = ['store', 'myday'];
+export const DASHBOARD_TAB_IDS: readonly DashboardTab[] = ['store', 'myday', 'hr', 'routines', 'calendar', 'messages', 'profile'];
 
 const LS_DASHBOARD_TAB = 'ecothrift.dashboard.tab.v1';
 
@@ -22,13 +22,13 @@ function tabKey(userId: number | undefined): string {
 }
 
 function isTab(value: unknown): value is DashboardTab {
-  return value === 'store' || value === 'myday';
+  return typeof value === 'string' && (DASHBOARD_TAB_IDS as readonly string[]).includes(value);
 }
 
-/** Store for Manager / Admin / owner, My day for an Employee. */
-export function defaultDashboardTab(user: TabUser): DashboardTab {
-  if (user?.is_superuser || user?.role === 'Manager' || user?.role === 'Admin') return 'store';
-  return 'myday';
+/** Everyone lands on Store (Bill 2026-11-13: clocking in is the header's time button). */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function defaultDashboardTab(_user: TabUser): DashboardTab {
+  return 'store';
 }
 
 export function loadDashboardTab(userId: number | undefined): DashboardTab | null {

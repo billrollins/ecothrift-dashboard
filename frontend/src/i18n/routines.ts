@@ -189,7 +189,11 @@ export const STRINGS: Record<string, { en: string; es: string }> = {
   // Dashboard tabs, the top bar (clock pill, bell) and the avatar menu (staff navigation redesign, phase 1).
   store: { en: 'Store', es: 'Tienda' },
   // "Today" everywhere (#67, 2026-11-05): the Home list, the Dashboard tab and the phone button.
-  myDay: { en: 'Today', es: 'Hoy' },
+  myDay: { en: 'Time clock', es: 'Reloj de turno' },
+  hrTab: { en: 'HR', es: 'RR. HH.' },
+  calendarTab: { en: 'Calendar', es: 'Calendario' },
+  messagesTab: { en: 'Messages', es: 'Mensajes' },
+  profileTab: { en: 'Profile', es: 'Perfil' },
   onShiftSince: { en: 'On shift since {time}', es: 'En turno desde {time}' },
   notClockedIn: { en: 'Not clocked in', es: 'Sin entrar' },
   timeClock: { en: 'Time clock', es: 'Reloj de turno' },

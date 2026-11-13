@@ -19,13 +19,28 @@ import { useDashboardMetrics } from '../hooks/useDashboard';
 import { t } from '../i18n/routines';
 
 const TodayPage = lazy(() => import('./routines/TodayPage'));
+const HomeTabs = {
+  hr: lazy(() => import('./home/HomeTabs').then((m) => ({ default: m.HrHomeTab }))),
+  routines: lazy(() => import('./home/HomeTabs').then((m) => ({ default: m.RoutinesHomeTab }))),
+  calendar: lazy(() => import('./home/HomeTabs').then((m) => ({ default: m.CalendarHomeTab }))),
+  messages: lazy(() => import('./home/HomeTabs').then((m) => ({ default: m.MessagesHomeTab }))),
+  profile: lazy(() => import('./home/HomeTabs').then((m) => ({ default: m.ProfileHomeTab }))),
+};
 
 /**
- * The Dashboard: two tabs and nothing else. Store is today's numbers; My day is what /today shows
- * (shift, routines, hours and pay). Each tab draws its own band with the same Store | My day switch.
+ * Dash Home: Store · Time clock · HR · Routines · Calendar · Messages · Profile (Bill 2026-11-13). Store is today's
+ * numbers; Time clock (id `myday`) is what /today showed for now. Each tab draws its own band with the same tab bar.
  */
 export default function DashboardPage() {
   const tab = useDashboardTab();
+  if (tab !== 'store' && tab !== 'myday') {
+    const Tab = HomeTabs[tab];
+    return (
+      <Suspense fallback={<LoadingScreen message="Loading…" />}>
+        <Tab />
+      </Suspense>
+    );
+  }
   if (tab === 'myday') {
     return (
       <Suspense fallback={<LoadingScreen message="Loading…" />}>
