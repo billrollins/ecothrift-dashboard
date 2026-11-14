@@ -3,8 +3,11 @@ import logging
 from django.conf import settings
 from django.contrib.auth import get_user_model, authenticate
 from django.contrib.auth.models import update_last_login
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import serializers, viewsets, status
-from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
+from rest_framework.decorators import (
+    action, api_view, authentication_classes, permission_classes, throttle_classes,
+)
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -146,6 +149,11 @@ def login_view(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
+    return _signed_in_response(user)
+
+
+def _signed_in_response(user) -> Response:
+    """The tokens and cookie a sign-in hands out (login_view and the local-only dev_login_view share it)."""
     # This view mints its own JWT rather than calling django.contrib.auth.login,
     # so the user_logged_in signal never fires and nothing else stamps this.
     update_last_login(None, user)
@@ -163,6 +171,85 @@ def login_view(request):
         'user': user_data,
     })
     return _set_refresh_cookie(response, str(refresh))
+
+
+# ── Dev sign-in (#144, local only) ───────────────────────────────────────────
+# Bill 2026-11-13: "if it is dev and local I can just click through the sign in page? AS BILL button."
+# Live only when DEBUG and DEV_LOGIN_ENABLED (settings: off under tests, forced off in settings_production) and the
+# request comes from this PC to localhost / 127.0.0.1. Anything else gets a plain 404, as if the route did not exist.
+
+_DEV_LOGIN_HOSTS = frozenset({'localhost', '127.0.0.1'})
+_LOOPBACK_ADDRESSES = frozenset({'127.0.0.1', '::1', '::ffff:127.0.0.1'})
+
+
+def _host_name(value: str) -> str:
+    """'localhost:5188' or 'http://127.0.0.1:5188/login' -> the bare host name, lower case."""
+    from urllib.parse import urlsplit
+
+    value = (value or '').strip()
+    if not value:
+        return ''
+    return (urlsplit(value if '//' in value else f'//{value}').hostname or '').lower()
+
+
+def _is_local_dev_request(request) -> bool:
+    if request.META.get('REMOTE_ADDR') not in _LOOPBACK_ADDRESSES:
+        return False
+    try:
+        if _host_name(request.get_host()) not in _DEV_LOGIN_HOSTS:
+            return False
+    except Exception:  # DisallowedHost
+        return False
+    # Through the Vite proxy (changeOrigin, xfwd) Host is the backend's own; the browser's address, the page's
+    # origin and the original host ride in these headers. Every one that is present must be this PC too.
+    forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    if forwarded_for and any(part.strip() not in _LOOPBACK_ADDRESSES for part in forwarded_for.split(',')):
+        return False
+    for header in ('HTTP_X_FORWARDED_HOST', 'HTTP_ORIGIN', 'HTTP_REFERER'):
+        value = request.META.get(header, '')
+        if value and _host_name(value.split(',')[0]) not in _DEV_LOGIN_HOSTS:
+            return False
+    return True
+
+
+def _dev_login_user():
+    """User 1 (Bill), or the active superuser DEV_LOGIN_USER names (id, username or email)."""
+    named = str(getattr(settings, 'DEV_LOGIN_USER', '') or '').strip()
+    supers = User.objects.filter(is_active=True, is_superuser=True)
+    if named:
+        if named.isdigit():
+            return supers.filter(pk=int(named)).first()
+        return supers.filter(email__iexact=named).first() or supers.filter(username__iexact=named).first()
+    return User.objects.filter(pk=1, is_active=True).first()
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def _dev_login_api(request):
+    user = _dev_login_user()
+    if user is None:
+        from django.http import Http404
+
+        raise Http404
+    logger.warning('Dev sign-in (local only) as user %s', user.pk)
+    return _signed_in_response(user)
+
+
+@csrf_exempt  # as every DRF view is; this plain gate only hands a POST from this PC to the DRF view above
+def dev_login_view(request):
+    """Local dev only: sign in as Bill with one click (the "As Bill" button on the sign-in page). Everywhere else, and
+    for any method but POST, Django's own 404, the same as a route that does not exist."""
+    from django.http import Http404
+
+    if not (
+        request.method == 'POST'
+        and settings.DEBUG
+        and getattr(settings, 'DEV_LOGIN_ENABLED', False)
+        and _is_local_dev_request(request)
+    ):
+        raise Http404
+    return _dev_login_api(request)
 
 
 # A sign-in stays alive while it is used (owner 2026-10-20: "ensure they do not need to sign in each time"): once the

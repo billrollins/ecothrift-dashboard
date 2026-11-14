@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.303.0] -->
-<!-- Last reviewed: 2026-11-13 (2.303.0) -->
+<!-- Line 1 release: ## [2.304.0] -->
+<!-- Last reviewed: 2026-11-13 (2.304.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.304.0] - 2026-11-13
+
+User-facing theme: **Local dev only: an "As Bill" button on the sign-in page signs you in with one click (Dash Update #144). Production never has it.**
+
+> **For Bill:** on your PC's dev server (http://localhost:5173, or any worktree port 5173 to 5199), the sign-in page has an "As Bill (local dev)" button under "Forgot password?". One click signs you in as you and lands on the Dashboard, like a normal sign-in. dash.ecothrift.us never shows it and its server answers "not found", and a phone or another PC opening your dev server does not get it either.
+
+### Added (Dash Update #144)
+- **`POST /api/auth/dev-login/`** (`apps/accounts/views.py` `dev_login_view`): hands out the same access token, user data and refresh cookie as `login_view` (both now share `_signed_in_response`) for user 1, or the active superuser `DEV_LOGIN_USER` names (id, username or email).
+  - Live only when `DEBUG` and `DEV_LOGIN_ENABLED` are on and the request comes from this PC: Host `localhost` or `127.0.0.1` (any port), a loopback client address, and any `X-Forwarded-For`, `X-Forwarded-Host`, `Origin` or `Referer` also local.
+  - Everything else, and every method but POST, gets Django's own 404, as if the route did not exist.
+  - `DEV_LOGIN_ENABLED` (`ecothrift/settings.py`) is `DEBUG and not running tests`; `settings_production.py` forces it `False`.
+- **Sign-in page** (`pages/LoginPage.tsx`): the "As Bill (local dev)" button shows only when `import.meta.env.DEV` and the page is opened as `localhost` or `127.0.0.1`. It is last in the card and there from the first paint, so nothing moves. `AuthContext` gains `devLogin`.
+- **Vite dev proxy** (`frontend/vite.config.ts`): `/api` adds `X-Forwarded-For` / `-Host` (`xfwd`), so the backend sees the browser's real address behind `changeOrigin`; a phone on the LAN or Tailscale reaching the dev server is refused.
+- Tests: `apps/accounts/tests/test_dev_login.py` (signs in locally on any port; 404 with DEBUG off, when not enabled, under tests by default, for a non-local host, from another address, through the proxy from a phone, and for other methods; production settings force it off); `LoginPage.test.tsx` (button absent when not DEV or not localhost; one click signs in and lands on `/`).
 
 ## [2.303.0] - 2026-11-13
 

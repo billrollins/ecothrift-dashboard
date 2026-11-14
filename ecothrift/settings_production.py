@@ -6,6 +6,8 @@ from .settings import *  # noqa: F401, F403
 import dj_database_url
 
 DEBUG = False
+# Never the local-only dev sign-in (#144), whatever the environment says.
+DEV_LOGIN_ENABLED = False
 
 # Database — use Heroku DATABASE_URL; target the ecothrift schema
 DATABASES['default'] = dj_database_url.config(  # noqa: F405

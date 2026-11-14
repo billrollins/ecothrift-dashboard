@@ -16,6 +16,8 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  /** Local dev only (#144): the "As Bill" button on the sign-in page. */
+  devLogin: () => Promise<void>;
   logout: () => Promise<void>;
   hasRole: (role: User['role'] | null) => boolean;
   setLanguage: (language: 'en' | 'es') => Promise<void>;
@@ -75,8 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loadUser();
   }, [loadUser]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const { data } = await accountsApi.login(email, password);
+  const signedIn = useCallback(async (data: accountsApi.LoginResponse) => {
     // Access token goes in memory; refresh token is set as httpOnly cookie by the server
     if (data.access) {
       setAccessToken(data.access);
@@ -88,6 +89,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(meRes.data as User);
     }
   }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
+    const { data } = await accountsApi.login(email, password);
+    await signedIn(data);
+  }, [signedIn]);
+
+  const devLogin = useCallback(async () => {
+    const { data } = await accountsApi.devLogin();
+    await signedIn(data);
+  }, [signedIn]);
 
   const logout = useCallback(async () => {
     try {
@@ -163,6 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!user,
     isLoading,
     login,
+    devLogin,
     logout,
     hasRole,
     setLanguage,

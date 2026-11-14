@@ -92,6 +92,8 @@ export default defineConfig({
       '/api': {
         target: apiTarget,
         changeOrigin: true,
+        // X-Forwarded-For / -Host: the backend sees the browser's real address and host (the local-only dev sign-in, #144).
+        xfwd: true,
       },
       '/db-admin': {
         target: apiTarget,

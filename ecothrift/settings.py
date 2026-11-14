@@ -219,6 +219,11 @@ if _RUNNING_TESTS:
 # Read by data migrations that must not depend on a developer's .env during tests.
 RUNNING_TESTS = _RUNNING_TESTS
 
+# Dev sign-in (#144): the "As Bill" button on a local sign-in page. Only with DEBUG and never under tests (a test turns
+# it on itself); settings_production forces it off. DEV_LOGIN_USER names another active superuser (id, username, email).
+DEV_LOGIN_ENABLED = DEBUG and not _RUNNING_TESTS
+DEV_LOGIN_USER = config('DEV_LOGIN_USER', default='')
+
 # ── Cache (database backend; release runs createcachetable) ─────────────────────
 CACHES = {
     'default': {

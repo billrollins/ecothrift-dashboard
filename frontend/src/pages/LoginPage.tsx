@@ -21,8 +21,16 @@ export function loginNext(next: string | null): string {
   return next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/login') ? next : '/';
 }
 
+/**
+ * The "As Bill" button (#144): only on a dev server (`npm run dev`) opened on this PC as localhost or 127.0.0.1, on any
+ * port. A production build drops it (import.meta.env.DEV is false there), and the server answers 404 off this PC.
+ */
+export function devSignInShown(): boolean {
+  return import.meta.env.DEV === true && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+}
+
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, devLogin } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
@@ -33,12 +41,11 @@ export default function LoginPage() {
   const [idleNotice] = useState(peekIdleSignOut);
   useEffect(() => clearIdleSignOut(), []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const signIn = async (attempt: () => Promise<void>) => {
     setError(null);
     setIsLoading(true);
     try {
-      await login(email, password);
+      await attempt();
       navigate(loginNext(searchParams.get('next')), { replace: true });
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { detail?: string } } };
@@ -47,6 +54,11 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void signIn(() => login(email, password));
   };
 
   return (
@@ -132,6 +144,18 @@ export default function LoginPage() {
                 Forgot password?
               </Link>
             </Typography>
+            {devSignInShown() ? (
+              // Last in the card, and there from the first paint on a dev server, so nothing above it ever moves.
+              <Button
+                variant="outlined"
+                color="secondary"
+                disabled={isLoading}
+                onClick={() => void signIn(devLogin)}
+                data-testid="login-dev-as-bill"
+              >
+                As Bill (local dev)
+              </Button>
+            ) : null}
           </Box>
         </CardContent>
       </Card>

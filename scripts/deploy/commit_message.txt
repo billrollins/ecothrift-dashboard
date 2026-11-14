@@ -1,35 +1,16 @@
-v2.303.0 — Design Lab round 3: rich page types, live demos, object windows as modals
+v2.304.0 — Local dev only: an As Bill button on the sign-in page
 
-User-facing theme: **Design Lab round 3: three rich page types (Data table, Command center, Station) built from Orders, Processing and the bench; every page type opens as a live demo page; object windows open as real modals; new Elements and Registry tabs (Dash Update #134).**
+User-facing theme: **Local dev only: an "As Bill" button on the sign-in page signs you in with one click (Dash Update #144). Production never has it.**
 
-> **For Bill:** Admin > Design Lab now has six tabs: Theme, Icons, Templates, Windows, Elements, Registry. The empty band above the tabs is gone.
-> - **Templates:** "Open live demo" opens each page type in a new tab inside the real Dash shell on made-up data, exactly as it would look live. "Phone" shows the same live page at phone width.
-> - **Three new page types, copied from your best pages:** Data table (Orders: KPI strip, views, rich two-line money columns), Command center (Processing: order strip, stat band, scanner first, dense queue, work card in place), Station (the bench: dark deck, panes, big finish keys).
-> - **Windows** open as real pop-up windows; clicking a related row inside opens it in the same window, with Back.
-> - **Elements** shows every building block with a live preview.
-> - **Registry** (was Pages) tracks pages, templates, windows and elements, each with your tick boxes.
+> **For Bill:** on your PC's dev server (http://localhost:5173, or any worktree port 5173 to 5199), the sign-in page has an "As Bill (local dev)" button under "Forgot password?". One click signs you in as you and lands on the Dashboard, like a normal sign-in. dash.ecothrift.us never shows it and its server answers "not found", and a phone or another PC opening your dev server does not get it either.
 
-### Added (Design Lab round 3, Dash Update #134)
-- **Rich kit** (`components/page/RichKit.tsx`), the parts the worked pages already share, written once with no colours of their own:
-  - MicroLabel, KpiStrip/Kpi, StatBand/StatGroup/StatBlock, FactStrip/Fact;
-  - ScanBar (focused, Enter acts, Esc clears, fixed status slot);
-  - ChipRail, BulkBar, Pane/PaneHeader/PaneBody;
-  - TwoLine and `bandTone`;
-  - `denseTableSx` and `dataGridSx`.
-  
-  The theme gains a `deck` palette entry (a station's dark band, deep green: `deck`, `deckRaised`, `deckInk`, `deckLabel`, `deckAccent`).
-- **Three page types** in `navigation/pageRegistry.ts`: `data-table`, `command-center`, `station`.
-  - Orders, Auctions, Transactions and Search are now Data table; Processing, Preprocessing and both Command Centers are Command center; the Bench, Register, Test register, Thrift+ Staff, Quick reprice and Run count are Station.
-  - "Tool" is now "Editor" (Label Studio, the store map, floorplans, the studios, PR Fix-it).
-  - Each type names a real page for its demo (`demoTitle`).
-- **Live demos**: `/admin/design-lab/demo/<type>` (`pages/designlab/DemoPage.tsx`), inside the shell with the Eco-Thrift theme. The top bar names a real page of that type (`pageTitleFor`). New demos in `pages/designlab/demos/`: DataTableDemo, CommandCenterDemo, StationDemo.
-- **Object windows open as real modals** (`pages/designlab/WindowDialog.tsx`; full screen on a phone; a related row swaps in place with Back). The Universal Surface is renamed **Object window**: `components/objectWindow/ObjectWindow.tsx`, `windowDemos.ts`, `windowCheckId`. Saved ticks keep their `surface-<object>` ids.
-- **Tabs**: Templates (`TemplatesTab.tsx`, with a 390 px phone frame of the live page), Windows, Elements (`ElementsTab.tsx`, `elementCatalog.tsx`), Registry (`RegistryTab.tsx`). Old `?view=pages` and `?view=surfaces` links still land on the right tab.
+### Added (Dash Update #144)
+- **`POST /api/auth/dev-login/`** (`apps/accounts/views.py` `dev_login_view`): hands out the same access token, user data and refresh cookie as `login_view` (both now share `_signed_in_response`) for user 1, or the active superuser `DEV_LOGIN_USER` names (id, username or email).
+  - Live only when `DEBUG` and `DEV_LOGIN_ENABLED` are on and the request comes from this PC: Host `localhost` or `127.0.0.1` (any port), a loopback client address, and any `X-Forwarded-For`, `X-Forwarded-Host`, `Origin` or `Referer` also local.
+  - Everything else, and every method but POST, gets Django's own 404, as if the route did not exist.
+  - `DEV_LOGIN_ENABLED` (`ecothrift/settings.py`) is `DEBUG and not running tests`; `settings_production.py` forces it `False`.
+- **Sign-in page** (`pages/LoginPage.tsx`): the "As Bill (local dev)" button shows only when `import.meta.env.DEV` and the page is opened as `localhost` or `127.0.0.1`. It is last in the card and there from the first paint, so nothing moves. `AuthContext` gains `devLogin`.
+- **Vite dev proxy** (`frontend/vite.config.ts`): `/api` adds `X-Forwarded-For` / `-Host` (`xfwd`), so the backend sees the browser's real address behind `changeOrigin`; a phone on the LAN or Tailscale reaching the dev server is refused.
+- Tests: `apps/accounts/tests/test_dev_login.py` (signs in locally on any port; 404 with DEBUG off, when not enabled, under tests by default, for a non-local host, from another address, through the proxy from a phone, and for other methods; production settings force it off); `LoginPage.test.tsx` (button absent when not DEV or not localhost; one click signs in and lands on `/`).
 
-### Changed
-- The Design Lab's tab bar sticks right under the top bar. It stuck 24 px low: the page area's padding.
-- `StackOnPhone`: when a table's first column is left out on a phone (a tick box), the next cell heads the card.
-- Removed the side-by-side frames (`DeviceView.tsx`); the live demos replace them.
-- Tests: `pages/designlab/designLab.test.ts` (a demo for every page type, element ids), StackOnPhone (hidden first column), pageRegistry (demo titles).
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>

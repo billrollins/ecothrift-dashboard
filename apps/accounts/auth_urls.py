@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    login_view, refresh_view, logout_view, me_view, capabilities_view, change_password_view,
+    login_view, dev_login_view, refresh_view, logout_view, me_view, capabilities_view, change_password_view,
     forgot_password_view, reset_password_view,
     magic_link_request_view, magic_link_consume_view,
     customer_lookup_view, customer_register_view, customer_set_password_view,
@@ -11,6 +11,8 @@ from .view_as_views import view_as_start_view, view_as_stop_view
 
 urlpatterns = [
     path('login/', login_view, name='auth-login'),
+    # Local dev only (#144): 404 unless DEBUG + DEV_LOGIN_ENABLED + a request from this PC to localhost.
+    path('dev-login/', dev_login_view, name='auth-dev-login'),
     path('refresh/', refresh_view, name='auth-refresh'),
     path('logout/', logout_view, name='auth-logout'),
     path('me/', me_view, name='auth-me'),

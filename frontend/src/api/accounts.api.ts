@@ -22,6 +22,11 @@ export function login(ident: string, password: string): Promise<{ data: LoginRes
   return api.post<LoginResponse>('/auth/login/', { login: ident, password });
 }
 
+/** Local dev only (#144): sign in as Bill. The server answers 404 unless DEBUG and this PC (localhost). */
+export function devLogin(): Promise<{ data: LoginResponse }> {
+  return api.post<LoginResponse>('/auth/dev-login/', {});
+}
+
 export function refreshToken(): Promise<{ data: RefreshResponse }> {
   return api.post<RefreshResponse>('/auth/refresh/', {});
 }
