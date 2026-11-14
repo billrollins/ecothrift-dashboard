@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { dashboardTabHref } from '../../navigation/dashboardTabs';
 
-/** Query keys that open a routine inside My day, e.g. `/dashboard?tab=myday&run=212`. */
+/** Query keys that open a routine on the Routines tab, e.g. `/dashboard?tab=routines&run=212`. */
 const RUNNER_KEYS = ['run', 'routine', 'draft', 'mode', 'return'] as const;
 
 export function hasRunner(params: URLSearchParams): boolean {
@@ -10,9 +10,9 @@ export function hasRunner(params: URLSearchParams): boolean {
 }
 
 /**
- * The Today query for a routine link. Routines run beside the list on Today now, so every
- * old link (`/routines/run/12`, `/routines/run/new?routine=3&draft=9`, `/routines?run=12`)
- * maps to `/dashboard?tab=myday&...` (My day; /today was its old address). Returns null for anything that is not a
+ * The runner query for a routine link. Routines run beside the list on the Routines tab (they ran on Today until
+ * Time clock replaced it, #137), so every old link (`/routines/run/12`, `/routines/run/new?routine=3&draft=9`,
+ * `/routines?run=12`, `/today?run=12`) maps to `/dashboard?tab=routines&...`. Returns null for anything that is not a
  * routine link.
  */
 export function todayRunnerSearch(href: string): URLSearchParams | null {
@@ -37,13 +37,13 @@ export function todayRunnerSearch(href: string): URLSearchParams | null {
   return hasRunner(next) ? next : null;
 }
 
-/** `/dashboard?tab=myday&run=12` for a routine link (straight to My day, no /today hop); any other link unchanged. */
+/** `/dashboard?tab=routines&run=12` for a routine link (straight to the Routines tab); any other link unchanged. */
 export function todayHref(href: string): string {
   const search = todayRunnerSearch(href);
-  return search ? `${dashboardTabHref('myday')}&${search.toString()}` : href;
+  return search ? `${dashboardTabHref('routines')}&${search.toString()}` : href;
 }
 
-/** Open and close the routine runner on Today through the URL, so Back closes it on a phone. */
+/** Open and close the routine runner on the Routines tab through the URL, so Back closes it on a phone. */
 export function useTodayRunner() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();

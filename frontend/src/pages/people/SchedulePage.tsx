@@ -19,6 +19,9 @@
  * Monday; the header and hours follow once next Monday is reached), weekends shaded and a line before Monday, coverage
  * as its own band, wider days with the times inside the bars, drags held orange until Save / Cancel, and a call-in
  * keeps its bar with a red line under it. Call-in counts sit under the name.
+ * The Schedule builder (Bill, Dash Update #140, 2026-11-13, .ai/extended/home-and-hr-structure.md decision 4): the week
+ * is built and changed only in the HR workspace (`build`, at /people/schedule, a kit page: the top bar names it).
+ * Everywhere else it shows (HR > Schedule, Home) it is read-only, managers included, the same grid.
  */
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import {
@@ -95,6 +98,7 @@ import {
   type Section,
 } from './scheduleLayout';
 import { StaffLink } from '../../components/staff/StaffLink';
+import { PageShell } from '../../components/page/PageKit';
 
 const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
 
@@ -940,7 +944,8 @@ function WeekCols({ g, dayW }: { g: Grid; dayW: number }) {
 function DayHeader({ g, dayW, onDay }: { g: Grid; dayW: number; onDay: (step: number) => void }) {
   const { tr, day: dayName } = useCopy();
   return (
-    <Box component="table" sx={{ width: NAME_W + HOURS_W + dayW * g.week.days.length, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>
+    // The week grid is a desk view (the phone has PhoneDay): the kit's tables-to-cards leaves it alone (eco-no-stack).
+    <Box component="table" className="eco-no-stack" sx={{ width: NAME_W + HOURS_W + dayW * g.week.days.length, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>
       <WeekCols g={g} dayW={dayW} />
       <thead>
         <Box component="tr" sx={{ '& th': { height: 32, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' } }}>
@@ -985,7 +990,7 @@ function WeekTable({ g, sections, collapsed, onToggle, dayW }: {
 }) {
   const sticky = (left: number, z = 1) => ({ position: 'sticky', left, zIndex: z, bgcolor: 'background.paper' } as const);
   return (
-    <Box component="table" sx={{
+    <Box component="table" className="eco-no-stack" sx={{
       width: NAME_W + HOURS_W + dayW * g.week.days.length, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0,
       '& td': { borderBottom: 1, borderColor: 'divider', verticalAlign: 'middle' },
     }}>
@@ -1182,7 +1187,7 @@ type Pending = Map<number, { start_time: string; end_time: string }>;
 /** Everything the rows need, for the days shown; hours come from `paceWeek` (the week the header names). */
 function buildGrid(week: ScheduleWeek, paceWeek: ScheduleWeek, o: {
   canEdit: boolean; today: string; nowMinutes: number; meId?: number; pending: Pending;
-  onPick: (target: Target) => void; onTimes: Grid['onTimes']; onAsk: (a: AskStart) => void;
+  onPick: (target: Target) => void; onTimes: Grid['onTimes']; onAsk: ((a: AskStart) => void) | null;
 }): Grid {
   const group = <T,>(rows: T[], key: (r: T) => string) => {
     const map = new Map<string, T[]>();
@@ -1206,8 +1211,8 @@ function buildGrid(week: ScheduleWeek, paceWeek: ScheduleWeek, o: {
     actual: group(week.actual ?? [], (t) => `${t.employee}:${t.date}`),
     onPick: o.canEdit ? o.onPick : null,
     onTimes: o.canEdit ? o.onTimes : null,
-    onAsk: o.canEdit ? null : (person, d, shift) => {
-      if (person.id === o.meId) o.onAsk({ date: d, start_time: shift?.start_time, end_time: shift?.end_time });
+    onAsk: o.canEdit || !o.onAsk ? null : (person, d, shift) => {
+      if (person.id === o.meId) o.onAsk?.({ date: d, start_time: shift?.start_time, end_time: shift?.end_time });
     },
     todayIdx: week.days.indexOf(o.today),
     today: o.today,
@@ -1243,7 +1248,13 @@ function SaveBar({ count, busy, onSave, onCancel }: { count: number; busy: boole
   );
 }
 
-export default function SchedulePage() {
+/**
+ * `build`: the Schedule builder (#140), where the schedule's managers change the week (the API's can_edit); a kit page
+ * (the top bar names it). `embedded`: the Time clock tab's Everyone view (Dash Update #137), the same grid read only for
+ * everyone, managers too (they build the week in the HR workspace): no page title (the tab names it), no requests (Mine
+ * has them) and the day names stick to the top of the tab's own scroll. Neither: read only (HR > Schedule).
+ */
+export default function SchedulePage({ build = false, embedded = false }: { build?: boolean; embedded?: boolean } = {}) {
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const wide = useMediaQuery(useTheme().breakpoints.up('md'));
@@ -1281,7 +1292,8 @@ export default function SchedulePage() {
   const twoWeeks = Boolean(merged && weekA && merged.days.length > weekA.days.length);
   const shown = shownIdx && twoWeeks ? weekB : weekA;
   const shownStart = shownIdx && twoWeeks ? next : start;
-  const canEdit = Boolean(weekA?.can_edit);
+  // Only the builder edits (#140); everywhere else (Time clock > Everyone, HR > Schedule) the week reads the same for all.
+  const canEdit = build && !embedded && Boolean(weekA?.can_edit);
   const { tr } = useCopy();
   const { t: rt } = useRequestCopy();
   // Managers: every waiting request, any week (the count on the Requests button).
@@ -1399,10 +1411,12 @@ export default function SchedulePage() {
   };
 
   const grid = useMemo<Grid | null>(
-    () => (merged && shown ? buildGrid(merged, shown, { canEdit, today, nowMinutes, meId, pending, onPick: pick, onTimes, onAsk: setAsk }) : null),
+    () => (merged && shown
+      ? buildGrid(merged, shown, { canEdit, today, nowMinutes, meId, pending, onPick: pick, onTimes, onAsk: embedded ? null : setAsk })
+      : null),
     // pick and onTimes are rebuilt each render; the data, the edits and the clock drive it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [merged, shown, canEdit, today, meId, pending, Math.floor(nowMinutes / 5)],
+    [merged, shown, canEdit, embedded, today, meId, pending, Math.floor(nowMinutes / 5)],
   );
   const sections = useMemo(() => groupSections(merged?.people ?? [], canEdit ? undefined : meId), [merged, canEdit, meId]);
   const day = phoneDay && weekA?.days.includes(phoneDay) ? phoneDay : weekA?.days.includes(today) ? today : weekA?.days[0] ?? '';
@@ -1462,10 +1476,13 @@ export default function SchedulePage() {
     }
   };
 
-  return (
+  const page = (
     <Box sx={{ pb: pending.size ? 10 : 4, minWidth: 0 }} data-testid="schedule-page">
       <Stack direction="row" alignItems="center" sx={{ mb: 1.5, gap: 1, flexWrap: 'wrap' }}>
-        <Typography variant="h5" fontWeight={800} sx={{ fontSize: { xs: 20, md: 24 } }}>{tr('schedule')}</Typography>
+        {/* The builder is a kit page and the Time clock tab names the embed: neither repeats the title. */}
+        {build || embedded ? null : (
+          <Typography variant="h5" fontWeight={800} sx={{ fontSize: { xs: 20, md: 24 } }}>{tr('schedule')}</Typography>
+        )}
         <Tooltip title={tr('info')} enterTouchDelay={0} leaveTouchDelay={8000}>
           <IconButton size="small" aria-label={tr('info')} sx={{ color: 'text.secondary' }}><InfoOutlined fontSize="small" /></IconButton>
         </Tooltip>
@@ -1482,7 +1499,7 @@ export default function SchedulePage() {
           <Button variant="outlined" size="small" onClick={showToday}>{tr('today')}</Button>
         ) : null}
         <Box sx={{ flex: 1 }} />
-        {weekA ? (
+        {weekA && !embedded ? (
           <Button size="small" variant={canEdit && waiting.data?.length ? 'contained' : 'outlined'} color={canEdit && waiting.data?.length ? 'info' : 'primary'}
             data-testid="requests-button" onClick={() => setShowRequests(true)}>
             {canEdit ? `${rt('requests')}${waiting.data?.length ? ` (${waiting.data.length})` : ''}` : rt('myRequests')}
@@ -1527,7 +1544,7 @@ export default function SchedulePage() {
         // at the top of the page and slide with them.
         <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '12px', bgcolor: 'background.paper' }}>
           {/* Flush with the top of the page's scroll area (it has 24 px of padding), so no row slides past above it. */}
-          <Box sx={{ position: 'sticky', top: -24, zIndex: 10 }}>
+          <Box sx={{ position: 'sticky', top: embedded ? 0 : -24, zIndex: 10 }}>
           <Box ref={header} sx={{ overflow: 'hidden', bgcolor: 'background.paper', borderRadius: '12px 12px 0 0' }}>
             <DayHeader g={grid} dayW={dayW} onDay={stepDay} />
           </Box>
@@ -1569,4 +1586,5 @@ export default function SchedulePage() {
       {ask ? <AskDialog initial={ask} today={today} onClose={() => setAsk(null)} onSent={refresh} /> : null}
     </Box>
   );
+  return build ? <PageShell width="wide">{page}</PageShell> : page;
 }

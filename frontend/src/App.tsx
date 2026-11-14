@@ -40,6 +40,8 @@ const PayrollDeductionsPage = lazy(() => import('./pages/people/PayrollDeduction
 const PermissionsPage = lazy(() => import('./pages/people/permissions/PermissionsPage'));
 const CheckInsPage = lazy(() => import('./pages/people/CheckInsPage'));
 const SchedulePage = lazy(() => import('./pages/people/SchedulePage'));
+const HrInboxPage = lazy(() => import('./pages/hr/inbox/HrInboxPage'));
+const HrIncidentsPage = lazy(() => import('./pages/hr/HrIncidentsPage'));
 const MyCheckInsPage = lazy(() => import('./pages/people/MyCheckInsPage'));
 const MePage = lazy(() => import('./pages/me/MePage'));
 const HrPage = lazy(() => import('./pages/hr/HrPage'));
@@ -206,6 +208,23 @@ function TodayRedirect() {
   const next = new URLSearchParams(params);
   next.set('tab', 'myday');
   return <Navigate to={`/dashboard?${next.toString()}`} replace />;
+}
+
+/**
+ * The Schedule page is the managers' tool for building the week (#137). Everyone reads the week on Time clock >
+ * Everyone, so a staff login (an old link, a bookmark) lands there instead of on a page they cannot use.
+ */
+function ScheduleRoute() {
+  const { user } = useAuth();
+  if (!canAccess(user, ['hr.schedule:write', 'people:manage'])) {
+    return <Navigate to="/dashboard?tab=myday&view=everyone" replace />;
+  }
+  return (
+    <Suspense fallback={<LoadingScreen message="Loading…" />}>
+      {/* The Schedule builder (#140): the only place the week is changed. */}
+      <SchedulePage build />
+    </Suspense>
+  );
 }
 
 /** `/pos/returns` (the Returns page until #71): returns are on the Register now, in its Return window. */
@@ -706,13 +725,27 @@ function AppRoutes() {
             </AccessRoute>
           }
         />
+        {/* The Schedule builder (#140): managers change the week only here; staff read it on Home (#137, ScheduleRoute). */}
+        <Route path="/people/schedule" element={<ScheduleRoute />} />
+        {/* HR workspace (#140): the managers' Requests inbox and incidents to follow up. */}
         <Route
-          path="/people/schedule"
+          path="/people/requests"
           element={
-            // Everyone sees the week (Dash Updates #6); only managers change it (the API says can_edit).
-            <Suspense fallback={<LoadingScreen message="Loading…" />}>
-              <SchedulePage />
-            </Suspense>
+            <AccessRoute need={['hr.schedule:write', 'hr.mod_requests:triage', 'hr.questions:answer', 'people:manage', 'admin:manage']}>
+              <Suspense fallback={<LoadingScreen message="Loading…" />}>
+                <HrInboxPage />
+              </Suspense>
+            </AccessRoute>
+          }
+        />
+        <Route
+          path="/people/incidents"
+          element={
+            <AccessRoute need={['people:manage', 'admin:manage']}>
+              <Suspense fallback={<LoadingScreen message="Loading…" />}>
+                <HrIncidentsPage />
+              </Suspense>
+            </AccessRoute>
           }
         />
         <Route

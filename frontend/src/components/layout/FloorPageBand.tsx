@@ -6,7 +6,7 @@ export const FLOOR_BAND_HEIGHT = 60;
 
 /**
  * One compact row shared by every desk floor page: title (and an optional
- * subtitle or chips) on the left, the same FloorNav on the right.
+ * subtitle or chips) on the left, the same FloorNav on the right (desk only: below md the phone tab bar has the tabs).
  */
 export function FloorPageBand({
   title,
@@ -56,7 +56,13 @@ export function FloorPageBand({
           </Box>
         ) : null}
       </Box>
-      <FloorNav />
+      {/*
+        Below md the phone tab bar (MainLayout, PhoneTabBar) carries the same tabs at the bottom; the band's row of seven
+        tabs there only covered the title (found in #139). Hidden by CSS, so the band keeps its height.
+      */}
+      <Box sx={{ display: { xs: 'none', md: 'flex' }, flexShrink: 0 }} data-testid="floor-band-nav">
+        <FloorNav />
+      </Box>
     </Box>
   );
 }

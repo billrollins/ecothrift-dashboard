@@ -49,7 +49,8 @@ export function PersonAvatar({
       sx={{
         width: size,
         height: size,
-        fontSize: size <= 32 ? '0.72rem' : '0.95rem',
+        // Big circles (a record's header, Home > Profile) get initials to match; lists keep the small ones.
+        fontSize: size <= 32 ? '0.72rem' : size >= 64 ? `${Math.round(size * 0.34)}px` : '0.95rem',
         fontWeight: 700,
         flexShrink: 0,
         color: muted ? 'text.disabled' : `hsl(${h} 45% 28%)`,

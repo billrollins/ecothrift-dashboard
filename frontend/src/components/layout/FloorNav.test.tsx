@@ -82,8 +82,11 @@ describe('FloorNav (Dash Home tabs, 2026-11-13)', () => {
     expect(screen.getByRole('tab', { name: 'HR' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('treats a routine or the hours panel in the URL as Time clock', () => {
-    renderNav('/dashboard?run=12');
+  it('treats a routine in the URL as Routines (it runs there since #137), the hours panel as Time clock', () => {
+    const first = renderNav('/dashboard?run=12');
+    expect(screen.getByRole('tab', { name: 'Routines' })).toHaveAttribute('aria-selected', 'true');
+    first.unmount();
+    renderNav('/dashboard?hours=1');
     expect(screen.getByRole('tab', { name: 'Time clock' })).toHaveAttribute('aria-selected', 'true');
   });
 

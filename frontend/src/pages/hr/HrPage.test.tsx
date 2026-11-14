@@ -1,33 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { hrPath, hrTabsFor } from './HrPage';
+import { MOVED, hrPath, hrTabsFor } from './HrPage';
 
 const keys = (user: Parameters<typeof hrTabsFor>[0]) => hrTabsFor(user).map((t) => [t.key, t.sections.map((s) => s.key)]);
 
 describe('HR tabs', () => {
-  it('staff see Requests, Me, Schedule and Incidents only', () => {
+  it('staff see Requests, Me and Incidents only (the week is on Home > Time clock, #137)', () => {
     expect(keys({ role: 'Employee', is_superuser: false, access: [] })).toEqual([
       ['requests', ['all']],
       ['me', ['me']],
-      ['schedule', ['week']],
       ['incidents', ['all']],
     ]);
   });
 
-  it('a manager with the People dial at Manage also sees hiring and onboarding, not payroll', () => {
+  it('managers and the owner get the same three: their pages live in the HR workspace (#140)', () => {
     const access = ['people:manage', 'hiring:manage', 'people.permissions:read', 'people.pay:read', 'hr.schedule:write', 'users.customers:manage'];
-    const tabs = keys({ role: 'Manager', is_superuser: false, access });
-    expect(tabs.map(([key]) => key)).toEqual(['requests', 'me', 'schedule', 'incidents', 'people', 'hiring', 'onboarding', 'payroll']);
-    // Time & payroll itself is the owner's; a manager only gets Payroll deductions there.
-    expect(tabs.find(([key]) => key === 'payroll')?.[1]).toEqual(['deductions']);
-    expect(tabs.find(([key]) => key === 'people')?.[1]).toEqual(['staff', 'permissions']);
+    expect(keys({ role: 'Manager', is_superuser: false, access }).map(([key]) => key)).toEqual(['requests', 'me', 'incidents']);
+    const tabs = hrTabsFor({ role: 'Admin', is_superuser: true, access: [] });
+    expect(tabs.map((t) => t.key)).toEqual(['requests', 'me', 'incidents']);
+    // HR documents to e-sign (#62) are still the owner's section of Requests.
+    expect(tabs.find((t) => t.key === 'requests')?.sections.map((s) => s.key)).toEqual(['all', 'documents']);
   });
 
-  it('the owner sees every tab and section', () => {
-    const tabs = hrTabsFor({ role: 'Admin', is_superuser: true, access: [] });
-    expect(tabs).toHaveLength(8);
-    expect(tabs.find((t) => t.key === 'payroll')?.sections.map((s) => s.key)).toEqual(['periods', 'deductions']);
-    // HR documents to e-sign (#62) are the owner's section of Requests.
-    expect(tabs.find((t) => t.key === 'requests')?.sections.map((s) => s.key)).toEqual(['all', 'documents']);
+  it('sends an old address of a moved page to the page itself', () => {
+    expect(MOVED['hiring/jobs']).toBe('/people/jobs');
+    expect(MOVED.payroll).toBe('/admin/time-payroll');
+    expect(MOVED['people/permissions']).toBe('/people/permissions');
+    expect(MOVED.schedule).toBe('/people/schedule');
   });
 
   it('builds each tab URL', () => {

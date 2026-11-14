@@ -6,6 +6,8 @@
  * - Header: avatar, name with a small View as, EMP number, role and state chips (Inactive, Not on payroll, Locked out,
  *   No password), a quick overview line, Password reset and an actions menu (Deactivate, Unlock).
  * - Tabs: Access, Profile, Employment, Schedule and time. Profile and Employment share one Save.
+ * - The photo (#139) is the same circle as the person's Home > Profile: tap it for New photo / Remove photo. Their next
+ *   review date is set on Employment and shows on their Profile.
  *
  * Who sees it: whoever could open the Employee drawer before (Users → Employees: the owner, or a grant at Full). For
  * anyone else a staff name stays plain text (`canOpenStaffWindow`). Rights are unchanged.
@@ -25,19 +27,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { getDepartments, mergeCurrentDepartment } from '../../api/hr.api';
-import { unlockSignIn } from '../../api/accounts.api';
+import { removeStaffPhoto, unlockSignIn, uploadStaffPhoto } from '../../api/accounts.api';
 import type { User, UserRole } from '../../types/accounts.types';
 import { useUpdateEmployeeProfile, useUpdateUser, useUser } from '../../hooks/useEmployees';
 import { maskPhoneInput, stripPhone } from '../../utils/formatPhone';
 import { useAuth } from '../../contexts/AuthContext';
 import { canViewAs } from '../viewAs/viewAs';
 import { useStartViewAs } from '../viewAs/useStartViewAs';
-import { PersonAvatar, formatDay, tenureFrom } from '../users/userChrome';
+import { formatDay, tenureFrom } from '../users/userChrome';
 import { RegisterPinBlock } from '../users/RegisterPinBlock';
 import { PayLevelField } from '../hr/PayLevelField';
 import { OverHoursAlert } from '../hr/OverHoursFlag';
 import { CopyId, Facts, Section } from '../objects/windowParts';
 import { PasswordResetDialog } from './PasswordResetDialog';
+import { StaffPhoto } from './StaffPhoto';
 import { StaffScheduleTime } from './StaffScheduleTime';
 
 const STAFF_ROLES: UserRole[] = ['Admin', 'Manager', 'Employee'];
@@ -87,6 +90,7 @@ type ProfileForm = {
   department: string;
   emergency_name: string;
   emergency_phone: string;
+  next_review_date: string;
   termination_date: string;
   termination_type: string;
   termination_notes: string;
@@ -97,8 +101,8 @@ const EMPTY_ACCOUNT: AccountForm = { first_name: '', last_name: '', username: ''
 
 const EMPTY_PROFILE: ProfileForm = {
   position: '', employment_type: 'full_time', pay_rate: '', on_payroll: true, level: 'entry', overtime_allowance_hours: '0',
-  hire_date: '', department: '', emergency_name: '', emergency_phone: '', termination_date: '', termination_type: '',
-  termination_notes: '', notes: '',
+  hire_date: '', department: '', emergency_name: '', emergency_phone: '', next_review_date: '', termination_date: '',
+  termination_type: '', termination_notes: '', notes: '',
 };
 
 /** The two-line overview under the name: job, department, tenure. */
@@ -113,7 +117,7 @@ function jobLine(user: User): string {
 export function StaffWindow({ userId }: { userId: number }) {
   const { enqueueSnackbar } = useSnackbar();
   const qc = useQueryClient();
-  const { user: viewer } = useAuth();
+  const { user: viewer, setMyPhoto } = useAuth();
   const viewAs = useStartViewAs();
   const { data: user, isLoading, isError } = useUser(userId);
   const updateUser = useUpdateUser();
@@ -154,6 +158,7 @@ export function StaffWindow({ userId }: { userId: number }) {
       department: p?.department != null ? String(p.department) : '',
       emergency_name: p?.emergency_name || '',
       emergency_phone: p?.emergency_phone || '',
+      next_review_date: p?.next_review_date || '',
       termination_date: p?.termination_date || '',
       termination_type: p?.termination_type || '',
       termination_notes: p?.termination_notes || '',
@@ -204,6 +209,7 @@ export function StaffWindow({ userId }: { userId: number }) {
             department: profile.department ? Number(profile.department) : null,
             emergency_name: profile.emergency_name.trim(),
             emergency_phone: profile.emergency_phone,
+            next_review_date: profile.next_review_date || null,
             termination_date: profile.termination_date || null,
             termination_type: profile.termination_type,
             termination_notes: profile.termination_notes,
@@ -241,6 +247,30 @@ export function StaffWindow({ userId }: { userId: number }) {
     }
   };
 
+  // The photo (#139): the same circle as their Home > Profile. The owner's own photo also updates the top bar.
+  const photoSaved = async (photoUrl: string | null, message: string) => {
+    await qc.invalidateQueries({ queryKey: ['users'] });
+    void qc.invalidateQueries({ queryKey: ['auth', 'me-page'] });
+    if (viewer?.id === user.id) setMyPhoto(photoUrl);
+    enqueueSnackbar(message, { variant: 'success' });
+  };
+  const uploadPhoto = async (file: File) => {
+    try {
+      const { data } = await uploadStaffPhoto(user.id, file);
+      await photoSaved(data.photo_url ?? null, 'Photo saved');
+    } catch (err) {
+      enqueueSnackbar(actionError(err, 'Could not save the photo'), { variant: 'error' });
+    }
+  };
+  const removePhoto = async () => {
+    try {
+      await removeStaffPhoto(user.id);
+      await photoSaved(null, 'Photo removed');
+    } catch (err) {
+      enqueueSnackbar(actionError(err, 'Could not remove the photo'), { variant: 'error' });
+    }
+  };
+
   const showViewAs = canViewAs(viewer, user);
   const saveBar = (
     <Box sx={{ pt: 1 }}>
@@ -254,7 +284,15 @@ export function StaffWindow({ userId }: { userId: number }) {
     <Stack spacing={2} sx={{ p: { xs: 1.5, md: 2.5 } }} data-testid="staff-window">
       {/* ── Header ─────────────────────────────────────────────── */}
       <Stack direction="row" spacing={{ xs: 1.5, md: 2.5 }} alignItems="flex-start">
-        <PersonAvatar name={user.full_name || '?'} seed={user.email || String(user.id)} muted={!user.is_active} size={64} />
+        <StaffPhoto
+          name={user.full_name || '?'}
+          seed={user.email || String(user.id)}
+          photo={user.photo_url}
+          muted={!user.is_active}
+          size={64}
+          onUpload={uploadPhoto}
+          onRemove={removePhoto}
+        />
         <Stack spacing={0.5} sx={{ minWidth: 0, flex: 1 }}>
           <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap sx={{ minHeight: 30 }}>
             {employee?.employee_number ? <CopyId value={employee.employee_number} label="Copy EMP number" /> : null}
@@ -515,6 +553,20 @@ export function StaffWindow({ userId }: { userId: number }) {
                       inputProps={{ min: 0, max: 40, step: 0.5 }}
                       helperText="0 means no overtime. Past 40 plus this is flagged red."
                     />
+                  </Stack>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                    <TextField
+                      label="Next review"
+                      type="date"
+                      size="small"
+                      fullWidth
+                      value={profile.next_review_date}
+                      onChange={(e) => setP('next_review_date', e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      helperText="Shows on their Profile. A 30/60/90-day check-in shows first when it is sooner."
+                      data-testid="staff-next-review"
+                    />
+                    <Box sx={{ width: '100%', display: { xs: 'none', sm: 'block' } }} />
                   </Stack>
                   <FormControlLabel
                     control={

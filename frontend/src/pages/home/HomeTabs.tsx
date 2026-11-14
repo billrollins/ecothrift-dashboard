@@ -4,19 +4,17 @@ import { useNavigate } from 'react-router-dom';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { FloorPage } from '../../components/layout/FloorPage';
 import { dutyColors } from '../../components/duty/tokens';
-import { TodayWork } from '../../components/routines/today/TodayWork';
-import { useTodayModel } from '../../components/routines/today/useTodayModel';
 import { t } from '../../i18n/routines';
 import { useAuth } from '../../hooks/useAuth';
+import { ProfileTab } from './ProfileTab';
 
 /*
- * Dash Home tabs beyond Store and Time clock (Bill 2026-11-13, .ai/extended/home-and-hr-structure.md). This is the
- * skeleton (step 1): HR, Calendar and Profile get their real pages in later Dash Updates; until then each tab shows
+ * Dash Home tabs beyond Store, Time clock, Routines and HR (Bill 2026-11-13, .ai/extended/home-and-hr-structure.md). This is the
+ * skeleton (step 1): Calendar and Profile get their real pages in later Dash Updates; until then each tab shows
  * the pages that exist today so nothing is lost.
  */
 
 const MessagesPage = lazy(() => import('../messages/MessagesPage'));
-const MePage = lazy(() => import('../me/MePage'));
 
 function useLang(): 'en' | 'es' {
   const { user } = useAuth();
@@ -58,44 +56,6 @@ const grid = {
   gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' },
 } as const;
 
-/** HR, the staff view: everything a staff member needs from HR in one place. */
-export function HrHomeTab() {
-  const lang = useLang();
-  return (
-    <FloorPage title={t('hrTab', lang)} subtitle="Files, training, SOPs and requests">
-      <Box sx={grid}>
-        <Tile title="Files" text="Documents you signed and the handbook." to="/hr/requests/documents" />
-        <Tile title="Requests" text="Ask for time off or a fix to a shift, and see where each request stands." to="/hr" />
-        <Tile title="Report an incident" text="Something happened in the store or the lot: write it down while it is fresh." to="/hr/incidents" />
-        <Tile title="Training" text="What you are cleared to do." soon />
-        <Tile title="SOPs" text="How we do things here, step by step." soon />
-      </Box>
-    </FloorPage>
-  );
-}
-
-/** Routines: today's to-do list. Opening one runs it on the Time clock tab (until the Routines tab gets its own runner). */
-export function RoutinesHomeTab() {
-  const model = useTodayModel();
-  const { lang, work, clockedIn, loadingLists, runner } = model;
-  return (
-    <FloorPage title={t('routines', lang)} subtitle="What needs doing today">
-      <Box
-        sx={{
-          maxWidth: 760,
-          px: 1.5,
-          py: 1,
-          border: `1px solid ${dutyColors.ink15}`,
-          borderRadius: '12px',
-          bgcolor: dutyColors.card,
-        }}
-      >
-        <TodayWork work={work} loading={loadingLists} clockedIn={clockedIn} lang={lang} onOpen={runner.openHref} />
-      </Box>
-    </FloorPage>
-  );
-}
-
 /** Calendar: being designed (store hours and holidays, my shifts, meetings, trucks, sales; filters and presets). */
 export function CalendarHomeTab() {
   const lang = useLang();
@@ -103,7 +63,7 @@ export function CalendarHomeTab() {
     <FloorPage title={t('calendarTab', lang)} subtitle="Store events, my shifts, trucks and meetings in one place">
       <Box sx={grid}>
         <Tile title="Coming soon" text="The calendar is being designed: store hours and holidays, your shifts, meetings, trucks arriving and sales, with filters you can stack." soon />
-        <Tile title="This week's schedule" text="Who works when, for now." to="/hr/schedule" />
+        <Tile title="This week's schedule" text="Who works when, for now." to="/dashboard?tab=myday&view=everyone" />
       </Box>
     </FloorPage>
   );
@@ -120,13 +80,12 @@ export function MessagesHomeTab() {
   );
 }
 
+/** Profile (#139): my photo, contact, work details and next review (pages/home/ProfileTab.tsx). */
 export function ProfileHomeTab() {
   const lang = useLang();
   return (
     <FloorPage title={t('profileTab', lang)}>
-      <Suspense fallback={<LoadingScreen message="Loading…" />}>
-        <MePage />
-      </Suspense>
+      <ProfileTab />
     </FloorPage>
   );
 }

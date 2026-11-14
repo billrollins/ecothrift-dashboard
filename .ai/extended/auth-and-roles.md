@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-13 (#121 Cannot sign in) -->
+<!-- Last updated: 2026-11-13 (#139 Home > Profile, staff photo) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -120,10 +120,13 @@ One PIN per staff member for the register (manager approvals, Cover). Code: `app
 
 `/me` (account menu: the name row; Thrift+ Staff: the **Me** tab, `/staff/me`). Code: `apps/accounts/me_views.py`, `frontend/src/pages/me/MePage.tsx`. Tests: `apps/accounts/tests/test_me_page.py`, `MePage.test.tsx`.
 
+**Home > Profile** (#139, `/dashboard?tab=profile`, `frontend/src/pages/home/ProfileTab.tsx`) reads the same payload: photo, contact (Edit = the same dialog), work details read only, next review, sign-in. `next_review` is the sooner of a scheduled 30/60/90-day `CheckIn` and `EmployeeProfile.next_review_date` (set in the staff window, Employment). The dialogs both pages share are in `pages/me/MeDialogs.tsx`. Tests: `test_profile_tab.py`, `ProfileTab.test.tsx`.
+
 | Endpoint | What |
 |----------|------|
-| `GET /api/auth/me/page/` | My details, employee facts, emergency contact, PIN status (never the PIN), my weekly shifts, and a `drawers` slot (null until the register's drawer life ships). Staff only (`IsTeamMember`). |
+| `GET /api/auth/me/page/` | My details (with `photo_url`), employee facts and work details (department, job, employment, level, pay rate, on payroll, overtime allowance), emergency contact, `next_review`, PIN status (never the PIN), my weekly shifts, and a `drawers` slot (null until the register's drawer life ships). Staff only (`IsTeamMember`). |
 | `PATCH /api/auth/me/details/` | My phone and emergency contact (same rules as onboarding's). Name, email and job are a manager's to change. |
+| `POST` / `DELETE /api/auth/me/photo/` | My photo (#139): one 480 px square JPEG (`User.photo`, `services/staff_photo.py`), logged `photo_changed`. The staff window sets anyone's with `POST` / `DELETE /api/accounts/users/<id>/photo/` (owner or Full). |
 | `POST /api/auth/me/pin/` | `{ pin, password }`: set or change my register PIN. |
 | `POST /api/auth/sign-out-everywhere/` | Blacklists every live refresh token of mine, stamps `User.sessions_ended_at` (access tokens issued before it are refused at once, `IdleStampJWTAuthentication`), clears this cookie, logs `signed_out_all`. |
 

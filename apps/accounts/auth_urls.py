@@ -6,7 +6,7 @@ from .views import (
     customer_lookup_view, customer_register_view, customer_set_password_view,
     customer_reset_password_view, customer_resend_verification_view,
 )
-from .me_views import me_details_view, me_page_view, me_pin_view, sign_out_everywhere_view
+from .me_views import me_details_view, me_page_view, me_photo_view, me_pin_view, sign_out_everywhere_view
 from .view_as_views import view_as_start_view, view_as_stop_view
 
 urlpatterns = [
@@ -18,6 +18,7 @@ urlpatterns = [
     path('me/', me_view, name='auth-me'),
     path('me/page/', me_page_view, name='auth-me-page'),
     path('me/details/', me_details_view, name='auth-me-details'),
+    path('me/photo/', me_photo_view, name='auth-me-photo'),
     path('me/pin/', me_pin_view, name='auth-me-pin'),
     path('sign-out-everywhere/', sign_out_everywhere_view, name='auth-sign-out-everywhere'),
     path('view-as/start/', view_as_start_view, name='auth-view-as-start'),

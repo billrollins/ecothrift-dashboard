@@ -21,6 +21,8 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   hasRole: (role: User['role'] | null) => boolean;
   setLanguage: (language: 'en' | 'es') => Promise<void>;
+  /** My photo changed on Home > Profile (#139): the top-bar avatar follows without a reload. */
+  setMyPhoto: (url: string | null) => void;
   /** View as (owner 2026-10-21): set while the owner sees Dash as `user`. Read only; the server refuses writes. */
   viewAs: ViewAs | null;
   startViewAs: (userId: number) => Promise<void>;
@@ -120,6 +122,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const setMyPhoto = useCallback((url: string | null) => {
+    setUser((current) => (current ? { ...current, photo_url: url } : current));
+  }, []);
+
   const viewAs = user?.view_as ?? null;
 
   /** Start: keep the view-as token and open Dash fresh, so every screen loads as that person (their landing page). */
@@ -178,6 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     hasRole,
     setLanguage,
+    setMyPhoto,
     viewAs,
     startViewAs,
     stopViewAs,

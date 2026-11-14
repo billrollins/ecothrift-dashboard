@@ -23,3 +23,5 @@ Working design; decided items are marked. Build one page at a time, each its own
 
 ## Build order (proposed)
 1. Tabs + avatar menu (skeleton): **done, v2.298.0** (BEAST MODE); placeholders in `frontend/src/pages/home/HomeTabs.tsx`, Time clock is still tab id `myday` (TodayPage). 2. Time clock tab. 3. HR tab (staff). 4. Profile. 5. HR workspace split + Requests inbox. 6. Calendar: design with demos, then build.
+
+- **Step 5 built (Dash Update #140, 2026-11-13):** the HR sidebar workspace is managers' and the owner's. Requests inbox `/people/requests` (`frontend/src/pages/hr/inbox/`: days off, new times, shift fixes, open incidents, questions; each answered in place by whoever answers that kind today), Schedule builder `/people/schedule` (`SchedulePage build`: the only place the week changes; read-only everywhere else, managers included), Incidents `/people/incidents`. Staff items (Requests, Schedule, Profile) left the sidebar; staff use Home.

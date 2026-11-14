@@ -8,6 +8,7 @@ import type {
   PayrollEmployeeRow,
   PayrollPeriod,
   MyPayPeriod,
+  MyPeriod,
   TimeEntryRosterRow,
 } from '../types/hr.types';
 import api from './client';
@@ -21,6 +22,7 @@ export type {
   PayrollEmployeeRow,
   PayrollPeriod,
   MyPayPeriod,
+  MyPeriod,
   TimeEntryRosterRow,
 };
 
@@ -209,6 +211,11 @@ export function getPayrollPeriods(count = 16): Promise<{ data: PayrollPeriod[] }
 
 export function getMyPay(count = 6): Promise<{ data: MyPayPeriod[] }> {
   return api.get<MyPayPeriod[]>('/hr/time-entries/my_pay/', { params: { count } });
+}
+
+/** The Time clock tab's Mine view (#137): this pay period's days, hours and pay so far and ahead. */
+export function getMyPeriod(): Promise<{ data: MyPeriod }> {
+  return api.get<MyPeriod>('/hr/time-entries/my_period/');
 }
 
 export function getTimeEntryRoster(params: {

@@ -18,10 +18,11 @@ import { useAuth } from '../hooks/useAuth';
 import { useDashboardMetrics } from '../hooks/useDashboard';
 import { t } from '../i18n/routines';
 
-const TodayPage = lazy(() => import('./routines/TodayPage'));
+// Time clock replaced Today (Dash Update #137); the routine list and its runner went to Routines.
+const TimeClockTab = lazy(() => import('./home/timeclock/TimeClockTab'));
 const HomeTabs = {
-  hr: lazy(() => import('./home/HomeTabs').then((m) => ({ default: m.HrHomeTab }))),
-  routines: lazy(() => import('./home/HomeTabs').then((m) => ({ default: m.RoutinesHomeTab }))),
+  hr: lazy(() => import('./home/HrTab')),
+  routines: lazy(() => import('./home/RoutinesTab')),
   calendar: lazy(() => import('./home/HomeTabs').then((m) => ({ default: m.CalendarHomeTab }))),
   messages: lazy(() => import('./home/HomeTabs').then((m) => ({ default: m.MessagesHomeTab }))),
   profile: lazy(() => import('./home/HomeTabs').then((m) => ({ default: m.ProfileHomeTab }))),
@@ -29,7 +30,8 @@ const HomeTabs = {
 
 /**
  * Dash Home: Store · Time clock · HR · Routines · Calendar · Messages · Profile (Bill 2026-11-13). Store is today's
- * numbers; Time clock (id `myday`) is what /today showed for now. Each tab draws its own band with the same tab bar.
+ * numbers; Time clock (id `myday`) is the clock, my pay period and the week's schedule (#137). Each tab draws its own
+ * band with the same tab bar.
  */
 export default function DashboardPage() {
   const tab = useDashboardTab();
@@ -44,7 +46,7 @@ export default function DashboardPage() {
   if (tab === 'myday') {
     return (
       <Suspense fallback={<LoadingScreen message="Loading…" />}>
-        <TodayPage />
+        <TimeClockTab />
       </Suspense>
     );
   }

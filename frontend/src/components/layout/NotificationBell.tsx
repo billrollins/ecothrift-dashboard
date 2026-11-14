@@ -92,10 +92,10 @@ export function NotificationBell() {
     close();
     navigate(href);
   }
-  function goMyDay(extra = '') {
+  function goTab(tab: 'myday' | 'routines', extra = '') {
     close();
-    saveDashboardTab(user?.id, 'myday');
-    navigate(`${dashboardTabHref('myday')}${extra}`);
+    saveDashboardTab(user?.id, tab);
+    navigate(`${dashboardTabHref(tab)}${extra}`);
   }
 
   const label = total
@@ -146,7 +146,7 @@ export function NotificationBell() {
             <Box sx={{ px: 1, pb: 1 }}>
               {hours.level !== 'none' ? (
                 <Box sx={{ mx: 1.5, mb: 1 }}>
-                  <HoursNagCard nag={hours} lang={lang} onOpen={() => goMyDay('&hours=1')} />
+                  <HoursNagCard nag={hours} lang={lang} onOpen={() => goTab('myday')} />
                 </Box>
               ) : null}
               <BuyingNagCards nags={buying} onOpen={(id) => go(`/buying/auctions/${id}`)} />
@@ -186,7 +186,7 @@ export function NotificationBell() {
             sub={work.count ? `${work.count} ${t('toDoLower', lang)}` : undefined}
             count={routines}
             color={nag.tone === 'red' ? RED : AMBER}
-            onClick={() => goMyDay()}
+            onClick={() => goTab('routines')}
             testId="bell-row-routines"
           />
           {user?.is_superuser ? (

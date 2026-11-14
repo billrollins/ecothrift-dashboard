@@ -92,30 +92,30 @@ describe('RoutinesPage', () => {
     setDesk(true);
   });
 
-  it('sends staff from the bare routines list to Today (one place)', () => {
+  it('sends staff from the bare routines list to the Routines tab (one place)', () => {
     renderPage('/routines');
     expect(screen.getByText('Today')).toBeInTheDocument();
-    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=myday');
+    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=routines');
   });
 
   it('keeps the catalog for superusers only', () => {
     renderPage('/routines/catalog');
-    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=myday');
+    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=routines');
   });
 
-  it('opens an old run link on Today, beside the list', () => {
+  it('opens an old run link on the Routines tab, beside the list', () => {
     renderPage('/routines?run=5');
     expect(screen.getByText('Today')).toBeInTheDocument();
-    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=myday&run=5');
+    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=routines&run=5');
   });
 
-  it('carries a new-run link (routine, draft, return) to Today', () => {
+  it('carries a new-run link (routine, draft, return) to the Routines tab', () => {
     renderPage('/routines/run/new?routine=3&draft=9&return=%2Fadmin%2Fretail-qa');
-    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=myday&routine=3&draft=9&return=%2Fadmin%2Fretail-qa');
+    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=routines&routine=3&draft=9&return=%2Fadmin%2Fretail-qa');
   });
 
-  it('opens a numbered run link on Today', () => {
+  it('opens a numbered run link on the Routines tab', () => {
     renderPage('/routines/run/12');
-    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=myday&run=12');
+    expect(screen.getByTestId('path')).toHaveTextContent('/dashboard?tab=routines&run=12');
   });
 });

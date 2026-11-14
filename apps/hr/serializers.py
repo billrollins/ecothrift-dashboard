@@ -135,6 +135,8 @@ class MyPayPeriodSerializer(PayrollPeriodSerializer):
     # Hours past 40 in a Mon-Sun week; total_pay pays them at 1.5 (owner 2026-10-21).
     overtime_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
     total_pay = serializers.DecimalField(max_digits=10, decimal_places=2)
+    # Off payroll (family, #121): total_pay is 0 and the pages show hours only.
+    on_payroll = serializers.BooleanField(default=True)
 
 
 class TimeEntryRosterSerializer(serializers.Serializer):

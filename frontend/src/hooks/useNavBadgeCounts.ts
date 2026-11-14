@@ -6,6 +6,7 @@ import { useRestorationPartsOrders } from './useRestorationBench';
 import { useNeedsReplyCount } from './useWebStore';
 import type { NavBadgeTone } from '../navigation/NavWaitingBadge';
 import { useMyWork } from './useMyWork';
+import { useHrInbox } from '../pages/hr/inbox/useHrInbox';
 
 function useRestorationPartsWaitingCount(enabled: boolean): number {
   // Same live list the command center writes on approve / deny / file, so the
@@ -36,14 +37,17 @@ export function useNavBadgeCounts(options: {
   // (useMyWork), never a separately computed number.
   const { work } = useMyWork();
   const routinesWaiting = work.count;
+  // HR > Requests (#140): what waits on this manager or the owner. Staff answer nothing, so nothing is asked for.
+  const hrWaiting = useHrInbox().waiting.length;
 
   return useMemo(() => {
     const counts: Record<string, number> = {};
     if (nextAction > 0) counts.onlineSalesCustomers = nextAction;
     if (partsWaiting > 0) counts.restorationPartsRequests = partsWaiting;
     if (routinesWaiting > 0) counts.today = routinesWaiting;
+    if (hrWaiting > 0) counts.hrInbox = hrWaiting;
     return counts;
-  }, [nextAction, partsWaiting, routinesWaiting]);
+  }, [nextAction, partsWaiting, routinesWaiting, hrWaiting]);
 }
 
 const BADGE_TONES: Record<string, NavBadgeTone> = { today: 'grey' };

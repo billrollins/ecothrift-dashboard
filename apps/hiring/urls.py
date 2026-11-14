@@ -50,6 +50,8 @@ urlpatterns = [
     path('me/onboarding/tasks/<int:task_id>/', onb.my_task, name='hiring-my-task'),
     path('me/emergency-contact/', onb.my_emergency_contact, name='hiring-my-emergency-contact'),
     path('me/handbook/sign/', onb.my_handbook_sign, name='hiring-my-handbook-sign'),
+    path('me/files/', onb.my_files, name='hiring-my-files'),
+    path('me/offers/<int:offer_id>/pdf/', onb.my_offer_pdf, name='hiring-my-offer-pdf'),
     path('ai/', views.ai_start, name='hiring-ai-start'),
     path('ai/<uuid:job_id>/', views.ai_status, name='hiring-ai-status'),
     path('', include(router.urls)),

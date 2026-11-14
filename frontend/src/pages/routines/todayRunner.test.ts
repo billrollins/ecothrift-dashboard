@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { hasRunner, todayHref } from './todayRunner';
 
 describe('todayHref', () => {
-  it('opens every routine link on Today', () => {
-    expect(todayHref('/routines/run/212')).toBe('/dashboard?tab=myday&run=212');
-    expect(todayHref('/routines?run=5')).toBe('/dashboard?tab=myday&run=5');
-    expect(todayHref('/routines/run/new?routine=3&draft=9')).toBe('/dashboard?tab=myday&routine=3&draft=9');
-    expect(todayHref('/routines/run/7?return=/admin/retail-qa')).toBe('/dashboard?tab=myday&run=7&return=%2Fadmin%2Fretail-qa');
+  it('opens every routine link on the Routines tab (#137)', () => {
+    expect(todayHref('/routines/run/212')).toBe('/dashboard?tab=routines&run=212');
+    expect(todayHref('/routines?run=5')).toBe('/dashboard?tab=routines&run=5');
+    expect(todayHref('/routines/run/new?routine=3&draft=9')).toBe('/dashboard?tab=routines&routine=3&draft=9');
+    expect(todayHref('/routines/run/7?return=/admin/retail-qa')).toBe('/dashboard?tab=routines&run=7&return=%2Fadmin%2Fretail-qa');
   });
 
   it('leaves other links alone', () => {

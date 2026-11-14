@@ -9,6 +9,7 @@ from rest_framework.decorators import (
     action, api_view, authentication_classes, permission_classes, throttle_classes,
 )
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import SimpleRateThrottle
@@ -689,6 +690,21 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post', 'delete'], url_path='photo', parser_classes=[MultiPartParser, FormParser])
+    def photo(self, request, pk=None):
+        """The staff window's photo (#139): ``POST`` a picture (``photo``), ``DELETE`` for initials. Answers the user."""
+        from apps.accounts.services import staff_photo
+
+        user = self.get_object()
+        try:
+            if request.method == 'DELETE':
+                staff_photo.clear_photo(user, actor=request.user)
+            else:
+                staff_photo.save_photo(user, request.FILES.get('photo'), actor=request.user)
+        except staff_photo.StaffPhotoError as exc:
+            return Response(exc.payload(), status=status.HTTP_400_BAD_REQUEST)
+        return Response(UserSerializer(user, context=self.get_serializer_context()).data)
 
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):

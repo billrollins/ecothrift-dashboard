@@ -17,7 +17,7 @@ from apps.accounts.permissions import IsManagerOrAdmin, IsTeamMember
 from apps.accounts.services.access import admin_or, manager_or
 from apps.core.files import stream_s3
 from apps.hiring import compose, onboarding as service
-from apps.hiring.models import Application, HandbookSignature, I9File, Onboarding, OnboardingTask
+from apps.hiring.models import Application, CheckIn, HandbookSignature, I9File, Offer, Onboarding, OnboardingTask
 
 
 def _is_admin(user) -> bool:
@@ -376,3 +376,55 @@ def my_handbook_sign(request):
         ip=forwarded or request.META.get('REMOTE_ADDR'), user_agent=request.META.get('HTTP_USER_AGENT', ''),
     )
     return Response(_mine_payload(request.user), status=status.HTTP_201_CREATED)
+
+
+# ── My files (Home > HR, Dash Update #138) ──────────────────────────────────
+
+
+def _my_offers(user):
+    return Offer.objects.filter(
+        application__employee_user=user, status=Offer.STATUS_SIGNED, signed_pdf__isnull=False,
+    ).select_related('job')
+
+
+@api_view(['GET'])
+@permission_classes([IsTeamMember])
+def my_files(request):
+    """What a staff member signed for HR, newest first: the offer letter, every handbook version, the check-ins.
+    Documents sent through e-sign come from /api/esign/mine/ (the HR tab lists both). Each `pdf` is a path under /api."""
+    user = request.user
+    files = []
+    for offer in _my_offers(user):
+        files.append({
+            'key': f'offer-{offer.pk}', 'kind': 'offer', 'title': f'Offer letter: {offer.position}',
+            'signed_at': offer.signed_at, 'pdf': f'/hiring/me/offers/{offer.pk}/pdf/',
+        })
+    for row in HandbookSignature.objects.filter(user=user, signed_pdf__isnull=False).select_related('handbook'):
+        files.append({
+            'key': f'handbook-{row.pk}', 'kind': 'handbook',
+            'title': f'{row.handbook.title} (version {row.handbook.version})',
+            'signed_at': row.signed_at, 'pdf': f'/hiring/handbook/signatures/{row.pk}/pdf/',
+        })
+    for row in CheckIn.objects.filter(user=user, status=CheckIn.STATUS_DONE, signed_pdf__isnull=False):
+        files.append({
+            'key': f'checkin-{row.pk}', 'kind': 'checkin', 'title': f'{row.day}-day check-in',
+            'signed_at': row.signed_at, 'pdf': f'/hiring/checkins/{row.pk}/pdf/',
+        })
+    files.sort(key=lambda f: f['signed_at'] or timezone.now(), reverse=True)
+    latest = service.latest_handbook()
+    signed = HandbookSignature.objects.filter(user=user, handbook=latest).first() if latest else None
+    return Response({
+        'handbook': None if latest is None else {
+            'version': latest.version, 'title': latest.title,
+            'signed': None if signed is None else {'id': signed.pk, 'signed_at': signed.signed_at},
+        },
+        'files': files,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsTeamMember])
+def my_offer_pdf(request, offer_id):
+    """My own signed offer letter (managers open anyone's from Applicants)."""
+    offer = get_object_or_404(_my_offers(request.user), pk=offer_id)
+    return stream_s3(offer.signed_pdf, as_attachment=request.query_params.get('download') == '1')

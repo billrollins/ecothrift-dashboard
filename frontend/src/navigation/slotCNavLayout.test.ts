@@ -208,24 +208,39 @@ describe('Studios, Admin, HR and Retail placement (#67)', () => {
       .toEqual(['socialStudio', 'labelStudio', 'floorplans', 'announcements']);
   });
 
-  it('makes HR one workspace: My HR for everyone, HR Admin for managers', () => {
+  it('makes HR the workspace of managers and the owner: Requests, Schedule and Incidents first (#140)', () => {
     const hr = SLOT_C_NAV_GROUPS.find((g) => g.id === 'hr');
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'people')).toBeUndefined();
-    expect(hr?.itemIds).toEqual(['hrRequests', 'schedule', 'profile']);
-    expect(hr?.itemsLabel).toBe('My HR');
-    expect(hr?.managerLabel).toBe('HR Admin');
-    expect(hr?.roles).toBeUndefined();
-    const employee = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS);
-    expect(employee.find((g) => g.id === 'hr')?.items.map((i) => i.id)).toEqual(['hrRequests', 'schedule', 'profile']);
-    const manager = resolveNavGroups({ role: 'Manager', is_superuser: false }, SLOT_C_NAV_GROUPS);
-    expect(manager.find((g) => g.id === 'hr')?.managerItems.map((i) => i.id)).toEqual([
-      'users', 'permissions', 'applicants', 'interviews', 'onboarding', 'checkins',
-      'departments', 'shifts', 'payrollDeductions', 'jobs', 'hiringEmails',
+    expect(hr?.roles).toEqual(['Manager', 'Admin']);
+    expect(hr?.itemIds.slice(0, 3)).toEqual(['hrInbox', 'schedule', 'hrIncidents']);
+    // Staff reach their own requests, the week and their profile from Home, not from this workspace.
+    for (const id of ['hrRequests', 'profile']) {
+      expect([...(hr?.itemIds ?? []), ...(hr?.setupItemIds ?? []), ...(hr?.managerItemIds ?? [])]).not.toContain(id);
+    }
+    // An Employee (old role rule, and with a staff member's dials) sees no HR workspace.
+    expect(resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS).find((g) => g.id === 'hr')).toBeUndefined();
+    const staff = { role: 'Employee' as const, is_superuser: false, access: ['people:view', 'people:use'] };
+    expect(resolveNavGroups(staff, SLOT_C_NAV_GROUPS).find((g) => g.id === 'hr')).toBeUndefined();
+    const manager = resolveNavGroups({ role: 'Manager', is_superuser: false }, SLOT_C_NAV_GROUPS).find((g) => g.id === 'hr');
+    expect(manager?.items.map((i) => i.id)).toEqual([
+      'hrInbox', 'schedule', 'hrIncidents', 'users', 'applicants', 'interviews', 'onboarding', 'checkins',
+      'payrollDeductions', 'permissions', 'departments', 'shifts', 'jobs', 'hiringEmails',
     ]);
+    expect(manager?.setupItems.map((i) => i.id)).toEqual(['permissions', 'departments', 'shifts', 'jobs', 'hiringEmails']);
     expect(NAV_ITEM_CATALOG.applicants?.path).toBe('/people/applicants');
-    // HR documents (#62) is the owner's, under HR Admin.
-    expect(hr?.managerItemIds).toContain('hrDocuments');
-    expect(manager.find((g) => g.id === 'hr')?.managerItems.map((i) => i.id)).not.toContain('hrDocuments');
+    expect(NAV_ITEM_CATALOG.hrInbox?.path).toBe('/people/requests');
+    // Time & payroll and HR documents (#62) stay the owner's.
+    expect(manager?.items.map((i) => i.id)).not.toContain('payrollHours');
+    expect(hr?.setupItemIds).toContain('hrDocuments');
+    expect(manager?.items.map((i) => i.id)).not.toContain('hrDocuments');
+    const owner = resolveNavGroups({ role: 'Admin', is_superuser: true }, SLOT_C_NAV_GROUPS).find((g) => g.id === 'hr');
+    expect(owner?.items.map((i) => i.id)).toContain('payrollHours');
+  });
+
+  it('keeps a granted page: someone given hiring at Manage still finds Applicants in HR', () => {
+    const hiring = { role: 'Employee' as const, is_superuser: false, access: ['hiring:manage'] };
+    expect(resolveNavGroups(hiring, SLOT_C_NAV_GROUPS).find((g) => g.id === 'hr')?.items.map((i) => i.id))
+      .toEqual(['applicants', 'interviews', 'onboarding', 'checkins', 'jobs', 'hiringEmails']);
   });
 
   it('has no Inventory workspace: its pages are Retail shortcuts and keep the Inventory dial', () => {

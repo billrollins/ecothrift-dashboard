@@ -3,6 +3,8 @@
  * right after it happens and sees their own reports; managers and the owner see every report, add follow-up notes and
  * close one. The owner gets a Dash message on each new report. Nothing is deleted; an edit keeps the old text.
  * `?report=<id>` opens one report (the owner's message links here).
+ * In the HR workspace (#140, `kit`) it is the managers' Incidents page: the top bar names it, so the body drops the
+ * staff intro and the list's heading.
  */
 import { useState } from 'react';
 import { Alert, Box, Button, ButtonBase, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
@@ -78,7 +80,7 @@ function Row({ report, onOpen }: { report: IncidentSummary; onOpen: () => void }
   );
 }
 
-export default function HrIncidents() {
+export default function HrIncidents({ kit = false }: { kit?: boolean } = {}) {
   const { t, lang } = useIncidentCopy();
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
@@ -154,14 +156,14 @@ export default function HrIncidents() {
 
   return (
     <Box data-testid="hr-incidents" sx={{ maxWidth: 760 }}>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{t('intro')}</Typography>
+      {kit ? null : <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{t('intro')}</Typography>}
       <Button variant="contained" color="error" size="large" startIcon={<ReportGmailerrorredRounded />} onClick={startNew}
         data-testid="incident-new" sx={{ mb: 2, width: { xs: '100%', sm: 'auto' } }}>
         {t('report')}
       </Button>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, minHeight: 40 }}>
-        <Typography sx={{ fontWeight: 700, flex: 1 }}>{canManage ? t('title') : t('yours')}</Typography>
+        <Typography sx={{ fontWeight: 700, flex: 1 }}>{kit ? '' : canManage ? t('title') : t('yours')}</Typography>
         {canManage ? (
           <ToggleButtonGroup size="small" exclusive value={filter} onChange={(_, v: Filter | null) => v && setFilter(v)}
             aria-label={t('title')}>

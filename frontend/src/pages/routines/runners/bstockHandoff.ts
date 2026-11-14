@@ -100,7 +100,7 @@ export function rememberBstockReturn(path: string): void {
 export function bstockReturnPath(): string {
   const path = readStamped(local(), RETURN_KEY, RETURN_TTL_MS);
   // Only an in-app path: never navigate somewhere a stored value names.
-  return path && path.startsWith('/') && !path.startsWith('//') ? path : dashboardTabHref('myday');
+  return path && path.startsWith('/') && !path.startsWith('//') ? path : dashboardTabHref('routines');
 }
 
 const RUNNER_OPEN_KEY = 'bstock.runnerOpenAt';

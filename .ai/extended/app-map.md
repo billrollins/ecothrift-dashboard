@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-12 (Facilities > Signage drafts and voting #122) -->
+<!-- Last updated: 2026-11-13 (HR workspace for managers and the owner, #140) -->
 # Eco-Thrift Dashboard — App Map for Navigation Consultation
 
 **Purpose:** Hand this document to a consulting AI (or UX reviewer) to evaluate whether the staff navbar, workspaces, and page grouping can be organized more clearly.
@@ -144,6 +144,8 @@ Grouped the way the **current navbar** presents them. Paths are staff SPA routes
 | **Dashboard** | `/dashboard` | Store pulse: sales run-rate / weekly book, department cards (Buying, Processing, Restoration, Retail), who’s working. Manager-facing home. |
 
 **HR** (`/hr`, #56) is first on the account menu: one page with tabs (Requests, Me, Schedule, People, Hiring, Onboarding, Time & payroll) around the existing HR pages, each tab and section shown only when that person can open its page. **Requests** (#59, `/hr`) is every HR request in one place: days off and new times, time changes and questions to HR; each person sees their own, and whoever answers a kind sees everyone's waiting ones.
+
+**HR workspace** (sidebar, digit 0; managers and the owner only since Dash Update #140, 2026-11-13): **Requests** (`/people/requests`, the one inbox of days off, new times, shift fixes, open incidents and questions, each answered in place by whoever answers that kind today), **Schedule** (`/people/schedule`, the Schedule builder: the only place the week is changed; everywhere else it is read-only), **Incidents** (`/people/incidents`), then Staff, Applicants, Interviews, Onboarding, Check-ins, Time & payroll (owner), Payroll deductions; under Setup: Permissions, Departments, Shifts, Jobs & careers page, Emails, HR documents (owner). Each page keeps its own dial, so someone granted one page still finds it there. Staff have their requests, the week and their profile on Home (HR, Time clock, Profile tabs).
 
 Time clock and Routines are on the **account menu** (avatar), not the sidebar. The name at the top of that menu opens **Me** (`/me`, every staff login: details, password and register PIN, Hours & pay, shifts, onboarding and check-ins, sign out on all devices); Thrift+ Staff has it as its **Me** tab. Documents is unwired until a later UI tune.
 

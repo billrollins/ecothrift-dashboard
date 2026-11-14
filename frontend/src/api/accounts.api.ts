@@ -163,8 +163,29 @@ export function changePassword(
 }
 
 /** The Me page: what is mine (details, emergency contact, register PIN, weekly shifts). */
+/** My next review (#139): a scheduled 30/60/90-day check-in or the review date a manager set, whichever is first. */
+export interface MeNextReview {
+  kind: 'checkin' | 'review';
+  /** YYYY-MM-DD */
+  date: string;
+  label: string;
+  /** Who holds it (a check-in's manager); '' when not known. */
+  with: string;
+  /** Days from today (negative: past the date). */
+  days: number;
+}
+
 export interface MePage {
-  details: { first_name: string; last_name: string; email: string; username: string; phone: string; role: string };
+  details: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    username: string;
+    phone: string;
+    role: string;
+    /** My photo (#139); null = initials. */
+    photo_url?: string | null;
+  };
   employee: {
     employee_number: string;
     position: string;
@@ -172,7 +193,14 @@ export interface MePage {
     hire_date: string;
     emergency_name: string;
     emergency_phone: string;
+    /** Work details (#139), read only for the person: a manager changes them in the staff window. */
+    employment_type?: string;
+    level?: string;
+    pay_rate?: string;
+    on_payroll?: boolean;
+    overtime_allowance_hours?: string;
   } | null;
+  next_review?: MeNextReview | null;
   pin: { set: boolean; set_at: string | null; can_set: boolean };
   schedule: Array<{ shift: string; department: string; time_in: string; time_out: string; days: number[]; day_names: string[] }>;
   /** My drawers and covers, once the register's drawer life ships; null until then. */
@@ -187,6 +215,28 @@ export function patchMeDetails(
   data: Partial<{ phone: string; emergency_name: string; emergency_phone: string }>,
 ): Promise<{ data: MePage }> {
   return api.patch<MePage>('/auth/me/details/', data);
+}
+
+/** My photo (#139): a picture from the camera or a file; the server keeps the middle square at 480 px. */
+export function uploadMyPhoto(file: File): Promise<{ data: MePage }> {
+  const form = new FormData();
+  form.append('photo', file);
+  return api.post<MePage>('/auth/me/photo/', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+}
+
+export function removeMyPhoto(): Promise<{ data: MePage }> {
+  return api.delete<MePage>('/auth/me/photo/');
+}
+
+/** The staff window's photo (#139): owner or Full on people. Answers the user. */
+export function uploadStaffPhoto(userId: number, file: File): Promise<{ data: User }> {
+  const form = new FormData();
+  form.append('photo', file);
+  return api.post<User>(`/accounts/users/${userId}/photo/`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+}
+
+export function removeStaffPhoto(userId: number): Promise<{ data: User }> {
+  return api.delete<User>(`/accounts/users/${userId}/photo/`);
 }
 
 export function setMyRegisterPin(pin: string, password: string): Promise<{ data: MePage }> {

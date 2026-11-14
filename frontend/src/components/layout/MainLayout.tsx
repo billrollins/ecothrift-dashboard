@@ -63,8 +63,8 @@ export default function MainLayout() {
   const isHomeTab = isDashboardPath && dashboardTab !== 'store' && dashboardTab !== 'myday';
   const isToday = (isDashboardPath && dashboardTab === 'myday')
     || location.pathname === '/today' || location.pathname.startsWith('/today/');
-  // A routine open on Today draws its own pane edge to edge, like the runner always did.
-  const isTodayRunner = isToday && hasRunner(new URLSearchParams(location.search));
+  // A routine open (on the Routines tab since #137) draws its own pane edge to edge, like the runner always did.
+  const isTodayRunner = (isToday || isDashboardPath) && hasRunner(new URLSearchParams(location.search));
   const isRestoration = location.pathname.startsWith('/restoration');
   const isRestorationBench = location.pathname === RESTORATION_BENCH_PATH;
   const isFieldMobile = isMobile && location.pathname.startsWith('/pos/deliveries/field');

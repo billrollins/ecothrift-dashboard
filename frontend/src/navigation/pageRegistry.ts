@@ -119,7 +119,8 @@ const TEMPLATE: Record<string, PageTemplate> = {
   // Admin
   owner: 'overview', reports: 'report', superRequests: 'list-detail', contractors: 'list-detail',
   adminRoutines: 'list-detail', settings: 'settings', icons: 'none', designLab: 'none',
-  // HR
+  // HR (managers and the owner, #140): the Requests inbox, the Schedule builder, incidents to follow up
+  hrInbox: 'list-detail', hrIncidents: 'list-detail',
   schedule: 'calendar', users: 'list-detail', permissions: 'settings', applicants: 'list-detail',
   interviews: 'calendar', onboarding: 'list-detail', checkins: 'list-detail', departments: 'list-detail',
   shifts: 'calendar', payrollHours: 'report', payrollDeductions: 'list-detail', jobs: 'list-detail',
@@ -147,8 +148,10 @@ export interface RegistryPage {
 export const HOME_WORKSPACE = { id: 'home', label: 'Home and account' };
 /** Pages no workspace lists: reached from another page, the avatar menu, or kept alive at an old address. */
 export const NO_WORKSPACE = { id: 'none', label: 'Not in a workspace sidebar' };
-/** Home pages and the avatar menu: for everyone, outside the workspaces. */
-const HOME_IDS = new Set(['dashboard', 'today', 'routines', 'documents', 'dashFixes', 'profile', 'homeHr', 'homeCalendar', 'homeMessages']);
+/** Home pages and the avatar menu: for everyone, outside the workspaces. HR > Requests (staff view) opens from Home > HR. */
+const HOME_IDS = new Set([
+  'dashboard', 'today', 'routines', 'documents', 'dashFixes', 'profile', 'homeHr', 'homeCalendar', 'homeMessages', 'hrRequests',
+]);
 
 /** The workspace that lists the page as its own; for a page only ever a shortcut (owner tools), the first that links it. */
 function ownWorkspace(itemId: string) {

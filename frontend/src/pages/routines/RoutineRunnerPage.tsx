@@ -145,7 +145,7 @@ export function RoutineRunnerPage({ runId, onClose }: { runId?: number; onClose?
       onClose();
       return;
     }
-    navigate(dashboardTabHref('myday'));
+    navigate(dashboardTabHref('routines'));
   }
 
   async function handleCancel() {

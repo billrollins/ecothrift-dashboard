@@ -24,7 +24,7 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
             'position', 'employment_type', 'pay_rate', 'on_payroll', 'level', 'overtime_allowance_hours', 'hire_date',
             'termination_date', 'termination_type', 'termination_type_display',
             'termination_notes', 'work_location', 'work_location_name',
-            'emergency_name', 'emergency_phone', 'notes', 'created_at',
+            'emergency_name', 'emergency_phone', 'next_review_date', 'notes', 'created_at',
         ]
         read_only_fields = [
             'id', 'employee_number', 'created_at',
@@ -62,6 +62,8 @@ class UserSerializer(serializers.ModelSerializer):
     email_verified = serializers.SerializerMethodField()
     hours_flag = serializers.SerializerMethodField()
     locked_out = serializers.SerializerMethodField()
+    # Their photo (#139); null = initials. Set through POST/DELETE users/<id>/photo/ or Home > Profile.
+    photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -71,12 +73,12 @@ class UserSerializer(serializers.ModelSerializer):
             'date_joined', 'updated_at',
             'last_login',
             'role', 'roles', 'full_name',
-            'has_password', 'has_register_pin', 'email_verified', 'hours_flag', 'locked_out',
+            'has_password', 'has_register_pin', 'email_verified', 'hours_flag', 'locked_out', 'photo_url',
             'employee', 'consignee',
         ]
         read_only_fields = [
             'id', 'is_superuser', 'date_joined', 'updated_at', 'last_login',
-            'has_password', 'email_verified', 'hours_flag', 'locked_out',
+            'has_password', 'email_verified', 'hours_flag', 'locked_out', 'photo_url',
         ]
 
     def get_locked_out(self, obj):
@@ -104,6 +106,11 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_has_password(self, obj):
         return obj.has_usable_password()
+
+    def get_photo_url(self, obj):
+        from apps.accounts.services.staff_photo import photo_url
+
+        return photo_url(obj)
 
     def get_has_register_pin(self, obj):
         return bool(obj.register_pin_hash)

@@ -333,7 +333,10 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
             count = 6
         periods = list_payroll_periods(count=count)
         profile = getattr(request.user, 'employee', None)
-        rate = Decimal(getattr(profile, 'pay_rate', 0) or 0)
+        # Off payroll (family, #121): the hours, never a pay figure.
+        from .services.payroll_people import is_on_payroll
+        on_payroll = is_on_payroll(request.user)
+        rate = Decimal(getattr(profile, 'pay_rate', 0) or 0) if on_payroll else Decimal('0')
         first = date.fromisoformat(periods[-1]['date_from'])
         last = date.fromisoformat(periods[0]['date_to'])
         entries = list(TimeEntry.objects.filter(
@@ -355,8 +358,16 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
                 'pending_hours': (total - approved).quantize(Decimal('0.01')),
                 'overtime_hours': overtime,
                 'total_pay': pay_periods.gross(regular, overtime, rate),
+                'on_payroll': on_payroll,
             })
         return Response(MyPayPeriodSerializer(rows, many=True).data)
+
+    @action(detail=False, methods=['get'])
+    def my_period(self, request):
+        """The Time clock tab's Mine view (#137): this pay period's days, scheduled and worked, hours and pay so far,
+        and what the scheduled shifts still ahead add. The signed-in person only; off payroll gets no pay figures."""
+        from .services.my_period import my_period
+        return Response(my_period(request.user, request=request))
 
     @action(detail=False, methods=['get'])
     def weekly_status(self, request):

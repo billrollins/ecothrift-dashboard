@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (handbook matches Dash: no sick leave, schedule, call-ins, overtime 1.5) -->
+<!-- Last updated: 2026-11-13 (me/files for Home > HR > Files, #138) -->
 # Hiring
 
 The careers page, applications, and the People workspace. Design and phases: [`initiatives/hiring_onboarding.md`](../initiatives/hiring_onboarding.md).
@@ -123,10 +123,11 @@ The careers page, applications, and the People workspace. Design and phases: [`i
   - Admin only: `<id>/i9/`, `<id>/i9/files/[<file>/]` and `<id>/i9/section2/`;
   - `/api/hiring/handbook/` (publishing is Admin only) and `handbook/signatures/<id>/pdf/`;
   - the new hire (IsTeamMember): `/api/hiring/me/onboarding/`, `me/onboarding/tasks/<id>/`, `me/emergency-contact/` and `me/handbook/sign/`.
+  - any staff login, for Home > HR > Files (#138): `me/files/` (their signed offer letter, every handbook version they signed and their signed check-ins, newest first, each with its PDF path; plus the current handbook and whether they signed it) and `me/offers/<id>/pdf/` (their own signed offer only).
   - Create employee takes `start_onboarding` and `send_first_day`.
 - **UI:**
   - `frontend/src/pages/people/OnboardingPage.tsx` (People → Onboarding, with the Handbook tab);
-  - `MyOnboardingPage.tsx` (`/onboarding`) and `MyOnboardingBanner.tsx` (on Today);
+  - `MyOnboardingPage.tsx` (`/onboarding`) and the onboarding banner on Home > HR (`pages/home/HrTab.tsx`, #138; it was `MyOnboardingBanner.tsx` on Today);
   - `onboardingUi.tsx` (Checklist, CountDialog, I9Dialog, StartOnboardingDialog, HandbookText) and `SignaturePad.tsx`;
   - `SetPasswordLinkDialog` takes `fetchLink`.
 - **Careers file:** `onboarding.items` (owner, due and kind are checked against `ONBOARDING_*`), `handbook` (title, text, acknowledgment; `## ` headings, `- ` bullets), and the `first_day` email.
@@ -153,7 +154,7 @@ The careers page, applications, and the People workspace. Design and phases: [`i
 - **API** (`checkin_views.py`):
   - managers: `/api/hiring/checkins/?when=due|upcoming|done|all`, `checkins/schedule/`, `checkins/<id>/` (GET and PATCH), `<id>/sign/`, `<id>/skip/` and `<id>/pdf/` (the PDF is also open to the employee it's about);
   - the employee: `/api/hiring/me/checkins/`.
-- **UI:** `CheckInsPage.tsx` (People → Check-ins), `MyCheckInsPage.tsx` (`/check-ins`), `checkinUi.tsx`, and the banner in `MyOnboardingBanner.tsx`.
+- **UI:** `CheckInsPage.tsx` (People → Check-ins), `MyCheckInsPage.tsx` (`/check-ins`), `checkinUi.tsx`, and the banner on Home > HR (`pages/home/HrTab.tsx`).
 - **Owner page:** Needs you counts offers to send, offers waiting for a signature and check-ins due (`apps/core/services/owner_page.py`). The morning brief that carried them was retired 2026-10-21.
 
 ## Test data on dev

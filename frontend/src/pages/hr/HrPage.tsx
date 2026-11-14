@@ -5,6 +5,10 @@
  * People, Hiring and Onboarding, and the owner Time & payroll. Requests (#59) is first: every HR request in one place.
  * Its Documents section (#62, the owner) sends documents to staff to e-sign; staff sign theirs on Requests.
  * Incidents (#131): anyone reports an incident on site; managers and the owner follow up.
+ * The split (#140, Bill 2026-11-13, .ai/extended/home-and-hr-structure.md decision 6): the managers' pages (People,
+ * Hiring, Onboarding, Time & payroll) live in the HR workspace sidebar only, so this page is everyone's own HR. The
+ * week is read on Home > Time clock > Everyone (#137) and built in the HR workspace, so the Schedule tab went too. An
+ * old /hr address of a page that moved lands on the page itself (MOVED).
  */
 import { Box, LinearProgress, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 'react';
@@ -16,17 +20,6 @@ const HrRequests = lazy(() => import('./HrRequests'));
 const HrIncidents = lazy(() => import('./HrIncidents'));
 const HrDocumentsPage = lazy(() => import('../esign/HrDocumentsPage'));
 const MePage = lazy(() => import('../me/MePage'));
-const SchedulePage = lazy(() => import('../people/SchedulePage'));
-const UsersPage = lazy(() => import('../admin/users/UsersPage'));
-const PermissionsPage = lazy(() => import('../people/permissions/PermissionsPage'));
-const ApplicantsPage = lazy(() => import('../people/ApplicantsPage'));
-const InterviewsPage = lazy(() => import('../people/InterviewsPage'));
-const JobsPage = lazy(() => import('../people/JobsPage'));
-const EmailsPage = lazy(() => import('../people/EmailsPage'));
-const OnboardingPage = lazy(() => import('../people/OnboardingPage'));
-const CheckInsPage = lazy(() => import('../people/CheckInsPage'));
-const TimePayrollPage = lazy(() => import('../admin/TimePayrollPage'));
-const PayrollDeductionsPage = lazy(() => import('../people/PayrollDeductionsPage'));
 
 type Section = {
   key: string;
@@ -48,44 +41,30 @@ export const HR_TABS: HrTab[] = [
     ],
   },
   { key: 'me', label: 'Me', sections: [{ key: 'me', label: 'Me', page: MePage }] },
-  { key: 'schedule', label: 'Schedule', sections: [{ key: 'week', label: 'Schedule', page: SchedulePage }] },
   // Incident reports (#131): every staff login files one; managers and the owner see them all.
   { key: 'incidents', label: 'Incidents', sections: [{ key: 'all', label: 'Incidents', page: HrIncidents }] },
-  {
-    key: 'people',
-    label: 'People',
-    sections: [
-      { key: 'staff', label: 'Staff', item: 'users', page: UsersPage },
-      { key: 'permissions', label: 'Permissions', item: 'permissions', page: PermissionsPage },
-    ],
-  },
-  {
-    key: 'hiring',
-    label: 'Hiring',
-    sections: [
-      { key: 'applicants', label: 'Applicants', item: 'applicants', page: ApplicantsPage },
-      { key: 'interviews', label: 'Interviews', item: 'interviews', page: InterviewsPage },
-      { key: 'jobs', label: 'Jobs & careers page', item: 'jobs', page: JobsPage },
-      { key: 'emails', label: 'Emails', item: 'hiringEmails', page: EmailsPage },
-    ],
-  },
-  {
-    key: 'onboarding',
-    label: 'Onboarding',
-    sections: [
-      { key: 'onboarding', label: 'Onboarding', item: 'onboarding', page: OnboardingPage },
-      { key: 'checkins', label: 'Check-ins', item: 'checkins', page: CheckInsPage },
-    ],
-  },
-  {
-    key: 'payroll',
-    label: 'Time & payroll',
-    sections: [
-      { key: 'periods', label: 'Time & payroll', item: 'payrollHours', page: TimePayrollPage },
-      { key: 'deductions', label: 'Payroll deductions', item: 'payrollDeductions', page: PayrollDeductionsPage },
-    ],
-  },
 ];
+
+/** The managers' pages that moved to the HR workspace (#140): old /hr/<tab>[/<section>] -> the page itself. */
+export const MOVED: Record<string, string> = {
+  // The Schedule route sends staff to Time clock > Everyone and managers to the builder (App.tsx ScheduleRoute).
+  schedule: '/people/schedule',
+  'schedule/week': '/people/schedule',
+  people: '/admin/users',
+  'people/staff': '/admin/users',
+  'people/permissions': '/people/permissions',
+  hiring: '/people/applicants',
+  'hiring/applicants': '/people/applicants',
+  'hiring/interviews': '/people/interviews',
+  'hiring/jobs': '/people/jobs',
+  'hiring/emails': '/people/emails',
+  onboarding: '/people/onboarding',
+  'onboarding/onboarding': '/people/onboarding',
+  'onboarding/checkins': '/people/checkins',
+  payroll: '/admin/time-payroll',
+  'payroll/periods': '/admin/time-payroll',
+  'payroll/deductions': '/people/payroll-deductions',
+};
 
 /** The tabs this person can open, each with only the sections they can open. */
 export function hrTabsFor(user: NavAccessUser): HrTab[] {
@@ -105,6 +84,8 @@ export default function HrPage() {
   const navigate = useNavigate();
   const tabs = hrTabsFor(user);
   const [, , tabKey = 'requests', sectionKey] = pathname.replace(/\/$/, '').split('/');
+  const moved = (sectionKey && MOVED[`${tabKey}/${sectionKey}`]) || MOVED[tabKey];
+  if (moved) return <Navigate to={moved} replace />;
   const tab = tabs.find((t) => t.key === tabKey);
   if (!tab) return <Navigate to="/hr" replace />;
   const section = sectionKey ? tab.sections.find((s) => s.key === sectionKey) : tab.sections[0];

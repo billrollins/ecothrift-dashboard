@@ -41,10 +41,10 @@ export default function RoutinesPage() {
 
   if (mode === 'fill') {
     const target = todayHref(`${location.pathname}${location.search}`);
-    return <Navigate to={target.startsWith('/dashboard') ? target : dashboardTabHref('myday')} replace />;
+    return <Navigate to={target.startsWith('/dashboard') ? target : dashboardTabHref('routines')} replace />;
   }
   if (mode === 'mine' || !canAccess(user, ['routines:write', 'admin:full'])) {
-    return <Navigate to={dashboardTabHref('myday')} replace />;
+    return <Navigate to={dashboardTabHref('routines')} replace />;
   }
 
   const left = mode === 'edit' ? (

@@ -112,14 +112,18 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'hr',
     label: 'HR',
-    // Two surfaces (Bill 2026-11-04): My HR for every staff login, HR Admin for managers (each page by its own dial).
-    itemsLabel: 'My HR',
-    itemIds: ['hrRequests', 'schedule', 'profile'],
-    managerLabel: 'HR Admin',
-    managerItemIds: [
-      'users', 'permissions', 'applicants', 'interviews', 'onboarding', 'checkins',
-      'departments', 'shifts', 'payrollHours', 'payrollDeductions', 'jobs', 'hiringEmails',
-      // Documents to e-sign (#62): the owner sends them; staff sign theirs in Requests.
+    // Managers and the owner only (#140, Bill 2026-11-13, .ai/extended/home-and-hr-structure.md decision 6): the
+    // Requests inbox, the Schedule builder and incidents first, then people, hiring, onboarding and payroll; set-once
+    // pages under Setup. Every page keeps its own dial, so the workspace shows for whoever can open one of them.
+    // Staff have their requests, the week, their files and their profile on Home (HR, Time clock, Profile tabs).
+    roles: ['Manager', 'Admin'],
+    itemIds: [
+      'hrInbox', 'schedule', 'hrIncidents', 'users', 'applicants', 'interviews', 'onboarding', 'checkins',
+      'payrollHours', 'payrollDeductions',
+    ],
+    setupItemIds: [
+      'permissions', 'departments', 'shifts', 'jobs', 'hiringEmails',
+      // Documents to e-sign (#62): the owner sends them; staff sign theirs on Home > HR.
       'hrDocuments',
     ],
   },
@@ -227,7 +231,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'hr',
     label: 'HR',
     shortLabel: 'HR',
-    helper: 'My requests, schedule and profile; staff and hiring',
+    helper: 'Requests, the schedule, incidents, staff, hiring and payroll',
     icon: 'people',
     shortcutColor: '#7C3AED',
     shortcutDigit: 0,

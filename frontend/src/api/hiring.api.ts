@@ -864,6 +864,23 @@ export const saveMyEmergencyContact = (name: string, phone: string) =>
 export const signMyHandbook = (body: { name: string; signature: string; acknowledged: boolean; consent: boolean }) =>
   api.post<MyOnboarding>('/hiring/me/handbook/sign/', body);
 
+/** Home > HR > Files (#138): what I signed for HR (offer letter, every handbook version, check-ins), newest first. */
+export interface MyHrFile {
+  key: string;
+  kind: 'offer' | 'handbook' | 'checkin';
+  title: string;
+  signed_at: string | null;
+  /** A path under /api: open it with `getMyHrFilePdf`. */
+  pdf: string;
+}
+export interface MyHrFiles {
+  /** The current handbook, and whether I signed this version. */
+  handbook: { version: number; title: string; signed: { id: number; signed_at: string } | null } | null;
+  files: MyHrFile[];
+}
+export const getMyHrFiles = () => api.get<MyHrFiles>('/hiring/me/files/');
+export const getMyHrFilePdf = (path: string) => api.get<Blob>(path, { responseType: 'blob' });
+
 // ── Check-ins (Phase 5) ─────────────────────────────────────────────────────
 
 export interface CheckInForm {

@@ -129,7 +129,7 @@ describe('NotificationBell', () => {
     expect(screen.getByTestId('notification-bell-badge').querySelector('.MuiBadge-badge')).toHaveClass('MuiBadge-invisible');
   });
 
-  it('opens Messages, Today, and Requests from their rows', async () => {
+  it('opens Messages, Routines, and Requests from their rows', async () => {
     const user = userEvent.setup();
     state.superuser = true;
     state.unread = 1;
@@ -139,9 +139,10 @@ describe('NotificationBell', () => {
     expect(screen.getByTestId('where')).toHaveTextContent('/messages');
 
     await user.click(screen.getByTestId('notification-bell'));
+    // Routines waiting open the Routines tab, where they run now (#137).
     await user.click(screen.getByTestId('bell-row-routines'));
-    expect(screen.getByTestId('where')).toHaveTextContent('/dashboard?tab=myday');
-    expect(localStorage.getItem('ecothrift.dashboard.tab.v1.1')).toBe('myday');
+    expect(screen.getByTestId('where')).toHaveTextContent('/dashboard?tab=routines');
+    expect(localStorage.getItem('ecothrift.dashboard.tab.v1.1')).toBe('routines');
 
     await user.click(screen.getByTestId('notification-bell'));
     await user.click(screen.getByTestId('bell-row-approvals'));

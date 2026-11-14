@@ -62,12 +62,13 @@ function setWide(wide: boolean) {
   })) as unknown as typeof window.matchMedia;
 }
 
-function renderPage() {
+/** The Schedule builder by default (#140: the only place the week changes); `build: false` is every other view. */
+function renderPage({ build = true }: { build?: boolean } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <SnackbarProvider>
-        <SchedulePage />
+        <SchedulePage build={build} />
       </SnackbarProvider>
     </QueryClientProvider>,
   );
@@ -241,6 +242,25 @@ describe('SchedulePage', () => {
     await waitFor(() => expect(api.clearScheduleWeek).toHaveBeenCalledWith('2026-10-19'));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
+  it('outside the builder the week is read-only for a manager too (#140)', async () => {
+    // can_edit is true (a manager), but only the HR workspace's Schedule builder changes the week.
+    renderPage({ build: false });
+    const dave = await screen.findByTestId('schedule-row-6');
+    expect(screen.getByRole('heading', { name: 'Schedule' })).toBeInTheDocument();
+    expect(screen.queryByText('Copy last week')).not.toBeInTheDocument();
+    expect(screen.queryByText('Clear week')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('handle-end-12')).toBeNull();
+    expect(screen.getByTestId('requests-button')).toHaveTextContent('My requests');
+    await userEvent.click(dave.querySelectorAll('td')[2]);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('the builder leaves its name to the top bar (kit page)', async () => {
+    renderPage();
+    await screen.findByTestId('schedule-row-6');
+    expect(screen.queryByRole('heading', { name: 'Schedule' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Copy last week' })).toBeInTheDocument();
+  });
 });
 
 describe('two weeks in one scroll (Bill, Dash Updates #74, 2026-11-05)', () => {
@@ -317,6 +337,7 @@ describe('schedule helpers', () => {
     await userEvent.click(carrie.querySelectorAll('td')[2]);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+
 });
 
 const ASK: ScheduleRequest = {

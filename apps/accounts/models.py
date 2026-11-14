@@ -59,6 +59,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     register_pin_set_at = models.DateTimeField(null=True, blank=True, editable=False)
     # "Sign out on all devices" (Me page): tokens issued before this are refused (authentication.py).
     sessions_ended_at = models.DateTimeField(null=True, blank=True, editable=False)
+    # Their photo (Dash Update #139): one square JPEG, set by the person on Home > Profile or by the owner in the staff
+    # window (services/staff_photo.py). Blank = initials. Old files stay in storage.
+    photo = models.FileField(upload_to='staff/photos/', blank=True, default='')
 
     objects = UserManager()
 
@@ -161,6 +164,9 @@ class EmployeeProfile(models.Model):
     )
     emergency_name = models.CharField(max_length=150, blank=True, default='')
     emergency_phone = models.CharField(max_length=30, blank=True, default='')
+    # Next performance review (Dash Update #139): set by the owner or a manager in the staff window; shown on the
+    # person's Home > Profile. Blank = not set yet. A scheduled 30/60/90-day check-in shows first when it is sooner.
+    next_review_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True, default='')
     # Wi-Fi time clock (D23): the phone's fixed Wi-Fi address on the store network, aa:bb:cc:dd:ee:ff.
     # Personal data: kept here only, never logged. Blank = not opted in.
@@ -337,6 +343,7 @@ class AccountEvent(models.Model):
     KIND_SIGNED_OUT_ALL = 'signed_out_all'
     KIND_VIEW_AS_START = 'view_as_start'
     KIND_VIEW_AS_STOP = 'view_as_stop'
+    KIND_PHOTO = 'photo_changed'            # their photo set, changed or removed (#139)
     KIND_CHOICES = [
         (KIND_CREATED, 'Created'), (KIND_ROLE, 'Role changed'), (KIND_OFF, 'Switched off'), (KIND_ON, 'Switched on'),
         (KIND_USERNAME, 'Username changed'), (KIND_LINK, 'Set-password link issued'),
@@ -348,6 +355,7 @@ class AccountEvent(models.Model):
         (KIND_SIGNED_OUT_ALL, 'Signed out on all devices'),
         (KIND_VIEW_AS_START, 'Owner started viewing Dash as this person'),
         (KIND_VIEW_AS_STOP, 'Owner stopped viewing Dash as this person'),
+        (KIND_PHOTO, 'Photo changed'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='account_events')

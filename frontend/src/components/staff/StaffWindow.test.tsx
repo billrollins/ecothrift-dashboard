@@ -1,18 +1,20 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { SnackbarProvider } from 'notistack';
 import { StaffWindow } from './StaffWindow';
+import { uploadStaffPhoto } from '../../api/accounts.api';
 
 const state = vi.hoisted(() => ({
   user: null as null | Record<string, unknown>,
   viewer: { id: 1, is_superuser: false, view_as: null } as Record<string, unknown>,
   startViewAs: vi.fn(),
+  setMyPhoto: vi.fn(),
 }));
 
 vi.mock('../../contexts/AuthContext', () => ({
-  useAuth: () => ({ user: state.viewer, startViewAs: state.startViewAs }),
+  useAuth: () => ({ user: state.viewer, startViewAs: state.startViewAs, setMyPhoto: state.setMyPhoto }),
 }));
 
 vi.mock('../../api/hr.api', () => ({
@@ -26,6 +28,8 @@ vi.mock('../../api/accounts.api', () => ({
   sendStaffPasswordReset: vi.fn(),
   getSetPasswordLink: vi.fn(),
   clearRegisterPin: vi.fn(),
+  uploadStaffPhoto: vi.fn(async () => ({ data: { photo_url: 'https://files.example/new.jpg' } })),
+  removeStaffPhoto: vi.fn(async () => ({ data: { photo_url: null } })),
 }));
 vi.mock('../../api/texting.api', () => ({
   getTextingStatus: vi.fn(async () => ({ data: { staff_texts_live: true, waiting_on: [], unread: 0 } })),
@@ -165,6 +169,27 @@ describe('StaffWindow', () => {
     expect(screen.getByTestId('pay-level-field')).toBeInTheDocument();
     expect(screen.getByLabelText('Overtime allowed')).toHaveValue(5);
     expect(screen.getByText(/outside the Senior range/)).toBeInTheDocument();
+  });
+
+  it('shows their photo and lets the owner set a new one (the same circle as their Profile)', async () => {
+    state.user = { ...FULL_USER, photo_url: 'https://files.example/dana.jpg' };
+    wrap();
+    expect(screen.getByRole('img', { name: 'New Hire' })).toHaveAttribute('src', 'https://files.example/dana.jpg');
+    fireEvent.click(screen.getByTestId('staff-photo'));
+    expect(screen.getByRole('menuitem', { name: /Remove photo/ })).not.toHaveAttribute('aria-disabled');
+    const file = new File(['x'], 'new.jpg', { type: 'image/jpeg' });
+    fireEvent.change(screen.getByTestId('staff-photo-input'), { target: { files: [file] } });
+    await waitFor(() => expect(uploadStaffPhoto).toHaveBeenCalledWith(7, file));
+    // Someone else's photo: the owner's own top-bar avatar stays as it is.
+    expect(state.setMyPhoto).not.toHaveBeenCalled();
+  });
+
+  it('sets the next review on Employment', () => {
+    state.user = { ...FULL_USER, employee: { ...FULL_USER.employee, next_review_date: '2026-12-04' } };
+    wrap();
+    fireEvent.click(screen.getByRole('tab', { name: 'Employment' }));
+    expect(screen.getByLabelText('Next review')).toHaveValue('2026-12-04');
+    expect(screen.getByText(/Shows on their Profile/)).toBeInTheDocument();
   });
 
   it('puts the red over-hours flag at the top when the week is past their hours', () => {

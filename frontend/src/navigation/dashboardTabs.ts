@@ -53,19 +53,23 @@ export function dashboardTabHref(tab: DashboardTab): string {
   return `/dashboard?tab=${tab}`;
 }
 
-/** Old My-day paths (/today, /routines, /pay) belong to the My day tab. */
-function isMyDayPath(pathname: string): boolean {
+function underPath(pathname: string, prefixes: string[]): boolean {
   const path = (pathname || '/').toLowerCase().replace(/\/+$/, '') || '/';
-  return ['/today', '/routines', '/pay'].some((p) => path === p || path.startsWith(`${p}/`));
+  return prefixes.some((p) => path === p || path.startsWith(`${p}/`));
 }
 
 export function resolveDashboardTab(pathname: string, search: string, user: TabUser): DashboardTab {
-  if (isMyDayPath(pathname)) return 'myday';
   const params = new URLSearchParams(search.replace(/^\?/, ''));
+  // A routine runs on the Routines tab (#137); /routines is that tab. Old /today and /pay paths are Time clock.
+  if (underPath(pathname, ['/routines'])) return 'routines';
+  if (underPath(pathname, ['/today', '/pay'])) return hasRunner(params) ? 'routines' : 'myday';
   const explicit = params.get('tab');
+  // An old Time clock link with a routine in it (`?tab=myday&run=12`) opens the routine where it runs now.
+  if (explicit === 'myday' && hasRunner(params)) return 'routines';
   if (isTab(explicit)) return explicit;
-  // A routine or the hours panel open in the URL is My day, whatever was chosen last.
-  if (hasRunner(params) || params.get('hours')) return 'myday';
+  // A routine open in the URL is Routines, the hours panel Time clock, whatever was chosen last.
+  if (hasRunner(params)) return 'routines';
+  if (params.get('hours')) return 'myday';
   return loadDashboardTab(user?.id) ?? defaultDashboardTab(user);
 }
 

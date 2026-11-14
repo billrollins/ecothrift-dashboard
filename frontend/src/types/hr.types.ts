@@ -102,6 +102,67 @@ export interface MyPayPeriod extends PayrollPeriod {
   /** Hours past 40 in a Mon-Sun week; total_pay pays them at 1.5. */
   overtime_hours: string;
   total_pay: string;
+  /** Off payroll (family, #121): total_pay is 0 and no pay is shown. */
+  on_payroll?: boolean;
+}
+
+/** One scheduled shift on a day of My period, with the hours of it still ahead. */
+export interface MyPeriodScheduled {
+  id: number;
+  date: string;
+  start_time: string;
+  end_time: string;
+  /** "9am-3pm" */
+  text: string;
+  hours: number;
+  hours_ahead: string;
+  department_name: string;
+}
+
+/** A shift worked, with its latest "fix this shift" request. */
+export interface MyPeriodWorked extends TimeEntry {
+  /** The open shift's hours up to now. */
+  hours_so_far?: string;
+  change: { id: number; status: 'pending' | 'approved' | 'denied'; review_note: string } | null;
+}
+
+/** A schedule request (days off or new times), as the schedule API sends it. */
+export interface MyPeriodRequest {
+  id: number;
+  kind: 'off' | 'times';
+  date: string;
+  end_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  note: string;
+  status: 'pending' | 'approved' | 'declined' | 'withdrawn';
+  reply: string;
+  decided_by_name: string;
+  decided_at: string | null;
+  created_at: string;
+}
+
+/** The Time clock tab's Mine view (#137): this pay period, scheduled and worked. Pay is null when off payroll. */
+export interface MyPeriod {
+  date_from: string;
+  date_to: string;
+  label: string;
+  today: string;
+  days_left: number;
+  on_payroll: boolean;
+  so_far: { hours: string; overtime_hours: string; pending_hours: string; shift_count: number; pay: string | null };
+  ahead: { hours: string; shift_count: number; pay: string | null };
+  expected: { hours: string; overtime_hours: string; pay: string | null };
+  weeks: Array<{ start: string; end: string; worked: string; ahead: string; limit: string; is_current: boolean }>;
+  days: Array<{
+    date: string;
+    is_today: boolean;
+    is_past: boolean;
+    scheduled: MyPeriodScheduled[];
+    worked: MyPeriodWorked[];
+    day_off: MyPeriodRequest | null;
+  }>;
+  requests: MyPeriodRequest[];
 }
 
 export interface TimeEntryRosterRow {

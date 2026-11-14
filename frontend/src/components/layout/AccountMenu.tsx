@@ -121,7 +121,7 @@ export function AccountMenu() {
             },
           }}
         >
-          <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontSize: 14 }}>
+          <Avatar src={user.photo_url || undefined} alt={user.photo_url ? user.full_name : undefined} sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontSize: 14 }}>
             {user.first_name?.[0]}{user.last_name?.[0]}
           </Avatar>
         </Badge>

@@ -59,22 +59,17 @@ describe('HR Requests', () => {
     expect(mine).toEqual(['my-t7', 'my-s1']);
     expect(within(screen.getByTestId('my-s1')).getByText('Mandy M: OK')).toBeInTheDocument();
     expect(screen.queryByText(/Waiting on you/)).toBeNull();
+    expect(screen.queryByTestId('hr-requests-inbox-link')).toBeNull();
   });
 
-  it('a schedule manager who answers questions sees those waiting, not time changes', async () => {
+  it('a manager answers in the Requests inbox now (#140): a link there, and only their own requests here', async () => {
     auth.user = { id: 9, role: 'Manager', is_superuser: false, access: ['hr.schedule:write', 'hr.questions:answer'] };
     renderIt();
-    expect(await screen.findByText('Waiting on you (2)')).toBeInTheDocument();
-    expect(screen.getByTestId('request-2')).toBeInTheDocument();
-    expect(screen.getByTestId('question-5')).toBeInTheDocument();
-    expect(screen.queryByTestId('timechange-7')).toBeNull();
-  });
-
-  it('the owner also approves time changes here', async () => {
-    auth.user = { id: 9, role: 'Admin', is_superuser: true, access: [] };
-    renderIt();
-    expect(await screen.findByText('Waiting on you (3)')).toBeInTheDocument();
-    expect(screen.getByTestId('timechange-7')).toBeInTheDocument();
+    const link = await screen.findByTestId('hr-requests-inbox-link');
+    expect(within(link).getByRole('link', { name: 'Open' })).toHaveAttribute('href', '/people/requests');
+    expect(screen.queryByText(/Waiting on you/)).toBeNull();
+    expect(screen.queryByTestId('request-2')).toBeNull();
+    expect(screen.queryByTestId('question-5')).toBeNull();
   });
 
   it('documents sent to me to e-sign show on top: mine to sign, then signed with the copy (#62)', async () => {

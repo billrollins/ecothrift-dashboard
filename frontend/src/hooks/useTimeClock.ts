@@ -9,6 +9,7 @@ import {
   endBreak,
   getWeeklyHoursStatus,
   getMyPay,
+  getMyPeriod,
 } from '../api/hr.api';
 
 export function useCurrentEntry() {
@@ -41,6 +42,18 @@ export function useMyPay(count = 6) {
       return data;
     },
     staleTime: 60_000,
+  });
+}
+
+/** This pay period for the Time clock tab (#137); every punch refreshes it (its key is under `timeClock`). */
+export function useMyPeriod() {
+  return useQuery({
+    queryKey: ['timeClock', 'myPeriod'],
+    queryFn: async () => {
+      const { data } = await getMyPeriod();
+      return data;
+    },
+    refetchInterval: 60_000,
   });
 }
 

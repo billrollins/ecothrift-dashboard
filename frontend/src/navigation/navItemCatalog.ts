@@ -665,13 +665,42 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     keywords: 'onboarding new hire checklist i9 i-9 handbook first day quickbooks',
     need: ['hiring:manage', 'people:manage'],
   },
-  /** The week's schedule: everyone reads it (Dash Updates #6), managers edit it on the page. In HR for all (#67). */
+  /**
+   * The Schedule builder (#140, Bill 2026-11-13): the only place the week is built and changed, in the HR workspace
+   * for the schedule's managers. Everyone still reads the week (Dash Updates #6), on the Time clock tab's Everyone view
+   * since #137 (no second staff Schedule page); staff links land there.
+   */
   schedule: {
     id: 'schedule',
     path: '/people/schedule',
-    pathAliases: ['/hr/schedule'],
     label: 'Schedule',
     icon: 'calendar',
+    roles: ['Manager', 'Admin'],
+    need: ['hr.schedule:write', 'people:manage'],
+  },
+  /**
+   * The managers' Requests inbox (#140, Bill 2026-11-13, decisions 6 and 9): days off, new times, shift fixes, open
+   * incidents and questions, each for whoever answers that kind today (pages/hr/inbox/useHrInbox.ts).
+   */
+  hrInbox: {
+    id: 'hrInbox',
+    path: '/people/requests',
+    label: 'Requests',
+    icon: 'requests',
+    roles: ['Manager', 'Admin'],
+    keywords: 'time off day off approve shift fix time change incident question inbox',
+    need: ['hr.schedule:write', 'hr.mod_requests:triage', 'hr.questions:answer', 'people:manage', 'admin:manage'],
+  },
+  /** Incident reports to follow up (#131), for managers and the owner; anyone files one from Home > HR. */
+  hrIncidents: {
+    id: 'hrIncidents',
+    path: '/people/incidents',
+    label: 'Incidents',
+    // No incident icon in the Eco set yet: a written report.
+    icon: 'documents',
+    roles: ['Manager', 'Admin'],
+    keywords: 'incident report fall injury accident follow up',
+    need: ['people:manage', 'admin:manage'],
   },
   /** 30, 60 and 90-day check-ins: due this week, coming up, done (filled in a meeting, signed by both). */
   checkins: {

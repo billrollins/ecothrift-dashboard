@@ -10,7 +10,8 @@ vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 2, role: 'Employee', is_superuser: false, language: 'en' } }),
 }));
 vi.mock('../components/layout/FloorNav', () => ({ FloorNav: () => null }));
-vi.mock('./routines/TodayPage', () => ({ default: () => <div>my day content</div> }));
+vi.mock('./home/timeclock/TimeClockTab', () => ({ default: () => <div>time clock content</div> }));
+vi.mock('./home/RoutinesTab', () => ({ default: () => <div>routines content</div> }));
 vi.mock('../components/dashboard/useDashboardLayout', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../components/dashboard/useDashboardLayout')>()),
   useDashboardLayout: () => ({ isMobile: false, isCompact: false }),
@@ -110,19 +111,25 @@ describe('DashboardPage (desk)', () => {
   });
 });
 
-describe('DashboardPage tabs (Store | Today)', () => {
+describe('DashboardPage tabs (Store | Time clock | Routines)', () => {
   beforeEach(() => localStorage.clear());
 
-  it('shows the store numbers on ?tab=store and not Today', () => {
+  it('shows the store numbers on ?tab=store and not Time clock', () => {
     renderPage('/dashboard?tab=store');
     expect(screen.getAllByRole('region').map((s) => s.getAttribute('aria-label'))).toEqual(['Sales', 'Departments']);
-    expect(screen.queryByText('my day content')).not.toBeInTheDocument();
+    expect(screen.queryByText('time clock content')).not.toBeInTheDocument();
   });
 
-  it('shows the Today page (what /today was) inside the tab', async () => {
+  it('shows Time clock (it replaced Today, #137) inside the tab', async () => {
     renderPage('/dashboard?tab=myday');
-    await waitFor(() => expect(screen.getByText('my day content')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('time clock content')).toBeInTheDocument());
     expect(screen.queryByRole('region', { name: 'Sales' })).not.toBeInTheDocument();
+  });
+
+  it('opens a routine link on the Routines tab, where the runner is now', async () => {
+    renderPage('/dashboard?tab=myday&run=12');
+    await waitFor(() => expect(screen.getByText('routines content')).toBeInTheDocument());
+    expect(screen.queryByText('time clock content')).not.toBeInTheDocument();
   });
 
   it('lands an Employee on Store with no tab chosen (everyone lands on Store, 2026-11-13)', () => {
@@ -133,6 +140,6 @@ describe('DashboardPage tabs (Store | Today)', () => {
   it('follows the tab remembered for this user', async () => {
     localStorage.setItem('ecothrift.dashboard.tab.v1.2', 'myday');
     renderPage('/dashboard');
-    await waitFor(() => expect(screen.getByText('my day content')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('time clock content')).toBeInTheDocument());
   });
 });

@@ -7,6 +7,8 @@
  * Swapping a shift with someone is not built (it needs the other person's yes); picking up a day is "New times" and
  * dropping one is "Day off". English and Spanish.
  * Documents to sign (#62): anything sent to them to e-sign (apps/esign) shows on top, signed here while signed in.
+ * Answering moved (#140, Bill 2026-11-13): managers and the owner answer everyone's requests in the HR workspace's
+ * Requests inbox (/people/requests); this page is each person's own requests, with a link there for whoever answers.
  */
 import { useState, type ReactNode } from 'react';
 import {
@@ -32,23 +34,18 @@ import { format, parseISO } from 'date-fns';
 import { es as esLocale } from 'date-fns/locale';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../i18n/useLanguage';
-import { canAccess } from '../../auth/access';
-import { SignInTroubleBar } from '../../components/users/SignInTrouble';
+import { Link as RouterLink } from 'react-router-dom';
 import { getScheduleRequests, type ScheduleRequest } from '../../api/schedule.api';
 import {
-  answerHrQuestion,
   askHrQuestion,
-  approveModificationRequest,
-  denyModificationRequest,
   getHrQuestions,
   getModificationRequests,
-  type HrQuestion,
   type ModificationRequest,
 } from '../../api/hr.api';
-import { AskDialog, DecideRow, useRequestCopy } from '../people/ScheduleRequests';
+import { AskDialog, useRequestCopy } from '../people/ScheduleRequests';
 import { errorText } from '../people/scheduleLayout';
 import MyEsignDocuments from '../esign/MyEsignDocuments';
-import { StaffLink } from '../../components/staff/StaffLink';
+import { inboxRights } from './inbox/useHrInbox';
 
 const COPY = {
   askChange: { en: 'Ask for a day off or new times', es: 'Pedir un día libre u otro horario' },
@@ -56,15 +53,10 @@ const COPY = {
   question: { en: 'Your question', es: 'Tu pregunta' },
   questionKind: { en: 'Question', es: 'Pregunta' },
   timeChange: { en: 'Time change', es: 'Cambio de horas' },
-  waitingOnYou: { en: 'Waiting on you', es: 'Esperan tu respuesta' },
+  answerThem: { en: 'Requests waiting on you are in HR > Requests', es: 'Las solicitudes que esperan tu respuesta están en RR. HH. > Solicitudes' },
+  openInbox: { en: 'Open', es: 'Abrir' },
   myRequests: { en: 'My requests', es: 'Mis solicitudes' },
   none: { en: 'No requests yet.', es: 'Todavía no hay solicitudes.' },
-  noneWaiting: { en: 'Nothing waiting.', es: 'Nada en espera.' },
-  answer: { en: 'Answer', es: 'Respuesta' },
-  sendAnswer: { en: 'Send answer', es: 'Enviar respuesta' },
-  note: { en: 'Note (optional)', es: 'Nota (opcional)' },
-  approve: { en: 'Approve', es: 'Aprobar' },
-  deny: { en: 'Decline', es: 'Rechazar' },
   send: { en: 'Send', es: 'Enviar' },
   sent: { en: 'Sent to HR', es: 'Enviado a RR. HH.' },
   cancel: { en: 'Cancel', es: 'Cancelar' },
@@ -159,66 +151,6 @@ function QuestionDialog({ onClose, onSent }: { onClose: () => void; onSent: () =
   );
 }
 
-function AnswerRow({ question, onDone }: { question: HrQuestion; onDone: () => void }) {
-  const { t } = useCopy();
-  const { enqueueSnackbar } = useSnackbar();
-  const [answer, setAnswer] = useState('');
-  const [busy, setBusy] = useState(false);
-  const send = async () => {
-    setBusy(true);
-    try {
-      await answerHrQuestion(question.id, answer);
-      onDone();
-    } catch (err) {
-      enqueueSnackbar(errorText(err, t('couldNot')), { variant: 'error' });
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Box data-testid={`question-${question.id}`} sx={{ py: 1.25 }}>
-      <Typography fontWeight={700}><StaffLink userId={question.employee}>{question.employee_name}</StaffLink> · {t('questionKind')}</Typography>
-      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{question.question}</Typography>
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
-        <TextField size="small" placeholder={t('answer')} value={answer} onChange={(e) => setAnswer(e.target.value)}
-          sx={{ flex: 1 }} inputProps={{ maxLength: 1000, 'aria-label': t('answer') }} />
-        <Button size="small" variant="contained" disabled={busy || !answer.trim()} onClick={send}>{t('sendAnswer')}</Button>
-      </Stack>
-    </Box>
-  );
-}
-
-function TimeChangeRow({ request, onDone }: { request: ModificationRequest; onDone: () => void }) {
-  const { t, at } = useCopy();
-  const { enqueueSnackbar } = useSnackbar();
-  const [note, setNote] = useState('');
-  const [busy, setBusy] = useState(false);
-  const decide = async (approve: boolean) => {
-    setBusy(true);
-    try {
-      await (approve ? approveModificationRequest : denyModificationRequest)(request.id, note);
-      onDone();
-    } catch (err) {
-      enqueueSnackbar(errorText(err, t('couldNot')), { variant: 'error' });
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Box data-testid={`timechange-${request.id}`} sx={{ py: 1.25 }}>
-      <Typography fontWeight={700}><StaffLink userId={request.employee}>{request.employee_name}</StaffLink> · {t('timeChange')}</Typography>
-      <Typography variant="body2">{timeChangeText(request, at)}</Typography>
-      {request.reason ? <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>“{request.reason}”</Typography> : null}
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
-        <TextField size="small" placeholder={t('note')} value={note} onChange={(e) => setNote(e.target.value)} sx={{ flex: 1 }}
-          inputProps={{ 'aria-label': t('note') }} />
-        <Button size="small" color="error" disabled={busy} onClick={() => decide(false)}>{t('deny')}</Button>
-        <Button size="small" variant="contained" disabled={busy} onClick={() => decide(true)}>{t('approve')}</Button>
-      </Stack>
-    </Box>
-  );
-}
-
 export default function HrRequests() {
   const { user } = useAuth();
   const { t, at } = useCopy();
@@ -226,11 +158,9 @@ export default function HrRequests() {
   const queryClient = useQueryClient();
   const [asking, setAsking] = useState<'change' | 'question' | null>(null);
   const me = user?.id;
-  const canSchedule = canAccess(user, ['hr.schedule:write', 'people:manage']);
-  const canTime = canAccess(user, ['hr.mod_requests:triage', 'admin:full']);
-  const canAnswer = canAccess(user, ['hr.questions:answer', 'people:manage']);
-  // Cannot sign in (#121): managers see who is locked out and send the reset link.
-  const canHelpSignIn = canAccess(user, ['people:manage']);
+  // Whoever answers a kind does it in the Requests inbox (#140); this page only points there.
+  const rights = inboxRights(user);
+  const answersSomething = rights.schedule || rights.fixes || rights.questions || rights.incidents;
 
   const schedule = useQuery({ queryKey: ['scheduleRequests', 'hr'], queryFn: async () => (await getScheduleRequests()).data });
   const times = useQuery({
@@ -247,11 +177,6 @@ export default function HrRequests() {
   const sched = schedule.data ?? [];
   const timeRows = times.data ?? [];
   const asked = questions.data ?? [];
-  const waitSched = canSchedule ? sched.filter((r) => r.status === 'pending' && r.employee !== me) : [];
-  const waitTime = canTime ? timeRows.filter((r) => r.status === 'pending' && r.employee !== me) : [];
-  const waitQuestions = canAnswer ? asked.filter((q) => q.status === 'open' && q.employee !== me) : [];
-  const answersSomething = canSchedule || canTime || canAnswer;
-
   const mine: MyRow[] = [
     ...sched.filter((r: ScheduleRequest) => r.employee === me && r.status !== 'withdrawn').map((r) => ({
       key: `s${r.id}`, kind: r.kind === 'off' ? schedCopy.t('off') : schedCopy.t('times'), what: schedCopy.describe(r),
@@ -269,11 +194,15 @@ export default function HrRequests() {
 
   const loading = schedule.isLoading || times.isLoading || questions.isLoading;
   const failed = schedule.isError || times.isError || questions.isError;
-  const waiting = waitSched.length + waitTime.length + waitQuestions.length;
 
   return (
     <Stack spacing={1.5} sx={{ maxWidth: 900 }} data-testid="hr-requests">
-      {canHelpSignIn ? <SignInTroubleBar /> : null}
+      {answersSomething ? (
+        <Alert severity="info" data-testid="hr-requests-inbox-link"
+          action={<Button component={RouterLink} to="/people/requests" color="inherit" size="small">{t('openInbox')}</Button>}>
+          {t('answerThem')}
+        </Alert>
+      ) : null}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
         <Button variant="contained" onClick={() => setAsking('change')}>{t('askChange')}</Button>
         <Button variant="outlined" onClick={() => setAsking('question')}>{t('askQuestion')}</Button>
@@ -282,17 +211,6 @@ export default function HrRequests() {
       {loading ? <LinearProgress /> : null}
       {failed ? <Alert severity="warning">{t('loadFailed')}</Alert> : null}
       <MyEsignDocuments />
-
-      {answersSomething ? (
-        <Section title={waiting ? `${t('waitingOnYou')} (${waiting})` : t('waitingOnYou')}>
-          {!loading && !waiting ? <Typography color="text.secondary">{t('noneWaiting')}</Typography> : null}
-          {[
-            ...waitSched.map((r) => <DecideRow key={`s${r.id}`} request={r} onDone={refresh} />),
-            ...waitTime.map((r) => <TimeChangeRow key={`t${r.id}`} request={r} onDone={refresh} />),
-            ...waitQuestions.map((q) => <AnswerRow key={`q${q.id}`} question={q} onDone={refresh} />),
-          ].map((row, i) => <Box key={row.key}>{i ? <Divider /> : null}{row}</Box>)}
-        </Section>
-      ) : null}
 
       <Section title={t('myRequests')}>
         {!loading && !mine.length ? <Typography color="text.secondary">{t('none')}</Typography> : null}
