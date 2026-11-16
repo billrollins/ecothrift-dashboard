@@ -91,6 +91,7 @@ const TruckFinalizePage = lazy(() => import('./pages/inventory/truck/TruckFinali
 const RestorationsPage = lazy(() => import('./pages/inventory/restorations/RestorationsPage'));
 const InventorySearchPage = lazy(() => import('./pages/inventory/InventorySearchPage'));
 const InventoryReviewPage = lazy(() => import('./pages/inventory/InventoryReviewPage'));
+const PricingStandardsPage = lazy(() => import('./pages/inventory/PricingStandardsPage'));
 const SuppliesPage = lazy(() => import('./pages/supplies/SuppliesPage'));
 const SupplyListPage = lazy(() => import('./pages/supplies/SupplyListPage'));
 const SupplyCountPage = lazy(() => import('./pages/supplies/SupplyCountPage'));
@@ -425,6 +426,8 @@ function AppRoutes() {
         <Route path="/inventory/restorations" element={<RestorationsPage />} />
         <Route path="/inventory/search" element={<InventorySearchPage />} />
         <Route path="/inventory/review" element={<InventoryReviewPage />} />
+        {/* Pricing standards (#180): managers and the owner (the server refuses anyone else). */}
+        <Route path="/inventory/pricing-standards" element={<PricingStandardsPage />} />
         {/* Supplies (owner, 2026-10-26): lists and the weekly count for everyone; the order is the owner's. */}
         <Route path="/supplies" element={<SuppliesPage />} />
         <Route path="/supplies/count" element={<Navigate to="/supplies" replace />} />

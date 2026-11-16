@@ -106,7 +106,7 @@ const TEMPLATE: Record<string, PageTemplate> = {
   posTerminal: 'station', posTestTerminal: 'station', posTransactions: 'data-table', customers: 'list-detail',
   posDrawers: 'list-detail', thriftPlusFinalize: 'station', thriftPlusMembers: 'list-detail', quickReprice: 'station',
   prFixit: 'tool', posPrintables: 'list-detail', retailQa: 'command-center', posCash: 'list-detail', posSetup: 'settings',
-  thriftPlus: 'overview', inventories: 'list-detail', inventoryWorkbench: 'data-table', inventoryCount: 'station',
+  thriftPlus: 'overview', inventories: 'list-detail', pricingStandards: 'data-table', inventoryWorkbench: 'data-table', inventoryCount: 'station',
   inventoryReview: 'list-detail', tagErrors: 'list-detail', floorplans: 'tool',
   // Online Sales
   onlineSalesListings: 'list-detail', onlineSalesHolds: 'list-detail', onlineSalesCustomers: 'list-detail',

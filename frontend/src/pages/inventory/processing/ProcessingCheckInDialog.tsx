@@ -43,6 +43,7 @@ import { ProcessingCheckInEditStats, ProductSummaryCard } from './ProcessingChec
 import { useWorkbenchConfirmDialog } from '../workbench/useWorkbenchConfirmDialog';
 import { RestorationRequestFields } from '../restorationRequest/RestorationRequestFields';
 import { PriceCoach } from '../../../components/inventory/PriceCoach';
+import { CommodityLine } from '../../../components/inventory/CommodityLine';
 import { RecoveryHint } from '../../../components/inventory/RecoveryHint';
 import {
   EMPTY_REQUEST,
@@ -443,8 +444,10 @@ export function ProcessingCheckInDialog({
               highlightRequired={!isEditMode}
               belowPrice={
                 <>
-                  {/* Room is held for both helpers from the start, so the Price box never moves when they load.
-                      The coach (this product's own record) sits first, next to the price; the rule of thumb after. */}
+                  {/* Room is held for every helper from the start, so the Price box never moves when they load.
+                      The commodity standard (#180) first: when it applies it is the price. Then the coach (this
+                      product's own record); the rule of thumb after. */}
+                  <CommodityLine productId={productId} retail={retail} price={price} onUsePrice={setPrice} disabled={busy} />
                   <PriceCoach productId={productId} price={price} orderId={orderId} />
                   <Box sx={{ gridColumn: '1 / -1', minHeight: Number.parseFloat(retail) > 0 ? { xs: 124, sm: 68 } : 0 }}>
                     <RecoveryHint retail={retail} productId={productId} orderId={orderId} condition={condition} price={price}

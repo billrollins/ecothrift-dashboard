@@ -67,7 +67,8 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
       'posTerminal', 'posTransactions', 'customers', 'posDrawers', 'thriftPlusFinalize', 'quickReprice',
     ],
     setupItemIds: ['posTestTerminal', 'posPrintables'],
-    managerItemIds: ['retailQa', 'posCash', 'posSetup', 'thriftPlus', 'inventories'],
+    // Pricing standards (#180): the deep-stock steps and commodity prices.
+    managerItemIds: ['retailQa', 'posCash', 'posSetup', 'thriftPlus', 'inventories', 'pricingStandards'],
     guestItemIds: ['inventoryWorkbench', 'inventoryCount', 'inventoryReview', 'tagErrors'],
   },
   {

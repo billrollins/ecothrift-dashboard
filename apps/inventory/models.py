@@ -1635,6 +1635,22 @@ class Product(models.Model):
     # search so staff can tell it is the thing in their hand.
     photo = models.FileField(upload_to='inventory/products/', blank=True, default='')
     photo_thumb = models.FileField(upload_to='inventory/products/', blank=True, default='')
+    # Pricing standards (Dash Update #180, owner 2026-11-16; services/pricing_standards.py). A commodity is the same
+    # new, sealed item bought again and again (batteries, diapers, laundry...): one steady price, a share of retail
+    # for a name brand or a store brand, never marked down. '' = not decided (keyword rules may suggest one),
+    # 'no' = a person said it is not one. Set only by a person; a suggestion is never stored.
+    PRICE_STANDARD_NAME_BRAND = 'name_brand'
+    PRICE_STANDARD_STORE_BRAND = 'store_brand'
+    PRICE_STANDARD_NO = 'no'
+    PRICE_STANDARD_CHOICES = [
+        ('', 'Not decided'),
+        (PRICE_STANDARD_NAME_BRAND, 'Commodity, name brand'),
+        (PRICE_STANDARD_STORE_BRAND, 'Commodity, store brand'),
+        (PRICE_STANDARD_NO, 'Not a commodity'),
+    ]
+    price_standard = models.CharField(
+        max_length=12, choices=PRICE_STANDARD_CHOICES, blank=True, default='', db_default='',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

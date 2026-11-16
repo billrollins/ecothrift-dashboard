@@ -9,6 +9,10 @@ from .api_bulk_price import (
     bulk_labels_view, bulk_price_apply_view, bulk_price_detail_view, bulk_price_list_view, bulk_price_preview_view,
     bulk_price_undo_view,
 )
+from .api_pricing_standards import (
+    deep_stock_step_view, deep_stock_view, product_standard_mark_view, product_standard_view, sat_view, stepped_view,
+    truck_apply_view, truck_view, trucks_view,
+)
 from .api_floor_issues import floor_issue_lookup_view, floor_issue_photo_view, floor_issue_report_view
 from .api_photo_sheets import (
     photo_sheet_ai_view, photo_sheet_detail_view, photo_sheet_list_view, photo_sheet_photo_link_view,
@@ -100,6 +104,15 @@ urlpatterns = [
     path('bulk-price/labels/', bulk_labels_view, name='bulk-price-labels'),
     path('bulk-price/<int:pk>/', bulk_price_detail_view, name='bulk-price-detail'),
     path('bulk-price/<int:pk>/undo/', bulk_price_undo_view, name='bulk-price-undo'),
+    path('pricing-standards/product/<int:pk>/', product_standard_view, name='pricing-standards-product'),
+    path('pricing-standards/product/<int:pk>/mark/', product_standard_mark_view, name='pricing-standards-mark'),
+    path('pricing-standards/deep-stock/', deep_stock_view, name='pricing-standards-deep-stock'),
+    path('pricing-standards/deep-stock/step/', deep_stock_step_view, name='pricing-standards-step'),
+    path('pricing-standards/stepped/', stepped_view, name='pricing-standards-stepped'),
+    path('pricing-standards/sat/', sat_view, name='pricing-standards-sat'),
+    path('pricing-standards/trucks/', trucks_view, name='pricing-standards-trucks'),
+    path('pricing-standards/truck/<int:po_id>/', truck_view, name='pricing-standards-truck'),
+    path('pricing-standards/truck/<int:po_id>/apply/', truck_apply_view, name='pricing-standards-truck-apply'),
     path('', include(router.urls)),
     path('items/lookup/<str:sku>/', item_lookup, name='item-lookup'),
     path('classify/', classify_item_view, name='classify-item'),

@@ -94,8 +94,8 @@ ITEMS: tuple[Item, ...] = (
     Item('inventory:search', 'inventory', VIEW, 'Search items and products'),
     Item('inventory.count:use', 'inventory', WORK, 'Count, PR Fix-it, tag errors and quick reprice'),
     Item('inventory.inventories:manage', 'inventory', MANAGE,
-         'Run inventories: start, close, reports and shrink; bulk price changes',
-         ('stocktake/', 'inventory/bulk-price/', 'inventory/items/*/mark-on-shelf/')),
+         'Run inventories: start, close, reports and shrink; bulk price changes and pricing standards (deep-stock steps)',
+         ('stocktake/', 'inventory/bulk-price/', 'inventory/pricing-standards/', 'inventory/items/*/mark-on-shelf/')),
     Item('inventory.inventories:owner', 'inventory', FULL, 'Add and edit count sections; delete a count or an inventory',
          ('stocktake/',)),
     # ── Cashier ──────────────────────────────────────────────────────────

@@ -288,7 +288,7 @@ describe('Retail and the Managers section (Bill 2026-11-04)', () => {
     expect(employee.flatMap((g) => g.managerItems).map((i) => i.id)).toEqual([]);
     const manager = resolveNavGroups({ role: 'Manager', is_superuser: false }, SLOT_C_NAV_GROUPS);
     expect(manager.find((g) => g.id === 'storeSales')?.managerItems.map((i) => i.id))
-      .toEqual(['retailQa', 'posCash', 'posSetup', 'inventories']);
+      .toEqual(['retailQa', 'posCash', 'posSetup', 'inventories', 'pricingStandards']);
   });
 
   it('lists every page once per workspace', () => {

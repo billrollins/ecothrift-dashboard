@@ -233,6 +233,16 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
         help: 'At the price box in check-in: what items like this sold for here, and how fast. Facts only; it never changes a price.',
         keys: ['inventory_price_coach'],
       },
+      {
+        id: 'pricing-standards',
+        title: 'Pricing standards',
+        help: 'Commodities hold one steady price; deep stock steps down on approval (Retail → Pricing standards).',
+        keys: [
+          'pricing_commodity_name_share', 'pricing_commodity_store_share', 'pricing_commodity_sit_days',
+          'pricing_deep_min_units', 'pricing_deep_check_days', 'pricing_deep_sellout_days', 'pricing_deep_step_share',
+          'pricing_deep_floor_share', 'pricing_deep_floor_commodity_share',
+        ],
+      },
     ],
   },
   {

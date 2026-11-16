@@ -161,6 +161,15 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     roles: ['Manager', 'Admin'],
     need: ['inventory.inventories:manage', 'inventory:manage'],
   },
+  // Pricing standards (#180): commodities hold one steady price; deep stock steps down on approval.
+  pricingStandards: {
+    id: 'pricingStandards',
+    path: '/inventory/pricing-standards',
+    label: 'Pricing standards',
+    icon: 'reprice',
+    roles: ['Manager', 'Admin'],
+    need: ['inventory.inventories:manage', 'inventory:manage'],
+  },
   prFixit: {
     id: 'prFixit',
     path: '/inventory/pr-fixit',

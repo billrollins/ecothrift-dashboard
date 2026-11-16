@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.308.0] -->
-<!-- Last reviewed: 2026-11-16 (2.308.0) -->
+<!-- Line 1 release: ## [2.309.0] -->
+<!-- Last reviewed: 2026-11-16 (2.309.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.309.0] - 2026-11-16
+
+User-facing theme: **Pricing standards: commodities hold one steady price, and deep stock steps down every two weeks when it is not selling fast enough, only when a manager approves (Dash Update #180).**
+
+> **For Bill:** The two standards from the PO 428 truck are now in Dash. **Commodities** (batteries, diapers, wipes, laundry, cleaners, trash bags, motor oil, paper...) get one steady price: 65% of retail for a name brand, 55% for a store brand (Great Value, Equate, SuperTech, Parent's Choice; Target's up&up and the other stores' own brands count too). At check-in, under the price box, a product that is one shows "Commodity, name brand: $6.50 (65% of retail), holds steady" with **Use**; one that only looks like one asks **Name brand / Store brand / Not one**, and the pick is saved on the product and fills the price. **Retail → Pricing standards** (managers) has four tabs. **Deep stock**: every product with 24+ of the exact same item on the shelf, how fast it is selling, and whether it is due a step (every two weeks, if it is not on pace to sell out within 8 weeks of going out: 10% of retail off, never below 30% of retail, 45% for a commodity). Nothing changes until you tick and approve; then the new tags print through the print server. **Stepped**: every step, how many have sold since, with Reprint and Undo. **Sat 60 days**: commodities still on the shelf after 60 days, with "Not a commodity". **Price a truck**: pick an order and price its commodity lines in one go before check-in. All the numbers are in Settings → Inventory → Pricing standards. **ThriftBucks:** a commodity's tag holds steady and members' ThriftBucks still grow as it sits (the rulebook already holds them while a stack of 10+ is selling). A deep-stock step is a retag, and members keep the ThriftBucks they already had, so on a slow stack they get both; Mainline accepted that as "keep it flowing" (a switch to reset ThriftBucks on a step was not built; it needs the reward engine). No rule in the Thrift+ rulebook changed.
+
+### Added (Pricing standards, Dash Update #180)
+- `Product.price_standard` (migration `inventory 0134_product_price_standard`, with `db_default=''`): '' not decided, `name_brand`, `store_brand`, `no`. Only a person sets it.
+- `apps/inventory/services/pricing_standards.py`: the owner settings (nine AppSetting keys `pricing_commodity_*` / `pricing_deep_*`, defaults in code, out-of-range values fall back); house rounding from PO 428 (retail under $1 to 25 cents, under $10 to 50 cents, else the dollar; a floor rounds up); `suggest()` from the PO 428 keyword rules (classes S1/S2 = name brand, the store brands), with exclusions for toys, seasonal goods and durable goods that carry a consumable's word (checked on four other local trucks: no Skibidi Toilet toys, battery-powered sprayers, Clorox brooms or litter boxes; 416 of the 479 PO 428 commodities match, most of the rest are items that sheet lumped in that are not commodities); `deep_stock()` (lot start = earliest floor day of the units on the shelf, the Thrift+ engine's day 1; rate since then; due when not on pace and 14 days past the start or last step; products whose tags vary more than 2x are "mixed" and never stepped); `step()` writes one `BulkPriceChange` per product (rule `standard: deep_stock`) and `ItemHistory` lines through `bulk_price`, so Bulk work's Undo works; `stepped()`, `sat_too_long()`, `truck()` / `apply_truck()` (writes `ProcessingRow.final_price`/`shelf_price`, the manifest line's `proposed_price`, a pricing note, and confirms undecided matched products).
+- `apps/inventory/api_pricing_standards.py` under `/api/inventory/pricing-standards/`: `product/<id>/` and `product/<id>/mark/` (staff, the check-in line); `deep-stock/`, `deep-stock/step/`, `stepped/`, `sat/`, `trucks/`, `truck/<po>/`, `truck/<po>/apply/` (managers). The `inventory.inventories:manage` item (which already opens bulk price changes) now opens `inventory/pricing-standards/` too.
+- Frontend: `components/inventory/CommodityLine.tsx` in the check-in dialog above Price coach (room held from the start); `pages/inventory/PricingStandardsPage.tsx` at `/inventory/pricing-standards` (Retail → Managers, `pricingStandards`); the reprints and undo reprints use the bulk print queue (the existing price tag through the print server; no new tag, no print server release); `api/pricingStandards.api.ts`; the nine settings in the Settings registry and layout.
+- Tests: `apps/inventory/tests/test_pricing_standards.py` (suggestion, prices, settings, the check-in line and marks, due / on pace / waiting / at the floor / mixed, step and undo, the report, sat, the truck preview and apply, who may); `CommodityLine.test.ts`; `slotCNavLayout.test.ts` expects the new manager item.
 
 ## [2.308.0] - 2026-11-16
 
