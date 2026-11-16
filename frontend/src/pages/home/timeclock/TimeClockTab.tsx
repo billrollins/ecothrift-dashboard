@@ -1,28 +1,37 @@
 /**
- * Dash Home > TimeClock (Dash Update #137; Bill 2026-11-13, .ai/extended/home-and-hr-structure.md decisions 3, 4, 8
- * and 12). It replaces Today ("too busy"): the clock card on top (in, break, out) with This week beside it (#179:
- * hours against the limit and the overtime warning, the next shift, the week day by day, Full schedule one tap away,
- * Build schedule for managers), then a switch, Mine | Everyone. Mine is this pay period (hours, pay so far and expected,
- * each shift with Fix, time off). Everyone is the week's schedule, read only: the same grid managers build it on in
- * the HR workspace. The routine list moved to the Routines tab.
+ * Dash Home > TimeClock (Dash Updates #137, #179; Bill 2026-11-16: "clean and sleek, easy to see and understand at
+ * a glance"). One screen, five cards, no switch:
  *
- * Kit rules: the band (desk) or the top bar (phone) names the tab, so the body never repeats it; tables turn into
- * cards on a phone (StackOnPhone). `?view=everyone` opens Everyone (old staff Schedule links land there).
+ *   Now          clock in, break, clock out; this week's hours against the limit (the overtime warning)
+ *   My schedule  my shifts from today on; Store schedule opens the whole week for everyone
+ *   Pay          so far and expected this pay period (hidden until the eye; off payroll sees hours)
+ *   Time off     ask, see the answer, withdraw
+ *   Past shifts  this pay period, newest first, each with Fix (a time change request)
+ *
+ * On a desk: Now | My schedule | Pay over Time off, then Past shifts across. On a phone: one column in that order.
+ * Store schedule is `?view=everyone` (old staff Schedule links land there): the same read-only week grid managers
+ * build in the HR workspace, with a way back. The band (desk) or the top bar (phone) names the tab.
  */
-import { Box, LinearProgress, Stack, ToggleButton, ToggleButtonGroup, useMediaQuery, useTheme } from '@mui/material';
-import { lazy, Suspense, useRef } from 'react';
+import { Alert, Box, Button, LinearProgress, Stack, useMediaQuery, useTheme } from '@mui/material';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSnackbar } from 'notistack';
+import { lazy, Suspense, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { withdrawScheduleRequest } from '../../../api/schedule.api';
+import { TimeChangeDialog } from '../../../components/hr/TimeChangeDialog';
 import { FloorPage } from '../../../components/layout/FloorPage';
-import { PageToolbar } from '../../../components/page/PageKit';
-import StackOnPhone from '../../../components/page/StackOnPhone';
 import { useHoursNag } from '../../../hooks/useHoursNag';
 import { useMyPeriod, useWeeklyHoursStatus } from '../../../hooks/useTimeClock';
+import { ECO_ICONS } from '../../../icons/ecoIcons';
 import { t } from '../../../i18n/routines';
+import type { MyPeriodWorked } from '../../../types/hr.types';
 import { useTimeClockActions } from '../../hr/useTimeClockActions';
-import { ClockCard } from './ClockCard';
+import { AskDialog } from '../../people/ScheduleRequests';
+import { errorText } from '../../people/scheduleLayout';
 import { useTimeClockCopy } from './copy';
-import { MineView } from './MineView';
-import { ThisWeekPane } from './ThisWeekPane';
+import { MySchedule, todaysShifts, useMyShifts } from './MySchedule';
+import { NowCard } from './NowCard';
+import { PastShifts, PayCard, TimeOffCard } from './PeriodCards';
 
 const SchedulePage = lazy(() => import('../../people/SchedulePage'));
 
@@ -31,6 +40,17 @@ export type TimeClockView = 'mine' | 'everyone';
 export function timeClockView(params: URLSearchParams): TimeClockView {
   return params.get('view') === 'everyone' ? 'everyone' : 'mine';
 }
+
+const AREAS = {
+  xs: '"now" "sched" "pay" "off" "past"',
+  md: '"now sched" "pay off" "past past"',
+  lg: '"now sched side" "past past past"',
+} as const;
+const COLUMNS = {
+  xs: 'minmax(0, 1fr)',
+  md: 'minmax(0, 1fr) minmax(0, 1fr)',
+  lg: 'minmax(300px, 1fr) minmax(0, 1.2fr) minmax(280px, 0.9fr)',
+} as const;
 
 export default function TimeClockTab() {
   const theme = useTheme();
@@ -42,75 +62,79 @@ export default function TimeClockTab() {
   const weekly = useWeeklyHoursStatus();
   const nag = useHoursNag();
   const period = useMyPeriod();
+  const myShifts = useMyShifts();
+  const queryClient = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+  const [fixing, setFixing] = useState<MyPeriodWorked | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const data = period.data;
 
-  const switchRow = useRef<HTMLDivElement>(null);
-
-  const pick = (next: TimeClockView | null) => {
-    if (!next || next === view) return;
+  const show = (next: TimeClockView) => {
     setParams((prev) => {
       const out = new URLSearchParams(prev);
       out.set('tab', 'myday');
       if (next === 'everyone') out.set('view', 'everyone');
       else out.delete('view');
       return out;
-    }, { replace: true });
+    });
+  };
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ['timeClock', 'myPeriod'] });
+    void queryClient.invalidateQueries({ queryKey: ['scheduleRequests'] });
+    void queryClient.invalidateQueries({ queryKey: ['scheduleWeek'] });
+    void queryClient.invalidateQueries({ queryKey: ['schedule', 'my-week'] });
+  };
+  const withdraw = async (id: number) => {
+    setBusyId(id);
+    try {
+      await withdrawScheduleRequest(id);
+      refresh();
+    } catch (err) {
+      enqueueSnackbar(errorText(err, tc('couldNot')), { variant: 'error' });
+    } finally {
+      setBusyId(null);
+    }
   };
 
-  // Full schedule (or a day cell): the whole week, here, scrolled into view.
-  const openSchedule = () => {
-    pick('everyone');
-    window.setTimeout(() => switchRow.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 0);
-  };
-
-  const body = (
-    <StackOnPhone sx={{ width: '100%', minWidth: 0 }}>
-      <Stack spacing={{ xs: 2, md: 2.5 }}>
-        <Box
-          sx={{
-            display: 'grid',
-            gap: { xs: 1.5, md: 2 },
-            gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(320px, 400px) minmax(0, 1fr)', xl: 'minmax(360px, 440px) minmax(0, 1fr)' },
-            alignItems: 'stretch',
-          }}
-        >
-          <ClockCard clock={clock} lang={lang} />
-          <ThisWeekPane
-            week={weekly.data}
-            loading={weekly.isLoading}
-            nag={nag}
-            entry={clock.entry}
-            period={period.data}
-            onOpenSchedule={openSchedule}
-          />
+  const BackIcon = ECO_ICONS.back;
+  const body = view === 'everyone' ? (
+    <Stack spacing={1.5} data-testid="time-clock-everyone" sx={{ minWidth: 0 }}>
+      <Box>
+        <Button size="small" startIcon={<BackIcon />} onClick={() => show('mine')} data-testid="back-to-time-clock" sx={{ fontWeight: 800 }}>
+          {tc('backToTimeClock')}
+        </Button>
+      </Box>
+      <Suspense fallback={<LinearProgress />}>
+        <SchedulePage embedded />
+      </Suspense>
+    </Stack>
+  ) : (
+    <Box data-testid="time-clock-mine" sx={{ display: 'grid', gap: { xs: 1.5, md: 2 }, gridTemplateAreas: AREAS, gridTemplateColumns: COLUMNS, alignItems: 'stretch', minWidth: 0 }}>
+      {period.isError && !data ? <Alert severity="error" sx={{ gridColumn: '1 / -1' }}>{tc('couldNotLoad')}</Alert> : null}
+      <Box sx={{ gridArea: 'now', minWidth: 0, display: 'grid' }}>
+        <NowCard clock={clock} week={weekly.data} nag={nag} period={data} todays={todaysShifts(myShifts.data?.shifts)} />
+      </Box>
+      <Box sx={{ gridArea: 'sched', minWidth: 0, display: 'grid' }}>
+        <MySchedule onOpenStore={() => show('everyone')} />
+      </Box>
+      {/* From 1200 px the two small cards share the third column; below that each takes its own cell. */}
+      <Box sx={{ display: { xs: 'contents', lg: 'flex' }, gridArea: { lg: 'side' }, flexDirection: 'column', gap: 2, minWidth: 0 }}>
+        <Box sx={{ gridArea: { xs: 'pay', lg: 'auto' }, minWidth: 0, display: 'grid' }}>
+          <PayCard period={data} />
         </Box>
-
-        <Box ref={switchRow} sx={{ scrollMarginTop: 16 }}>
-          <PageToolbar
-            lead={(
-              <ToggleButtonGroup
-                exclusive
-                size="small"
-                value={view}
-                onChange={(_e, next: TimeClockView | null) => pick(next)}
-                aria-label={tc('viewLabel')}
-                sx={{ '& .MuiToggleButton-root': { px: 2.5, fontWeight: 700, textTransform: 'none', minWidth: 112 } }}
-              >
-                <ToggleButton value="mine" data-testid="time-clock-mine-tab">{tc('mine')}</ToggleButton>
-                <ToggleButton value="everyone" data-testid="time-clock-everyone-tab">{tc('everyone')}</ToggleButton>
-              </ToggleButtonGroup>
-            )}
-          />
+        <Box sx={{ gridArea: { xs: 'off', lg: 'auto' }, minWidth: 0, display: 'grid', flex: 1 }}>
+          <TimeOffCard period={data} onAsk={() => setAsking(true)} onWithdraw={withdraw} busyId={busyId} />
         </Box>
-
-        {view === 'mine' ? <MineView /> : (
-          <Box data-testid="time-clock-everyone" sx={{ minWidth: 0 }}>
-            <Suspense fallback={<LinearProgress />}>
-              <SchedulePage embedded />
-            </Suspense>
-          </Box>
-        )}
-      </Stack>
-    </StackOnPhone>
+      </Box>
+      <Box sx={{ gridArea: 'past', minWidth: 0 }}>
+        <PastShifts period={data} onFix={setFixing} />
+      </Box>
+      <TimeChangeDialog entry={fixing} onClose={() => { setFixing(null); refresh(); }} />
+      {asking && data ? (
+        <AskDialog initial={{ date: data.today }} today={data.today} onClose={() => setAsking(false)} onSent={refresh} />
+      ) : null}
+    </Box>
   );
 
   if (isDesk) return <FloorPage title={t('timeClock', lang)}>{body}</FloorPage>;

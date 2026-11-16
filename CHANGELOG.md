@@ -1,5 +1,34 @@
-<!-- Line 1 release: ## [2.307.0] -->
-<!-- Last reviewed: 2026-11-16 (2.307.0) -->
+<!-- Line 1 release: ## [2.308.0] -->
+<!-- Last reviewed: 2026-11-16 (2.308.0) -->
+# Changelog
+
+All notable changes to this project are documented here at the **version level**.
+Commit-level detail belongs in commit messages, not here.
+
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [Unreleased]
+
+## [2.308.0] - 2026-11-16
+
+User-facing theme: **TimeClock is one clean screen: clock in, my schedule, pay, time off and past shifts, with the store schedule one tap away; and the name is "TimeClock" everywhere (Dash Update #179).**
+
+> **For Bill:** TimeClock is rebuilt as one screen with five cards and no Mine | Everyone switch. **Now**: your clock (when you have a shift today, one big "Clock in · Office" button; other shifts are under Other shift), break and clock out, and this week's hours against your limit with the overtime warning. **My schedule**: your next shifts, today on top; **Store schedule** beside the title opens the whole week for everyone, with a TimeClock button to come back (managers also get Build). **Pay**: so far and expected for the pay period, hidden until you tap the eye (family off payroll see hours). **Time off**: one Request button and your requests with the answer. **Past shifts**: this pay period, newest first, each with **Fix**. On a desk the first three cards sit side by side with Past shifts underneath; on a phone it is one column in that order. The helper sentences are gone. The tab, page title, clock window and top bar all say **TimeClock** (Spanish keeps "Reloj de turno").
+
+### Changed (TimeClock tab, Dash Update #179)
+- `pages/home/timeclock/` rebuilt: `TimeClockTab.tsx` lays out five cards in a grid (`now | sched | side` then `past` from 1200 px; two columns from 900 px; one column on a phone). `MineView.tsx`, `ClockCard.tsx` and `WeekHoursCard.tsx` are gone; `Panel.tsx` is the one card and row style (44 px title row, 40 px rows, 48 px on a phone, today's row mint with a bar; fixed slots so nothing shifts).
+- `NowCard.tsx`: `ShiftHeroCard` (new `bare` and `picker` props) inside the card. Clocked out, `clockInChoices()` offers the shifts of today's scheduled department (one contained "Clock in · {shift}" button when there is exactly one), every other shift under Other shift (`ShiftMenu`); with nothing scheduled today every shift is a tile. Every punch still asks again; the limit dialog and the clock-out routine guard are unchanged. This week: `worked / limit h`, the bar, and one line with a fixed height: "N h left", or the overtime warning from `weekWarning` (unchanged).
+- `MySchedule.tsx`: my shifts from today on from `GET /hr/schedule/my-week/` (this week and next), five rows then "+N more", a Next week label where it starts. Store schedule sets `?view=everyone` (old staff Schedule links still land there): the read-only week grid with a back button; Build goes to `/people/schedule` for `hr.schedule:write` / `people:manage`.
+- `PeriodCards.tsx`: Pay (So far, Expected {date}; the eye replaces Show pay / Hide pay with the same accessible names; `on_payroll` rules unchanged), Time off (Request, each request with its answer, Withdraw while waiting), Past shifts (`pastRows()` in `shifts.ts`: days worked plus past days scheduled or asked off, newest first; status pill and Fix in fixed slots; two-line rows on a phone instead of table cards).
+- `ShiftPicker.tsx` exports `useClockGroups` and `DEPT_TONE` (used by the Now card).
+- Rename: `t('timeClock')` and `t('myDay')` say **TimeClock** in English (the Home tab, the desk band title, the phone top bar title, the clock dialogs); comments, test names and the icon registry's use text follow. The bar's own override in `PhoneTabBar.tsx` (from #146) is now redundant but left alone. The onboarding checklist item "Time clock explained" is a saved setting and was not renamed.
+- Tests: `TimeClockTab.test.tsx` rewritten (the five cards and no switch; pay behind the eye; off payroll; Fix and Request; Store schedule and back; Build for managers; the Clock in button for today's department; `pastRows`, `upcomingShifts`, `clockInChoices`, `weekWarning`); `FloorNav.test.tsx`, `phoneFirstRoutes.test.ts` expect "TimeClock".
+
+## [2.306.1] -->
+<!-- Last reviewed: 2026-11-16 (2.306.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.

@@ -1,6 +1,5 @@
-/** The week's hours, the overtime warning and the next shift, for the TimeClock tab's This week pane (#137, #179). */
-import { format, parseISO } from 'date-fns';
-import { es as esLocale } from 'date-fns/locale';
+/** The week's hours and the overtime warning, for the TimeClock tab's Now card (#137, #179). */
+import { format } from 'date-fns';
 import { overHoursFlagLine } from '../../../components/hr/weekStatus';
 import type { HoursNag } from '../../../hooks/useHoursNag';
 import type { MyPeriod, TimeEntry, WeeklyHoursStatus } from '../../../types/hr.types';
@@ -54,16 +53,4 @@ export function weekWarning(
   }
   const left = tc('hLeft', { left: short(Math.max(limit - worked, 0)) });
   return { worked, limit, tone: 'quiet', text: ahead > 0 ? `${left} ${tc('scheduledAhead', { ahead: short(ahead) })}` : left };
-}
-
-/** The next scheduled shift still ahead in this pay period ("Fri Nov 14 · 9am-5pm Retail"), or null. */
-export function nextShiftText(period: MyPeriod | undefined, todayWord: string, lang: string): string | null {
-  const locale = lang === 'es' ? { locale: esLocale } : undefined;
-  for (const day of period?.days ?? []) {
-    const shift = day.scheduled.find((s) => parseFloat(s.hours_ahead) > 0);
-    if (!shift || day.day_off?.status === 'approved') continue;
-    const when = day.is_today ? todayWord : format(parseISO(day.date), 'EEE MMM d', locale);
-    return `${when} · ${shift.text}${shift.department_name ? ` ${shift.department_name}` : ''}`;
-  }
-  return null;
 }

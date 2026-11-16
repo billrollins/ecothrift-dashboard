@@ -45,7 +45,7 @@ function storeDayYmd() {
 }
 
 /** Tiles from the staff endpoint, or the caller's own list (the public clock has no staff JWT). */
-function useClockGroups(given?: ClockTile[]) {
+export function useClockGroups(given?: ClockTile[]) {
   const day = storeDayYmd();
   const tiles = useQuery({
     queryKey: ['hr', 'clockTiles', day],
@@ -64,7 +64,7 @@ export const eyebrowSx = {
   color: dutyColors.ink40,
 };
 
-const DEPT_TONE: Record<string, { accent: string; tint: string }> = {
+export const DEPT_TONE: Record<string, { accent: string; tint: string }> = {
   retail: { accent: dutyColors.brand, tint: dutyColors.brandTint },
   'retail-operations': { accent: dutyColors.brand, tint: dutyColors.brandTint },
   warehouse: { accent: dutyColors.amberBg, tint: '#FBF6E4' },

@@ -26,6 +26,8 @@ export function ShiftHeroCard({
   hoursNag,
   lang,
   actions,
+  bare,
+  picker,
   onClockIn,
   pendingClockIn,
   onSetShift,
@@ -38,6 +40,10 @@ export function ShiftHeroCard({
   hoursNag?: HoursNag;
   lang: string;
   actions?: ReactNode;
+  /** No card of its own (no border or padding): the caller's card holds it (TimeClock's Now card, #179). */
+  bare?: boolean;
+  /** Shown instead of the title and the full shift picker while clocked out. */
+  picker?: ReactNode;
   onClockIn: (shift: string, label: string) => void;
   pendingClockIn?: boolean;
   onSetShift: (shift: string) => void;
@@ -52,9 +58,12 @@ export function ShiftHeroCard({
   const shiftNote = onBreak || elapsed > 16 * 3600 ? weekStatusLine(weekly, onBreak, elapsed, lang) : null;
   const [shiftEl, setShiftEl] = useState<null | HTMLElement>(null);
 
+  const chrome = bare ? {} : cardSx;
+
   if (!entry) {
+    if (picker) return <Box sx={chrome}>{picker}</Box>;
     return (
-      <Box sx={cardSx}>
+      <Box sx={chrome}>
         <Typography sx={{ ...eyebrowSx, mb: 1 }}>{t('clockIn', lang)}</Typography>
         <ShiftPicker lang={lang} pending={pendingClockIn} onPick={onClockIn} />
       </Box>
@@ -68,7 +77,7 @@ export function ShiftHeroCard({
 
   // Compact on purpose: status, timer and punch buttons, so Today's list gets the room.
   return (
-    <Box sx={{ ...cardSx, pt: 1.5, pb: 1.5 }}>
+    <Box sx={bare ? {} : { ...cardSx, pt: 1.5, pb: 1.5 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minHeight: 32 }}>
         <Box
           sx={{

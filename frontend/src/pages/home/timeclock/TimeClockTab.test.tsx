@@ -8,16 +8,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HoursNag } from '../../../hooks/useHoursNag';
 import type { MyPeriod, MyPeriodWorked, TimeEntry, WeeklyHoursStatus } from '../../../types/hr.types';
 import TimeClockTab from './TimeClockTab';
-import { shiftRows } from './MineView';
-import { nextShiftText, weekWarning } from './weekHours';
-import { clockShort, myWeekTotals, weekStrip } from './ThisWeekPane';
-import type { ScheduleWeek } from '../../../api/schedule.api';
+import { clockGroupsFromTiles } from '../../../components/hr/ShiftPicker';
+import type { ClockTile } from '../../../api/hr.api';
+import type { ScheduledShift } from '../../../api/schedule.api';
+import { upcomingShifts } from './MySchedule';
+import { clockInChoices } from './NowCard';
+import { pastRows, shiftRows } from './shifts';
+import { weekWarning } from './weekHours';
 
 const state = vi.hoisted(() => ({
   entry: null as TimeEntry | null,
   period: null as MyPeriod | null,
   weekly: null as WeeklyHoursStatus | null,
-  schedule: null as ScheduleWeek | null,
+  myWeek: { start: '2026-11-09', end: '2026-11-22', shifts: [] as ScheduledShift[] },
   manager: false,
 }));
 
@@ -31,7 +34,18 @@ vi.mock('../../../hooks/useAuth', () => ({
 
 vi.mock('../../../api/schedule.api', async (orig) => ({
   ...(await orig<typeof import('../../../api/schedule.api')>()),
-  getScheduleWeek: async () => ({ data: state.schedule }),
+  getMyWeek: async () => ({ data: state.myWeek }),
+}));
+
+const TILES: ClockTile[] = [
+  { id: 1, name: 'Retail Open', department: 'Retail', department_slug: 'retail', department_sort: 1, punch_code: 'retail_open' },
+  { id: 2, name: 'Retail Close', department: 'Retail', department_slug: 'retail', department_sort: 1, punch_code: 'retail_close' },
+  { id: 3, name: 'Office', department: 'Office', department_slug: 'office', department_sort: 4, punch_code: 'office' },
+];
+
+vi.mock('../../../api/hr.api', async (orig) => ({
+  ...(await orig<typeof import('../../../api/hr.api')>()),
+  getClockTiles: async () => ({ data: TILES }),
 }));
 
 vi.mock('../../../hooks/useTimeClock', () => ({
@@ -123,31 +137,10 @@ function period(over: Partial<MyPeriod> = {}): MyPeriod {
   };
 }
 
-const shift = (id: number, employee: number, date: string, over: Partial<ScheduleWeek['shifts'][number]> = {}): ScheduleWeek['shifts'][number] => ({
-  id, employee, employee_name: `P${employee}`, date, start_time: '09:00', end_time: '17:00', text: '9am-5pm', hours: 8,
+const shift = (id: number, date: string, over: Partial<ScheduledShift> = {}): ScheduledShift => ({
+  id, employee: 1, employee_name: 'Ashley Tester', date, start_time: '09:00', end_time: '17:00', text: '9am-5pm', hours: 8,
   department: 1, department_name: 'Retail', flexible: false, note: '', ...over,
 });
-
-function scheduleWeek(over: Partial<ScheduleWeek> = {}): ScheduleWeek {
-  const days = ['2026-11-09', '2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13', '2026-11-14', '2026-11-15'];
-  return {
-    start: days[0], end: days[6], days,
-    store_hours: days.map((date) => ({ date, open: date !== '2026-11-15', start: '10:00', end: '19:00' })),
-    people: [],
-    shifts: [
-      shift(1, 1, '2026-11-11'), shift(2, 2, '2026-11-11'), shift(3, 3, '2026-11-11', { start_time: '12:00', text: '12pm-5pm', hours: 5 }),
-      shift(4, 1, '2026-11-14', { flexible: true, department_name: 'Processing', text: '8am-2pm', hours: 6 }),
-      shift(5, 1, '2026-11-13'),
-    ],
-    call_ins: [], actual: [],
-    requests: [{
-      id: 21, employee: 1, employee_name: 'P1', kind: 'off', date: '2026-11-13', end_date: '2026-11-13', start_time: null, end_time: null,
-      note: 'Dentist', status: 'pending', reply: '', decided_by_name: '', decided_at: null, created_at: '',
-    }],
-    fixed_departments: ['Retail'], can_edit: false, now: {},
-    ...over,
-  };
-}
 
 const tc = (key: string, vars?: Record<string, string | number>) => `${key}${vars ? JSON.stringify(vars) : ''}`;
 const NONE: HoursNag = { level: 'none', worked: 0, limit: 40, left: 40, clockOutBy: null };
@@ -203,58 +196,42 @@ describe('weekWarning (the overtime warning)', () => {
   });
 });
 
-describe('shiftRows and nextShiftText', () => {
+describe('shiftRows and pastRows', () => {
   it('one row per shift worked, the schedule on the day, a status that says what needs a look', () => {
     const rows = shiftRows(period(), tc as never, 'en');
     expect(rows.map((r) => [r.day, r.scheduled, r.status?.label ?? null, Boolean(r.fix)])).toEqual([
-      ['Wed Nov 11', '9am-5pm Retail · 8.00 h', 'fixAsked', false],
+      ['Wed Nov 11', '9am-5pm Retail', 'fixAsked', false],
       ['Thu Nov 12', '', 'needsFix', true],
-      ['Sat Nov 14', '9am-5pm Retail · 8.00 h', 'upcoming', false],
+      ['Sat Nov 14', '9am-5pm Retail', 'upcoming', false],
     ]);
     expect(rows[1].hours).toBe('7.50 h');
   });
 
-  it('names the next shift still ahead, skipping an approved day off', () => {
-    expect(nextShiftText(period(), 'Today', 'en')).toBe('Sat Nov 14 · 9am-5pm Retail');
-    const off = period();
-    off.days[2].day_off = { ...off.requests[0], date: '2026-11-14', end_date: '2026-11-14', status: 'approved' };
-    expect(nextShiftText(off, 'Today', 'en')).toBeNull();
+  it('past shifts are newest first and leave out what is still ahead', () => {
+    expect(pastRows(period(), tc as never, 'en').map((r) => r.day)).toEqual(['Thu Nov 12', 'Wed Nov 11']);
   });
 });
 
-describe('weekStrip (This week, day by day)', () => {
-  const real = (key: string, vars?: Record<string, string | number>) => `${key}${vars ? JSON.stringify(vars) : ''}`;
-  it('my shift each day, worked hours, a day off asked, the store closed and how many work', () => {
-    const days = weekStrip(scheduleWeek(), 1, period(), '2026-11-13', real as never, 'en');
-    expect(days.map((d) => d.dow)).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
-    const wed = days[2];
-    expect(wed).toMatchObject({ main: '9am-5pm', caption: 'workedH{"h":"7.5"}', captionTone: 'good', working: true, isPast: true, crew: 'crew{"n":3}' });
-    // Thu: worked (no shift on the schedule), nobody else on.
-    expect(days[3]).toMatchObject({ main: 'dayOffShort', caption: 'workedH{"h":"7.5"}', crew: 'crewNone' });
-    // Fri (today): on the schedule with a day off asked.
-    expect(days[4]).toMatchObject({ isToday: true, main: '9am-5pm', caption: 'dayOffAsked', captionTone: 'wait', crew: 'crewOne' });
-    // Sat: a flexible shift says so under its times; the store hours on every day.
-    expect(days[5]).toMatchObject({ main: '8am-2pm', caption: 'Processing · flexShort', store: 'storeHours{"from":"10am","to":"7pm"}' });
-    expect(days[6]).toMatchObject({ main: 'storeClosed', working: false, store: 'storeClosedLine' });
+describe('upcomingShifts and clockInChoices', () => {
+  it('my shifts from today on, in order, with a line where next week starts', () => {
+    const rows = upcomingShifts('2026-11-09', [shift(3, '2026-11-17'), shift(2, '2026-11-14'), shift(1, '2026-11-13'), shift(9, '2026-11-11')], '2026-11-13');
+    expect(rows.map((r) => [r.id, r.isToday, r.startsNextWeek])).toEqual([[1, true, false], [2, false, false], [3, false, true]]);
   });
 
-  it('clockShort reads store hours the way the schedule does', () => {
-    expect(['10:00', '19:30', '12:00', '00:00'].map(clockShort)).toEqual(['10am', '7:30pm', '12pm', '12am']);
-  });
-
-  it('an approved day off wins over the shift; totals count my shifts only', () => {
-    const week = scheduleWeek();
-    week.requests![0].status = 'approved';
-    const fri = weekStrip(week, 1, undefined, '2026-11-13', tc as never, 'en')[4];
-    expect(fri).toMatchObject({ main: 'dayOff', working: false, caption: '' });
-    expect(myWeekTotals(week, 1)).toEqual({ hours: 22, shifts: 3 });
-    expect(myWeekTotals(undefined, 1)).toEqual({ hours: 0, shifts: 0 });
+  it("offers today's scheduled department to clock in, every shift when nothing is scheduled", () => {
+    const groups = clockGroupsFromTiles(TILES);
+    expect(clockInChoices(groups, [shift(1, '2026-11-13', { department_name: 'Office' })], 'en')).toEqual({
+      primary: [{ key: 'office', label: 'Office', dept: 'office' }], others: true,
+    });
+    const none = clockInChoices(groups, [], 'en');
+    expect(none.others).toBe(false);
+    expect(none.primary.map((c) => c.key)).toEqual(['retail_open', 'retail_close', 'office']);
   });
 });
 
 describe('TimeClockTab', () => {
   beforeEach(() => {
-    state.schedule = scheduleWeek();
+    state.myWeek = { start: '2026-11-09', end: '2026-11-22', shifts: [] };
     state.manager = false;
     state.entry = null;
     state.period = period();
@@ -262,22 +239,29 @@ describe('TimeClockTab', () => {
     setDesk(false);
   });
 
-  it('shows the clock, the week and Mine; pay stays hidden until Show pay', async () => {
-    const user = userEvent.setup();
+  it('one screen: Now, My schedule, Pay, Time off and Past shifts; no Mine | Everyone switch', async () => {
     renderTab();
-    expect(screen.getByTestId('time-clock-card')).toBeInTheDocument();
-    expect(screen.getByTestId('week-warning')).toHaveTextContent('24.5 h left this week. 8 h more on the schedule this week.');
-    expect(screen.getByTestId('next-shift')).toHaveTextContent('Sat Nov 14 · 9am-5pm Retail');
-    const tiles = screen.getByTestId('period-tiles');
-    expect(within(tiles).getByText('15.50 h')).toBeInTheDocument();
-    expect(within(tiles).queryByText('$232.50')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Show pay' }));
-    expect(within(tiles).getByText('$232.50')).toBeInTheDocument();
-    expect(within(tiles).getByText('$472.50')).toBeInTheDocument();
-    expect(within(tiles).getByText('Expected by Nov 22')).toBeInTheDocument();
+    for (const id of ['time-clock-card', 'my-schedule', 'pay-card', 'time-off-card', 'past-shifts']) {
+      expect(screen.getByTestId(id)).toBeInTheDocument();
+    }
+    expect(screen.queryByTestId('time-clock-everyone-tab')).not.toBeInTheDocument();
+    expect(screen.getByTestId('week-warning')).toHaveTextContent('24.5 h left');
+    expect(await screen.findByText('Nothing scheduled yet')).toBeInTheDocument();
   });
 
-  it('off payroll: hours, no dollars and no Show pay', () => {
+  it('pay stays hidden until the eye; then so far and expected', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    const pay = screen.getByTestId('pay-card');
+    expect(within(pay).getByText('15.50 h · 2 shifts')).toBeInTheDocument();
+    expect(within(pay).queryByText('$232.50')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Show pay' }));
+    expect(within(pay).getByText('$232.50')).toBeInTheDocument();
+    expect(within(pay).getByText('$472.50')).toBeInTheDocument();
+    expect(within(pay).getByText('Expected Nov 22')).toBeInTheDocument();
+  });
+
+  it('off payroll: hours, no dollars and no eye', () => {
     state.period = period({
       on_payroll: false,
       so_far: { hours: '15.50', overtime_hours: '0.00', pending_hours: '0.00', shift_count: 2, pay: null },
@@ -285,61 +269,58 @@ describe('TimeClockTab', () => {
       expected: { hours: '31.50', overtime_hours: '0.00', pay: null },
     });
     renderTab();
-    const tiles = screen.getByTestId('period-tiles');
-    expect(within(tiles).getByText('31.50 h')).toBeInTheDocument();
-    expect(within(tiles).getByText('Hours only: you are not on payroll.')).toBeInTheDocument();
-    expect(within(tiles).queryByText(/\$/)).not.toBeInTheDocument();
-    // The button keeps its room (no layout shift) but is hidden: nothing to show.
+    const pay = screen.getByTestId('pay-card');
+    expect(within(pay).getByText('31.50 h')).toBeInTheDocument();
+    expect(within(pay).queryByText(/\$|••/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Show pay' })).not.toBeInTheDocument();
   });
 
-  it('Fix opens a time change request; Request time off opens the ask', async () => {
+  it('Fix on a past shift opens a time change request; Request opens the time off ask', async () => {
     const user = userEvent.setup();
     renderTab();
-    expect(screen.getByText('Fix asked')).toBeInTheDocument();
-    expect(screen.getByText('Needs a fix')).toBeInTheDocument();
+    const past = screen.getByTestId('past-shifts');
+    expect(within(past).getByText('Fix asked')).toBeInTheDocument();
+    expect(within(past).getByText('Needs a fix')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Fix this shift: Thu Nov 12' }));
     expect(await screen.findByText('Request time change')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getByText('Day off Fri Nov 20')).toBeInTheDocument();
+    expect(within(screen.getByTestId('time-off-card')).getByText('Day off Fri Nov 20')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Request time off' }));
     expect(await screen.findByText('Days off are unpaid.')).toBeInTheDocument();
   });
 
-  it('Everyone shows the week read only, and stays in the URL', async () => {
+  it('Store schedule opens the week read only, stays in the URL, and has a way back', async () => {
     const user = userEvent.setup();
     renderTab();
-    await user.click(screen.getByTestId('time-clock-everyone-tab'));
+    expect(screen.queryByTestId('build-schedule')).not.toBeInTheDocument();
+    await user.click(screen.getByTestId('open-store-schedule'));
     expect(await screen.findByText('schedule grid read only')).toBeInTheDocument();
     expect(screen.queryByTestId('time-clock-mine')).not.toBeInTheDocument();
     expect(screen.getByTestId('where')).toHaveTextContent('view=everyone');
+    await user.click(screen.getByTestId('back-to-time-clock'));
+    expect(screen.getByTestId('time-clock-mine')).toBeInTheDocument();
+    expect(screen.getByTestId('where')).not.toHaveTextContent('view=everyone');
   });
 
-  it('This week: the days, and Full schedule opens the whole week here', async () => {
-    const user = userEvent.setup();
-    renderTab();
-    const strip = await screen.findByTestId('week-strip');
-    expect(await within(strip).findAllByRole('button')).toHaveLength(7);
-    expect(screen.queryByTestId('build-schedule')).not.toBeInTheDocument();
-    await user.click(screen.getByTestId('open-full-schedule'));
-    expect(await screen.findByText('schedule grid read only')).toBeInTheDocument();
-    expect(screen.getByTestId('where')).toHaveTextContent('view=everyone');
-  });
-
-  it('a day cell opens the full schedule too; managers also get Build schedule', async () => {
+  it('managers also get Build; an old staff Schedule link opens the store schedule', async () => {
     state.manager = true;
-    const user = userEvent.setup();
-    renderTab();
-    expect(screen.getByTestId('build-schedule')).toHaveTextContent('Build schedule');
-    const strip = await screen.findByTestId('week-strip');
-    await user.click((await within(strip).findAllByRole('button'))[0]);
-    expect(await screen.findByText('schedule grid read only')).toBeInTheDocument();
-  });
-
-  it('opens on Everyone from an old staff Schedule link', async () => {
+    const first = renderTab();
+    expect(screen.getByTestId('build-schedule')).toBeInTheDocument();
+    first.unmount();
     renderTab('/dashboard?tab=myday&view=everyone');
     await waitFor(() => expect(screen.getByText('schedule grid read only')).toBeInTheDocument());
+  });
+
+  it("clocked out with a shift today: one Clock in button for that department, the rest under Other shift", async () => {
+    const today = new Date();
+    const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    state.myWeek = { start: ymd, end: ymd, shifts: [shift(1, ymd, { department_name: 'Office' })] };
+    renderTab();
+    expect(await screen.findByTestId('clock-in-primary')).toHaveTextContent('Clock in · Office');
+    expect(screen.getByText('Scheduled 9am-5pm')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Other shift' })).toBeInTheDocument();
+    expect(await screen.findByTestId('my-shift-1')).toHaveTextContent('Today');
   });
 
   it('on the clock: break and clock out; Clock out waits while on break', () => {
