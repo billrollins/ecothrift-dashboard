@@ -52,17 +52,17 @@ describe('dashboard tabs', () => {
     expect(resolveDashboardTab('/dashboard', '?tab=store', manager)).toBe('store');
   });
 
-  it('opens a routine or a draft on Routines (#137), the hours panel on Time clock', () => {
+  it('opens a routine or a draft on Routines (#137), the hours panel on TimeClock', () => {
     saveDashboardTab(2, 'store');
     expect(resolveDashboardTab('/dashboard', '?run=12', manager)).toBe('routines');
     expect(resolveDashboardTab('/dashboard', '?routine=3&draft=9', manager)).toBe('routines');
-    // An old Time clock link with a routine in it opens the routine where it runs now.
+    // An old TimeClock link with a routine in it opens the routine where it runs now.
     expect(resolveDashboardTab('/dashboard', '?tab=myday&run=12', manager)).toBe('routines');
     expect(resolveDashboardTab('/dashboard', '?hours=1', manager)).toBe('myday');
     expect(resolveDashboardTab('/dashboard', '?tab=myday&view=everyone', manager)).toBe('myday');
   });
 
-  it('keeps /today and /pay on Time clock, /routines on Routines', () => {
+  it('keeps /today and /pay on TimeClock, /routines on Routines', () => {
     saveDashboardTab(2, 'store');
     expect(resolveDashboardTab('/today', '', manager)).toBe('myday');
     expect(resolveDashboardTab('/today', '?run=4', manager)).toBe('routines');

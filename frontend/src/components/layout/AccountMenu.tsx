@@ -65,7 +65,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 /**
- * The avatar menu (Bill 2026-11-13): no Home links (Store, Time clock, HR, Routines, Calendar, Messages and Profile are
+ * The avatar menu (Bill 2026-11-13): no Home links (Store, TimeClock, HR, Routines, Calendar, Messages and Profile are
  * the Home tabs). Dash Updates, the owner's Owner page, Language, View as, password and sign out. Texts is an Owner page
  * tab (owner only); Photo drops is in the Processing sidebar and the photo drawer's "See all".
  */

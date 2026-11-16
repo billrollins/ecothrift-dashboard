@@ -1250,7 +1250,7 @@ function SaveBar({ count, busy, onSave, onCancel }: { count: number; busy: boole
 
 /**
  * `build`: the Schedule builder (#140), where the schedule's managers change the week (the API's can_edit); a kit page
- * (the top bar names it). `embedded`: the Time clock tab's Everyone view (Dash Update #137), the same grid read only for
+ * (the top bar names it). `embedded`: the TimeClock tab's Everyone view (Dash Update #137), the same grid read only for
  * everyone, managers too (they build the week in the HR workspace): no page title (the tab names it), no requests (Mine
  * has them) and the day names stick to the top of the tab's own scroll. Neither: read only (HR > Schedule).
  */
@@ -1292,7 +1292,7 @@ export default function SchedulePage({ build = false, embedded = false }: { buil
   const twoWeeks = Boolean(merged && weekA && merged.days.length > weekA.days.length);
   const shown = shownIdx && twoWeeks ? weekB : weekA;
   const shownStart = shownIdx && twoWeeks ? next : start;
-  // Only the builder edits (#140); everywhere else (Time clock > Everyone, HR > Schedule) the week reads the same for all.
+  // Only the builder edits (#140); everywhere else (TimeClock > Everyone, HR > Schedule) the week reads the same for all.
   const canEdit = build && !embedded && Boolean(weekA?.can_edit);
   const { tr } = useCopy();
   const { t: rt } = useRequestCopy();
@@ -1479,7 +1479,7 @@ export default function SchedulePage({ build = false, embedded = false }: { buil
   const page = (
     <Box sx={{ pb: pending.size ? 10 : 4, minWidth: 0 }} data-testid="schedule-page">
       <Stack direction="row" alignItems="center" sx={{ mb: 1.5, gap: 1, flexWrap: 'wrap' }}>
-        {/* The builder is a kit page and the Time clock tab names the embed: neither repeats the title. */}
+        {/* The builder is a kit page and the TimeClock tab names the embed: neither repeats the title. */}
         {build || embedded ? null : (
           <Typography variant="h5" fontWeight={800} sx={{ fontSize: { xs: 20, md: 24 } }}>{tr('schedule')}</Typography>
         )}

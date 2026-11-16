@@ -46,7 +46,7 @@ function renderNav(path = '/dashboard?tab=store') {
   );
 }
 
-const TABS = ['Store', 'Time clock', 'HR', 'Routines', 'Calendar', 'Messages', 'Profile'];
+const TABS = ['Store', 'TimeClock', 'HR', 'Routines', 'Calendar', 'Messages', 'Profile'];
 
 describe('FloorNav (Dash Home tabs, 2026-11-13)', () => {
   beforeEach(() => {
@@ -65,7 +65,7 @@ describe('FloorNav (Dash Home tabs, 2026-11-13)', () => {
   it('marks Store as selected on ?tab=store', () => {
     renderNav('/dashboard?tab=store');
     expect(screen.getByRole('tab', { name: 'Store' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'Time clock' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: 'TimeClock' })).toHaveAttribute('aria-selected', 'false');
   });
 
   it('lands everyone on Store when nothing is remembered', () => {
@@ -82,15 +82,15 @@ describe('FloorNav (Dash Home tabs, 2026-11-13)', () => {
     expect(screen.getByRole('tab', { name: 'HR' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('treats a routine in the URL as Routines (it runs there since #137), the hours panel as Time clock', () => {
+  it('treats a routine in the URL as Routines (it runs there since #137), the hours panel as TimeClock', () => {
     const first = renderNav('/dashboard?run=12');
     expect(screen.getByRole('tab', { name: 'Routines' })).toHaveAttribute('aria-selected', 'true');
     first.unmount();
     renderNav('/dashboard?hours=1');
-    expect(screen.getByRole('tab', { name: 'Time clock' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'TimeClock' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('shows the routines-waiting count on Routines, not on Time clock', () => {
+  it('shows the routines-waiting count on Routines, not on TimeClock', () => {
     renderNav();
     const routines = screen.getByRole('tab', { name: 'Routines' });
     expect(routines).toContainElement(screen.getByLabelText('2 waiting'));

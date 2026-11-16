@@ -4,7 +4,7 @@ import { MOVED, hrPath, hrTabsFor } from './HrPage';
 const keys = (user: Parameters<typeof hrTabsFor>[0]) => hrTabsFor(user).map((t) => [t.key, t.sections.map((s) => s.key)]);
 
 describe('HR tabs', () => {
-  it('staff see Requests, Me and Incidents only (the week is on Home > Time clock, #137)', () => {
+  it('staff see Requests, Me and Incidents only (the week is on Home > TimeClock, #137)', () => {
     expect(keys({ role: 'Employee', is_superuser: false, access: [] })).toEqual([
       ['requests', ['all']],
       ['me', ['me']],

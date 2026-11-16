@@ -10,7 +10,7 @@ import type { useTimeClockActions } from '../../hr/useTimeClockActions';
 
 /**
  * Clock in, take a break, clock out: the shift card that was on Today (Dash Update #137). Every punch asks again
- * first (owner, 2026-11-02). The weekly-hours warning sits in the card beside it (WeekHoursCard), in a fixed slot, so
+ * first (owner, 2026-11-02). The weekly-hours warning sits in the pane beside it (ThisWeekPane), in a fixed slot, so
  * nothing here grows when it shows.
  */
 export function ClockCard({ clock, lang }: { clock: ReturnType<typeof useTimeClockActions>; lang: string }) {

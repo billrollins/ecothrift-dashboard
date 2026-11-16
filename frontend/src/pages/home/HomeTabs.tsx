@@ -10,7 +10,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { ProfileTab } from './ProfileTab';
 
 /*
- * Dash Home tabs beyond Store, Time clock, Routines and HR (Bill 2026-11-13, .ai/extended/home-and-hr-structure.md). This is the
+ * Dash Home tabs beyond Store, TimeClock, Routines and HR (Bill 2026-11-13, .ai/extended/home-and-hr-structure.md). This is the
  * skeleton (step 1): Calendar and Profile get their real pages in later Dash Updates; until then each tab shows
  * the pages that exist today so nothing is lost.
  */

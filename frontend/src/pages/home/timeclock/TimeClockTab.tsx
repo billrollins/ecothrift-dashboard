@@ -1,7 +1,8 @@
 /**
- * Dash Home > Time clock (Dash Update #137; Bill 2026-11-13, .ai/extended/home-and-hr-structure.md decisions 3, 4, 8
- * and 12). It replaces Today ("too busy"): the clock card on top (in, break, out) with this week's hours and the
- * overtime warning beside it, then a switch, Mine | Everyone. Mine is this pay period (hours, pay so far and expected,
+ * Dash Home > TimeClock (Dash Update #137; Bill 2026-11-13, .ai/extended/home-and-hr-structure.md decisions 3, 4, 8
+ * and 12). It replaces Today ("too busy"): the clock card on top (in, break, out) with This week beside it (#179:
+ * hours against the limit and the overtime warning, the next shift, the week day by day, Full schedule one tap away,
+ * Build schedule for managers), then a switch, Mine | Everyone. Mine is this pay period (hours, pay so far and expected,
  * each shift with Fix, time off). Everyone is the week's schedule, read only: the same grid managers build it on in
  * the HR workspace. The routine list moved to the Routines tab.
  *
@@ -9,7 +10,7 @@
  * cards on a phone (StackOnPhone). `?view=everyone` opens Everyone (old staff Schedule links land there).
  */
 import { Box, LinearProgress, Stack, ToggleButton, ToggleButtonGroup, useMediaQuery, useTheme } from '@mui/material';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FloorPage } from '../../../components/layout/FloorPage';
 import { PageToolbar } from '../../../components/page/PageKit';
@@ -21,7 +22,7 @@ import { useTimeClockActions } from '../../hr/useTimeClockActions';
 import { ClockCard } from './ClockCard';
 import { useTimeClockCopy } from './copy';
 import { MineView } from './MineView';
-import { WeekHoursCard } from './WeekHoursCard';
+import { ThisWeekPane } from './ThisWeekPane';
 
 const SchedulePage = lazy(() => import('../../people/SchedulePage'));
 
@@ -42,6 +43,8 @@ export default function TimeClockTab() {
   const nag = useHoursNag();
   const period = useMyPeriod();
 
+  const switchRow = useRef<HTMLDivElement>(null);
+
   const pick = (next: TimeClockView | null) => {
     if (!next || next === view) return;
     setParams((prev) => {
@@ -53,6 +56,12 @@ export default function TimeClockTab() {
     }, { replace: true });
   };
 
+  // Full schedule (or a day cell): the whole week, here, scrolled into view.
+  const openSchedule = () => {
+    pick('everyone');
+    window.setTimeout(() => switchRow.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 0);
+  };
+
   const body = (
     <StackOnPhone sx={{ width: '100%', minWidth: 0 }}>
       <Stack spacing={{ xs: 2, md: 2.5 }}>
@@ -60,29 +69,38 @@ export default function TimeClockTab() {
           sx={{
             display: 'grid',
             gap: { xs: 1.5, md: 2 },
-            gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(340px, 440px) minmax(0, 1fr)' },
+            gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(320px, 400px) minmax(0, 1fr)', xl: 'minmax(360px, 440px) minmax(0, 1fr)' },
             alignItems: 'stretch',
           }}
         >
           <ClockCard clock={clock} lang={lang} />
-          <WeekHoursCard week={weekly.data} loading={weekly.isLoading} nag={nag} entry={clock.entry} period={period.data} />
+          <ThisWeekPane
+            week={weekly.data}
+            loading={weekly.isLoading}
+            nag={nag}
+            entry={clock.entry}
+            period={period.data}
+            onOpenSchedule={openSchedule}
+          />
         </Box>
 
-        <PageToolbar
-          lead={(
-            <ToggleButtonGroup
-              exclusive
-              size="small"
-              value={view}
-              onChange={(_e, next: TimeClockView | null) => pick(next)}
-              aria-label={tc('viewLabel')}
-              sx={{ '& .MuiToggleButton-root': { px: 2.5, fontWeight: 700, textTransform: 'none', minWidth: 112 } }}
-            >
-              <ToggleButton value="mine" data-testid="time-clock-mine-tab">{tc('mine')}</ToggleButton>
-              <ToggleButton value="everyone" data-testid="time-clock-everyone-tab">{tc('everyone')}</ToggleButton>
-            </ToggleButtonGroup>
-          )}
-        />
+        <Box ref={switchRow} sx={{ scrollMarginTop: 16 }}>
+          <PageToolbar
+            lead={(
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                value={view}
+                onChange={(_e, next: TimeClockView | null) => pick(next)}
+                aria-label={tc('viewLabel')}
+                sx={{ '& .MuiToggleButton-root': { px: 2.5, fontWeight: 700, textTransform: 'none', minWidth: 112 } }}
+              >
+                <ToggleButton value="mine" data-testid="time-clock-mine-tab">{tc('mine')}</ToggleButton>
+                <ToggleButton value="everyone" data-testid="time-clock-everyone-tab">{tc('everyone')}</ToggleButton>
+              </ToggleButtonGroup>
+            )}
+          />
+        </Box>
 
         {view === 'mine' ? <MineView /> : (
           <Box data-testid="time-clock-everyone" sx={{ minWidth: 0 }}>

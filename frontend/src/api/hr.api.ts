@@ -213,7 +213,7 @@ export function getMyPay(count = 6): Promise<{ data: MyPayPeriod[] }> {
   return api.get<MyPayPeriod[]>('/hr/time-entries/my_pay/', { params: { count } });
 }
 
-/** The Time clock tab's Mine view (#137): this pay period's days, hours and pay so far and ahead. */
+/** The TimeClock tab's Mine view (#137): this pay period's days, hours and pay so far and ahead. */
 export function getMyPeriod(): Promise<{ data: MyPeriod }> {
   return api.get<MyPeriod>('/hr/time-entries/my_period/');
 }

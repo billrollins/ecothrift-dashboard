@@ -7,7 +7,7 @@
  * Incidents (#131): anyone reports an incident on site; managers and the owner follow up.
  * The split (#140, Bill 2026-11-13, .ai/extended/home-and-hr-structure.md decision 6): the managers' pages (People,
  * Hiring, Onboarding, Time & payroll) live in the HR workspace sidebar only, so this page is everyone's own HR. The
- * week is read on Home > Time clock > Everyone (#137) and built in the HR workspace, so the Schedule tab went too. An
+ * week is read on Home > TimeClock > Everyone (#137) and built in the HR workspace, so the Schedule tab went too. An
  * old /hr address of a page that moved lands on the page itself (MOVED).
  */
 import { Box, LinearProgress, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
@@ -47,7 +47,7 @@ export const HR_TABS: HrTab[] = [
 
 /** The managers' pages that moved to the HR workspace (#140): old /hr/<tab>[/<section>] -> the page itself. */
 export const MOVED: Record<string, string> = {
-  // The Schedule route sends staff to Time clock > Everyone and managers to the builder (App.tsx ScheduleRoute).
+  // The Schedule route sends staff to TimeClock > Everyone and managers to the builder (App.tsx ScheduleRoute).
   schedule: '/people/schedule',
   'schedule/week': '/people/schedule',
   people: '/admin/users',

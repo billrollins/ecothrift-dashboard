@@ -11,7 +11,7 @@ export function hasRunner(params: URLSearchParams): boolean {
 
 /**
  * The runner query for a routine link. Routines run beside the list on the Routines tab (they ran on Today until
- * Time clock replaced it, #137), so every old link (`/routines/run/12`, `/routines/run/new?routine=3&draft=9`,
+ * TimeClock replaced it, #137), so every old link (`/routines/run/12`, `/routines/run/new?routine=3&draft=9`,
  * `/routines?run=12`, `/today?run=12`) maps to `/dashboard?tab=routines&...`. Returns null for anything that is not a
  * routine link.
  */

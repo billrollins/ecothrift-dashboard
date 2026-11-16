@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.306.1] -->
-<!-- Last reviewed: 2026-11-16 (2.306.1) -->
+<!-- Line 1 release: ## [2.307.0] -->
+<!-- Last reviewed: 2026-11-16 (2.307.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.307.0] - 2026-11-16
+
+User-facing theme: **TimeClock tab: the week's schedule right beside the clock, a real dashboard look, and the name "TimeClock" everywhere (Dash Update #179).**
+
+> **For Bill:** the TimeClock tab now has a **This week** panel next to the clock-in card. It shows your hours against your limit (with the overtime warning), how many hours and shifts are on the schedule, your next shift, and all seven days as rows: your shift each day, the department, hours worked, a day off you asked for, the store hours and how many people work that day. Today is highlighted. **Full schedule** (green button, top right of the panel) opens the whole week for everyone right there on the tab, and tapping any day row does the same. Managers also get **Build schedule**, which goes to the Schedule builder. Under Mine, the pay-period numbers are one row of five: worked so far, pay so far, expected, scheduled ahead and time off waiting (pay still hidden until Show pay; family off payroll still see hours only). The tables have the same look as Orders and Processing. The tab, the page title, the clock window and the top bar all say **TimeClock** now (Spanish keeps "Reloj de turno").
+
+### Changed (TimeClock tab, Dash Update #179)
+- New `pages/home/timeclock/ThisWeekPane.tsx` replaces `WeekHoursCard`: a header (the week, Full schedule, Build schedule for `hr.schedule:write` / `people:manage`, the same need as the `/people/schedule` route), hours worked against the limit with the bar and the fixed-height overtime warning (`weekWarning`, unchanged), On the schedule (my hours and shift count this week) and Next shift, then seven dense day rows built by `weekStrip()` from `GET /hr/schedule/week/` (the same `['scheduleWeek', monday]` query as the full schedule, so opening it is instant). Each row: day (TODAY in place of the weekday), my shift, its caption (department and "flexible", hours worked from my_period, or a day off asked), store hours, how many people are on the schedule. An approved day off replaces the shift. Rows have fixed heights and seven skeleton rows hold the room while loading (no layout shift).
+- Full schedule and the day rows switch to Everyone (`?view=everyone`) and scroll the switch into view. The Mine | Everyone switch is kept (decision 4 in `.ai/extended/home-and-hr-structure.md`).
+- `WeekHoursCard.tsx` is now `weekHours.ts` (only `weekWarning` and `nextShiftText`).
+- Mine: the pay-period tiles are the rich kit's `KpiStrip` (5 across on a desk, 2 on a phone) with a new Time off tile (requests waiting); Scheduled ahead shows its shift count. `on_payroll` rules unchanged. The Shifts and Time off tables take the rich kit's micro headers, striped rows and the today bar (not its fixed layout, so cells still wrap and still turn into cards on a phone).
+- Rename: `t('timeClock')` and `t('myDay')` say **TimeClock** in English (the Home tab, the desk band title, the phone top bar title, the clock dialogs); comments, test names and the icon registry's use text follow. The bar's own override in `PhoneTabBar.tsx` (from #146) is now redundant but left alone (the bar belongs to #146). The onboarding checklist item "Time clock explained" is a saved setting and was not renamed.
+- Tests: `TimeClockTab.test.tsx` (`weekStrip`: shifts, worked hours, day off asked and approved, store closed, flexible, crew counts; `clockShort`; `myWeekTotals`; Full schedule and a day row open Everyone; Build schedule only for managers); `FloorNav.test.tsx`, `phoneFirstRoutes.test.ts` expect "TimeClock".
 
 ## [2.306.1] - 2026-11-16
 

@@ -45,7 +45,7 @@ export function useMyPay(count = 6) {
   });
 }
 
-/** This pay period for the Time clock tab (#137); every punch refreshes it (its key is under `timeClock`). */
+/** This pay period for the TimeClock tab (#137); every punch refreshes it (its key is under `timeClock`). */
 export function useMyPeriod() {
   return useQuery({
     queryKey: ['timeClock', 'myPeriod'],

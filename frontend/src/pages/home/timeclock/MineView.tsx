@@ -1,4 +1,5 @@
-import { Alert, Box, Button, Skeleton, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
+import { Alert, Box, Button, Skeleton, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography, type Theme } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { es as esLocale } from 'date-fns/locale';
@@ -7,7 +8,8 @@ import { useState } from 'react';
 import { withdrawScheduleRequest } from '../../../api/schedule.api';
 import { TimeChangeDialog } from '../../../components/hr/TimeChangeDialog';
 import { formatDashboardCurrencyExact } from '../../../components/dashboard/dashboardFormatters';
-import { EmptyState, Section, StatTile, StatusPill, type Tone } from '../../../components/page/PageKit';
+import { EmptyState, Section, StatusPill, type Tone } from '../../../components/page/PageKit';
+import { Kpi, KpiStrip } from '../../../components/page/RichKit';
 import { useMyPeriod } from '../../../hooks/useTimeClock';
 import { t } from '../../../i18n/routines';
 import type { MyPeriod, MyPeriodRequest, MyPeriodWorked } from '../../../types/hr.types';
@@ -84,7 +86,10 @@ export function shiftRows(period: MyPeriod, tc: Tc, lang: string): ShiftRowModel
   return rows;
 }
 
-/** Hours and pay for this period: worked so far, pay so far, expected once the schedule is worked. */
+/**
+ * Hours and pay for this period as the rich kit's KPI strip (#179): worked so far, pay so far, expected once the
+ * schedule is worked, what is still on the schedule, and time off waiting. Off payroll (#121) sees hours, never dollars.
+ */
 function PeriodTiles({ period, showPay, tc }: { period: MyPeriod; showPay: boolean; tc: Tc }) {
   const locale = useTimeClockCopy().lang === 'es' ? { locale: esLocale } : undefined;
   const end = format(parseISO(period.date_to), 'MMM d', locale);
@@ -92,26 +97,38 @@ function PeriodTiles({ period, showPay, tc }: { period: MyPeriod; showPay: boole
   const ahead = parseFloat(period.ahead.hours) > 0 ? tc('ifScheduled', { h: hrs(period.ahead.hours) }) : tc('nothingAhead');
   const money = (value: string | null) => (showPay && value != null ? formatDashboardCurrencyExact(value) : '••••');
   const overtime = parseFloat(period.expected.overtime_hours) > 0 ? tc('overtimeIn', { h: hrs(period.expected.overtime_hours) }) : undefined;
-  const grid = {
-    display: 'grid',
-    gap: { xs: 1.25, md: 2 },
-    gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' },
-    '& > :last-of-type': { gridColumn: { xs: '1 / -1', md: 'auto' } },
-  } as const;
+  const aheadShifts = period.ahead.shift_count === 1 ? tc('oneShift') : tc('shiftsCount', { n: period.ahead.shift_count });
+  const waiting = period.requests.filter((r) => r.status === 'pending').length;
+  const timeOff = (
+    <Kpi
+      label={tc('timeOff')}
+      value={waiting ? String(waiting) : tc('noneShort')}
+      caption={waiting ? tc('waitingOnManager') : tc('noneWaiting')}
+      tone={waiting ? 'wait' : 'quiet'}
+    />
+  );
+  const columns = { xs: 2, sm: 3, lg: 5 };
   if (!period.on_payroll) {
     return (
-      <Box sx={grid} data-testid="period-tiles">
-        <StatTile label={tc('workedSoFar')} value={`${hrs(period.so_far.hours)} h`} detail={shifts} />
-        <StatTile label={tc('scheduledAheadTile')} value={`${hrs(period.ahead.hours)} h`} detail={ahead} />
-        <StatTile label={tc('expectedHours', { date: end })} value={`${hrs(period.expected.hours)} h`} detail={tc('offPayroll')} />
+      <Box data-testid="period-tiles">
+        <KpiStrip columns={{ xs: 2, sm: 4 }}>
+          <Kpi label={tc('workedSoFar')} value={`${hrs(period.so_far.hours)} h`} caption={shifts} />
+          <Kpi label={tc('scheduledAheadTile')} value={`${hrs(period.ahead.hours)} h`} caption={aheadShifts} />
+          <Kpi label={tc('expectedHours', { date: end })} value={`${hrs(period.expected.hours)} h`} caption={tc('offPayroll')} />
+          {timeOff}
+        </KpiStrip>
       </Box>
     );
   }
   return (
-    <Box sx={grid} data-testid="period-tiles">
-      <StatTile label={tc('workedSoFar')} value={`${hrs(period.so_far.hours)} h`} detail={shifts} />
-      <StatTile label={tc('paySoFar')} value={money(period.so_far.pay)} detail={tc('beforeTaxes')} />
-      <StatTile label={tc('expected', { date: end })} value={money(period.expected.pay)} detail={ahead} note={overtime} tone={overtime ? 'wait' : 'quiet'} />
+    <Box data-testid="period-tiles">
+      <KpiStrip columns={columns}>
+        <Kpi label={tc('workedSoFar')} value={`${hrs(period.so_far.hours)} h`} caption={shifts} />
+        <Kpi label={tc('paySoFar')} value={money(period.so_far.pay)} caption={tc('beforeTaxes')} />
+        <Kpi label={tc('expected', { date: end })} value={money(period.expected.pay)} caption={overtime ?? ahead} tone={overtime ? 'wait' : 'quiet'} />
+        <Kpi label={tc('scheduledAheadTile')} value={`${hrs(period.ahead.hours)} h`} caption={aheadShifts} />
+        {timeOff}
+      </KpiStrip>
     </Box>
   );
 }
@@ -119,7 +136,7 @@ function PeriodTiles({ period, showPay, tc }: { period: MyPeriod; showPay: boole
 function ShiftsTable({ rows, tc, onFix }: { rows: ShiftRowModel[]; tc: Tc; onFix: (entry: MyPeriodWorked) => void }) {
   if (!rows.length) return <EmptyState title={tc('noShifts')} body={tc('noShiftsBody')} />;
   return (
-    <Table size="small" aria-label={tc('shifts')} sx={{ '& td, & th': { whiteSpace: { sm: 'nowrap' } } }}>
+    <Table size="small" aria-label={tc('shifts')} sx={[tableSx, { '& td, & th': { whiteSpace: { sm: 'nowrap' } } }]}>
       <TableHead>
         <TableRow>
           <TableCell>{tc('day')}</TableCell>
@@ -152,6 +169,19 @@ function ShiftsTable({ rows, tc, onFix }: { rows: ShiftRowModel[]; tc: Tc; onFix
   );
 }
 
+/** The rich kit's table look (micro headers, striped rows, a bar on today), without its fixed layout: these cells wrap. */
+const tableSx = (t: Theme) => ({
+  '& th': {
+    fontSize: '0.6875rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary',
+    bgcolor: t.palette.grey[50], borderBottom: `2px solid ${t.palette.grey[300]}`, whiteSpace: 'nowrap',
+  },
+  '& td': { borderBottomColor: t.palette.grey[100] },
+  '& tbody tr:nth-of-type(even)': { bgcolor: t.palette.grey[50] },
+  '& tbody tr.Mui-selected, & tbody tr.Mui-selected:hover': {
+    bgcolor: alpha(t.palette.secondary.main, 0.12), boxShadow: `inset 3px 0 0 ${t.palette.secondary.main}`,
+  },
+}) as const;
+
 const REQUEST_TONE: Record<MyPeriodRequest['status'], Tone> = { pending: 'wait', approved: 'good', declined: 'problem', withdrawn: 'quiet' };
 const REQUEST_LABEL: Record<MyPeriodRequest['status'], TimeClockCopyKey> = {
   pending: 'waiting', approved: 'approved', declined: 'declined', withdrawn: 'waiting',
@@ -166,7 +196,7 @@ function TimeOffTable({ requests, tc, onWithdraw, busyId }: {
   const { describe } = useRequestCopy();
   if (!requests.length) return <EmptyState title={tc('noRequests')} body={tc('noRequestsBody')} />;
   return (
-    <Table size="small" aria-label={tc('timeOff')}>
+    <Table size="small" aria-label={tc('timeOff')} sx={tableSx}>
       <TableHead>
         <TableRow>
           <TableCell>{tc('request')}</TableCell>
@@ -251,9 +281,9 @@ export function MineView() {
           </Button>
         </Stack>
         {data ? <PeriodTiles period={data} showPay={showPay} tc={tc} /> : (
-          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, 1fr)' } }}>
-            {[0, 1, 2].map((n) => <Skeleton key={n} variant="rounded" height={112} />)}
-          </Box>
+          <KpiStrip columns={{ xs: 2, sm: 3, lg: 5 }}>
+            {[0, 1, 2, 3, 4].map((n) => <Skeleton key={n} variant="rounded" height={84} />)}
+          </KpiStrip>
         )}
       </Box>
 

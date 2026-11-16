@@ -9,16 +9,29 @@ import type { HoursNag } from '../../../hooks/useHoursNag';
 import type { MyPeriod, MyPeriodWorked, TimeEntry, WeeklyHoursStatus } from '../../../types/hr.types';
 import TimeClockTab from './TimeClockTab';
 import { shiftRows } from './MineView';
-import { nextShiftText, weekWarning } from './WeekHoursCard';
+import { nextShiftText, weekWarning } from './weekHours';
+import { clockShort, myWeekTotals, weekStrip } from './ThisWeekPane';
+import type { ScheduleWeek } from '../../../api/schedule.api';
 
 const state = vi.hoisted(() => ({
   entry: null as TimeEntry | null,
   period: null as MyPeriod | null,
   weekly: null as WeeklyHoursStatus | null,
+  schedule: null as ScheduleWeek | null,
+  manager: false,
 }));
 
 vi.mock('../../../hooks/useAuth', () => ({
-  useAuth: () => ({ user: { id: 1, first_name: 'Ashley', language: 'en' } }),
+  useAuth: () => ({
+    user: state.manager
+      ? { id: 1, first_name: 'Ashley', language: 'en', access: ['hr.schedule:write'] }
+      : { id: 1, first_name: 'Ashley', language: 'en', access: [] },
+  }),
+}));
+
+vi.mock('../../../api/schedule.api', async (orig) => ({
+  ...(await orig<typeof import('../../../api/schedule.api')>()),
+  getScheduleWeek: async () => ({ data: state.schedule }),
 }));
 
 vi.mock('../../../hooks/useTimeClock', () => ({
@@ -110,6 +123,32 @@ function period(over: Partial<MyPeriod> = {}): MyPeriod {
   };
 }
 
+const shift = (id: number, employee: number, date: string, over: Partial<ScheduleWeek['shifts'][number]> = {}): ScheduleWeek['shifts'][number] => ({
+  id, employee, employee_name: `P${employee}`, date, start_time: '09:00', end_time: '17:00', text: '9am-5pm', hours: 8,
+  department: 1, department_name: 'Retail', flexible: false, note: '', ...over,
+});
+
+function scheduleWeek(over: Partial<ScheduleWeek> = {}): ScheduleWeek {
+  const days = ['2026-11-09', '2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13', '2026-11-14', '2026-11-15'];
+  return {
+    start: days[0], end: days[6], days,
+    store_hours: days.map((date) => ({ date, open: date !== '2026-11-15', start: '10:00', end: '19:00' })),
+    people: [],
+    shifts: [
+      shift(1, 1, '2026-11-11'), shift(2, 2, '2026-11-11'), shift(3, 3, '2026-11-11', { start_time: '12:00', text: '12pm-5pm', hours: 5 }),
+      shift(4, 1, '2026-11-14', { flexible: true, department_name: 'Processing', text: '8am-2pm', hours: 6 }),
+      shift(5, 1, '2026-11-13'),
+    ],
+    call_ins: [], actual: [],
+    requests: [{
+      id: 21, employee: 1, employee_name: 'P1', kind: 'off', date: '2026-11-13', end_date: '2026-11-13', start_time: null, end_time: null,
+      note: 'Dentist', status: 'pending', reply: '', decided_by_name: '', decided_at: null, created_at: '',
+    }],
+    fixed_departments: ['Retail'], can_edit: false, now: {},
+    ...over,
+  };
+}
+
 const tc = (key: string, vars?: Record<string, string | number>) => `${key}${vars ? JSON.stringify(vars) : ''}`;
 const NONE: HoursNag = { level: 'none', worked: 0, limit: 40, left: 40, clockOutBy: null };
 
@@ -183,8 +222,40 @@ describe('shiftRows and nextShiftText', () => {
   });
 });
 
+describe('weekStrip (This week, day by day)', () => {
+  const real = (key: string, vars?: Record<string, string | number>) => `${key}${vars ? JSON.stringify(vars) : ''}`;
+  it('my shift each day, worked hours, a day off asked, the store closed and how many work', () => {
+    const days = weekStrip(scheduleWeek(), 1, period(), '2026-11-13', real as never, 'en');
+    expect(days.map((d) => d.dow)).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
+    const wed = days[2];
+    expect(wed).toMatchObject({ main: '9am-5pm', caption: 'workedH{"h":"7.5"}', captionTone: 'good', working: true, isPast: true, crew: 'crew{"n":3}' });
+    // Thu: worked (no shift on the schedule), nobody else on.
+    expect(days[3]).toMatchObject({ main: 'dayOffShort', caption: 'workedH{"h":"7.5"}', crew: 'crewNone' });
+    // Fri (today): on the schedule with a day off asked.
+    expect(days[4]).toMatchObject({ isToday: true, main: '9am-5pm', caption: 'dayOffAsked', captionTone: 'wait', crew: 'crewOne' });
+    // Sat: a flexible shift says so under its times; the store hours on every day.
+    expect(days[5]).toMatchObject({ main: '8am-2pm', caption: 'Processing · flexShort', store: 'storeHours{"from":"10am","to":"7pm"}' });
+    expect(days[6]).toMatchObject({ main: 'storeClosed', working: false, store: 'storeClosedLine' });
+  });
+
+  it('clockShort reads store hours the way the schedule does', () => {
+    expect(['10:00', '19:30', '12:00', '00:00'].map(clockShort)).toEqual(['10am', '7:30pm', '12pm', '12am']);
+  });
+
+  it('an approved day off wins over the shift; totals count my shifts only', () => {
+    const week = scheduleWeek();
+    week.requests![0].status = 'approved';
+    const fri = weekStrip(week, 1, undefined, '2026-11-13', tc as never, 'en')[4];
+    expect(fri).toMatchObject({ main: 'dayOff', working: false, caption: '' });
+    expect(myWeekTotals(week, 1)).toEqual({ hours: 22, shifts: 3 });
+    expect(myWeekTotals(undefined, 1)).toEqual({ hours: 0, shifts: 0 });
+  });
+});
+
 describe('TimeClockTab', () => {
   beforeEach(() => {
+    state.schedule = scheduleWeek();
+    state.manager = false;
     state.entry = null;
     state.period = period();
     state.weekly = week('15.50');
@@ -245,6 +316,27 @@ describe('TimeClockTab', () => {
     expect(screen.getByTestId('where')).toHaveTextContent('view=everyone');
   });
 
+  it('This week: the days, and Full schedule opens the whole week here', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    const strip = await screen.findByTestId('week-strip');
+    expect(await within(strip).findAllByRole('button')).toHaveLength(7);
+    expect(screen.queryByTestId('build-schedule')).not.toBeInTheDocument();
+    await user.click(screen.getByTestId('open-full-schedule'));
+    expect(await screen.findByText('schedule grid read only')).toBeInTheDocument();
+    expect(screen.getByTestId('where')).toHaveTextContent('view=everyone');
+  });
+
+  it('a day cell opens the full schedule too; managers also get Build schedule', async () => {
+    state.manager = true;
+    const user = userEvent.setup();
+    renderTab();
+    expect(screen.getByTestId('build-schedule')).toHaveTextContent('Build schedule');
+    const strip = await screen.findByTestId('week-strip');
+    await user.click((await within(strip).findAllByRole('button'))[0]);
+    expect(await screen.findByText('schedule grid read only')).toBeInTheDocument();
+  });
+
   it('opens on Everyone from an old staff Schedule link', async () => {
     renderTab('/dashboard?tab=myday&view=everyone');
     await waitFor(() => expect(screen.getByText('schedule grid read only')).toBeInTheDocument());
@@ -260,6 +352,6 @@ describe('TimeClockTab', () => {
   it('on a desk the band names the tab once and the body does not repeat it', () => {
     setDesk(true);
     renderTab();
-    expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Time clock']);
+    expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['TimeClock']);
   });
 });

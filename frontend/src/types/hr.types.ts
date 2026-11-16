@@ -142,7 +142,7 @@ export interface MyPeriodRequest {
   created_at: string;
 }
 
-/** The Time clock tab's Mine view (#137): this pay period, scheduled and worked. Pay is null when off payroll. */
+/** The TimeClock tab's Mine view (#137): this pay period, scheduled and worked. Pay is null when off payroll. */
 export interface MyPeriod {
   date_from: string;
   date_to: string;

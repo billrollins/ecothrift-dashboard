@@ -1,10 +1,15 @@
-v2.306.1 — Changelog dates put back (docs only)
+v2.307.0 — TimeClock tab: the week's schedule beside the clock, a real dashboard look
 
-User-facing theme: **Changelog dates put back (docs only).**
+User-facing theme: **TimeClock tab: the week's schedule right beside the clock, a real dashboard look, and the name "TimeClock" everywhere (Dash Update #179).**
 
-> **For Bill:** nothing in Dash changed. The last release accidentally rewrote the 11-12 release dates in the changelog and the machine log; they are back as they were.
+> **For Bill:** the TimeClock tab now has a **This week** panel next to the clock-in card. It shows your hours against your limit (with the overtime warning), how many hours and shifts are on the schedule, your next shift, and all seven days as rows: your shift each day, the department, hours worked, a day off you asked for, the store hours and how many people work that day. Today is highlighted. **Full schedule** (green button, top right of the panel) opens the whole week for everyone right there on the tab, and tapping any day row does the same. Managers also get **Build schedule**, which goes to the Schedule builder. Under Mine, the pay-period numbers are one row of five: worked so far, pay so far, expected, scheduled ahead and time off waiting (pay still hidden until Show pay; family off payroll still see hours only). The tables have the same look as Orders and Processing. The tab, the page title, the clock window and the top bar all say **TimeClock** now (Spanish keeps "Reloj de turno").
 
-### Fixed (docs)
-- CHANGELOG.md and docs/machines.md: v2.306.0 rewrote every 2026-11-12 date to 2026-11-16 by mistake; the dates are restored, and v2.306.0 carries 2026-11-16.
+### Changed (TimeClock tab, Dash Update #179)
+- New `pages/home/timeclock/ThisWeekPane.tsx` replaces `WeekHoursCard`: a header (the week, Full schedule, Build schedule for `hr.schedule:write` / `people:manage`, the same need as the `/people/schedule` route), hours worked against the limit with the bar and the fixed-height overtime warning (`weekWarning`, unchanged), On the schedule (my hours and shift count this week) and Next shift, then seven dense day rows built by `weekStrip()` from `GET /hr/schedule/week/` (the same `['scheduleWeek', monday]` query as the full schedule, so opening it is instant). Each row: day (TODAY in place of the weekday), my shift, its caption (department and "flexible", hours worked from my_period, or a day off asked), store hours, how many people are on the schedule. An approved day off replaces the shift. Rows have fixed heights and seven skeleton rows hold the room while loading (no layout shift).
+- Full schedule and the day rows switch to Everyone (`?view=everyone`) and scroll the switch into view. The Mine | Everyone switch is kept (decision 4 in `.ai/extended/home-and-hr-structure.md`).
+- `WeekHoursCard.tsx` is now `weekHours.ts` (only `weekWarning` and `nextShiftText`).
+- Mine: the pay-period tiles are the rich kit's `KpiStrip` (5 across on a desk, 2 on a phone) with a new Time off tile (requests waiting); Scheduled ahead shows its shift count. `on_payroll` rules unchanged. The Shifts and Time off tables take the rich kit's micro headers, striped rows and the today bar (not its fixed layout, so cells still wrap and still turn into cards on a phone).
+- Rename: `t('timeClock')` and `t('myDay')` say **TimeClock** in English (the Home tab, the desk band title, the phone top bar title, the clock dialogs); comments, test names and the icon registry's use text follow. The bar's own override in `PhoneTabBar.tsx` (from #146) is now redundant but left alone (the bar belongs to #146). The onboarding checklist item "Time clock explained" is a saved setting and was not renamed.
+- Tests: `TimeClockTab.test.tsx` (`weekStrip`: shifts, worked hours, day off asked and approved, store closed, flexible, crew counts; `clockShort`; `myWeekTotals`; Full schedule and a day row open Everyone; Build schedule only for managers); `FloorNav.test.tsx`, `phoneFirstRoutes.test.ts` expect "TimeClock".
 
 Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>

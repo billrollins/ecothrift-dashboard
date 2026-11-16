@@ -115,7 +115,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     // Managers and the owner only (#140, Bill 2026-11-13, .ai/extended/home-and-hr-structure.md decision 6): the
     // Requests inbox, the Schedule builder and incidents first, then people, hiring, onboarding and payroll; set-once
     // pages under Setup. Every page keeps its own dial, so the workspace shows for whoever can open one of them.
-    // Staff have their requests, the week, their files and their profile on Home (HR, Time clock, Profile tabs).
+    // Staff have their requests, the week, their files and their profile on Home (HR, TimeClock, Profile tabs).
     roles: ['Manager', 'Admin'],
     itemIds: [
       'hrInbox', 'schedule', 'hrIncidents', 'users', 'applicants', 'interviews', 'onboarding', 'checkins',

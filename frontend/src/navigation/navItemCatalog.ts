@@ -667,7 +667,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   },
   /**
    * The Schedule builder (#140, Bill 2026-11-13): the only place the week is built and changed, in the HR workspace
-   * for the schedule's managers. Everyone still reads the week (Dash Updates #6), on the Time clock tab's Everyone view
+   * for the schedule's managers. Everyone still reads the week (Dash Updates #6), on the TimeClock tab's Everyone view
    * since #137 (no second staff Schedule page); staff links land there.
    */
   schedule: {

@@ -18,7 +18,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useDashboardMetrics } from '../hooks/useDashboard';
 import { t } from '../i18n/routines';
 
-// Time clock replaced Today (Dash Update #137); the routine list and its runner went to Routines.
+// TimeClock replaced Today (Dash Update #137); the routine list and its runner went to Routines.
 const TimeClockTab = lazy(() => import('./home/timeclock/TimeClockTab'));
 const HomeTabs = {
   hr: lazy(() => import('./home/HrTab')),
@@ -29,8 +29,8 @@ const HomeTabs = {
 };
 
 /**
- * Dash Home: Store · Time clock · HR · Routines · Calendar · Messages · Profile (Bill 2026-11-13). Store is today's
- * numbers; Time clock (id `myday`) is the clock, my pay period and the week's schedule (#137). Each tab draws its own
+ * Dash Home: Store · TimeClock · HR · Routines · Calendar · Messages · Profile (Bill 2026-11-13). Store is today's
+ * numbers; TimeClock (id `myday`) is the clock, my pay period and the week's schedule (#137). Each tab draws its own
  * band with the same tab bar.
  */
 export default function DashboardPage() {

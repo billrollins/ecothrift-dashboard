@@ -4,9 +4,9 @@ import { useAuth } from '../hooks/useAuth';
 import { hasRunner } from '../pages/routines/todayRunner';
 
 /**
- * Dash Home (Bill 2026-11-13, .ai/extended/home-and-hr-structure.md): Store · Time clock · HR · Routines · Calendar ·
+ * Dash Home (Bill 2026-11-13, .ai/extended/home-and-hr-structure.md): Store · TimeClock · HR · Routines · Calendar ·
  * Messages · Profile. The tab lives in the URL (`/dashboard?tab=hr`); with no `tab` the last choice per user wins, and a
- * first-time visitor lands on Store (everyone). `myday` is the Time clock tab's id (it was My day / Today; the id stays so
+ * first-time visitor lands on Store (everyone). `myday` is the TimeClock tab's id (it was My day / Today; the id stays so
  * routine and clock links keep working).
  */
 export type DashboardTab = 'store' | 'myday' | 'hr' | 'routines' | 'calendar' | 'messages' | 'profile';
@@ -60,14 +60,14 @@ function underPath(pathname: string, prefixes: string[]): boolean {
 
 export function resolveDashboardTab(pathname: string, search: string, user: TabUser): DashboardTab {
   const params = new URLSearchParams(search.replace(/^\?/, ''));
-  // A routine runs on the Routines tab (#137); /routines is that tab. Old /today and /pay paths are Time clock.
+  // A routine runs on the Routines tab (#137); /routines is that tab. Old /today and /pay paths are TimeClock.
   if (underPath(pathname, ['/routines'])) return 'routines';
   if (underPath(pathname, ['/today', '/pay'])) return hasRunner(params) ? 'routines' : 'myday';
   const explicit = params.get('tab');
-  // An old Time clock link with a routine in it (`?tab=myday&run=12`) opens the routine where it runs now.
+  // An old TimeClock link with a routine in it (`?tab=myday&run=12`) opens the routine where it runs now.
   if (explicit === 'myday' && hasRunner(params)) return 'routines';
   if (isTab(explicit)) return explicit;
-  // A routine open in the URL is Routines, the hours panel Time clock, whatever was chosen last.
+  // A routine open in the URL is Routines, the hours panel TimeClock, whatever was chosen last.
   if (hasRunner(params)) return 'routines';
   if (params.get('hours')) return 'myday';
   return loadDashboardTab(user?.id) ?? defaultDashboardTab(user);

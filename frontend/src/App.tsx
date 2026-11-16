@@ -211,7 +211,7 @@ function TodayRedirect() {
 }
 
 /**
- * The Schedule page is the managers' tool for building the week (#137). Everyone reads the week on Time clock >
+ * The Schedule page is the managers' tool for building the week (#137). Everyone reads the week on TimeClock >
  * Everyone, so a staff login (an old link, a bookmark) lands there instead of on a page they cannot use.
  */
 function ScheduleRoute() {

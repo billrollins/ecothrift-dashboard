@@ -1,6 +1,6 @@
 /**
  * Dash Home > Routines (Bill 2026-11-13, .ai/extended/home-and-hr-structure.md decision 8): today's to-do list, and the
- * routine runner beside it. It was the Today page's middle column; when Time clock replaced Today (Dash Update #137)
+ * routine runner beside it. It was the Today page's middle column; when TimeClock replaced Today (Dash Update #137)
  * the runner came here with the list. A routine opens through the URL (`/dashboard?tab=routines&run=12`), so Back
  * closes it on a phone. Desk: the list, and the phone-sized runner slides in to its right. Phone: the runner takes the
  * whole screen.

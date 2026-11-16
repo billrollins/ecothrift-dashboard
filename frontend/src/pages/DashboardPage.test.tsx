@@ -111,16 +111,16 @@ describe('DashboardPage (desk)', () => {
   });
 });
 
-describe('DashboardPage tabs (Store | Time clock | Routines)', () => {
+describe('DashboardPage tabs (Store | TimeClock | Routines)', () => {
   beforeEach(() => localStorage.clear());
 
-  it('shows the store numbers on ?tab=store and not Time clock', () => {
+  it('shows the store numbers on ?tab=store and not TimeClock', () => {
     renderPage('/dashboard?tab=store');
     expect(screen.getAllByRole('region').map((s) => s.getAttribute('aria-label'))).toEqual(['Sales', 'Departments']);
     expect(screen.queryByText('time clock content')).not.toBeInTheDocument();
   });
 
-  it('shows Time clock (it replaced Today, #137) inside the tab', async () => {
+  it('shows TimeClock (it replaced Today, #137) inside the tab', async () => {
     renderPage('/dashboard?tab=myday');
     await waitFor(() => expect(screen.getByText('time clock content')).toBeInTheDocument());
     expect(screen.queryByRole('region', { name: 'Sales' })).not.toBeInTheDocument();

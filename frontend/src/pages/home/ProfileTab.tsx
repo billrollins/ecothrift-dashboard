@@ -7,7 +7,7 @@
  *     them in the staff window, which shows the same person to the owner),
  *   - my next review (a scheduled 30/60/90-day check-in, or the review date a manager set),
  *   - sign-in: password, register PIN, sign out on all devices.
- * Not the clock, pay totals or requests: those are the Time clock and HR tabs. The /me page stays as it is (Thrift+
+ * Not the clock, pay totals or requests: those are the TimeClock and HR tabs. The /me page stays as it is (Thrift+
  * Staff, Social, HR > Me).
  *
  * Built from the page kit (Section, FieldRow, StatusPill) inside the Home band, which already names the tab, so the
