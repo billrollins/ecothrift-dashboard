@@ -2,6 +2,7 @@ import { Box } from '@mui/material';
 import type { ReactNode } from 'react';
 import { dutyColors } from '../duty/tokens';
 import { FloorPageBand } from './FloorPageBand';
+import { useInPhoneShell } from './phoneShell';
 
 export function FloorPage({
   title,
@@ -22,6 +23,8 @@ export function FloorPage({
   bodyBg?: string;
   children: ReactNode;
 }) {
+  // On a phone the top bar has the title and the bottom bar the tabs: no desk band, a phone gutter (#146).
+  const phoneShell = useInPhoneShell();
   return (
     <Box
       sx={{
@@ -33,7 +36,7 @@ export function FloorPage({
         bgcolor: contained ? dutyColors.paper : (bodyBg ?? 'transparent'),
       }}
     >
-      <FloorPageBand title={title} subtitle={subtitle} chips={chips} />
+      {phoneShell ? null : <FloorPageBand title={title} subtitle={subtitle} chips={chips} />}
       <Box
         sx={
           contained
@@ -43,8 +46,8 @@ export function FloorPage({
                 width: '100%',
                 maxWidth: 1440,
                 mx: 'auto',
-                px: 3,
-                py: 2.5,
+                px: phoneShell ? 2 : 3,
+                py: phoneShell ? 2 : 2.5,
                 display: fill ? 'flex' : undefined,
                 flexDirection: fill ? 'column' : undefined,
               }

@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PhoneTabBar } from './PhoneTabBar';
+import { PHONE_TAB_BAR_HEIGHT, PhoneTabBar } from './PhoneTabBar';
 
 const authState = vi.hoisted(() => ({
   role: 'Employee' as 'Employee' | 'Admin',
@@ -54,19 +54,19 @@ describe('PhoneTabBar (Dash Home tabs, 2026-11-13)', () => {
   it('renders the seven Home tabs in order', () => {
     renderBar();
     const labels = screen.getAllByRole('button').map((node) => node.textContent?.replace(/^\d+/, '').trim());
-    expect(labels).toEqual(['Store', 'Time clock', 'HR', 'Routines', 'Calendar', 'Messages', 'Profile']);
+    expect(labels).toEqual(['Store', 'TimeClock', 'HR', 'Routines', 'Calendar', 'Messages', 'Profile']);
     expect(screen.queryByRole('button', { name: /settings/i })).not.toBeInTheDocument();
   });
 
   it('marks the tab from the URL', () => {
     renderBar('/dashboard?tab=myday');
-    expect(screen.getByRole('button', { name: /time clock/i })).toHaveClass('Mui-selected');
+    expect(screen.getByRole('button', { name: /^timeclock$/i })).toHaveClass('Mui-selected');
     expect(screen.getByRole('button', { name: /store/i })).not.toHaveClass('Mui-selected');
   });
 
   it('keeps Time clock selected for old Today and hours links', () => {
     renderBar('/today?hours=1');
-    expect(screen.getByRole('button', { name: /time clock/i })).toHaveClass('Mui-selected');
+    expect(screen.getByRole('button', { name: /^timeclock$/i })).toHaveClass('Mui-selected');
   });
 
   it('lands on Store with nothing remembered, for every role', () => {
@@ -92,5 +92,55 @@ describe('PhoneTabBar (Dash Home tabs, 2026-11-13)', () => {
     renderBar();
     expect(screen.getByRole('button', { name: /tienda/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /reloj/i })).toBeInTheDocument();
+  });
+
+  it('marks the open tab for screen readers too (#146)', () => {
+    renderBar('/dashboard?tab=calendar');
+    expect(screen.getByRole('button', { name: /calendar/i })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: /store/i })).not.toHaveAttribute('aria-current');
+  });
+
+  it('keeps every tab at least 48 px tall to tap (#146)', () => {
+    expect(PHONE_TAB_BAR_HEIGHT).toBeGreaterThanOrEqual(48);
+  });
+
+  it('slides sideways instead of squeezing the tabs (#146)', () => {
+    renderBar();
+    const scroller = screen.getByTestId('phone-tab-scroller');
+    expect(getComputedStyle(scroller).overflowX).toBe('auto');
+    for (const label of ['TimeClock', 'Calendar', 'Messages']) {
+      expect(getComputedStyle(screen.getByText(label)).whiteSpace).toBe('nowrap');
+    }
+  });
+
+  it('scrolls the open tab into view when it starts off screen (#146)', () => {
+    // jsdom has no layout: give the row a 375 px window over 572 px of tabs, Profile at the far right.
+    const widths: Record<string, [number, number]> = {
+      store: [4, 76], myday: [80, 91], hr: [171, 76], routines: [247, 80], calendar: [327, 80], messages: [407, 86], profile: [493, 76],
+    };
+    const offsetLeft = vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockImplementation(function (this: HTMLElement) {
+      return widths[this.dataset.tab ?? '']?.[0] ?? 0;
+    });
+    const offsetWidth = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return widths[this.dataset.tab ?? '']?.[1] ?? 0;
+    });
+    const clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(375);
+    const scrollWidth = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(572);
+    try {
+      renderBar('/dashboard?tab=profile');
+      const scroller = screen.getByTestId('phone-tab-scroller');
+      expect(scroller.scrollLeft).toBeGreaterThan(0);
+      expect(screen.getByTestId('phone-tab-fade-left')).toHaveAttribute('data-show', 'true');
+    } finally {
+      offsetLeft.mockRestore();
+      offsetWidth.mockRestore();
+      clientWidth.mockRestore();
+      scrollWidth.mockRestore();
+    }
+  });
+
+  it('leaves the row alone when the open tab already shows (#146)', () => {
+    renderBar('/dashboard?tab=store');
+    expect(screen.getByTestId('phone-tab-scroller').scrollLeft).toBe(0);
   });
 });

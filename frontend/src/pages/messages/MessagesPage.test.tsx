@@ -68,6 +68,25 @@ describe('MessagesPage', () => {
     setWide(true);
   });
 
+  it('leaves its own title out when the page around it names it (Home on a phone, #146); New message stays', async () => {
+    setWide(false);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <SnackbarProvider>
+          <MemoryRouter initialEntries={['/messages']}>
+            <Routes>
+              <Route path="/messages" element={<MessagesPage hideTitle />} />
+            </Routes>
+          </MemoryRouter>
+        </SnackbarProvider>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText('Truck Friday')).toBeInTheDocument();
+    expect(screen.queryByText('Messages')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /new message/i })).toBeInTheDocument();
+  });
+
   it('on a desk shows the list beside the open thread', async () => {
     renderAt('/messages/7');
     expect(await screen.findByText('Truck Friday')).toBeInTheDocument();

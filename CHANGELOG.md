@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.305.0] -->
-<!-- Last reviewed: 2026-11-13 (2.305.0) -->
+<!-- Line 1 release: ## [2.306.0] -->
+<!-- Last reviewed: 2026-11-13 (2.306.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.306.0] - 2026-11-13
+
+User-facing theme: **Home on a phone: one clean bottom bar with the seven Home tabs, each full size and labelled in full, that slides sideways; the old green desktop band is gone from Calendar, Messages and Profile, and the top bar shows every page name in full (Dash Update #146).**
+
+> **For Bill:** on a phone, Home has one bar at the bottom: Store, TimeClock, HR, Routines, Calendar, Messages, Profile. Each button is full size (60 px tall) and as wide as its whole name, so nothing wraps or runs into the next one. About four and a half show at once; swipe the bar left or right and it glides and settles on a button. A soft fade at an edge means more buttons wait that way. The tab you are on is underlined in green and always slid into view, also after turning the phone. Calendar, Messages and Profile no longer draw the green desktop band under the top bar (the top bar already names the page), and Messages drops its second "Messages" title. The top bar no longer cuts the page name ("Calen…" is now "Calendar"): on a phone the clock button says just **Out**, **Break** or the time you clocked in ("10:45"). A tablet shares the width evenly; the desk is unchanged.
+
+### Changed (Home phone tab bar, Dash Update #146)
+- `PhoneTabBar` is a horizontal scroller (was MUI BottomNavigation squeezing seven actions into the width): each tab is a 60 px tall button, at least 76 px wide and grown to fit its full label (`white-space: nowrap`, same weight open or closed), `scroll-snap-type: x proximity` with native momentum and `overscroll-behavior-x: contain`, no scrollbar, safe-area padding at the bottom. The open tab is centred when it is hidden or under an edge (smooth on a tap, instant on first paint and when the row resizes, via ResizeObserver), left alone when it shows. The open-tab line and the edge fades have fixed slots and only change colour or opacity, so nothing shifts. `aria-current="page"` on the open tab.
+- `FloorPage` drops its desk band inside MainLayout's phone shell (new `PhoneShellContext`, `components/layout/phoneShell.ts`) and uses a 16 px gutter there. Found on a 375 px phone: Calendar, Messages and Profile still drew the band (title only); Store, Time clock, HR and Routines already left it out. The desk band and FloorNav are unchanged at md and up.
+- The bar's Time clock tab reads **TimeClock** (Bill 2026-11-16, one word; only the bar label here, #179 renames the rest).
+- Phone top bar: the page name keeps its full width (`flexShrink: 0`) and the empty middle gives way (its side padding is 4 px in the phone shell). The clock pill's phone text is one short word or the time: Out / Fuera, Break / Pausa, `h:mm` without AM/PM, `!` for a forgotten punch (new keys `clockedOutShort`, `onBreakShort`), with tighter padding below sm. The full sentence stays from sm up and in its accessible name. Checked at 360 px with every page name and every pill state: nothing cut, no sideways scroll.
+- Messages: `MessagesPage` takes `hideTitle`; the Home tab passes it in the phone shell, so only New message stays in that row.
+- Tests: `ClockPill.test.tsx` (short phone text), `MessagesPage.test.tsx` (no title with `hideTitle`, New message stays), `PhoneTabBar.test.tsx` (open tab marked, 48 px floor, sideways scroll with unwrapped labels, the open tab scrolled into view, left alone when it shows), `FloorPage.test.tsx` (band on a desk, none in the phone shell).
 
 ## [2.305.0] - 2026-11-13
 
@@ -280,7 +294,7 @@ User-facing theme: **Buying: a quick search of the live auction list (find_lots)
 ### Added (buying: find live lots)
 - `python manage.py find_lots --q <words> [--min-per-unit N] [--max-landed 0.25]`: searches the same live list as Buying > Auctions (lots a B-Stock search returned in the last 3 hours) and prints, per lot, Buy Now or auction, retail per unit, the price (Buy Now price or current bid), landed % now, the most to bid at 20% landed, the real end (the Buy Now window end for Buy Now lots), manifest state and the link. Read only. Made after a baby-gear search on 11-13 read raw rows and showed lots that had already sold. 2 tests.
 
-## [2.291.0] - 2026-11-12
+## [2.291.0] - 2026-11-16
 
 User-facing theme: **HR > Incidents: any staff member writes up an incident on site (a fall, a car in the lot, an animal, an upset visitor) on a phone right after it happens; managers and the owner follow up and close it; nothing is ever deleted (Dash Update #131).**
 
@@ -294,7 +308,7 @@ User-facing theme: **HR > Incidents: any staff member writes up an incident on s
 - Page: HR tab **Incidents** for every staff login (`HrIncidents`, `incidents/IncidentForm`, `IncidentDetailDialog`, `IncidentMap` using the shared `StoreMapView`, `AddPhoto` and `PickedPhotos`), English and Spanish. Full screen on a phone. `?report=<id>` opens a report. Fixed slots so nothing moves: the map-spot row, the form's message line, the list's status chip and counts. Store map: an Incidents pin's panel links to its report.
 - Tests: server — file and the owner's message (none to self), staff see only their own, required text and no future time, an edit keeps the old text (no line when nothing changed), notes/close/reopen rights, no delete, photos on filing and later, the map spot (pin named by kind and date only, move logged, not-Current plan and off-map refused), customers refused.
 
-## [2.290.0] - 2026-11-12
+## [2.290.0] - 2026-11-16
 
 User-facing theme: **Studios > Floorplans: the owner makes a plan Current or unsets it at any time and is told what happened; replacing the Current plan keeps the old one as a dated past version with its pins, and a new plan of another size gets the pins after the owner lines them up. Eco-Thrift is one store (Dash Update #130).**
 
@@ -311,7 +325,7 @@ User-facing theme: **Studios > Floorplans: the owner makes a plan Current or uns
 ### Tests
 - 13 server tests for versions (unset, already Current, owner only, same-size copy, align required, transform applied, edge clamp, bad transform, back to a past version, unset then make, history pins locked, list fields, delete closes the period, create without a location), 3 for `fold_locations` (dry run changes nothing, apply leaves one store with the office plan as a past version, two supplemental drawers stop it); store-map tests updated (pins are copied, not moved). 3 vitest for the transform. Browser check on local: align, drag, scale, make Current, Unset, Version picker, POS store setup.
 
-## [2.289.0] - 2026-11-12
+## [2.289.0] - 2026-11-16
 
 User-facing theme: **Facilities > Signage: the store map fills the screen on the right and never moves; the list is on the left; a sign is only Draft or Production, and each spot on the map is To hang or Up (Dash Update #129).**
 
@@ -325,7 +339,7 @@ User-facing theme: **Facilities > Signage: the store map fills the screen on the
 - `StoreMapView`: optional `fill` (takes its parent's height; zoom 1 fits the whole plan in the box) and `pinColor` (a pin's own colour). `ImageViewerDialog`: optional `extraActions`. Both default to the old behaviour (the Store Map page is unchanged).
 - Tests: server — spots and spots up per sign, a spot is To hang until a manager marks it Up (staff 403, bad value 400), the API no longer serves status / copies up, the data migration step; page — rows and their counts, the drop-down (staff and manager), the To hang / All up filters, a picked row keeps its place, the theme gallery rule.
 
-## [2.288.0] - 2026-11-12
+## [2.288.0] - 2026-11-16
 
 User-facing theme: **Family workers on the staff list and off payroll, every staff member back on Users → Employees, and a Cannot sign in view with Unlock and reset links (Dash Update #121).**
 
@@ -341,7 +355,7 @@ User-facing theme: **Family workers on the staff list and off payroll, every sta
 - A new password from a reset link did not end a lockout, so someone who reset within the 15 minutes was still locked out. It now clears it.
 - 18 new server tests (`apps/hr/tests/test_family_workers.py`, `apps/accounts/tests/test_sign_in_trouble.py`).
 
-## [2.287.0] - 2026-11-12
+## [2.287.0] - 2026-11-16
 
 User-facing theme: **Facilities > Signage: a draft is approved only after 3 people have voted (the one approving among them), and themes are approved by the owner alone (Dash Update #128).**
 
@@ -354,7 +368,7 @@ User-facing theme: **Facilities > Signage: a draft is approved only after 3 peop
 - Page: the approve button keeps a fixed width (no shift as its text changes), is disabled with the label while blocked; Production hides **Use this** on a theme unless the reader is the owner.
 - Tests: 6 server tests (approver must have voted, 3 counting the approver, need vote without a rank, theme owner-only, owner also needs 3, production switch) and 3 page tests (Vote first, Needs 2 more votes, theme Use this); the old approve test now votes first.
 
-## [2.286.0] - 2026-11-12
+## [2.286.0] - 2026-11-16
 
 User-facing theme: **Facilities > Signage: Drafts, where staff vote whether a sign is needed and rank its versions, and Production, with previews, a version gallery, Print and Download (Dash Update #122).**
 
@@ -367,7 +381,7 @@ User-facing theme: **Facilities > Signage: Drafts, where staff vote whether a si
 - Page: Drafts and Production tabs; compact rows with a preview thumbnail; the draft window (full screen on a phone); the production card with preview, Print, Download, open, version gallery and the store map; previews come through the API with the sign-in (`useSignPreview`).
 - 16 new server tests (voting, hidden results, ranking, average order, notes, approve, versions; package checks, manifest, load, rerun by slug, production untouched, wrong folder); the page tests rewritten for both tabs (8). Tried on local_shared with the on-camera and sold-as-is packages: upload, dry run, load, a second load (no change) and a second upload (nothing sent).
 
-## [2.285.0] - 2026-11-12
+## [2.285.0] - 2026-11-16
 
 User-facing theme: **Settings > AI: every model's input and output price is checked on the web, with a Refresh prices button that shows each change and its source before anything is saved (Dash Update #110).**
 
@@ -382,7 +396,7 @@ User-facing theme: **Settings > AI: every model's input and output price is chec
 - The price cells in the model list kept the price they first showed, so a price saved by the check (or in another tab) still read "set" until the page was reloaded. They now follow the saved price unless you are typing in them.
 - 11 new server tests for the check (model call faked) and 3 for the router's web tools; 4 new front-end tests.
 
-## [2.284.0] - 2026-11-12
+## [2.284.0] - 2026-11-16
 
 User-facing theme: **Photo sheets: move and zoom a picture inside its frame, one picture contrast setting for a weak printer, and a Clean up with AI that cleans every word and label from all Dash knows (Dash Update #108).**
 
@@ -394,7 +408,7 @@ User-facing theme: **Photo sheets: move and zoom a picture inside its frame, one
 - Clean up with AI (`photo_sheets.ai_draft`) sends the sheet's words with `typed_by_person`, the product and its profile, the item's manifest row (for a product sheet, the newest row matched to it), the item, up to 25 history events, 15 live notes, floor issues and live disputes, and up to 4 sheet pictures as image blocks; it answers every word, each label, the caption and `not_assembled` (only ever ticks it). Model: Settings > AI for SUGGEST_PRODUCT, else Spark Contributor, as Add item's Clean up. The answer lists what it read.
 - 7 new server tests (crop, contrast, labels, typed, the AI's context); 11 new front-end tests (crop placement and limits, frames fixed, preview equals print, contrast curve, labels, the typed-words-win merge).
 
-## [2.283.0] - 2026-11-12
+## [2.283.0] - 2026-11-16
 
 User-facing theme: **Search boxes keep the space you type again (Dash Update #107).**
 
@@ -407,7 +421,7 @@ User-facing theme: **Search boxes keep the space you type again (Dash Update #10
 - Swept `frontend/` and `frontend-public/` for the same pattern (trim or `skuFromScan` in an `onChange`, a URL written trimmed and read back into the box, debounced values synced back): no other search box has it. The remaining trim-on-change fields are number boxes (truck line #, units, refunds).
 - 1 new front-end test file (5 tests): types "a b" key by key, pausing after the space past the debounce, into each of the four boxes; all five fail on the old code.
 
-## [2.282.0] - 2026-11-12
+## [2.282.0] - 2026-11-16
 
 User-facing theme: **Store Map: one Current floor plan with layers of pins, and Signage, the list of store signs with their print PDFs and where they hang (Dash Updates #105 and #106).**
 
@@ -427,7 +441,7 @@ User-facing theme: **Store Map: one Current floor plan with layers of pins, and 
 - Studios → Floorplans: a Current chip and the owner's star with a confirm.
 - 12 new server tests, 4 new front-end tests.
 
-## [2.281.0] - 2026-11-12
+## [2.281.0] - 2026-11-16
 
 User-facing theme: **Add item: the "Suggested $X (similar items)" price now comes from the same kind of item at a similar retail, and shows which items it used (Dash Update #104).**
 
@@ -439,7 +453,7 @@ User-facing theme: **Add item: the "Suggested $X (similar items)" price now come
 - `AddItemCheckInStep.tsx`: sends the retail box (after typing stops) and the subcategory; shows "N similar sold at a median X% of their retail" and up to 4 comps with sold price and retail (all on hover); a plain no-match or no-retail line instead of a weak number.
 - Measured in local_shared, before -> after (title, category, retail): KitchenAid Artisan stand mixer $3.61 to $35.82 depending on title wording (mixer mats, hand mixers) -> $203.38; Sony WF-1000XM4 earbuds $11.06 (cheap earbuds) -> $79.03; about 20-80 ms warm. 4 new or rewritten server tests.
 
-## [2.280.0] - 2026-11-12
+## [2.280.0] - 2026-11-16
 
 User-facing theme: **Disputes: one dispute record everywhere (Dash Update #102).**
 
@@ -453,7 +467,7 @@ User-facing theme: **Disputes: one dispute record everywhere (Dash Update #102).
 - New `manage.py fold_item_disputes` (dry run by default, `--apply`, `--order`): turns item marks into row disputes linked to their items and resolves the old open processing `Dispute` rows; a truck whose per-line numbers would move is left alone and reported STOPPED.
 - 4 new server tests (two older truck tests now mark the broken unit scrapped instead of Salvage), 1 new front-end test plus one more check.
 
-## [2.279.0] - 2026-11-12
+## [2.279.0] - 2026-11-16
 
 User-facing theme: **Disputes: photos for every reason except "did not come", carried to B-Stock (Dash Update #101).**
 
@@ -464,7 +478,7 @@ User-facing theme: **Disputes: photos for every reason except "did not come", ca
 - B-Stock list: each Damaged / Damaged (partial) line carries its photos (kept with the list when filed); the public page shows them by line (`/dispute/{token}/line-photo/{id}/`) and the zip adds them. Undone disputes' photos leave the list.
 - `RowDisputeDialog.tsx`: the shared Add photo and picked photos (turn, crop, remove) for the four reasons that need them; photos are shrunk before they go up. 9 new server tests, 2 new front-end tests.
 
-## [2.278.0] - 2026-11-12
+## [2.278.0] - 2026-11-16
 
 User-facing theme: **Processing: dispute a manifest row straight from the queue, with no product or check-in (Dash Update #100).**
 

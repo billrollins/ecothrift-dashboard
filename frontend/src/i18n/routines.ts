@@ -5,6 +5,8 @@ export type AppLanguage = 'en' | 'es';
 export const STRINGS: Record<string, { en: string; es: string }> = {
   clockIn: { en: 'Clock in', es: 'Entrar' },
   clockedOut: { en: 'Clocked out', es: 'Fuera de turno' },
+  clockedOutShort: { en: 'Out', es: 'Fuera' },
+  onBreakShort: { en: 'Break', es: 'Pausa' },
   readyToStart: { en: 'Which shift are you working?', es: 'Que turno vas a hacer?' },
   pickShift: { en: 'Pick your shift', es: 'Elige tu turno' },
   onTheClock: { en: 'On the clock', es: 'En turno' },

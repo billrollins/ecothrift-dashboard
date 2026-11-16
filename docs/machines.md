@@ -32,6 +32,8 @@ Newest first. One row per ship (`ship.md`) and per deploy (`deploy.md`). A deplo
 
 | Date | Event | Version | Commit | Heroku release | Machine | Session |
 |---|---|---|---|---|---|---|
+| 2026-11-13 | ship | v2.306.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-13 | deploy | v2.305.0 | 7b341606 | 685 | Bench | Eco-Thrift - Mainline |
 | 2026-11-13 | ship | v2.305.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
 | 2026-11-13 | deploy | v2.304.0 | be839871 | 683 | Bench | Eco-Thrift - Mainline |
 | 2026-11-13 | ship | v2.304.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
@@ -61,34 +63,34 @@ Newest first. One row per ship (`ship.md`) and per deploy (`deploy.md`). A deplo
 | 2026-11-13 | deploy | v2.292.0 | d9de5a3c | 661 | Bench | Eco-Thrift - Mainline |
 | 2026-11-13 | ship | v2.292.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
 | 2026-11-13 | deploy | v2.291.0 | c7c920c6 | 659 | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | ship | v2.291.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | deploy | v2.290.0 | daede270 | 657 | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | ship | v2.290.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | deploy | v2.289.0 | 8cfef1e8 | 655 | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | ship | v2.289.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | deploy | v2.288.0 | f61d8859 | 653 | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | ship | v2.288.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | deploy | v2.287.0 | 671f119d | 651 | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | ship | v2.287.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | deploy | v2.286.0 | 1583df06 | 649 | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | ship | v2.286.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | deploy | v2.285.0 | bb25895e | 647 | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | ship | v2.285.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | deploy | v2.284.0 | 91dd4211 | 646 | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | ship | v2.284.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | deploy | v2.283.0 | f482dbb9 | 644 | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | ship | v2.283.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | deploy | v2.282.0 | 52d60988 | 642 | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | ship | v2.282.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | deploy | v2.281.0 | c6267ac0 | 640 | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | ship | v2.281.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | deploy | v2.280.0 | 2517a3da | 638 | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | ship | v2.280.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | deploy | v2.279.0 | 9994d1e4 | 636 | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | ship | v2.279.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | deploy | v2.278.0 | 37d8238e | 634 | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | ship | v2.278.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
-| 2026-11-12 | deploy | v2.277.0 | 1da88662 | 632 | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | ship | v2.291.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | deploy | v2.290.0 | daede270 | 657 | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | ship | v2.290.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | deploy | v2.289.0 | 8cfef1e8 | 655 | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | ship | v2.289.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | deploy | v2.288.0 | f61d8859 | 653 | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | ship | v2.288.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | deploy | v2.287.0 | 671f119d | 651 | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | ship | v2.287.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | deploy | v2.286.0 | 1583df06 | 649 | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | ship | v2.286.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | deploy | v2.285.0 | bb25895e | 647 | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | ship | v2.285.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | deploy | v2.284.0 | 91dd4211 | 646 | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | ship | v2.284.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | deploy | v2.283.0 | f482dbb9 | 644 | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | ship | v2.283.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | deploy | v2.282.0 | 52d60988 | 642 | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | ship | v2.282.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | deploy | v2.281.0 | c6267ac0 | 640 | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | ship | v2.281.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | deploy | v2.280.0 | 2517a3da | 638 | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | ship | v2.280.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | deploy | v2.279.0 | 9994d1e4 | 636 | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | ship | v2.279.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | deploy | v2.278.0 | 37d8238e | 634 | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | ship | v2.278.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-16 | deploy | v2.277.0 | 1da88662 | 632 | Bench | Eco-Thrift - Mainline |
 | 2026-11-11 | ship | v2.277.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
 | 2026-11-11 | deploy | v2.276.0 | c6854ff2 | 630 | Bench | Eco-Thrift - Mainline |
 | 2026-11-11 | ship | v2.276.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |

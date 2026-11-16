@@ -3,6 +3,7 @@ import { Box, ButtonBase, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { FloorPage } from '../../components/layout/FloorPage';
+import { useInPhoneShell } from '../../components/layout/phoneShell';
 import { dutyColors } from '../../components/duty/tokens';
 import { t } from '../../i18n/routines';
 import { useAuth } from '../../hooks/useAuth';
@@ -71,10 +72,12 @@ export function CalendarHomeTab() {
 
 export function MessagesHomeTab() {
   const lang = useLang();
+  // On a phone the top bar already says Messages (#146).
+  const phoneShell = useInPhoneShell();
   return (
     <FloorPage title={t('messagesTab', lang)}>
       <Suspense fallback={<LoadingScreen message="Loading…" />}>
-        <MessagesPage />
+        <MessagesPage hideTitle={phoneShell} />
       </Suspense>
     </FloorPage>
   );

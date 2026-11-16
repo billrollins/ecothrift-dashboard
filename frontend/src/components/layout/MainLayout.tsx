@@ -21,6 +21,7 @@ import { ObjectModalProvider } from '../objects/ObjectModal';
 import { VIEW_AS_BAND_VAR } from '../viewAs/ViewAsBanner';
 import { Sidebar, SIDEBAR_WIDTH } from './Sidebar';
 import { PhoneTabBar } from './PhoneTabBar';
+import { PhoneShellContext } from './phoneShell';
 import { phoneShellTitle, showsPhoneTabBar } from './phoneFirstRoutes';
 import { getAppVersion } from '../../api/core.api';
 import { useRememberPage } from '../dashFixes/rememberPage';
@@ -214,14 +215,15 @@ export default function MainLayout() {
                 </IconButton>
               )}
               {isPhoneShell ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flexShrink: 0 }}>
                   <Box
                     component="img"
                     src={logoIcon}
                     alt=""
                     sx={{ width: 32, height: 32, display: 'block' }}
                   />
-                  <Typography variant="body2" fontWeight={800} noWrap>
+                  {/* The page name never cuts (#146): it keeps its width and the empty middle gives way. */}
+                  <Typography variant="body2" fontWeight={800} noWrap sx={{ flexShrink: 0 }}>
                     {phoneShellTitle(location.pathname, lang, dashboardTab)}
                   </Typography>
                 </Box>
@@ -235,7 +237,8 @@ export default function MainLayout() {
                   the page (Dash Updates #54). */}
               <Box
                 id={TOP_BAR_SLOT_ID}
-                sx={{ flexGrow: 1, minWidth: 0, display: 'flex', justifyContent: 'center', px: 1 }}
+                // On a phone its side padding would push the clock pill into the page name (#146).
+                sx={{ flexGrow: 1, minWidth: 0, display: 'flex', justifyContent: 'center', px: isPhoneShell ? 0.5 : 1 }}
               >
                 <TopBarBannerHost />
               </Box>
@@ -292,7 +295,9 @@ export default function MainLayout() {
                 {/* Any SKU / product / order link on any page opens its object modal (pages may wrap their own). */}
                 <ObjectModalProvider>
                   <KitPageContext.Provider value={markKitPage}>
-                    <Outlet />
+                    <PhoneShellContext.Provider value={isPhoneShell}>
+                      <Outlet />
+                    </PhoneShellContext.Provider>
                   </KitPageContext.Provider>
                 </ObjectModalProvider>
               </Suspense>

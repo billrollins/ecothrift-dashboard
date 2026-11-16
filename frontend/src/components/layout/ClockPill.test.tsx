@@ -88,6 +88,14 @@ describe('ClockPill', () => {
     expect(screen.getByTestId('clock-pill')).toHaveAccessibleName(/On shift since 8:58 AM/);
   });
 
+  it('keeps the phone text short so the page name fits at 360 px (#146)', () => {
+    renderPill();
+    expect(screen.getByTestId('clock-pill')).toHaveTextContent(/Out$/);
+    state.entry = entry();
+    renderPill();
+    expect(screen.getAllByTestId('clock-pill')[1]).toHaveTextContent(/8:58$/);
+  });
+
   it('says Not clocked in when there is no open punch', () => {
     renderPill();
     expect(screen.getByTestId('clock-pill')).toHaveAccessibleName(/Not clocked in/);

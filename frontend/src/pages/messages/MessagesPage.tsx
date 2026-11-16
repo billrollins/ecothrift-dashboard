@@ -295,7 +295,16 @@ function ComposeDialog({ open, onClose, onSent, canSecret }: {
   );
 }
 
-export default function MessagesPage({ basePath = '/messages', compact = false }: { basePath?: string; compact?: boolean }) {
+export default function MessagesPage({
+  basePath = '/messages',
+  compact = false,
+  hideTitle = false,
+}: {
+  basePath?: string;
+  compact?: boolean;
+  /** The page around it already names it (Home on a phone: the top bar, #146); New message stays. */
+  hideTitle?: boolean;
+}) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const params = useParams();
@@ -349,7 +358,11 @@ export default function MessagesPage({ basePath = '/messages', compact = false }
 
   const header = (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, px: compact ? 1.5 : 0, pt: compact ? 1.5 : 0 }}>
-      <Typography variant={compact ? 'h6' : 'h5'} fontWeight={800} sx={{ flex: 1 }}>Messages</Typography>
+      {hideTitle ? (
+        <Box sx={{ flex: 1 }} />
+      ) : (
+        <Typography variant={compact ? 'h6' : 'h5'} fontWeight={800} sx={{ flex: 1 }}>Messages</Typography>
+      )}
       {canStart ? <Button variant="contained" onClick={() => setComposing(true)}>{COPY.newMessage[lang]}</Button> : null}
     </Box>
   );

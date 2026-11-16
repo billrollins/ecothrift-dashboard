@@ -42,8 +42,10 @@ export function ClockPill() {
       : onBreak
         ? t('onBreak', lang)
         : t('onShiftSince', lang).replace('{time}', since);
-  // A narrow phone bar has no room for the sentence: the clock time (or "off") stands in.
-  const short = !entry ? t('clockedOut', lang) : stale ? '!' : onBreak ? t('onBreak', lang) : since;
+  // A narrow phone bar has no room for the sentence: one short word or the clock-in time stands in, so the page name
+  // beside the logo fits in full at 360 px (#146). The time drops AM/PM there ("10:45"): it is the start of today's shift.
+  const sinceShort = entry ? format(parseISO(entry.clock_in), 'h:mm') : '';
+  const short = !entry ? t('clockedOutShort', lang) : stale ? '!' : onBreak ? t('onBreakShort', lang) : sinceShort;
 
   return (
     <>
@@ -54,8 +56,8 @@ export function ClockPill() {
         onClick={() => setOpen(true)}
         sx={{
           height: 36,
-          px: 1.25,
-          mr: 1,
+          px: { xs: 1, sm: 1.25 },
+          mr: { xs: 0.5, sm: 1 },
           gap: 0.75,
           minWidth: 0,
           borderRadius: 999,
