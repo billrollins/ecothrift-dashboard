@@ -1,15 +1,10 @@
-v2.306.0 — Home on a phone: one clean, slidable tab bar
+v2.306.1 — Changelog dates put back (docs only)
 
-User-facing theme: **Home on a phone: one clean bottom bar with the seven Home tabs, each full size and labelled in full, that slides sideways; the old green desktop band is gone from Calendar, Messages and Profile, and the top bar shows every page name in full (Dash Update #146).**
+User-facing theme: **Changelog dates put back (docs only).**
 
-> **For Bill:** on a phone, Home has one bar at the bottom: Store, TimeClock, HR, Routines, Calendar, Messages, Profile. Each button is full size (60 px tall) and as wide as its whole name, so nothing wraps or runs into the next one. About four and a half show at once; swipe the bar left or right and it glides and settles on a button. A soft fade at an edge means more buttons wait that way. The tab you are on is underlined in green and always slid into view, also after turning the phone. Calendar, Messages and Profile no longer draw the green desktop band under the top bar (the top bar already names the page), and Messages drops its second "Messages" title. The top bar no longer cuts the page name ("Calen…" is now "Calendar"): on a phone the clock button says just **Out**, **Break** or the time you clocked in ("10:45"). A tablet shares the width evenly; the desk is unchanged.
+> **For Bill:** nothing in Dash changed. The last release accidentally rewrote the 11-12 release dates in the changelog and the machine log; they are back as they were.
 
-### Changed (Home phone tab bar, Dash Update #146)
-- `PhoneTabBar` is a horizontal scroller (was MUI BottomNavigation squeezing seven actions into the width): each tab is a 60 px tall button, at least 76 px wide and grown to fit its full label (`white-space: nowrap`, same weight open or closed), `scroll-snap-type: x proximity` with native momentum and `overscroll-behavior-x: contain`, no scrollbar, safe-area padding at the bottom. The open tab is centred when it is hidden or under an edge (smooth on a tap, instant on first paint and when the row resizes, via ResizeObserver), left alone when it shows. The open-tab line and the edge fades have fixed slots and only change colour or opacity, so nothing shifts. `aria-current="page"` on the open tab.
-- `FloorPage` drops its desk band inside MainLayout's phone shell (new `PhoneShellContext`, `components/layout/phoneShell.ts`) and uses a 16 px gutter there. Found on a 375 px phone: Calendar, Messages and Profile still drew the band (title only); Store, Time clock, HR and Routines already left it out. The desk band and FloorNav are unchanged at md and up.
-- The bar's Time clock tab reads **TimeClock** (Bill 2026-11-16, one word; only the bar label here, #179 renames the rest).
-- Phone top bar: the page name keeps its full width (`flexShrink: 0`) and the empty middle gives way (its side padding is 4 px in the phone shell). The clock pill's phone text is one short word or the time: Out / Fuera, Break / Pausa, `h:mm` without AM/PM, `!` for a forgotten punch (new keys `clockedOutShort`, `onBreakShort`), with tighter padding below sm. The full sentence stays from sm up and in its accessible name. Checked at 360 px with every page name and every pill state: nothing cut, no sideways scroll.
-- Messages: `MessagesPage` takes `hideTitle`; the Home tab passes it in the phone shell, so only New message stays in that row.
-- Tests: `ClockPill.test.tsx` (short phone text), `MessagesPage.test.tsx` (no title with `hideTitle`, New message stays), `PhoneTabBar.test.tsx` (open tab marked, 48 px floor, sideways scroll with unwrapped labels, the open tab scrolled into view, left alone when it shows), `FloorPage.test.tsx` (band on a desk, none in the phone shell).
+### Fixed (docs)
+- CHANGELOG.md and docs/machines.md: v2.306.0 rewrote every 2026-11-12 date to 2026-11-16 by mistake; the dates are restored, and v2.306.0 carries 2026-11-16.
 
 Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
