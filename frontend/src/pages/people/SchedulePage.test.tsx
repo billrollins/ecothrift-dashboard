@@ -342,7 +342,7 @@ describe('schedule helpers', () => {
 
 const ASK: ScheduleRequest = {
   id: 31, employee: 6, employee_name: 'Dave T', kind: 'off', date: '2026-10-23', end_date: '2026-10-24', start_time: null,
-  end_time: null, note: 'Wedding', status: 'pending', reply: '', decided_by_name: '', decided_at: null, created_at: '2026-10-19T10:00:00Z',
+  end_time: null, note: 'Wedding', status: 'pending', reply: '', decided_by_name: '', decided_at: null, created_at: '2026-10-19T10:00:00Z', change: null,
 };
 
 describe('schedule requests (Dash Updates #60, #61)', () => {
@@ -427,5 +427,52 @@ describe('schedule requests (Dash Updates #60, #61)', () => {
     expect(within(answered).queryByRole('button', { name: 'Withdraw' })).toBeNull();
     await userEvent.click(within(screen.getByTestId('request-41')).getByRole('button', { name: 'Withdraw' }));
     await waitFor(() => expect(api.withdrawScheduleRequest).toHaveBeenCalledWith(41));
+  });
+});
+
+// Bill's 11-17 case (#181): approved new times that left the shift as it was, the hours off in the note.
+const SAME: ScheduleRequest = {
+  ...ASK, id: 50, kind: 'times', date: '2026-10-22', end_date: '2026-10-22', start_time: '09:00', end_time: '17:00',
+  note: 'Doctor 10:30-12:30', status: 'approved', reply: 'OK', decided_by_name: 'Bill R', decided_at: '2026-10-19T14:00:00Z',
+  change: { before: [{ date: '2026-10-22', start: '09:00', end: '17:00' }], after: [{ date: '2026-10-22', start: '09:00', end: '17:00' }] },
+};
+
+describe('request timelines on the schedule (Dash Update #181)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    Object.values(api).forEach((fn) => fn.mockReset());
+    api.getScheduleRequests.mockResolvedValue({ data: [] });
+    setWide(true);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 20, 10, 0));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('an answered request leaves a dot on its day, and the day shows its timeline', async () => {
+    api.getScheduleWeek.mockResolvedValue({ data: { ...WEEK, requests: [SAME] } });
+    renderPage();
+    const cell = await screen.findByTestId('cell-6-2026-10-22');
+    expect(await within(cell).findByTestId('answered-mark')).toBeInTheDocument();
+    expect(within(cell).queryByTestId('request-mark')).toBeNull();
+    await userEvent.click(cell);
+    const card = within(await screen.findByTestId('dialog-answered')).getByTestId('timeline-50');
+    expect(card).toHaveTextContent('Asked');
+    expect(card).toHaveTextContent('Doctor 10:30-12:30');
+    expect(card).toHaveTextContent('Approved');
+    expect(card).toHaveTextContent('Bill R');
+    expect(card).toHaveTextContent('9-5 (no change)');
+  });
+
+  it('staff open their own answered request from its dot; an old one says the change was not recorded', async () => {
+    const people = WEEK.people.map(({ call_ins: _c, ...p }) => p);
+    const mine = { ...SAME, employee: 5, employee_name: 'Carrie T', date: '2026-10-23', end_date: '2026-10-23', change: null };
+    api.getScheduleWeek.mockResolvedValue({ data: { ...WEEK, people, call_ins: [], can_edit: false, requests: [mine] } });
+    renderPage();
+    const cell = await screen.findByTestId('cell-5-2026-10-23');
+    await userEvent.click(await within(cell).findByTestId('answered-mark'));
+    const card = await screen.findByTestId('timeline-50');
+    expect(card).toHaveTextContent('Not recorded');
+    // The dot opens the timeline, not the ask dialog.
+    expect(screen.queryByText('Ask for a change')).toBeNull();
   });
 });

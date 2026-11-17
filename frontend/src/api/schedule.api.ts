@@ -83,6 +83,20 @@ export interface ScheduleRequest {
   decided_by_name: string;
   decided_at: string | null;
   created_at: string;
+  /** What approving did to the schedule (#181). Null on requests answered before it was kept. */
+  change: ScheduleRequestChange | null;
+}
+
+/** One shift as it was or became: date, 'HH:MM' start and end. */
+export interface ChangedShift {
+  date: string;
+  start: string;
+  end: string;
+}
+
+export interface ScheduleRequestChange {
+  before: ChangedShift[];
+  after: ChangedShift[];
 }
 
 export interface ScheduleRequestInput {

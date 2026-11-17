@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.309.0] -->
-<!-- Last reviewed: 2026-11-16 (2.309.0) -->
+<!-- Line 1 release: ## [2.310.0] -->
+<!-- Last reviewed: 2026-11-17 (2.310.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.310.0] - 2026-11-17
+
+User-facing theme: **Schedule requests have one timeline, the same for whoever asked and whoever answered: asked, approved or declined (by whom, when, the reply), and what changed on the schedule (Dash Update #181).**
+
+> **For Bill:** Every day off or new-times request now reads as a short timeline: **Asked** (who, when, their note), **Approved / Declined / Withdrawn** (who, when, the reply) and **Schedule** (what approving did: "Tue Nov 17: 9-5 (no change)", "Wed Nov 18: 8-2 → 10-4", "Thu Nov 19 10-6 removed"). On the schedule, an answered request leaves a small dot on its day (green approved, red declined; it never moves anything), and opening that day shows the timeline above the shift. Staff open the same card from their TimeClock **Time off** rows, Home → HR → Requests and the schedule's **My requests**; in HR → Requests, **Answered** rows show what changed and a **Timeline** link. Requests answered before this release say "Schedule: Not recorded" (the old times were not kept). A "few hours off" request kind was left out (its own update).
+
+### Added (Schedule request timelines, Dash Update #181)
+- `ScheduleRequest.change` (migration `hr 0027_schedule_request_change`): `{before: [shift], after: [shift]}`, each `{date, start, end}`, written by `decide_request` (approve: the shifts removed, or the day's times before and after; decline: empty). Withdrawing now stamps `decided_by` / `decided_at` too. `request_payload` carries `change`.
+- Frontend: `RequestTimeline`, `RequestTimelineDialog` and `useChangeLines` in `pages/people/ScheduleRequests.tsx`; the schedule's `AnsweredMark` dot (absolute, top-left) and the shift dialog's answered card (`SchedulePage.tsx`); the inbox's Answered change line and Timeline link (`HrInboxPage.tsx`); tap-to-open on TimeClock Time off rows (`PeriodCards.tsx`) and Home → HR → Requests (`HrTab.tsx`).
+- Tests: `apps/hr/tests/test_schedule.py` (the change kept on approve, decline, withdraw; Bill's unchanged-times case); `SchedulePage.test.tsx` (dot and day timeline; staff dot; not recorded); `HrInboxPage.test.tsx` (Answered change line and timeline).
 
 ## [2.309.0] - 2026-11-16
 

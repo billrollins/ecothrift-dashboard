@@ -18,6 +18,8 @@
   run of days) or new times on one day (a different start or end, or a day they don't usually work), with a note.
   Managers (``hr.schedule:write``) approve or decline with a reply; approving a day off removes those shifts, and
   approving new times changes (or adds) that day's shift. Staff see their own requests; managers see everyone's.
+  Each request keeps what approving did (``change``: the shifts before and after; Dash Update #181), so both sides
+  read one timeline: asked, answered (by whom, when) and what changed on the schedule.
 - **Right now** (Bill, Dash Updates #6, 2026-11-02). Everyone sees the week, and next to each person their state now from
   the time clock: on shift, on break, late (a shift that has started, not clocked in, no call-in) or off.
 """
@@ -226,7 +228,13 @@ def request_payload(row) -> dict:
         'decided_by_name': row.decided_by.full_name if row.decided_by_id else '',
         'decided_at': row.decided_at.isoformat() if row.decided_at else None,
         'created_at': row.created_at.isoformat(),
+        'change': row.change,
     }
+
+
+def _span(shift) -> dict:
+    return {'date': shift.date.isoformat(), 'start': shift.start_time.strftime('%H:%M'),
+            'end': shift.end_time.strftime('%H:%M')}
 
 
 def decide_request(row, approve: bool, reply: str, actor) -> None:
@@ -236,25 +244,32 @@ def decide_request(row, approve: bool, reply: str, actor) -> None:
 
     if row.status != ScheduleRequest.PENDING:
         raise ValidationError({'detail': 'That request has already been answered.'})
+    # What the schedule was and became, kept on the request (#181): the times an approval overwrites are otherwise lost.
+    change = {'before': [], 'after': []}
     if approve:
         shifts = ScheduledShift.objects.filter(employee_id=row.employee_id)
         if row.kind == ScheduleRequest.KIND_OFF:
-            shifts.filter(date__gte=row.date, date__lte=row.end_date).delete()
+            gone = shifts.filter(date__gte=row.date, date__lte=row.end_date).order_by('date', 'start_time')
+            change['before'] = [_span(s) for s in gone]
+            gone.delete()
         else:
             day = shifts.filter(date=row.date).order_by('start_time').first()
             if day is None:
                 emp = getattr(row.employee, 'employee', None)
-                ScheduledShift.objects.create(employee_id=row.employee_id, date=row.date,
-                                              department_id=emp.department_id if emp else None,
-                                              start_time=row.start_time, end_time=row.end_time, created_by=actor)
+                day = ScheduledShift.objects.create(employee_id=row.employee_id, date=row.date,
+                                                    department_id=emp.department_id if emp else None,
+                                                    start_time=row.start_time, end_time=row.end_time, created_by=actor)
             else:
+                change['before'] = [_span(day)]
                 day.start_time, day.end_time = row.start_time, row.end_time
                 day.save(update_fields=['start_time', 'end_time', 'updated_at'])
+            change['after'] = [_span(day)]
     row.status = ScheduleRequest.APPROVED if approve else ScheduleRequest.DECLINED
     row.reply = (reply or '')[:300]
     row.decided_by = actor
     row.decided_at = timezone.now()
-    row.save(update_fields=['status', 'reply', 'decided_by', 'decided_at'])
+    row.change = change
+    row.save(update_fields=['status', 'reply', 'decided_by', 'decided_at', 'change'])
 
 
 def week(start: date, *, manager: bool = True, viewer_id: int | None = None) -> dict:

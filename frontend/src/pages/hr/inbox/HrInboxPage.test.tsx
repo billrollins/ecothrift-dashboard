@@ -149,6 +149,12 @@ describe('HR > Requests, the managers’ inbox (#140)', () => {
     expect(row).toHaveTextContent('Approved');
     expect(row).toHaveTextContent('Mandy M');
     expect(row).toHaveTextContent('Have fun');
+    // #181: what changed on the schedule (not kept before #181), and the whole timeline a tap away.
+    expect(within(row).getByTestId('inbox-change-s3')).toHaveTextContent('Not recorded');
+    await userEvent.click(within(row).getByTestId('inbox-timeline-s3'));
+    const card = await screen.findByTestId('timeline-3');
+    expect(card).toHaveTextContent('Wedding');
+    expect(card).toHaveTextContent('Mandy M');
   });
 
   it('nothing waiting says so', async () => {

@@ -52,7 +52,7 @@ import { getScheduleRequests, type ScheduleRequest } from '../../api/schedule.ap
 import { createIncident, getIncidents, type IncidentSummary, type IncidentWrite } from '../../api/incidents.api';
 import { listMine, type MyDocument } from '@/esign/api';
 import { MY_ESIGN_KEY } from '../esign/MyEsignDocuments';
-import { AskDialog, useRequestCopy } from '../people/ScheduleRequests';
+import { AskDialog, RequestTimelineDialog, useRequestCopy } from '../people/ScheduleRequests';
 import { IncidentForm } from '../hr/incidents/IncidentForm';
 import { KIND_COPY, PLACE_COPY, useIncidentCopy } from '../hr/incidents/incidentCopy';
 import type { TimeEntry } from '../../types/hr.types';
@@ -305,6 +305,8 @@ export interface RequestRow {
   created_at: string;
   /** Incidents open in HR > Incidents. */
   href?: string;
+  /** A day off or new times: a tap opens its timeline (#181). */
+  schedule?: ScheduleRequest;
 }
 
 function ShiftChooser({ onPick, onClose }: { onPick: (entry: TimeEntry) => void; onClose: () => void }) {
@@ -351,6 +353,7 @@ function RequestsSection({ rows, failed, onStart }: {
   const { t, day } = useCopy();
   const navigate = useNavigate();
   const [all, setAll] = useState(false);
+  const [open, setOpen] = useState<ScheduleRequest | null>(null);
   const shown = all ? rows : rows.slice(0, FIRST_REQUESTS);
   const start = { justifyContent: 'flex-start', minHeight: 44, px: 1.5, whiteSpace: 'nowrap' } as const;
   return (
@@ -385,7 +388,7 @@ function RequestsSection({ rows, failed, onStart }: {
             title={r.what}
             line={[r.kind, `${r.kind ? t('asked') : t('askedFirst')} ${day(r.created_at, 'MMM d')}`, r.reply].filter(Boolean).join(' · ')}
             end={<StatusPill tone={r.status.tone} label={r.status.label} />}
-            onClick={r.href ? () => navigate(r.href!) : undefined}
+            onClick={r.href ? () => navigate(r.href!) : r.schedule ? () => setOpen(r.schedule!) : undefined}
           />
         </Box>
       ))}
@@ -394,6 +397,7 @@ function RequestsSection({ rows, failed, onStart }: {
           <Button size="small" onClick={() => setAll(true)}>{t('showAll')} ({rows.length})</Button>
         </Box>
       ) : null}
+      {open ? <RequestTimelineDialog request={open} onClose={() => setOpen(null)} /> : null}
     </Section>
   );
 }
@@ -465,6 +469,7 @@ function useHrTabData() {
       // describe() already starts with "Day off" or "New times".
       key: `s${r.id}`, kind: '', what: sched.describe(r),
       status: tone(r.status), reply: r.status === 'pending' ? '' : who(r.decided_by_name, r.reply), created_at: r.created_at,
+      schedule: r,
     })),
     ...(fixes.data ?? []).filter((r: ModificationRequest) => r.employee === me).map((r) => ({
       key: `t${r.id}`, kind: t('kindTimeFix'),

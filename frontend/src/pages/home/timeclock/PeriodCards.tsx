@@ -13,7 +13,7 @@ import { formatDashboardCurrencyExact } from '../../../components/dashboard/dash
 import { StatusPill, type Tone } from '../../../components/page/PageKit';
 import { MicroLabel, useToneText } from '../../../components/page/RichKit';
 import type { MyPeriod, MyPeriodRequest, MyPeriodWorked } from '../../../types/hr.types';
-import { useRequestCopy } from '../../people/ScheduleRequests';
+import { RequestTimelineDialog, useRequestCopy } from '../../people/ScheduleRequests';
 import { useTimeClockCopy, type TimeClockCopyKey } from './copy';
 import { EmptyRow, Panel, rowSx, todayRowSx } from './Panel';
 import { hrs, pastRows } from './shifts';
@@ -91,6 +91,8 @@ export function TimeOffCard({ period, onAsk, onWithdraw, busyId, sx }: {
   const { tc } = useTimeClockCopy();
   const { describe } = useRequestCopy();
   const requests = period?.requests;
+  // A tap on a row opens its timeline: asked, answered, what changed on the schedule (#181).
+  const [open, setOpen] = useState<MyPeriodRequest | null>(null);
   return (
     <Panel
       testId="time-off-card"
@@ -107,7 +109,9 @@ export function TimeOffCard({ period, onAsk, onWithdraw, busyId, sx }: {
       ) : requests.map((r) => {
         const answer = r.status !== 'pending' ? [r.decided_by_name, r.reply].filter(Boolean).join(': ') : r.note;
         return (
-          <Box key={r.id} data-testid={`time-off-${r.id}`} sx={(t) => ({ ...rowSx(t), gridTemplateColumns: 'minmax(0, 1fr) auto', py: 0.5 })}>
+          <Box key={r.id} data-testid={`time-off-${r.id}`} role="button" tabIndex={0} onClick={() => setOpen(r)}
+            onKeyDown={(e) => { if (e.key === 'Enter') setOpen(r); }}
+            sx={(t) => ({ ...rowSx(t), gridTemplateColumns: 'minmax(0, 1fr) auto', py: 0.5, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } })}>
             <Box sx={{ minWidth: 0 }}>
               <Typography noWrap sx={{ fontSize: '0.875rem', fontWeight: 800 }}>{describe(r)}</Typography>
               {answer ? <Typography noWrap title={answer} sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>{answer}</Typography> : null}
@@ -115,7 +119,7 @@ export function TimeOffCard({ period, onAsk, onWithdraw, busyId, sx }: {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <StatusPill tone={REQUEST_TONE[r.status]} label={tc(REQUEST_LABEL[r.status])} />
               {r.status === 'pending' ? (
-                <Button size="small" color="inherit" disabled={busyId === r.id} onClick={() => onWithdraw(r.id)} sx={{ color: 'text.secondary', minWidth: 0 }}>
+                <Button size="small" color="inherit" disabled={busyId === r.id} onClick={(e) => { e.stopPropagation(); onWithdraw(r.id); }} sx={{ color: 'text.secondary', minWidth: 0 }}>
                   {tc('withdraw')}
                 </Button>
               ) : null}
@@ -123,6 +127,7 @@ export function TimeOffCard({ period, onAsk, onWithdraw, busyId, sx }: {
           </Box>
         );
       })}
+      {open ? <RequestTimelineDialog request={open} onClose={() => setOpen(null)} /> : null}
     </Panel>
   );
 }

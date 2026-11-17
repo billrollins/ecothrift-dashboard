@@ -41,6 +41,7 @@ import { decideScheduleRequest } from '../../../api/schedule.api';
 import { answerHrQuestion, approveModificationRequest, denyModificationRequest } from '../../../api/hr.api';
 import { addIncidentNote, setIncidentStatus } from '../../../api/incidents.api';
 import { errorText, range } from '../../people/scheduleLayout';
+import { RequestTimelineDialog, useChangeLines } from '../../people/ScheduleRequests';
 import { KIND_COPY, PLACE_COPY } from '../incidents/incidentCopy';
 import { ANSWERED_DAYS, useHrInbox, type InboxKind, type InboxRow } from './useHrInbox';
 
@@ -91,6 +92,7 @@ const COPY = {
   breakMin: { en: 'min break', es: 'min de descanso' },
   days: { en: 'days', es: 'días' },
   through: { en: 'to', es: 'al' },
+  timeline: { en: 'Timeline', es: 'Historial' },
 } satisfies Record<string, { en: string; es: string }>;
 
 type CopyKey = keyof typeof COPY;
@@ -243,9 +245,15 @@ function AnswerCell({ row, onDone }: { row: InboxRow; onDone: () => void }) {
   );
 }
 
-/** What came back on an answered row: the outcome, who and when, and the reply. */
+/**
+ * What came back on an answered row: the outcome, who and when, and the reply. A day off or new times also says what
+ * changed on the schedule and opens its whole timeline (#181).
+ */
 function OutcomeCell({ row }: { row: InboxRow }) {
   const { t, at } = useCopy();
+  const changeLines = useChangeLines();
+  const [open, setOpen] = useState(false);
+  const sched = row.kind === 'off' || row.kind === 'times' ? row.schedule : null;
   let tone: Tone = 'good';
   let label = t('approved');
   let by = '';
@@ -276,6 +284,18 @@ function OutcomeCell({ row }: { row: InboxRow }) {
         {[by, row.answered ? at(row.answered, 'MMM d') : ''].filter(Boolean).join(' · ')}
       </Typography>
       {words ? <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{words}</Typography> : null}
+      {sched ? (
+        <>
+          <Typography variant="body2" color="text.secondary" data-testid={`inbox-change-${row.key}`}>
+            {changeLines(sched).join(' · ')}
+          </Typography>
+          <Link component="button" type="button" variant="body2" sx={{ fontWeight: 600 }} onClick={() => setOpen(true)}
+            data-testid={`inbox-timeline-${row.key}`}>
+            {t('timeline')}
+          </Link>
+          {open ? <RequestTimelineDialog request={sched} onClose={() => setOpen(false)} /> : null}
+        </>
+      ) : null}
     </Box>
   );
 }

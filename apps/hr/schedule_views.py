@@ -177,8 +177,12 @@ class ScheduleRequestViewSet(viewsets.GenericViewSet):
             return Response(status=status.HTTP_404_NOT_FOUND)
         if row.status != ScheduleRequest.PENDING:
             return Response({'detail': 'That request has already been answered.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Withdrawn is a step on the request's timeline too (#181): who and when.
         row.status = ScheduleRequest.WITHDRAWN
-        row.save(update_fields=['status'])
+        row.decided_by = request.user
+        row.decided_at = timezone.now()
+        row.change = {'before': [], 'after': []}
+        row.save(update_fields=['status', 'decided_by', 'decided_at', 'change'])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])

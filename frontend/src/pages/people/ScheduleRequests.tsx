@@ -5,7 +5,7 @@
  * Managers see everyone's waiting requests and approve or decline with a reply; approving changes the week.
  * English and Spanish.
  */
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   Alert,
   Box,
@@ -33,6 +33,7 @@ import {
   getScheduleRequests,
   withdrawScheduleRequest,
   type ScheduleRequest,
+  type ScheduleRequestChange,
 } from '../../api/schedule.api';
 import { errorText, range } from './scheduleLayout';
 import { StaffLink } from '../../components/staff/StaffLink';
@@ -66,6 +67,13 @@ const COPY = {
   noneWaiting: { en: 'Nothing waiting.', es: 'Nada en espera.' },
   asked: { en: 'Asked', es: 'Pidió' },
   couldNot: { en: 'Could not send', es: 'No se pudo enviar' },
+  schedule: { en: 'Schedule', es: 'Horario' },
+  noChange: { en: 'no change', es: 'sin cambio' },
+  unchanged: { en: 'No change', es: 'Sin cambio' },
+  notRecorded: { en: 'Not recorded', es: 'No registrado' },
+  removed: { en: 'removed', es: 'quitado' },
+  added: { en: 'added', es: 'agregado' },
+  noShifts: { en: 'No shifts to remove', es: 'No había turnos' },
 } satisfies Record<string, { en: string; es: string }>;
 
 export type RequestCopyKey = keyof typeof COPY;
@@ -87,9 +95,110 @@ export function useRequestCopy() {
   return { t, date, describe };
 }
 
+/** What a timeline needs: the schedule's request, or the same row from My period (no employee there). */
+export type TimelineRequest = Pick<ScheduleRequest,
+  'id' | 'kind' | 'date' | 'end_date' | 'start_time' | 'end_time' | 'note' | 'status' | 'reply' | 'decided_by_name'
+  | 'decided_at' | 'created_at'> & { employee_name?: string; change?: ScheduleRequestChange | null };
+
+/**
+ * What the request did to the schedule, one line per day (#181). Declined and withdrawn change nothing; an approval
+ * answered before the change was kept says "Not recorded" rather than guess.
+ */
+export function useChangeLines() {
+  const { t, date } = useRequestCopy();
+  return (r: TimelineRequest): string[] => {
+    if (r.status === 'pending') return [];
+    if (r.status !== 'approved') return [t('unchanged')];
+    const c = r.change;
+    if (!c) return [t('notRecorded')];
+    if (r.kind === 'off') {
+      return c.before.length ? c.before.map((s) => `${date(s.date)} ${range(s.start, s.end)} ${t('removed')}`) : [t('noShifts')];
+    }
+    const [was] = c.before;
+    const now = c.after[0];
+    if (!now) return [t('unchanged')];
+    const day = `${date(now.date)}: `;
+    if (!was) return [`${day}${range(now.start, now.end)} ${t('added')}`];
+    if (was.start === now.start && was.end === now.end) return [`${day}${range(now.start, now.end)} (${t('noChange')})`];
+    return [`${day}${range(was.start, was.end)} → ${range(now.start, now.end)}`];
+  };
+}
+
+const stepColor = { pending: 'info.main', approved: 'success.main', declined: 'error.main', withdrawn: 'text.disabled' } as const;
+
+function Step({ color, label, who, children, last }: {
+  color: string; label: string; who?: string; children?: ReactNode; last?: boolean;
+}) {
+  return (
+    <Box sx={{ display: 'grid', gridTemplateColumns: '14px minmax(0, 1fr)', columnGap: 1 }}>
+      <Box sx={{ position: 'relative' }}>
+        <Box sx={{ position: 'absolute', top: 6, left: 3, width: 8, height: 8, borderRadius: '50%', bgcolor: color }} />
+        {last ? null : <Box sx={{ position: 'absolute', top: 16, bottom: -2, left: 6.5, width: '1px', bgcolor: 'divider' }} />}
+      </Box>
+      <Box sx={{ pb: last ? 0 : 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: '0.8125rem', lineHeight: '20px' }}>
+          <Box component="span" sx={{ fontWeight: 800 }}>{label}</Box>
+          {who ? <Box component="span" sx={{ color: 'text.secondary' }}>{`  ${who}`}</Box> : null}
+        </Typography>
+        {children}
+      </Box>
+    </Box>
+  );
+}
+
+/**
+ * One request's story (Bill, Dash Update #181, 2026-11-17): asked (who, when, their note), answered (approved,
+ * declined or withdrawn: by whom, when, the reply), and what changed on the schedule. The same card for the person who
+ * asked and for whoever answered.
+ */
+export function RequestTimeline({ request: r }: { request: TimelineRequest }) {
+  const { t, describe, date } = useRequestCopy();
+  const changes = useChangeLines()(r);
+  const when = (iso: string) => date(iso, 'MMM d, h:mm a');
+  const words = (text: string, italic = false) => (
+    <Typography sx={{ fontSize: '0.8125rem', color: italic ? 'text.secondary' : 'text.primary', fontStyle: italic ? 'italic' : 'normal', whiteSpace: 'pre-wrap' }}>
+      {italic ? `“${text}”` : text}
+    </Typography>
+  );
+  return (
+    <Box data-testid={`timeline-${r.id}`} sx={{ py: 1 }}>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.75 }}>
+        <Typography sx={{ flex: 1, fontWeight: 800, fontSize: '0.875rem' }}>{describe(r)}</Typography>
+        <StatusChip status={r.status} />
+      </Stack>
+      <Step color="text.secondary" label={t('asked')} who={[r.employee_name, when(r.created_at)].filter(Boolean).join(' · ')}
+        last={r.status === 'pending'}>
+        {r.note ? words(r.note, true) : null}
+      </Step>
+      {r.status !== 'pending' ? (
+        <Step color={stepColor[r.status]} label={t(r.status)}
+          who={[r.decided_by_name, r.decided_at ? when(r.decided_at) : ''].filter(Boolean).join(' · ')}>
+          {r.reply ? words(r.reply) : null}
+        </Step>
+      ) : null}
+      {changes.length ? (
+        <Step color={r.status === 'approved' && r.change ? 'primary.main' : 'text.disabled'} label={t('schedule')} last>
+          {changes.map((line) => <Typography key={line} sx={{ fontSize: '0.8125rem' }}>{line}</Typography>)}
+        </Step>
+      ) : null}
+    </Box>
+  );
+}
+
+/** The timeline in a small dialog: opened from a request row or a mark on the schedule. */
+export function RequestTimelineDialog({ request, onClose }: { request: TimelineRequest; onClose: () => void }) {
+  const { t } = useRequestCopy();
+  return (
+    <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogContent sx={{ pb: 0 }}><RequestTimeline request={request} /></DialogContent>
+      <DialogActions><Button onClick={onClose}>{t('close')}</Button></DialogActions>
+    </Dialog>
+  );
+}
+
 const statusColor = { pending: 'info', approved: 'success', declined: 'error', withdrawn: 'default' } as const;
 
-function StatusChip({ status }: { status: ScheduleRequest['status'] }) {
+export function StatusChip({ status }: { status: ScheduleRequest['status'] }) {
   const { t } = useRequestCopy();
   return <Chip size="small" variant="outlined" color={statusColor[status]} label={t(status === 'withdrawn' ? 'withdrawn' : status)} />;
 }
@@ -205,8 +314,8 @@ export function DecideRow({ request, onDone }: { request: ScheduleRequest; onDon
 }
 
 /**
- * The header's list. Managers: everyone's waiting requests, each to approve or decline. Staff: their own requests with
- * the manager's reply, a waiting one to withdraw, and a button to ask.
+ * The header's list. Managers: everyone's waiting requests, each to approve or decline. Staff: their own requests, each
+ * as its timeline (#181), a waiting one to withdraw, and a button to ask.
  */
 export function RequestsDialog({ manager, onAsk, onClose, onChanged }: {
   manager: boolean;
@@ -214,7 +323,7 @@ export function RequestsDialog({ manager, onAsk, onClose, onChanged }: {
   onClose: () => void;
   onChanged: () => void;
 }) {
-  const { t, describe, date } = useRequestCopy();
+  const { t } = useRequestCopy();
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const list = useQuery({
@@ -247,19 +356,10 @@ export function RequestsDialog({ manager, onAsk, onClose, onChanged }: {
           <Box key={r.id}>
             {i ? <Divider /> : null}
             {manager ? <DecideRow request={r} onDone={done} /> : (
-              <Box data-testid={`request-${r.id}`} sx={{ py: 1.25 }}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography fontWeight={700} sx={{ flex: 1 }}>{describe(r)}</Typography>
-                  <StatusChip status={r.status} />
-                </Stack>
-                {r.note ? <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>“{r.note}”</Typography> : null}
-                {r.status !== 'pending' && (r.reply || r.decided_by_name) ? (
-                  <Typography variant="body2" sx={{ mt: 0.5 }}>
-                    {r.decided_by_name}{r.decided_at ? ` · ${date(r.decided_at.slice(0, 10), 'MMM d')}` : ''}{r.reply ? `: ${r.reply}` : ''}
-                  </Typography>
-                ) : null}
+              <Box data-testid={`request-${r.id}`}>
+                <RequestTimeline request={r} />
                 {r.status === 'pending' ? (
-                  <Button size="small" color="inherit" sx={{ mt: 0.5, color: 'text.secondary' }} onClick={() => withdraw(r.id)}>{t('withdraw')}</Button>
+                  <Button size="small" color="inherit" sx={{ mb: 0.5, color: 'text.secondary' }} onClick={() => withdraw(r.id)}>{t('withdraw')}</Button>
                 ) : null}
               </Box>
             )}

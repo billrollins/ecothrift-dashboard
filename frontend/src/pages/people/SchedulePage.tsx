@@ -78,7 +78,9 @@ import {
   type ScheduledShift,
   type StoreDay,
 } from '../../api/schedule.api';
-import { AskDialog, DecideRow, RequestsDialog, useRequestCopy, type AskStart } from './ScheduleRequests';
+import {
+  AskDialog, DecideRow, RequestTimeline, RequestTimelineDialog, RequestsDialog, useRequestCopy, type AskStart,
+} from './ScheduleRequests';
 import {
   endMinutes,
   errorText,
@@ -475,13 +477,15 @@ function HourTicks({ span, every = 1 }: { span: [number, number]; every?: number
 
 type Target = { person: Person; day: string; shift: ScheduledShift | null };
 
-function ShiftDialog({ target, span, store, actuals, requests, onClose, onSaved }: {
+function ShiftDialog({ target, span, store, actuals, requests, answered, onClose, onSaved }: {
   target: Target | null;
   span: [number, number];
   store?: StoreDay;
   actuals: ActualSpan[];
   /** Their waiting requests touching this day: answer them here. */
   requests: ScheduleRequest[];
+  /** Their answered requests on this day: each one's timeline (#181). */
+  answered: ScheduleRequest[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -540,6 +544,15 @@ function ShiftDialog({ target, span, store, actuals, requests, onClose, onSaved 
         {!callIn && requests.length ? (
           <Box data-testid="dialog-requests" sx={{ mb: 1, px: 1.5, borderRadius: '8px', border: 1, borderStyle: 'dashed', borderColor: 'info.main', bgcolor: tint('info', 0.05) }}>
             {requests.map((r) => <DecideRow key={r.id} request={r} onDone={() => { onSaved(); onClose(); }} />)}
+          </Box>
+        ) : null}
+        {!callIn && answered.length ? (
+          <Box data-testid="dialog-answered" sx={{ mb: 1, px: 1.5, borderRadius: '8px', border: 1, borderColor: 'divider' }}>
+            {answered.map((r, i) => (
+              <Box key={r.id} sx={i ? { borderTop: 1, borderColor: 'divider' } : undefined}>
+                <RequestTimeline request={r} />
+              </Box>
+            ))}
           </Box>
         ) : null}
         {!callIn ? (
@@ -619,6 +632,10 @@ interface Grid {
   actual: Map<string, ActualSpan[]>;
   /** Waiting requests by person and day (a run of days off is on each of its days). */
   requests: Map<string, ScheduleRequest[]>;
+  /** Approved and declined requests, the same way (#181): a dot on the day opens their timeline. */
+  answered: Map<string, ScheduleRequest[]>;
+  /** Staff: open a request's timeline from its dot (managers open the day, which shows it). */
+  onOpenRequest: ((request: ScheduleRequest) => void) | null;
   /** Null when the reader cannot change the week. */
   onPick: ((target: Target) => void) | null;
   /** Staff: tap a day of their own, today or later, to ask for a change (null for managers). */
@@ -735,6 +752,26 @@ function tapFor(g: Grid, person: Person, day: string, shifts: ScheduledShift[]):
   return undefined;
 }
 
+/**
+ * An answered request on this day (#181): a small dot in the cell's top-left corner, green approved, red declined
+ * (absolute, so nothing moves), the answer on hover. A manager's tap opens the day, which shows the timeline; staff
+ * tap the dot for it.
+ */
+function AnsweredMark({ requests, onOpen }: { requests: ScheduleRequest[]; onOpen: ((r: ScheduleRequest) => void) | null }) {
+  const { t, describe } = useRequestCopy();
+  const latest = [...requests].sort((a, b) => (b.decided_at ?? '').localeCompare(a.decided_at ?? ''))[0];
+  const text = requests.map((r) => `${t(r.status === 'approved' ? 'approved' : 'declined')}: ${describe(r)}${r.decided_by_name ? ` · ${r.decided_by_name}` : ''}`).join('\n');
+  return (
+    <Tooltip title={<span style={{ whiteSpace: 'pre-line' }}>{text}</span>} enterDelay={0} disableInteractive>
+      <Box component="span" data-testid="answered-mark" aria-label={text} role={onOpen ? 'button' : undefined}
+        onClick={onOpen ? (e) => { e.stopPropagation(); onOpen(latest); } : undefined}
+        sx={{ position: 'absolute', top: 0, left: 0, width: 14, height: 14, zIndex: 2, cursor: 'pointer',
+          '&::after': { content: '""', position: 'absolute', top: 3, left: 3, width: 7, height: 7, borderRadius: '50%',
+            bgcolor: latest.status === 'approved' ? 'success.main' : 'error.main' } }} />
+    </Tooltip>
+  );
+}
+
 /** A waiting request on this day: a dashed blue frame round the cell (nothing inside moves), the ask on hover. */
 function RequestMark({ requests }: { requests: ScheduleRequest[] }) {
   const { t, describe } = useRequestCopy();
@@ -759,6 +796,7 @@ function DayCell({ g, person, i }: { g: Grid; person: Person; i: number }) {
   else if (calls.length) body = <CallInChip calls={calls} shift={undefined} />;
   const note = shifts.find((s) => s.note)?.note;
   const asked = g.requests.get(`${person.id}:${day}`);
+  const answered = g.answered.get(`${person.id}:${day}`);
   const tap = tapFor(g, person, day, shifts);
   return (
     <Box component="td" data-testid={`cell-${person.id}-${day}`} onClick={tap}
@@ -766,6 +804,7 @@ function DayCell({ g, person, i }: { g: Grid; person: Person; i: number }) {
       {body}
       {note ? <NoteMark note={note} /> : null}
       {asked ? <RequestMark requests={asked} /> : null}
+      {answered ? <AnsweredMark requests={answered} onOpen={g.onOpenRequest} /> : null}
     </Box>
   );
 }
@@ -1077,11 +1116,13 @@ function PhoneDay({ g, sections, day, onDay, collapsed, onToggle }: {
                   const shifts = g.byCell.get(`${person.id}:${day}`) ?? [];
                   const calls = g.callIns.get(`${person.id}:${day}`) ?? [];
                   const asked = g.requests.get(`${person.id}:${day}`);
+                  const answered = g.answered.get(`${person.id}:${day}`);
                   const tap = tapFor(g, person, day, shifts);
                   return (
                     <Box key={person.id} data-testid={`schedule-card-${person.id}`} onClick={tap}
                       sx={{ display: 'grid', gridTemplateColumns: '100px 1fr 94px', alignItems: 'center', columnGap: 1, height: ROW, px: 1, borderTop: 1, borderColor: 'divider', cursor: tap ? 'pointer' : 'default', position: 'relative' }}>
                       {asked ? <RequestMark requests={asked} /> : null}
+                      {answered ? <AnsweredMark requests={answered} onOpen={g.onOpenRequest} /> : null}
                       <Box sx={{ minWidth: 0, pr: 0.5 }}><NameCell g={g} person={person} compact /></Box>
                       <Box sx={{ minWidth: 0 }}>
                         {shifts.length || g.actual.get(`${person.id}:${day}`)?.length
@@ -1188,18 +1229,21 @@ type Pending = Map<number, { start_time: string; end_time: string }>;
 function buildGrid(week: ScheduleWeek, paceWeek: ScheduleWeek, o: {
   canEdit: boolean; today: string; nowMinutes: number; meId?: number; pending: Pending;
   onPick: (target: Target) => void; onTimes: Grid['onTimes']; onAsk: ((a: AskStart) => void) | null;
+  onOpenRequest: (request: ScheduleRequest) => void;
 }): Grid {
   const group = <T,>(rows: T[], key: (r: T) => string) => {
     const map = new Map<string, T[]>();
     for (const r of rows) map.set(key(r), [...(map.get(key(r)) ?? []), r]);
     return map;
   };
-  // A waiting request sits on each of its days shown.
+  // A request sits on each of its days shown: waiting ones as a frame, answered ones as a dot (#181).
   const asked = new Map<string, ScheduleRequest[]>();
+  const answered = new Map<string, ScheduleRequest[]>();
   for (const r of week.requests ?? []) {
-    if (r.status !== 'pending') continue;
+    const into = r.status === 'pending' ? asked : r.status === 'approved' || r.status === 'declined' ? answered : null;
+    if (!into) continue;
     for (const d of week.days) {
-      if (d >= r.date && d <= r.end_date) asked.set(`${r.employee}:${d}`, [...(asked.get(`${r.employee}:${d}`) ?? []), r]);
+      if (d >= r.date && d <= r.end_date) into.set(`${r.employee}:${d}`, [...(into.get(`${r.employee}:${d}`) ?? []), r]);
     }
   }
   return {
@@ -1207,6 +1251,8 @@ function buildGrid(week: ScheduleWeek, paceWeek: ScheduleWeek, o: {
     weekDays: paceWeek.days,
     byCell: group(week.shifts, (s) => `${s.employee}:${s.date}`),
     requests: asked,
+    answered,
+    onOpenRequest: o.canEdit ? null : o.onOpenRequest,
     callIns: group(week.call_ins, (c) => `${c.employee}:${c.shift_date}`),
     actual: group(week.actual ?? [], (t) => `${t.employee}:${t.date}`),
     onPick: o.canEdit ? o.onPick : null,
@@ -1265,6 +1311,7 @@ export default function SchedulePage({ build = false, embedded = false }: { buil
   const [phoneDay, setPhoneDay] = useState<string | null>(null);
   const [ask, setAsk] = useState<AskStart | null>(null);
   const [showRequests, setShowRequests] = useState(false);
+  const [timeline, setTimeline] = useState<ScheduleRequest | null>(null);
   const [clearing, setClearing] = useState(false);
   const [tools, setTools] = useState<HTMLElement | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(readCollapsed);
@@ -1412,7 +1459,7 @@ export default function SchedulePage({ build = false, embedded = false }: { buil
 
   const grid = useMemo<Grid | null>(
     () => (merged && shown
-      ? buildGrid(merged, shown, { canEdit, today, nowMinutes, meId, pending, onPick: pick, onTimes, onAsk: embedded ? null : setAsk })
+      ? buildGrid(merged, shown, { canEdit, today, nowMinutes, meId, pending, onPick: pick, onTimes, onAsk: embedded ? null : setAsk, onOpenRequest: setTimeline })
       : null),
     // pick and onTimes are rebuilt each render; the data, the edits and the clock drive it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1568,6 +1615,7 @@ export default function SchedulePage({ build = false, embedded = false }: { buil
           store={grid.week.store_hours?.[grid.week.days.indexOf(target.day)]}
           actuals={grid.actual.get(`${target.person.id}:${target.day}`) ?? []}
           requests={grid.requests.get(`${target.person.id}:${target.day}`) ?? []}
+          answered={grid.answered.get(`${target.person.id}:${target.day}`) ?? []}
           onClose={() => setTarget(null)}
           onSaved={dialogSaved}
         />
@@ -1584,6 +1632,7 @@ export default function SchedulePage({ build = false, embedded = false }: { buil
         <ClearWeekDialog start={shown.start} count={shown.shifts.length} onClose={() => setClearing(false)} onCleared={refresh} />
       ) : null}
       {ask ? <AskDialog initial={ask} today={today} onClose={() => setAsk(null)} onSent={refresh} /> : null}
+      {timeline ? <RequestTimelineDialog request={timeline} onClose={() => setTimeline(null)} /> : null}
     </Box>
   );
   return build ? <PageShell width="wide">{page}</PageShell> : page;

@@ -289,6 +289,11 @@ class ScheduleRequestTests(APITestCase):
         # The two days off are cleared; the third day stays.
         self.assertEqual(list(ScheduledShift.objects.filter(employee=self.carrie).values_list('date', flat=True)),
                          [self.day + timedelta(days=2)])
+        # The request keeps what it removed (#181).
+        self.assertEqual(res.json()['change'], {'before': [
+            {'date': self.day.isoformat(), 'start': '09:00', 'end': '17:00'},
+            {'date': (self.day + timedelta(days=1)).isoformat(), 'start': '09:00', 'end': '17:00'},
+        ], 'after': []})
 
     def test_new_times_change_the_shift_or_add_one(self):
         shift = ScheduledShift.objects.create(employee=self.carrie, date=self.day, department=self.retail,
@@ -297,8 +302,13 @@ class ScheduleRequestTests(APITestCase):
         extra_day = self.day + timedelta(days=1)
         second = self._ask(self.carrie, kind='times', date=extra_day.isoformat(), start_time='12:00', end_time='18:00').json()
         self.client.force_authenticate(self.manager)
-        for row in (first, second):
-            self.client.post(f"/api/hr/schedule/requests/{row['id']}/decide/", {'approve': True}, format='json')
+        answers = [self.client.post(f"/api/hr/schedule/requests/{row['id']}/decide/", {'approve': True}, format='json').json()
+                   for row in (first, second)]
+        # Each request keeps the times it replaced (#181); an added day had none.
+        day, extra = self.day.isoformat(), (self.day + timedelta(days=1)).isoformat()
+        self.assertEqual(answers[0]['change'], {'before': [{'date': day, 'start': '09:00', 'end': '17:00'}],
+                                                'after': [{'date': day, 'start': '10:00', 'end': '16:00'}]})
+        self.assertEqual(answers[1]['change'], {'before': [], 'after': [{'date': extra, 'start': '12:00', 'end': '18:00'}]})
         shift.refresh_from_db()
         self.assertEqual((shift.start_time, shift.end_time), (time(10), time(16)))
         added = ScheduledShift.objects.get(employee=self.carrie, date=extra_day)
@@ -312,8 +322,20 @@ class ScheduleRequestTests(APITestCase):
         url = f"/api/hr/schedule/requests/{row['id']}/decide/"
         res = self.client.post(url, {'approve': False, 'reply': 'Short that day'}, format='json')
         self.assertEqual((res.json()['status'], res.json()['reply']), ('declined', 'Short that day'))
+        self.assertEqual(res.json()['change'], {'before': [], 'after': []})
         self.assertTrue(ScheduledShift.objects.filter(employee=self.carrie, date=self.day).exists())
         self.assertEqual(self.client.post(url, {'approve': True}, format='json').status_code, 400)
+
+    def test_unchanged_times_say_so_and_old_answers_have_no_change(self):
+        # Bill's 11-17 case: asked for the times already on the schedule, with hours off in the note.
+        ScheduledShift.objects.create(employee=self.carrie, date=self.day, start_time=time(9), end_time=time(17))
+        row = self._ask(self.carrie, kind='times', date=self.day.isoformat(), start_time='09:00', end_time='17:00',
+                        note='Doctor 10:30-12:30').json()
+        self.assertIsNone(row['change'])
+        self.client.force_authenticate(self.manager)
+        res = self.client.post(f"/api/hr/schedule/requests/{row['id']}/decide/", {'approve': True}, format='json').json()
+        same = {'date': self.day.isoformat(), 'start': '09:00', 'end': '17:00'}
+        self.assertEqual(res['change'], {'before': [same], 'after': [same]})
 
     def test_asks_are_checked(self):
         past = timezone.localdate() - timedelta(days=1)
@@ -334,7 +356,10 @@ class ScheduleRequestTests(APITestCase):
         week = self.client.get('/api/hr/schedule/week/', {'start': monday.isoformat()}).json()
         self.assertEqual([r['id'] for r in week['requests']], [mine['id']])
         self.assertEqual(self.client.delete(f"/api/hr/schedule/requests/{mine['id']}/").status_code, 204)
-        self.assertEqual(ScheduleRequest.objects.get(pk=mine['id']).status, 'withdrawn')
+        withdrawn = ScheduleRequest.objects.get(pk=mine['id'])
+        # Withdrawn is on the timeline too (#181): who and when.
+        self.assertEqual((withdrawn.status, withdrawn.decided_by), ('withdrawn', self.carrie))
+        self.assertIsNotNone(withdrawn.decided_at)
         self.client.force_authenticate(self.manager)
         week = self.client.get('/api/hr/schedule/week/', {'start': monday.isoformat()}).json()
         self.assertEqual([r['id'] for r in week['requests']], [theirs['id']])

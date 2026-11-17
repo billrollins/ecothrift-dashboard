@@ -504,6 +504,11 @@ class ScheduleRequest(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
     )
     decided_at = models.DateTimeField(null=True, blank=True)
+    change = models.JSONField(
+        null=True, blank=True,
+        help_text='What approving did to the schedule (Dash Update #181): {"before": [shift], "after": [shift]}, each '
+                  'shift {date, start, end}. Empty when declined or withdrawn; null on requests answered before #181.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -140,6 +140,9 @@ export interface MyPeriodRequest {
   decided_by_name: string;
   decided_at: string | null;
   created_at: string;
+  employee_name?: string;
+  /** What approving did to the schedule (#181); null when not recorded. */
+  change?: import('../api/schedule.api').ScheduleRequestChange | null;
 }
 
 /** The TimeClock tab's Mine view (#137): this pay period, scheduled and worked. Pay is null when off payroll. */
