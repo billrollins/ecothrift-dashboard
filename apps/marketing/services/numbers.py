@@ -35,7 +35,7 @@ from django.db.models import Count, Sum
 from django.utils import timezone
 
 from apps.marketing.models import CHANNEL_CHOICES, CHANNEL_FACEBOOK, MarketingSpend, SocialPost, SocialPostNumbers
-from apps.marketing.services import cadence
+from apps.marketing.services import ads, cadence
 
 NUMBER_FIELDS = ('reach', 'reactions', 'comments', 'shares', 'messages', 'link_clicks')
 NUMBER_MAX = 10_000_000
@@ -402,6 +402,8 @@ def insights(today: date | None = None, weeks: int = DEFAULT_WEEKS) -> dict:
             'month': _money(spend_total(today.replace(day=1), today)),
             'rows': [spend_payload(r) for r in MarketingSpend.objects.select_related('post', 'entered_by')[:50]],
         },
+        # Dash #182: boosts read from a pasted ad results page, with their category read.
+        'ads': ads.ads_list(today),
     }
 
 
@@ -436,5 +438,18 @@ def weekly_card(today: date | None = None) -> dict:
             'top_type': top,
             'weeks': DEFAULT_WEEKS,
         },
+        'top_ad': _top_ad_line(ads.top_ad(page['ads'])),
         'link': '/studios/social/numbers',
+    }
+
+
+def _top_ad_line(ad: dict | None) -> dict | None:
+    if ad is None:
+        return None
+    watched = [k for k in ad['weights'] if k != ads.ALL] or ['the whole store']
+    return {
+        'id': ad['id'], 'start': ad['start'], 'end': ad['end'], 'spent': ad['spent'],
+        'label': ad['post_label'] or (ad['post_text'][:60] if ad['post_text'] else ad['ad_type']),
+        'watched': ', '.join(k.split(ads.SEP)[-1] for k in watched),
+        'extra_units': ad['read']['extra_units'], 'cost_per_extra_unit': ad['read']['cost_per_extra_unit'],
     }

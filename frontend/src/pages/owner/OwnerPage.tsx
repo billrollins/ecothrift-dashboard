@@ -53,6 +53,7 @@ import { getAppErrors, markAppErrorsSeen } from '../../api/core.api';
 import { getSupplySpendSummary } from '../../api/supplies.api';
 import { NAV_ITEM_CATALOG } from '../../navigation/navItemCatalog';
 import { formatCurrency, formatCurrencyWhole } from '../../utils/format';
+import { AdResultsDialog } from '../studios/social/AdResultsDialog';
 
 const ReportsPage = lazy(() => import('../reports/ReportsPage'));
 const RequestsPage = lazy(() => import('../admin/RequestsPage'));
@@ -304,6 +305,8 @@ function lift(value: string | null): string {
 }
 
 function SocialBody({ card, onOpen }: { card: SocialCard; onOpen: (path: string) => void }) {
+  const [pasting, setPasting] = useState(false);
+  const top = card.top_ad;
   const stat = (label: string, value: string | number, hint?: string) => (
     <Box sx={{ minWidth: 0 }}>
       <Typography variant="caption" color="text.secondary">{label}</Typography>
@@ -330,10 +333,18 @@ function SocialBody({ card, onOpen }: { card: SocialCard; onOpen: (path: string)
           ? <>Post days, last {read.weeks} weeks: tickets <b>{lift(read.ticket_lift)}</b>, sales <b>{lift(read.sales_lift)}</b> against the same weekday ({read.post_days} days).{read.top_type ? <> Best type: {read.top_type.label} ({lift(read.top_type.ticket_lift)} tickets, {read.top_type.days} days).</> : null}</>
           : 'Not enough post days yet for a read on tickets and sales.'}
       </Typography>
+      {top ? (
+        <Typography variant="body2" data-testid="owner-top-ad">
+          Top ad: <b>{top.label}</b> ({top.watched}), {formatCurrency(top.spent)} for {top.extra_units} extra units,{' '}
+          <b>{formatCurrency(top.cost_per_extra_unit)}</b> each.
+        </Typography>
+      ) : null}
       <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
         {card.numbers_due ? <Chip size="small" color="warning" label={`${card.numbers_due} numbers due`} /> : null}
         <Button size="small" onClick={() => onOpen(card.link)}>Open Numbers</Button>
+        <Button size="small" onClick={() => setPasting(true)}>Paste ad results</Button>
       </Box>
+      {pasting ? <AdResultsDialog open onClose={() => setPasting(false)} /> : null}
     </Stack>
   );
 }

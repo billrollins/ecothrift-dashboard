@@ -378,6 +378,109 @@ export interface NumbersPage {
   spend: { week: string; month: string; rows: SpendRow[] };
   /** The owner adds and removes spend. */
   can_spend: boolean;
+  /** Boosts read from a pasted ad results page (Dash #182). */
+  ads: AdRow[];
+}
+
+// ── Ad results dump (Dash #182) ──────────────────────────────────────────────
+
+export const AD_ALL = 'ALL';
+export const AD_SEP = ' › ';
+
+export const AD_RESULT_FIELDS = [
+  'reach', 'views', 'post_engagements', 'link_clicks', 'reactions', 'comments', 'shares', 'saves', 'messages', 'page_likes',
+] as const;
+export type AdResultField = typeof AD_RESULT_FIELDS[number];
+export const AD_RESULT_LABELS: Record<AdResultField, string> = {
+  reach: 'Reach',
+  views: 'Views',
+  post_engagements: 'Engagements',
+  link_clicks: 'Link clicks',
+  reactions: 'Reactions',
+  comments: 'Comments',
+  shares: 'Shares',
+  saves: 'Saves',
+  messages: 'Messages',
+  page_likes: 'Page likes',
+};
+
+export interface AdAudience {
+  location?: string;
+  age_min?: number;
+  age_max?: number;
+  women_pct?: number;
+  men_pct?: number;
+}
+
+/** The AI's read of a paste, edited in the dialog and saved as it stands. */
+export interface AdDraft {
+  start: string | null;
+  end: string | null;
+  spent: string | null;
+  daily_budget: string | null;
+  goal: string;
+  ad_type: string;
+  channel: SocialChannel;
+  results: Partial<Record<AdResultField, number>>;
+  audience: AdAudience;
+  post_text: string;
+  /** "Category" or "Category › Subcategory" to percent, summing to 100; or { ALL: 100 }. */
+  weights: Record<string, number>;
+}
+
+export interface AdMatch {
+  ad_id: number | null;
+  post_id: number | null;
+  post_label: string;
+  need_photos: boolean;
+  need_text: boolean;
+}
+
+export interface AdReadRow {
+  key: string;
+  pct: number | null;
+  watched: boolean;
+  per_day_during: number;
+  per_day_before: number;
+  change: string | null;
+  extra_units: number;
+  /** Units sold in both windows: what the row rests on. */
+  sold: number;
+  /** For a subcategory: the share of its category's sales with no subcategory (data quality). */
+  no_sub_pct: number | null;
+}
+
+export interface AdRead {
+  days: number;
+  through: string;
+  baseline_days: number;
+  rows: AdReadRow[];
+  extra_units: number;
+  cost_per_extra_unit: string | null;
+  overlaps: { id: number; start: string; end: string }[];
+}
+
+export interface AdRow extends Omit<AdDraft, 'spent' | 'start'> {
+  id: number;
+  start: string;
+  spent: string;
+  post_id: number | null;
+  post_label: string;
+  photo_ids: number[];
+  read: AdRead | null;
+}
+
+export const readAdPaste = (text: string) =>
+  api.post<{ draft: AdDraft; match: AdMatch; model: string }>('/marketing/ads/read/', { text }, { timeout: 90_000 })
+    .then((r) => r.data);
+
+export function saveAd(draft: AdDraft, match: Pick<AdMatch, 'ad_id' | 'post_id'>, photos: File[]) {
+  const data = { ...draft, ad_id: match.ad_id, post_id: match.post_id };
+  if (!photos.length) return api.post<AdRow>('/marketing/ads/', data).then((r) => r.data);
+  const form = new FormData();
+  form.append('data', JSON.stringify(data));
+  photos.forEach((p) => form.append('photos', p));
+  return api.post<AdRow>('/marketing/ads/', form, { timeout: 120_000 }).then((r) => r.data);
 }
 
 export const getNumbersPage = (weeks = 8) =>

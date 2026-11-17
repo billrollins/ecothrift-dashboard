@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-22 (Phase 6: more channels) -->
+<!-- Last updated: 2026-11-17 (Dash #182: ad results dump) -->
 # Social Studio (marketing)
 
 Retail makes and posts one good Facebook post every open day from one screen. Initiative: [`retail_tags_and_social`](../initiatives/retail_tags_and_social.md) Phases 2 to 6. How a creative should look: [`creative-method.md`](creative-method.md).
@@ -52,7 +52,17 @@ Phase 5 (`services/numbers.py`, `SocialNumbersPage.tsx`, `PostNumbersForm.tsx`).
 - **Numbers page** (`/studios/social/numbers`, `/social/numbers` from the Schedule; 4, 8 or 13 weeks): numbers due; hits (posts by engagement, the 7-day numbers when typed); averages by post type and by category with how many posts they rest on; the rough read; the spend ledger. `GET /api/marketing/numbers/?weeks=`.
 - **Rough read** (not proof; the page says so): a post day's tickets and Net item sales (`pos.services.sales_numbers.by_day`) against the same weekday in the 8 weeks before on days with no post and some sales, averaged overall and by post type; a category spotlight's items sold and dollars over its next 7 days against the same 7 days in each of the 4 weeks before (only spotlights 7 days old). Sample sizes are shown.
 - **Spend:** the owner (superuser) adds and removes rows (`POST /api/marketing/spend/`, `DELETE /api/marketing/spend/<id>/`); everyone sees the totals.
-- **Owner page Social card** (`GET /api/core/owner/social/`, `weekly_card`): this week's posts (out of planned), reach and engagement, the best post, numbers due, spend this week and month, the read's headline and its best post type (2+ days).
+- **Owner page Social card** (`GET /api/core/owner/social/`, `weekly_card`): this week's posts (out of planned), reach and engagement, the best post, numbers due, spend this week and month, the read's headline and its best post type (2+ days), the top ad (lowest cost per extra unit) and **Paste ad results**.
+
+## Ad results dump (Dash #182)
+
+`services/ads.py`, `AdResultsDialog.tsx`, the Ads panel on Numbers. The owner pastes a whole ad results page (Facebook "View results", select all) on the Owner page's Social card or the Numbers page's Ads panel, taps **Read it**, edits the one card and saves.
+
+- **The ad is a boost row** in `MarketingSpend` (migration `0006_ad_results`): `day` = start, `end_day`, `amount` = spent, `daily_budget`, `goal`, `audience` (totals only: place, ages, women/men split), `results` (reach, views, engagements, link clicks, reactions, comments, shares, saves, messages, page likes), `category_weights`, `post_text`, `photos` (library photos when no Studio post matches), `post` (the Studio post its text matches, posted within 30 days before). A second paste with the same start day and post text updates the row.
+- **Privacy:** the raw paste is never stored. Before the AI, the Created by / Ad account / Payment method / billing / card lines are cut and card numbers, emails and phones masked.
+- **AI:** purpose `AD_RESULTS` (Settings > AI), seeded on Spark Contributor (`muse-spark-1.3-contributor`), one forced tool call; logs as "marketing.ad_results". `POST /api/marketing/ads/read/` (owner) returns the draft and the match; nothing is saved.
+- **Categories to watch:** `{"Category": pct}` or `{"Category › Subcategory": pct}` (taxonomy names), summing to 100, or `{"ALL": 100}`. The AI guesses; the owner edits. `POST /api/marketing/ads/` (owner; JSON, or multipart `data` + `photos`) refuses any other sum.
+- **The read** (rough, not proof): units per open day (a day the store sold anything) during the ad (through yesterday while it runs) against the 28 days before, per watched key, plus a watched subcategory's own category and the whole store as context. Category per register ITM-15 (`cadence.item_category`), subcategory from the product profile. Extra units = rate change x open days; cost per extra unit = spent / extra units in the watched keys (only when positive). No sales in its days yet = no read. Another boost in its days or the 28 before is flagged, not corrected. A subcategory row carries the share of its category's sales with no subcategory (most Toys & games sales had none on 2026-11-17: 80%), flagged on the page at 50%+.
 
 ## More channels
 

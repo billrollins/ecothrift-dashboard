@@ -67,6 +67,11 @@ export interface SocialCard {
     top_type: { label: string; days: number; ticket_lift: string | null } | null;
     weeks: number;
   };
+  /** The boost with the lowest cost per extra unit sold in its categories (Dash #182). */
+  top_ad: {
+    id: number; start: string; end: string | null; spent: string; label: string; watched: string;
+    extra_units: number; cost_per_extra_unit: string;
+  } | null;
   link: string;
 }
 

@@ -236,6 +236,20 @@ class MarketingSpend(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # A boost read from a pasted ad results page (Dash #182, `services/ads.py`): the boost row is the ad. `day` is
+    # its start, `amount` what it spent. The raw paste is never kept; nothing personal or about payment is stored.
+    end_day = models.DateField(null=True, blank=True)
+    daily_budget = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    goal = models.CharField(max_length=120, blank=True, default='')
+    audience = models.JSONField(default=dict, blank=True, help_text='Totals only: place, ages, women/men split.')
+    results = models.JSONField(default=dict, blank=True, help_text='Reach, views, engagements, link clicks and so on.')
+    category_weights = models.JSONField(
+        default=dict, blank=True,
+        help_text='Categories to watch, {"Category" or "Category › Subcategory": percent}, summing to 100; {"ALL": 100}.',
+    )
+    post_text = models.TextField(blank=True, default='')
+    photos = models.ManyToManyField(SocialPhoto, related_name='ads', blank=True)
+
     class Meta:
         ordering = ['-day', '-id']
 

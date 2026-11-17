@@ -8,6 +8,7 @@
  * - **Rough read:** post days against the same weekday (tickets and sales), and spotlight categories against the
  *   weeks before, each with how many it rests on. Not proof.
  * - **Spend:** the marketing ledger ($0 to start, owner call F3); the owner adds and removes.
+ * - **Ads** (Dash #182): boosts read from a pasted ad results page, cheapest extra unit first; Paste ad results.
  *
  * Desk: hits on the left, the read, groups and spend on the right. Phone: one column, what's due first.
  */
@@ -43,6 +44,7 @@ import {
   deleteSpend,
   getNumbersPage,
   SPEND_KIND_LABELS,
+  type AdReadRow,
   type HitGroup,
   type NumbersPage,
   type PostHit,
@@ -51,6 +53,8 @@ import {
   type SpendKind,
 } from '../../../api/marketing.api';
 import { ccTokens } from '../../../theme';
+import { AdResultsDialog } from './AdResultsDialog';
+import { shortKey } from './adResultsModel';
 import { formatDay, pageSx, StudioHeader } from './socialParts';
 import { useStudioPaths } from './studioPaths';
 
@@ -200,6 +204,62 @@ function SpendPanel({ data }: { data: NumbersPage }) {
   );
 }
 
+/** Dash #182: boosts read from a pasted results page, cheapest extra unit first. */
+function AdsPanel({ data }: { data: NumbersPage }) {
+  const [pasting, setPasting] = useState(false);
+  const ads = [...data.ads].sort((a, b) => {
+    const ca = a.read?.cost_per_extra_unit != null ? Number(a.read.cost_per_extra_unit) : Infinity;
+    const cb = b.read?.cost_per_extra_unit != null ? Number(b.read.cost_per_extra_unit) : Infinity;
+    return ca - cb || b.start.localeCompare(a.start);
+  });
+  return (
+    <Panel
+      title="Ads"
+      hint="Units a day in the ad's categories, during the ad against the 28 days before. Not proof."
+      action={data.can_spend ? <Button size="small" onClick={() => setPasting(true)}>Paste ad results</Button> : undefined}
+    >
+      {ads.length ? ads.map((ad) => {
+        const watched = ad.read?.rows.filter((r) => r.watched) ?? [];
+        const context = ad.read?.rows.filter((r) => !r.watched) ?? [];
+        const rate = (r: AdReadRow) => `${shortKey(r.key)} ${r.per_day_before} → ${r.per_day_during}/day${r.change != null ? ` (${signedPct(r.change)})` : ''}`;
+        const unsorted = watched.find((r) => (r.no_sub_pct ?? 0) >= 50);
+        return (
+          <Box key={ad.id} sx={{ py: 0.6, borderTop: `1px solid ${ccTokens.line}` }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'baseline' }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 600, flex: 1, minWidth: 0 }} noWrap>
+                {formatDay(ad.start)}{ad.end && ad.end !== ad.start ? `-${formatDay(ad.end)}` : ''} · {ad.post_label || ad.post_text || ad.ad_type}
+              </Typography>
+              <Typography sx={{ fontSize: 13.5, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                ${ad.spent}
+                {ad.read?.cost_per_extra_unit ? <b> · ${ad.read.cost_per_extra_unit}/extra unit</b> : null}
+              </Typography>
+            </Box>
+            {/* Two lines held either way, so a read arriving never moves the rows below. */}
+            <Typography sx={{ fontSize: 12.5, lineHeight: '18px', minHeight: 36, color: ccTokens.ink2, fontVariantNumeric: 'tabular-nums' }}>
+              {ad.read ? <b>{watched.map(rate).join(' · ')}</b> : 'No sales data yet'}
+              {ad.read && context.length ? ` · ${context.map(rate).join(' · ')}` : ''}
+              {ad.read && (ad.results.reach ?? null) != null ? ` · reach ${ad.results.reach!.toLocaleString()}` : ''}
+            </Typography>
+            {ad.read?.overlaps.length || unsorted ? (
+              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.25 }}>
+                {ad.read?.overlaps.length ? (
+                  <Chip size="small" color="warning" variant="outlined" sx={{ height: 'auto', '& .MuiChip-label': { whiteSpace: 'normal', py: 0.25 } }}
+                    label={`Another ad ran in its days or the 28 before (${ad.read.overlaps.map((o) => formatDay(o.start)).join(', ')})`} />
+                ) : null}
+                {unsorted ? (
+                  <Chip size="small" color="warning" variant="outlined" sx={{ height: 'auto', '& .MuiChip-label': { whiteSpace: 'normal', py: 0.25 } }}
+                    label={`${unsorted.no_sub_pct}% of ${unsorted.key.split(' › ')[0]} sales have no subcategory: ${shortKey(unsorted.key)} rests on ${unsorted.sold} sold`} />
+                ) : null}
+              </Box>
+            ) : null}
+          </Box>
+        );
+      }) : <Typography sx={{ fontSize: 13, color: ccTokens.ink2 }}>No ads yet.</Typography>}
+      {pasting ? <AdResultsDialog open onClose={() => setPasting(false)} /> : null}
+    </Panel>
+  );
+}
+
 export default function SocialNumbersPage() {
   const theme = useTheme();
   const desk = useMediaQuery(theme.breakpoints.up('md'));
@@ -309,11 +369,11 @@ export default function SocialNumbersPage() {
       <StudioHeader title="Numbers" actions={weeksPicker} />
       {desk ? (
         <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(340px, 1fr)', gap: 2, alignItems: 'start' }}>
-          <Box sx={{ minWidth: 0 }}>{due}{hits}</Box>
+          <Box sx={{ minWidth: 0 }}>{due}<AdsPanel data={data} />{hits}</Box>
           <Box sx={{ minWidth: 0 }}>{read}{groups}<SpendPanel data={data} /></Box>
         </Box>
       ) : (
-        <Box>{due}{read}{hits}{groups}<SpendPanel data={data} /></Box>
+        <Box>{due}<AdsPanel data={data} />{read}{hits}{groups}<SpendPanel data={data} /></Box>
       )}
       <Typography sx={{ fontSize: 12, color: ccTokens.ink3 }}>
         Numbers are typed from Facebook for now; they come in by themselves once the Meta app is set up.{' '}

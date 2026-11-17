@@ -16,6 +16,7 @@ from apps.webstore.services.hours import get_hours_config, is_open_day
 
 from .models import MarketingSpend, SocialPhoto, SocialPost, SocialPostPhoto
 from .services import cadence
+from .services import ads as ad_results
 from .services.channels import mark_channel_posted
 from .services.ideas import IdeasError, apply_idea, request_ideas, rewrite
 from .services.numbers import NumbersError, add_spend, insights, numbers_payload, save_numbers, spend_payload
@@ -464,3 +465,47 @@ def photo_image(request, pk):
 def tag_lookup(request, sku):
     """Scan a tag: the item's overlay facts (price, checked retail, today's ThriftBucks, 3-day returns or AS IS)."""
     return Response(lookup(sku))
+
+
+# ── Ad results dump (Dash #182) ──────────────────────────────────────────────
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def ad_read(request):
+    """The owner's paste of an ad results page: the AI's draft and what it matched. Nothing is saved."""
+    try:
+        draft, model = ad_results.read_paste(str(request.data.get('text') or ''))
+    except ad_results.AdError as exc:
+        return _err(exc.detail, exc.code)
+    return Response({'draft': draft, 'match': ad_results.match(draft), 'model': model})
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
+def ads(request):
+    """GET: the ads with their read. POST: save the (edited) draft; multipart sends it as `data` JSON plus `photos`."""
+    if request.method == 'GET':
+        return Response({'ads': ad_results.ads_list(_today())})
+    import json
+
+    data = request.data.get('data')
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except ValueError:
+            return _err('That ad did not come through. Try again.', 'BAD_DATA')
+    elif data is None:
+        data = request.data
+    files = request.FILES.getlist('photos') if hasattr(request, 'FILES') else []
+    from django.db import transaction
+
+    try:
+        with transaction.atomic():
+            ad = ad_results.save_ad(data, user=request.user, photos=files)
+    except ad_results.AdError as exc:
+        return _err(exc.detail, exc.code)
+    except PhotoError as exc:
+        return _err(exc.detail, exc.code)
+    return Response(ad_results.ad_payload(ad, _today()), status=201)

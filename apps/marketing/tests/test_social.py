@@ -205,7 +205,9 @@ class PostFlowTests(TestCase):
         self.assertIsNone(owner.post(url, {'rating': ''}).data['rating'])
 
     def test_week_endpoint_and_swap(self):
-        res = self.client.get(f'/api/marketing/week/?start={(MONDAY + timedelta(days=7)).isoformat()}')
+        # Next week from today: the week view only makes posts for days still to come.
+        start = cadence.week_start(timezone.localdate()) + timedelta(days=7)
+        res = self.client.get(f'/api/marketing/week/?start={start.isoformat()}')
         self.assertEqual(res.status_code, 200)
         posts = [day['post'] for day in res.data['days'] if day['post']]
         self.assertEqual(len(posts), 6)

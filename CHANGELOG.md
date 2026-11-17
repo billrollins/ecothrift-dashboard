@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.310.0] -->
-<!-- Last reviewed: 2026-11-17 (2.310.0) -->
+<!-- Line 1 release: ## [2.311.0] -->
+<!-- Last reviewed: 2026-11-17 (2.311.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.311.0] - 2026-11-17
+
+User-facing theme: **Ad results dump: paste a whole ad results page, the AI builds the ad with its dates, budget, spend, goal, results and the categories to watch, and Dash shows whether those categories sold more while it ran (Dash Update #182).**
+
+> **For Bill:** On the Owner page, the Social card has **Paste ad results** (the Numbers page's new Ads panel has it too). On Facebook, open the ad's View results, select all, copy, paste, tap **Read it**. One card fills: start, end, spent, daily budget, goal, reach, views, engagements, link clicks and the rest, the audience (place, ages, women/men), and **Watch**: the categories the post sells, with percents that must add to 100 (or tap **ALL** for the whole store). Fix anything, then **Save ad**. Paste the same ad again later and it updates, never doubles. If the post isn't in Social Studio, the card asks for its photos (and its text, if the paste had none). The **Ads** panel on Numbers lists every ad, cheapest extra unit first: units a day in its categories during the ad against the 28 days before, its category and the whole store beside it, and **$ per extra unit sold**. The Owner card shows the top ad. Two flags: another ad running in the same days, and a subcategory most sales don't carry yet (80% of Toys & games sales have no subcategory, so "Board games" rests on few items). Game Night on prod, Nov 13-16 (open days): Board games & puzzles 0.9 → 3.8 a day, Toys & games 36.5 → 39.8, whole store 180.9 → 186.8. Nothing about who made the ad, the ad account or payment is sent to the AI or kept.
+
+### Added (Ad results dump, Dash Update #182)
+- `MarketingSpend` (migration `marketing 0006_ad_results`): `end_day`, `daily_budget`, `goal`, `audience`, `results`, `category_weights`, `post_text`, `photos` (M2M `SocialPhoto`); a boost row is the ad. The AI purpose `AD_RESULTS` seeded on Spark Contributor.
+- `apps/marketing/services/ads.py`: scrub (cuts created by / ad account / payment lines, masks card numbers, emails, phones), the AI read (one forced tool call), category weights (real taxonomy keys, sum 100 or ALL), match to a saved ad and a Studio post, save/update, the read per open day with context rows, overlap and no-subcategory flags, the top ad. `POST /api/marketing/ads/read/`, `GET/POST /api/marketing/ads/` (owner); `ads` on the Numbers page, `top_ad` on the Owner Social card.
+- Frontend: `pages/studios/social/AdResultsDialog.tsx` + `adResultsModel.ts`; the Ads panel on `SocialNumbersPage.tsx`; Paste ad results and the top ad on the Owner page's Social card.
+- Tests: `apps/marketing/tests/test_ads.py`; `AdResultsDialog.test.tsx`; `test_ai_settings.py` counts the new purpose; `test_social.py`'s week test now asks for next week from today (its fixed date had passed, so it failed on main too).
 
 ## [2.310.0] - 2026-11-17
 
