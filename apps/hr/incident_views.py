@@ -2,7 +2,7 @@
 
 Any staff member files a report on a phone right after something happens on site and sees their own; managers and
 the owner see every report, add follow-up notes and close or reopen one. The owner gets a Dash message on each new
-report. Nothing is deleted: an edit keeps the old text in the report's history.
+report, and the person in ``hr.incident_alerts_to`` (Bill) a text (#183). Nothing is deleted: an edit keeps the old text in the report's history.
 
     GET  /api/hr/incidents/                 {can_manage, reports: [...]}   ?status=open|closed
     POST /api/hr/incidents/                 multipart or JSON; ``photos`` files; ``map`` = {"plan", "x", "y"}
@@ -23,6 +23,7 @@ import json
 import logging
 from datetime import timedelta
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers, status, viewsets
@@ -42,6 +43,7 @@ MAX_PHOTOS = 8
 MAX_PHOTO_BYTES = 15 * 1024 * 1024
 INCIDENT_LAYER = 'incidents'
 PIN_REF_TYPE = 'hr.incident'
+ALERT_SETTING = 'hr.incident_alerts_to'
 ROLES = ('customer', 'visitor', 'staff', 'vendor', 'other')
 # Fields an edit may change, in the order the form shows them.
 EDITABLE = (
@@ -211,6 +213,38 @@ def notify_owner(report: IncidentReport) -> None:
             staff_messages.start_thread(reporter, subject=subject, body=body, to_user=owner, system=True)
         except Exception:  # noqa: BLE001 - the report is saved; the notice is a courtesy
             logger.exception('incident %s: owner notice failed', report.pk)
+    text_alert(report)
+
+
+def alert_user():
+    """Who gets the text for each new report (#183, "Report it to Bill"): the ``hr.incident_alerts_to`` setting, a
+    user id (Settings > People > Incidents; seeded with Bill). None when it is blank or that login is off."""
+    from apps.accounts.models import User
+    from apps.core.models import AppSetting
+
+    row = AppSetting.objects.filter(key=ALERT_SETTING).first()
+    try:
+        user_id = int(row.value) if row and row.value not in (None, '') else None
+    except (TypeError, ValueError):
+        return None
+    return User.objects.filter(pk=user_id, is_active=True).first() if user_id else None
+
+
+def text_alert(report: IncidentReport) -> None:
+    """Text the alert person on a new report (#183), from our number (``texting.send_staff_text``: held, and recorded,
+    while staff texts are off). Never when they filed it themselves. A failure never loses the report."""
+    from apps.texting import service as texting
+
+    try:
+        to = alert_user()
+        if to is None or to.pk == report.reported_by_id:
+            return
+        host = (getattr(settings, 'STAFF_DASHBOARD_HOST', '') or 'dash.ecothrift.us').strip()
+        body = (f'New incident report: {report.get_kind_display()}, {report.get_place_display()}. '
+                f'Filed by {_name(report.reported_by)}. https://{host}/hr/incidents?report={report.pk}')
+        texting.send_staff_text(phone=to.phone, key='incident_alert', body=body, ref=f'hr.incident:{report.pk}')
+    except Exception:  # noqa: BLE001
+        logger.exception('incident %s: alert text failed', report.pk)
 
 
 class IncidentReportViewSet(viewsets.GenericViewSet):

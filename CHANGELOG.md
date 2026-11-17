@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.311.0] -->
-<!-- Last reviewed: 2026-11-17 (2.311.0) -->
+<!-- Line 1 release: ## [2.312.0] -->
+<!-- Last reviewed: 2026-11-17 (2.312.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.312.0] - 2026-11-17
+
+User-facing theme: **Report it to Bill: every new incident report texts Bill at once, a "Report something" button sits in every staff top bar, and the Report It to Bill policy is ready to send for everyone's signature (Dash Update #183).**
+
+> **For Bill:** Every new incident report now texts you (it still lands in your Dash messages too). Who gets the text is Settings → People → **Incidents**, "Incident alerts go to", set to you. The text goes out from our number only while "Staff texts from our number" is on (Settings → People → Texts); until then it is kept as held. Every staff member has a small red **Report something** button in the top bar beside the bell: one tap opens the incident form, from any page. The policy "Report It to Bill the Same Day" is a document ready to send: HR → Requests → Documents → **Sent to everyone**, pick it, **Send**. The same panel shows who has signed, who hasn't, and who joined later.
+
+### Added (Report it to Bill, Dash Update #183)
+- `apps/hr/incident_views.py`: `text_alert` texts the `hr.incident_alerts_to` person (a user id) on each new report via `texting.send_staff_text` (key `incident_alert`; held while staff texts are off); never the person who filed it. The Dash message to owners is unchanged. The setting is owner-only (`core` `ADMIN_ONLY`).
+- Migration `hr 0028_report_to_bill`: seeds `hr.incident_alerts_to` with Bill's login, and the e-sign template "Report It to Bill the Same Day" (kind `policy`, the policy's words, one tick: "I have read this policy and will follow it."). Nothing is sent.
+- Settings: a `person` setting kind (pick from active staff, shows who has no phone on file); People → Incidents.
+- Frontend: `components/layout/ReportSomethingButton.tsx` (top bar, staff logins; the incident form in place) and its `useFileIncident` hook, now also used by Home → HR, whose button reads "Report something".
+- Tests: `apps/hr/tests/test_incidents.py` (alert text, owner-only setting, policy seed); `ReportSomethingButton.test.tsx`.
 
 ## [2.311.0] - 2026-11-17
 

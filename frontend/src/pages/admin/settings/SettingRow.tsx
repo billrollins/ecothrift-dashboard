@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createSetting, getSettingHistory, updateSetting } from '../../../api/core.api';
 import { isOwnerOnlyKey, type SettingKind, type SettingMeta } from './settingsRegistry';
 import { IconSave as Save } from '../../../icons/ecoIcons';
+import { useUsers } from '../../../hooks/useEmployees';
 
 const WEEKDAY_CHIPS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DEFAULT_SECTION_DAYS = [true, true, true, true, true, true, false];
@@ -214,6 +215,36 @@ const ROW_SX = (highlight?: boolean) => ({
   bgcolor: highlight ? 'action.selected' : undefined, transition: 'background-color 1s',
 } as const);
 
+/** One staff member, picked from the active staff; stored as their user id. Saves at once. */
+function PersonPicker({ settingKey, value, meta }: { settingKey: string; value: unknown; meta: SettingMeta }) {
+  const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
+  const { data } = useUsers({ is_active: true, staff: 1, page_size: 200 });
+  const people = data?.results ?? [];
+  const current = value == null || value === '' ? '' : String(value);
+  const save = async (raw: string) => {
+    const next = raw ? Number(raw) : '';
+    try {
+      try {
+        await updateSetting(settingKey, { value: next });
+      } catch {
+        await createSetting({ key: settingKey, value: next, description: meta.help });
+      }
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      enqueueSnackbar('Setting saved', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Failed to save setting', { variant: 'error' });
+    }
+  };
+  return (
+    <TextField select size="small" value={people.length ? current : ''} onChange={(e) => void save(e.target.value)}
+      label="Person" sx={{ minWidth: 220 }} inputProps={{ 'aria-label': meta.label }}>
+      <MenuItem value="">No one</MenuItem>
+      {people.map((p) => <MenuItem key={p.id} value={String(p.id)}>{p.full_name || p.email}{p.phone ? '' : ' (no phone on file)'}</MenuItem>)}
+    </TextField>
+  );
+}
+
 /** A list of words or codes as chips: add with Enter, remove with the x. Saves at once. */
 function ListEditor({ settingKey, value, meta }: { settingKey: string; value: unknown; meta: SettingMeta }) {
   const { enqueueSnackbar } = useSnackbar();
@@ -301,6 +332,21 @@ export function SettingRow({
         </Box>
         <Box sx={{ flex: '1 1 240px' }}>
           <ListEditor settingKey={settingKey} value={value} meta={meta} />
+        </Box>
+      </Box>
+    );
+  }
+
+  if (meta.kind === 'person') {
+    return (
+      <Box id={anchor} sx={ROW_SX(highlight)}>
+        <Box sx={{ flex: '1 1 200px' }}>
+          <Title settingKey={settingKey} label={meta.label} />
+          <Typography variant="body2" color="text.secondary">{help}</Typography>
+          <ChangedLine settingKey={settingKey} kind={meta.kind} changedBy={changedBy} changedAt={changedAt} />
+        </Box>
+        <Box sx={{ flex: '1 1 240px' }}>
+          <PersonPicker settingKey={settingKey} value={value} meta={meta} />
         </Box>
       </Box>
     );

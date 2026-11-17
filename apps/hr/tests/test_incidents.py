@@ -191,3 +191,66 @@ class IncidentReportTests(APITestCase):
         customer = User.objects.create_user(email='c@x.com', password='pass1234', first_name='C', last_name='U')
         self.client.force_authenticate(customer)
         self.assertEqual(self.client.get('/api/hr/incidents/').status_code, 403)
+
+
+class IncidentAlertTextTests(APITestCase):
+    """#183 "Report it to Bill": every new report texts the person in ``hr.incident_alerts_to`` (Bill), only them."""
+
+    def setUp(self):
+        from apps.core.models import AppSetting
+
+        self.bill = User.objects.create_superuser(email='bill@x.com', password='pass1234', first_name='Bill',
+                                                  last_name='R', phone='4025550101')
+        self.other_owner = User.objects.create_superuser(email='sam@x.com', password='pass1234', first_name='Sam',
+                                                         last_name='R', phone='4025550102')
+        self.carrie = _person('carrie@x.com')
+        AppSetting.objects.update_or_create(key='hr.incident_alerts_to', defaults={'value': self.bill.pk})
+
+    def _file(self, who):
+        self.client.force_authenticate(who)
+        with self.captureOnCommitCallbacks(execute=True):
+            res = self.client.post('/api/hr/incidents/', _report(), format='json')
+        self.assertEqual(res.status_code, 201, res.content)
+        return res.json()
+
+    def test_a_new_report_texts_bill_only(self):
+        from apps.texting.models import TextMessage
+
+        report = self._file(self.carrie)
+        text = TextMessage.objects.get()
+        self.assertEqual((text.phone, text.key, text.ref), ('4025550101', 'incident_alert', f'hr.incident:{report["id"]}'))
+        self.assertIn('New incident report: Fall or slip, Stairs or back hallway.', text.body)
+        self.assertIn(f'/hr/incidents?report={report["id"]}', text.body)
+        # Tests never text: recorded as held. Both owners still get the Dash message.
+        self.assertEqual(text.status, TextMessage.STATUS_HELD)
+        self.assertEqual(StaffThread.objects.count(), 2)
+
+    def test_no_text_when_bill_files_it_or_no_one_is_set(self):
+        from apps.core.models import AppSetting
+        from apps.texting.models import TextMessage
+
+        self._file(self.bill)
+        self.assertFalse(TextMessage.objects.exists())
+        AppSetting.objects.filter(key='hr.incident_alerts_to').update(value='')
+        self._file(self.carrie)
+        self.assertFalse(TextMessage.objects.exists())
+
+    def test_only_the_owner_changes_who_gets_it(self):
+        self.client.force_authenticate(_person('manager@x.com', 'Manager'))
+        res = self.client.patch('/api/core/settings/hr.incident_alerts_to/', {'value': self.carrie.pk}, format='json')
+        self.assertEqual(res.status_code, 403)
+
+
+class ReportToBillPolicyTests(APITestCase):
+    """#183: the policy is seeded as an e-sign template (kind policy), not sent; Bill sends it to everyone."""
+
+    def test_the_policy_template_is_seeded(self):
+        from apps.esign.models import Batch, Template
+
+        template = Template.objects.get(name='Report It to Bill the Same Day')
+        version = template.latest
+        self.assertEqual((template.kind, version.number), ('policy', 1))
+        self.assertEqual(version.acknowledgments, ['I have read this policy and will follow it.'])
+        text = ' '.join(s['body'] for s in version.sections)
+        self.assertIn('Telling a coworker, a manager or another owner does not count as reporting it to Bill.', text)
+        self.assertFalse(Batch.objects.exists())

@@ -57,6 +57,8 @@ class AppSettingViewSet(viewsets.ModelViewSet):
         'pos.discount_cap_percent', 'pos.close_note_over',
         # The recovery estimate switch (inventory review phase 4, 2026-10-28): the owner turns it on.
         'inventory_recovery_estimate',
+        # Who is texted on every new incident report (#183, "Report it to Bill").
+        'hr.incident_alerts_to',
     }
 
     def _owner_only(self, key: str) -> None:

@@ -48,6 +48,8 @@ export type SettingKind =
   | 'money'
   // A date (YYYY-MM-DD), or blank.
   | 'date'
+  // A staff member (stored as their user id), chosen from the active staff.
+  | 'person'
   // A list of words or codes, edited as chips.
   | 'list'
   // HTML, edited as text with a live preview.
@@ -256,6 +258,13 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'people',
     kind: 'switch',
     defaultValue: false,
+  },
+  // Dash Update #183 (Bill 2026-11-17, "Report it to Bill"): texted on every new incident report.
+  'hr.incident_alerts_to': {
+    label: 'Incident alerts go to',
+    help: 'Texted on every new incident report, from our number (with staff texts on). Owners still get the Dash message.',
+    tab: 'people',
+    kind: 'person',
   },
   // Edited by its own page or panel; never a row here.
   'hiring.careers': { label: 'Careers page', help: 'Edited in People → Jobs.', tab: 'people', kind: 'hidden' },
@@ -1027,7 +1036,8 @@ export function isHiddenKey(key: string): boolean {
 
 /** Only the owner changes these (the server refuses anyone else): Thrift+, staff purchases, the register's sales, the Owner page. */
 export function isOwnerOnlyKey(key: string): boolean {
-  return key.startsWith('thrift_plus_') || key.startsWith('owner.') || key === 'pos.staff_purchases' || OWNER_SALE_KEYS.has(key);
+  return key.startsWith('thrift_plus_') || key.startsWith('owner.') || key === 'pos.staff_purchases' || key === 'hr.incident_alerts_to'
+    || OWNER_SALE_KEYS.has(key);
 }
 
 const OWNER_SALE_KEYS = new Set([

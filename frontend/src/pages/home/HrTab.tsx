@@ -33,7 +33,7 @@ import type { SvgIconProps } from '@mui/material/SvgIcon';
 import EventBusyRounded from '@mui/icons-material/EventBusyRounded';
 import ReportGmailerrorredRounded from '@mui/icons-material/ReportGmailerrorredRounded';
 import SchoolRounded from '@mui/icons-material/SchoolRounded';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { format, parseISO } from 'date-fns';
 import { es as esLocale } from 'date-fns/locale';
@@ -49,7 +49,8 @@ import { t as tRoutines } from '../../i18n/routines';
 import { getMyCheckins, getMyHrFilePdf, getMyHrFiles, getMyOnboarding, type MyHrFiles } from '../../api/hiring.api';
 import { getHrQuestions, getModificationRequests, getTimeEntries, type HrQuestion, type ModificationRequest } from '../../api/hr.api';
 import { getScheduleRequests, type ScheduleRequest } from '../../api/schedule.api';
-import { createIncident, getIncidents, type IncidentSummary, type IncidentWrite } from '../../api/incidents.api';
+import { getIncidents, type IncidentSummary } from '../../api/incidents.api';
+import { REPORT_SOMETHING, useFileIncident } from '../../components/layout/ReportSomethingButton';
 import { listMine, type MyDocument } from '@/esign/api';
 import { MY_ESIGN_KEY } from '../esign/MyEsignDocuments';
 import { AskDialog, RequestTimelineDialog, useRequestCopy } from '../people/ScheduleRequests';
@@ -83,7 +84,7 @@ const COPY = {
   requestsHint: { en: 'Start one here and see where each one stands', es: 'Empieza una aquí y mira cómo va cada una' },
   timeOff: { en: 'Time off', es: 'Día libre' },
   timeFix: { en: 'Fix a shift', es: 'Corregir un turno' },
-  incident: { en: 'Report an incident', es: 'Reportar un incidente' },
+  incident: REPORT_SOMETHING,
   noRequests: { en: 'No requests yet', es: 'Todavía no hay solicitudes' },
   noRequestsBody: {
     en: 'Ask for a day off, fix a shift you clocked wrong, or report something that happened. Each one shows here with its answer.',
@@ -524,29 +525,12 @@ function useHrTabData() {
 
 function HrTabBody() {
   const { t, day } = useCopy();
-  const { enqueueSnackbar } = useSnackbar();
-  const incidentCopy = useIncidentCopy();
   const queryClient = useQueryClient();
   const data = useHrTabData();
   const [starting, setStarting] = useState<'off' | 'fix' | 'incident' | null>(null);
   const [fixing, setFixing] = useState<TimeEntry | null>(null);
-  const [incidentError, setIncidentError] = useState('');
+  const file = useFileIncident(() => setStarting(null));
   const today = format(new Date(), 'yyyy-MM-dd');
-
-  const report = useMutation({
-    mutationFn: async ({ payload, photos }: { payload: IncidentWrite; photos: File[] }) => (await createIncident(payload, photos)).data,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['incidents', 'list'] });
-      void queryClient.invalidateQueries({ queryKey: ['store-map'] });
-      enqueueSnackbar(incidentCopy.t('sent'), { variant: 'success' });
-      setStarting(null);
-    },
-    onError: (err) => {
-      const body = (err as { response?: { data?: Record<string, unknown> } })?.response?.data;
-      const first = body ? Object.values(body)[0] : undefined;
-      setIncidentError(Array.isArray(first) ? String(first[0]) : typeof first === 'string' ? first : incidentCopy.t('couldNot'));
-    },
-  });
 
   if (data.loading) {
     return <Box sx={{ display: 'grid', placeItems: 'center', py: 8 }}><CircularProgress /></Box>;
@@ -589,13 +573,10 @@ function HrTabBody() {
       <IncidentForm
         open={starting === 'incident'}
         report={null}
-        busy={report.isPending}
-        error={incidentError}
+        busy={file.busy}
+        error={file.error}
         onClose={() => setStarting(null)}
-        onSubmit={(payload, photos) => {
-          setIncidentError('');
-          return report.mutateAsync({ payload, photos });
-        }}
+        onSubmit={file.submit}
       />
     </Stack>
   );

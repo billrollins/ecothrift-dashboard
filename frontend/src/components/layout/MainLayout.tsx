@@ -33,6 +33,7 @@ import { RESTORATION_BENCH_PATH } from '../../pages/restoration/restorationRoute
 import { ClockPill } from './ClockPill';
 import { TOP_BAR_SLOT_ID, TopBarBannerHost } from './TopBarBanners';
 import { NotificationBell } from './NotificationBell';
+import { ReportSomethingButton } from './ReportSomethingButton';
 import { AccountMenu } from './AccountMenu';
 import { useDashboardTab } from '../../navigation/dashboardTabs';
 import { hasRunner } from '../../pages/routines/todayRunner';
@@ -242,10 +243,11 @@ export default function MainLayout() {
               >
                 <TopBarBannerHost />
               </Box>
-              {/* Top bar = right now: the clock, the one bell, me. */}
+              {/* Top bar = right now: the clock, report something (#183), the one bell, me. */}
               {user ? (
                 <>
                   <ClockPill />
+                  <ReportSomethingButton />
                   <NotificationBell />
                   <AccountMenu />
                 </>
