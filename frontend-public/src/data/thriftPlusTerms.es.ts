@@ -138,7 +138,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
       num: 'D.3',
       what: 'Correo electrónico',
       short:
-        'Recibos, novedades de Thrift+ y enlaces para iniciar sesión. Noticias de la tienda que puede desactivar. Mensajes de texto solo con los códigos para iniciar sesión que usted pida.',
+        'Recibos, novedades de Thrift+ y enlaces para iniciar sesión. Noticias de la tienda que puede desactivar. Mensajes de texto solo con los códigos y enlaces para iniciar sesión que usted pida.',
       section: 10,
     },
   ],
@@ -212,7 +212,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
   fullIntro: {
     label: 'Términos de la membresía Thrift+.',
     text: 'EcoThrift LLC, 8425 West Center Road, Omaha, NE 68124 · (402) 881-9861',
-    version: 'Versión: 3 de noviembre de 2026.',
+    version: 'Versión: 18 de noviembre de 2026.',
   },
 
   sections: [
@@ -413,7 +413,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
         {
           n: '10.3',
           label: 'Correo electrónico.',
-          text: 'Es opcional. Si nos lo da, le enviamos recibos y novedades de Thrift+, y noticias de la tienda que puede desactivar en cualquier momento (con el enlace para darse de baja en cada correo de noticias, en Mi cuenta o en cualquier caja). Los únicos mensajes de texto que enviamos son los códigos para iniciar sesión que usted pida. Nunca vendemos ni compartimos su número de celular.',
+          text: 'Es opcional. Si nos lo da, le enviamos recibos y novedades de Thrift+, y noticias de la tienda que puede desactivar en cualquier momento (con el enlace para darse de baja en cada correo de noticias, en Mi cuenta o en cualquier caja). Los únicos mensajes de texto que enviamos son los códigos y los enlaces para iniciar sesión que usted pida, en la aplicación o a un cajero. Nunca vendemos ni compartimos su número de celular.',
         },
         {
           n: '10.4',

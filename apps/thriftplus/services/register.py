@@ -1042,9 +1042,12 @@ def code_member(query: str) -> dict | None:
 
 
 # J5: the words the customer agrees to (a tap since 2026-11-03), and the terms version they cover (ecothrift.us/terms,
-# "Version: November 3, 2026"). A new terms version changes this.
+# "Version: November 18, 2026"). A new terms version changes this.
 SIGNATURE_WORDS = 'I agree to the Thrift+ terms and photo release. I can read them at ecothrift.us/terms.'
-TERMS_VERSION = '2026-11-03'  # the terms as of J5's change (a tap on I agree, no signature)
+TERMS_VERSION = '2026-11-18'  # 11-18: section 10.3 covers a texted sign-in link too (J18 switch-on); 11-03: I agree, no signature
+# The first terms that cover a sign-in link texted by staff (10.3). Only people who agreed to these, or later, can be
+# texted one (``member_auth.can_text_link``); everyone else uses the Sign-in QR. Codes they ask for were always covered.
+TEXT_LINK_TERMS_VERSION = '2026-11-18'
 SIGNATURE_MAX_BYTES = 1_000_000
 
 

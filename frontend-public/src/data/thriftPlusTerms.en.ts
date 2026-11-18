@@ -107,7 +107,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
     {
       num: 'D.3',
       what: 'Email',
-      short: 'Receipts, Thrift+ updates and sign-in links. Store news you can turn off. Texts only for sign-in codes you ask for.',
+      short: 'Receipts, Thrift+ updates and sign-in links. Store news you can turn off. Texts only for sign-in codes and links you ask for.',
       section: 10,
     },
   ],
@@ -181,7 +181,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
   fullIntro: {
     label: 'Thrift+ Membership Terms.',
     text: 'EcoThrift LLC, 8425 West Center Road, Omaha, NE 68124 · (402) 881-9861',
-    version: 'Version: November 3, 2026.',
+    version: 'Version: November 18, 2026.',
   },
 
   sections: [
@@ -379,7 +379,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
         {
           n: '10.3',
           label: 'Email.',
-          text: "An email is optional. If you give one, we send receipts and Thrift+ updates, and store news that you can turn off at any time (the unsubscribe link in every store news email, My account, or any register). The only text messages we send are sign-in codes you ask for. We never sell or share your mobile number.",
+          text: "An email is optional. If you give one, we send receipts and Thrift+ updates, and store news that you can turn off at any time (the unsubscribe link in every store news email, My account, or any register). The only text messages we send are sign-in codes and sign-in links you ask for, in the app or from a cashier. We never sell or share your mobile number.",
         },
         {
           n: '10.4',

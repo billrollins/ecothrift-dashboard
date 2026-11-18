@@ -545,11 +545,15 @@ TEXT_LINK_OFF_TEXT = 'Texting a sign-in link is not on.'
 
 
 def can_text_link(person: Person) -> bool:
-    """Staff may text this person a sign-in link: the own-number switch is on, they have a US phone, and it has not said
-    STOP. (Whether the text really leaves is the sender's own gate, ``texting.sender_ready``.)"""
+    """Staff may text this person a sign-in link: the own-number switch is on, they have a US phone, it has not said
+    STOP, and they agreed to terms that cover a texted link (10.3 since 2026-11-18; before that the terms covered codes
+    only, so those members use the Sign-in QR). (Whether the text really leaves is the sender's own gate,
+    ``texting.sender_ready``.)"""
     from apps.texting import service as texting
+    from apps.thriftplus.services.register import TEXT_LINK_TERMS_VERSION
 
-    return bool(texting.own_number_on() and texting.digits(person.phone) and not texting.stopped(person.phone))
+    return bool(texting.own_number_on() and texting.digits(person.phone) and not texting.stopped(person.phone)
+                and (person.signed_terms_version or '') >= TEXT_LINK_TERMS_VERSION)
 
 
 def text_sign_in_link(person: Person, *, base_url: str, user=None):
@@ -561,6 +565,9 @@ def text_sign_in_link(person: Person, *, base_url: str, user=None):
 
     if not texting.own_number_on():
         raise AuthError('TEXT_LINK_OFF', TEXT_LINK_OFF_TEXT)
+    from apps.thriftplus.services.register import TEXT_LINK_TERMS_VERSION
+    if (person.signed_terms_version or '') < TEXT_LINK_TERMS_VERSION:
+        raise AuthError('TEXT_LINK_OFF', 'They joined before texted links were in the terms. Use the Sign-in QR.')
     number = texting.digits(person.phone)
     if not number:
         raise AuthError('NO_PHONE', 'Add their mobile number first.')

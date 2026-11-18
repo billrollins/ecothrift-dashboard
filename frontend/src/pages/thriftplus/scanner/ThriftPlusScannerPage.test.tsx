@@ -672,7 +672,7 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
     expect(done).toHaveTextContent('Show your member QR at the register.');
     expect(thriftPlusMockControls.finished()).toMatchObject([
       { step: 'selfie' },
-      { step: 'sign', terms_version: '2026-11-03' },
+      { step: 'sign', terms_version: '2026-11-18' },
     ]);
     await user.click(within(done).getByRole('button', { name: 'Done' }));
     const wallet = await screen.findByTestId('wallet-screen');

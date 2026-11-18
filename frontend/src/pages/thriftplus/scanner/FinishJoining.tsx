@@ -21,7 +21,7 @@ import { useFinishJoining } from './useThriftPlus';
 import SelfieCamera, { selfieCameraAvailable } from './SelfieCamera';
 
 /** The terms' version, as the server records it (apps/thriftplus/services/register.py TERMS_VERSION). */
-export const TERMS_VERSION = '2026-11-03'; // matches the server's register.TERMS_VERSION (the terms of 11-03: I agree)
+export const TERMS_VERSION = '2026-11-18'; // matches the server's register.TERMS_VERSION (11-18: 10.3 texted sign-in links)
 
 function words(e: unknown, fallback: string): string {
   return e instanceof Error && e.message ? e.message : fallback;

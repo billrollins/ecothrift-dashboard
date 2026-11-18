@@ -346,6 +346,20 @@ class TextSignInLinkTests(OwnNumberMixin, TestCase):
         self.staff.force_authenticate(clerk)
         self.member = members.create_account(first_name='Ana', last_name='Bell', phone=PHONE, id_checked=True,
                                              verified_18=True).people.get()
+        self._agree(self.member)
+
+    @staticmethod
+    def _agree(person, version=None):
+        """They agreed to terms that cover a texted link (10.3 since 2026-11-18)."""
+        from django.utils import timezone
+        from apps.thriftplus.services.register import TERMS_VERSION
+        person.signed_at, person.signed_terms_version = timezone.now(), version or TERMS_VERSION
+        person.save(update_fields=['signed_at', 'signed_terms_version', 'updated_at'])
+
+    def test_a_member_who_agreed_before_texted_links_were_in_the_terms_is_not_texted_one(self):
+        self._agree(self.member, '2026-11-03')
+        self.assertFalse(self._row()['can_text_link'])
+        self.assertEqual(self._text().status_code, 400)
 
     def _text(self, person=None):
         return self.staff.post(f'/api/thriftplus/people/{(person or self.member).pk}/text-link/', {}, format='json')

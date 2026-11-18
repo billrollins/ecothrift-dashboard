@@ -1,14 +1,12 @@
-v2.312.0 — Report it to Bill: incident texts, one-tap Report something, policy to sign
+v2.313.0 — Thrift+ terms cover texts from our own number (sign-in codes and links)
 
-User-facing theme: **Report it to Bill: every new incident report texts Bill at once, a "Report something" button sits in every staff top bar, and the Report It to Bill policy is ready to send for everyone's signature (Dash Update #183).**
+User-facing theme: **Thrift+ sign-in codes can now come from our own number, (888) 812-7905: the terms cover it.**
 
-> **For Bill:** Every new incident report now texts you (it still lands in your Dash messages too). Who gets the text is Settings → People → **Incidents**, "Incident alerts go to", set to you. The text goes out from our number only while "Staff texts from our number" is on (Settings → People → Texts); until then it is kept as held. Every staff member has a small red **Report something** button in the top bar beside the bell: one tap opens the incident form, from any page. The policy "Report It to Bill the Same Day" is a document ready to send: HR → Requests → Documents → **Sent to everyone**, pick it, **Send**. The same panel shows who has signed, who hasn't, and who joined later.
+> **For Bill:** Sign-in codes were costing about 6 cents each through Twilio Verify ($36 so far in November). The Thrift+ terms (section 10.3) now cover codes and sign-in links texted from our own toll-free number, so the switch "thrift_plus.own_number_codes" can go on; codes then cost about a penny. Members who joined before today are not asked to agree again; staff can text a sign-in link only to members who joined under the new terms, and everyone else uses the Sign-in QR as before. A phone stays signed in for a year, renewed each time it is used.
 
-### Added (Report it to Bill, Dash Update #183)
-- `apps/hr/incident_views.py`: `text_alert` texts the `hr.incident_alerts_to` person (a user id) on each new report via `texting.send_staff_text` (key `incident_alert`; held while staff texts are off); never the person who filed it. The Dash message to owners is unchanged. The setting is owner-only (`core` `ADMIN_ONLY`).
-- Migration `hr 0028_report_to_bill`: seeds `hr.incident_alerts_to` with Bill's login, and the e-sign template "Report It to Bill the Same Day" (kind `policy`, the policy's words, one tick: "I have read this policy and will follow it."). Nothing is sent.
-- Settings: a `person` setting kind (pick from active staff, shows who has no phone on file); People → Incidents.
-- Frontend: `components/layout/ReportSomethingButton.tsx` (top bar, staff logins; the incident form in place) and its `useFileIncident` hook, now also used by Home → HR, whose button reads "Report something".
-- Tests: `apps/hr/tests/test_incidents.py` (alert text, owner-only setting, policy seed); `ReportSomethingButton.test.tsx`.
+### Changed (Thrift+ texts from our own number: the terms)
+- **Thrift+ terms, section 10.3 (English and Spanish), version November 18, 2026:** the texts we send are sign-in codes and sign-in links the member asks for, in the app or from a cashier (before: codes only). New joins agree to this version (`register.TERMS_VERSION` 2026-11-18).
+- **Text sign-in link (Staff app)** is offered only for members who agreed to the November 18 terms or later. Members who joined before keep the Sign-in QR; nobody is asked to agree again.
+- No change to how codes work or how long a phone stays signed in (one year, renewed on use).
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>

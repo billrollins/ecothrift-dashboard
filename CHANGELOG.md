@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.312.0] -->
-<!-- Last reviewed: 2026-11-17 (2.312.0) -->
+<!-- Line 1 release: ## [2.313.0] -->
+<!-- Last reviewed: 2026-11-18 (2.313.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.313.0] - 2026-11-18
+
+User-facing theme: **Thrift+ sign-in codes can now come from our own number, (888) 812-7905: the terms cover it.**
+
+> **For Bill:** Sign-in codes were costing about 6 cents each through Twilio Verify ($36 so far in November). The Thrift+ terms (section 10.3) now cover codes and sign-in links texted from our own toll-free number, so the switch "thrift_plus.own_number_codes" can go on; codes then cost about a penny. Members who joined before today are not asked to agree again; staff can text a sign-in link only to members who joined under the new terms, and everyone else uses the Sign-in QR as before. A phone stays signed in for a year, renewed each time it is used.
+
+### Changed (Thrift+ texts from our own number: the terms)
+- **Thrift+ terms, section 10.3 (English and Spanish), version November 18, 2026:** the texts we send are sign-in codes and sign-in links the member asks for, in the app or from a cashier (before: codes only). New joins agree to this version (`register.TERMS_VERSION` 2026-11-18).
+- **Text sign-in link (Staff app)** is offered only for members who agreed to the November 18 terms or later. Members who joined before keep the Sign-in QR; nobody is asked to agree again.
+- No change to how codes work or how long a phone stays signed in (one year, renewed on use).
 
 ## [2.312.0] - 2026-11-17
 
