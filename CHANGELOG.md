@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.317.0] -->
-<!-- Last reviewed: 2026-11-19 (2.317.0) -->
+<!-- Line 1 release: ## [2.318.0] -->
+<!-- Last reviewed: 2026-11-19 (2.318.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.318.0] - 2026-11-19
+
+User-facing theme: **Applications show flags, and the interview invite can call them out.**
+
+> **For Bill:** Each application now shows amber flags when the answers don't match the job: pay asked above the $15 start ("Asks $22 (starts at $15)"), hours or days that don't fit, or a late start date. They show on the card and as tiny marks in the list; they never block anything. When you send the interview link, the review now has "Things to call out": one ready paragraph per flag (the pay one explains the 90 days at $15, then Entry / Senior / Lead). Untick one, change its words, or add your own line before you press Send. With nothing ticked, the email reads as before. The paragraphs are edited once in People → Emails → Interview link.
+
+User-facing theme: **Applications show flags, and the interview invite can call them out.** (Dash Update #184, HR)
+
+> **For Bill:** Each application now shows amber flags when the answers don't match the job: pay asked above the $15 start ("Asks $22 (starts at $15)"), hours or days that don't fit, or a late start date. They show on the card and as tiny marks in the list; they never block anything. When you send the interview link, the review now has "Things to call out": one ready paragraph per flag (the pay one explains the 90 days at $15, then Entry / Senior / Lead). Untick one, change its words, or add your own line before you press Send. With nothing ticked, the email reads as before. The paragraphs are edited once in People → Emails → Interview link.
+
+### Added (Hiring: application flags and invite call-outs)
+- **Flags** (`apps/hiring/callouts.py`): worked out from the answers against the roles applied for, nothing stored. Pay above `Job.pay_min` (free text "$20", "15.50", "$18-20"; the low end counts), hours outside the role's hours (its hours text, or full / part time), fewer than 3 of the days the schedule names, a clear start date more than 21 days after applying, and missed must-haves. With more than one role, a flag shows only when no role fits. `callouts` on the application list and card.
+- **Dash**: amber chips in the card's Flags section (must-haves keep their red / green marks); short marks in the list line ("$22", "45h") for New, Reviewed and Contacted.
+- **Interview invite**: the review shows the call-outs (heading + one paragraph per flag, filled from the job and `hr.pay_levels`) to untick, edit or add to; the ones kept go in before the interview link. A send without review keeps them all; none → the email is unchanged.
+- **Settings**: careers file `email.flag_notes` (heading, pay, hours, days, start, must_have), edited on People → Emails → Interview link (Call-outs card) or through the careers file; a blank paragraph falls back to the default.
 
 ## [2.317.0] - 2026-11-19
 

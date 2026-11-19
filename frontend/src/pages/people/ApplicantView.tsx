@@ -43,7 +43,7 @@ import {
 import { ccTokens } from '../../theme';
 import { CreateEmployeeDialog, NotNowDialog } from './ApplicantDialogs';
 import { useEmailReview } from './EmailReview';
-import { FlagDots } from './FlagDots';
+import { CalloutChips, FlagDots } from './FlagDots';
 import { InterviewCard, PickTimeDialog } from './interviewUi';
 import { CandidateMarks, CopyValue, OutreachCard } from './outreachUi';
 import { OfferCard, OfferDialog } from './offerUi';
@@ -539,10 +539,16 @@ export function ApplicantView({
     </Box>
   );
 
-  const mustHaves = app.flags.length > 0 && (
-    <Section title="Must-haves">
+  const headsUp = (app.callouts ?? []).filter((c) => c.kind !== 'must_have');
+  const mustHaves = (app.flags.length > 0 || headsUp.length > 0) && (
+    <Section title={headsUp.length ? 'Flags' : 'Must-haves'}>
       <Box sx={card}>
-        <FlagDots flags={app.flags} showLabels />
+        {app.flags.length > 0 && <FlagDots flags={app.flags} showLabels />}
+        {headsUp.length > 0 && (
+          <Box sx={{ mt: app.flags.length > 0 ? 1 : 0 }}>
+            <CalloutChips callouts={headsUp} />
+          </Box>
+        )}
       </Box>
     </Section>
   );

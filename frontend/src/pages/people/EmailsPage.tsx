@@ -260,6 +260,77 @@ function OfferSettingsCard({ offer }: { offer: OfferSettings }) {
   );
 }
 
+// The invite's call-outs (Dash #184): one paragraph per kind of flag; {placeholders} each one fills.
+const CALL_OUTS: { key: string; label: string; fills: string[] }[] = [
+  { key: 'heading', label: 'Heading', fills: [] },
+  { key: 'pay', label: 'Asks more pay', fills: ['asked', 'start_pay', 'entry_pay', 'senior_pay', 'lead_pay'] },
+  { key: 'hours', label: 'Hours do not fit', fills: ['hours_wanted', 'job_hours'] },
+  { key: 'days', label: 'Days do not fit', fills: ['days_wanted', 'job_days'] },
+  { key: 'start', label: 'Late start', fills: ['start_wanted'] },
+  { key: 'must_have', label: 'Missed a must-have', fills: ['question', 'answer'] },
+];
+
+/** The paragraphs the interview invite adds per flag on an application (edited once, here, for all roles). */
+function CallOutsCard({ notes }: { notes: Record<string, string> }) {
+  const queryClient = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+  const pick = () => Object.fromEntries(CALL_OUTS.map((c) => [c.key, notes[c.key] ?? '']));
+  const [draft, setDraft] = useState<Record<string, string>>(pick);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setDraft(pick()), [notes]); // eslint-disable-line react-hooks/exhaustive-deps
+  const changed = JSON.stringify(draft) !== JSON.stringify(pick());
+
+  async function save() {
+    setBusy(true);
+    try {
+      await saveCareers({ format: 'ecothrift.careers/1', email: { flag_notes: draft } });
+      await queryClient.invalidateQueries({ queryKey: ['hiring'] });
+      enqueueSnackbar('Call-outs saved', { variant: 'success' });
+    } catch (err) {
+      const data = (err as { response?: { data?: { errors?: string[] } } }).response?.data;
+      enqueueSnackbar(data?.errors?.join(' ') || errorText(err, 'Could not save.'), { variant: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Box data-testid="call-outs-card" sx={{ p: 2, borderRadius: ccTokens.r, border: `1px solid ${ccTokens.line}`, bgcolor: '#fafaf7', mt: 2.5 }}>
+      <Typography fontWeight={700}>Call-outs (all roles)</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+        One paragraph per flag on the application, under the heading, above the button. You can untick or edit each
+        one before it goes.
+      </Typography>
+      <Stack spacing={1.5}>
+        {CALL_OUTS.map((c) => (
+          <TextField
+            key={c.key}
+            size="small"
+            label={c.label}
+            helperText={c.fills.length ? `Fills in: ${c.fills.map((f) => `{${f}}`).join(' ')}` : undefined}
+            value={draft[c.key]}
+            onChange={(e) => setDraft((d) => ({ ...d, [c.key]: e.target.value }))}
+            multiline={c.key !== 'heading'}
+            minRows={c.key === 'heading' ? undefined : 2}
+            fullWidth
+            sx={{ bgcolor: '#fff' }}
+          />
+        ))}
+      </Stack>
+      <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
+        <Button variant="contained" size="small" disabled={busy || !changed} onClick={save}>
+          Save call-outs
+        </Button>
+        {changed && (
+          <Button size="small" disabled={busy} onClick={() => setDraft(pick())}>
+            Discard
+          </Button>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
 export default function EmailsPage() {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
@@ -571,6 +642,9 @@ export default function EmailsPage() {
               {fillSample(draft.body, sample)}
             </Typography>
           </Box>
+          {key === 'interview_invite' && !job && email && (
+            <CallOutsCard notes={(email.flag_notes ?? {}) as Record<string, string>} />
+          )}
         </Box>
         )}
       </Box>

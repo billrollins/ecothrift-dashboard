@@ -132,6 +132,35 @@ _SIGN_OFF = 'Eco-Thrift\n8425 West Center Road, Omaha, NE 68124\nAnother Chance 
 # the first is the default sender.
 MAILBOXES = ('retail@ecothrift.us', 'bill_rollins@ecothrift.us', 'warehouse@ecothrift.us')
 
+# The interview invite's call-outs (Bill, 2026-11-19, Dash #184): one paragraph per kind of flag on an application
+# (apps.hiring.callouts), under the heading, before the interview link. Staff untick, edit or add lines in the review.
+# Fills: pay {asked} {start_pay} {entry_pay} {senior_pay} {lead_pay}; hours {hours_wanted} {job_hours};
+# days {days_wanted} {job_days}; start {start_wanted}; must_have {question} {answer}; all {first_name}.
+DEFAULT_FLAG_NOTES = {
+    'heading': 'A few things to look at before you book',
+    'pay': (
+        'About pay: everyone starts at {start_pay} an hour for the first 90 days. After that, we place you on one of '
+        'our three levels based on how you work: Entry {entry_pay}, Senior {senior_pay}, or Lead {lead_pay}. If the '
+        "pay you asked for is higher than {start_pay}, that's okay. Come talk with us about it at the interview."
+    ),
+    'hours': (
+        'About hours: you asked for {hours_wanted} hours a week, and this role is {job_hours}. Tell us at the '
+        'interview what works for you.'
+    ),
+    'days': (
+        'About days: you can work {days_wanted}, and this role is {job_days}. Let us know at the interview if your '
+        'days can move.'
+    ),
+    'start': (
+        'About your start date: you said {start_wanted}. That is later than we hoped, so let us talk about timing at '
+        'the interview.'
+    ),
+    'must_have': (
+        'About "{question}": you answered {answer}. This one matters for the job, so let us talk it through at the '
+        'interview.'
+    ),
+}
+
 DEFAULT_EMAIL = {
     'from': MAILBOXES[0],
     'reply_to': 'bill_rollins@ecothrift.us',
@@ -201,6 +230,7 @@ DEFAULT_EMAIL = {
             'works for {link_days} days. Use it later to change or cancel.\n\n' + _SIGN_OFF
         ),
     },
+    'flag_notes': DEFAULT_FLAG_NOTES,
     # Optional (Bill, 2026-10-09): sent only when staff press "Remind them to book".
     'interview_nudge': {
         'subject': "Don't miss out: your Eco-Thrift interview isn't booked yet",
@@ -1300,6 +1330,17 @@ def check_doc(raw) -> dict:
                     warnings.append(f'email.not_now.{key} is not a reason with its own email; ignored.')
                     continue
                 email['not_now'][key] = _check_email_block(block, f'email.not_now.{key}', errors)
+        notes_raw = email_raw.get('flag_notes')
+        notes = {**DEFAULT_FLAG_NOTES, **(email.get('flag_notes') or {})}
+        if isinstance(notes_raw, dict):
+            for key, text in notes_raw.items():
+                if key not in DEFAULT_FLAG_NOTES:
+                    warnings.append(f'email.flag_notes.{key} is not a kind of flag; ignored.')
+                    continue
+                notes[key] = _text(text, limit=200 if key == 'heading' else 1500) or DEFAULT_FLAG_NOTES[key]
+        elif notes_raw is not None:
+            errors.append('email.flag_notes must be an object (heading, pay, hours, days, start, must_have).')
+        email['flag_notes'] = notes
     else:
         errors.append('email must be an object.')
 
@@ -1396,6 +1437,9 @@ def summarize_changes(current: dict, new: dict) -> list[str]:
     for key in NOT_NOW_KEYS:
         if (current['email'].get('not_now') or {}).get(key) != (new['email'].get('not_now') or {}).get(key):
             out.append(f'Email: the "not now" ({key}) email changes')
+    for key in DEFAULT_FLAG_NOTES:
+        if (current['email'].get('flag_notes') or {}).get(key) != (new['email'].get('flag_notes') or {}).get(key):
+            out.append(f'Email: the invite call-out for {key.replace("_", " ")} changes')
     for key in DEFAULT_INTERVIEWS:
         if (current.get('interviews') or {}).get(key) != (new.get('interviews') or {}).get(key):
             value = new['interviews'].get(key)

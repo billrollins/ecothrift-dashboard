@@ -1,18 +1,17 @@
-v2.317.0 — The phone site and phone scanner, built and switched off (owner preview only)
+v2.318.0 — Applications show flags; the interview invite can call them out
 
-User-facing theme: **A new, fast phone site and Thrift+ scanner are in the release, switched off: customers see no change, and the owner previews it with a signed link.** (outside initiatives)
+User-facing theme: **Applications show flags, and the interview invite can call them out.**
 
-> **For Bill:** This is the whole phone rebuild in the look you approved, shipped dark. Nothing changes for customers: the current site and the current scanner keep serving until you turn on two settings (`storefront.phone_site`, then `storefront.phone_scan`). Your own phone gets it from a signed preview link (it works for a week; the phone then stays on the new site for 30 days; `?site=classic` goes back). Nobody can turn the preview on by guessing the address. Desktops keep the current site.
+> **For Bill:** Each application now shows amber flags when the answers don't match the job: pay asked above the $15 start ("Asks $22 (starts at $15)"), hours or days that don't fit, or a late start date. They show on the card and as tiny marks in the list; they never block anything. When you send the interview link, the review now has "Things to call out": one ready paragraph per flag (the pay one explains the 90 days at $15, then Entry / Senior / Lead). Untick one, change its words, or add your own line before you press Send. With nothing ticked, the email reads as before. The paragraphs are edited once in People → Emails → Interview link.
 
-### Added (Phone site, dark)
-- **A second, lean entry in the public site** (`frontend-public/phone.html`, `src/phone/`): home (specials, Best finds, categories, Thrift+, On the truck, how it works, visit), the In store and Coming lists with search, item pages, categories, the Thrift+ member page, About, Questions, Careers (roles, apply in short steps, interview, offer), Terms, Privacy, Blog, the emailed sign-in page. React and the router only, one bundled font, no UI library. The current site's build is unchanged.
-- **The Thrift+ scanner rebuilt for the phone site** (`src/phone/scan/`): sign-in and join, the code screen, add phone, finish joining with the selfie, the camera, the scan answer and trip, My QR, the balance and the account. Same addresses, same calls, same stored data and the same sign-in words as the live scanner, which stays in place.
-- **Public feeds** (`apps/storefront`): the searchable stock and the home data are built once, kept gzipped in the server's memory and refreshed every 5 minutes; a request does no database work. The phone downloads the stock once and searches it locally. Never in a feed: cost, notes, draft prices, 18+ products. A coming piece states its retail and "Priced on arrival".
-- **Serving** (`apps/core/middleware.py`): the two switches (absent = off), the signed owner preview (`manage.py phone_preview_link`, cookie `eco_site`), the home data stamped into the page, and a rollback that also reloads open tabs. Vite's hashed files are now served as never-changing (`WHITENOISE_IMMUTABLE_FILE_TEST`), for the current site too.
-- **Update and install on the phone site:** a bar when a newer release is out, and an install card (Android button, iPhone steps). No service worker.
-- Docs: `.ai/extended/phone-site.md`.
+User-facing theme: **Applications show flags, and the interview invite can call them out.** (Dash Update #184, HR)
 
-### Tests
-- `apps/storefront/tests` (17), `apps/core/tests/test_phone_site.py` (37), 324 public front-end tests (218 for the phone scanner, ported from the live scanner's cases). The phone scanner's tests run in the `thriftplus` lane.
+> **For Bill:** Each application now shows amber flags when the answers don't match the job: pay asked above the $15 start ("Asks $22 (starts at $15)"), hours or days that don't fit, or a late start date. They show on the card and as tiny marks in the list; they never block anything. When you send the interview link, the review now has "Things to call out": one ready paragraph per flag (the pay one explains the 90 days at $15, then Entry / Senior / Lead). Untick one, change its words, or add your own line before you press Send. With nothing ticked, the email reads as before. The paragraphs are edited once in People → Emails → Interview link.
+
+### Added (Hiring: application flags and invite call-outs)
+- **Flags** (`apps/hiring/callouts.py`): worked out from the answers against the roles applied for, nothing stored. Pay above `Job.pay_min` (free text "$20", "15.50", "$18-20"; the low end counts), hours outside the role's hours (its hours text, or full / part time), fewer than 3 of the days the schedule names, a clear start date more than 21 days after applying, and missed must-haves. With more than one role, a flag shows only when no role fits. `callouts` on the application list and card.
+- **Dash**: amber chips in the card's Flags section (must-haves keep their red / green marks); short marks in the list line ("$22", "45h") for New, Reviewed and Contacted.
+- **Interview invite**: the review shows the call-outs (heading + one paragraph per flag, filled from the job and `hr.pay_levels`) to untick, edit or add to; the ones kept go in before the interview link. A send without review keeps them all; none → the email is unchanged.
+- **Settings**: careers file `email.flag_notes` (heading, pay, hours, days, start, must_have), edited on People → Emails → Interview link (Call-outs card) or through the careers file; a blank paragraph falls back to the default.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
