@@ -7,9 +7,10 @@
    design/signage/brand-board.md describes; round-3 themes take their colours, type, pictograms and logo rules from it.
    Built by tools/brand_board.py (it renders Warning A and the wall mock-up first, into this folder). #}
 {% import 'brand-icons.html.j2' as bi %}
+{% import 'textures.html.j2' as tx %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Nunito:wght@900&family=Barlow+Condensed:wght@700&family=Barlow:wght@500&family=Fraunces:opsz,wght@9..144,700&display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Atkinson+Hyperlegible+Next:wght@800&family=Barlow+Condensed:wght@700&family=Barlow:wght@500&family=Fraunces:opsz,wght@9..144,700&display=block" rel="stylesheet">
 <style>
 @page { size: {{ w_in }}in {{ h_in }}in; margin: 0; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -78,6 +79,10 @@ h2 { font-size: 13pt; font-weight: 800; color: #1D5424; line-height: 1.15; margi
 .mat .ph .pan { position: relative; padding: 0.06in 0.13in; border-radius: 0.05in; font-size: 12pt; line-height: 1.1; }
 .mat .mn { font-size: 8.5pt; font-weight: 800; margin-top: 0.06in; }
 .mat .mu { font-size: 7pt; color: #6B716B; line-height: 1.25; }
+{{ tx.css() }}
+.mat .ph.t { display: block; font-family: 'Atkinson Hyperlegible Next'; font-weight: 800; font-size: 14pt; }
+.mat .ph.t .w svg { width: 0.24in; height: 0.24in; }
+.mat .ph.t .row1 { display: flex; align-items: center; gap: 0.06in; flex-direction: row; }
 
 /* type */
 .pairs { display: flex; flex-direction: column; gap: 0.09in; flex: 1; }
@@ -126,7 +131,7 @@ ol.sp li { margin-bottom: 0.035in; }
       <h1>Sign brand board</h1>
       <div class="sub">One foundation for every store sign: Customer, Information, Warning, Staff and Thrift+.</div>
     </div>
-    <div class="meta">Version 1 · Nov 13, 2026<br>Dash Update #134 · design/signage/brand-board.md</div>
+    <div class="meta">{{ v.meta }}<br>Dash Update #134 · design/signage/brand-board.md</div>
   </div>
 
   <div class="row r2">
@@ -155,7 +160,7 @@ ol.sp li { margin-bottom: 0.035in; }
           <div class="tile edge" style="background:#fff"><img class="l" src="{{ A }}/logos/eco-full-color.png" alt=""><span class="cap" style="color:#6B716B">On light: full colour</span></div>
           <div class="tile" style="background:#1D5424"><img class="l" src="{{ A }}/logos/eco-full-white.png" alt=""><span class="cap" style="color:#E7F1E3">On dark: white</span></div>
           <div class="tile edge" style="background:#fff"><img class="l" src="{{ A }}/logos/eco-full-ink.png" alt=""><span class="cap" style="color:#6B716B">One colour: ink</span></div>
-          <div class="tile"><img class="bg" src="{{ A }}/materials/kraft.jpg" alt=""><div class="plate"><img src="{{ A }}/logos/eco-full-color.png" alt=""></div><span class="cap" style="color:#1B1F1B">On photo: on a plate</span></div>
+          <div class="tile"><img class="bg" src="{{ A }}/materials/r4/kraft.jpg" alt=""><div class="plate"><img src="{{ A }}/logos/eco-full-color.png" alt=""></div><span class="cap" style="color:#1B1F1B">On photo: on a plate</span></div>
         </div>
       </div>
     </div>
@@ -184,14 +189,14 @@ ol.sp li { margin-bottom: 0.035in; }
   <div class="row r3">
     <div class="card">
       <div class="lab">Materials</div>
-      <h2>Real thrift textures. Words always sit on a solid panel.</h2>
+      <h2>{{ v.h2 }}</h2>
       <div class="mats">
-        <div class="mat"><div class="ph"><img class="bg" src="{{ A }}/materials/kraft.jpg" alt=""><div class="pan" style="background:#1D5424;color:#fff;font-family:Nunito;font-weight:900">Housewares</div></div>
-          <div class="mn">Kraft cardboard</div><div class="mu">Customer: department and price headers</div></div>
-        <div class="mat"><div class="ph"><img class="bg" src="{{ A }}/materials/wood.jpg" alt=""><div class="pan" style="background:#fff;color:#1D5424;font-family:Nunito;font-weight:900;display:flex;align-items:center;gap:0.06in"><svg viewBox="0 0 100 100" style="width:0.24in;height:0.24in">{{ bi.glyph('restroom', '#1D5424', '#fff') }}</svg>Restrooms</div></div>
-          <div class="mn">Reclaimed wood</div><div class="mu">Information: wayfinding boards and maps</div></div>
-        <div class="mat"><div class="ph"><img class="bg" src="{{ A }}/materials/denim.jpg" alt=""><div class="pan" style="background:#F1E8DA;color:#22406B;font-family:Nunito;font-weight:900">Clothing</div></div>
-          <div class="mn">Denim</div><div class="mu">Clothing department; an Information accent</div></div>
+        {% for m, word, use, name in [('kraft', 'Housewares', 'Customer: department and price headers', 'Kraft cardboard'),
+                                      ('wood', 'Restrooms', 'Information: wayfinding boards and maps', 'Pallet wood'),
+                                      ('denim', 'Clothing', 'Clothing department; an Information accent', 'Denim')] %}
+        <div class="mat"><div class="ph t">{% call tx.panel(m, A) %}<span class="w row1">{% if m == 'wood' %}<svg viewBox="0 0 100 100">{{ bi.glyph('restroom', tx.word_color(m)|trim, '#fff') }}</svg>{% endif %}{{ word }}</span>{% endcall %}</div>
+          <div class="mn">{{ name }}</div><div class="mu">{{ use }}</div></div>
+        {% endfor %}
         <div class="mat"><div class="ph"><img class="bg" src="{{ A }}/thriftplus/sky_trio.jpg" alt="" style="object-position:42% 30%"><img src="{{ A }}/logos/thriftplus-white.png" alt="Thrift+" style="position:relative;width:52%"></div>
           <div class="mn">Thrift+ sky</div><div class="mu">The poster sky: Thrift+ signs, and the sky for Customer</div></div>
       </div>
@@ -201,8 +206,8 @@ ol.sp li { margin-bottom: 0.035in; }
       <div class="lab">Type</div>
       <h2>Three Google Font pairings. One pairing per sign.</h2>
       <div class="pairs">
-        <div class="pair"><div><div class="hd" style="font-family:Nunito;font-weight:900;font-size:21pt">Housewares</div><div class="tx">Lamps, dishes and decor, priced by our team.</div></div>
-          <div class="m"><b>1 Friendly</b><br>Nunito 900 + Manrope 600<br>Customer, Thrift+, Information</div></div>
+        <div class="pair"><div><div class="hd" style="font-family:'Atkinson Hyperlegible Next';font-weight:800;font-size:22pt">Housewares</div><div class="tx">Lamps, dishes and decor, priced by our team.</div></div>
+          <div class="m"><b>1 Friendly</b><br>Atkinson Hyperlegible Next 800 + Manrope 600<br>Customer, Thrift+, Information</div></div>
         <div class="pair"><div><div class="hd" style="font-family:'Barlow Condensed';font-weight:700;font-size:22pt;color:#1B1F1B;text-transform:uppercase">Employees only</div><div class="tx" style="font-family:Barlow;font-weight:500">Deliveries use the back door.</div></div>
           <div class="m"><b>2 Plain-spoken</b><br>Barlow Condensed 700 + Barlow 500<br>Warning, Staff, hours lists</div></div>
         <div class="pair"><div><div class="hd" style="font-family:Fraunces;font-weight:700;font-size:20pt">Furniture</div><div class="tx">Big items? A team member will help you load.</div></div>

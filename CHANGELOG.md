@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.318.1] -->
-<!-- Last reviewed: 2026-11-19 (2.318.1) -->
+<!-- Line 1 release: ## [2.319.0] -->
+<!-- Last reviewed: 2026-11-19 (2.319.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.319.0] - 2026-11-19
+
+User-facing theme: **Sign brand board v2: real kraft, pallet wood and denim, and Atkinson Hyperlegible headlines on signs and Dash titles.**
+
+> **For Bill:** The brand board every sign is built from now has its final materials: kraft cardboard, pallet wood and denim as real surfaces with the words right on them (your pick R). Headlines on Customer, Thrift+ and Information signs use Atkinson Hyperlegible instead of Nunito, and Dash's new-look page titles (Design Lab, the home HR tab) use it too. Colours are unchanged.
+
+User-facing theme: **Sign brand board v2: real kraft, pallet wood and denim, and Atkinson Hyperlegible headlines on signs and Dash titles.** (Dash Update #134)
+
+> **For Bill:** The brand board every sign is built from now has its final materials: kraft cardboard, pallet wood and denim as real surfaces with the words right on them (your pick R). Headlines on Customer, Thrift+ and Information signs use Atkinson Hyperlegible instead of Nunito, and Dash's new-look page titles (Design Lab, the home HR tab) use it too. Colours are unchanged.
+
+### Changed (sign brand board v2, #134)
+- **Sign materials**: kraft, pallet wood and denim are now real surfaces that fill the panel, with the words straight on them (R, picked by Bill 11-19 after four rounds; art-directed with Astra, plates in `design/signage/art/materials/r4/`). Board v2, `brand-board.md` section 3, sample signs `templates/texture-sign-r.html.j2`.
+- **Headline font**: Atkinson Hyperlegible Next replaces Nunito as the title font of sign pairing 1 (Customer, Thrift+, Information) and of Dash's Eco theme (Design Lab); Manrope stays the text font. Nunito no longer loads in `index.html` (the Thrift+ scanner loads its own for numbers).
 
 ## [2.318.1] - 2026-11-19
 

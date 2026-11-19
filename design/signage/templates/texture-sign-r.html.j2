@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ name }}</title>
+{# Round 4 sample signs (Dash Update #134; Bill 11-19 "i hate them all"; Astra, gpt-6.2-astra, as art director): one
+   real surface fills the sign (art/materials/r4/, used as generated), live type straight on its quiet middle.
+   v.page "dir": Information directory on pallet wood, white type, denim only as the Clothing marker.
+   v.page "kraft": a Customer department header on kraft, ink type. Heads in pairing 1: Atkinson Hyperlegible Next 800, text Manrope. #}
+{% import 'brand-icons.html.j2' as bi %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@800&family=Manrope:wght@500;600;800&display=block" rel="stylesheet">
+<style>
+@page { size: {{ w_in }}in {{ h_in }}in; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: {{ w_in }}in; height: {{ h_in }}in; }
+body { font-family: 'Manrope', sans-serif; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; overflow: hidden; }
+img, svg { display: block; }
+.bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.sheet { position: absolute; inset: 0.55in; display: flex; flex-direction: column; }
+.foot { flex: none; height: 0.62in; margin-top: 0.2in; border-top: 1pt solid currentColor; display: flex; align-items: center;
+        justify-content: space-between; gap: 0.3in; }
+.foot .es { font-weight: 500; font-size: 12.5pt; line-height: 1.2; }
+.foot img { height: 0.42in; width: auto; }
+/* directory */
+.dir { color: #FFFFFF; }
+.dir .head { display: flex; align-items: baseline; gap: 0.25in; }
+.dir h1, .row, .kr h1 { font-family: 'Atkinson Hyperlegible Next', sans-serif; }
+.dir h1 { font-weight: 800; font-size: 40pt; line-height: 1; }
+.dir .sub { font-size: 15pt; }
+.rows { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 0.32in; padding-left: 0.1in; }
+.row { display: flex; align-items: center; gap: 0.35in; font-weight: 800; font-size: 44pt; line-height: 1; }
+.row svg { width: 0.8in; height: 0.8in; flex: none; }
+.tab { position: relative; overflow: hidden; border-radius: 0.06in; padding: 0.12in 0.3in 0.16in; margin-left: -0.3in;
+       box-shadow: 0 0.04in 0.12in rgba(0,0,0,0.5); }
+.tab span { position: relative; }
+/* kraft header */
+.kr { color: #1B1F1B; }
+.kr .body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.kr h1 { font-weight: 800; font-size: 104pt; line-height: 1; }
+.kr p { font-size: 26pt; margin-top: 0.25in; max-width: 8.5in; }
+</style>
+</head>
+<body>
+{% if v.page == 'dir' %}
+<img class="bg" src="{{ art }}/materials/r4/wood.jpg" alt="">
+<div class="sheet dir">
+  <div class="head"><h1>Find it here</h1><div class="sub">Departments</div></div>
+  <div class="rows">
+    <div class="row"><svg viewBox="0 0 100 100" style="transform:rotate(180deg)">{{ bi.glyph('arrow', '#FFFFFF', '#4B3424') }}</svg>
+      <div class="tab"><img class="bg" src="{{ art }}/materials/r4/denim.jpg" alt=""><span>Clothing</span></div></div>
+    <div class="row"><svg viewBox="0 0 100 100" style="transform:rotate(-90deg)">{{ bi.glyph('arrow', '#FFFFFF', '#4B3424') }}</svg><span>Housewares</span></div>
+    <div class="row"><svg viewBox="0 0 100 100">{{ bi.glyph('arrow', '#FFFFFF', '#4B3424') }}</svg><span>Furniture</span></div>
+  </div>
+  <div class="foot"><div class="es" lang="es">{{ v.es }}</div><img src="{{ art }}/logos/eco-full-white.png" alt="Eco-Thrift"></div>
+</div>
+{% else %}
+<img class="bg" src="{{ art }}/materials/r4/kraft.jpg" alt="">
+<div class="sheet kr">
+  <div class="body"><h1>Housewares</h1><p>Lamps, dishes and decor, priced by our team.</p></div>
+  <div class="foot"><div class="es" lang="es">{{ v.es }}</div><img src="{{ art }}/logos/eco-full-ink.png" alt="Eco-Thrift"></div>
+</div>
+{% endif %}
+</body>
+</html>

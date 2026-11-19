@@ -1,0 +1,26 @@
+{
+  "_sign": "Round 4 sample signs (Dash Update #134, Astra's direction): one real surface per sign, words straight on it. R-dir = Information directory on pallet wood, denim only as the Clothing marker; R-kraft = a Customer department header. Built by tools/texture_study.py real.",
+  "template": "texture-sign-r.html.j2",
+  "need": [
+    "Housewares"
+  ],
+  "variants": {
+    "R-dir": {
+      "size": "letter-land",
+      "page": "dir",
+      "need": [
+        "Clothing",
+        "Furniture"
+      ],
+      "es": "Departamentos: Ropa, Artículos para el hogar, Muebles"
+    },
+    "R-kraft": {
+      "size": "letter-land",
+      "page": "kraft",
+      "need": [
+        "Lamps"
+      ],
+      "es": "Artículos para el hogar: lámparas, platos y decoración."
+    }
+  }
+}
