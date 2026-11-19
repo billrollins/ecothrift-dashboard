@@ -1725,6 +1725,34 @@ class PreprocessingRedesignTests(TestCase):
         self.order.refresh_from_db()
         self.assertEqual(self.order.standardization_formulas['mappings'][1], {'target': 'title', 'formula': 'UPPER([Item Desc])'})
 
+    def test_a_big_manifest_standardizes_in_a_fixed_number_of_queries_and_keeps_its_rows_on_a_rerun(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        maps = [
+            {'target': 'quantity', 'formula': '[Qty]'},
+            {'target': 'title', 'formula': '[Item Desc]'},
+            {'target': 'unit_retail', 'formula': '[Unit Retail]'},
+        ]
+        small = 'Qty,Item Desc,Unit Retail\n' + ''.join(f'1,Widget {i},{i}.00\n' for i in range(1, 6))
+        big = 'Qty,Item Desc,Unit Retail\n' + ''.join(f'2,Gadget {i},{i}.50\n' for i in range(1, 61))
+        self.assertEqual(self._standardize({'column_mappings': maps}, small).status_code, 200)
+        ids_before = dict(ManifestRow.objects.filter(purchase_order=self.order).values_list('row_number', 'id'))
+        PreprocessingRow.objects.filter(purchase_order=self.order).delete()  # a new file: staging rebuilt, spine kept
+        self.order.manifest.__class__.objects.filter(pk=self.order.manifest_id).update(key='manifests/old.csv')
+        with CaptureQueriesContext(connection) as ctx:
+            response = self._standardize({'column_mappings': maps}, big)
+        self.assertEqual(response.status_code, 200, getattr(response, 'data', None))
+        self.assertEqual(response.data['manifest_rows_upserted'], 60)
+        self.assertLess(len(ctx.captured_queries), 60)  # was two per row
+        rows = {r.row_number: r for r in ManifestRow.objects.filter(purchase_order=self.order)}
+        self.assertEqual(len(rows), 60)
+        for rn, mid in ids_before.items():
+            self.assertEqual(rows[rn].id, mid)  # the rerun updated the same spine rows
+        self.assertEqual((rows[3].title, rows[3].quantity, rows[3].unit_retail), ('Gadget 3', 2, Decimal('3.50')))
+        links = dict(PreprocessingRow.objects.filter(purchase_order=self.order).values_list('row_number', 'manifest_row_id'))
+        self.assertEqual(links, {rn: r.id for rn, r in rows.items()})
+
     def test_process_manifest_uses_the_ai_formulas_when_the_page_sends_none(self):
         self.order.ai_formulas = {'status': 'done', 'mappings': [
             {'target': 'quantity', 'formula': '[Qty]'},

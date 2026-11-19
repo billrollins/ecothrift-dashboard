@@ -1860,10 +1860,8 @@ def category_from_normalized_manifest_row(row_data):
     return ''
 
 
-def upsert_manifest_row_from_standardized_data(order, row_data, *, pricing):
-    """Create/update the stable standardized ManifestRow spine for a standardize row."""
-
-    rn = int(row_data.get('row_number') or 0)
+def manifest_row_fields_from_standardized_data(row_data, *, pricing):
+    """The ManifestRow fields one standardized row sets (shared by the one-row upsert and the bulk standardize)."""
     search_tags = row_data.get('search_tags')
     if isinstance(search_tags, list):
         search_tags = [str(x).strip() for x in search_tags if str(x).strip()]
@@ -1893,7 +1891,13 @@ def upsert_manifest_row_from_standardized_data(order, row_data, *, pricing):
         'category': category_from_normalized_manifest_row(row_data),
         'match_status': 'pending',
     }
+    return defaults
 
+
+def upsert_manifest_row_from_standardized_data(order, row_data, *, pricing):
+    """Create/update the stable standardized ManifestRow spine for a standardize row."""
+    rn = int(row_data.get('row_number') or 0)
+    defaults = manifest_row_fields_from_standardized_data(row_data, pricing=pricing)
     existing = (
         ManifestRow.objects
         .filter(purchase_order=order, row_number=rn)
@@ -3698,6 +3702,14 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         to_update = []
         manifest_rows_upserted = 0
         now = timezone.now()
+        # 11-19: one query to read the spine and two bulk writes, not a query pair per row. A 1,155-row truckload took
+        # 41 s row by row and Heroku cut the page off at 30 s (H12) although the save finished.
+        existing_by_rn = {}
+        for mr in ManifestRow.objects.filter(purchase_order=order).order_by('-id'):
+            existing_by_rn[mr.row_number] = mr  # lowest id wins, as the one-row upsert picks
+        mr_fields = None
+        mr_create = []
+        mr_update = []
         with transaction.atomic():
             bulk_clear_preprocess_ai_and_final_layers(
                 PreprocessingRow.objects.filter(purchase_order=order),
@@ -3728,8 +3740,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     pricing_stage = 'draft'
                     pricing_notes_val = pricing_notes_val or 'Initial ideal price (2x allocated base cost)'
 
-                manifest_row, _created = upsert_manifest_row_from_standardized_data(
-                    order,
+                fields = manifest_row_fields_from_standardized_data(
                     row_data,
                     pricing={
                         'unit_retail': base_retail,
@@ -3739,6 +3750,16 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                         'pricing_notes': pricing_notes_val,
                     },
                 )
+                mr_fields = mr_fields or list(fields.keys())
+                manifest_row = existing_by_rn.get(rn)
+                if manifest_row is None:
+                    manifest_row = ManifestRow(purchase_order=order, row_number=rn, **fields)
+                    existing_by_rn[rn] = manifest_row
+                    mr_create.append(manifest_row)
+                else:
+                    for field, value in fields.items():
+                        setattr(manifest_row, field, value)
+                    mr_update.append(manifest_row)
                 manifest_rows_upserted += 1
 
                 sr.manifest_row = manifest_row
@@ -3768,6 +3789,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 sr.updated_at = now
                 to_update.append(sr)
 
+            if mr_create:
+                ManifestRow.objects.bulk_create(mr_create, batch_size=500)
+            if mr_update:
+                ManifestRow.objects.bulk_update(mr_update, mr_fields, batch_size=500)
+            for sr in to_update:
+                sr.manifest_row_id = sr.manifest_row.pk  # created rows only get their id from bulk_create above
             if to_update:
                 PreprocessingRow.objects.bulk_update(
                     to_update,

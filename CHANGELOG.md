@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.313.0] -->
-<!-- Last reviewed: 2026-11-18 (2.313.0) -->
+<!-- Line 1 release: ## [2.314.0] -->
+<!-- Last reviewed: 2026-11-19 (2.314.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.314.0] - 2026-11-19
+
+User-facing theme: **Standardize no longer times out on a big manifest: a 1,155-row truckload saves in seconds, not 41.**
+
+> **For Bill:** Standardize does not use the AI; it saves each manifest row. It saved them one at a time, about two database calls per row, so the Walmart truckload (order 461, 1,155 rows) took 41 seconds and Heroku cut the page off at 30 with "Failed to standardize manifest", although the save finished. It now reads all the rows once and saves them in two batches. Nothing changes on the page.
+
+### Fixed (Preprocessing: Standardize on a big manifest)
+- **Standardize Manifest** reads the order's manifest rows in one query and writes them in two bulk saves, instead of a query pair per row. A 1,155-row truckload (order 461) took 41 seconds and hit Heroku's 30-second cut-off ("Failed to standardize manifest") although the save finished; it now takes a few seconds. Same result, same rows kept on a rerun.
 
 ## [2.313.0] - 2026-11-18
 

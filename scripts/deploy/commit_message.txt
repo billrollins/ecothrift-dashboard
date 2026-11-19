@@ -1,12 +1,10 @@
-v2.313.0 — Thrift+ terms cover texts from our own number (sign-in codes and links)
+v2.314.0 — Standardize no longer times out on a big manifest
 
-User-facing theme: **Thrift+ sign-in codes can now come from our own number, (888) 812-7905: the terms cover it.**
+User-facing theme: **Standardize no longer times out on a big manifest: a 1,155-row truckload saves in seconds, not 41.**
 
-> **For Bill:** Sign-in codes were costing about 6 cents each through Twilio Verify ($36 so far in November). The Thrift+ terms (section 10.3) now cover codes and sign-in links texted from our own toll-free number, so the switch "thrift_plus.own_number_codes" can go on; codes then cost about a penny. Members who joined before today are not asked to agree again; staff can text a sign-in link only to members who joined under the new terms, and everyone else uses the Sign-in QR as before. A phone stays signed in for a year, renewed each time it is used.
+> **For Bill:** Standardize does not use the AI; it saves each manifest row. It saved them one at a time, about two database calls per row, so the Walmart truckload (order 461, 1,155 rows) took 41 seconds and Heroku cut the page off at 30 with "Failed to standardize manifest", although the save finished. It now reads all the rows once and saves them in two batches. Nothing changes on the page.
 
-### Changed (Thrift+ texts from our own number: the terms)
-- **Thrift+ terms, section 10.3 (English and Spanish), version November 18, 2026:** the texts we send are sign-in codes and sign-in links the member asks for, in the app or from a cashier (before: codes only). New joins agree to this version (`register.TERMS_VERSION` 2026-11-18).
-- **Text sign-in link (Staff app)** is offered only for members who agreed to the November 18 terms or later. Members who joined before keep the Sign-in QR; nobody is asked to agree again.
-- No change to how codes work or how long a phone stays signed in (one year, renewed on use).
+### Fixed (Preprocessing: Standardize on a big manifest)
+- **Standardize Manifest** reads the order's manifest rows in one query and writes them in two bulk saves, instead of a query pair per row. A 1,155-row truckload (order 461) took 41 seconds and hit Heroku's 30-second cut-off ("Failed to standardize manifest") although the save finished; it now takes a few seconds. Same result, same rows kept on a rerun.
 
-Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
