@@ -18,11 +18,11 @@
  *
  * Each screen is a later piece (contracts.ts). The whole scanner is one lazy chunk, loaded only on /scan.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { setPreviewCode } from './api'
 import { TurnUpright } from './camera'
-import { loadDetector, useSideways, useStandaloneLock, useUprightLock, viewAfterSignIn, type EmailSignIn } from './core'
+import { useSideways, useStandaloneLock, useUprightLock, viewAfterSignIn, type EmailSignIn } from './core'
 import FinishJoining from './finish'
 import { rememberTypeOnly, screenOf } from './route'
 import SignIn, { AddPhone } from './signin'
@@ -102,12 +102,20 @@ export default function ScanApp() {
   useEffect(() => {
     const prev = document.title
     document.title = 'Thrift+ price scanner'
-    // Warm the decoder while they sign in, so the first scan is instant.
-    loadDetector().catch(() => undefined)
+    // The decoder is NOT warmed here: it loads when the scanning view opens (trip/index.tsx), so a phone that only signs
+    // in never fetches the 1 MB WebAssembly file.
     return () => {
       document.title = prev
     }
   }, [])
+
+  // The scanner has the whole screen on every view (owner's walk, Dash Update #185): the site's logo row and search row
+  // step aside while /scan is open (scan.css, `html[data-scan]`); the bottom bar stays, it is the way home. The value is
+  // the screen's kind. A layout effect, so the rows are gone before the first paint of a screen.
+  useLayoutEffect(() => {
+    document.documentElement.setAttribute('data-scan', screen.kind)
+  }, [screen.kind])
+  useLayoutEffect(() => () => document.documentElement.removeAttribute('data-scan'), [])
 
   // Finish joining is required (owner 2026-10-20): its address says so, replaced so Back never walks it.
   useEffect(() => {

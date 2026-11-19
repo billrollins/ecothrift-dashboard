@@ -24,6 +24,9 @@ export type Member = {
   useBy: string
   /** False while a join made online is not finished at a register yet. */
   ready: boolean
+  /** True while the member still has a step to do in the app: add their mobile number (`needs_phone`), or a finish step
+   *  (`ready: false` with `finish_steps` left; scannerLogic `hasFinishSteps`). The top bar then says "Finish joining". */
+  finishing: boolean
 }
 export type MemberState = { status: 'unknown' | 'out' | 'member'; member: Member | null }
 
@@ -92,6 +95,7 @@ export function parseSession(body: unknown): MemberState {
       bucks: Number.isFinite(bucks) ? bucks : 0,
       useBy: typeof m.bucks_use_by === 'string' ? m.bucks_use_by : '',
       ready: m.ready !== false,
+      finishing: m.needs_phone === true || (m.ready === false && Array.isArray(m.finish_steps) && m.finish_steps.length > 0),
     },
   }
 }

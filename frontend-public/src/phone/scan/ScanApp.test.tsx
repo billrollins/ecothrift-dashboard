@@ -12,8 +12,15 @@ import { actions } from './store'
 import { renderScan, resetScanner } from './test/harness'
 import type { FakeApi } from './test/fakeApi'
 
-// jsdom has no camera or WebAssembly decoder: the decoder never loads.
-vi.mock('./core', async (orig) => ({ ...(await orig<typeof import('./core')>()), loadDetector: () => new Promise(() => undefined) }))
+// jsdom has no camera or WebAssembly decoder: the decoder never loads (counted: the shell itself never asks for it).
+const decoder = vi.hoisted(() => ({ asked: 0 }))
+vi.mock('./core', async (orig) => ({
+  ...(await orig<typeof import('./core')>()),
+  loadDetector: () => {
+    decoder.asked += 1
+    return new Promise(() => undefined)
+  },
+}))
 
 vi.mock('./signin', () => ({
   default: function SignInDouble({ start, notice }: SignInProps) {
@@ -207,6 +214,30 @@ describe('the scanner shell (/scan)', () => {
     expect(await screen.findByTestId('thriftplus-page')).toBeInTheDocument()
     expect(where()).toBe('?show=qr')
     expect(fake.finished().map((f) => f.step)).toEqual(['selfie', 'sign'])
+  })
+
+  it('has the whole screen on every view: data-scan on <html> while /scan is open, gone after (Dash Update #185)', async () => {
+    const html = document.documentElement
+    const first = renderScan()
+    await screen.findByTestId('signin')
+    expect(html.getAttribute('data-scan')).toBe('signin')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Scan without signing in' }))
+    await screen.findByTestId('trip')
+    expect(html.getAttribute('data-scan')).toBe('trip')
+    first.unmount()
+    expect(html.hasAttribute('data-scan')).toBe(false)
+
+    fake.joinThriftPlus('Robin', 'Lee', 'robin@example.com')
+    renderScan(`/scan?signin=${fake.outbox()[0].token}`)
+    await screen.findByTestId('finish-joining')
+    expect(html.getAttribute('data-scan')).toBe('finish')
+  })
+
+  it('never loads the decoder itself: the sign-in screen asks for no decoder (Dash Update #185)', async () => {
+    decoder.asked = 0
+    renderScan()
+    await screen.findByTestId('signin')
+    expect(decoder.asked).toBe(0)
   })
 
   it('shows the release on every screen', async () => {

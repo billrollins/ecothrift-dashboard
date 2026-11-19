@@ -21,7 +21,7 @@ import { bucks } from '../../lib/format'
 import { lookupTag } from '../api'
 import Camera, { CameraHelp, SidewaysGotIt, SidewaysScanPill, TurnUpright } from '../camera'
 import type { TripProps } from '../contracts'
-import { classifyCode, ScanGate, useQrCamera, useSideways, useUprightLock, type ThriftPlusCartLine } from '../core'
+import { classifyCode, loadDetector, ScanGate, useQrCamera, useSideways, useUprightLock, type ThriftPlusCartLine } from '../core'
 import { HomeScreenCard } from '../member'
 import { typeOnlyMode } from '../route'
 import { actions, useCart } from '../store'
@@ -37,12 +37,7 @@ export { TripList } from './TripList'
 const quiet = (p: Promise<unknown>) => void p.catch(() => undefined)
 
 export default function Trip({ session, onJoin }: TripProps) {
-  // While the scanning view is up the site's top rows step aside (trip.css), so the camera gets the room: with the
-  // big logo and the search box above it the window was about 110 px tall (coordinator, 2026-11-19).
-  useEffect(() => {
-    document.documentElement.setAttribute('data-scan', 'trip')
-    return () => document.documentElement.removeAttribute('data-scan')
-  }, [])
+  // The site's top rows are hidden on every /scan view (ScanApp sets `data-scan`), so the camera gets the room.
   const member = session.status === 'member' ? session.member : null
   const isGuest = session.status === 'guest'
   const cart = useCart()
@@ -68,6 +63,12 @@ export default function Trip({ session, onJoin }: TripProps) {
 
   const handleCodeRef = useRef<(raw: string, from: 'camera' | 'typed' | 'link', format?: string) => void>(() => undefined)
   const typeOnly = typeOnlyMode()
+  // The decoder loads with this view and never before (Dash Update #185: not on sign-in). The camera hook asks for it as
+  // the camera starts; this starts it a moment sooner, also while a tag's link holds the camera back. A phone with a
+  // built-in reader loads no file at all (core `loadDetector`).
+  useEffect(() => {
+    if (!typeOnly) loadDetector().catch(() => undefined)
+  }, [typeOnly])
   const overlayOpen = sheet != null || info != null || feel != null
   const camera = useQrCamera({
     // A tag's QR link shows its item first: the camera (and its permission question) waits until that tag is put away.
