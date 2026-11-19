@@ -127,6 +127,7 @@ INSTALLED_APPS = [
     'apps.keys',
     'apps.supplies',
     'apps.signage',  # store signs: list, print PDFs, pins on the store map (#106)
+    'apps.storefront',  # the phone site's read-only store feeds (snapshot in memory, gzip, ETag)
     'apps.esign',  # shared e-sign app, vendored from {master}/packages/esign (D22); host seam: apps/core/esign_host.py
 ]
 
@@ -354,6 +355,13 @@ PUBLIC_SITE_INDEX = (
     if (_frontend_public_dist / 'index.html').exists()
     else None
 )
+# The phone site's phone.html (owner 2026-11-19; same build, its own pass): PublicSiteMiddleware serves it on phones for
+# the paths it owns when AppSetting storefront.phone_site is "on" (or the eco_site cookie asks). None = never.
+PUBLIC_SITE_PHONE_INDEX = (
+    str(_frontend_public_dist / 'phone.html')
+    if (_frontend_public_dist / 'phone.html').exists()
+    else None
+)
 
 STORAGES = {
     'staticfiles': {
@@ -364,6 +372,11 @@ STORAGES = {
 # Serve Vite build output at root paths (e.g. /assets/*) via WhiteNoise so the
 # SPA's script/link tags (which use base="/") resolve to real files.
 WHITENOISE_ROOT = _frontend_dist if _frontend_dist.exists() else None
+
+# Cache forever the files whose names carry a hash of their content: Vite's (both public builds, under
+# /static/site/assets/, e.g. index-i37Vw-z_.js) and Django's manifest copies (name.<12 hex>.ext, which WhiteNoise's own
+# test marked immutable before this setting replaced it). Everything else keeps WhiteNoise's short max-age.
+WHITENOISE_IMMUTABLE_FILE_TEST = r'^/static/(?:site/assets/.+-[A-Za-z0-9_-]{8}\.[A-Za-z0-9]+|.+\.[0-9a-f]{12}\.[A-Za-z0-9]+)$'
 
 # ── S3 Storage ────────────────────────────────────────────────────────────────
 USE_S3 = config('USE_S3', default=False, cast=bool)

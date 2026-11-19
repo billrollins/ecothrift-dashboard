@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "build:deploy": "vite build",
+    "build": "tsc && vite build && vite build --mode phone",
+    "build:deploy": "vite build && vite build --mode phone",
     "preview": "vite preview",
     "test": "vitest run"
   },
@@ -25,9 +25,12 @@
     "vitest": "^4.1.12"
   },
   "dependencies": {
+    "@fontsource-variable/archivo": "5.3.0",
+    "barcode-detector": "3.2.2",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^7.13.0"
+    "react-router-dom": "^7.13.0",
+    "zxing-wasm": "3.1.3"
   }
 }

@@ -1,0 +1,70 @@
+/* The scanner's shell and shared parts (prefix sa-). Loaded with the scanner only (ui.tsx imports it).
+   The scanner fills the space between the site's top rows (logo 66 px + search 62 px) and the bottom bar, so its own
+   buttons never move (PLAN-SCANNER.md; the mockup's pages/scan.html). Each piece has its own CSS and prefix. */
+
+.sa { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 12px var(--gut) 10px;
+      min-height: calc(100dvh - 128px - var(--bar) - env(safe-area-inset-bottom, 0px)); }
+html[data-scan="trip"] .sa { min-height: calc(100dvh - env(safe-area-inset-top, 0px) - var(--bar) - env(safe-area-inset-bottom, 0px)); }
+.sa > * { flex: none; }
+.sa-fill { flex: 1 1 auto; min-height: 0; }
+.sa-center { flex: 1 1 auto; display: grid; place-items: center; min-height: 240px; }
+
+/* Coming soon (Thrift+ off): a plain middle. */
+.sa-soon { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 320px;
+           text-align: center; padding: 24px var(--gut); }
+.sa-soon .disp { font-size: 52px; color: var(--green); }
+.sa-soon h1 { font-size: 22px; font-weight: 800; }
+.sa-soon p { font-size: 16px; color: var(--ink-2); font-weight: 600; }
+.sa-soon .sa-link { margin-top: 26px; }
+
+/* Staff test mode: Thrift+ is still off for customers. */
+.sa-test { margin: -12px calc(-1 * var(--gut)) 0; padding: 5px var(--gut); background: #f0c766; color: #4a3200; text-align: center;
+           font-size: 13px; font-weight: 700; }
+
+/* Buttons beyond the kit's. */
+.sa-wide { width: 100%; }
+.sa-link { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 6px; font-size: 14px;
+           font-weight: 700; color: var(--green); text-decoration: underline; text-underline-offset: 3px; }
+.btn[disabled], .sa-link[disabled] { cursor: default; }
+.btn[disabled]:not(.sa-pending) { opacity: .4; }
+.sa-pending .sa-spin { margin-left: 2px; }
+
+/* A field: the label above, a 52 px box, 16 px text (an iPhone zooms into anything smaller). */
+.sa-field { display: flex; flex-direction: column; gap: 6px; }
+.sa-field label { font-size: 13px; font-weight: 800; color: var(--ink-2); }
+.sa-field input { height: 52px; padding: 0 14px; border: 2px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink);
+                  font: inherit; font-size: 16px; outline: 0; -webkit-appearance: none; appearance: none; }
+.sa-field input:focus { border-color: var(--green); }
+.sa-field.sa-bad input { border-color: var(--cran); }
+.sa-hint { font-size: 12.5px; color: var(--ink-2); line-height: 1.3; }
+
+.sa-alert { padding: 10px 12px; border-radius: 12px; font-size: 14px; font-weight: 700; line-height: 1.3; }
+.sa-alert.sa-bad { background: #fbe9e9; color: #8c1b22; }
+.sa-alert.sa-info { background: var(--cream); color: var(--ink); }
+
+/* The spinner: a ring that turns; still for less motion. */
+.sa-spin { display: inline-block; flex: none; border-radius: 50%; border: 3px solid rgba(29, 84, 36, .2); border-top-color: var(--green);
+           animation: sa-turn .8s linear infinite; }
+.btn-ink .sa-spin { border-color: rgba(255, 255, 255, .3); border-top-color: #fff; }
+@keyframes sa-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .sa-spin { animation: none; border-top-color: rgba(29, 84, 36, .2); border-right-color: var(--green); } }
+
+/* The sheet: over everything but the version tag, a fade only (no slide). */
+.sa-sheet { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; animation: sa-in .12s ease-out; }
+.sa-sheet-bg { position: absolute; inset: 0; background: rgba(16, 20, 15, .5); }
+.sa-sheet-panel { position: relative; width: min(100%, 430px); max-height: calc(100dvh - 40px); overflow-y: auto; outline: 0;
+                  padding: 22px var(--gut) calc(18px + env(safe-area-inset-bottom, 0px)); border-radius: 20px 20px 0 0; background: var(--card); }
+.sa-sheet-x { position: absolute; top: 6px; right: 6px; width: 44px; height: 44px; display: grid; place-items: center; color: var(--ink-2); }
+@keyframes sa-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sa-sheet { animation: none; } }
+
+/* The release, in the corner above the bottom bar. */
+.sa-ver { position: fixed; right: calc(env(safe-area-inset-right, 0px) + 6px); bottom: calc(var(--bar) + env(safe-area-inset-bottom, 0px) + 3px);
+          z-index: 70; font-size: 10px; line-height: 1; color: rgba(0, 0, 0, .38); pointer-events: none; user-select: none; }
+
+/* A piece that is not built yet (S0's stubs). */
+.sa-stub { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 300px;
+           border: 2px dashed var(--line); border-radius: var(--r); background: var(--card); padding: 20px; text-align: center; }
+.sa-stub .lbl { color: var(--ink-2); }
+.sa-stub h2 { font-size: 30px; }
+.sa-stub p { font-size: 13px; color: var(--ink-2); font-weight: 600; max-width: 30ch; }

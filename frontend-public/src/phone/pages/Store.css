@@ -1,0 +1,75 @@
+/* The store's list and search (mockup pages/shop.html, prefix sh). Rows carry no pictures (owner 11-19). */
+.sh-hd { background: var(--card); padding: 10px 0 0; border-bottom: 1px solid var(--line); }
+
+/* In store / Coming: one two-way switch, the count in each half. */
+.sh-sw { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 0 var(--gut); padding: 4px; border-radius: 999px; background: var(--ground); }
+.sh-sw button { display: flex; align-items: center; justify-content: center; gap: 8px; height: 40px; border-radius: 999px; font-size: 15px; font-weight: 800; color: var(--ink-2); }
+.sh-sw button { position: relative; }
+.sh-sw button::after { content: ''; position: absolute; left: -2px; right: -2px; top: -4px; bottom: -4px; }   /* a 48 px tap target */
+.sh-sw button .cnt { background: var(--line); color: var(--ink); min-width: 34px; }
+.sh-sw button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.sh-sw button[aria-pressed="true"] .cnt { background: var(--lime); color: var(--ink); }
+
+/* Category chips: a sideways row. Always the same height, also while the stock is on its way. */
+.sh-chips { margin-top: 10px; gap: 8px; padding-top: 3px; padding-bottom: 3px; height: 44px; align-items: center; }
+.sh-chips button { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 7px 0 14px; position: relative; border-radius: 999px;
+                   border: 1.5px solid var(--line); background: #fff; font-size: 13.5px; font-weight: 700; white-space: nowrap; }
+.sh-chips button.sh-all { padding-right: 16px; padding-left: 16px; }
+.sh-chips button::after { content: ''; position: absolute; left: 0; right: 0; top: -4px; bottom: -4px; }   /* a 44 px tap target */
+.sh-chips button .cnt { background: var(--ground); color: var(--ink); }
+.sh-chips button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+.sh-chips button[aria-pressed="true"] .cnt { background: var(--lime); color: var(--ink); }
+.sh-chips .sh-chip0 { flex: none; width: 150px; height: 38px; border-radius: 999px; background: var(--ground); }
+.sh-chips .sh-chip0:nth-child(3) { width: 120px; }
+
+/* How many, and the sort. One line. */
+.sh-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 50px; padding: 0 var(--gut); }
+.sh-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; color: var(--ink-2); }
+.sh-n b { color: var(--ink); font-weight: 800; }
+.sh-so { flex: none; display: flex; background: var(--ground); border-radius: 999px; padding: 3px; }
+.sh-so button { position: relative; height: 32px; padding: 0 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
+.sh-so button::after { content: ''; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px; }       /* a 44 px tap target */
+.sh-so button[aria-pressed="true"] { background: #fff; color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+@media (max-width: 374px) { .sh-bar { gap: 8px; } .sh-so button { padding: 0 7px; font-size: 12px; } }
+
+.sh-note { height: 28px; padding: 0 var(--gut); display: flex; align-items: center; gap: 6px; background: var(--cream); font-size: 12px; font-weight: 600;
+           color: var(--ink-2); white-space: nowrap; overflow: hidden; }
+.sh-note b { color: var(--green); font-weight: 800; }
+html[data-day="bf"] .sh-note b { color: var(--cran); }
+
+/* The rows. Every row the same height, one tap target. */
+.sh-list { background: var(--card); }
+.sh-r { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; height: 86px; padding: 0 var(--gut);
+        border-bottom: 1px solid var(--line); }
+.sh-mid { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.sh-nm { font-size: 14px; font-weight: 600; line-height: 1.25; height: 2.5em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sh-meta { display: flex; align-items: center; gap: 8px; height: 16px; font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; }
+.sh-tb { color: var(--green); font-size: 13.5px; font-weight: 800; }
+.sh-tb.sh-tb0, html[data-day="bf"] .sh-tb.sh-tb0 { color: var(--ink-2); font-weight: 700; }
+html[data-day="bf"] .sh-tb { color: var(--cran); }
+.sh-trk { color: var(--ink-2); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.sh-x { flex: none; color: var(--ink-2); font-weight: 700; background: var(--ground); border-radius: 5px; padding: 1px 5px; }
+.sh-rt { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 76px; }
+.sh-rt .tag { font-size: 25px; padding: 5px 8px 3px; border-radius: 7px; }
+.sh-rt s { font-size: 12.5px; color: var(--ink-2); text-decoration-thickness: 1px; height: 16px; }
+.sh-rt .sh-poa { font-style: normal; font-size: 11.5px; font-weight: 700; color: var(--ink-2); height: 16px; white-space: nowrap; }
+/* A coming piece has no price yet: an outlined block states its retail, so nobody takes it for a tag. */
+.sh-est { display: inline-flex; align-items: baseline; border: 2px solid var(--ink); border-radius: 7px; padding: 5px 8px 4px; color: var(--ink);
+          font-size: 17px; font-weight: 800; line-height: 1; white-space: nowrap; }
+.sh-est i { font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-right: 6px; color: var(--ink-2); }
+.sh-est.sh-none { font-size: 11px; line-height: 1.15; padding: 4px 8px; border-style: dashed; color: var(--ink-2); text-align: right; white-space: normal; display: block; }
+
+/* While the stock is on its way: rows of the same height, quiet. */
+.sh-r0 { pointer-events: none; }
+.sh-r0 .sh-l { display: block; height: 12px; border-radius: 6px; background: var(--ground); }
+.sh-r0 .sh-l + .sh-l { width: 55%; }
+.sh-r0 .sh-b { display: block; width: 76px; height: 34px; border-radius: 7px; background: var(--ground); }
+
+/* Under the list. */
+.sh-foot { background: var(--ground); padding: 18px var(--gut) 26px; }
+.sh-more { width: 100%; margin-bottom: 16px; background: #fff; }
+.sh-foot .fine { color: var(--ink-2); }
+.sh-foot .fine span { display: block; }
+.sh-foot .fine span + span { margin-top: 4px; }
+.sh-empty { background: var(--card); padding: 34px var(--gut) 36px; display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+.sh-empty p { font-size: 17px; font-weight: 700; overflow-wrap: anywhere; }

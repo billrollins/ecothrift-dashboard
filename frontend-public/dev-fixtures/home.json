@@ -1,0 +1,266 @@
+{
+ "v": "fixture-home",
+ "as_of": "2026-11-19T12:00:00-06:00",
+ "day": "normal",
+ "shelf": {
+  "pieces": 35098,
+  "products": 2170,
+  "categories": 23
+ },
+ "hours": {
+  "timezone": "America/Chicago",
+  "open": "09:00",
+  "close": "18:00",
+  "closed_weekdays": [
+   6
+  ],
+  "label": "9 AM - 6 PM, Monday - Saturday · Closed Sunday",
+  "regular_label": "9 AM - 6 PM, Monday - Saturday · Closed Sunday",
+  "resume_label": "",
+  "overrides": [],
+  "today": {
+   "is_override": false,
+   "label": "",
+   "closed": false,
+   "open": "09:00",
+   "close": "18:00"
+  }
+ },
+ "thrift_plus_open": true,
+ "finds": [
+  {
+   "pid": 226011,
+   "name": "SMEG retro espresso machine with grinder",
+   "cat": "kitchen",
+   "price": 600.0,
+   "retail": 1200.0,
+   "tb": 102.0,
+   "units": 1,
+   "tag": "0226011",
+   "photo": null
+  },
+  {
+   "pid": 226541,
+   "name": "Vitamix 5300 blender",
+   "cat": "kitchen",
+   "price": 200.0,
+   "retail": 399.99,
+   "tb": 28.0,
+   "units": 1,
+   "tag": "0226541",
+   "photo": null
+  },
+  {
+   "pid": 227076,
+   "name": "Planked panel bed with arched headboard",
+   "cat": "furniture",
+   "price": 584.5,
+   "retail": 1669.99,
+   "tb": 52.6,
+   "units": 1,
+   "tag": "0227076",
+   "photo": null
+  },
+  {
+   "pid": 226653,
+   "name": "Wicker outdoor patio daybed",
+   "cat": "patio",
+   "price": 150.0,
+   "retail": 699.0,
+   "tb": 16.5,
+   "units": 1,
+   "tag": "0226653",
+   "photo": null
+  },
+  {
+   "pid": 224506,
+   "name": "Chenille accent chairs, set of 2",
+   "cat": "furniture",
+   "price": 175.0,
+   "retail": 329.99,
+   "tb": 38.5,
+   "units": 1,
+   "tag": "0224506",
+   "photo": null
+  },
+  {
+   "pid": 226596,
+   "name": "Spectra 11-piece cookware set",
+   "cat": "kitchen",
+   "price": 211.84,
+   "retail": 389.99,
+   "tb": 23.3,
+   "units": 1,
+   "tag": "0226596",
+   "photo": null
+  },
+  {
+   "pid": 226667,
+   "name": "Eveline queen upholstered storage bed",
+   "cat": "furniture",
+   "price": 150.0,
+   "retail": 549.99,
+   "tb": 16.5,
+   "units": 1,
+   "tag": "0226667",
+   "photo": null
+  },
+  {
+   "pid": 226325,
+   "name": "Golden State 7.5 ft patio umbrella",
+   "cat": "patio",
+   "price": 410.0,
+   "retail": 820.0,
+   "tb": 65.6,
+   "units": 1,
+   "tag": "0226325",
+   "photo": null
+  },
+  {
+   "pid": 226710,
+   "name": "Gel hybrid bed-in-a-box mattress",
+   "cat": "bedbath",
+   "price": 120.17,
+   "retail": 369.99,
+   "tb": 13.21,
+   "units": 1,
+   "tag": "0226710",
+   "photo": null
+  },
+  {
+   "pid": 226276,
+   "name": "Baby bottle washer Pro",
+   "cat": "baby",
+   "price": 160.61,
+   "retail": 299.99,
+   "tb": 25.69,
+   "units": 1,
+   "tag": "0226276",
+   "photo": null
+  }
+ ],
+ "coming": {
+  "trucks": [
+   {
+    "id": 501,
+    "name": "Wayfair",
+    "pallets": 24,
+    "pieces": 0,
+    "listed": false
+   },
+   {
+    "id": 502,
+    "name": "Walmart",
+    "pallets": 21,
+    "pieces": 1238,
+    "listed": true
+   }
+  ],
+  "items": [
+   {
+    "id": 4,
+    "name": "Modern Farmhouse Hall Tree with Bench and Storage Cabinets, Entryway Coat Rack with",
+    "cat": "furniture",
+    "retail": 482.98,
+    "qty": 1,
+    "truck": 502
+   },
+   {
+    "id": 5,
+    "name": "Casabrews 5700Pro Espresso Machine with Grinder, Stainless Steel Coffee Maker, 20 Ba",
+    "cat": "kitchen",
+    "retail": 449.99,
+    "qty": 1,
+    "truck": 502
+   },
+   {
+    "id": 6,
+    "name": "My Texas House 9 ft Pre-Lit Grand Spruce Green Artificial Christmas Tree with LumaDa",
+    "cat": "party",
+    "retail": 429.0,
+    "qty": 1,
+    "truck": 502
+   },
+   {
+    "id": 8,
+    "name": "GVDV 14' Outdoor Trampoline, Backyard Recreational Pumpkin Trampoline for Kids",
+    "cat": "sports",
+    "retail": 399.99,
+    "qty": 1,
+    "truck": 502
+   },
+   {
+    "id": 10,
+    "name": "Upgrade 20+ Miles Range Electric Wheelchairs for Adults,Arshin Electric Wheelchair L",
+    "cat": "health",
+    "retail": 329.99,
+    "qty": 1,
+    "truck": 502
+   },
+   {
+    "id": 11,
+    "name": "BSHTI Queen Size Velvet Loveseat Sofa Bed with 3-in-1 Convertible Pull-Out Design, S",
+    "cat": "furniture",
+    "retail": 326.99,
+    "qty": 1,
+    "truck": 502
+   },
+   {
+    "id": 7,
+    "name": "Tineco GO Flex Cordless, Lightweight Stick Vacuum",
+    "cat": "household",
+    "retail": 207.0,
+    "qty": 2,
+    "truck": 502
+   },
+   {
+    "id": 15,
+    "name": "Reese 50066 Fifth Wheel Custom Quick Install Brackets - Select Chevrolet / GMC Truck",
+    "cat": "auto",
+    "retail": 197.81,
+    "qty": 1,
+    "truck": 502
+   },
+   {
+    "id": 16,
+    "name": "Ozark Trail 11-Person Instant Cabin Tent with Private Room, 3-Room Family Camping Te",
+    "cat": "sports",
+    "retail": 195.0,
+    "qty": 1,
+    "truck": 502
+   },
+   {
+    "id": 17,
+    "name": "10.6\" Dual Car DVD Player with Suction-Type Disc in, Headrest DVD Players for Car Pl",
+    "cat": "electronics",
+    "retail": 189.99,
+    "qty": 1,
+    "truck": 502
+   },
+   {
+    "id": 19,
+    "name": "Disney Mickey Mouse Plastic Indoor,Outdoor Playhouse with Easy Assembly",
+    "cat": "toys",
+    "retail": 179.99,
+    "qty": 1,
+    "truck": 502
+   },
+   {
+    "id": 20,
+    "name": "UBesGoo 12V Licensed Mercedes-Benz Electric Ride On Cars Toys for Kids, Power Wheels",
+    "cat": "toys",
+    "retail": 169.99,
+    "qty": 1,
+    "truck": 502
+   }
+  ]
+ },
+ "top_cats": [
+  "apparel",
+  "toys",
+  "health",
+  "party",
+  "kitchen",
+  "decor"
+ ]
+}

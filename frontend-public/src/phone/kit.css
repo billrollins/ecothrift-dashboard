@@ -1,0 +1,110 @@
+/* The phone site's kit: the one look every block shares (ported from the approved round-3 mockup, kit/kit.css).
+   Phone only. One light look. Brand: logo green, the price tag's own lime on black, cranberry for a sale day.
+   One type family (Archivo, bundled): narrow and heavy for headlines and numbers, normal width for everything else. */
+
+/* Archivo with its width and weight axes, Latin only (U+00E9 for "décor" is in it). Preloaded by phone.html. */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  src: url('@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2') format('woff2-variations'),
+       url('@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+                 U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  --green: #1d5424;      /* logo dark green: the top field */
+  --green-d: #143c19;
+  --leaf: #3f9f35;       /* logo light green */
+  --lime: #c8e382;       /* sampled from the printed price tag */
+  --ink: #10140f;
+  --ink-2: #4d564b;
+  --ground: #eef0ea;
+  --card: #ffffff;
+  --cream: #f4f2ea;
+  --cran: #b4232c;
+  --line: #dde1d7;
+  --r: 14px;
+  --gut: 16px;
+  --bar: 58px;           /* the bottom bar's height, without the phone's own inset */
+  --sans: 'Archivo', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --strip-bg: var(--lime);
+  --strip-fg: var(--ink);
+  color-scheme: light;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-padding-top: 72px; }   /* the stuck search row is 62 px */
+body { margin: 0; background: #cfd3c9; color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.35;
+       -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+img { display: block; }
+h1, h2, h3, p { margin: 0; }
+
+/* The phone column. On a computer it stays phone-width in the middle of the window. */
+.ph { max-width: 430px; margin: 0 auto; background: var(--ground); position: relative; overflow-x: clip;
+      padding-bottom: calc(var(--bar) + env(safe-area-inset-bottom, 0px)); min-height: 100vh; min-height: 100dvh; }
+
+/* Headline and number type: narrow, heavy, tight. */
+.disp { font-stretch: 66%; font-weight: 900; line-height: .9; letter-spacing: -.005em; text-transform: uppercase; }
+.lbl { font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.fine { font-size: 12px; line-height: 1.3; }
+.tn { font-variant-numeric: tabular-nums; }
+
+/* A section's title row: a name on the left, one link on the right. */
+.sh { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 var(--gut); margin-bottom: 12px; }
+.sh h2 { font-size: 22px; font-stretch: 80%; font-weight: 800; letter-spacing: -.01em; }
+.sh a { font-size: 13px; font-weight: 700; color: var(--green); white-space: nowrap; }
+
+/* Buttons: one filled, one outlined. 48 px tall, full words. */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 22px;
+       border-radius: 999px; font-weight: 800; font-size: 15px; white-space: nowrap; }
+.btn-lime { background: var(--lime); color: var(--ink); }
+.btn-ink { background: var(--ink); color: #fff; }
+.btn-line { border: 2px solid currentColor; }
+
+/* The price tag look, as printed: black block, lime numbers. */
+.tag { display: inline-flex; align-items: flex-start; background: #000; color: var(--lime); border-radius: 8px; padding: 6px 10px 4px;
+       font-stretch: 66%; font-weight: 900; line-height: .9; }
+.tag small { font-size: .42em; margin-right: 2px; margin-top: .12em; }
+.tag sup { font-size: .36em; margin-left: 2px; margin-top: .14em; }
+
+svg.i { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* A plain page (every page but home is one of these). */
+.pg { padding: 22px var(--gut) 28px; }
+.pg-h { font-size: 44px; margin-bottom: 14px; }             /* a page's headline: add class "disp" */
+.backrow { display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 var(--gut); font-size: 14px; font-weight: 700; color: var(--green); }
+
+/* Who sees what: real state on <html> (data-day from the home feed, data-member from lib/member.ts). */
+html[data-member="no"] .if-in, html[data-member="unknown"] .if-in, html[data-member="yes"] .if-out,
+html[data-day="normal"] .if-bf, html[data-day="bf"] .if-normal { display: none !important; }
+
+/* A sideways row of cards: the next card always shows its edge. */
+.rail { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 0 var(--gut); scroll-padding-left: var(--gut); scrollbar-width: none; }
+.rail::-webkit-scrollbar { display: none; }
+.rail > * { flex: none; scroll-snap-align: start; }
+
+/* A product card for a slider: photo on top, then the name, then the numbers. */
+.pc { width: 148px; display: block; }
+.pc .ph-img { position: relative; height: 148px; border-radius: var(--r); background: var(--cream); overflow: hidden; }
+.pc .ph-img img { width: 100%; height: 100%; object-fit: cover; }
+.pc .ph-img img.cut { object-fit: contain; padding: 14px; mix-blend-mode: multiply; }      /* a studio photo on white */
+.pc .nm { margin-top: 8px; font-size: 13.5px; font-weight: 600; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.4em; }
+.pc .was { margin-top: 6px; font-size: 12px; color: var(--ink-2); }
+.pc .was s { text-decoration-thickness: 1.5px; }
+
+/* Black Friday: colour only. Same structure, same sizes, same words in the same places. */
+html[data-day="bf"] { --green: #0b0d0a; --green-d: #000000; --strip-bg: #b4232c; --strip-fg: #ffffff; }   /* --leaf stays green: it means open */
+
+/* A count badge (categories, tabs). */
+.cnt { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 20px; padding: 0 7px; border-radius: 999px;
+       background: var(--ink); color: #fff; font-size: 11.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* The one motion allowed: a fade of 120 ms or less. */
+.fade { transition: opacity .12s; }
+
+[hidden] { display: none !important; }

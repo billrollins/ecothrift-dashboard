@@ -1,0 +1,27 @@
+/* Home 6, how it works: from the mockup's blocks/60-how.html */
+.hw { background: var(--ground); padding: 24px 0 22px; }
+.hw .rail { padding-bottom: 2px; }
+.hwc { width: 262px; display: block; background: #fff; border-radius: var(--r); padding: 10px 10px 14px; }
+.hwp { height: 136px; border-radius: 10px; background: var(--cream); display: flex; align-items: center; justify-content: center; gap: 10px; }
+.hwt { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 0 4px; min-height: 52px; }
+.hwn { font-size: 58px; color: var(--green); line-height: .8; flex: none; }
+.hwt b { font-size: 17px; font-weight: 800; line-height: 1.15; }
+/* 1: the tag, hanging from its string */
+.hwh { display: flex; flex-direction: column; align-items: center; }
+.hwh svg { width: 30px; height: 26px; display: block; }
+.hwh svg path { fill: none; stroke: var(--ink-2); stroke-width: 2; stroke-linecap: round; }
+.hwh .tag { font-size: 62px; position: relative; padding-top: 18px; }
+.hwh .tag::before { content: ''; position: absolute; top: 4px; left: 50%; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--cream); }
+/* 2: the tag gives ThriftBucks */
+.hwp .tag.s { font-size: 36px; }
+.hwa { color: var(--ink-2); font-size: 22px; font-weight: 800; }
+.hwb { background: var(--green); color: #fff; border-radius: 10px; padding: 9px 11px 8px; }
+.hwb .disp { display: block; font-size: 34px; color: var(--lime); }
+.hwb .lbl { display: block; margin-top: 4px; font-size: 10px; }
+/* 3: the register: two ways to pay */
+.hwr { width: 100%; height: 100%; padding: 10px; display: grid; gap: 8px; }
+.hwr div { background: #000; color: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }
+.hwr .lbl { font-size: 10px; opacity: .8; }
+.hwr .disp { font-size: 26px; color: var(--lime); text-align: right; }
+.hwr .disp small { font-size: .5em; letter-spacing: .02em; }
+.hwf { margin: 12px var(--gut) 0; color: var(--ink-2); }

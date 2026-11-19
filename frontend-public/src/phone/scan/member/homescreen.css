@@ -1,0 +1,46 @@
+/* "Put Thrift+ on your home screen" (piece S5, prefix hs-). In the entry chunk with shell/Prompts.tsx: keep it small. */
+.hs { display: flex; align-items: center; gap: 12px; background: var(--card); border-radius: var(--r); border: 2px solid var(--line); color: var(--ink); }
+.hs-icon { flex: none; border-radius: 12px; background: var(--cream); }
+.hs-words { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; line-height: 1.2; }
+.hs-words b { font-size: 14px; font-weight: 800; }
+.hs-words span { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+
+/* The banner: one row, 64 px tall whatever it says (two lines of words at most), so it never changes its own height. */
+.hs-banner { height: 72px; padding: 0 2px 0 12px; box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
+.hs-banner .hs-words b, .hs-banner .hs-words span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.hs-banner .hs-words b { -webkit-line-clamp: 1; }
+.hs-go { flex: none; min-height: 44px; padding: 0 16px; font-size: 14px; }
+.hs-dismiss { flex: none; width: 44px; height: 44px; display: grid; place-items: center; color: var(--ink-2); }
+.hs-dismiss svg.i { width: 20px; height: 20px; }
+
+/* In Account: a card with a big button under the words. */
+.hs-acct { flex-wrap: wrap; padding: 14px; }
+.hs-acct .hs-words b { font-size: 16px; }
+.hs-acct .hs-words span { font-size: 14px; }
+.hs-wide { width: 100%; min-height: 48px; }
+
+/* The iPhone steps: a layer that fades in over the page (the page under it does not move). */
+.hs-layer { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end; justify-content: center; animation: hs-in .12s ease-out; }
+.hs-bg { position: absolute; inset: 0; background: rgba(16, 20, 15, .5); }
+.hs-panel { position: relative; width: min(100%, 430px); max-height: calc(100dvh - 40px); overflow-y: auto; border-radius: 20px 20px 0 0;
+            background: var(--card); padding: 20px var(--gut) calc(18px + env(safe-area-inset-bottom, 0px)); }
+.hs-x { position: absolute; top: 6px; right: 6px; width: 44px; height: 44px; display: grid; place-items: center; color: var(--ink-2); }
+.hs-head { display: flex; align-items: center; gap: 12px; padding-right: 40px; }
+.hs-head h2 { font-size: 26px; font-stretch: 70%; font-weight: 900; line-height: 1; text-transform: uppercase; color: var(--green); }
+.hs-steps { list-style: none; margin: 18px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.hs-steps li { display: grid; grid-template-columns: 30px 116px 1fr; gap: 10px; align-items: center; }
+.hs-n { width: 30px; height: 30px; border-radius: 50%; background: var(--green); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 15px; }
+.hs-tile { min-height: 56px; border-radius: 12px; border: 2px solid var(--line); display: flex; align-items: center; justify-content: center; gap: 6px;
+           padding: 4px 8px; font-size: 12.5px; font-weight: 700; line-height: 1.1; text-align: center; }
+.hs-tile .hs-share { width: 34px; height: 34px; color: #0a74e6; }
+.hs-t3 { font-size: 20px; font-weight: 800; color: #0a74e6; }
+.hs-text { font-size: 14px; line-height: 1.3; }
+.hs-done { width: 100%; margin-top: 20px; }
+@keyframes hs-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .hs-layer { animation: none; } }
+
+/* On every page of the phone site (shell/Prompts.tsx): fixed above the bottom bar, where the update bar sits, over the
+   page (it never moves anything). No transform here: the iPhone steps' fixed layer is inside it. */
+.hs-float { position: fixed; left: 0; right: 0; margin: 0 auto; bottom: calc(var(--bar) + env(safe-area-inset-bottom, 0px) + 8px); z-index: 45;
+            width: min(calc(100% - 2 * var(--gut)), calc(430px - 2 * var(--gut))); pointer-events: none; }
+.hs-float > * { pointer-events: auto; }

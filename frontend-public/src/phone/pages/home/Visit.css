@@ -1,0 +1,20 @@
+/* Home 7, visit: from the mockup's blocks/70-visit.html */
+.visit { background: #fff; padding: 24px var(--gut) 26px; }
+.visit .open { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 800; color: var(--green); }
+.visit .open i { width: 9px; height: 9px; border-radius: 50%; background: var(--leaf); }
+.visit .open.shut { color: var(--cran); } .visit .open.shut i { background: var(--cran); }
+.visit h2 { margin-top: 8px; font-size: 44px; }
+.visit .city { margin-top: 6px; font-size: 16px; font-weight: 700; }
+.visit .acts { margin-top: 16px; display: flex; gap: 10px; }
+.visit .acts .btn { flex: 1; padding: 0 12px; }
+.hours { margin-top: 18px; border-top: 1px solid var(--line); }
+.hours div { display: flex; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+.hours div span:last-child { font-weight: 700; }
+.visit .map { display: block; margin: 0 0 18px; border-radius: var(--r); overflow: hidden; background: var(--cream); border: 1px solid var(--line); }
+.visit .map svg { display: block; width: 100%; height: auto; }
+.visit .map .rd { fill: #fff; } .visit .map .rd-e { fill: none; stroke: var(--line); stroke-width: 1.5; }
+.visit .map .rd-c { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 8 7; }
+.visit .map .nm { font-size: 11px; font-weight: 800; letter-spacing: .08em; fill: var(--ink-2); }
+.visit .map .lot { fill: var(--line); }
+.visit .map .pin { fill: var(--green); } .visit .map .dot { fill: var(--lime); }
+.visit .map .here { font-size: 14px; font-weight: 800; fill: var(--ink); }

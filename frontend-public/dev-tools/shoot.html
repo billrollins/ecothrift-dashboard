@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>phone shoot</title>
+<!-- Dev only (served at /__shoot by dev-tools/phoneDev.ts): workspace/phone-shoot/shoot.py screenshots a phone-site page
+     through this same-origin wrapper. It sets the dev cookies, loads the page in an iframe of the phone's size, runs the
+     steps, then paints a report (JavaScript errors, sideways overflow, page height) as a grid of bits under the frame. -->
+<style>html,body{margin:0;background:#fff}iframe{display:block;border:0;background:#fff}canvas{position:absolute;left:0;image-rendering:pixelated}</style>
+</head>
+<body>
+<iframe id="f"></iframe>
+<canvas id="c" width="512" height="120"></canvas>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var w = +(q.get('w') || 390), h = +(q.get('h') || 664), steps = [];
+  try { steps = JSON.parse(q.get('do') || '[]'); } catch (e) { steps = []; }
+  function cookie(k, v) { document.cookie = k + '=' + (v ? encodeURIComponent(v) : '') + '; path=/' + (v ? '' : '; max-age=0'); }
+  cookie('eco_dev_day', q.get('day') || '');
+  cookie('eco_dev_member', q.get('member') ? '1' : '');
+  cookie('eco_dev_app', q.get('app') || '');
+  cookie('eco_dev_boot', q.get('boot') || '');
+  try { sessionStorage.clear(); localStorage.clear(); } catch (e) {}
+
+  var f = document.getElementById('f'), c = document.getElementById('c'), errs = [];
+  f.style.width = w + 'px'; f.style.height = h + 'px'; c.style.top = h + 'px';
+
+  function paint(msg) {
+    var t = JSON.stringify(msg), by = [], bits = [], k;
+    for (k = 0; k < t.length; k++) { var ch = t.charCodeAt(k); by.push(ch < 128 ? ch : 63); }
+    by = by.slice(0, 440);
+    function put(v, n) { for (var b = n - 1; b >= 0; b--) bits.push((v >> b) & 1); }
+    put(by.length, 16); by.forEach(function (b) { put(b, 8); });
+    var x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 512, 120); x.fillStyle = '#000';
+    bits.forEach(function (b, i) { if (b) x.fillRect((i % 128) * 4, Math.floor(i / 128) * 4, 4, 4); });
+    document.documentElement.setAttribute('data-report', t);
+  }
+  function report() {
+    var win = f.contentWindow, d = win.document, de = d.documentElement;
+    var all = errs.concat(win.__errs || []);
+    paint({ errs: all.join('; ').slice(0, 300), n: all.length, overflow: Math.max(0, de.scrollWidth - de.clientWidth),
+            height: Math.max(de.scrollHeight, d.body ? d.body.scrollHeight : 0) });
+  }
+  function setValue(el, v) {
+    var proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    var desc = Object.getOwnPropertyDescriptor(f.contentWindow[el.tagName === 'TEXTAREA' ? 'HTMLTextAreaElement' : 'HTMLInputElement'].prototype, 'value') ||
+               Object.getOwnPropertyDescriptor(proto, 'value');
+    desc.set.call(el, v);
+    el.dispatchEvent(new f.contentWindow.Event('input', { bubbles: true }));
+    el.dispatchEvent(new f.contentWindow.Event('change', { bubbles: true }));
+  }
+  function run(i) {
+    if (i >= steps.length) { setTimeout(report, 450); return; }
+    var s = steps[i], d = f.contentWindow.document, m, wait = 320;
+    try {
+      if ((m = /^type:(.*)=([^=]*)$/.exec(s))) { var el = d.querySelector(m[1]); if (!el) throw new Error('no element ' + m[1]); el.focus(); setValue(el, m[2]); }
+      else if ((m = /^enter:(.*)$/.exec(s))) {
+        var e2 = d.querySelector(m[1]); if (!e2) throw new Error('no element ' + m[1]);
+        e2.dispatchEvent(new f.contentWindow.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        if (e2.form) { if (e2.form.requestSubmit) e2.form.requestSubmit(); else e2.form.dispatchEvent(new f.contentWindow.Event('submit', { bubbles: true, cancelable: true })); }
+      }
+      else if ((m = /^scroll:(\d+)$/.exec(s))) { f.contentWindow.scrollTo(0, +m[1]); }
+      else if ((m = /^scrollto:(.*)$/.exec(s))) { var e3 = d.querySelector(m[1]); if (!e3) throw new Error('no element ' + m[1]); e3.scrollIntoView({ block: 'start' }); }
+      else if ((m = /^wait:(\d+)$/.exec(s))) { wait = +m[1]; }
+      else { var e4 = d.querySelector(s); if (!e4) throw new Error('no element ' + s); e4.click(); }
+    } catch (err) { errs.push('step ' + (i + 1) + ' (' + s + '): ' + err.message); }
+    setTimeout(function () { run(i + 1); }, wait);
+  }
+  f.addEventListener('load', function () {
+    var started = Date.now();
+    (function ready() {
+      var d = f.contentWindow.document, root = d.getElementById('root');
+      if (root && root.children.length) return setTimeout(function () { run(0); }, 600);
+      if (Date.now() - started > 6000) { errs.push('the page did not draw within 6 s'); return run(0); }
+      setTimeout(ready, 100);
+    })();
+  });
+  f.src = q.get('u') || '/';
+})();
+</script>
+</body>
+</html>

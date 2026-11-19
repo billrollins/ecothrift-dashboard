@@ -1,0 +1,12 @@
+/* menu (mockup pages/menu.html, without the test-drive control) */
+.mn { background: var(--card); min-height: 60vh; padding-bottom: 24px; }
+.mn-open { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 52px; padding: 0 var(--gut);
+           background: var(--ground); border-bottom: 1px solid var(--line); font-size: 14px; font-weight: 700; }
+.mn-open .open { display: inline-flex; align-items: center; gap: 7px; color: var(--green); }
+.mn-open .open i { width: 8px; height: 8px; border-radius: 50%; background: var(--leaf); }
+.mn-open .open.shut { color: var(--cran); } .mn-open .open.shut i { background: var(--cran); }
+.mn-open .ad { color: var(--ink-2); font-weight: 600; white-space: nowrap; }
+.mn-list { padding: 0 var(--gut); }
+.mn-list a { display: flex; align-items: center; justify-content: space-between; height: 52px; border-bottom: 1px solid var(--line);
+             font-size: 17px; font-weight: 700; }
+.mn-list a span { color: var(--green); font-size: 18px; }

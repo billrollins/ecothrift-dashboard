@@ -1,0 +1,12 @@
+/* Home 3, shop by category: from the mockup's blocks/30-departments.html */
+.dp-band { padding: 18px 0 22px; }
+.dp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 var(--gut); }
+.dp-tile { position: relative; display: block; height: 138px; border-radius: var(--r); background: var(--cream); overflow: hidden; padding: 12px 12px 0; }
+.dp-tile b { position: relative; z-index: 1; display: block; font-size: 15px; font-weight: 800; line-height: 1.15; max-width: 8.2em; }
+.dp-band .dp-tile b::after { content: '\a0 ›'; color: var(--green); }
+.dp-tile img { position: absolute; right: 6px; bottom: 6px; max-width: 62%; max-height: 66%; width: auto; height: auto; mix-blend-mode: multiply; }
+.dp-tile.wide img { max-width: 70%; max-height: 60%; }
+.dp-tile .cnt { position: absolute; z-index: 1; left: 12px; bottom: 10px; }
+.dp-all { display: flex; align-items: center; justify-content: space-between; margin: 10px var(--gut) 0; height: 50px; padding: 0 16px; border-radius: var(--r);
+          background: #fff; font-weight: 800; font-size: 15px; }
+.dp-all > span:last-child { color: var(--green); }

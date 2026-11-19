@@ -1,0 +1,16 @@
+/* Categories (mockup pages/departments.html, prefix dp; the home block uses dp-band / dp-grid / dp-tile) */
+.dp-hd { background: var(--card); padding: 0 0 18px; }
+.dp-hd .lbl { color: var(--ink-2); padding: 4px var(--gut) 0; }
+.dp-h { font-size: 44px; padding: 6px var(--gut) 0; }
+.dp-h span { color: var(--green); }
+.dp-g { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 16px var(--gut) 24px; }
+.dp-t { position: relative; display: block; height: 150px; border-radius: var(--r); background: var(--cream); overflow: hidden; padding: 12px 12px 0; }
+.dp-t b { position: relative; z-index: 1; display: block; font-size: 15px; font-weight: 800; line-height: 1.15; max-width: 9em; }
+.dp-t b::after { content: '\a0 ›'; color: var(--green); }
+.dp-t img { position: absolute; right: 6px; bottom: 6px; max-width: 58%; max-height: 58%; width: auto; height: auto; mix-blend-mode: multiply; }
+.dp-t.wide img { max-width: 66%; max-height: 50%; }
+@media (max-width: 374px) { .dp-t.wide img { max-width: 58%; } }
+.dp-t .cnt { position: absolute; z-index: 1; left: 12px; bottom: 10px; }
+.dp-t.dp-other { grid-column: 1 / -1; height: 72px; background: var(--lime); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; }
+.dp-t.dp-other b { max-width: none; font-size: 17px; }
+.dp-t.dp-other .cnt { position: static; flex: none; }

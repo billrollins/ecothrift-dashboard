@@ -98,6 +98,7 @@ Load on demand. Do not read them all at session start. When you add, rename or r
 | File | Load when |
 |------|-----------|
 | [`app-map.md`](extended/app-map.md) | Staff nav, workspaces and pages in one map (hand to a UX / nav review) |
+| [`phone-site.md`](extended/phone-site.md) | The phone site and phone scanner (`frontend-public/src/phone`, `apps/storefront`): its switches, the owner's preview link, rollback, what is left before go-live |
 | [`auth-and-roles.md`](extended/auth-and-roles.md) | JWT flow, roles, permissions, password flows |
 | [`backend.md`](extended/backend.md) | Django apps, models, serializers, API patterns |
 | [`backfill-plan.md`](extended/backfill-plan.md) | Cleaning or backfilling a field (rules in `warehouse/sql/`, models in `factory/`) |

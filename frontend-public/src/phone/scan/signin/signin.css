@@ -1,0 +1,111 @@
+/* Piece S1, sign-in (prefix si-). The mockup's pages/join.html: a green header band, then the white body with the
+   label above a 56 px box, the hint, a message line whose space is always kept, the black button and the text line.
+   Nothing here moves when a message appears; no slide, no expanding part. Loaded with the scanner only. */
+
+/* Full-bleed inside the scanner's padding (scan.css .sa). */
+.si { display: flex; flex-direction: column; margin: -12px calc(-1 * var(--gut)) 0; }
+.si-screen { display: flex; flex-direction: column; }
+
+/* The header band. */
+.si-hd { background: var(--green); color: #fff; padding: 14px var(--gut) 16px; }
+.si-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 30px; }
+.si-wm { height: 24px; width: auto; flex: none; }
+.si-tagline { font-size: 12.5px; font-weight: 600; line-height: 1.25; color: rgba(255, 255, 255, .86); text-align: right; }
+.si-hd h1 { margin-top: 10px; font-size: 38px; overflow-wrap: anywhere; }
+.si-hd-long h1 { font-size: 27px; }
+.si-hd h1 em { font-style: normal; color: var(--lime); }
+.si-sub { margin-top: 8px; font-size: 14px; font-weight: 600; line-height: 1.35; }
+.si-hd .si-out { color: #fff; margin-right: -6px; }
+
+/* The body. */
+.si-body { display: flex; flex-direction: column; background: var(--card); padding: 18px var(--gut) 18px; }
+.si-lead { font-size: 15px; line-height: 1.45; color: var(--ink-2); margin-bottom: 14px; }
+.si-to { color: var(--ink); overflow-wrap: anywhere; }
+
+/* Fields: the mockup's box (2 px ink edge, lime ring on focus), over scan.css .sa-field. */
+.si .si-field label { font-size: 14px; font-weight: 700; color: var(--ink); }
+.si .si-field input { height: 56px; border: 2px solid var(--ink); font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.si .si-field input:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--lime); }
+.si .si-field input::placeholder { color: var(--ink-2); opacity: .55; font-weight: 600; }
+.si .si-field-text input { font-size: 18px; font-weight: 600; }
+.si .si-field .sa-hint { font-size: 14px; line-height: 1.4; margin-top: 2px; }
+.si-names { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
+.si .si-code input { font-size: 30px; letter-spacing: .35em; text-align: center; padding-left: calc(14px + .35em); }
+.si .si-code input::placeholder { letter-spacing: .35em; }
+
+/* The staff password box with its eye. */
+.si-pw { margin-top: 12px; }
+.si-pw-box { position: relative; }
+.si-pw-box input { width: 100%; padding-right: 52px; }
+.si-eye { position: absolute; top: 6px; right: 4px; width: 44px; height: 44px; display: grid; place-items: center; color: var(--ink-2); }
+
+/* The message line: two lines of space, always. */
+.si-msg { min-height: 36px; padding-top: 5px; font-size: 13.5px; font-weight: 700; line-height: 1.3; color: var(--cran); }
+
+.si-go { min-height: 52px; font-size: 16px; }
+
+/* The text-message line (word for word, signInParts.tsx). */
+.si-ok { margin-top: 12px; font-size: 12.5px; color: var(--ink-2); line-height: 1.45; text-align: center; }
+.si-ok a { text-decoration: underline; text-underline-offset: 2px; font-weight: 600; }
+
+/* Quiet links. */
+.si-small { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 8px; font-size: 14px;
+            font-weight: 700; color: var(--green); text-decoration: underline; text-underline-offset: 3px; }
+.si-alt { align-self: center; margin-top: 8px; }
+.si-quiet { color: var(--ink-2); font-weight: 600; }
+.si-inline { min-height: 0; padding: 0 2px; font-size: inherit; vertical-align: baseline; }
+.si-store { margin-top: 10px; font-size: 14.5px; white-space: normal; text-align: center; line-height: 1.2; padding: 6px 18px; }
+
+/* Google's pill and the "or". */
+.si-google { margin-bottom: 2px; }
+.si-gbox { position: relative; min-height: 44px; }
+.si-gslot { display: flex; justify-content: center; width: 100%; min-height: 44px; }
+.si-gwait { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 999px; border: 1px solid var(--line);
+            background: var(--card); font-size: 15px; font-weight: 600; color: var(--ink); }
+.si-or { display: flex; align-items: center; gap: 10px; margin: 14px 0; font-size: 14px; color: var(--ink-2); }
+.si-or span { flex: 1; height: 1px; background: var(--line); }
+
+/* Join's two steps and its closing lines. */
+.si-steps { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+.si-step { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.4; }
+.si-n { flex: none; width: 28px; height: 28px; border-radius: 99px; background: var(--green); color: #fff; display: grid;
+        place-items: center; font-weight: 800; font-size: 15px; }
+.si-step b { font-weight: 800; }
+.si-close { margin-top: 18px; text-align: center; font-weight: 800; font-size: 16px; line-height: 1.35; color: var(--green); }
+.si-terms { margin-top: 8px; text-align: center; font-size: 12.5px; color: var(--ink-2); }
+.si-terms a { text-decoration: underline; text-underline-offset: 2px; }
+
+/* The code screen's resend line: one line of space, always. */
+.si-resend { min-height: 44px; margin-top: 10px; display: flex; align-items: center; justify-content: center; text-align: center;
+             font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.si-again { min-height: 44px; padding: 0 10px; font-weight: 800; color: var(--green); text-decoration: underline; text-underline-offset: 3px; }
+
+/* While the ways in are not known yet: the form's space, empty (no box pops in under a thumb). */
+.si-wait { min-height: 330px; }
+.si-wait-join { min-height: 520px; }
+
+/* The store's sign-in QR: a square window with lime corners (the mockup's camera panel). */
+.si-qr { position: relative; width: min(100%, 300px, 33dvh); align-self: center; aspect-ratio: 1 / 1; background: #000; border-radius: var(--r); overflow: hidden; }
+.si-qr video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.si-qr-frame { position: absolute; inset: 18%; border-radius: 14px; pointer-events: none;
+               background:
+                 linear-gradient(var(--lime), var(--lime)) top left / 34px 4px no-repeat,
+                 linear-gradient(var(--lime), var(--lime)) top left / 4px 34px no-repeat,
+                 linear-gradient(var(--lime), var(--lime)) top right / 34px 4px no-repeat,
+                 linear-gradient(var(--lime), var(--lime)) top right / 4px 34px no-repeat,
+                 linear-gradient(var(--lime), var(--lime)) bottom left / 34px 4px no-repeat,
+                 linear-gradient(var(--lime), var(--lime)) bottom left / 4px 34px no-repeat,
+                 linear-gradient(var(--lime), var(--lime)) bottom right / 34px 4px no-repeat,
+                 linear-gradient(var(--lime), var(--lime)) bottom right / 4px 34px no-repeat; }
+.si-qr-over { position: absolute; inset: 0; display: grid; place-items: center; }
+.si-qr-tap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #fff; font-weight: 800;
+             font-size: 15px; background: rgba(0, 0, 0, .35); }
+.si-qr-tap svg.i { width: 44px; height: 44px; }
+.si-qr .sa-spin { border-color: rgba(255, 255, 255, .25); border-top-color: #fff; }
+.si-qr-msg { min-height: 44px; padding-top: 8px; }
+
+/* Under the body: Join and "Scan without signing in". */
+.si-foot { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px var(--gut) 8px; }
+.si-join { font-size: 16px; min-height: 52px; }
+.si-free { font-size: 13px; color: var(--ink-2); font-weight: 600; }
+.si-nonmember { min-height: 44px; padding: 0 16px; margin-top: 4px; font-size: 15px; font-weight: 800; color: var(--green); }

@@ -1,0 +1,67 @@
+/* Home 1, specials: from the mockup's blocks/10-specials.html (approved look; do not restyle) */
+.hc-hero { padding: 14px 0 6px; }
+.hc-hero .rail > .hc { flex: 0 0 86%; }
+.hc { position: relative; height: 292px; border-radius: 18px; overflow: hidden; padding: 18px 18px 0; display: flex; flex-direction: column; }
+.hc .lbl { opacity: .8; }
+.hc h2 { margin-top: 8px; font-size: 58px; }
+.hc .sub { margin-top: 10px; font-size: 16px; font-weight: 700; line-height: 1.25; max-width: 17em; }
+.hc .fine { margin-top: 6px; opacity: .8; }
+
+.hc-lime { background: var(--lime); color: var(--ink); }
+.hc-lime h2 { font-size: 92px; }
+.hc-lime h2 span { display: block; font-size: 40px; margin-top: 2px; }
+.hc-lime img { position: absolute; right: 4px; bottom: 8px; width: 70%; height: auto; mix-blend-mode: multiply; }
+
+.hc-black { background: #0b0d0a; color: #fff; }
+.hc-black .lbl { color: var(--lime); opacity: 1; }
+.hc-black h2 em { font-style: normal; color: var(--lime); display: block; }
+.hc-sum { margin-top: auto; margin-bottom: 18px; display: flex; align-items: flex-end; gap: 12px; }
+.hc-sum .was { font-stretch: 66%; font-weight: 800; font-size: 30px; line-height: 1; color: #9aa396; text-decoration: line-through; text-decoration-thickness: 3px; }
+.hc-sum .tag { font-size: 62px; }
+.hc-sum .cap { font-size: 11.5px; line-height: 1.25; color: #c9cfc4; max-width: 10.500em; padding-bottom: 4px; }
+
+.hc-green { background: var(--green); color: #fff; }
+.hc-green .lbl { color: var(--lime); opacity: 1; }
+.hc-green .pct { margin-top: auto; margin-bottom: 16px; font-size: 92px; color: var(--lime); display: flex; align-items: flex-end; gap: 12px; }
+.hc-green .pct small { font-size: 15px; line-height: 1.15; font-stretch: 100%; font-weight: 700; text-transform: none; color: #fff; letter-spacing: 0; max-width: 6.5em; padding-bottom: 8px; }
+
+/* ---------- Black Friday set: same card box, sale-day colours ---------- */
+/* 1. Your ThriftBucks come off today: cranberry, the $100 -> $80 sum */
+.hc-cran { background: var(--cran); color: #fff; }
+.hc-cran .lbl { opacity: 1; }
+.hc-cran h2 { font-size: 42px; }
+.hc-cran h2 em { font-style: normal; color: var(--lime); display: block; }
+.hc-cran .hc-sum .was { color: #fff; opacity: .7; }
+.hc-cran .hc-sum .cap { color: #fff; opacity: .9; }
+.hc-cran .hc-sum { gap: 9px; }
+.hc-cran .hc-sum .cap { flex: 1; min-width: 0; }
+.hc-arrow { font-size: 26px; font-weight: 800; line-height: 1; padding-bottom: 14px; }
+
+/* 2. BO-HO-GO: lime, the three steps as three big letter pairs, then the two-piece sum */
+.hc-boho h2 { font-size: 40px; margin-top: 6px; }
+.hc-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 12px; }
+.hc-steps div { background: var(--ink); color: var(--lime); border-radius: 10px; padding: 8px 8px 7px; }
+.hc-steps b { display: block; font-size: 40px; }
+.hc-steps span { display: block; margin-top: 4px; font-size: 12px; font-weight: 700; color: #fff; line-height: 1.15; }
+.hc-pair { margin-top: auto; margin-bottom: 16px; display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.hc-pair ul { list-style: none; margin: 0; padding: 0 0 2px; font-size: 13px; font-weight: 700; line-height: 1.45; }
+.hc-pair ul li { display: flex; gap: 8px; justify-content: space-between; }
+.hc-pair ul s { text-decoration-thickness: 1.5px; }
+.hc-pair .hc-both { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.hc-pair .tag { font-size: 52px; }
+.hc-pair .hc-both small { font-size: 12px; font-weight: 800; }
+.hc-boho .fine { margin-top: 8px; }
+
+/* 3. Door busters: black, three names and prices */
+.hc-door { background: var(--ink); color: #fff; }
+.hc-door .lbl { color: var(--lime); opacity: 1; }
+.hc-door h2 { font-size: 40px; }
+.hc-rows { margin-top: auto; margin-bottom: 10px; }
+.hc-rows div { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 4px 0; border-top: 1px solid var(--ink-2); }
+.hc-rows p { font-size: 13.5px; font-weight: 700; line-height: 1.2; }
+.hc-rows p s { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 600; opacity: .7; text-decoration-thickness: 1.5px; }
+.hc-rows .tag { font-size: 27px; flex: none; }
+
+.hc-dots { display: flex; justify-content: center; gap: 6px; margin-top: 10px; }
+.hc-dots i { width: 6px; height: 6px; border-radius: 50%; background: #b9bfb2; }
+.hc-dots i.on { background: var(--ink); width: 18px; border-radius: 3px; }

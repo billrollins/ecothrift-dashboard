@@ -1,0 +1,16 @@
+/* Home 5, on the truck: from the mockup's blocks/50-coming.html */
+.cm { background: #000; color: #fff; padding: 24px 0 22px; }
+.cm .sh h2 { color: #fff; }
+.cm .sh .cm-n { font-size: 13px; font-weight: 700; color: var(--lime); white-space: nowrap; }
+.cm .rail { padding-bottom: 2px; }
+.cm .pc .ph-img { background: var(--cream); }
+.cm .pc .ph-img img.cut { mix-blend-mode: multiply; }
+.cm .cm-chip { position: absolute; left: 8px; bottom: 8px; background: #000; color: var(--lime); border-radius: 6px; padding: 4px 7px 3px;
+               font-size: 10px; letter-spacing: .08em; }
+.cm .pc .nm { color: #fff; }
+.cm .pc .cm-rt { margin-top: 4px; min-height: 16px; font-size: 12.5px; color: var(--line); }
+.cm .pc .cm-rt b { color: #fff; font-weight: 700; }
+html[data-day="bf"] .cm { background: var(--cran); }
+html[data-day="bf"] .cm .sh .cm-n { color: #fff; }   /* on Black Friday the band above (Thrift+) goes black: keep the bands apart */
+.cm .cm-fine { margin: 14px var(--gut) 0; color: var(--line); opacity: .8; }
+.cm .cm-chip { max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

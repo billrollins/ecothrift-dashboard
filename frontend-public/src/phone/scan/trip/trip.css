@@ -1,0 +1,202 @@
+/* The trip scanner (piece S4, prefix tr-): the mockup's pages/scan.html. The camera on top, ONE answer slot of a fixed
+   size, Pass and Add to trip that never move, the summary row. Content swaps in place with a 100 ms fade; nothing
+   slides, grows or pushes. Every size is fixed so a new state never moves anything (PLAN-SCANNER.md risk 12). */
+
+.sa > .tr { flex: 1 1 auto; }
+.tr { position: relative; display: flex; flex-direction: column; gap: 14px; }
+
+/* The scanning view takes the whole screen over the bottom bar: the site's top rows are hidden while it is up, so the
+   camera window is tall enough to show what the decoder reads. */
+html[data-scan="trip"] header.top { display: none; }
+.tr-main { display: flex; flex-direction: column; gap: 10px; min-height: 400px;
+           height: calc(100dvh - env(safe-area-inset-top, 0px) - var(--bar) - env(safe-area-inset-bottom, 0px) - 22px); }
+.tr-stage { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.tr-cam { position: relative; flex: 1 1 auto; min-height: 90px; border-radius: var(--r); overflow: hidden; background: #000; }
+.tr-cam > * { height: 100%; }
+
+@keyframes tr-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* A tag block read out as "$60.00". */
+.tr-pt { display: inline-flex; }
+.tr-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* The answer slot: always there, always this size. */
+.tr-slot { position: relative; flex: none; height: 218px; border-radius: var(--r); background: var(--card); overflow: hidden; }
+.tr-in { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 9px 14px; user-select: none; -webkit-user-select: none;
+         animation: tr-fade .1s linear; }
+@media (prefers-reduced-motion: reduce) { .tr-in, .tr-undo { animation: none; } }
+
+/* Before the first scan. */
+.tr-empty { align-items: center; justify-content: center; gap: 10px; text-align: center; }
+.tr-ghost { font-size: 44px; opacity: .14; }
+.tr-empty h2 { font-size: 34px; }
+.tr-about-link { min-height: 32px; font-size: 13px; position: relative; }
+.tr-about-link::after { content: ''; position: absolute; inset: -6px -8px; }
+
+/* A tag: the same rows in the same place on every tag. */
+.tr-hd { flex: none; height: 22px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tr-sku { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-intrip { display: inline-flex; align-items: center; gap: 4px; color: var(--green); white-space: nowrap; }
+.tr-intrip svg.i { width: 15px; height: 15px; stroke-width: 3; }
+.tr-badge { position: relative; flex: none; display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 999px;
+            font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.tr-badge::after { content: ''; position: absolute; inset: -11px -4px; }
+.tr-badge svg.i { width: 14px; height: 14px; stroke-width: 2.5; }
+.tr-badge.tr-ok { background: var(--lime); color: var(--ink); }
+.tr-badge.tr-asis { background: #fbefd5; color: #7a4a00; }
+.tr-nm { flex: none; margin-top: 3px; max-height: 40px; font-size: 16.5px; font-weight: 800; line-height: 1.2; letter-spacing: -.01em;
+         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tr-meta { flex: none; margin-top: 1px; height: 20px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2);
+           white-space: nowrap; overflow: hidden; }
+.tr-retail { position: relative; flex: none; color: var(--ink-2); font-size: 13px; }
+.tr-retail::after { content: ''; position: absolute; inset: -12px -4px; }
+.tr-dot { border-bottom: 1.5px dotted currentColor; }
+.tr-retail s { text-decoration-thickness: 1.5px; }
+.tr-meta b { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 800; }
+.tr-meta .tr-feel { margin-left: auto; }
+.tr-meta .tr-bad { color: var(--cran); }
+.tr-meta .tr-warn { color: #8a5a00; }
+.tr-cat { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* The numbers, pinned: our price on the tag block, the ThriftBucks beside it. */
+.tr-nums { flex: none; margin-top: auto; height: 80px; display: flex; gap: 10px; }
+.tr-tc { flex: none; min-width: 84px; display: flex; flex-direction: column; justify-content: flex-end; gap: 5px; }
+.tr-tc .lbl { color: var(--ink-2); }
+.tr-tc .tag { align-self: flex-start; font-size: 42px; }
+.tr-tc .tag.tr-t3 { font-size: 34px; }
+.tr-tc .tag.tr-t4 { font-size: 27px; }
+.tr-ans { position: relative; flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px;
+          padding: 7px 12px; border-radius: 12px; background: var(--green); color: #fff; text-align: left; }
+.tr-rb { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.tr-big { font-stretch: 66%; font-weight: 900; font-size: 30px; line-height: .95; color: var(--lime); white-space: nowrap; }
+.tr-ans-w { font-size: 13px; font-weight: 800; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-ans-s { font-size: 11.5px; font-weight: 600; line-height: 1.15; opacity: .82; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-ans.tr-ans-0 { background: var(--ground); color: var(--ink-2); }
+.tr-ans-none { font-size: 13.5px; font-weight: 700; line-height: 1.2; }
+.tr-join .tr-big { font-size: 25px; }
+.tr-go { font-size: 12px; font-weight: 800; color: var(--lime); white-space: nowrap; }
+.tr-ans-0 .tr-go { color: var(--green); }
+html[data-day="bf"] .tr-ans:not(.tr-ans-0) { background: var(--cran); }      /* Black Friday: colour only */
+html[data-day="bf"] .tr-ans:not(.tr-ans-0) .tr-big, html[data-day="bf"] .tr-go { color: #fff; }
+
+.tr-foot { flex: none; margin-top: 4px; height: 30px; display: flex; align-items: center; gap: 8px; }
+.tr-note { min-width: 0; font-size: 11.5px; font-weight: 700; line-height: 1.25; color: #8a5a00;
+           display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tr-feel { position: relative; flex: none; margin-left: auto; font-size: 12.5px; font-weight: 700; color: var(--ink-2); text-decoration: underline;
+           text-underline-offset: 2px; }
+.tr-feel::after { content: ''; position: absolute; inset: -12px -6px; }
+
+/* The answers a code gets. */
+.tr-a { height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.tr-a-row { flex-direction: row; align-items: center; gap: 12px; }
+.tr-a-tag { flex: none; width: 104px; height: auto; }
+.tr-a-icon { flex: none; width: 56px; height: 56px; display: grid; place-items: center; border-radius: 50%; background: var(--lime); color: var(--green); }
+.tr-a-icon svg.i { width: 28px; height: 28px; }
+.tr-a-h { font-size: 20px; font-stretch: 80%; font-weight: 800; line-height: 1.1; color: var(--green); }
+.tr-a-p { font-size: 13.5px; line-height: 1.3; color: var(--ink-2); }
+.tr-a-p b { color: var(--ink); font-weight: 700; }
+.tr-a-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 2px; }
+.tr-a-foot .tr-badge { height: 26px; }
+.tr-a-none { padding: 4px 9px; border-radius: 8px; background: var(--ground); font-size: 12px; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
+.tr-a-code { font-size: 12px; color: var(--ink-2); letter-spacing: .04em; }
+.tr-a-mid { align-items: center; text-align: center; }
+
+/* The trip's lines, over the camera and the slot (the camera stays mounted underneath). */
+.tr-over { position: absolute; inset: 0; z-index: 3; background: var(--ground); overflow-y: auto; overscroll-behavior: contain;
+           animation: tr-fade .1s linear; }
+.tr-list { display: flex; flex-direction: column; gap: 8px; padding-bottom: 8px; }
+.tr-none { border: 2px dashed var(--line); border-radius: var(--r); padding: 22px 16px; text-align: center; background: var(--card); }
+.tr-none h2 { font-size: 20px; font-stretch: 80%; font-weight: 800; color: var(--green); }
+.tr-none p { margin-top: 4px; font-size: 13.5px; line-height: 1.3; color: var(--ink-2); }
+.tr-line { position: relative; flex: none; border-radius: 12px; overflow: hidden; }
+.tr-line-rm { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding-right: 18px;
+              border-radius: 12px; background: var(--cran); color: #fff; font-size: 13px; font-weight: 800; }
+.tr-line-in { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 72px;
+              padding: 8px 8px 8px 10px; background: var(--card); border-radius: 12px; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.tr-line-in.tr-tap { cursor: pointer; }
+.tr-line-in.tr-tap:active { background: #f3f8e6; }
+.tr-line-tag { width: 70px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.tr-line-tag .tag { font-size: 20px; padding: 4px 7px 3px; }
+.tr-each { height: 15px; display: flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
+.tr-line-txt { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.tr-line-nm { font-size: 14px; font-weight: 600; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tr-line-sub { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.tr-plus { color: var(--leaf); }
+.tr-zero { color: var(--ink-2); }
+.tr-asis-chip { padding: 1px 6px; border-radius: 999px; background: #fbefd5; color: #7a4a00; font-size: 10px; font-weight: 800; letter-spacing: .04em; }
+.tr-step { display: inline-flex; align-items: center; border: 2px solid var(--line); border-radius: 999px; background: #fff; }
+.tr-step button { width: 40px; height: 42px; display: grid; place-items: center; border-radius: 50%; color: var(--green); }
+.tr-step button.tr-bin { color: var(--cran); }
+.tr-step svg.i { width: 18px; height: 18px; stroke-width: 2.5; }
+.tr-step span { min-width: 18px; text-align: center; font-size: 15px; font-weight: 800; }
+.tr-hint { margin-top: 2px; text-align: center; font-size: 11.5px; line-height: 1.3; color: var(--ink-2); }
+.tr-clear { align-self: center; }
+.tr-red { color: var(--cran); }
+
+/* The trip's totals (the "My trip" section of /thriftplus). ThriftBucks only. */
+.tr-triplist { display: flex; flex-direction: column; gap: 12px; }
+.tr-band { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: var(--r); background: var(--green); color: #fff; }
+.tr-band .lbl { color: var(--lime); }
+.tr-band-n { display: flex; align-items: baseline; gap: 8px; }
+.tr-band-n b { font-stretch: 66%; font-weight: 900; font-size: 34px; line-height: 1; color: var(--lime); }
+.tr-band-n span { font-size: 14px; font-weight: 800; }
+.tr-band .fine { opacity: .85; }
+
+/* Pass and Add to trip: always in this place, always this size. */
+.tr-acts { flex: none; height: 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tr-acts .btn { width: 100%; min-height: 50px; padding: 0 10px; }
+.tr-acts .btn-line { color: var(--ink); background: var(--card); border-color: var(--ink); }
+.tr-acts .btn[disabled] { opacity: .35; }
+.tr-acts svg.i { width: 20px; height: 20px; }
+.tr-acts .tr-span { grid-column: 1 / -1; }
+.tr-blank { display: block; }
+
+/* The summary row: the trip's count and the ThriftBucks it collects; a tap shows the lines. */
+.tr-sum { flex: none; height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 12px; border-radius: 10px;
+          background: var(--green-d); color: #fff; text-align: left; }
+.tr-sum.tr-on { box-shadow: inset 0 0 0 2px var(--lime); }
+.tr-sum > svg.i { color: #fff; opacity: .8; }
+.tr-sum-i { position: relative; flex: none; display: grid; place-items: center; width: 26px; height: 26px; color: var(--lime); }
+.tr-sum-n { position: absolute; top: -6px; right: -9px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--lime);
+            color: var(--ink); font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; }
+.tr-sum-w { flex: none; margin-left: 4px; font-size: 14px; font-weight: 700; }
+.tr-sum-t { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; white-space: nowrap; overflow: hidden; }
+.tr-sum-t b { flex: none; font-stretch: 66%; font-weight: 900; font-size: 20px; color: var(--lime); }
+@media (max-width: 379px) { .tr-sum-w { display: none; } }   /* a small phone: the bag and its count say it */
+.tr-sum-t span { min-width: 0; font-size: 12px; font-weight: 700; opacity: .82; overflow: hidden; text-overflow: ellipsis; }
+
+/* Undo: a layer over the summary row (it covers, never pushes), for 4.5 s. */
+.tr-undo { position: fixed; z-index: 55; left: 50%; transform: translateX(-50%); width: min(398px, calc(100% - 32px));
+           bottom: calc(var(--bar) + env(safe-area-inset-bottom, 0px) + 10px); min-height: 44px; display: flex; align-items: center; gap: 10px;
+           padding: 0 6px 0 14px; border-radius: 10px; background: rgba(16, 20, 15, .95); color: #fff; font-size: 14px; font-weight: 600;
+           animation: tr-fade .1s linear; }
+.tr-undo span { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-undo button { flex: none; min-height: 44px; padding: 0 12px; color: var(--lime); font-weight: 800; }
+
+/* The sheets (a fade, ui.tsx): what Thrift+ is, retail and returns, price feel. */
+.tr-sheet-h { padding-right: 40px; font-size: 24px; font-stretch: 80%; font-weight: 800; line-height: 1.1; color: var(--green); }
+.tr-sheet-p { margin-top: 8px; font-size: 15px; line-height: 1.5; }
+.tr-about .tr-about-band { margin: -22px calc(-1 * var(--gut)) 16px; height: 72px; display: flex; align-items: center; padding: 0 var(--gut);
+                           border-radius: 20px 20px 0 0; background: var(--green-d); }
+.tr-about .sa-sheet-x { color: #fff; }
+.tr-facts { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.tr-facts li { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; line-height: 1.4; }
+.tr-fact-i { flex: none; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: var(--lime); color: var(--green); }
+.tr-fact-i svg.i { width: 16px; height: 16px; stroke-width: 3; }
+.tr-terms { margin-top: 18px; }
+.tr-terms svg.i { width: 18px; height: 18px; }
+.tr-fine { margin-top: 8px; text-align: center; font-size: 12px; color: var(--ink-2); }
+.tr-feel-of { margin: 4px 0 14px; font-size: 13.5px; color: var(--ink-2); }
+.tr-choices { display: flex; flex-direction: column; gap: 8px; }
+.tr-choice { width: 100%; min-height: 52px; padding: 0 16px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff;
+             font-size: 15px; font-weight: 600; text-align: left; }
+.tr-choice:active { background: #f3f8e6; }
+.tr-pays { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tr-pay { height: 58px; border-radius: 12px; background: #000; color: var(--lime); font-stretch: 66%; font-weight: 900; font-size: 26px; }
+.tr-done { text-align: center; padding-top: 6px; }
+.tr-done-i { display: inline-grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: var(--lime); color: var(--green); }
+.tr-done-i svg.i { width: 30px; height: 30px; stroke-width: 3; }
+.tr-done .tr-sheet-h { margin-top: 8px; padding: 0 40px; }
+.tr-done-info { margin-top: 16px; padding: 14px; border-radius: 12px; background: var(--ground); font-size: 14px; line-height: 1.45; }
+.tr-done-info p { margin-top: 4px; color: var(--ink-2); }
+.tr-done-btn { margin-top: 18px; }

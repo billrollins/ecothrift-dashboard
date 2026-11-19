@@ -1,0 +1,17 @@
+/* Home 2, best finds: from the mockup's blocks/20-finds.html */
+.fd { background: #fff; padding: 20px 0 22px; }
+.fd .sh { margin-bottom: 10px; }
+.fd .rail > .pc { width: 150px; }
+.fd .ph-img { height: 150px; }
+.fd .ph-img::after { content: attr(data-dept); position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+                     padding: 0 14px; text-align: center; font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.fd .ph-img.fd-miss::after { display: flex; }
+.fd .ph-img.fd-miss img { visibility: hidden; }
+.fd .nm { margin-top: 8px; }
+.fd-pr { margin-top: 6px; display: flex; align-items: flex-end; gap: 7px; height: 30px; }
+.fd-pr .tag { font-size: 25px; padding: 4px 7px 3px; border-radius: 6px; }
+.fd-pr s { font-size: 13px; color: var(--ink-2); text-decoration-thickness: 1px; padding-bottom: 2px; white-space: nowrap; }
+.fd-tb { margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--green); white-space: nowrap; }
+html[data-day="bf"] .fd-tb { color: var(--cran); }
+.fd-fine { margin: 12px var(--gut) 0; color: var(--ink-2); }
+.fd-tb .fd-none { color: var(--ink-2); font-weight: 600; }

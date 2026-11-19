@@ -1,0 +1,35 @@
+/* W5 blog: the list (one card per post, one tap target) and a post (server HTML on white, readable). */
+
+.bl-list { background: var(--ground); padding: 16px var(--gut) 28px; display: grid; gap: 12px; }
+.bl-card { display: block; background: #fff; border-radius: var(--r); overflow: hidden; border: 1px solid var(--line); }
+.bl-card .bl-pic { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; background: var(--cream); color: transparent; }
+.bl-card .bl-txt { display: block; padding: 12px 14px 14px; }
+.bl-card .bl-meta { display: block; font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.bl-card .bl-meta b { color: var(--green); font-weight: 800; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; }
+.bl-card h2 { margin-top: 4px; font-size: 19px; font-weight: 800; font-stretch: 85%; line-height: 1.2; }
+.bl-card .bl-ex { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 6px; font-size: 14.5px;
+                  line-height: 1.4; color: var(--ink-2); }
+.bl-none { background: var(--ground); padding: 28px var(--gut) 40px; font-size: 16px; font-weight: 600; color: var(--ink-2); }
+
+/* Waiting: quiet blocks of the cards' own shape, never a spinner */
+.bl-sk { background: #fff; border-radius: var(--r); border: 1px solid var(--line); height: 132px; padding: 14px; }
+.bl-sk i, .bp-sk i { display: block; height: 12px; border-radius: 6px; background: var(--ground); margin-bottom: 10px; }
+.bl-sk i:nth-child(1) { width: 30%; } .bl-sk i:nth-child(2) { width: 85%; height: 18px; } .bl-sk i:nth-child(3) { width: 95%; }
+.bp-sk { padding: 20px var(--gut); }
+.bp-sk i:nth-child(odd) { width: 92%; } .bp-sk i:nth-child(even) { width: 76%; }
+
+/* A post */
+.bp-by { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; font-weight: 700; }
+.bp-by span { opacity: .8; font-weight: 600; }
+.bp-hero { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; background: var(--cream); color: transparent; }
+.bp-body { overflow-wrap: break-word; }
+.bp-body img, .bp-body video, .bp-body iframe { max-width: 100%; height: auto; border-radius: 10px; }
+.bp-body figure { margin: 16px 0; }
+.bp-body figcaption { font-size: 13px; color: var(--ink-2); margin-top: 6px; }
+.bp-body blockquote { margin: 16px 0; padding: 4px 0 4px 14px; border-left: 4px solid var(--lime); font-weight: 600; }
+.bp-body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 14px; }
+.bp-body td, .bp-body th { border: 1px solid var(--line); padding: 6px 8px; }
+.bp-body pre { max-width: 100%; overflow-x: auto; }
+.bp-body hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
+.bp-end { padding: 0 var(--gut) 30px; background: #fff; }
+.bp-end .btn { width: 100%; }

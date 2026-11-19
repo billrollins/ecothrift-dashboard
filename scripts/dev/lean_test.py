@@ -47,28 +47,36 @@ PY_WORKERS = int(os.environ.get('LEAN_PY_WORKERS') or 6)
 VITEST_WORKERS = os.environ.get('LEAN_VITEST_WORKERS') or '8'  # the checks share the CPUs: uncapped, tests time out
 
 # name → {'py': [pytest targets], 'vitest': [files or dirs, relative to frontend/; [] = none, ['*'] = all],
-#          'tsc': bool, 'migrations': bool}
+#          'vitest_public': [the same, relative to frontend-public/], 'tsc': bool, 'migrations': bool}
 SUITES: dict[str, dict] = {
     'thriftplus': {
         'py': ['apps/thriftplus'],
         'vitest': ['src/pages/thriftplus', 'src/components/pos/ThriftPlusPanel.test.tsx', 'src/api/thriftPlusScanner.api.test.ts',
                    'src/utils/thriftPlusCard.test.ts', 'src/utils/posReceipt.test.ts'],
+        # The phone site's scanner (PLAN-SCANNER.md section 3) imports the live scanner's logic from frontend/src: a
+        # staff-side change there changes the customer's phone scanner too.
+        'vitest_public': ['src/phone/scan'],
     },
     'pos': {'py': ['apps/pos'], 'vitest': ['src/utils/posReceipt.test.ts', 'src/components/pos']},
     'qa': {'py': ['apps/qa'], 'vitest': ['src/pages/admin/QAPage.test.tsx']},
     'core': {'py': ['apps/core', 'apps/accounts', 'apps/ai'], 'vitest': ['src/pages/admin/RequestsPage.test.tsx', 'src/pages/brief']},
     'buying': {'py': ['apps/buying'], 'vitest': ['src/pages/buying']},
     'hiring': {'py': ['apps/hiring'], 'vitest': ['src/pages/people'], 'tsc': True},
+    'storefront': {'py': ['apps/storefront']},
     'quick': {'tsc': True, 'migrations': True, 'paths': True},
     'ship': {
         'py': ['apps/thriftplus', 'apps/pos', 'apps/core', 'apps/accounts', 'apps/ai', 'apps/qa', 'apps/inventory', 'apps/stocktake', 'apps/hiring', 'apps/buying',
-               'apps/webstore', 'apps/routines/tests.py::NoDashesTests'],
+               'apps/webstore', 'apps/storefront', 'apps/routines/tests.py::NoDashesTests'],
         'vitest': ['*'], 'tsc': True, 'migrations': True, 'paths': True, 'compile': True, 'full': True,
     },
 }
 
 # A change here can break any app: run every server suite.
 SHARED_SERVER = ('ecothrift/', 'requirements', 'pytest.ini', 'manage.py', 'conftest.py')
+# The live scanner's files the phone scanner imports unchanged (frontend-public/src/phone/scan/core): a change to one
+# also runs the phone scanner's tests.
+SHARED_SCANNER = ('frontend/src/pages/thriftplus/scanner/', 'frontend/src/api/thriftPlusTypes.ts', 'frontend/src/utils/scanCode.ts',
+                  'frontend/src/utils/formatPhone.ts', 'frontend/src/utils/translateGuard.ts')
 # A change here can break any front-end test: run them all.
 FRONT_SETUP = ('package.json', 'package-lock.json', 'vite.config.ts', 'tsconfig.json', 'src/test/')
 # A release that touches only these is shipped and not deployed (ship.md, deploy.md § Project steps).
@@ -275,6 +283,8 @@ def suite(name: str) -> bool:
         jobs.append(lambda: vitest(s['vitest']))
         if s['vitest'] == ['*']:
             jobs.append(lambda: vitest(['*'], front='frontend-public'))
+    if s.get('vitest_public') and s.get('vitest') != ['*']:
+        jobs.append(lambda: vitest(s['vitest_public'], front='frontend-public'))
     if s.get('tsc'):
         jobs.append(lambda: tsc(full=bool(s.get('full'))))
     if s.get('compile'):
@@ -360,6 +370,9 @@ def changed(rest: list[str]) -> bool:
             jobs.append(lambda front=front: vitest(['*'], front=front))
         elif src:
             jobs.append(lambda front=front, src=src: vitest(src, related=True, front=front))
+    if any(f.startswith(SHARED_SCANNER) for f in files) and not any(f.startswith('frontend-public/') for f in files):
+        notes.append("the live scanner's shared files changed: the phone scanner's tests run too")
+        jobs.append(lambda: vitest(SUITES['thriftplus']['vitest_public'], front='frontend-public'))
 
     for note in notes:
         say('note: ' + note)

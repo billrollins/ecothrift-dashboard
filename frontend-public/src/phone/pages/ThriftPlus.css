@@ -1,0 +1,60 @@
+/* /thriftplus (piece S5): from the mockup's pages/thriftplus.html (prefix ac-). The member's views' own parts are in
+   scan/member/member.css (prefix mb-). */
+
+/* The top band: dark green under the green bar. */
+.ac-hero { background: var(--green-d); color: #fff; padding: 22px var(--gut) 24px; }
+.ac-hero .ac-wm { height: 26px; width: auto; }
+.ac-hero h1 { margin-top: 12px; font-size: 46px; }
+.ac-hero h1 em { font-style: normal; color: var(--lime); }
+.ac-sum { margin-top: 18px; display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+.ac-sum .tag { font-size: 54px; }
+.ac-outs { display: grid; gap: 8px; }
+.ac-out { background: rgba(255, 255, 255, .1); border-radius: 10px; padding: 9px 12px; font-size: 13.5px; font-weight: 600; line-height: 1.2; min-height: 58px; }
+.ac-out b { display: block; font-size: 19px; font-stretch: 80%; font-weight: 800; color: var(--lime); }
+.ac-cta { margin-top: 20px; display: flex; gap: 10px; }
+.ac-cta .btn-line { color: #fff; }
+.ac-hero .ac-fn { margin-top: 12px; opacity: .85; }
+
+/* Not known yet: a band of about the size the answer fills (no words, nothing to jump). */
+.ac-wait-out { min-height: 430px; }
+.ac-wait-in { min-height: 232px; }
+.ac-hold { min-height: 60vh; }
+
+/* Three numbers. */
+.ac-three { background: var(--card); display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 16px var(--gut); }
+.ac-three div { background: var(--ground); border-radius: 12px; padding: 12px 10px 11px; }
+.ac-three b { display: block; font-size: 34px; color: var(--green); }
+.ac-three span { display: block; margin-top: 4px; font-size: 12px; font-weight: 700; line-height: 1.2; }
+
+/* Black Friday paints the bands black: give the black tag an edge so it still reads as a tag. */
+html[data-day="bf"] .ac-hero .tag { box-shadow: 0 0 0 1.5px var(--lime); }
+
+/* A member: the balance and the small member QR. */
+.ac-bal { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: end; margin-top: 14px; }
+.ac-bal > div { min-width: 0; }
+.ac-hi { display: block; font-size: 15px; font-weight: 700; }
+.ac-n { display: block; margin-top: 6px; font-size: 64px; color: var(--lime); }
+.ac-n.ac-n-long { font-size: 52px; }
+.ac-u { display: block; margin-top: 4px; font-size: 16px; font-weight: 800; }
+.ac-use { margin-top: 6px; opacity: .85; min-height: 2.6em; }
+
+/* Two quiet rows to the member's other views (each its own screen: nothing opens in place). */
+.ac-go { background: var(--card); padding: 4px var(--gut); }
+.ac-go a { display: flex; align-items: center; gap: 12px; min-height: 64px; border-bottom: 1px solid var(--line); }
+.ac-go a:last-child { border-bottom: 0; }
+.ac-go a > span { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ac-go b { font-size: 15.5px; font-weight: 800; }
+.ac-go a > span > span { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+.ac-go svg.i { color: var(--ink-2); }
+
+/* My trip. */
+.ac-trip { background: var(--ground); padding: 22px 0 18px; }
+.ac-trip .sh { margin-bottom: 4px; }
+.ac-more { font-size: 13px; font-weight: 700; color: var(--green); white-space: nowrap; min-height: 44px; display: inline-flex; align-items: center; }
+.ac-empty { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px var(--gut) 8px; min-height: 68px; }
+.ac-empty p { font-size: 15px; font-weight: 600; color: var(--ink-2); }
+
+/* A member's other views. */
+.ac-view { background: var(--ground); padding-bottom: 28px; }
+.ac-back { width: 100%; margin-top: 6px; }
+.ac-title { padding: 6px var(--gut) 0; margin-bottom: 6px; color: var(--green); }

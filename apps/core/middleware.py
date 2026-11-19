@@ -43,6 +43,143 @@ _HOLDING_TEMPLATE = 'public/holding.html'
 _HOLD_SHELL_MARKER = '<!--PUBLIC_SHELL-->'
 _HOLD_PATH_RE = re.compile(r'^/hold/(?P<token>[\w-]+)/?$')
 
+# ── The phone site (owner 2026-11-19; workspace/app-mockups/real-build/PLAN.md "The switch and the preview") ──────
+# A second, lean public entry (frontend-public/phone.html). It answers when the visitor is on a phone AND the switch is
+# on AND the path is one it owns; the cookie lets the owner preview it in production before the switch is on.
+# Keep OWNED_PATH_RE in step with frontend-public/dev-tools/phoneDev.ts.
+OWNED_PATH_RE = re.compile(
+    r'^/(?:store(?:/item/[\w-]+)?|categories|thriftplus(?:/[\w-]+)?|about|questions|careers(?:/[\w-]+)?|menu|visit'
+    r'|terms|privacy|blog(?:/[\w-]+)?|account(?:/[\w-]+)*|verify|sell|order/[\w-]+)?/?$')
+PHONE_SETTING_KEY = 'storefront.phone_site'  # AppSetting: "off" (default) | "on"
+PHONE_SETTING_SECONDS = 30
+# The second switch (PLAN-SCANNER.md section 5): the Thrift+ scanner at /scan in the phone site, rolled back on its own.
+# /scan (and /scan/) answers with the phone index only for a visitor who gets the phone site AND with this switch on;
+# the eco_site cookie previews or refuses it regardless of both. Everything else of the member app is unchanged: /qr,
+# /card, /join (302s in ecothrift/urls.py), /i/... (apps/core/views.py), the dash-host 302, the manifest and icons.
+PHONE_SCAN_SETTING_KEY = 'storefront.phone_scan'  # AppSetting: "off" (default) | "on"
+SCAN_PATHS = ('/scan', '/scan/')
+SITE_COOKIE = 'eco_site'                     # "phone" | "classic"
+SITE_COOKIE_SECONDS = 30 * 24 * 3600
+SITE_CHOICES = ('phone', 'classic')
+# The preview is the owner's alone (2026-11-19: "i want access and no normal visitors to see it"): ?site=phone works only
+# with a signed key (?k=, minted by `manage.py phone_preview_link`), and the cookie holds that key, so neither the address
+# nor the cookie can be made up. ?site=classic needs no key: it only ever gives the current site.
+PREVIEW_SALT = 'storefront.phone-preview'
+PREVIEW_LINK_SECONDS = 7 * 24 * 3600         # a minted link can be opened for a week; the cookie then lasts 30 days
+
+
+def preview_token() -> str:
+    from django.core import signing
+
+    return signing.TimestampSigner(salt=PREVIEW_SALT).sign('phone')
+
+
+def _token_ok(value: str, max_age: int) -> bool:
+    from django.core import signing
+
+    if not value:
+        return False
+    try:
+        return signing.TimestampSigner(salt=PREVIEW_SALT).unsign(value, max_age=max_age) == 'phone'
+    except signing.BadSignature:  # also an expired one
+        return False
+
+
+def cookie_choice(request) -> str | None:
+    """'phone' (a valid signed key), 'classic', or None when the cookie is absent, made up or too old."""
+    value = request.COOKIES.get(SITE_COOKIE) or ''
+    if value == 'classic':
+        return 'classic'
+    return 'phone' if _token_ok(value, SITE_COOKIE_SECONDS + PREVIEW_LINK_SECONDS) else None
+_BOOT_MARKER = '<!--ECO_BOOT-->'
+_phone_setting_cache: tuple[bool, float] | None = None
+_phone_scan_cache: tuple[bool, float] | None = None
+_boot_cache: tuple[str, str] | None = None   # (etag, the <script> tag), so a warm page re-escapes nothing
+
+
+def _read_switch(key: str) -> bool:
+    """An on/off AppSetting: "on" (or true, or {"value": "on"}) is on; missing, anything else or any error is off."""
+    try:
+        from apps.core.models import AppSetting
+
+        row = AppSetting.objects.filter(key=key).values_list('value', flat=True).first()
+        value = row.get('value', row.get('mode')) if isinstance(row, dict) else row
+        return value is True or str(value or '').strip().lower() == 'on'
+    except Exception:
+        return False
+
+
+def phone_site_on() -> bool:
+    """AppSetting ``storefront.phone_site`` is "on", read at most every 30 seconds per worker (off on any error)."""
+    global _phone_setting_cache
+    now = time.monotonic()
+    if _phone_setting_cache is not None and now < _phone_setting_cache[1]:
+        return _phone_setting_cache[0]
+    on = _read_switch(PHONE_SETTING_KEY)
+    _phone_setting_cache = (on, now + PHONE_SETTING_SECONDS)
+    return on
+
+
+def phone_scan_on() -> bool:
+    """AppSetting ``storefront.phone_scan`` is "on", read at most every 30 seconds per worker (off on any error)."""
+    global _phone_scan_cache
+    now = time.monotonic()
+    if _phone_scan_cache is not None and now < _phone_scan_cache[1]:
+        return _phone_scan_cache[0]
+    on = _read_switch(PHONE_SCAN_SETTING_KEY)
+    _phone_scan_cache = (on, now + PHONE_SETTING_SECONDS)
+    return on
+
+
+def is_phone(request) -> bool:
+    """A phone: the User-Agent says ``Mobi``, and ``Sec-CH-UA-Mobile`` (when the browser sends it) says ``?1``."""
+    if 'Mobi' not in request.META.get('HTTP_USER_AGENT', ''):
+        return False
+    hint = request.META.get('HTTP_SEC_CH_UA_MOBILE')
+    return hint is None or hint.strip() == '?1'
+
+
+def boot_script(scan: bool = False) -> str:
+    """The home feed as ``<script id="eco-boot" type="application/json">``, or '' when there is no snapshot yet.
+
+    Reads the storefront's snapshot holder without building one (a cold worker stamps nothing and the page fetches
+    home.json); a stale copy still stamps, and starts the holder's background refresh. Never fails the page.
+    ``<`` is written ``\\u003c`` so nothing in the JSON can close the script tag.
+
+    ``scan``: /scan would give this visitor the phone scanner, so the stamp carries ``"scan": true`` (its first key)
+    and the shell links to /scan as a route (frontend-public/src/phone/scan/switch.ts); without it, a full page load.
+    """
+    global _boot_cache
+    try:
+        from apps.storefront.services.holder import holder
+
+        if holder.peek() is None:
+            return ''
+        home = holder.get().home
+        if _boot_cache is not None and _boot_cache[0] == home.etag:
+            tag = _boot_cache[1]
+        else:
+            body = home.raw.decode('utf-8').replace('<', '\\u003c')
+            tag = f'{_STAMP_OPEN}{body}</script>'
+            _boot_cache = (home.etag, tag)
+        return _with_scan(tag) if scan else tag
+    except Exception:
+        return ''
+
+
+_STAMP_OPEN = '<script id="eco-boot" type="application/json">'
+
+
+def _with_scan(tag: str) -> str:
+    """The stamp with ``"scan":true`` as the feed's first key (the feed is one JSON object; an empty one stays valid)."""
+    body = tag[len(_STAMP_OPEN):]
+    if not tag.startswith(_STAMP_OPEN) or not body.startswith('{'):
+        return tag
+    rest = body[1:]
+    joiner = '' if rest.lstrip().startswith('}') else ','
+    return f'{_STAMP_OPEN}{{"scan":true{joiner}{rest}'
+
+
 # Homepage featured shell - avoid a DB hit on every public request.
 _HOME_SHELL_TTL_SECONDS = 60
 _home_shell_cache: tuple[str, float] | None = None
@@ -128,6 +265,9 @@ class PublicSiteMiddleware:
         # Built public SPA index.html (None in local dev → holding page is served).
         self.index_path = getattr(settings, 'PUBLIC_SITE_INDEX', None)
         self._index_html = None
+        # The phone site's built phone.html (None when that build is absent: the current site answers everything).
+        self.phone_index_path = getattr(settings, 'PUBLIC_SITE_PHONE_INDEX', None)
+        self._phone_html = None
         # The staff dashboard host (dash.ecothrift.us). Local hosts never match, so local dev keeps /scan.
         self.dash_host = (getattr(settings, 'STAFF_DASHBOARD_HOST', '') or '').strip().lower().split(':')[0]
 
@@ -171,6 +311,17 @@ class PublicSiteMiddleware:
         # Keep the shared API, assets, admin, and SEO endpoints working on the public host.
         if path.startswith((*_PASSTHROUGH_PREFIXES, *_SHORT_LINK_PREFIXES)) or path in _PASSTHROUGH_PATHS:
             return None
+        if path in SCAN_PATHS:
+            # The scanner (PLAN-SCANNER.md section 5): ?site= works here too (ecothrift.us/scan?site=classic is one
+            # phone's way back); the phone scanner when the switches (or the cookie) say so; else today's pass-through.
+            site = request.GET.get('site')
+            if site in SITE_CHOICES:
+                return self._site_choice_redirect(request, site)
+            if self._wants_phone_scan(request):
+                response = self._phone_page_response(request)
+                if response is not None:
+                    return response
+            return None
         if any(path == p or path.startswith(p + '/') for p in _DASHBOARD_SPA_PATHS):
             return None
 
@@ -186,8 +337,71 @@ class PublicSiteMiddleware:
                 target = f'{target}?{query}'
             return HttpResponsePermanentRedirect(target)
 
+        # The phone site's preview switch: ?site=phone|classic sets the cookie and comes back without it.
+        site = request.GET.get('site')
+        if site in SITE_CHOICES:
+            return self._site_choice_redirect(request, site)
+
+        if self._wants_phone(request, path):
+            response = self._phone_page_response(request)
+            if response is not None:
+                return response
+
         # Public site: serve the built SPA index.html if present, else the holding page.
         return self._public_page_response(path)
+
+    # ── The phone site ────────────────────────────────────────────────────────
+
+    def _site_choice_redirect(self, request, site: str):
+        query = request.GET.copy()
+        query.pop('site', None)
+        key = (query.pop('k', None) or [''])[-1]
+        target = request.path + (f'?{query.urlencode()}' if query else '')
+        response = HttpResponseRedirect(target)
+        value = 'classic' if site == 'classic' else (key if _token_ok(key, PREVIEW_LINK_SECONDS) else '')
+        if value:  # a bare or made-up ?site=phone changes nothing
+            response.set_cookie(SITE_COOKIE, value, max_age=SITE_COOKIE_SECONDS, samesite='Lax',
+                                secure=request.is_secure(), httponly=True)
+        response['Cache-Control'] = 'no-store'
+        return response
+
+    def _wants_phone(self, request, path: str) -> bool:
+        """The cookie decides when set; else a phone gets the phone site when the switch is on. Owned paths only.
+        The switch is read only for a phone with no cookie, so a desktop request never costs a query."""
+        if not self.phone_index_path or not OWNED_PATH_RE.match(path):
+            return False
+        choice = cookie_choice(request)
+        if choice:
+            return choice == 'phone'
+        return is_phone(request) and phone_site_on()
+
+    def _wants_phone_scan(self, request) -> bool:
+        """/scan is the phone scanner: the cookie decides when set; else a phone with BOTH switches on. The switches are
+        read only for a phone with no cookie (a desktop never costs a query)."""
+        if not self.phone_index_path:
+            return False
+        choice = cookie_choice(request)
+        if choice:
+            return choice == 'phone'
+        return is_phone(request) and phone_site_on() and phone_scan_on()
+
+    def _phone_page_response(self, request):
+        if self._phone_html is None:
+            try:
+                with open(self.phone_index_path, encoding='utf-8') as fh:
+                    self._phone_html = fh.read()
+            except OSError:
+                self._phone_html = ''
+        if not self._phone_html:
+            return None
+        html = self._phone_html
+        if _BOOT_MARKER in html:
+            html = html.replace(_BOOT_MARKER, boot_script(scan=self._wants_phone_scan(request)), 1)
+        response = HttpResponse(html)
+        # The HTML names the hashed files of this release: always ask again, so a deploy is seen on the next visit.
+        response['Cache-Control'] = 'no-cache'
+        response['Vary'] = 'User-Agent, Sec-CH-UA-Mobile, Cookie'
+        return response
 
     def _shell_html(self, path: str) -> str:
         if path == '/':

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.316.0] -->
-<!-- Last reviewed: 2026-11-19 (2.316.0) -->
+<!-- Line 1 release: ## [2.317.0] -->
+<!-- Last reviewed: 2026-11-19 (2.317.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,23 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.317.0] - 2026-11-19
+
+User-facing theme: **A new, fast phone site and Thrift+ scanner are in the release, switched off: customers see no change, and the owner previews it with a signed link.** (outside initiatives)
+
+> **For Bill:** This is the whole phone rebuild in the look you approved, shipped dark. Nothing changes for customers: the current site and the current scanner keep serving until you turn on two settings (`storefront.phone_site`, then `storefront.phone_scan`). Your own phone gets it from a signed preview link (it works for a week; the phone then stays on the new site for 30 days; `?site=classic` goes back). Nobody can turn the preview on by guessing the address. Desktops keep the current site.
+
+### Added (Phone site, dark)
+- **A second, lean entry in the public site** (`frontend-public/phone.html`, `src/phone/`): home (specials, Best finds, categories, Thrift+, On the truck, how it works, visit), the In store and Coming lists with search, item pages, categories, the Thrift+ member page, About, Questions, Careers (roles, apply in short steps, interview, offer), Terms, Privacy, Blog, the emailed sign-in page. React and the router only, one bundled font, no UI library. The current site's build is unchanged.
+- **The Thrift+ scanner rebuilt for the phone site** (`src/phone/scan/`): sign-in and join, the code screen, add phone, finish joining with the selfie, the camera, the scan answer and trip, My QR, the balance and the account. Same addresses, same calls, same stored data and the same sign-in words as the live scanner, which stays in place.
+- **Public feeds** (`apps/storefront`): the searchable stock and the home data are built once, kept gzipped in the server's memory and refreshed every 5 minutes; a request does no database work. The phone downloads the stock once and searches it locally. Never in a feed: cost, notes, draft prices, 18+ products. A coming piece states its retail and "Priced on arrival".
+- **Serving** (`apps/core/middleware.py`): the two switches (absent = off), the signed owner preview (`manage.py phone_preview_link`, cookie `eco_site`), the home data stamped into the page, and a rollback that also reloads open tabs. Vite's hashed files are now served as never-changing (`WHITENOISE_IMMUTABLE_FILE_TEST`), for the current site too.
+- **Update and install on the phone site:** a bar when a newer release is out, and an install card (Android button, iPhone steps). No service worker.
+- Docs: `.ai/extended/phone-site.md`.
+
+### Tests
+- `apps/storefront/tests` (17), `apps/core/tests/test_phone_site.py` (37), 324 public front-end tests (218 for the phone scanner, ported from the live scanner's cases). The phone scanner's tests run in the `thriftplus` lane.
 
 ## [2.316.0] - 2026-11-19
 

@@ -1,0 +1,87 @@
+/* W5: Terms, Privacy, Blog, Verify, not found. A green headline band, then readable text on white (the one place
+   long text is right: 16 px, comfortable line height). Tokens only; #fff and #000 the only literal colours. */
+
+.lg { background: #fff; }
+.lg-back { width: 100%; background: var(--ground); }
+
+/* The headline band */
+.lg-hd { background: var(--green); color: #fff; padding: 14px var(--gut) 20px; }
+.lg-hd .lbl { color: var(--lime); }
+.lg-hd h1 { font-size: 46px; margin-top: 6px; overflow-wrap: anywhere; }
+.lg-hd h1.lg-long { font-size: 36px; line-height: .95; }
+.lg-hd .lg-sub { margin-top: 10px; font-size: 16px; font-weight: 600; line-height: 1.3; opacity: .92; }
+.lg-hd .lg-date { margin-top: 10px; font-size: 13px; font-weight: 600; opacity: .85; }
+.lg-hd .lg-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.lg-hd .lg-top a { font-size: 14px; font-weight: 700; color: var(--lime); text-decoration: underline; text-underline-offset: 3px; }
+
+/* English | Español: two buttons in one pill, 44 px tall, the chosen one lime */
+.lg-lang { display: inline-flex; flex: none; margin-left: auto; padding: 3px; border-radius: 999px; background: var(--green-d); }
+.lg-lang button { min-height: 38px; min-width: 76px; padding: 0 12px; border-radius: 999px; font-size: 14px; font-weight: 800; color: #fff; }
+.lg-lang button[aria-pressed="true"] { background: var(--lime); color: var(--ink); }
+
+/* The contents: a plain stacked list of section links, two columns; a tap is the browser's own anchor jump */
+.lg-toc { margin: 0 0 22px; padding: 0 0 14px; border-bottom: 1px solid var(--line); }
+.lg-body .lg-toc ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; align-items: start; }
+.lg-body .lg-toc li { margin: 0; }
+.lg-body .lg-toc a { display: block; min-height: 44px; padding: 11px 0 8px; font-size: 15px; font-weight: 600; line-height: 1.25;
+                      text-decoration: none; }
+
+/* Readable text */
+.lg-body { padding: 20px var(--gut) 28px; font-size: 16px; line-height: 1.55; color: var(--ink); }
+.lg-body h2 { font-size: 24px; font-stretch: 80%; font-weight: 800; line-height: 1.15; letter-spacing: -.01em; margin: 30px 0 10px; }
+.lg-body > h2:first-child, .lg-body > section:first-child > h2:first-child { margin-top: 0; }
+.lg-body h3 { font-size: 18px; font-weight: 800; line-height: 1.25; margin: 22px 0 6px; }
+.lg-body p { margin: 0 0 12px; }
+.lg-body ul, .lg-body ol { margin: 0 0 12px; padding-left: 22px; }
+.lg-body li { margin: 0 0 8px; }
+.lg-body a { color: var(--green); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.lg-body strong { font-weight: 800; }
+.lg-sel { -webkit-user-select: all; user-select: all; font-weight: 700; }
+.lg-note { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 14px; line-height: 1.4; margin-bottom: 18px; }
+.lg-date-in { font-size: 13px; color: var(--ink-2); margin: -4px 0 14px; }
+
+/* Terms: the "need to know" rows */
+.lg-know { list-style: none; padding: 0 !important; margin: 0 0 18px !important; border-top: 1px solid var(--line); }
+.lg-know li { padding: 12px 0; margin: 0 !important; border-bottom: 1px solid var(--line); }
+
+/* Terms: the two big buttons */
+.lg-gos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 8px; }
+.lg-gos .btn { padding: 0 10px; text-decoration: none; font-size: 15px; }
+.lg-body .lg-gos a.btn-ink { color: #fff; }
+.lg-body .lg-gos a.btn-lime { color: var(--ink); }
+
+/* Terms: the chart, plain rows to read */
+.lg-chart { border-top: 1px solid var(--line); }
+.lg-cr { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: start; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.lg-cr .n { display: inline-flex; align-items: center; justify-content: center; height: 26px; border-radius: 7px; background: #000; color: var(--lime);
+            font-stretch: 66%; font-weight: 900; font-size: 15px; margin-top: 1px; }
+.lg-cr .w { display: block; font-weight: 800; line-height: 1.25; }
+.lg-cr .s { display: block; font-size: 15px; line-height: 1.4; color: var(--ink-2); margin-top: 2px; }
+.lg-cr .sec { font-size: 14px; font-weight: 700; color: var(--ink-2); white-space: nowrap; margin-top: 2px; }
+
+/* Terms: the FAQ, every question and answer always on the page */
+.lg-faq { border-top: 1px solid var(--line); }
+.lg-qa { padding: 12px 0 2px; border-bottom: 1px solid var(--line); }
+.lg-body .lg-qa h3 { margin: 0 0 4px; font-size: 16px; }
+
+/* Terms: the full terms, one block per section (#s1 .. #s12) */
+.lg-full-hd { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 34px 0 10px; }
+.lg-full-hd h2 { margin: 0 !important; }
+.lg-full-hd a { font-size: 14px; white-space: nowrap; }
+.lg-intro { font-size: 15px; color: var(--ink-2); }
+.lg-sec { border-top: 1px solid var(--line); padding: 4px 0 6px; }
+.lg-sec h3 { margin-top: 16px; }
+.lg-cl-n { font-weight: 800; color: var(--green); font-variant-numeric: tabular-nums; }
+.lg-store { margin-top: 30px; padding-top: 4px; border-top: 2px solid var(--ink); }
+
+/* Not found and Verify: one headline, one thing to do */
+.lg-one { padding: 20px var(--gut) 30px; }
+.lg-one p { font-size: 16px; line-height: 1.45; margin: 0 0 16px; color: var(--ink-2); }
+.lg-one p.lg-err { color: var(--cran); font-weight: 700; }
+.lg-one .btn { width: 100%; }
+.lg-one .btn + .btn { margin-top: 10px; }
+.lg-find { display: flex; height: 52px; margin: 0 0 12px; border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; background: #fff; }
+.lg-find input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; padding: 0 14px; font: inherit; font-size: 16px; color: var(--ink);
+                 -webkit-appearance: none; appearance: none; border-radius: 0; }
+.lg-find input::placeholder { color: var(--ink-2); }
+.lg-find button { flex: none; width: 56px; display: grid; place-items: center; background: #000; color: var(--lime); }

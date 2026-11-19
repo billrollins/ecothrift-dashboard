@@ -1,0 +1,65 @@
+/* The shell (from the mockup's shell/01-top.html and shell/90-bottombar.html): always on screen.
+   The strip, the logo row and the store line scroll away; only the search row stays stuck to the top.
+   The logo row is 66 px tall and the search row 62 px (128 px together: the Scan page will size itself with these). */
+.strip { display: flex; align-items: center; justify-content: center; gap: 8px; height: 32px; padding: 0 var(--gut); background: var(--strip-bg); color: var(--strip-fg);
+         font-size: min(12.5px, 3.2vw); font-weight: 600; white-space: nowrap; }
+.strip b { font-weight: 800; text-decoration: underline; text-underline-offset: 2px; }
+.strip > span { overflow: hidden; text-overflow: ellipsis; }
+.strip .if-bf { font-weight: 700; }
+
+/* Row one: menu | logo in the middle | account. Fixed side columns so the logo never moves between signed out and in. */
+.top { background: var(--green); color: #fff; padding: 0 var(--gut); }
+.top .row { display: grid; grid-template-columns: 44px 1fr 64px; align-items: center; height: 66px; }
+.top .menu { width: 44px; height: 44px; margin-left: -10px; display: grid; place-items: center; color: #fff; }
+.top .home { justify-self: center; display: block; }
+.top .logo { display: block; height: clamp(48px, 15vw, 60px); width: auto; max-width: 100%; }
+.top .acct { justify-self: end; width: 64px; height: 50px; margin-right: -6px; display: grid; place-items: center; text-align: center; color: #fff; }
+.top .acct > span { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.05; white-space: nowrap; }
+.top .acct .out svg.i { width: 24px; height: 24px; margin-bottom: 2px; }
+.top .acct .out small { font-size: 11.5px; font-weight: 700; }
+.top .acct .in small { font-size: 10px; font-weight: 700; color: var(--lime); letter-spacing: .01em; }
+.top .acct .in b { font-size: 19px; font-weight: 900; margin-top: 1px; }
+.top .acct.wait > span { opacity: 0; }
+
+/* The search row: the only part that stays stuck. */
+.find { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: var(--green); padding: 8px var(--gut); }
+.box { display: flex; align-items: center; height: 46px; background: #fff; border-radius: 10px; overflow: hidden; color: var(--ink); }
+.box input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; padding: 0 4px 0 14px; font: inherit; font-size: 16px; color: var(--ink);
+             -webkit-appearance: none; appearance: none; border-radius: 0; }
+.box input::placeholder { color: #6b7468; }
+.box input::-webkit-search-cancel-button { display: none; }
+.box .clr { flex: none; width: 40px; height: 46px; display: grid; place-items: center; color: var(--ink-2); opacity: 0; pointer-events: none; transition: opacity .1s; }
+.box .clr svg.i { width: 20px; height: 20px; }
+.box.has .clr { opacity: 1; pointer-events: auto; }
+.box .cam { flex: none; align-self: stretch; width: 56px; display: grid; place-items: center; background: #000; color: var(--lime); }
+.box .cam svg.i { width: 26px; height: 26px; }
+
+.storeline { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 var(--gut); background: var(--green-d); color: #fff; font-size: 13px; font-weight: 600; }
+.storeline svg.i { width: 16px; height: 16px; }
+.storeline .open { margin-left: auto; display: flex; align-items: center; gap: 6px; color: var(--lime); font-weight: 800; white-space: nowrap; }
+.storeline .open i { width: 8px; height: 8px; border-radius: 50%; background: var(--lime); }
+.storeline .open.shut { color: #ffd3c9; } .storeline .open.shut i { background: #ffd3c9; }
+
+/* The bottom bar: four places, always under the thumb. Scan is the black one. */
+.bb { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 40; width: min(100%, 430px);
+      display: grid; grid-template-columns: repeat(4, 1fr); height: calc(var(--bar) + env(safe-area-inset-bottom, 0px));
+      padding-bottom: env(safe-area-inset-bottom, 0px); background: #fff; border-top: 1px solid var(--line); }
+.bb a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 11.5px; font-weight: 700; color: var(--ink-2); }
+.bb a.on { color: var(--green); }
+.bb a.scan span.k { display: grid; place-items: center; width: 44px; height: 30px; border-radius: 9px; background: #000; color: var(--lime); }
+.bb a.scan { color: var(--ink); }
+.bb svg.i { width: 23px; height: 23px; }
+.bb a > svg.i { margin: 3.5px 0; }
+
+/* The update bar: fixed above the bottom bar, over the page (it never moves anything). */
+.upd { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--bar) + env(safe-area-inset-bottom, 0px) + 8px); z-index: 45;
+       width: min(calc(100% - 2 * var(--gut)), calc(430px - 2 * var(--gut))); display: flex; align-items: center; justify-content: space-between; gap: 12px;
+       min-height: 56px; padding: 6px 6px 6px 16px; border-radius: 14px; background: var(--ink); color: #fff; font-size: 14px; font-weight: 700;
+       box-shadow: 0 6px 20px rgba(0, 0, 0, .25); }
+.upd .btn { min-height: 44px; padding: 0 18px; }
+
+/* A page that is not built yet. */
+.soon { min-height: 60vh; padding: 40px var(--gut); text-align: center; }
+.soon h1 { font-size: 40px; }
+.soon p { margin-top: 10px; color: var(--ink-2); font-weight: 600; }
+.soon .btn { margin-top: 18px; }

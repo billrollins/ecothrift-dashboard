@@ -1,0 +1,153 @@
+/* The camera window and its layers (piece S3, prefix cm-). Imported by camera/index.tsx only.
+   The mockup's dark panel with lime corner marks (round3 pages/scan.html .sc-cam). Every control is a layer inside the
+   window, so the page around it never moves; the only motion is a fade of 120 ms or less (owner 11-19 night). */
+
+.cm { position: relative; flex: 1 1 auto; width: 100%; height: 100%; min-height: 0; border-radius: var(--r); background: #000; color: #fff;
+      overflow: hidden; isolation: isolate; -webkit-user-select: none; user-select: none; }
+.cm.cm-bleed { border-radius: 0; height: 100%; }
+.cm.cm-pinch { touch-action: none; }           /* two fingers zoom the camera, not the page */
+.cm.cm-under { pointer-events: none; }
+
+/* The picture: always mounted, see-through until it is live. fit.ts places it once the frame size is known. */
+.cm-video { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transform-origin: 50% 50%;
+            transition: opacity 120ms linear, transform 120ms ease-out; background: #000; }
+.cm-video.cm-placed { object-fit: fill; max-width: none; }
+.cm-video.cm-live { opacity: 1; }
+
+/* The read square (fit.ts sizes it to what the decoder reads). Before the size is known: 70 % of the window's height. */
+.cm-find { position: absolute; left: 50%; top: 50%; height: 70%; aspect-ratio: 1 / 1; transform: translate(-50%, -50%); z-index: 1;
+           border-radius: 10px; box-shadow: 0 0 0 999px rgba(0, 0, 0, .26); pointer-events: none; }
+.cm-k { position: absolute; width: clamp(16px, 24%, 34px); height: clamp(16px, 24%, 34px); border: 0 solid var(--lime); }
+.cm-k1 { left: -1px; top: -1px; border-width: 3px 0 0 3px; border-top-left-radius: 10px; }
+.cm-k2 { right: -1px; top: -1px; border-width: 3px 3px 0 0; border-top-right-radius: 10px; }
+.cm-k3 { left: -1px; bottom: -1px; border-width: 0 0 3px 3px; border-bottom-left-radius: 10px; }
+.cm-k4 { right: -1px; bottom: -1px; border-width: 0 3px 3px 0; border-bottom-right-radius: 10px; }
+.cm-ln { position: absolute; left: 14%; right: 14%; top: 50%; height: 2px; margin-top: -1px; background: var(--lime); opacity: .55; }
+
+/* Words in the window when there is no picture. */
+.cm-say { position: absolute; z-index: 2; display: flex; align-items: center; gap: 8px; color: #fff; font-size: 14px; font-weight: 700;
+          line-height: 1.25; pointer-events: none; }
+.cm-say svg.i { width: 22px; height: 22px; color: var(--lime); }
+.cm-say-top { left: 12px; right: 8px; top: 8px; min-height: 44px; }
+.cm-say-mid { inset: 0; justify-content: center; padding-bottom: 8px; }
+.cm-say-mid .sa-spin { border-color: rgba(255, 255, 255, .25); border-top-color: var(--lime); }
+.cm-why { flex: 1 1 auto; min-width: 0; font-size: 13px; opacity: .94; }
+.cm-say-row .cm-pill { pointer-events: auto; flex: none; }
+
+/* Resting or stalled: the whole window is the button; the bottom row stays on top of it. */
+.cm-wake { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+           gap: 2px; padding: 12px 12px 60px; color: #fff; text-align: center; }
+.cm-wake svg.i { width: 28px; height: 28px; color: var(--lime); }
+.cm-wake-h { font-size: 17px; font-weight: 800; }
+.cm-wake-p { font-size: 12.5px; font-weight: 600; opacity: .78; }
+
+/* Controls: dark glass on the picture, 44 px targets. */
+.cm-tl { position: absolute; z-index: 3; top: 8px; left: 8px; }
+.cm-tr { position: absolute; z-index: 3; top: 8px; right: 8px; display: flex; gap: 6px; }
+.cm-round { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 999px; color: #fff;
+            background: rgba(16, 20, 15, .55); border: 1px solid rgba(255, 255, 255, .25); }
+.cm-round svg.i { width: 22px; height: 22px; }
+.cm-pill, .cm-lock { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 44px; padding: 0 14px; border-radius: 999px;
+                     font-size: 13.5px; font-weight: 700; white-space: nowrap; color: #fff; background: rgba(16, 20, 15, .55);
+                     border: 1px solid rgba(255, 255, 255, .25); }
+.cm-pill svg.i, .cm-lock svg.i { width: 18px; height: 18px; }
+.cm-help-btn { background: #fff; color: var(--green); border-color: #fff; font-weight: 800; }
+.cm-lock.cm-on { background: #fff; color: var(--green); border-color: #fff; }
+.cm-lock.cm-light { background: var(--green); color: #fff; border-color: var(--green); }
+.cm-lock.cm-icon { width: 44px; padding: 0; }
+.cm-lock.cm-lg { height: 52px; padding: 0 22px; font-size: 17px; gap: 10px; }
+.cm-lock.cm-lg svg.i { width: 24px; height: 24px; }
+
+/* The bottom row: zoom left, "Type tag #" right; or the tag box across. */
+.cm-bottom { position: absolute; z-index: 3; left: 8px; right: 8px; bottom: 8px; display: flex; align-items: flex-end; justify-content: space-between;
+             gap: 8px; pointer-events: none; }
+.cm-bottom > * { pointer-events: auto; }
+
+.cm-zoom { display: flex; gap: 2px; padding: 1px; border-radius: 999px; background: rgba(16, 20, 15, .55); border: 1px solid rgba(255, 255, 255, .25); }
+.cm-chip { min-width: 42px; height: 42px; padding: 0 8px; border-radius: 999px; color: #fff; font-size: 13.5px; font-weight: 800; white-space: nowrap;
+           transition: background-color 120ms linear, color 120ms linear; }
+.cm-chip.cm-on { background: #fff; color: var(--green); }
+
+.cm-form { flex: 1 1 auto; display: flex; align-items: center; gap: 6px; height: 48px; padding: 3px 3px 3px 16px; border-radius: 999px; background: #fff; }
+.cm-form input { flex: 1 1 auto; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit;
+                 font-size: 16px; font-weight: 700; -webkit-appearance: none; appearance: none; }
+.cm-form input::placeholder { color: #7b8478; font-weight: 600; }
+.cm-go { flex: none; height: 42px; padding: 0 16px; border-radius: 999px; background: var(--green); color: #fff; font-size: 14px; font-weight: 800; }
+.cm-pick { flex: 1 1 auto; min-width: 0; height: 48px; padding: 0 14px; border: 0; border-radius: 999px; background: #fff; color: var(--ink);
+           font: inherit; font-size: 16px; font-weight: 700; }
+
+/* An answer on top: the camera keeps running, paused, under this veil. */
+.cm-veil { position: absolute; inset: 0; z-index: 4; background: rgba(16, 20, 15, .62); opacity: 0; pointer-events: none; transition: opacity 120ms linear; }
+.cm-under .cm-veil { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-video, .cm-veil, .cm-chip { transition: none; }
+}
+
+/* A short window (under 150 px, fit.ts COMPACT_BELOW): the same two rows at 36 px, each still 44 px to tap. */
+.cm-compact .cm-tl { top: 4px; left: 4px; }
+.cm-compact .cm-tr { top: 4px; right: 4px; }
+.cm-compact .cm-bottom { left: 4px; right: 4px; bottom: 4px; gap: 6px; }
+.cm-compact .cm-bottom:not(.cm-bottom-open) { justify-content: flex-end; }
+.cm-compact .cm-lock.cm-icon { width: 36px; }
+.cm-compact .cm-round { width: 36px; height: 36px; }
+.cm-compact .cm-round svg.i { width: 19px; height: 19px; }
+.cm-compact .cm-pill, .cm-compact .cm-lock:not(.cm-lg) { height: 36px; padding: 0 11px; font-size: 13px; }
+.cm-compact .cm-chip { min-width: 36px; height: 34px; padding: 0 6px; font-size: 13px; }
+.cm-compact .cm-form, .cm-compact .cm-pick { height: 40px; }
+.cm-compact .cm-go { height: 34px; padding: 0 14px; }
+.cm-compact .cm-say-top { top: 4px; left: 10px; right: 4px; min-height: 36px; }
+.cm-compact .cm-say-row svg.i { display: none; }
+.cm-compact .cm-why { font-size: 12.5px; }
+.cm-compact .cm-say-mid { padding: 0 0 0 14px; justify-content: flex-start; }
+.cm-compact .cm-wake { padding: 6px 150px 6px 14px; align-items: flex-start; justify-content: center; text-align: left; }
+.cm-compact .cm-wake svg.i { display: none; }
+.cm-compact .cm-wake-h { font-size: 16px; }
+.cm-compact .cm-wake-p { font-size: 12px; }
+.cm-compact :is(.cm-pill, .cm-lock, .cm-chip, .cm-go):not(.cm-tl, .cm-tr) { position: relative; }
+.cm-compact :is(.cm-round, .cm-pill, .cm-lock, .cm-go)::after { content: ''; position: absolute; inset: -4px; }
+.cm-compact .cm-chip::after { content: ''; position: absolute; inset: -5px -1px; }
+
+/* ── Sideways (Sideways.tsx): layers over the page; the page under them never moves. ───────────────────── */
+@keyframes cm-in { from { opacity: 0; } to { opacity: 1; } }
+
+.cm-upright { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 20px; text-align: center;
+              background: var(--ground); color: var(--ink); animation: cm-in 120ms linear; }
+.cm-upright-i.i { width: 56px; height: 56px; color: var(--green); stroke-width: 1.6; }
+.cm-upright-h { margin-top: 6px; font-stretch: 66%; font-weight: 900; font-size: 32px; line-height: 1; text-transform: uppercase; color: var(--green); }
+.cm-upright-p { margin-top: 6px; font-size: 16px; font-weight: 600; color: var(--ink-2); }
+.cm-upright-lock { margin-top: 18px; }
+
+.cm-sw { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); left: 0; right: 0; z-index: 80; display: flex; justify-content: center;
+         align-items: center; gap: 8px; pointer-events: none; }
+.cm-sw-pill { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 999px;
+              background: rgba(16, 20, 15, .72); color: #fff; font-size: 15px; font-weight: 600; white-space: nowrap; }
+.cm-sw-pill svg.i { width: 18px; height: 18px; color: var(--lime); }
+.cm-sw-lock { pointer-events: auto; }
+
+.cm-got { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 20px; background: rgba(16, 20, 15, .86);
+          animation: cm-in 120ms linear; }
+.cm-got-box { width: 300px; max-width: 100%; padding: 20px; border-radius: 20px; background: #fff; text-align: center; }
+.cm-got-i.i { width: 44px; height: 44px; color: var(--green); }
+.cm-got-h { margin-top: 4px; font-stretch: 66%; font-weight: 900; font-size: 30px; line-height: 1; text-transform: uppercase; color: var(--green); }
+.cm-got-p { margin-top: 6px; font-size: 16px; font-weight: 600; color: var(--ink-2); }
+
+@media (prefers-reduced-motion: reduce) { .cm-upright, .cm-got { animation: none; } }
+
+/* ── Camera help (CameraHelp.tsx): a fade-in sheet (ui.tsx Sheet). ─────────────────────────────────────── */
+.cm-help-art.i { display: block; width: 44px; height: 44px; margin: 4px auto 0; color: var(--ink-2); stroke-width: 1.7; }
+.cm-help-h { margin-top: 8px; font-stretch: 66%; font-weight: 900; font-size: 34px; line-height: .95; text-transform: uppercase; text-align: center;
+             color: var(--green); }
+.cm-help-lead { margin-top: 8px; font-size: 15px; font-weight: 600; line-height: 1.35; color: var(--ink-2); text-align: center; }
+.cm-help-tabs { display: flex; gap: 4px; margin: 16px 0 14px; padding: 4px; border-radius: 999px; background: var(--ground); }
+.cm-help-tab { flex: 1 1 0; min-height: 44px; border-radius: 999px; font-size: 15px; font-weight: 800; color: var(--ink-2); }
+.cm-help-tab.cm-on { background: #fff; color: var(--green); box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
+.cm-help-steps { display: grid; }
+.cm-help-set { grid-area: 1 / 1; }
+.cm-help-set.cm-off { visibility: hidden; }
+.cm-help-set ol { list-style: none; margin: 0; padding: 0; }
+.cm-help-set li { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; font-size: 15px; font-weight: 600; line-height: 1.4; color: var(--ink); }
+.cm-help-n { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--green); color: #fff;
+             font-size: 14px; font-weight: 800; }
+.cm-help-more { margin-top: 6px; font-size: 13.5px; line-height: 1.4; color: var(--ink-2); }
+.cm-help-also { margin: 12px 0 16px; font-size: 13px; line-height: 1.4; color: var(--ink-2); }
