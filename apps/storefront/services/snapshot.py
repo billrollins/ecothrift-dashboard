@@ -8,7 +8,11 @@ plain Python data. ``stock_payload`` / ``home_payload`` shape the two feeds; ``h
   unit with the most ThriftBucks (ties: the lowest price, then the lowest id). ``tag`` only when it is the only unit.
 - **Coming:** the manifest rows of paid or shipped orders, with their retail and quantity, never a price, a cost or a
   note; every such truck, also one with no rows yet.
-- **Best finds:** up to 12 products with a shown retail, by retail less price, at most 2 per category, photos first.
+- **Best finds:** up to 12 products with a shown retail, by retail less price, at most 2 per category: the best that
+  HAVE a public photo (``services/photos.py``: a photo-sheet photo, else a found stock photo); only when fewer than 8
+  have one, the list is filled with the best without.
+- **Photos:** only photo-sheet photos and stock photos (owner 2026-11-19: never an Add item photo or any other photo
+  taken for another purpose). One query (``photos.kinds``).
 
 Never public (and never read here): item cost, notes, location, search text; order costs, retail value, notes;
 manifest ``proposed_price`` / ``final_price`` / ``pricing_notes``.
@@ -24,13 +28,16 @@ from django.db import connection
 from django.db.models import Count, Sum
 from django.utils import timezone
 
+from apps.storefront.services import photos
 from apps.storefront.services import rules as R
+from apps.storefront.services.photos import photo_url
 
 logger = logging.getLogger(__name__)
 
 COMING_STATUSES = ('paid', 'shipped')
 FINDS = 12
 FINDS_PER_CAT = 2
+FINDS_MIN_PHOTOS = 8  # fewer pieces with a photo than this: fill with the best without
 TOP_CATS = 6
 HOME_COMING = 12
 
@@ -73,11 +80,13 @@ LEFT JOIN {ItemReward._meta.db_table} r ON r.item_id = i.id
 WHERE i.status = 'on_shelf' AND i.price > 0 AND {_not_restricted('i.product_id')}"""
 
 
+# Owner 2026-11-19: "NEVER EVER EVER use photos you got from us for other purposes. like the add item photos."
+# Product.photo / photo_thumb (taken for Add item) are never read here. The photo comes from ``photos.kinds``.
 def _products_sql() -> str:
     from apps.inventory.models import Item, Product, ProductProfile
 
     return f"""
-SELECT p.id, p.title, COALESCE(pp.display_title, ''), COALESCE(p.photo_thumb, '')
+SELECT p.id, p.title, COALESCE(pp.display_title, '')
 FROM {Product._meta.db_table} p
 LEFT JOIN {ProductProfile._meta.db_table} pp ON pp.product_id = p.id
 WHERE p.id IN (SELECT product_id FROM {Item._meta.db_table} WHERE status = 'on_shelf' AND price > 0)
@@ -93,8 +102,11 @@ def _instore(s: R.Settings, timings: dict) -> tuple[list[dict], list[int]]:
         timings['instore_query'] = time.perf_counter() - t
         t = time.perf_counter()
         cur.execute(_products_sql())
-        products = {pid: (title, display, thumb) for pid, title, display, thumb in cur.fetchall()}
-    timings['products_query'] = time.perf_counter() - t
+        products = {pid: (title, display) for pid, title, display in cur.fetchall()}
+        timings['products_query'] = time.perf_counter() - t
+        t = time.perf_counter()
+        photo_kinds = photos.kinds(cur)
+    timings['photos_query'] = time.perf_counter() - t
 
     t = time.perf_counter()
     pieces = [0] * len(R.CATS)
@@ -113,12 +125,12 @@ def _instore(s: R.Settings, timings: dict) -> tuple[list[dict], list[int]]:
             best[pid] = (key, (sku, tag, retail, check, tb, cat))
     out = []
     for pid, (_, (sku, tag, retail, check, tb, cat)) in best.items():
-        title, display, thumb = products.get(pid, ('', '', ''))
+        title, display = products.get(pid, ('', ''))
         n = units[pid]
         out.append({
             'pid': pid, 'name': R.clean_name((display or '').strip() or title), 'cat': cat,
             'price': R.shown_price(tag, s), 'retail': R.shown_retail(tag, retail, check or '', s), 'tb': tb,
-            'units': n, 'tag': R.tag_digits(sku) if n == 1 else '', 'photo': bool(thumb),
+            'units': n, 'tag': R.tag_digits(sku) if n == 1 else '', 'photo': photo_kinds.get(pid, photos.KIND_NONE),
         })
     # A stable order (pid last): an unchanged shelf gives the same bytes, so the same ETag.
     out.sort(key=lambda r: (0, -(r['retail'] - r['price']), r['pid']) if r['retail'] else (1, -r['tb'], -r['price'], r['pid']))
@@ -149,17 +161,30 @@ def _coming(timings: dict) -> tuple[list[dict], list[dict]]:
     return trucks, coming
 
 
-def best_finds(instore: list[dict], limit: int = FINDS, per_cat: int = FINDS_PER_CAT) -> list[dict]:
-    pool = sorted((r for r in instore if r['retail'] > 0), key=lambda r: (not r['photo'], -(r['retail'] - r['price']), r['pid']))
-    taken: dict[int, int] = {}
+def ranked(instore: list[dict], limit: int, per_cat: int = FINDS_PER_CAT, taken: dict[int, int] | None = None,
+           ) -> list[dict]:
+    """The best-find rule, photos aside: a shown retail, the biggest saving (retail less price) first, at most
+    ``per_cat`` per category (``taken`` carries the counts already used)."""
+    pool = sorted((r for r in instore if r['retail'] > 0), key=lambda r: (-(r['retail'] - r['price']), r['pid']))
+    taken = {} if taken is None else taken
     out = []
     for r in pool:
+        if len(out) >= limit:
+            break
         if taken.get(r['cat'], 0) >= per_cat:
             continue
         taken[r['cat']] = taken.get(r['cat'], 0) + 1
         out.append(r)
-        if len(out) >= limit:
-            break
+    return out
+
+
+def best_finds(instore: list[dict], limit: int = FINDS, per_cat: int = FINDS_PER_CAT) -> list[dict]:
+    """The best-ranked products that have a public photo; only when fewer than ``FINDS_MIN_PHOTOS`` do, the best
+    without fill the list (after them, so the photos lead the slider)."""
+    taken: dict[int, int] = {}
+    out = ranked([r for r in instore if r['photo']], limit, per_cat, taken)
+    if len(out) < FINDS_MIN_PHOTOS:
+        out += ranked([r for r in instore if not r['photo']], limit - len(out), per_cat, taken)
     return out
 
 
@@ -190,10 +215,6 @@ def build(settings: R.Settings | None = None) -> dict:
 
 # ── The two feeds (``v`` and ``as_of`` are added by the holder) ───────────────
 
-def photo_url(pid: int) -> str:
-    return f'/api/storefront/photo/{pid}/'
-
-
 def _cats(snap: dict) -> list[dict]:
     return [{'id': cid, 'name': name, 'pieces': snap['pieces'][i]} for i, (cid, name) in enumerate(R.CATS)]
 
@@ -203,8 +224,9 @@ def stock_payload(snap: dict) -> dict:
     return {
         'cats': _cats(snap),
         'trucks': snap['trucks'],
-        'instore': [[r['pid'], r['name'], r['cat'], n(r['price']), n(r['retail']), n(r['tb']), r['units'], r['tag']]
-                    for r in snap['instore']],
+        # The 9th field: the public photo, 0 none | 1 photo sheet | 2 stock photo.
+        'instore': [[r['pid'], r['name'], r['cat'], n(r['price']), n(r['retail']), n(r['tb']), r['units'], r['tag'],
+                     r['photo']] for r in snap['instore']],
         'coming': [[r['id'], r['name'], r['cat'], n(r['retail']), r['qty'], r['truck']] for r in snap['coming']],
     }
 
@@ -213,7 +235,7 @@ def _find(r: dict) -> dict:
     n = R.num
     return {'pid': r['pid'], 'name': r['name'], 'cat': R.CATS[r['cat']][0], 'price': n(r['price']),
             'retail': n(r['retail']), 'tb': n(r['tb']), 'units': r['units'], 'tag': r['tag'],
-            'photo': photo_url(r['pid']) if r['photo'] else None}
+            'photo': photo_url(r['pid']) if r['photo'] else None, 'photo_kind': photos.KIND_NAMES.get(r['photo'])}
 
 
 def home_payload(snap: dict) -> dict:

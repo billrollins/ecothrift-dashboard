@@ -37,3 +37,13 @@ class Command(BaseCommand):
         from apps.marketing.services.ideas import morning_ideas
 
         self.stdout.write(morning_ideas(day))
+        # Stock photos for the phone site's featured pieces (Dash Update #185). Last, and never fails the routines.
+        try:
+            from apps.storefront.services.stock_photos import morning_stock_photos
+
+            self.stdout.write(morning_stock_photos())
+        except Exception:  # noqa: BLE001 - the routines job must finish
+            import logging
+
+            logging.getLogger(__name__).exception('Stock photos: could not start')
+            self.stdout.write('Stock photos: could not start (see the log).')

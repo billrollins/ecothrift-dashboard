@@ -11,6 +11,9 @@
                  font-size: 12px; font-weight: 700; color: var(--ink-2); }
 .it-pic.it-miss img { visibility: hidden; }
 .it-pic.it-miss::after { display: flex; }
+/* Under a stock photo only: one small grey line of a fixed height, painted with the photo (nothing moves). */
+.it-stockline { height: 34px; display: flex; align-items: center; padding: 0 var(--gut); font-size: 11.5px; line-height: 1.3;
+                font-weight: 600; color: var(--ink-2); background: #fff; overflow: hidden; }
 
 /* The name, then the category (it opens the list). */
 .it-main { background: #fff; padding: 14px var(--gut) 18px; }

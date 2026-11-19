@@ -7,7 +7,7 @@ import { _setStock, parseStock } from '../lib/stock'
 import Item from './Item'
 import {
   _clearItemCache, comingFromMemory, fetchItem, inStoreFromMemory, listHref, memberPick, mergeApi, parseApi, parseId,
-  returnsLabel, type ApiItem,
+  returnsLabel, STOCK_LINE, type ApiItem,
 } from './item/itemData'
 
 // The stock feed's shape (apps/storefront stock.json): cats in taxonomy order, rows as arrays.
@@ -21,7 +21,9 @@ const RAW = {
   instore: [
     [1, 'SMEG retro espresso machine with grinder', 0, 600, 1200, 102, 1, '0226011'],
     [2, 'Brass table lamp', 0, 12, 0, 0, 46, ''],
-  ] as Array<[number, string, number, number, number, number, number, string]>,
+    [3, 'KitchenAid stand mixer', 0, 120, 449.99, 20, 1, '0226100', 2], // a stock photo
+    [4, 'Oak dining table', 1, 300, 900, 40, 1, '0226200', 1], // a photo-sheet photo
+  ] as Array<[number, string, number, number, number, number, number, string, number?]>,
   coming: [
     [10, 'Farmhouse hall tree with bench', 1, 482.98, 1, 0],
     [12, 'Lamp shade', 1, 0, 4, 0],
@@ -40,7 +42,8 @@ function feed(day: 'normal' | 'bf' = 'normal', extra: Partial<HomeFeed> = {}): H
 function apiItem(over: Partial<ApiItem> = {}): ApiItem {
   return {
     pid: 1, name: 'SMEG retro espresso machine with grinder', brand: 'SMEG', cat: 'kitchen', condition: 'Like new', units: 1,
-    tags: ['0226011'], price: 600, retail: 1200, tb: 102, returns: '3-day', photo: null, available: true, ...over,
+    tags: ['0226011'], price: 600, retail: 1200, tb: 102, returns: '3-day', photo: null, photo_kind: null, available: true,
+    ...over,
   }
 }
 
@@ -115,12 +118,20 @@ describe('itemData', () => {
     expect(ok.state === 'ok' && ok.item.cat).toBe('other')
     expect(ok.state === 'ok' && ok.item.tags).toHaveLength(5)
     expect(ok.state === 'ok' && ok.item.returns).toBe('as_is')
+    expect(ok.state === 'ok' && ok.item.photo_kind).toBeNull()
+    const sheet = parseApi({ ...apiItem(), photo: '/api/storefront/photo/1/', photo_kind: 'sheet' })
+    expect(sheet.state === 'ok' && sheet.item.photo_kind).toBe('sheet')
+    const unknown = parseApi({ ...apiItem(), photo: '/api/storefront/photo/1/', photo_kind: 'other' })
+    expect(unknown.state === 'ok' && unknown.item.photo_kind).toBe('stock')
   })
 
   it('paints from the stock, else from the home feed', () => {
-    expect(inStoreFromMemory(1, STOCK, null)).toMatchObject({ name: 'SMEG retro espresso machine with grinder', tag: '0226011', photo: undefined })
+    expect(inStoreFromMemory(1, STOCK, null)).toMatchObject({ name: 'SMEG retro espresso machine with grinder', tag: '0226011', photo: null, photoKind: null })
+    expect(inStoreFromMemory(3, STOCK, null)).toMatchObject({ photo: '/api/storefront/photo/3/', photoKind: 'stock' })
+    expect(inStoreFromMemory(4, STOCK, null)).toMatchObject({ photo: '/api/storefront/photo/4/', photoKind: 'sheet' })
     const withFind = feed('normal', { finds: [{ pid: 9, name: 'Lamp', cat: 'decor', price: 5, retail: 20, tb: 1, units: 1, tag: '0000009', photo: '/p/9' }] })
-    expect(inStoreFromMemory(9, null, withFind)).toMatchObject({ name: 'Lamp', price: 5, photo: '/p/9' })
+    // A photo with no kind (an older feed) counts as a stock photo: the line says it may not match.
+    expect(inStoreFromMemory(9, null, withFind)).toMatchObject({ name: 'Lamp', price: 5, photo: '/p/9', photoKind: 'stock' })
     expect(inStoreFromMemory(9, null, null)).toBeNull()
     expect(comingFromMemory(10, STOCK, null)).toMatchObject({ retail: 482.98, truck: 'Walmart' })
     const withComing = feed('normal', {
@@ -181,6 +192,40 @@ describe('Item page', () => {
     // Signed out: the join row, never a pay-today figure.
     expect(await screen.findByRole('link', { name: /Join free/ })).toHaveAttribute('href', '/scan?view=join')
     expect(document.body.textContent).not.toMatch(/pay/i)
+  })
+
+  it('a stock photo shows on top with its line from the first paint; no photo, no line', async () => {
+    itemAnswer = { status: 200, body: apiItem({ pid: 3, name: 'KitchenAid stand mixer', photo: '/api/storefront/photo/3/', photo_kind: 'stock' }) }
+    const first = open('/store/item/p3')
+    expect(document.querySelector('.it-pic img')?.getAttribute('src')).toBe('/api/storefront/photo/3/')
+    expect(screen.getByText(STOCK_LINE)).toHaveClass('it-stockline')
+    await waitFor(() => expect(itemCalls).toBe(1))
+    expect(screen.getByText(STOCK_LINE)).toBeInTheDocument()
+    first.unmount()
+    open('/store/item/p1')
+    expect(document.querySelector('.it-pic')).toBeNull()
+    expect(screen.queryByText(STOCK_LINE)).toBeNull()
+  })
+
+  it('a photo-sheet photo (ours) shows on top with no line', () => {
+    open('/store/item/p4')
+    expect(document.querySelector('.it-pic img')?.getAttribute('src')).toBe('/api/storefront/photo/4/')
+    expect(screen.queryByText(STOCK_LINE)).toBeNull()
+  })
+
+  it('a photo learned after the first paint: a sheet photo as a small picture, a stock photo left out', async () => {
+    itemAnswer = { status: 200, body: apiItem({ photo: '/api/storefront/photo/1/', photo_kind: 'sheet' }) }
+    const first = open('/store/item/p1')
+    expect(await screen.findByText('SMEG')).toBeInTheDocument()
+    expect(document.querySelector('.it-pic')).toBeNull()
+    expect(document.querySelector('.it-thumb img')?.getAttribute('src')).toBe('/api/storefront/photo/1/')
+    first.unmount()
+    _clearItemCache()
+    itemAnswer = { status: 200, body: apiItem({ photo: '/api/storefront/photo/1/', photo_kind: 'stock' }) }
+    open('/store/item/p1')
+    expect(await screen.findByText('SMEG')).toBeInTheDocument()
+    expect(document.querySelector('.it-thumb')).toBeNull()
+    expect(screen.queryByText(STOCK_LINE)).toBeNull()
   })
 
   it('keeps what it painted when the endpoint is unreachable', async () => {

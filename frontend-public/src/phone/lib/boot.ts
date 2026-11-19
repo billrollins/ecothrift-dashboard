@@ -4,11 +4,15 @@
  * missing (no snapshot yet), it is fetched once.
  */
 import { useSyncExternalStore } from 'react'
+import type { PhotoKind } from './stock'
 
 export type Truck = { id: number; name: string; pallets: number; pieces: number; listed: boolean }
 export type Find = {
   pid: number; name: string; cat: string; price: number; retail: number; tb: number; units: number; tag: string
+  /** The public photo's stable address: a photo-sheet photo or a stock photo, never an Add item photo. */
   photo: string | null
+  /** 'sheet' (our own photo of the piece) | 'stock' (the maker's or a retailer's picture). Absent in older feeds. */
+  photo_kind?: PhotoKind | null
 }
 export type ComingItem = { id: number; name: string; cat: string; retail: number; qty: number; truck: number }
 export type HoursOverride = {

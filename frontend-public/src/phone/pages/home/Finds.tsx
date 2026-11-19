@@ -1,6 +1,7 @@
 /**
- * Home 2, best finds (mockup blocks/20-finds.html): a white band, a slider of the feed's `finds`. Photo (the product's
- * own photo when the feed gives one, else its category's studio picture), name, the tag price, retail struck, and the
+ * Home 2, best finds (mockup blocks/20-finds.html): a white band, a slider of the feed's `finds`. Photo (the feed's
+ * photo when it gives one: a photo-sheet photo or a stock photo, never an Add item photo; the item page carries the stock
+ * photo's "may not match" line; else its category's studio picture), name, the tag price, retail struck, and the
  * ThriftBucks on their own line; "Thrift+ members" once in the band. A card opens that piece.
  */
 import { useState } from 'react'

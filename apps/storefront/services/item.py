@@ -11,8 +11,10 @@ from types import SimpleNamespace
 
 from django.db import connection
 
+from apps.storefront.services import photos
 from apps.storefront.services import rules as R
-from apps.storefront.services.snapshot import _not_restricted, photo_url
+from apps.storefront.services.photos import photo_url
+from apps.storefront.services.snapshot import _not_restricted
 
 TAGS_SHOWN = 5
 
@@ -40,7 +42,7 @@ def product_payload(pid: int) -> dict | None:
     from apps.thriftplus.services.scanner import CONDITION_LABELS
 
     s = R.cached_settings()
-    product = Product.objects.select_related('profile').filter(pk=pid).first()
+    product = photos.annotate(Product.objects.select_related('profile')).filter(pk=pid).first()
     if product is None:
         return None
     with connection.cursor() as cur:
@@ -58,6 +60,7 @@ def product_payload(pid: int) -> dict | None:
     price = R.shown_price(tag, s)
     rep = SimpleNamespace(product_id=product.pk, product=product, condition=condition, notes=notes, price=tag)
     as_is = why_as_is(rep, price=price, reward=tb, rules=s.guide)
+    kind = photos.kind_of(product)
     brand = ((profile.brand if profile is not None else '') or product.brand or '').strip()
     return {
         'pid': product.pk,
@@ -71,6 +74,8 @@ def product_payload(pid: int) -> dict | None:
         'retail': R.num(R.shown_retail(tag, retail, check, s)),
         'tb': R.num(tb),
         'returns': 'as_is' if as_is else '3-day',
-        'photo': photo_url(product.pk) if product.photo_thumb else None,
+        # A photo-sheet photo or a stock photo only; never an Add item photo (owner 2026-11-19).
+        'photo': photo_url(product.pk) if kind else None,
+        'photo_kind': photos.KIND_NAMES.get(kind),
         'available': True,
     }

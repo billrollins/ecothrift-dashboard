@@ -121,7 +121,7 @@ class FeedTests(TestCase):
         for unit, tb in ((a, '5.00'), (b, '5.00'), (c, '5.00')):
             _reward(unit, D(tb))
         _, data = self._stock()
-        pid, name, cat, price, retail, tb, units, tag = self._row(data, p.pk)
+        pid, name, cat, price, retail, tb, units, tag, photo = self._row(data, p.pk)
         self.assertEqual((price, retail, tb, units, tag), (15, 40, 5, 3, ''))  # b: most ThriftBucks, lowest price, lowest id
         single = self._product('Single')
         item = self._item(single, '5.00')
@@ -272,7 +272,7 @@ class FeedTests(TestCase):
         self.assertEqual(home['day'], 'bf')
         self.assertEqual(home['finds'], [{'pid': lamp.pk, 'name': 'Lamp (display)', 'cat': 'decor', 'price': 40, 'retail': 100,
                                           'tb': 6, 'units': 1, 'tag': lamp.items.get().sku[3:],
-                                          'photo': f'/api/storefront/photo/{lamp.pk}/'}])
+                                          'photo': None, 'photo_kind': None}])  # an Add item photo never goes public
         self.assertIn('label', home['hours'])
 
     # ── One product ────────────────────────────────────────────────────────────
@@ -292,7 +292,8 @@ class FeedTests(TestCase):
         self.assertEqual(response.json(), {
             'pid': lamp.pk, 'name': 'Brass floor lamp (display)', 'brand': 'Threshold', 'cat': 'decor',
             'condition': 'Like new', 'units': 2, 'tags': [a.sku[3:], lamp.items.order_by('pk').last().sku[3:]],
-            'price': 40, 'retail': 100, 'tb': 6, 'returns': '3-day', 'photo': None, 'available': True,
+            'price': 40, 'retail': 100, 'tb': 6, 'returns': '3-day', 'photo': None, 'photo_kind': None,
+            'available': True,
         })
         self.assertEqual(response['Cache-Control'], 'public, max-age=60')
         with self.assertNumQueries(0):
@@ -305,16 +306,12 @@ class FeedTests(TestCase):
         self.assertEqual(self.client.get(f'/api/storefront/item/{sold.pk}/').status_code, 404)
         self.assertEqual(self.client.get('/api/storefront/item/999999999/').status_code, 404)
 
-    def test_photo_redirects_or_404(self):
+    def test_the_photo_address_has_no_source_yet(self):
+        """Add item photos never go public (owner 2026-11-19): with or without one, the address answers 404."""
         bare = self._product('Bare')
-        self.assertEqual(self.client.get(f'/api/storefront/photo/{bare.pk}/').status_code, 404)
         shot = self._product('Shot', photo='inventory/products/t.jpg')
-        storage = Product._meta.get_field('photo_thumb').storage
-        with patch.object(storage, 'url', return_value='https://bucket.example/t.jpg?sig=1'):
-            response = self.client.get(f'/api/storefront/photo/{shot.pk}/')
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], 'https://bucket.example/t.jpg?sig=1')
-        self.assertEqual(response['Cache-Control'], 'public, max-age=300')
+        for p in (bare, shot):
+            self.assertEqual(self.client.get(f'/api/storefront/photo/{p.pk}/').status_code, 404)
 
     def test_age_restricted_products_are_in_no_feed(self):
         bow = self._product('Crossbow', profile_cat='Sports & outdoors', photo='inventory/products/b.jpg')
@@ -354,3 +351,21 @@ class FeedTests(TestCase):
                 self.assertNotIn(word, low)
             for value in ('123.45', '555.55', '44.44', '33.33', 'bin-'):
                 self.assertNotIn(value, low)
+
+
+class NoInternalPhotosTests(TestCase):
+    """Owner 2026-11-19: "NEVER EVER EVER use photos you got from us for other purposes. like the add item photos."
+    A product with an Add item photo shows no photo anywhere public, and its photo address answers 404."""
+
+    def test_add_item_photos_never_reach_a_feed_or_the_photo_address(self):
+        p = Product.objects.create(title='Brass lamp', photo='inventory/products/x.jpg', photo_thumb='inventory/products/t.jpg')
+        Item.objects.create(product=p, sku='ITM0999001', price=Decimal('40.00'), retail=Decimal('100.00'),
+                            retail_check='passed', status='on_shelf')
+        snap = snapshot.build()
+        text = json.dumps([snapshot.stock_payload(snap), snapshot.home_payload(snap)], default=str)
+        self.assertNotIn('inventory/products', text)
+        self.assertNotIn(f'/api/storefront/photo/{p.pk}/', text)
+        self.assertEqual(self.client.get(f'/api/storefront/photo/{p.pk}/').status_code, 404)
+        item = self.client.get(f'/api/storefront/item/{p.pk}/')
+        if item.status_code == 200:
+            self.assertIsNone(item.json()['photo'])

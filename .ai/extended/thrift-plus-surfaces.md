@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-05 (#71: S11 no longer linked from a Returns page; Dash Update #79: S3 Finish here, S13; Dash Update #80: the member and Staff apps survive browser translation; earlier 11-03: Dash Update #58: a phone join finishes in the app, no Finalize; Finalize and the ID check for Assisted join only; every row checked; earlier 11-03: I agree replaces the signature in C7, S4, S7; S12 Assisted join; earlier 2026-10-21: S6 Member is here, S7 returns count; earlier 2026-10-20: register: one Thrift+ member button, the member view, the Members page; member app bottom bar, Account, home-screen card; phone required; website sign-in phone or Google; Text sign-in link) -->
+<!-- Last updated: 2026-11-19 (Dash Update #185: the phone site's scanner, a second home for C1 to C17 on phones, behind two switches; table "The phone site" below; not yet checked on a real phone) -->
 # Thrift+ surfaces: every place someone joins, signs in or is finalized
 
 **Owner 2026-11-03 (J8, J22, Dash Update #58):** a join on the customer's own phone is finished in the app (a first and last
@@ -35,6 +35,37 @@ The rules themselves live in the one rulebook (`thrift-plus-decisions.md`: J8, J
 | C17 | A price tag's QR (Thrift+ Perks tag) (checked 11-03, no change) | ECOTHRIFT.US/I/<SKU> → /scan?tag=<SKU> · `apps/core/views.py` `i_link`, `scanner/ThriftPlusScannerPage.tsx`, `TripScanner.tsx` | Phone camera. Members: the tag's card in the scanner. Signed out: the card as a guest with **Get Thrift+** (→ Join, C2). 7-character codes are still interview links. Android's installed app opens it (manifest `handle_links`); iPhone opens Safari | `public/tag/<sku>/` |
 | C16 | "Put Thrift+ on your home screen" (checked 11-03, no change) | Scan banner (× = 2 weeks) and always in Account (C9) · `scanner/homeScreen.tsx`, `installApp.ts` | Mobile web only, never in the installed app; Android Install button, iPhone 3 picture steps | — |
 | C17 | Install tags on the public site (checked 11-03, no change) | every ecothrift.us page · `frontend-public/index.html`, `frontend/public/scan/manifest.webmanifest` | The member manifest (start_url /scan) and iPhone tags on every page, so Add to Home Screen installs the app, not a bookmark | — |
+
+## The phone site (Dash Update #185, since v2.317.0)
+
+On a **phone**, with AppSettings `storefront.phone_site` and `storefront.phone_scan` both `on` (or the owner's signed preview
+cookie), ecothrift.us serves the rebuilt phone site and **its own scanner**; desktops, and phones with a switch off, keep
+every row above unchanged. The phone scanner uses the same addresses, calls, stored keys and **the same words** (C3 to the
+letter); its logic files are imported unchanged from `frontend/src` (`frontend-public/src/phone/scan/core/index.ts`), so a
+change there changes both. Map (`frontend-public/src/phone/...`):
+
+| Row | Phone file | Difference on the phone (look only, unless said) | Checked on a phone |
+|---|---|---|---|
+| C1 | `scan/signin/index.tsx` | Same ways in and words; labels shown above the fields; messages in a reserved line under the field | not yet |
+| C2 | `scan/signin/Join.tsx` | Same | not yet |
+| C3 | `scan/signin/parts.tsx` | Same words, same place under every "Send my code" (pinned by `scan/signin/SignIn.test.tsx`) | not yet |
+| C4 | `scan/signin/CheckCode.tsx` | Same; "Send my code" keeps its words with a spinner while sending | not yet |
+| C5 | `scan/signin/StoreQrScan.tsx` | Window capped at 300 px | not yet |
+| C6 | `scan/ScanApp.tsx`, `scan/route.ts` | Same | not yet |
+| C6a | `scan/signin/AddPhone.tsx` | No longer a full-screen layer: the site's bottom bar stays; no skip; Sign out | not yet |
+| C7 | `scan/finish/` | Same steps and words; `TERMS_VERSION` pinned to the live one by `finish/termsVersion.test.ts` | not yet |
+| C8 | `pages/ThriftPlus.tsx` (`?show=qr`), `scan/member/Wallet.tsx` | **No My QR tab**: /qr and ?view=qr open the Thrift+ page's large QR (small on the page, full size on a tap, cached for no signal) | not yet |
+| C9 | `pages/ThriftPlus.tsx` (`?show=account`), `scan/member/Account.tsx` | **No Account tab**: a view of the Thrift+ page; Sign out lands on the signed-out Thrift+ page and still ends the website session | not yet |
+| C10, C11 | `pages/SignIn.tsx` (goes to /scan), `pages/Verify.tsx` | Website sign-in IS the scanner's sign-in on a phone; /verify works as before, then opens /thriftplus | not yet |
+| C12 | `pages/home/ThriftPlusBand.tsx`, `pages/ThriftPlus.tsx`, `shell/` | Links to /scan?view=join and /scan; the bottom bar's Scan | not yet |
+| C13 | `pages/Terms.tsx`, `pages/Privacy.tsx` | Same words from the same data files, one calm page | not yet |
+| C15 | `shell/BottomBar.tsx` | **No scanner tabs**: the site's bar (Home, In store, Scan, Thrift+) everywhere; Bucks, My QR and Account are views of /thriftplus (`?show=bucks|qr|account`) | not yet |
+| C16 | `scan/member/HomeScreenCard.tsx`, `shell/Prompts.tsx` | Owner 11-19: on **every** phone-site page, signed in or out (was Scan after sign-in), above the bottom bar; same two-week dismissal key; never in the installed app | not yet |
+| C17 (tag) | `scan/trip/` | Same: the tag's answer; signed out with Get Thrift+ | not yet |
+| C17 (install) | `frontend-public/phone.html` | The same manifest and iPhone tags as `index.html` | not yet |
+
+**Before `storefront.phone_scan` goes on:** every row here checked on a real phone (iPhone Safari, the installed app,
+Android Chrome), and C14 (the opt-in screenshot) still matches what a desktop shows (it does: desktops keep C1).
 
 ## Staff
 

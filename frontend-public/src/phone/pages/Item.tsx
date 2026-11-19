@@ -6,8 +6,10 @@
  * before the stock is here paints from the endpoint alone. In store: the tag, retail struck, its ThriftBucks (always, grey
  * at 0.00), the member line (owner 11-19: ThriftBucks only, never a pay-today figure), the facts, the stock lines. Coming:
  * the retail and "Priced on arrival", never an estimate, never ThriftBucks.
- * A photo shows only when the piece has its own: on top when that is known at the first paint; when it is learned later
- * (from the endpoint), as a small picture in the facts block, whose size was reserved anyway.
+ * A photo shows only from an allowed source (owner 11-19: a photo-sheet photo or a stock photo, never an Add item photo):
+ * on top when the first paint knows it (the stock row's photo flag, the home feed's finds, or the endpoint on a direct
+ * visit); under a stock photo one small grey line says it may not match. A photo-sheet photo learned later shows as a
+ * small picture in the facts block, whose size was reserved anyway.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
@@ -15,11 +17,11 @@ import { useHome } from '../lib/boot'
 import { useDay } from '../lib/day'
 import { bucks, count, money, tagParts } from '../lib/format'
 import { useMember } from '../lib/member'
-import { catName, loadStock, useStock } from '../lib/stock'
+import { catName, loadStock, useStock, type PhotoKind } from '../lib/stock'
 import { Tag } from '../shell/Tag'
 import {
   cachedItem, comingFromMemory, fetchItem, inStoreFromMemory, listHref, memberPick, mergeApi, parseId, returnsLabel,
-  type ApiItem, type ApiState, type ComingView, type InView,
+  STOCK_LINE, type ApiItem, type ApiState, type ComingView, type InView,
 } from './item/itemData'
 import './Item.css'
 
@@ -28,6 +30,9 @@ const Chevron = ({ d }: { d: string }) => (
     <path d={d} />
   </svg>
 )
+/** The top photo as decided at the first paint. */
+type Top = { photo: string | null; kind: PhotoKind | null }
+
 const BACK = 'M15 5l-7 7 7 7'
 const NEXT = 'M9 6l6 6-6 6'
 
@@ -89,13 +94,19 @@ function TopRow({ where, label }: { where: 'instore' | 'coming'; label: string }
   )
 }
 
-/** The piece's own photo, edge to edge. A broken file leaves the slot (nothing moves) with the category name in it. */
-function TopPhoto({ src, cat }: { src: string; cat: string }) {
+/**
+ * The photo, edge to edge. A broken file leaves the slot (nothing moves) with the category name in it. Under a stock
+ * photo, one small grey line, part of the same block from the first paint; a photo-sheet photo (ours) has none.
+ */
+function TopPhoto({ src, cat, kind }: { src: string; cat: string; kind: PhotoKind | null }) {
   const [broken, setBroken] = useState(false)
   return (
-    <div className={`it-pic${broken ? ' it-miss' : ''}`} data-cat={catName(cat)}>
-      <img src={src} width={390} height={260} alt="" decoding="async" onError={() => setBroken(true)} />
-    </div>
+    <>
+      <div className={`it-pic${broken ? ' it-miss' : ''}`} data-cat={catName(cat)}>
+        <img src={src} width={390} height={260} alt="" decoding="async" onError={() => setBroken(true)} />
+      </div>
+      {kind === 'stock' ? <p className="it-stockline">{STOCK_LINE}</p> : null}
+    </>
   )
 }
 
@@ -219,13 +230,15 @@ function Facts({ v, api, thumb }: { v: InView; api: ApiState; thumb: string | nu
   )
 }
 
-function InStore({ v, api, topPhoto }: { v: InView; api: ApiState; topPhoto: string | null }) {
+function InStore({ v, api, top }: { v: InView; api: ApiState; top: Top }) {
   const name = catName(v.cat)
-  const lateThumb = !topPhoto && v.photo ? v.photo : null
+  // Learned after the first paint (the shelf changed in the last minutes): only our own photo-sheet photo, small, in
+  // the facts block; a late stock photo is left out (its "may not match" line would have no reserved space).
+  const lateThumb = !top.photo && v.photo && v.photoKind === 'sheet' ? v.photo : null
   return (
     <section className="it" data-test="item">
       <TopRow where="instore" label={v.tag ? `Tag ${v.tag}` : ''} />
-      {topPhoto ? <TopPhoto src={topPhoto} cat={v.cat} /> : null}
+      {top.photo ? <TopPhoto src={top.photo} cat={v.cat} kind={top.kind} /> : null}
       <div className="it-main">
         <h1 className="it-nm">{v.name}</h1>
         <div className="it-meta">
@@ -372,14 +385,18 @@ function ItemPage({ id }: { id: string }) {
     if (!view) mode = missing()
   }
 
-  // The top photo slot is decided once, at the first paint of the piece: it never appears (or goes) later.
-  const top = useRef<{ painted: boolean; photo: string | null }>({ painted: false, photo: null })
-  if (view && !top.current.painted) top.current = { painted: true, photo: view.where === 'instore' ? view.photo || null : null }
+  // The top photo slot (and the stock line under it) is decided once, at the first paint of the piece: it never appears
+  // (or goes) later.
+  const top = useRef<Top & { painted: boolean }>({ painted: false, photo: null, kind: null })
+  if (view && !top.current.painted) {
+    const photo = view.where === 'instore' ? view.photo || null : null
+    top.current = { painted: true, photo, kind: photo && view.where === 'instore' ? view.photoKind || 'stock' : null }
+  }
 
   if (mode === 'loading') return <Loading where={where} />
   if (mode === 'error') return <Unreachable where={where} />
   if (mode === 'gone' || !view) return <Gone where={where} />
-  return view.where === 'instore' ? <InStore v={view} api={api} topPhoto={top.current.photo} /> : <Coming v={view} />
+  return view.where === 'instore' ? <InStore v={view} api={api} top={top.current} /> : <Coming v={view} />
 }
 
 export default function Item() {

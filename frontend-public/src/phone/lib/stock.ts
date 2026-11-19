@@ -38,10 +38,19 @@ export const CATS: ReadonlyArray<{ id: string; name: string }> = [
 export type Cat = { id: string; name: string; pieces: number | null }
 export type Truck = { id: number; name: string; pallets: number; pieces: number; listed: boolean }
 
+/**
+ * A public photo's source (apps/storefront/services/photos.py): 'sheet' = a photo-sheet photo (our own photo of the
+ * piece), 'stock' = the maker's or a retailer's picture (the item page says it may not match). Never an Add item photo.
+ */
+export type PhotoKind = 'sheet' | 'stock'
+
+/** The stable address of a product's public photo (302 to the file). */
+export const photoUrl = (pid: number) => `/api/storefront/photo/${pid}/`
+
 /** A product on the shelf. `id` is `p<pid>` (the item page's address). Numbers are a representative unit's. */
 export type InStoreRow = {
   where: 'instore'; id: string; pid: number; name: string; cat: string
-  price: number; retail: number; tb: number; units: number; tag: string
+  price: number; retail: number; tb: number; units: number; tag: string; photo: PhotoKind | null
 }
 /** A piece on a truck. `id` is `m<row id>`. No price: it is priced when the truck lands. */
 export type ComingRow = {
@@ -60,7 +69,8 @@ export type Stock = {
 
 type Raw = {
   v: string; as_of: string; cats: Array<{ id: string; name: string; pieces: number }>; trucks: Truck[]
-  instore: Array<[number, string, number, number, number, number, number, string]>
+  /** The 9th field: the public photo, 0 none | 1 photo sheet | 2 stock photo (absent in older feeds = none). */
+  instore: Array<[number, string, number, number, number, number, number, string, number?]>
   coming: Array<[number, string, number, number, number, number]>
 }
 
@@ -107,8 +117,9 @@ export function parseStock(raw: Raw): Stock {
     asOf: raw.as_of,
     cats,
     trucks,
-    instore: raw.instore.map(([pid, name, cat, price, retail, tb, units, tag]) => ({
+    instore: raw.instore.map(([pid, name, cat, price, retail, tb, units, tag, photo]) => ({
       where: 'instore', id: `p${pid}`, pid, name, cat: catId(cat), price, retail, tb, units, tag: tag || '',
+      photo: photo === 1 ? 'sheet' : photo === 2 ? 'stock' : null,
     })),
     coming: raw.coming.map(([rowid, name, cat, retail, qty, truck]) => ({
       where: 'coming', id: `m${rowid}`, rowid, name, cat: catId(cat), retail, qty, truck: trucks[truck] || null,

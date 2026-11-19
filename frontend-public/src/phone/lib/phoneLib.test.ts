@@ -19,8 +19,8 @@ const RAW = {
     [1, 'SMEG retro espresso machine with grinder', 0, 600, 1200, 102, 1, '0226011'],
     [2, 'Vitamix 5300 blender', 0, 200, 399.99, 28, 1, '0226541'],
     [3, 'Planked panel bed with arched headboard', 1, 584.5, 1669.99, 52.6, 1, '0227076'],
-    [4, 'Brass table lamp', 2, 12, 0, 1.2, 3, ''],
-  ] as Array<[number, string, number, number, number, number, number, string]>,
+    [4, 'Brass table lamp', 2, 12, 0, 1.2, 3, '', 2],
+  ] as Array<[number, string, number, number, number, number, number, string, number?]>,
   coming: [
     [10, 'Farmhouse hall tree with bench', 1, 482.98, 1, 0],
     [11, 'Casabrews espresso machine with grinder', 0, 449.99, 2, 0],
@@ -34,6 +34,12 @@ describe('lib/stock find', () => {
     expect(stock.instore[0]).toMatchObject({ id: 'p1', pid: 1, cat: 'kitchen', price: 600, retail: 1200, tb: 102, tag: '0226011' })
     expect(stock.coming[0]).toMatchObject({ id: 'm10', cat: 'furniture', retail: 482.98, qty: 1 })
     expect(stock.coming[0].where === 'coming' && stock.coming[0].truck?.name).toBe('Walmart')
+  })
+
+  it('reads the photo flag (9th field): 1 photo sheet, 2 stock photo, absent or 0 none', () => {
+    const one = parseStock({ ...RAW, instore: [[5, 'Chair', 1, 10, 20, 0, 1, '1', 1], [6, 'Desk', 1, 10, 20, 0, 1, '2', 0]] })
+    expect(one.instore.map((r) => r.where === 'instore' && r.photo)).toEqual(['sheet', null])
+    expect(stock.instore.map((r) => r.where === 'instore' && r.photo)).toEqual([null, null, null, 'stock'])
   })
 
   it('matches every word at the start of a word, in the name or the category', () => {

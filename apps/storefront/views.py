@@ -3,7 +3,8 @@ here, and these answer from memory).
 
 - ``stock.json`` / ``home.json``: the snapshot in memory (``services/holder.py``). A warm request runs no query.
 - ``item/<pid>/``: one product, live (at most 5 queries), kept 60 seconds per worker.
-- ``photo/<pid>/``: a stable link that 302s to the product's thumb (a presigned S3 link lasts an hour).
+- ``photo/<pid>/``: a stable link that 302s to the product's photo-sheet or stock photo (a presigned S3 link lasts
+  an hour). Never an Add item photo.
 """
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ import logging
 import threading
 import time
 
-from django.http import FileResponse, Http404, HttpResponse, HttpResponseNotModified, HttpResponseRedirect, JsonResponse
+from django.http import Http404, HttpResponse, HttpResponseNotModified, HttpResponseRedirect, JsonResponse
 from django.views.decorators.http import require_safe
 
 from apps.storefront.services import item as item_service
@@ -127,24 +128,21 @@ def item(request, pid: int):
 
 @require_safe
 def photo(request, pid: int):
-    from apps.inventory.models import Product
+    """A stable address that 302s to the product's public photo: its photo-sheet photo, else a found or approved stock
+    photo (``services/photos.py``). Never an Add item photo or any other photo taken for another purpose
+    (owner 2026-11-19): anything else answers 404."""
+    from django.core.files.storage import default_storage
 
-    name = Product.objects.filter(pk=pid).values_list('photo_thumb', flat=True).first()
+    from apps.storefront.services.photos import public_file
+
+    name = public_file(pid)
     if not name:
         raise Http404('No photo.')
-    storage = Product._meta.get_field('photo_thumb').storage
     try:
-        url = storage.url(name)
+        url = default_storage.url(name)
     except Exception:
-        url = None
-    if url and str(url).lower().startswith(('http://', 'https://')):
-        response = HttpResponseRedirect(url)
-        response['Cache-Control'] = PHOTO_CACHE
-        return response
-    try:
-        handle = storage.open(name, 'rb')
-    except (OSError, FileNotFoundError):
-        raise Http404('Photo file missing.')
-    response = FileResponse(handle)
+        logger.exception('storefront: no address for photo of product %s', pid)
+        raise Http404('No photo.')
+    response = HttpResponseRedirect(url)
     response['Cache-Control'] = PHOTO_CACHE
     return response

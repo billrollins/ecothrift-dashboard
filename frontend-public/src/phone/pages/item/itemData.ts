@@ -7,23 +7,30 @@
  * A coming piece has no endpoint: the stock (or the home feed) is all there is.
  */
 import type { HomeFeed } from '../../lib/boot'
-import { CATS, type ComingRow, type InStoreRow, type Stock } from '../../lib/stock'
+import { CATS, photoUrl, type ComingRow, type InStoreRow, type PhotoKind, type Stock } from '../../lib/stock'
 
 export const ITEM_URL = (pid: number) => `/api/storefront/item/${pid}/`
+/** The words under a stock photo (owner 11-19: "Photo of stock item, may not match"). */
+export const STOCK_LINE = 'Stock photo. The piece in our store may not match it exactly.'
 const KEEP_MS = 60_000
 
 /** The endpoint's answer (BRIEF-BE.md). Never notes, cost or location. */
 export type ApiItem = {
   pid: number; name: string; brand: string; cat: string; condition: string; units: number; tags: string[]
   price: number; retail: number; tb: number; returns: '3-day' | 'as_is'; photo: string | null; available: boolean
+  /** 'sheet' (our own photo of the piece) | 'stock' (the maker's or a retailer's picture) | null (no photo). */
+  photo_kind: PhotoKind | null
 }
 export type ApiResult = { state: 'ok'; item: ApiItem } | { state: 'gone' } | { state: 'error' }
 export type ApiState = ApiResult | { state: 'loading' } | { state: 'none' }
 
-/** What the page shows for a piece in store. `photo`: a URL, null (none), undefined (not known yet). */
+/**
+ * What the page shows for a piece in store. `photo`: a URL, null (none), undefined (not known yet). `photoKind`: where
+ * the photo comes from ('stock' carries the "may not match" line under it).
+ */
 export type InView = {
   where: 'instore'; pid: number; name: string; cat: string; price: number; retail: number; tb: number
-  units: number; tag: string; photo: string | null | undefined
+  units: number; tag: string; photo: string | null | undefined; photoKind: PhotoKind | null
 }
 export type ComingView = { where: 'coming'; rowid: number; name: string; cat: string; retail: number; qty: number; truck: string }
 
@@ -65,8 +72,15 @@ export function parseApi(body: unknown): ApiResult {
       returns: b.returns === 'as_is' ? 'as_is' : '3-day',
       photo: typeof b.photo === 'string' && b.photo ? b.photo : null,
       available: true,
+      photo_kind: typeof b.photo === 'string' && b.photo ? kindOf(b.photo_kind) : null,
     },
   }
+}
+
+/** A photo's source as a feed names it. A photo with no (or an unknown) kind counts as a stock photo: its line says it
+ * may not match, the safe side. */
+export function kindOf(kind: unknown): PhotoKind {
+  return kind === 'sheet' ? 'sheet' : 'stock'
 }
 
 const cache = new Map<number, { at: number; res: ApiResult }>()
@@ -105,14 +119,14 @@ export function _clearItemCache() {
 export function inStoreFromMemory(pid: number, stock: Stock | null, feed: HomeFeed | null): InView | null {
   const row = stock?.instore.find((r) => r.pid === pid) as InStoreRow | undefined
   if (row) {
-    const find = feed?.finds.find((f) => f.pid === pid)
+    // The stock row's photo flag (stock.json's 9th field) says whether there is a photo and which kind.
     return { where: 'instore', pid, name: row.name, cat: row.cat, price: row.price, retail: row.retail, tb: row.tb,
-      units: row.units, tag: row.tag, photo: find ? find.photo || null : undefined }
+      units: row.units, tag: row.tag, photo: row.photo ? photoUrl(pid) : null, photoKind: row.photo }
   }
   const f = feed?.finds.find((x) => x.pid === pid)
   if (!f) return null
   return { where: 'instore', pid, name: f.name, cat: catOk(f.cat), price: num(f.price), retail: num(f.retail), tb: num(f.tb),
-    units: Math.max(1, f.units || 1), tag: f.tag || '', photo: f.photo || null }
+    units: Math.max(1, f.units || 1), tag: f.tag || '', photo: f.photo || null, photoKind: f.photo ? kindOf(f.photo_kind) : null }
 }
 
 /** The endpoint's live numbers over what memory had (they agree unless the shelf changed in the last few minutes). */
@@ -120,7 +134,7 @@ export function mergeApi(mem: InView | null, api: ApiItem): InView {
   return {
     where: 'instore', pid: api.pid, name: api.name || mem?.name || '', cat: api.cat || mem?.cat || 'other',
     price: api.price, retail: api.retail, tb: api.tb, units: api.units,
-    tag: api.units === 1 ? api.tags[0] || mem?.tag || '' : '', photo: api.photo,
+    tag: api.units === 1 ? api.tags[0] || mem?.tag || '' : '', photo: api.photo, photoKind: api.photo_kind,
   }
 }
 
