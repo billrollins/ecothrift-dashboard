@@ -20,6 +20,10 @@
 .top .acct .in small { font-size: 10px; font-weight: 700; color: var(--lime); letter-spacing: .01em; }
 .top .acct .in b { font-size: 19px; font-weight: 900; margin-top: 1px; }
 .top .acct.wait > span { opacity: 0; }
+/* A member with a step left in the app: "Finish joining" in the balance's slot and size, a link to the scanner. */
+.top .acct .fin small { font-size: 12.5px; font-weight: 800; color: var(--lime); }
+.top .acct .fin b { display: flex; align-items: center; gap: 1px; font-size: 12.5px; font-weight: 800; color: var(--lime); margin-top: 2px; }
+.top .acct .fin svg.i { width: 12px; height: 12px; stroke-width: 3; }
 
 /* The search row: the only part that stays stuck. */
 .find { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: var(--green); padding: 8px var(--gut); }

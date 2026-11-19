@@ -123,7 +123,16 @@ describe('the shell', () => {
   it('the session keeps only what the page shows', () => {
     expect(parseSession({ status: 'signed_out' })).toEqual({ status: 'out', member: null })
     const s = parseSession({ status: 'member', member: { first_name: 'Ana', email: 'a@b.c', bucks_available: '35.00', bucks_use_by: '2026-12-19', ready: true } })
-    expect(s).toEqual({ status: 'member', member: { first: 'Ana', bucks: 35, useBy: '2026-12-19', ready: true } })
+    expect(s).toEqual({ status: 'member', member: { first: 'Ana', bucks: 35, useBy: '2026-12-19', ready: true, finishing: false } })
+  })
+
+  it('a member with a step left in the app is finishing (no mobile number, or finish steps left)', () => {
+    const m = (extra: Record<string, unknown>) => parseSession({ status: 'member', member: { first_name: 'Ana', ready: true, ...extra } }).member
+    expect(m({ needs_phone: true })?.finishing).toBe(true)
+    expect(m({ ready: false, finish_steps: ['selfie', 'sign'] })?.finishing).toBe(true)
+    expect(m({ ready: false, finish_steps: [] })?.finishing).toBe(false) // only the register is left
+    expect(m({ ready: false })?.finishing).toBe(false)
+    expect(m({ finish_steps: ['selfie'] })?.finishing).toBe(false) // ready: steps are not required
   })
 })
 

@@ -4,7 +4,7 @@
  * the scanner on that tag (/scan?tag=ITM<7 digits>). On /store the box IS the store's query: typing updates `?q=`
  * (replace), so the Store page only reads `useSearchParams().get('q')`.
  */
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useHome } from '../lib/boot'
 import { bucks } from '../lib/format'
@@ -12,7 +12,7 @@ import { useOpenStatus } from '../lib/hours'
 import { useMember } from '../lib/member'
 import { leaveGuest, scanIsRoute } from '../scan/switch'
 import { asset } from './Tag'
-import { IconClear, IconMenu, IconPerson, IconPin, IconSearch } from './icons'
+import { IconClear, IconMenu, IconNext, IconPerson, IconPin, IconSearch } from './icons'
 
 /** A tag number as typed (6 or 7 digits) -> the scanner's SKU, else null. */
 export function tagSku(text: string): string | null {
@@ -24,8 +24,36 @@ export function isHomePath(pathname: string): boolean {
   return pathname === '/' || pathname === '/visit' || pathname === '/visit/'
 }
 
+/** The account slot's link to the scanner: a route when the new scanner is on, else a full page load. */
+function ScanLink({ className, label, onClick, children }: { className: string; label: string; onClick?: () => void; children: ReactNode }) {
+  return scanIsRoute() ? (
+    <Link className={className} to="/scan" aria-label={label} onClick={onClick}>
+      {children}
+    </Link>
+  ) : (
+    <a className={className} href="/scan" aria-label={label} onClick={onClick}>
+      {children}
+    </a>
+  )
+}
+
 function Account() {
   const { status, member } = useMember()
+  // A member with a step left in the app (their mobile number, or the selfie and terms): the scanner shows that step.
+  // Same slot and size as the balance, so nothing shifts when the session answers (Dash Update #185).
+  if (status === 'member' && member?.finishing) {
+    return (
+      <ScanLink className="acct fade" label="Finish joining Thrift+">
+        <span className="fin">
+          <small>Finish</small>
+          <b>
+            joining
+            <IconNext />
+          </b>
+        </span>
+      </ScanLink>
+    )
+  }
   if (status === 'member' && member) {
     const amount = bucks(member.bucks)
     return (
@@ -46,14 +74,10 @@ function Account() {
       <small>Sign in</small>
     </span>
   )
-  return scanIsRoute() ? (
-    <Link className={cls} to="/scan" aria-label="Sign in" onClick={leaveGuest}>
+  return (
+    <ScanLink className={cls} label="Sign in" onClick={leaveGuest}>
       {inner}
-    </Link>
-  ) : (
-    <a className={cls} href="/scan" aria-label="Sign in" onClick={leaveGuest}>
-      {inner}
-    </a>
+    </ScanLink>
   )
 }
 

@@ -5,9 +5,8 @@
 .sa > .tr { flex: 1 1 auto; }
 .tr { position: relative; display: flex; flex-direction: column; gap: 14px; }
 
-/* The scanning view takes the whole screen over the bottom bar: the site's top rows are hidden while it is up, so the
-   camera window is tall enough to show what the decoder reads. */
-html[data-scan="trip"] header.top { display: none; }
+/* The scanning view takes the whole screen over the bottom bar (the site's top rows are hidden on every /scan view,
+   scan.css), so the camera window is tall enough to show what the decoder reads. */
 .tr-main { display: flex; flex-direction: column; gap: 10px; min-height: 400px;
            height: calc(100dvh - env(safe-area-inset-top, 0px) - var(--bar) - env(safe-area-inset-bottom, 0px) - 22px); }
 .tr-stage { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
