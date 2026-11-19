@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.319.0] -->
-<!-- Last reviewed: 2026-11-19 (2.319.0) -->
+<!-- Line 1 release: ## [2.320.0] -->
+<!-- Last reviewed: 2026-11-19 (2.320.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.320.0] - 2026-11-19
+
+User-facing theme: **The phone site's Best finds now show each piece's own catalog photo, pulled daily from the seller's truck list.** (Dash Update #185; the phone site is still switched off)
+
+> **For Bill:** Your order: "yes we need this scheduled for daily. Pick the best items we have ensure they have nice stock photos", with "a small disclaimer once you do click into the product details", and your rule "NEVER EVER EVER use photos you got from us for other purposes ... you CAN use the photo sheets photos". Each morning (with the daily routines job) Dash looks at the pieces on the floor and gives each one a photo-sheet photo if it has one, else the seller's own catalog photo from its truck list. Wayfair's lists carry one for every row (the address in the list is broken, Dash rebuilds the real one): on a test copy, 100 floor pieces got their photo at no cost. Walmart and other lists have none, so those pieces only show a photo-sheet photo for now. Best finds now features only pieces with a photo. The item page says "Stock photo. The piece in our store may not match it exactly." under a seller photo. A wrong photo: Dash admin, Stock photos, Reject (that piece is not looked up again for 90 days). An AI web search for photos is built but OFF (it found 0 of 7 in a test).
+
+### Added (Phone site: stock photos)
+- `apps/storefront` `StockPhoto` (migration `storefront 0001`, which also adds two Settings > AI purposes): one photo per piece, from the seller's manifest image (Wayfair: rebuilt from the image number in `Image URL`), or an AI web search when `storefront.stock_photos_web` is on (off). Admin list with Reject.
+- `storefront_stock_photos` command, run at the end of `materialize_routines` (never stops the routines; 10-minute cap; at most `storefront.stock_photos_manifest_daily` = 300 downloads; `storefront.stock_photos` off stops it).
+- Feeds: a public photo is a photo-sheet photo, else a found or approved stock photo; never an Add item photo. Best finds = the best pieces that have a photo. The photo address serves only those.
+- Item page: the photo on top; the "Stock photo" line under a seller photo, in reserved space.
+- `.ai/extended/thrift-plus-surfaces.md`: a table maps every customer row to its phone-site version (not yet checked on a real phone).
+
+### For #186 and #187 (Mainline)
+- `find_stock_photo(*, key, title, brand='', model='', identifiers=None, product=None, manifest_row=None, web=None)`, `manifest_image_url(manifest_row)`, `StockPhoto` statuses found / approved / rejected / none with `approved_by` / `approved_at`.
 
 ## [2.319.0] - 2026-11-19
 

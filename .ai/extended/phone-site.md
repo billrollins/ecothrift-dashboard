@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-19 (v2.318.1: no Add item photos in any public feed) -->
+<!-- Last updated: 2026-11-19 (v2.320.0: seller photos for featured pieces, daily) -->
 # The phone site: the public site and the Thrift+ scanner, rebuilt for phones
 
 **Owner, 2026-11-19:** one fast site and app for phones ("performance and FAST snappyness as a priority"), in the look he
@@ -24,11 +24,24 @@ seen by him alone until he says go ("i want access and no normal visitors to see
   about a second, kept encoded and gzipped in each worker's memory, and rebuilt in the background every 5 minutes
   (`storefront.snapshot_seconds`). `GET /api/storefront/stock.json` (every in-store product and every coming manifest row,
   compact; the phone searches it locally), `home.json` (the home page's data, also stamped into the HTML so the first screen
-  needs no call), `item/<pid>/` (live, 2 queries, 60 s memory), `photo/<pid>/` (302 to the thumb). A warm request runs no
+  needs no call), `item/<pid>/` (live, 2 queries, 60 s memory), `photo/<pid>/` (302 to the public photo). A warm request runs no
   database query. Never in a feed: cost, notes, location, draft or final manifest prices, reward internals, 18+ products,
   and never a photo staff took for another purpose (owner 2026-11-19: "NEVER EVER EVER use photos you got from us for
   other purposes. like the add item photos. you CAN use the photo sheets photos."): no `Product.photo` / `photo_thumb`.
-  Since v2.318.1 the photo address answers 404 until photo-sheet and pulled stock photos are wired in.
+  Public photos (`apps/storefront/services/photos.py`): a photo-sheet photo, else a found or approved `StockPhoto`.
+
+## Stock photos (v2.320.0; owner 2026-11-19: "scheduled for daily. Pick the best items we have ensure they have nice stock photos")
+
+- `StockPhoto` (key `p<pid>` or `m<manifest row id>`; status found / approved / rejected / none; `approved_by`/`approved_at`
+  for the check-in approve, Dash Update #187). Sources, in order: the product's photo sheet; the seller's manifest image
+  (Wayfair manifests keep `Image URL` in `inventory_preprocessingrow.raw_row`; the given address is a placeholder and the
+  real one is rebuilt from the image number: `stock_photos.manifest_image_url`); an AI web search only when
+  `storefront.stock_photos_web` is on (off: it found 0 of 7 in a test, about $0.07 each).
+- Daily at the end of `materialize_routines` (`storefront_stock_photos`; switch `storefront.stock_photos`; at most
+  `storefront.stock_photos_manifest_daily` = 300 downloads; 10-minute cap). Best finds = the best pieces that have a photo.
+- The item page says "Stock photo. The piece in our store may not match it exactly." under a seller photo (not under a
+  photo-sheet photo). A wrong photo: Django admin, Stock photos, Reject (not looked up again for 90 days).
+- Truck featuring with photos pulled in preprocessing is Dash Update #186 (Mainline).
   A coming piece has no price and no ThriftBucks: it states its retail and "Priced on arrival".
 
 ## Who gets it (`apps/core/middleware.py`)
