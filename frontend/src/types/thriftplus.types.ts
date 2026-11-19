@@ -103,6 +103,15 @@ export interface RewardRunSummary {
   error: string;
 }
 
+/** Kept ThriftBucks still unused, by the day they expire (the day after the lot's use-by; #188). */
+export interface ExpiringBucks {
+  today: string;
+  days: number;
+  total: string;
+  members: number;
+  rows: { day: string; amount: string; members: number }[];
+}
+
 export interface RewardPreview {
   day: string;
   switch_on: boolean;

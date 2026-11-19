@@ -626,6 +626,15 @@ class RewardsViewSet(viewsets.ViewSet):
         return Response(rewards.item_detail(found))
 
     @action(detail=False, methods=['get'])
+    def expiring(self, request):
+        """Kept ThriftBucks still unused, by the day they expire, the next ``days`` days (default 21; #188)."""
+        try:
+            days = min(max(int(request.query_params.get('days') or 21), 1), 90)
+        except ValueError:
+            return Response({'detail': 'days must be a number'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(ledger.expiring_by_day(days=days))
+
+    @action(detail=False, methods=['get'])
     def overview(self, request):
         """The owner's Thrift+ numbers (Phase 4): members, sales, rewards, what is owed, returns, scans."""
         from apps.thriftplus.services.overview import overview

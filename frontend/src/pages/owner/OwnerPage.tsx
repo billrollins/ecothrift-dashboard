@@ -33,7 +33,7 @@ import {
   useTheme,
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { format, parseISO } from 'date-fns';
+import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { lazy, Suspense, useState, type ReactNode } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useWaitingApprovals } from '../../components/layout/NotificationBell';
@@ -50,6 +50,7 @@ import {
   type SpendRange,
 } from '../../api/owner.api';
 import { getAppErrors, markAppErrorsSeen } from '../../api/core.api';
+import { fetchExpiringBucks } from '../../api/thriftplus.api';
 import { getSupplySpendSummary } from '../../api/supplies.api';
 import { NAV_ITEM_CATALOG } from '../../navigation/navItemCatalog';
 import { formatCurrency, formatCurrencyWhole } from '../../utils/format';
@@ -215,18 +216,85 @@ function ScorecardList({ card }: { card: Scorecard }) {
   );
 }
 
-function OwedTrend({ trend }: { trend: Scorecard['thrift_plus_owed']['trend'] }) {
-  const values = trend.map((t) => Number.parseFloat(t.owed));
-  const max = Math.max(...values, 1);
-  const w = 200;
-  const h = 40;
-  const points = values.map((v, i) => `${(i * w) / Math.max(values.length - 1, 1)},${h - (v / max) * (h - 4) - 2}`).join(' ');
+/** Days ahead the owed chart shows, and its height with the two lines under it: fixed, so nothing moves on load. */
+const AHEAD_DAYS = 21;
+const OWED_CHART_HEIGHT = 108;
+
+const dayName = (day: string, n: number) => (n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : format(parseISO(day), 'EEE, MMM d'));
+
+/**
+ * What is owed to members on one time line (Dash Update #188, owner 2026-11-19): the last weeks in green up to
+ * today, then the next 21 days in orange, dropping by the ThriftBucks that expire each day (if nobody spends or
+ * collects). Under the orange part, a bar per expiry day sized by what expires (hover: the day, the amount, how many
+ * members). One time scale for both, by day.
+ */
+function OwedChart({ trend }: { trend: Scorecard['thrift_plus_owed']['trend'] }) {
+  const q = useQuery({ queryKey: ['owner', 'thriftbucks-expiring'], queryFn: () => fetchExpiringBucks(AHEAD_DAYS) });
+  const e = q.data;
+  const w = 240;
+  const h = 64;
+  const today = parseISO(trend[trend.length - 1].day);
+  const past = trend.map((t) => ({ ...t, n: differenceInCalendarDays(parseISO(t.day), today), value: Number.parseFloat(t.owed) }));
+  const now = past[past.length - 1].value;
+  const first = Math.min(past[0].n, -1);
+  const span = AHEAD_DAYS - first;
+  const max = Math.max(...past.map((t) => t.value), 1) * 1.08;
+  const x = (n: number) => ((n - first) / span) * w;
+  const y = (v: number) => h - 1 - (Math.max(v, 0) / max) * (h - 2);
+  const rows = (e?.rows ?? []).map((r) => ({ ...r, n: differenceInCalendarDays(parseISO(r.day), today), value: Number.parseFloat(r.amount) }));
+  const drops: { day: string; n: number; value: number; members: number; from: number; to: number }[] = [];
+  let level = now;
+  for (const r of rows.filter((r) => r.n >= 1 && r.n <= AHEAD_DAYS)) {
+    drops.push({ ...r, from: level, to: level - r.value });
+    level -= r.value;
+  }
+  // The orange line: level until the day's drop, then down (a step at the start of each expiry day).
+  let ahead = `${x(0)},${y(now)}`;
+  for (const d of drops) ahead += ` ${x(d.n - 1)},${y(d.from)} ${x(d.n - 1)},${y(d.to)}`;
+  ahead += ` ${x(AHEAD_DAYS)},${y(level)}`;
+  const within = (days: number) => rows.filter((r) => r.n <= days).reduce((sum, r) => sum + r.value, 0);
+  const slot = w / span;
+  const biggest = Math.max(...drops.map((d) => d.value), 1);
   return (
-    <Tooltip title={trend.map((t) => `${t.day}: ${formatCurrencyWhole(t.owed)}`).join(' | ')} enterDelay={250}>
-      <Box component="svg" viewBox={`0 0 ${w} ${h}`} sx={{ width: '100%', maxWidth: 240, height: 40, color: 'primary.main' }} role="img" aria-label="Owed over the last weeks">
-        <polyline points={points} fill="none" stroke="currentColor" strokeWidth={2} />
+    <Box sx={{ height: OWED_CHART_HEIGHT }} data-testid="owed-chart">
+      <Box
+        component="svg"
+        viewBox={`0 0 ${w} ${h}`}
+        preserveAspectRatio="none"
+        sx={{ width: '100%', maxWidth: 280, height: h, display: 'block' }}
+        role="img"
+        aria-label={`Owed over the last weeks, then the next ${AHEAD_DAYS} days as ThriftBucks expire`}
+      >
+        <line x1={x(0)} y1={0} x2={x(0)} y2={h} stroke="currentColor" strokeOpacity={0.25} strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
+        {drops.map((d) => {
+          const bar = Math.max((d.value / biggest) * h * 0.4, 1.5);
+          return (
+            <Box component="rect" key={d.day} x={x(d.n - 1) + 0.3} y={h - bar} width={Math.max(slot - 0.6, 0.8)} height={bar} sx={{ fill: (t) => t.palette.warning.main, fillOpacity: 0.45 }}>
+              <title>{`${dayName(d.day, d.n)}: ${formatCurrency(d.value)}, ${d.members} ${d.members === 1 ? 'member' : 'members'}`}</title>
+            </Box>
+          );
+        })}
+        {e ? <Box component="polyline" points={ahead} fill="none" strokeWidth={2} vectorEffect="non-scaling-stroke" sx={{ stroke: (t) => t.palette.warning.main }} /> : null}
+        <Box component="polyline" points={past.map((t) => `${x(t.n)},${y(t.value)}`).join(' ')} fill="none" strokeWidth={2} vectorEffect="non-scaling-stroke" sx={{ stroke: (t) => t.palette.success.main }} />
+        {past.map((t) => (
+          <rect key={t.day} x={x(t.n) - 3} y={0} width={6} height={h} fill="transparent">
+            <title>{`${t.n === 0 ? 'Today' : format(parseISO(t.day), 'MMM d')}: ${formatCurrencyWhole(t.owed)} owed`}</title>
+          </rect>
+        ))}
       </Box>
-    </Tooltip>
+      {e ? (
+        <>
+          <Typography variant="caption" color="text.secondary" component="p" sx={{ whiteSpace: 'nowrap', mt: 0.25 }}>
+            Expiring tomorrow {formatCurrencyWhole(within(1))}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" component="p" sx={{ whiteSpace: 'nowrap' }}>
+            7 days {formatCurrencyWhole(within(7))} | {AHEAD_DAYS} days {formatCurrencyWhole(within(AHEAD_DAYS))}
+          </Typography>
+        </>
+      ) : q.isError ? (
+        <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 0.25 }}>Expiring ThriftBucks did not load.</Typography>
+      ) : null}
+    </Box>
   );
 }
 
@@ -464,7 +532,7 @@ function OwnerOverview() {
           <Typography variant="caption" color="text.secondary">
             ThriftBucks {formatCurrency(owed.banked)} | Store credit {formatCurrency(owed.credit)}
           </Typography>
-          <OwedTrend trend={owed.trend} />
+          <OwedChart trend={owed.trend} />
           <Box><Button size="small" onClick={() => navigate(owed.link)}>Open Thrift+</Button></Box>
         </Stack>
       ) : scorecard.isLoading ? <LinearProgress /> : null}

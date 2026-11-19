@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.320.0] -->
-<!-- Last reviewed: 2026-11-19 (2.320.0) -->
+<!-- Line 1 release: ## [2.321.0] -->
+<!-- Last reviewed: 2026-11-19 (2.321.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.321.0] - 2026-11-19
+
+User-facing theme: **The Owner page's owed line runs on into the next 3 weeks, dropping as ThriftBucks expire.**
+
+> **For Bill:** You asked how many ThriftBucks expire today, tomorrow and on. Owner → "Owed to members" is now one line on one time scale: green for the last 8 weeks up to today (dotted mark), then orange for the next 21 days, stepping down each day by the ThriftBucks that expire then (if nobody spends or collects). Under the orange part, a bar per day shows how big that day's drop is (hover a bar: the day, the amount, how many members). Below: expiring tomorrow, in 7 days and in 21 days. The Thrift+ page is left alone for its later overhaul.
+
+User-facing theme: **The Owner page's owed line runs on into the next 3 weeks, dropping as ThriftBucks expire.** (Dash Update #188, Thrift+)
+
+> **For Bill:** You asked how many ThriftBucks expire today, tomorrow and on. Owner → "Owed to members" is now one line on one time scale: green for the last 8 weeks up to today (dotted mark), then orange for the next 21 days, stepping down each day by the ThriftBucks that expire then (if nobody spends or collects). Under the orange part, a bar per day shows how big that day's drop is (hover a bar: the day, the amount, how many members). Below: expiring tomorrow, in 7 days and in 21 days. The Thrift+ page is left alone for its later overhaul.
+
+### Added (Owner page: owed, then expiring by day)
+- `apps/thriftplus/services/ledger.py` `expiring_by_day(on, days=21)`: replays `lots()` for every real (non-practice) membership with ThriftBucks rows; lots with something left and use-by today or later, grouped by expiry day (use-by + 1) through `on + days`, with members per day; `total` and `members` count every unused lot, any day. Read-only; one query per membership (a few hundred: fine). Same math as the 11-19 one-off.
+- `GET /api/thriftplus/rewards/expiring/?days=21` (managers; `days` 1 to 90).
+- Owner page, "Owed to members": `OwedChart` replaces the owed sparkline. Points placed by date (the last week's short segment is no longer stretched), past in green, today dashed, the projection in orange as steps (owed now minus what expires through each day), drop bars from the bottom (hover titles), two caption lines; fixed height loading or loaded, and the time scale is fixed before the expiring numbers arrive, so nothing moves. Tests `test_expiring_bucks.py` (partly spent, voided, own use-by, past-date and practice lots, the API) and `OwnerPage.test.tsx`.
 
 ## [2.320.0] - 2026-11-19
 

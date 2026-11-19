@@ -4,6 +4,7 @@ import type {
   CalculatorResult,
   EngineSaved,
   EngineState,
+  ExpiringBucks,
   FloorCompare,
   FloorPlan,
   FloorPlanChoices,
@@ -281,6 +282,11 @@ export async function killCard(cardId: number, reason: string): Promise<void> {
 }
 
 /** What members would pay on a day (default tomorrow): the reward engine's dry run. */
+export async function fetchExpiringBucks(days?: number): Promise<ExpiringBucks> {
+  const { data } = await api.get<ExpiringBucks>('/thriftplus/rewards/expiring/', { params: days ? { days } : {} });
+  return data;
+}
+
 export async function fetchRewardPreview(day?: string): Promise<RewardPreview> {
   const { data } = await api.get<RewardPreview>('/thriftplus/rewards/preview/', { params: day ? { day } : {} });
   return data;
