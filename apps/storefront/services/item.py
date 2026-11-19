@@ -71,6 +71,6 @@ def product_payload(pid: int) -> dict | None:
         'retail': R.num(R.shown_retail(tag, retail, check, s)),
         'tb': R.num(tb),
         'returns': 'as_is' if as_is else '3-day',
-        'photo': photo_url(product.pk) if product.photo_thumb else None,
+        'photo': None,  # Add item photos never go public (owner 2026-11-19); approved sources come later
         'available': True,
     }

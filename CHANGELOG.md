@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.318.0] -->
-<!-- Last reviewed: 2026-11-19 (2.318.0) -->
+<!-- Line 1 release: ## [2.318.1] -->
+<!-- Last reviewed: 2026-11-19 (2.318.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.318.1] - 2026-11-19
+
+User-facing theme: **The public store feeds no longer use any photo staff took for Add item.** (Dash Update #185)
+
+> **For Bill:** Your rule: "NEVER EVER EVER use photos you got from us for other purposes. like the add item photos. you CAN use the photo sheets photos." The phone site's public data feed (v2.317.0) showed the Add item photo on Best finds, and its public photo address served it. Now no feed carries one and that address answers "not found". Customers never saw them (the phone site is still switched off). Photo-sheet photos and checked stock photos come next.
+
+### Fixed (Phone site feeds: photos)
+- `apps/storefront`: the snapshot no longer reads `Product.photo_thumb`; the item endpoint gives no photo; `photo/<pid>/` answers 404 for every product until approved sources (photo sheets, pulled stock photos) are wired in. Test `NoInternalPhotosTests` holds the rule. `.ai/extended/phone-site.md` states it.
 
 ## [2.318.0] - 2026-11-19
 

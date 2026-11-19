@@ -73,11 +73,14 @@ LEFT JOIN {ItemReward._meta.db_table} r ON r.item_id = i.id
 WHERE i.status = 'on_shelf' AND i.price > 0 AND {_not_restricted('i.product_id')}"""
 
 
+# Owner 2026-11-19: "NEVER EVER EVER use photos you got from us for other purposes. like the add item photos."
+# Product.photo / photo_thumb (taken for Add item) never reach a public feed. Allowed sources, when built: stock
+# photos pulled for manifests, and photo-sheet photos.
 def _products_sql() -> str:
     from apps.inventory.models import Item, Product, ProductProfile
 
     return f"""
-SELECT p.id, p.title, COALESCE(pp.display_title, ''), COALESCE(p.photo_thumb, '')
+SELECT p.id, p.title, COALESCE(pp.display_title, ''), ''
 FROM {Product._meta.db_table} p
 LEFT JOIN {ProductProfile._meta.db_table} pp ON pp.product_id = p.id
 WHERE p.id IN (SELECT product_id FROM {Item._meta.db_table} WHERE status = 'on_shelf' AND price > 0)

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-19 (v2.317.0: first release, both switches off) -->
+<!-- Last updated: 2026-11-19 (v2.318.1: no Add item photos in any public feed) -->
 # The phone site: the public site and the Thrift+ scanner, rebuilt for phones
 
 **Owner, 2026-11-19:** one fast site and app for phones ("performance and FAST snappyness as a priority"), in the look he
@@ -25,7 +25,10 @@ seen by him alone until he says go ("i want access and no normal visitors to see
   (`storefront.snapshot_seconds`). `GET /api/storefront/stock.json` (every in-store product and every coming manifest row,
   compact; the phone searches it locally), `home.json` (the home page's data, also stamped into the HTML so the first screen
   needs no call), `item/<pid>/` (live, 2 queries, 60 s memory), `photo/<pid>/` (302 to the thumb). A warm request runs no
-  database query. Never in a feed: cost, notes, location, draft or final manifest prices, reward internals, 18+ products.
+  database query. Never in a feed: cost, notes, location, draft or final manifest prices, reward internals, 18+ products,
+  and never a photo staff took for another purpose (owner 2026-11-19: "NEVER EVER EVER use photos you got from us for
+  other purposes. like the add item photos. you CAN use the photo sheets photos."): no `Product.photo` / `photo_thumb`.
+  Since v2.318.1 the photo address answers 404 until photo-sheet and pulled stock photos are wired in.
   A coming piece has no price and no ThriftBucks: it states its retail and "Priced on arrival".
 
 ## Who gets it (`apps/core/middleware.py`)

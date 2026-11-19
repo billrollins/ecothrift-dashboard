@@ -127,24 +127,6 @@ def item(request, pid: int):
 
 @require_safe
 def photo(request, pid: int):
-    from apps.inventory.models import Product
-
-    name = Product.objects.filter(pk=pid).values_list('photo_thumb', flat=True).first()
-    if not name:
-        raise Http404('No photo.')
-    storage = Product._meta.get_field('photo_thumb').storage
-    try:
-        url = storage.url(name)
-    except Exception:
-        url = None
-    if url and str(url).lower().startswith(('http://', 'https://')):
-        response = HttpResponseRedirect(url)
-        response['Cache-Control'] = PHOTO_CACHE
-        return response
-    try:
-        handle = storage.open(name, 'rb')
-    except (OSError, FileNotFoundError):
-        raise Http404('Photo file missing.')
-    response = FileResponse(handle)
-    response['Cache-Control'] = PHOTO_CACHE
-    return response
+    """No public photo source yet: Add item photos (Product.photo / photo_thumb) never go public (owner 2026-11-19).
+    Stock photos pulled for manifests and photo-sheet photos will be served here once they are built."""
+    raise Http404('No photo.')
