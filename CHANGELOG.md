@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.314.0] -->
-<!-- Last reviewed: 2026-11-19 (2.314.0) -->
+<!-- Line 1 release: ## [2.315.0] -->
+<!-- Last reviewed: 2026-11-19 (2.315.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.315.0] - 2026-11-19
+
+User-facing theme: **The register finds an old tag even when the scanner types in lower case, and keeps every scan it cannot find.**
+
+> **For Bill:** Old tags (printed before October 28) hold the plain item number in their QR. The register matched it letter for letter, so a scanner typing in lower case (Caps Lock on) got "Item not found" on old tags while new tags still worked. It now matches the item number in any case. Every scan it still cannot find is kept as a register event with exactly what the scanner sent, so the next time a tag will not scan we can see why.
+
+### Fixed (Register: old tags that would not scan)
+- **Register scan** matches the item number in any case: a scanner typing in lower case (Caps Lock on) got "Item not found" on pre-October 28 tags, whose QR is the plain item number (sale R-20261119-026: a fan and a counter stool). No two items share a number that differs only by case.
+- **Every scan the register cannot find** is kept as a register event ("Scanned code not found", pos migration 0052) with exactly what the scanner sent, and logged as REGISTER_SCAN_NOT_FOUND. Practice-register scans are not kept.
 
 ## [2.314.0] - 2026-11-19
 

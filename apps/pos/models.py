@@ -595,6 +595,7 @@ class RegisterEvent(models.Model):
         (KIND_COVER_ACCEPTED, 'Drawer accepted back after a cover'),
         ('tax_exempt', 'Sale marked tax exempt'),
         ('tax_exempt_off', 'Tax exempt taken off'),
+        ('scan_not_found', 'Scanned code not found'),  # 11-19: what the scanner sent, in the note
     ]
 
     kind = models.CharField(max_length=20, choices=KIND_CHOICES)

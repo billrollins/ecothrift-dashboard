@@ -1,10 +1,11 @@
-v2.314.0 — Standardize no longer times out on a big manifest
+v2.315.0 — Register finds old tags scanned in lower case; keeps scans it cannot find
 
-User-facing theme: **Standardize no longer times out on a big manifest: a 1,155-row truckload saves in seconds, not 41.**
+User-facing theme: **The register finds an old tag even when the scanner types in lower case, and keeps every scan it cannot find.**
 
-> **For Bill:** Standardize does not use the AI; it saves each manifest row. It saved them one at a time, about two database calls per row, so the Walmart truckload (order 461, 1,155 rows) took 41 seconds and Heroku cut the page off at 30 with "Failed to standardize manifest", although the save finished. It now reads all the rows once and saves them in two batches. Nothing changes on the page.
+> **For Bill:** Old tags (printed before October 28) hold the plain item number in their QR. The register matched it letter for letter, so a scanner typing in lower case (Caps Lock on) got "Item not found" on old tags while new tags still worked. It now matches the item number in any case. Every scan it still cannot find is kept as a register event with exactly what the scanner sent, so the next time a tag will not scan we can see why.
 
-### Fixed (Preprocessing: Standardize on a big manifest)
-- **Standardize Manifest** reads the order's manifest rows in one query and writes them in two bulk saves, instead of a query pair per row. A 1,155-row truckload (order 461) took 41 seconds and hit Heroku's 30-second cut-off ("Failed to standardize manifest") although the save finished; it now takes a few seconds. Same result, same rows kept on a rerun.
+### Fixed (Register: old tags that would not scan)
+- **Register scan** matches the item number in any case: a scanner typing in lower case (Caps Lock on) got "Item not found" on pre-October 28 tags, whose QR is the plain item number (sale R-20261119-026: a fan and a counter stool). No two items share a number that differs only by case.
+- **Every scan the register cannot find** is kept as a register event ("Scanned code not found", pos migration 0052) with exactly what the scanner sent, and logged as REGISTER_SCAN_NOT_FOUND. Practice-register scans are not kept.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

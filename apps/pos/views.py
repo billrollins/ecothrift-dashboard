@@ -1235,7 +1235,8 @@ class CartViewSet(viewsets.ModelViewSet):
         cover_service.touch(cover_service.active_cover(cart.drawer))
         from apps.inventory.services.scan_code import sku_from_scan
 
-        sku = sku_from_scan(request.data.get('sku'))
+        raw_scan = request.data.get('sku')
+        sku = sku_from_scan(raw_scan)
         if not sku:
             return Response(
                 {'detail': 'SKU is required.', 'code': 'SKU_REQUIRED'},
@@ -1245,6 +1246,22 @@ class CartViewSet(viewsets.ModelViewSet):
         try:
             item = Item.objects.select_related('product').get(sku=sku)
         except Item.DoesNotExist:
+            # 11-19: a scanner typing in lower case (Caps Lock on) missed old tags, whose QR is the plain SKU. No two
+            # items share a SKU that differs only by case, so the case-blind match is the same item.
+            item = Item.objects.select_related('product').filter(sku__iexact=sku).order_by('id').first()
+        if item is None:
+            # Every scan the register cannot find is logged as it arrived, so a scanner problem shows in the logs.
+            import logging
+
+            logging.getLogger('pos.scan').warning(
+                'REGISTER_SCAN_NOT_FOUND cart=%s user=%s raw=%r', cart.pk, request.user.pk, str(raw_scan)[:120],
+            )
+            if not _is_training_cart(cart):
+                RegisterEvent.objects.create(
+                    kind='scan_not_found', drawer=cart.drawer, cart=cart,
+                    register_code=getattr(getattr(cart.drawer, 'register', None), 'code', '') or '',
+                    user=request.user, note=repr(str(raw_scan))[:300],
+                )
             return Response(
                 {'detail': 'Item not found.', 'code': 'ITEM_NOT_FOUND'},
                 status=404,

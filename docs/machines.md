@@ -32,6 +32,8 @@ Newest first. One row per ship (`ship.md`) and per deploy (`deploy.md`). A deplo
 
 | Date | Event | Version | Commit | Heroku release | Machine | Session |
 |---|---|---|---|---|---|---|
+| 2026-11-19 | ship | v2.315.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
+| 2026-11-19 | deploy | v2.314.0 | b06c377b | 699 | Bench | Eco-Thrift - Mainline |
 | 2026-11-19 | ship | v2.314.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |
 | 2026-11-19 | deploy | v2.313.0 | 2e17a303 | 698 | Bench | Eco-Thrift - Mainline |
 | 2026-11-18 | ship | v2.313.0 | (this version's commit) | — | Bench | Eco-Thrift - Mainline |

@@ -97,6 +97,23 @@ class CartAddItemAuditTests(TestCase):
         self.assertEqual(scan.outcome, 'pos_blocked_sold')
         self.assertFalse(CartLine.objects.filter(cart_id=cid, item=self.item_sold).exists())
 
+    def test_a_lower_case_scan_of_an_old_tag_finds_the_item(self):
+        """11-19: a scanner typing in lower case (Caps Lock on) missed old tags, whose QR is the plain SKU."""
+        cid = self._create_open_cart()['id']
+        r = self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': 'pos-audit-shelf'}, format='json')
+        self.assertIn(r.status_code, (200, 201), r.content)
+        self.assertTrue(CartLine.objects.filter(cart_id=cid, item=self.item_on_shelf).exists())
+
+    def test_a_scan_that_finds_nothing_is_kept_as_a_register_event(self):
+        from apps.pos.models import RegisterEvent
+
+        cid = self._create_open_cart()['id']
+        r = self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': ' ITM9999999x '}, format='json')
+        self.assertEqual(r.status_code, 404, r.content)
+        ev = RegisterEvent.objects.get(kind='scan_not_found')
+        self.assertEqual((ev.cart_id, ev.register_code, ev.user_id), (cid, 'POS-A1', self.user.pk))
+        self.assertEqual(ev.note, repr(' ITM9999999x '))
+
     def test_add_item_unknown_sku_returns_not_found_code(self):
         cart = self._create_open_cart()
         cid = cart['id']
