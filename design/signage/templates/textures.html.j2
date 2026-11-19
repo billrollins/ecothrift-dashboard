@@ -1,0 +1,32 @@
+{# Brand board materials, R Real surface (Dash Update #134; Bill 11-19: "R is 100% done"; direction by Astra,
+   gpt-6.2-astra). One real surface fills the panel edge to edge, no colour filter, no box; the word goes straight on its
+   quiet middle. Plates: art/materials/r4/ (JSON sidecars). The caller's font-size is the word size and everything
+   inside is in em, so a board tile and a sign panel are the same object scaled. Usage:
+     {% import 'textures.html.j2' as tx %} <style>{{ tx.css() }}</style>
+     {% call tx.panel('denim', art) %}<span>Clothing</span>{% endcall %}
+   Rounds 1 to 3 (rejected) are logged in brand-board.md sections 9 to 11. #}
+
+{# per material: the swatch under the plate, the word colour (measured: ink on kraft 5.4:1, white on wood 10.1:1,
+   white on denim 10.3:1, worst pixel in the middle of the plate) #}
+{% set LOOK = {
+  'kraft': ('#B98E65', '#1B1F1B'),
+  'wood': ('#4B3424', '#FFFFFF'),
+  'denim': ('#22406B', '#FFFFFF'),
+} %}
+
+{% macro css() -%}
+.mx { position: relative; width: 100%; height: 100%; overflow: hidden; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; }
+.mx .bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.mx .words { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.25em; text-align: center; line-height: 1.05; }
+.mx .words svg { width: 1.5em; height: 1.5em; display: block; }
+{%- endmacro %}
+
+{% macro panel(m, art) -%}
+<div class="mx m-{{ m }}" style="background:{{ LOOK[m][0] }};color:{{ LOOK[m][1] }}">
+  <img class="bg" src="{{ art }}/materials/r4/{{ m }}.jpg" alt="">
+  <div class="words">{{ caller() }}</div>
+</div>
+{%- endmacro %}
+
+{% macro word_color(m) %}{{ LOOK[m][1] }}{% endmacro %}

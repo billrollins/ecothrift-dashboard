@@ -41,7 +41,7 @@ const GROUPS: { title: string; hint: string; tokens: [EcoToken, string][] }[] = 
 const PRINCIPLES = [
   ['Readable first', 'Secondary text about 9:1 on a card, nothing under 12px. When in doubt, the more legible option.'],
   ['Green is the brand', 'Forest for what you press, Leaf for the one thing to look at, kraft for the detail in each icon.'],
-  ['Rounded to greet, plain to work', 'Titles are Nunito. Everything you read, scan or type is Manrope.'],
+  ['Clear to greet, plain to work', 'Titles are Atkinson Hyperlegible Next. Everything you read, scan or type is Manrope.'],
   ['Say it once', 'The top bar names the page. No second title, no tagline: a page starts with what you came to do.'],
 ] as const;
 
@@ -101,7 +101,7 @@ export default function ThemeTab() {
       ))}
 
       <Box sx={{ display: 'grid', gap: { xs: 2, md: 3 }, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
-        <Section title="Type" hint="Nunito for titles, Manrope for work.">
+        <Section title="Type" hint="Atkinson Hyperlegible Next for titles, Manrope for work.">
           <Stack spacing={1.25}>
             <Typography variant="h2">Good morning, Bill</Typography>
             <Typography variant="h4">Friday on the floor</Typography>

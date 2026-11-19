@@ -117,6 +117,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     stage_label = serializers.CharField(source='get_stage_display', read_only=True)
     source_label = serializers.CharField(source='get_source_display', read_only=True)
     flags = serializers.SerializerMethodField()
+    callouts = serializers.SerializerMethodField()
     has_resume = serializers.SerializerMethodField()
     lead_interest = serializers.SerializerMethodField()
     next_interview = serializers.SerializerMethodField()
@@ -128,7 +129,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         model = Application
         fields = [
             'id', 'first_name', 'last_name', 'full_name', 'email', 'phone', 'jobs', 'stage', 'stage_label',
-            'stage_changed_at', 'rating', 'red_flags', 'flags', 'source', 'source_label', 'has_resume',
+            'stage_changed_at', 'rating', 'red_flags', 'flags', 'callouts', 'source', 'source_label', 'has_resume',
             'lead_interest', 'employee_user', 'not_now_reason', 'is_practice', 'created_at', 'next_interview',
             'offer_status', 'outreach', 'returning',
         ]
@@ -163,6 +164,12 @@ class ApplicationListSerializer(serializers.ModelSerializer):
 
     def get_flags(self, obj):
         return flags_of(obj)
+
+    def get_callouts(self, obj):
+        """Heads-up flags against the roles (Dash #184): asks more pay, hours, days, late start, missed must-haves."""
+        from apps.hiring import callouts
+
+        return callouts.chips(obj)
 
     def get_next_interview(self, obj):
         """When the next scheduled interview starts (the list prefetches them), or None."""

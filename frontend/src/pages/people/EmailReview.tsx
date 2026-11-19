@@ -2,6 +2,7 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   Dialog,
   Drawer,
@@ -9,6 +10,7 @@ import {
   IconButton,
   Link,
   Switch,
+  TextField,
   Typography,
   useMediaQuery,
   useTheme,
@@ -139,6 +141,88 @@ export function EmailCompose({
   );
 }
 
+export interface NoteLine {
+  key: string;
+  /** The flag it answers ("Asks $22 (starts at $15)"); '' for a line staff added. */
+  label: string;
+  text: string;
+  on: boolean;
+}
+
+/** The lines that go in the email: ticked, with words. */
+export function chosenNotes(heading: string, lines: NoteLine[]): { heading: string; items: string[] } {
+  return { heading: heading.trim(), items: lines.filter((l) => l.on && l.text.trim()).map((l) => l.text.trim()) };
+}
+
+/**
+ * The invite's call-outs (Dash #184): one ready paragraph per flag on this application, under a heading, above the
+ * interview button. Untick one to leave it out, edit its words, or add a line of your own.
+ */
+export function CallOutSection({
+  heading,
+  lines,
+  onHeading,
+  onLines,
+}: {
+  heading: string;
+  lines: NoteLine[];
+  onHeading: (heading: string) => void;
+  onLines: (lines: NoteLine[]) => void;
+}) {
+  const set = (key: string, change: Partial<NoteLine>) => onLines(lines.map((l) => (l.key === key ? { ...l, ...change } : l)));
+  return (
+    <Box data-testid="call-outs" sx={{ mt: 2.5, pt: 2, borderTop: `1px solid ${ccTokens.line}` }}>
+      <Typography fontWeight={700}>Things to call out</Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+        Goes in above the interview button.
+      </Typography>
+      {lines.length > 0 && (
+        <TextField size="small" label="Heading" value={heading} onChange={(e) => onHeading(e.target.value)} fullWidth sx={{ mb: 1.5, bgcolor: '#fff' }} />
+      )}
+      {lines.map((line) => (
+        <Box key={line.key} sx={{ display: 'flex', gap: 0.5, alignItems: 'flex-start', mb: 1.25 }}>
+          {line.label ? (
+            <Checkbox
+              checked={line.on}
+              onChange={(e) => set(line.key, { on: e.target.checked })}
+              inputProps={{ 'aria-label': `Include: ${line.label}` }}
+              sx={{ mt: 0.25 }}
+            />
+          ) : (
+            <IconButton aria-label="Remove this line" onClick={() => onLines(lines.filter((l) => l.key !== line.key))} sx={{ mt: 0.25 }}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          )}
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            {line.label && (
+              <Typography variant="caption" sx={{ fontWeight: 700, color: line.on ? ccTokens.warnText : ccTokens.ink3 }}>
+                {line.label}
+              </Typography>
+            )}
+            <TextField
+              size="small"
+              value={line.text}
+              onChange={(e) => set(line.key, { text: e.target.value })}
+              disabled={!line.on}
+              placeholder={line.label ? undefined : 'Your words'}
+              multiline
+              minRows={2}
+              fullWidth
+              sx={{ bgcolor: '#fff', mt: line.label ? 0.25 : 0 }}
+            />
+          </Box>
+        </Box>
+      ))}
+      <Button
+        size="small"
+        onClick={() => onLines([...lines, { key: `own-${Date.now()}-${lines.length}`, label: '', text: '', on: true }])}
+      >
+        + Add a line
+      </Button>
+    </Box>
+  );
+}
+
 /** The text that goes with the email (Phase 6): read it, edit it, or send no text this time. */
 function TextSection({
   draft,
@@ -232,6 +316,10 @@ function ReviewPanel({
   const [words, setWords] = useState({ subject: draft.subject, body: draft.body });
   const [textWords, setTextWords] = useState(text?.template ?? '');
   const [textOn, setTextOn] = useState(true);
+  const [noteHeading, setNoteHeading] = useState(draft.notes?.heading ?? '');
+  const [noteLines, setNoteLines] = useState<NoteLine[]>(
+    () => draft.notes?.items.map((item) => ({ key: item.key, label: item.label, text: item.text, on: true })) ?? [],
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const noAddress = draft.to.length === 0;
@@ -292,6 +380,9 @@ function ReviewPanel({
           </Alert>
         )}
         <EmailCompose draft={draft} onChange={setWords} />
+        {draft.notes && !noAddress && (
+          <CallOutSection heading={noteHeading} lines={noteLines} onHeading={setNoteHeading} onLines={setNoteLines} />
+        )}
         {text && <TextSection draft={text} on={textOn} onToggle={setTextOn} onChange={setTextWords} />}
         {error && (
           <Alert severity="error" sx={{ mt: 1.5 }}>
@@ -316,7 +407,11 @@ function ReviewPanel({
           </>
         ) : (
           <>
-            <Button variant="contained" onClick={() => go(words)} disabled={busy}>
+            <Button
+              variant="contained"
+              onClick={() => go(draft.notes ? { ...words, notes: chosenNotes(noteHeading, noteLines) } : words)}
+              disabled={busy}
+            >
               {run.sendLabel ?? 'Send'}
             </Button>
             {draft.skip_allowed && (

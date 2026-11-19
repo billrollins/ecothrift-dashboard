@@ -61,6 +61,8 @@ class Review:
     subject: str | None = None
     body: str | None = None
     skip: bool = False
+    # The invite's call-outs as reviewed (Dash #184): {heading, items: [paragraph, ...]}; None = as Dash made them.
+    notes: dict | None = None
     # The text that goes with it (Phase 6): captured in a preview, the edited words, or "no text".
     text_capture: list | None = None
     text_body: str | None = None
@@ -133,6 +135,13 @@ def parse(raw, *, user=None) -> Review:
         if not body.strip():
             raise ValidationError({'email': 'The email needs a message.'})
         review.subject, review.body = subject, body
+    notes = raw.get('notes')
+    if isinstance(notes, dict):
+        items = notes.get('items') if isinstance(notes.get('items'), list) else []
+        review.notes = {
+            'heading': str(notes.get('heading') or '').replace('\n', ' ').strip()[:200],
+            'items': [str(t).replace('\r\n', '\n').strip()[:1500] for t in items if str(t or '').strip()][:12],
+        }
     return review
 
 
@@ -157,8 +166,10 @@ def source_label(key: str, template: dict) -> str:
     return 'The version for all roles'
 
 
-def draft(key: str, *, to, template: dict, values: dict, attachments=None, practice: bool = False) -> dict:
-    """What the review screen shows: the template, the values Dash filled in, and what each one is."""
+def draft(key: str, *, to, template: dict, values: dict, attachments=None, practice: bool = False,
+          notes: dict | None = None) -> dict:
+    """What the review screen shows: the template, the values Dash filled in, and what each one is. ``notes``: the
+    invite's call-outs ({heading, items: [{key, kind, label, text}]}), which go in before the interview link."""
     names = placeholders(template.get('subject', '') + '\n' + template.get('body', ''))
     recipients = [a.strip() for a in to.replace(';', ',').split(',') if a.strip()] if isinstance(to, str) else \
         [a for a in to if a]
@@ -174,6 +185,7 @@ def draft(key: str, *, to, template: dict, values: dict, attachments=None, pract
         'attachments': [name for name, _, _ in attachments or []],
         'practice': bool(practice),
         'source': source_label(key, template),
+        'notes': notes,
     }
 
 

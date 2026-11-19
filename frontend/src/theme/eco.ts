@@ -10,7 +10,7 @@
  * no text under 12px. When in doubt, the more legible option.
  *
  * Phase 1: only the Design Lab wears this theme (it wraps itself in a ThemeProvider). The rest of the app still uses
- * theme/index.ts until pages move over, one template at a time. Its fonts (Manrope, Nunito) load in index.html.
+ * theme/index.ts until pages move over, one template at a time. Its fonts (Manrope, Atkinson Hyperlegible Next) load in index.html.
  */
 import { alpha, createTheme, type ThemeOptions } from '@mui/material/styles';
 
@@ -69,9 +69,10 @@ declare module '@mui/material/styles' {
   }
 }
 
-/** Title font (Nunito, rounded and friendly, board pairing 1) for titles only; Manrope for everything you read or type. */
+/** Title font (Atkinson Hyperlegible Next, drawn to read at a distance; sign board pairing 1, Bill 11-19) for titles only;
+ * Manrope for everything you read or type. */
 export const ecoFonts = {
-  title: '"Nunito", "Manrope", "Segoe UI", system-ui, sans-serif',
+  title: '"Atkinson Hyperlegible Next", "Manrope", "Segoe UI", system-ui, sans-serif',
   body: '"Manrope", "Inter", "Segoe UI", system-ui, sans-serif',
   mono: '"DM Mono", ui-monospace, Consolas, monospace',
 } as const;

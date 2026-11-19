@@ -1,6 +1,44 @@
 import { Box, Tooltip, Typography } from '@mui/material';
-import type { Flag } from '../../api/hiring.api';
+import type { Callout, Flag } from '../../api/hiring.api';
 import { ccTokens } from '../../theme';
+
+/** Heads-up flags against the role (Dash #184), as amber chips: "Asks $22 (starts at $15)". Must-haves have their
+ * own red / green marks, so they are left out here. */
+export function CalloutChips({ callouts }: { callouts: Callout[] }) {
+  const shown = callouts.filter((c) => c.kind !== 'must_have');
+  if (!shown.length) return null;
+  return (
+    <Box data-testid="callout-chips" sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+      {shown.map((c) => (
+        <Box
+          key={c.key}
+          sx={{ display: 'inline-flex', alignItems: 'center', px: 1.25, py: 0.5, borderRadius: 99, bgcolor: ccTokens.warnTint }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 600, color: ccTokens.warnText }}>
+            {c.label}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+/** The same flags as tiny amber marks for the list line ("$22", "20h"); hover for the words. */
+export function CalloutMarks({ callouts }: { callouts: Callout[] }) {
+  return (
+    <>
+      {callouts
+        .filter((c) => c.kind !== 'must_have')
+        .map((c) => (
+          <Tooltip key={c.key} title={c.label} placement="top" disableInteractive>
+            <Box component="span" data-testid="callout-mark" sx={{ fontSize: 11, fontWeight: 800, color: ccTokens.warnText, whiteSpace: 'nowrap' }}>
+              {c.short}
+            </Box>
+          </Tooltip>
+        ))}
+    </>
+  );
+}
 
 /** The must-have answers as red / green marks: transportation, lifting, 18+, authorized. */
 export function FlagDots({ flags, showLabels = false }: { flags: Flag[]; showLabels?: boolean }) {

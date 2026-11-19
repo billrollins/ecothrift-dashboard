@@ -1,0 +1,18 @@
+{
+  "provider": "openai",
+  "model": "gpt-image-2.6-sunburst 2048x2048",
+  "prompt": "Make a square, edge-to-edge photograph of used indigo cotton denim laid flat, camera square to the cloth. Deep muted blue close to Denim #22406B. At 100%, show fine diagonal twill with small natural differences between threads. Let the dye soften slightly near one edge; keep the centre evenly dark for later white type. Soft, even light. No pale Mist #E6EFF5 patches, bright threads, cloudy folds, seams, pockets, plastic sheen, repeating digital patterns, objects or letters.",
+  "prompt_by": "gpt-6.2-astra (art director brief: t134/astra-brief.txt)",
+  "size": [
+    2048,
+    2048
+  ],
+  "date": "2026-11-19 16:22",
+  "seconds": 35,
+  "plate": "denim.jpg",
+  "made": "2026-11-19",
+  "processing": "none: used as generated, full-bleed, words straight on it",
+  "picked": "2026-11-19 #134 round 4 (Bill: \"i hate them all\", asked for Astra / the best image gen); Astra wrote the prompt; judged at 100% against 2 other takes",
+  "contrast": "text white worst 10.32:1 in the middle 70 x 40% at a 3 px blur",
+  "mean": "#1C324F"
+}

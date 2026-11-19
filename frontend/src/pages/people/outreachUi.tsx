@@ -26,6 +26,7 @@ import {
   type TextWhich,
 } from '../../api/hiring.api';
 import { ccTokens } from '../../theme';
+import { CalloutMarks } from './FlagDots';
 
 /**
  * Reaching applicants (owner 2026-10-12): an Initial and a Reminder, by email and by text. Texts go from a phone by
@@ -394,6 +395,7 @@ export function CandidateMarks({ row, showRole = true }: { row: ApplicationRow; 
             </Box>
           </Tooltip>
         )}
+        {early && row.callouts && <CalloutMarks callouts={row.callouts} />}
         {early && row.returning?.worked_here && (
           <Glyph title="Worked here before" on tone={ccTokens.kraftDeep}>
             <WorkHistoryOutlined />

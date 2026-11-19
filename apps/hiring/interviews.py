@@ -15,7 +15,7 @@ from django.db import connection, transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from apps.hiring import emails
+from apps.hiring import callouts, emails
 from apps.hiring.careers import load_setting, staff_users, template as email_template
 from apps.hiring.models import Application, ApplicationEvent, Interview, InterviewTime, Job
 
@@ -257,10 +257,12 @@ def ics(interview: Interview, *, cancel: bool = False) -> bytes:
     return ('\r\n'.join(lines) + '\r\n').encode('utf-8')
 
 
-def _send_template(key: str, to, values: dict, *, application, attachment: bytes | None = None) -> bool:
+def _send_template(key: str, to, values: dict, *, application, attachment: bytes | None = None,
+                   notes: dict | None = None) -> bool:
     attachments = [('interview.ics', attachment, 'text/calendar')] if attachment else None
     return emails.send_template(key, to=to, template=email_template(key, application), values=values,
-                                application=application, attachments=attachments, practice=application.is_practice)
+                                application=application, attachments=attachments, practice=application.is_practice,
+                                notes=notes)
 
 
 def _staff_recipients(interview: Interview) -> list[str]:
@@ -407,7 +409,8 @@ def invite(application: Application, *, by, send: bool) -> dict:
             'link': link, 'link_days': config()['link_days'], 'length': config()['length_minutes'],
         })
         # The email itself goes on the history, with its words.
-        sent = _send_template('interview_invite', application.email, values, application=application)
+        sent = _send_template('interview_invite', application.email, values, application=application,
+                              notes=callouts.invite_notes(application))
         if sent:
             application.invite_emailed_at = timezone.now()
             application.save(update_fields=['invite_emailed_at', 'updated_at'])

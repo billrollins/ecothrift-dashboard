@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.317.0] -->
-<!-- Last reviewed: 2026-11-19 (2.317.0) -->
+<!-- Line 1 release: ## [2.319.0] -->
+<!-- Last reviewed: 2026-11-19 (2.319.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,45 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.319.0] - 2026-11-19
+
+User-facing theme: **Sign brand board v2: real kraft, pallet wood and denim, and Atkinson Hyperlegible headlines on signs and Dash titles.**
+
+> **For Bill:** The brand board every sign is built from now has its final materials: kraft cardboard, pallet wood and denim as real surfaces with the words right on them (your pick R). Headlines on Customer, Thrift+ and Information signs use Atkinson Hyperlegible instead of Nunito, and Dash's new-look page titles (Design Lab, the home HR tab) use it too. Colours are unchanged.
+
+User-facing theme: **Sign brand board v2: real kraft, pallet wood and denim, and Atkinson Hyperlegible headlines on signs and Dash titles.** (Dash Update #134)
+
+> **For Bill:** The brand board every sign is built from now has its final materials: kraft cardboard, pallet wood and denim as real surfaces with the words right on them (your pick R). Headlines on Customer, Thrift+ and Information signs use Atkinson Hyperlegible instead of Nunito, and Dash's new-look page titles (Design Lab, the home HR tab) use it too. Colours are unchanged.
+
+### Changed (sign brand board v2, #134)
+- **Sign materials**: kraft, pallet wood and denim are now real surfaces that fill the panel, with the words straight on them (R, picked by Bill 11-19 after four rounds; art-directed with Astra, plates in `design/signage/art/materials/r4/`). Board v2, `brand-board.md` section 3, sample signs `templates/texture-sign-r.html.j2`.
+- **Headline font**: Atkinson Hyperlegible Next replaces Nunito as the title font of sign pairing 1 (Customer, Thrift+, Information) and of Dash's Eco theme (Design Lab); Manrope stays the text font. Nunito no longer loads in `index.html` (the Thrift+ scanner loads its own for numbers).
+
+## [2.318.1] - 2026-11-19
+
+User-facing theme: **The public store feeds no longer use any photo staff took for Add item.** (Dash Update #185)
+
+> **For Bill:** Your rule: "NEVER EVER EVER use photos you got from us for other purposes. like the add item photos. you CAN use the photo sheets photos." The phone site's public data feed (v2.317.0) showed the Add item photo on Best finds, and its public photo address served it. Now no feed carries one and that address answers "not found". Customers never saw them (the phone site is still switched off). Photo-sheet photos and checked stock photos come next.
+
+### Fixed (Phone site feeds: photos)
+- `apps/storefront`: the snapshot no longer reads `Product.photo_thumb`; the item endpoint gives no photo; `photo/<pid>/` answers 404 for every product until approved sources (photo sheets, pulled stock photos) are wired in. Test `NoInternalPhotosTests` holds the rule. `.ai/extended/phone-site.md` states it.
+
+## [2.318.0] - 2026-11-19
+
+User-facing theme: **Applications show flags, and the interview invite can call them out.**
+
+> **For Bill:** Each application now shows amber flags when the answers don't match the job: pay asked above the $15 start ("Asks $22 (starts at $15)"), hours or days that don't fit, or a late start date. They show on the card and as tiny marks in the list; they never block anything. When you send the interview link, the review now has "Things to call out": one ready paragraph per flag (the pay one explains the 90 days at $15, then Entry / Senior / Lead). Untick one, change its words, or add your own line before you press Send. With nothing ticked, the email reads as before. The paragraphs are edited once in People → Emails → Interview link.
+
+User-facing theme: **Applications show flags, and the interview invite can call them out.** (Dash Update #184, HR)
+
+> **For Bill:** Each application now shows amber flags when the answers don't match the job: pay asked above the $15 start ("Asks $22 (starts at $15)"), hours or days that don't fit, or a late start date. They show on the card and as tiny marks in the list; they never block anything. When you send the interview link, the review now has "Things to call out": one ready paragraph per flag (the pay one explains the 90 days at $15, then Entry / Senior / Lead). Untick one, change its words, or add your own line before you press Send. With nothing ticked, the email reads as before. The paragraphs are edited once in People → Emails → Interview link.
+
+### Added (Hiring: application flags and invite call-outs)
+- **Flags** (`apps/hiring/callouts.py`): worked out from the answers against the roles applied for, nothing stored. Pay above `Job.pay_min` (free text "$20", "15.50", "$18-20"; the low end counts), hours outside the role's hours (its hours text, or full / part time), fewer than 3 of the days the schedule names, a clear start date more than 21 days after applying, and missed must-haves. With more than one role, a flag shows only when no role fits. `callouts` on the application list and card.
+- **Dash**: amber chips in the card's Flags section (must-haves keep their red / green marks); short marks in the list line ("$22", "45h") for New, Reviewed and Contacted.
+- **Interview invite**: the review shows the call-outs (heading + one paragraph per flag, filled from the job and `hr.pay_levels`) to untick, edit or add to; the ones kept go in before the interview link. A send without review keeps them all; none → the email is unchanged.
+- **Settings**: careers file `email.flag_notes` (heading, pay, hours, days, start, must_have), edited on People → Emails → Interview link (Call-outs card) or through the careers file; a blank paragraph falls back to the default.
 
 ## [2.317.0] - 2026-11-19
 

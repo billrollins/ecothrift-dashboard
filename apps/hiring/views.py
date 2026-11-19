@@ -687,6 +687,10 @@ The parts:
   review_day, reply_days, and the emails: received (auto-reply), alert (to the owner), not_now
   (default, withdrew, position_closed, no_show). Email placeholders: {{first_name}} {{last_name}} {{roles}}
   {{phone}} {{email}} {{review_day}} {{reply_days}}; the alert also has {{flags}} and {{dash_link}}.
+  email.flag_notes: the interview invite's call-outs, one short paragraph per kind of flag on an application
+  (heading, pay, hours, days, start, must_have), shown before the interview link. Placeholders: pay {{asked}}
+  {{start_pay}} {{entry_pay}} {{senior_pay}} {{lead_pay}}; hours {{hours_wanted}} {{job_hours}}; days
+  {{days_wanted}} {{job_days}}; start {{start_wanted}}; must_have {{question}} {{answer}}.
 - jobs: one entry per role. slug (stable, lowercase), title, status (draft | open | paused | closed),
   tagline (one line), summary ("About the role": 2-3 sentences, what it is and why it matters to the mission),
   duties ("What you'll do": 6-8 concrete bullets), success ("What great looks like": 3 bullets a strong

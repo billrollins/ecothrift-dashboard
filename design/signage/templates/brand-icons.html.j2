@@ -2,7 +2,7 @@
    solid shapes on a 100 x 100 grid, square ends, cut-outs in the background colour, parts 7 to 12 units thick,
    at least 6 units of air between parts, no faces, hands or other detail. One colour per glyph: ink (or a dark swatch)
    on light, white on dark. Usage: {% import 'brand-icons.html.j2' as bi %} {{ bi.icon('restroom', '#1b1f1b', '#fff') }}
-   Names: restroom, noentry, camera, id, hours, returns, staff, exit, alert. Spanish labels: LABELS below. #}
+   Names: restroom, noentry, camera, id, hours, returns, staff, exit, alert, arrow (points right; rotate it). Spanish labels: LABELS below. #}
 
 {% set LABELS = {
   'restroom': ('Restroom', 'Baños'),
@@ -69,6 +69,9 @@
   <path d="M50 26 V9 H11 V91 H50 V74" fill="none" stroke="{{ c }}" stroke-width="9"/>
   <rect x="28" y="44" width="46" height="12" fill="{{ c }}"/>
   <path d="M70 30 L95 50 L70 70 Z" fill="{{ c }}"/>
+{%- elif name == 'arrow' %}
+  <rect x="6" y="41" width="56" height="18" fill="{{ c }}"/>
+  <path d="M52 16 L94 50 L52 84 Z" fill="{{ c }}"/>
 {%- elif name == 'alert' %}
   <path d="M50 5 L97 90 H3 Z" fill="{{ c }}" stroke="{{ c }}" stroke-width="3" stroke-linejoin="round"/>
   <path d="M44 34 H56 L54 64 H46 Z" fill="{{ bg }}"/>

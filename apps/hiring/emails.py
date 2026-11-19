@@ -14,7 +14,7 @@ from email.utils import formataddr, parseaddr
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 
-from apps.hiring import compose
+from apps.hiring import callouts, compose
 from apps.hiring.careers import fill, load_setting, template as email_template
 
 logger = logging.getLogger(__name__)
@@ -134,20 +134,23 @@ def send(*, to: str | list[str], subject: str, body: str,
 
 def send_template(key: str, *, to, template: dict, values: dict, application=None,
                   attachments: list[tuple[str, bytes | str, str]] | None = None, practice: bool = False,
-                  made_on_send: tuple[str, ...] = ()) -> bool:
+                  made_on_send: tuple[str, ...] = (), notes: dict | None = None) -> bool:
     """Fill one of the careers emails and send it.
 
     A reviewed email (``compose.REVIEWED``) follows the review: held back as a draft in a preview, the edited words
     when the request gave some (linked values filled now), nothing when skipped, and a line with the exact words on
     the applicant's history. ``made_on_send``: values only made when it really goes (a new offer's link); the review
     says so instead of showing one that will not be used.
+
+    ``notes``: the invite's call-outs (``callouts.invite_notes``). The review shows them beside the words; the ones
+    left ticked (as edited, plus any added line) go in before the interview link. Not reviewed: all of them.
     """
     review = compose.current() if key in compose.REVIEWED else None
     if review is not None and review.capture is not None:
         shown = {**values, **{name: f'({compose.FIELD_LABELS.get(name, name).lower()}, made when you send)'
                               for name in made_on_send if name in values}}
         review.capture.append(compose.draft(key, to=to, template=template, values=shown, attachments=attachments,
-                                            practice=practice))
+                                            practice=practice, notes=notes))
         return True
     label = compose.EMAIL_LABELS.get(key, key)
     by = review.user if review is not None else None
@@ -158,7 +161,12 @@ def send_template(key: str, *, to, template: dict, values: dict, application=Non
     used = template
     if review is not None and review.body is not None:
         used = {'subject': review.subject, 'body': review.body}
-    subject, body = fill(used['subject'], values), fill(used['body'], values)
+    words = used['body']
+    if notes is not None:
+        chosen = review.notes if review is not None and review.notes is not None else \
+            {'heading': notes.get('heading') or '', 'items': [item['text'] for item in notes.get('items') or []]}
+        words = callouts.insert(words, chosen['heading'], chosen['items'])
+    subject, body = fill(used['subject'], values), fill(words, values)
     sent = send(to=to, subject=subject, body=body, attachments=attachments, practice=practice)
     if application is not None and key in compose.REVIEWED:
         changed = compose.edited(template, used)

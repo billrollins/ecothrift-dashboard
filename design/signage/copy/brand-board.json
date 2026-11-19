@@ -138,7 +138,9 @@
   ],
   "variants": {
     "board": {
-      "size": "tabloid-land"
+      "size": "tabloid-land",
+      "meta": "Version 2 · Nov 19, 2026",
+      "h2": "Real kraft, pallet wood and denim. Words go straight on the surface."
     }
   }
 }

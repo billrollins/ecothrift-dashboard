@@ -29,7 +29,7 @@ def main() -> int:
     pymupdf.open(str(sign))[0].get_pixmap(dpi=200, alpha=False).save(str(OUT / 'A-camera-board.png'))
     subprocess.run([sys.executable, str(TOOLS / 'mockup.py'), 'door-block', str(sign), '--out', str(OUT / 'mockup-door.png')],
                    check=True)
-    failed = build.build('brand-board')
+    failed = build.build('brand-board', 'board')
     pymupdf.open(str(OUT / 'board-flat.pdf'))[0].get_pixmap(dpi=150, alpha=False).save(str(OUT / 'brand-board.png'))
     print(f'board PNG: {OUT / "brand-board.png"}')
     return failed

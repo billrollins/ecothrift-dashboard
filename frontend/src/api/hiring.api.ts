@@ -71,6 +71,22 @@ export interface Flag {
   ok: boolean | null;
 }
 
+/** A heads-up flag against the roles (Dash #184): asks more pay, hours, days, a late start, a missed must-have. */
+export interface Callout {
+  key: string;
+  kind: 'pay' | 'hours' | 'days' | 'start' | 'must_have';
+  /** The chip: "Asks $22 (starts at $15)". */
+  label: string;
+  /** The mark in the list: "$22", "20h", "Days", "Late start". */
+  short: string;
+}
+
+/** The interview invite's call-outs: a heading and one ready paragraph per flag, before the interview link. */
+export interface InviteNotes {
+  heading: string;
+  items: { key: string; kind: Callout['kind']; label: string; text: string }[];
+}
+
 export interface ApplicationRow {
   id: number;
   first_name: string;
@@ -85,6 +101,7 @@ export interface ApplicationRow {
   rating: number | null;
   red_flags: number;
   flags: Flag[];
+  callouts?: Callout[];
   source: string;
   source_label: string;
   has_resume: boolean;
@@ -256,10 +273,14 @@ export interface EmailDraft {
   source: string;
   /** "Do it without emailing" makes sense for this one. */
   skip_allowed?: boolean;
+  /** The invite only: its call-outs, to untick, edit or add to before it goes. */
+  notes?: InviteNotes | null;
 }
 
 /** What to send: the edited template (linked values still {placeholders}), or nothing. */
-export type EmailChoice = { subject: string; body: string } | { skip: true };
+export type EmailChoice =
+  | { subject: string; body: string; notes?: { heading: string; items: string[] } }
+  | { skip: true };
 
 /** The text that goes with it (Phase 6): the template and its values, and whether it may go. */
 export interface TextDraft {
