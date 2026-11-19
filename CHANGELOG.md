@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.315.0] -->
-<!-- Last reviewed: 2026-11-19 (2.315.0) -->
+<!-- Line 1 release: ## [2.316.0] -->
+<!-- Last reviewed: 2026-11-19 (2.316.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.316.0] - 2026-11-19
+
+User-facing theme: **A markdown now resets an item's ThriftBucks to 0 and starts a new 7-day wait.** (outside initiatives)
+
+> **For Bill:** Your rule (rulebook P3a, 11-19): ThriftBucks never carry over a markdown. The engine used to keep them and only cap them at 95% of the new tag, so a console table marked from $1,491.71 to $100.00 still showed 95.00. Now the register and the scanner give none the moment a tag is lowered, and that night's run sets the ThriftBucks to 0 and starts the 7-day wait again. A raised tag keeps its clock, and the day-90 exit clock does not restart. The pieces already marked down are corrected by a request (Superuser, Requests: "Reset ThriftBucks kept through a markdown").
+
+### Changed (Thrift+: a markdown resets ThriftBucks)
+- **Reward engine**: lowering an item's tag sets its ThriftBucks to 0 and makes that night day 1 of a new 7-day wait; after it they grow on the new tag. The day is kept on the item (`ItemReward.reset_on`, thriftplus migration 0034) and logged with the old tag, the new tag and the ThriftBucks it had.
+- **Register and scanner**: an item marked down since last night's run gives no ThriftBucks at once, before the nightly run sees it.
+- **Request kind `thriftplus.markdown_reset`**: lists floor items whose ThriftBucks survived an earlier markdown and sets each to what a reset on its markdown day gives. It only lowers, logs every change on the item, and finds nothing on a second run.
+- **Rulebook**: P3a added; P3 no longer says ThriftBucks shrink only on a retag.
+
+### Fixed (docs)
+- `CHANGELOG.md`: a second copy of the file header (with its own `[Unreleased]` heading) sat between 2.308.0 and 2.307.0 since 11-16; removed.
 
 ## [2.315.0] - 2026-11-19
 
@@ -105,20 +120,6 @@ User-facing theme: **TimeClock is one clean screen: clock in, my schedule, pay, 
 - `ShiftPicker.tsx` exports `useClockGroups` and `DEPT_TONE` (used by the Now card).
 - Rename: `t('timeClock')` and `t('myDay')` say **TimeClock** in English (the Home tab, the desk band title, the phone top bar title, the clock dialogs); comments, test names and the icon registry's use text follow. The bar's own override in `PhoneTabBar.tsx` (from #146) is now redundant but left alone. The onboarding checklist item "Time clock explained" is a saved setting and was not renamed.
 - Tests: `TimeClockTab.test.tsx` rewritten (the five cards and no switch; pay behind the eye; off payroll; Fix and Request; Store schedule and back; Build for managers; the Clock in button for today's department; `pastRows`, `upcomingShifts`, `clockInChoices`, `weekWarning`); `FloorNav.test.tsx`, `phoneFirstRoutes.test.ts` expect "TimeClock".
-
-## [2.306.1] -->
-<!-- Last reviewed: 2026-11-16 (2.306.1) -->
-# Changelog
-
-All notable changes to this project are documented here at the **version level**.
-Commit-level detail belongs in commit messages, not here.
-
-Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Versioning follows [Semantic Versioning](https://semver.org/).
-
----
-
-## [Unreleased]
 
 ## [2.307.0] - 2026-11-16
 

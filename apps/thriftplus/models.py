@@ -322,6 +322,8 @@ class ItemReward(models.Model):
     day = models.SmallIntegerField(default=0, help_text='The day number at the last recompute.')
     computed_on = models.DateField(db_index=True)
     exit_on = models.DateField(null=True, blank=True, db_index=True, help_text='The day it reached day 90: on the exit list.')
+    # Rulebook P3a (owner 2026-11-19): a markdown sends the ThriftBucks to 0 and the 7-day wait starts again that day.
+    reset_on = models.DateField(null=True, blank=True, help_text='The day of the last markdown: the reward clock restarted then.')
     # Signals (the scanner app and the register fill these from Phase 3 and 4).
     scans = models.PositiveIntegerField(default=0)
     adds = models.PositiveIntegerField(default=0)

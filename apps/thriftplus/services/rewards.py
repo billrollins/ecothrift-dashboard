@@ -27,8 +27,11 @@ The rules (owner's design, 2026-09-25; the rate and the launch start since 2026-
   its own (once the scanner app reports scans).
 - **Never decreases; overnight only.** ``recompute(day)`` steps each item once per day and skips
   items already computed for that day. Nights the job missed count as growth days; only a night
-  that saw the product selling fine holds. The one way a reward goes down is a retag that leaves it
-  above the new cap, and that is logged.
+  that saw the product selling fine holds. The one way a reward goes down is a markdown (next rule).
+- **A markdown resets** (rulebook P3a, owner 2026-11-19): when the tag is lowered, the reward goes to 0 and the wait
+  starts again that day (``reset_on``); after it the reward grows on the new tag. Nothing carries over a markdown.
+  The register and the scanner give 0 at once, before the nightly run sees it. A tag that is raised keeps its
+  clock, and the day-90 exit clock never restarts.
 - **Day 90:** the item goes on the exit list (bundle, dollar bin, donate or scrap). Its reward
   keeps its rules.
 - **Consignment** items are excluded: their price is the consignor's.
@@ -264,13 +267,14 @@ class Prior:
     scans: int = 0
     adds: int = 0
     floor_price: Decimal = ZERO
+    reset_on: date | None = None  # the day of the last markdown (P3a): the reward clock restarted then
 
     @classmethod
     def of(cls, s: ItemReward) -> 'Prior':
         return cls(
             floor_date=s.floor_date, starting_price=s.starting_price, grow_days=s.grow_days, reward=s.reward,
             status=s.status, reason=s.reason, day=s.day, computed_on=s.computed_on, exit_on=s.exit_on,
-            scans=s.scans, adds=s.adds, floor_price=s.floor_price,
+            scans=s.scans, adds=s.adds, floor_price=s.floor_price, reset_on=s.reset_on,
         )
 
 
@@ -341,10 +345,17 @@ class Outcome:
     fresh: bool = True  # False when the item was already computed for this day
     new: bool = False
     event: dict | None = None  # {'reason': ..., 'detail': {...}} when the change is logged
+    reset_on: date | None = None  # the day of the last markdown (P3a)
 
     @property
     def member_price(self) -> Decimal:
         return self.price - self.reward
+
+
+def marked_down(price: Decimal | None, starting_price: Decimal | None) -> bool:
+    """Rulebook P3a: the tag is lower than the one the ThriftBucks grew on. Until the nightly run resets them,
+    every reader (register, scanner) gives none."""
+    return price is not None and starting_price is not None and price < starting_price
 
 
 def floor_for(price: Decimal, share: Decimal) -> Decimal:
@@ -380,16 +391,25 @@ def step(unit: Unit, prior: Prior | None, on: date, pace: Pace | None, rules_: R
     if exit_on is None and n >= HORIZON:
         exit_on = first_day(floor_date, rules_) + timedelta(days=HORIZON - 1)
     detail: dict = {'day': n}
+    # Rulebook P3a (owner 2026-11-19): a markdown sends the reward to 0 and the wait starts again tonight.
+    markdown = prior is not None and marked_down(price, prior.starting_price)
+    reward_before = prev_reward
+    reset_on = prior.reset_on if prior else None
+    if markdown:
+        reset_on, prev_reward, grow_days = on, ZERO, 0
+    # The reward clock's day 1 is the floor day, or the day of the last markdown: the wait ends that many days later.
+    ahead = max(0, (reset_on - first_day(floor_date, rules_)).days) if reset_on else 0
+    wait_until = rules_.wait_days + ahead
 
     if unit.source == 'consignment':
         floor_price, reward, status, reason = price, ZERO, ItemReward.STATUS_EXCLUDED, 'consignment'
     else:
         floor_price = floor_for(price, rules_.floor_share)
         cap = max(ZERO, price - floor_price)
-        if prior is not None and prior.reason in FAMILY_REASONS:
+        if prior is not None and prior.reason in FAMILY_REASONS and not markdown:
             # Leaving the families rule (owner 2026-10-19): it grows on from the ThriftBucks it has.
             grow_days = max(grow_days, rules_.days_for(price, min(prev_reward, cap)))
-        new_days = max(0, n - max(prior.day if prior else 0, rules_.wait_days))
+        new_days = max(0, n - max(prior.day if prior else 0, wait_until))
         held = lag = False
         if new_days and pace is not None and pace.on_pace:
             lag = _lags(prior, pace)
@@ -401,7 +421,7 @@ def step(unit: Unit, prior: Prior | None, on: date, pace: Pace | None, rules_: R
         reward = min(cap, max(prev_reward, grown))
         if cap <= 0:
             status, reason = ItemReward.STATUS_NO_ROOM, 'no_room'
-        elif n <= rules_.wait_days:
+        elif n <= wait_until:
             status, reason = ItemReward.STATUS_WAITING, 'days_1_to_7'
         elif reward >= cap:
             status, reason = ItemReward.STATUS_CAPPED, 'reached_floor'
@@ -426,7 +446,9 @@ def step(unit: Unit, prior: Prior | None, on: date, pace: Pace | None, rules_: R
             code = 'back_on_floor'
         elif retag:
             code = 'retag'
-            detail['retag'] = {'from': str(prior.starting_price), 'to': str(price), 'reward_before': str(prev_reward)}
+            detail['retag'] = {'from': str(prior.starting_price), 'to': str(price), 'reward_before': str(reward_before)}
+            if markdown:
+                detail['retag']['reset'] = True
         elif newly_exit:
             code = 'exit_list'
         else:
@@ -439,7 +461,7 @@ def step(unit: Unit, prior: Prior | None, on: date, pace: Pace | None, rules_: R
     return Outcome(
         item_id=unit.item_id, product_id=unit.product_id, family_key=family_key, floor_date=floor_date, price=price,
         floor_price=floor_price, grow_days=grow_days, reward=reward, status=status, reason=reason, day=n,
-        exit_on=exit_on, new=prior is None, event=event,
+        exit_on=exit_on, new=prior is None, event=event, reset_on=reset_on,
     )
 
 
@@ -525,7 +547,7 @@ def plan(on: date | None = None, rules_: Rules | None = None) -> Plan:
             outcomes.append(Outcome(
                 item_id=u.item_id, product_id=u.product_id, family_key=s.family_key, floor_date=s.floor_date,
                 price=u.price, floor_price=s.floor_price, grow_days=s.grow_days, reward=s.reward, status=s.status,
-                reason=s.reason, day=s.day, exit_on=s.exit_on, fresh=False,
+                reason=s.reason, day=s.day, exit_on=s.exit_on, fresh=False, reset_on=s.reset_on,
             ))
             continue
         key = f'p{u.product_id}'
@@ -539,7 +561,7 @@ def plan(on: date | None = None, rules_: Rules | None = None) -> Plan:
 
 STATE_FIELDS = [
     'family_key', 'starting_price', 'floor_price', 'grow_days', 'reward', 'status', 'reason', 'day', 'computed_on',
-    'exit_on', 'closed_at', 'closed_status', 'reward_at_close', 'updated_at',
+    'exit_on', 'reset_on', 'closed_at', 'closed_status', 'reward_at_close', 'updated_at',
 ]
 
 
@@ -579,8 +601,8 @@ def _write(chunk: list[Outcome], run: RewardRun, on: date, now: datetime) -> Non
         state = ItemReward(
             item_id=o.item_id, family_key=o.family_key, floor_date=o.floor_date, starting_price=o.price,
             floor_price=o.floor_price, grow_days=o.grow_days, reward=o.reward, status=o.status, reason=o.reason,
-            day=o.day, computed_on=on, exit_on=o.exit_on, closed_at=None, closed_status='', reward_at_close=None,
-            updated_at=now,
+            day=o.day, computed_on=on, exit_on=o.exit_on, reset_on=o.reset_on, closed_at=None, closed_status='',
+            reward_at_close=None, updated_at=now,
         )
         (creates if o.new else updates).append(state)
         if o.event:
@@ -620,12 +642,13 @@ def _close(rows: list[dict], run: RewardRun, on: date, now: datetime) -> int:
 
 def member_price(item) -> tuple[Decimal, Decimal]:
     """(reward, member price) for an item right now. The reward is last night's, but never takes a
-    member below the floor of today's tag (a retag since last night is honoured at once)."""
+    member below the floor of today's tag, and a markdown since last night gives none at once (P3a)."""
     price = item.price or ZERO
-    last_night = ItemReward.objects.filter(item_id=item.pk).exclude(
+    row = ItemReward.objects.filter(item_id=item.pk).exclude(
         status__in=[ItemReward.STATUS_CLOSED, ItemReward.STATUS_EXCLUDED],
-    ).values_list('reward', flat=True).first()
-    if not last_night or item.source == 'consignment':
+    ).values_list('reward', 'starting_price').first()
+    last_night = row[0] if row else None
+    if not last_night or item.source == 'consignment' or marked_down(price, row[1]):
         return ZERO, price
     reward = max(ZERO, min(last_night, price - floor_for(price, rules().floor_share)))
     return reward, price - reward

@@ -1,11 +1,16 @@
-v2.315.0 — Register finds old tags scanned in lower case; keeps scans it cannot find
+v2.316.0 — A markdown resets ThriftBucks to 0 and starts a new 7-day wait
 
-User-facing theme: **The register finds an old tag even when the scanner types in lower case, and keeps every scan it cannot find.**
+User-facing theme: **A markdown now resets an item's ThriftBucks to 0 and starts a new 7-day wait.** (outside initiatives)
 
-> **For Bill:** Old tags (printed before October 28) hold the plain item number in their QR. The register matched it letter for letter, so a scanner typing in lower case (Caps Lock on) got "Item not found" on old tags while new tags still worked. It now matches the item number in any case. Every scan it still cannot find is kept as a register event with exactly what the scanner sent, so the next time a tag will not scan we can see why.
+> **For Bill:** Your rule (rulebook P3a, 11-19): ThriftBucks never carry over a markdown. The engine used to keep them and only cap them at 95% of the new tag, so a console table marked from $1,491.71 to $100.00 still showed 95.00. Now the register and the scanner give none the moment a tag is lowered, and that night's run sets the ThriftBucks to 0 and starts the 7-day wait again. A raised tag keeps its clock, and the day-90 exit clock does not restart. The pieces already marked down are corrected by a request (Superuser, Requests: "Reset ThriftBucks kept through a markdown").
 
-### Fixed (Register: old tags that would not scan)
-- **Register scan** matches the item number in any case: a scanner typing in lower case (Caps Lock on) got "Item not found" on pre-October 28 tags, whose QR is the plain item number (sale R-20261119-026: a fan and a counter stool). No two items share a number that differs only by case.
-- **Every scan the register cannot find** is kept as a register event ("Scanned code not found", pos migration 0052) with exactly what the scanner sent, and logged as REGISTER_SCAN_NOT_FOUND. Practice-register scans are not kept.
+### Changed (Thrift+: a markdown resets ThriftBucks)
+- **Reward engine**: lowering an item's tag sets its ThriftBucks to 0 and makes that night day 1 of a new 7-day wait; after it they grow on the new tag. The day is kept on the item (`ItemReward.reset_on`, thriftplus migration 0034) and logged with the old tag, the new tag and the ThriftBucks it had.
+- **Register and scanner**: an item marked down since last night's run gives no ThriftBucks at once, before the nightly run sees it.
+- **Request kind `thriftplus.markdown_reset`**: lists floor items whose ThriftBucks survived an earlier markdown and sets each to what a reset on its markdown day gives. It only lowers, logs every change on the item, and finds nothing on a second run.
+- **Rulebook**: P3a added; P3 no longer says ThriftBucks shrink only on a retag.
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+### Fixed (docs)
+- `CHANGELOG.md`: a second copy of the file header (with its own `[Unreleased]` heading) sat between 2.308.0 and 2.307.0 since 11-16; removed.
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>

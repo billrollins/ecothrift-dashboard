@@ -54,7 +54,7 @@ from django.utils import timezone
 from apps.thriftplus.models import Account, CartMember, Card, Event, ItemReward, LedgerEntry, Person, RestrictedProduct
 from apps.thriftplus.services import ledger, members, trip
 from apps.thriftplus.services.members import MemberError
-from apps.thriftplus.services.rewards import floor_for, rules
+from apps.thriftplus.services.rewards import floor_for, marked_down, rules
 
 logger = logging.getLogger(__name__)
 
@@ -303,10 +303,18 @@ def _discounts(cart_id: int, item_lines: list) -> tuple[dict[int, Decimal], dict
 
 
 def _rewards(item_ids: list[int], *, include_closed: bool = False) -> dict[int, Decimal]:
+    """Last night's reward per item. An item on the floor whose tag was marked down since then gives none (rulebook
+    P3a, owner 2026-11-19): the nightly run resets it, and until then the register does. A state that already closed
+    (a sold line read again) keeps the reward it left with."""
     qs = ItemReward.objects.filter(item_id__in=item_ids).exclude(status=ItemReward.STATUS_EXCLUDED)
     if not include_closed:
         qs = qs.exclude(status=ItemReward.STATUS_CLOSED)
-    return dict(qs.values_list('item_id', 'reward'))
+    out: dict[int, Decimal] = {}
+    rows = qs.values_list('item_id', 'reward', 'status', 'starting_price', 'item__price')
+    for item_id, reward, status, starting_price, price in rows:
+        cut = status != ItemReward.STATUS_CLOSED and marked_down(price, starting_price)
+        out[item_id] = ZERO if cut else reward
+    return out
 
 
 def trip_lines(lines: list, *, include_closed: bool = False) -> list[trip.TripLine]:

@@ -25,7 +25,7 @@ from django.utils import timezone
 
 from apps.thriftplus.models import AppCart, AppCartLine, ItemReward, ScanSignal
 from apps.thriftplus.services import trip
-from apps.thriftplus.services.rewards import floor_for, rules
+from apps.thriftplus.services.rewards import floor_for, marked_down, rules
 
 CENT = Decimal('0.01')
 ZERO = Decimal('0.00')
@@ -99,10 +99,13 @@ def _sale_factor() -> Decimal:
 
 def reward_for(item, tag: Decimal, factor: Decimal = Decimal('1')) -> Decimal:
     """The ThriftBucks one unit collects at a tag price (after the store sale ``factor``)."""
-    state = ItemReward.objects.filter(item_id=item.pk).exclude(
-        status__in=[ItemReward.STATUS_CLOSED, ItemReward.STATUS_EXCLUDED]).values_list('reward', flat=True).first()
+    row = ItemReward.objects.filter(item_id=item.pk).exclude(
+        status__in=[ItemReward.STATUS_CLOSED, ItemReward.STATUS_EXCLUDED]).values_list('reward', 'starting_price').first()
+    state = row[0] if row else None
     if not state or item.source == 'consignment' or tag <= 0:
         return ZERO
+    if marked_down(item.price, row[1]):
+        return ZERO  # marked down since last night: none until its new wait has run (rulebook P3a)
     reward = min(state, max(ZERO, tag - floor_for(tag, rules().floor_share)))
     return (reward * factor).quantize(CENT, rounding=ROUND_DOWN)
 

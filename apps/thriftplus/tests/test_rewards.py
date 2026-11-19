@@ -29,7 +29,8 @@ def _unit(price='90.00', source='purchased', on_floor=DAY, item_id=1):
 
 def _prior(o: rewards.Outcome, on: date, **over) -> Prior:
     values = dict(floor_date=o.floor_date, starting_price=o.price, grow_days=o.grow_days, reward=o.reward,
-                  status=o.status, reason=o.reason, day=o.day, computed_on=on, exit_on=o.exit_on, floor_price=o.floor_price)
+                  status=o.status, reason=o.reason, day=o.day, computed_on=on, exit_on=o.exit_on, floor_price=o.floor_price,
+                  reset_on=o.reset_on)
     values.update(over)
     return Prior(**values)
 
@@ -110,16 +111,45 @@ class StepTests(SimpleTestCase):
         lagging = rewards.step(_unit(), prior, DAY + timedelta(days=12), Pace(10, 13, 14, scans=100, adds=50), RULES, 'p7')
         self.assertEqual((lagging.status, lagging.reason), (ItemReward.STATUS_CLIMBING, 'scans_lag'))
 
-    def test_never_decreases_except_a_retag_below_the_cap(self):
+    def test_a_markdown_resets_the_reward_to_zero_and_the_wait_starts_again(self):
+        """Rulebook P3a (owner 2026-11-19): nothing carries over a markdown."""
         start = _walk(_unit(), 30)[-1]  # 23 growth days on $90: $23.00
         self.assertEqual(start.reward, D('23.00'))
-        prior = _prior(start, DAY + timedelta(days=29))
-        cheaper = rewards.step(_unit(price='20.00'), prior, DAY + timedelta(days=30), None, RULES, 'p7')
-        self.assertEqual(cheaper.reward, D('18.00'))  # the new cap: 90% of $20
+        on = DAY + timedelta(days=30)
+        cheaper = rewards.step(_unit(price='20.00'), _prior(start, on - timedelta(days=1)), on, None, RULES, 'p7')
+        self.assertEqual((cheaper.reward, cheaper.grow_days, cheaper.status, cheaper.reset_on),
+                         (D('0'), 0, ItemReward.STATUS_WAITING, on))
         self.assertEqual(cheaper.event['reason'], 'retag')
-        self.assertEqual(cheaper.event['detail']['retag'], {'from': '90.00', 'to': '20.00', 'reward_before': '23.00'})
-        dearer = rewards.step(_unit(price='120.00'), prior, DAY + timedelta(days=30), None, RULES, 'p7')
+        self.assertEqual(cheaper.event['detail']['retag'],
+                         {'from': '90.00', 'to': '20.00', 'reward_before': '23.00', 'reset': True})
+        # The markdown night is day 1 of a new wait. Days 2 to 7 give nothing; day 8 is the first growth day, on the new tag.
+        prior, nights = _prior(cheaper, on), []
+        for i in range(1, 10):
+            o = rewards.step(_unit(price='20.00'), prior, on + timedelta(days=i), None, RULES, 'p7')
+            nights.append(o)
+            prior = _prior(o, on + timedelta(days=i))
+        self.assertEqual([o.reward for o in nights[:6]], [D('0')] * 6)
+        self.assertEqual(nights[5].status, ItemReward.STATUS_WAITING)
+        self.assertEqual((nights[6].reward, nights[6].status), (D('0.22'), ItemReward.STATUS_CLIMBING))  # $20 / 90
+        self.assertEqual((nights[8].reward, nights[8].grow_days, nights[8].reset_on), (D('0.66'), 3, on))
+
+    def test_a_raised_tag_keeps_its_clock_and_never_decreases(self):
+        start = _walk(_unit(), 30)[-1]
+        on = DAY + timedelta(days=30)
+        dearer = rewards.step(_unit(price='120.00'), _prior(start, on - timedelta(days=1)), on, None, RULES, 'p7')
         self.assertGreaterEqual(dearer.reward, D('23.00'))
+        self.assertIsNone(dearer.reset_on)
+        self.assertEqual(dearer.event['detail']['retag'], {'from': '90.00', 'to': '120.00', 'reward_before': '23.00'})
+
+    def test_a_markdown_does_not_restart_the_day_90_exit_clock(self):
+        nights = _walk(_unit(), 85)  # days 1 to 85
+        on = DAY + timedelta(days=85)  # day 86: marked down
+        o = rewards.step(_unit(price='50.00'), _prior(nights[-1], on - timedelta(days=1)), on, None, RULES, 'p7')
+        self.assertEqual((o.day, o.reward, o.exit_on), (86, D('0'), None))
+        for i in range(1, 5):
+            o = rewards.step(_unit(price='50.00'), _prior(o, on + timedelta(days=i - 1)), on + timedelta(days=i), None, RULES, 'p7')
+        self.assertEqual((o.day, o.reward, o.status), (90, D('0'), ItemReward.STATUS_WAITING))  # day 5 of the new wait
+        self.assertEqual(o.exit_on, DAY + timedelta(days=89))  # still day 90 from the floor day
 
     def test_day_90_goes_on_the_exit_list_once(self):
         nights = _walk(_unit(price='900.00'), 92)
@@ -202,11 +232,33 @@ class RecomputeTests(TestCase):
         self.assertEqual(report['top'][0]['member_price'], '77.00')
         self.assertEqual([b['units'] for b in report['bands']], [4, 0, 1, 0])
 
-    def test_the_register_honours_a_retag_at_once(self):
+    def test_a_markdown_gives_none_at_once_and_the_nightly_run_resets_it(self):
+        """Rulebook P3a: the register and the scanner give no ThriftBucks the moment a tag is lowered; that night the
+        engine sets the reward to 0 and starts a new wait."""
+        from apps.thriftplus.services import scanner
+        from apps.thriftplus.services.register import _rewards
+
         rewards.recompute(DAY)
+        self.assertEqual(rewards.member_price(self.lamp_item), (D('13.00'), D('77.00')))
         self.lamp_item.price = D('10.00')
         self.lamp_item.save()
-        self.assertEqual(rewards.member_price(self.lamp_item), (D('9.00'), D('1.00')))  # 10% of the new tag
+        self.assertEqual(rewards.member_price(self.lamp_item), (D('0'), D('10.00')))
+        self.assertEqual(scanner.reward_for(self.lamp_item, D('10.00')), D('0'))
+        self.assertEqual(_rewards([self.lamp_item.pk]), {self.lamp_item.pk: D('0')})
+        tomorrow = DAY + timedelta(days=1)
+        rewards.recompute(tomorrow)
+        state = ItemReward.objects.get(pk=self.lamp_item.pk)
+        self.assertEqual((state.reward, state.grow_days, state.reset_on, state.status, state.starting_price),
+                         (D('0'), 0, tomorrow, ItemReward.STATUS_WAITING, D('10.00')))
+        event = state.events.get(reason='retag')
+        self.assertEqual(event.detail['retag'], {'from': '90.00', 'to': '10.00', 'reward_before': '13.00', 'reset': True})
+        self.assertEqual(rewards.member_price(self.lamp_item), (D('0'), D('10.00')))
+
+    def test_a_raised_tag_still_reads_last_nights_reward(self):
+        rewards.recompute(DAY)
+        self.lamp_item.price = D('120.00')
+        self.lamp_item.save()
+        self.assertEqual(rewards.member_price(self.lamp_item), (D('13.00'), D('107.00')))
 
     def test_bad_settings_fall_back_to_the_defaults(self):
         AppSetting.objects.update_or_create(key=rewards.FLOOR_SHARE_KEY, defaults={'value': 'lots'})
@@ -265,6 +317,55 @@ class ResetRequestTests(TestCase):
         self.assertIn('switch is ON', req.preview['changes'][0])
         self.assertEqual(done.status, ApprovalRequest.STATUS_FAILED)
         self.assertEqual(ItemReward.objects.count(), 1)
+
+
+class MarkdownResetRequestTests(TestCase):
+    """The one-time correction (``thriftplus.markdown_reset``): items marked down before the engine reset on a markdown."""
+
+    def setUp(self):
+        self.boss = User.objects.create_superuser(email='boss2@example.com', first_name='B', last_name='O', password='x-pass-123')
+        self.today = timezone.localdate()
+        lamp = Product.objects.create(title='Travertine console table')
+        self.item = _floor_item(lamp, 'ITMRWMD01', days_on_floor=30, price='20.00', on=self.today)
+        # As the old engine left it: marked from $90 to $20 ten days ago, the $23.00 kept and only capped at 90% of $20.
+        ItemReward.objects.create(item=self.item, family_key=f'p{lamp.pk}', floor_date=self.today - timedelta(days=29),
+                                  starting_price=D('20.00'), floor_price=D('2.00'), grow_days=23, reward=D('18.00'),
+                                  status=ItemReward.STATUS_CAPPED, reason='reached_floor', day=30, computed_on=self.today)
+        RewardEvent.objects.create(item_reward_id=self.item.pk, on=self.today - timedelta(days=9), day=21, reward=D('18.00'),
+                                   status=ItemReward.STATUS_CAPPED, reason='retag',
+                                   detail={'retag': {'from': '90.00', 'to': '20.00', 'reward_before': '23.00'}})
+        untouched = _floor_item(lamp, 'ITMRWMD02', days_on_floor=30, price='90.00', on=self.today)
+        ItemReward.objects.create(item=untouched, family_key=f'p{lamp.pk}', floor_date=self.today - timedelta(days=29),
+                                  starting_price=D('90.00'), floor_price=D('9.00'), grow_days=23, reward=D('23.00'),
+                                  status=ItemReward.STATUS_CLIMBING, reason='one_unit', day=30, computed_on=self.today)
+        self.untouched = untouched
+
+    def _run(self):
+        req = ar.stage('thriftplus.markdown_reset', title='Reset markdowns')
+        ar.approve(req, self.boss, start=False)
+        return req, ar.run(req.pk)
+
+    def test_a_kept_reward_goes_to_what_a_reset_on_the_markdown_day_gives(self):
+        req, done = self._run()
+        self.assertEqual(req.preview['counts'], {'Marked-down items': 1, 'ThriftBucks now': '18.00', 'ThriftBucks after': '0.66'})
+        self.assertEqual(done.status, ApprovalRequest.STATUS_APPLIED)
+        self.assertEqual(done.result['items'], 1)
+        state = ItemReward.objects.get(pk=self.item.pk)
+        # Day 10 of the new clock: 3 growth days on $20 at $20 / 90 a day.
+        self.assertEqual((state.reward, state.grow_days, state.reset_on, state.status),
+                         (D('0.66'), 3, self.today - timedelta(days=9), ItemReward.STATUS_CLIMBING))
+        logged = state.events.get(reason='markdown_reset')
+        self.assertEqual((logged.reward, logged.detail['reward_before'], logged.detail['request']), (D('0.66'), '18.00', req.pk))
+        self.assertEqual(ItemReward.objects.get(pk=self.untouched.pk).reward, D('23.00'))
+        # The engine carries on from there: tomorrow is one more growth day, never a jump back.
+        rewards.recompute(self.today + timedelta(days=1))
+        self.assertEqual(ItemReward.objects.get(pk=self.item.pk).reward, D('0.88'))
+
+    def test_a_second_run_finds_nothing(self):
+        self._run()
+        req, done = self._run()
+        self.assertEqual(req.preview['counts']['Marked-down items'], 0)
+        self.assertEqual(done.result['items'], 0)
 
 
 LAUNCH = date(2026, 10, 20)

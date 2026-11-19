@@ -103,6 +103,104 @@ register(Kind(kind='thriftplus.rebuild_rewards', label='Rebuild Thrift+ ThriftBu
               apply=_rebuild_apply))
 
 
+# ── Markdowns that kept their ThriftBucks (rulebook P3a, owner 2026-11-19) ──────────
+
+def markdown_rows() -> list[dict]:
+    """Floor items whose ThriftBucks survived a markdown made before the engine reset on one: each with the day of its
+    last logged markdown and the reward a reset on that day gives now. Only items that would go DOWN are listed, and an
+    item the engine has already reset (``reset_on``) is left alone, so a second run finds nothing."""
+    from decimal import Decimal, InvalidOperation
+
+    r = rewards.rules()
+    last: dict[int, dict] = {}
+    events = (RewardEvent.objects
+              .filter(reason='retag', item_reward__item__status='on_shelf', item_reward__reset_on__isnull=True)
+              .exclude(item_reward__status__in=[ItemReward.STATUS_CLOSED, ItemReward.STATUS_EXCLUDED])
+              .order_by('on', 'pk').values('item_reward_id', 'on', 'detail'))
+    for e in events:
+        tag = (e['detail'] or {}).get('retag') or {}
+        try:
+            lowered = Decimal(str(tag.get('to'))) < Decimal(str(tag.get('from')))
+        except (InvalidOperation, TypeError):
+            continue
+        if lowered:
+            last[e['item_reward_id']] = {'on': e['on'], 'from': str(tag.get('from')), 'to': str(tag.get('to'))}
+    rows = []
+    for s in ItemReward.objects.filter(pk__in=list(last)).select_related('item', 'item__product').order_by('pk'):
+        price = s.item.price or rewards.ZERO
+        if price <= 0 or s.item.source == 'consignment':
+            continue
+        reset_on = last[s.pk]['on']
+        clock_day = (s.computed_on - reset_on).days + 1  # the reward clock's day at the last nightly run
+        grow_days = max(0, clock_day - r.wait_days)
+        floor_price = rewards.floor_for(price, r.floor_share)
+        cap = max(rewards.ZERO, price - floor_price)
+        reward = min(cap, r.grown(price, grow_days))
+        if reward >= s.reward:
+            continue
+        if clock_day <= r.wait_days:
+            status, reason = ItemReward.STATUS_WAITING, 'days_1_to_7'
+        elif cap > 0 and reward >= cap:
+            status, reason = ItemReward.STATUS_CAPPED, 'reached_floor'
+        else:
+            status, reason = ItemReward.STATUS_CLIMBING, 'one_unit'
+        rows.append({
+            'item_id': s.pk, 'sku': s.item.sku, 'title': (s.item.product.title if s.item.product_id else '')[:70],
+            'was': last[s.pk]['from'], 'price': price, 'reward_before': s.reward, 'reward': reward, 'reset_on': reset_on,
+            'grow_days': grow_days, 'floor_price': floor_price, 'status': status, 'reason': reason, 'day': s.day,
+        })
+    return rows
+
+
+def _markdown_preview(params: dict) -> dict:
+    rows = markdown_rows()
+    before = sum((x['reward_before'] for x in rows), rewards.ZERO)
+    after = sum((x['reward'] for x in rows), rewards.ZERO)
+    top = sorted(rows, key=lambda x: x['reward'] - x['reward_before'])[:20]
+    return {
+        'counts': {'Marked-down items': len(rows), 'ThriftBucks now': str(before), 'ThriftBucks after': str(after)},
+        'changes': [
+            f'{len(rows):,} floor items were marked down and kept their ThriftBucks. Each goes to what a reset on its '
+            f'markdown day gives: 0 through a new 7-day wait, then growth on the new tag (rulebook P3a).',
+            f'Together they hold {before} ThriftBucks now and {after} after. Nothing goes up. Each change is logged on the item.',
+            'From now on the nightly run does this by itself on every markdown. Safe to run again: it then finds nothing.',
+        ],
+        'sample': [f"{x['sku']} {x['title']}: tag {x['was']} to {x['price']}, {x['reward_before']} to {x['reward']}" for x in top],
+    }
+
+
+def _markdown_apply(request: ApprovalRequest, progress: Progress) -> dict:
+    from django.db import transaction
+    from django.utils import timezone
+
+    rows = markdown_rows()
+    today, now = timezone.localdate(), timezone.now()
+    taken = rewards.ZERO
+    for i in range(0, len(rows), 200):
+        part = rows[i:i + 200]
+        with transaction.atomic():
+            for x in part:
+                ItemReward.objects.filter(pk=x['item_id']).update(
+                    reward=x['reward'], grow_days=x['grow_days'], reset_on=x['reset_on'], floor_price=x['floor_price'],
+                    status=x['status'], reason=x['reason'], updated_at=now,
+                )
+            RewardEvent.objects.bulk_create([
+                RewardEvent(item_reward_id=x['item_id'], run=None, on=today, day=x['day'], reward=x['reward'],
+                            status=x['status'], reason='markdown_reset',
+                            detail={'why': 'rulebook P3a: a markdown resets the ThriftBucks', 'request': request.pk,
+                                    'reward_before': str(x['reward_before']), 'reset_on': x['reset_on'].isoformat(),
+                                    'retag': {'from': x['was'], 'to': str(x['price'])}})
+                for x in part
+            ])
+        taken += sum((x['reward_before'] - x['reward'] for x in part), rewards.ZERO)
+        progress.update(done=min(len(rows), i + 200), total=len(rows), log=f'Reset {min(len(rows), i + 200):,} of {len(rows):,} items.')
+    return {'items': len(rows), 'thriftbucks_taken_back': str(taken)}
+
+
+register(Kind(kind='thriftplus.markdown_reset', label='Reset ThriftBucks kept through a markdown',
+              preview=_markdown_preview, apply=_markdown_apply))
+
+
 # ── Members: the legacy cleanup (owner 2026-10-16) ──────────────────────────────
 
 def _legacy_preview(params: dict) -> dict:
