@@ -31,7 +31,8 @@ export const EXAMPLE = {
 /** The growth strip: the first 7 days carry none, then the bars grow day by day; the last bar is today's (no day number:
  *  the owner, 11-20, "after 7 days items START getting thrift bucks", never 20.00 at day 7). */
 const FIRST_DAYS = 7
-const GROW = [16, 22, 28, 35, 41, 48, 54, 61, 67, 74, 80, 87, 93, 100]
+/** Many thin bars, so they read as steady growth, not a count of days to 20. */
+const GROW = Array.from({ length: 24 }, (_, i) => Math.round(14 + (86 * i) / 23))
 
 /** Owner 2026-11-20 (round 8 screens): ".00" only at the top (retail, our tag); whole numbers everywhere else read
  *  easier ("$100", "20 ThriftBucks"). Never a "$" next to ThriftBucks. */
@@ -95,8 +96,8 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
         <p className="tbx-now">
           This one carries today:
           <b className="tn">{EXAMPLE.bucks} ThriftBucks</b>
-          <span>Thrift+ is free. Members collect them.</span>
         </p>
+        <p className="tbx-free">Thrift+ is free. Members collect ThriftBucks.</p>
         <p className="tbx-pick">Members: pick one per trip</p>
         <div className="tbx-two">
           <div>

@@ -30,7 +30,7 @@
 .tbx-wait div { display: flex; gap: 3px; }
 .tbx-rise { flex: 14; position: relative; min-width: 0; }
 .tbx-rise p { position: absolute; left: 0; top: -6px; font-size: 14px; font-weight: 800; line-height: 1.15; color: var(--green); }
-.tbx-rise div { height: 100%; display: flex; align-items: flex-end; gap: 3px; }
+.tbx-rise div { height: 100%; display: flex; align-items: flex-end; gap: 2px; }
 .tbx-bars i { flex: 1; min-width: 0; background: var(--leaf); border-radius: 2px 2px 0 0; }
 .tbx-bars i.w { height: 5px; background: var(--ink-2); border-radius: 2px; }
 .tbx-bars i.now { background: var(--green); }
@@ -40,17 +40,18 @@
   border-bottom-color: var(--green); }
 .tbx-now b { display: block; font-size: 26px; font-weight: 900; letter-spacing: 0; text-transform: none; line-height: 1.1;
   color: var(--green); }
-.tbx-now span { display: block; font-size: 14px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ink-2); }
 .tbx-wait b { color: var(--ink); }
 
 /* The choice: two equal boxes, row for row (title; what you pay; the 20.00 ThriftBucks and where they go), "or" between
    the titles. */
-.tbx-pick { margin-top: 12px; text-align: center; font-size: 14px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--ink); }
+.tbx-free { margin-top: 10px; text-align: center; font-size: 14px; font-weight: 700; color: var(--ink); }
+.tbx-pick { margin-top: 4px; text-align: center; font-size: 14px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--ink); }
 .tbx-two { position: relative; margin-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tbx-two > div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px 11px; border-radius: 12px;
   background: var(--cream); text-align: center; }
 .tbx-two small { font-size: 14px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--ink); }
-.tbx-two b { font-size: 26px; font-stretch: 66%; font-weight: 900; line-height: 1.05; white-space: nowrap; }
+.tbx-two b { align-self: stretch; padding-bottom: 6px; margin-bottom: 2px; border-bottom: 2px solid var(--line); font-size: 26px;
+  font-stretch: 66%; font-weight: 900; line-height: 1.05; white-space: nowrap; }
 .tbx-two b span { font-size: 15px; font-stretch: 100%; font-weight: 700; }
 .tbx-two em { margin-top: 6px; font-style: normal; font-size: 16px; font-weight: 900; line-height: 1.15; color: var(--ink); }
 .tbx-two > div > span { font-size: 14px; font-weight: 700; line-height: 1.25; color: var(--ink); }
@@ -69,4 +70,5 @@
 @media (max-width: 370px) {
   .tbx-back { padding: 10px; }
   .tbx { max-height: calc(100dvh - 20px); padding: 16px 12px; }
+  .tbx h2 { font-size: 22px; }
 }
