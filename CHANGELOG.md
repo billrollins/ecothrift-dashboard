@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.324.1] -->
-<!-- Last reviewed: 2026-11-20 (2.324.1) -->
+<!-- Line 1 release: ## [2.325.0] -->
+<!-- Last reviewed: 2026-11-20 (2.325.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,23 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.325.0] - 2026-11-20
+
+User-facing theme: **The phone site's home now opens with "No Thrift+? You're paying way too much.", proved by today's floor, with one standard ThriftBucks example; the header never moves.** (Dash Update #185; the phone site is still switched off)
+
+> **For Bill:** The first card on the phone site's home says, in your words, "No Thrift+? You're paying way too much." Under it, three quiet lines from today's floor: how many of our items carry ThriftBucks, the typical share of the tag, and 3-day returns for members. Then Join free and Example. Example opens a small window with one normal item (retail $200.00, our tag $100.00, 20.00 ThriftBucks; keep them, or pay $90.00 today; a non-member pays $100.00, all sales final); it closes with the × or a tap outside. That example is now the one standard every surface should use (rulebook V12). No fine print on the card. After it: Black Friday (until Nov 27), BO-HO-GO (Nov 27 to Dec 31; both leave by themselves) and 3-day returns, "Thrift+ members only". The price tag is now an ink block with soft lime numbers, and special deals (Black Friday, door busters, BO-HO-GO) get a gold tag, never on black. The count of what is in store is gone, the lime strip above the header on home is gone (the header sits in the same place on every page), and the site says "items", never "pieces".
+
+### Added
+- `home.json` `bucks`: the share of floor items that carry ThriftBucks today and the typical item's share of its tag (`apps/storefront/services/snapshot.py`; test in `apps/storefront/tests/test_feeds.py`).
+- `shell/ThriftBucksExample.tsx`: the standard ThriftBucks example in a window over the page (rulebook V12).
+
+### Changed (Phone site, still switched off)
+- Home specials, normal days: the "In store today" count card is replaced by the Thrift+ card (rulebook V11); BO-HO-GO shows on normal days until Dec 31 ("Starts Fri Nov 27", then "Through Dec 31"); the returns card says "Thrift+ members only" in its headline (`pages/home/Specials.tsx`, new `Specials.test.tsx`).
+- No strip above the header on home (`shell/TopBar.tsx`); a future notice goes under the store line or above Best finds (`.ai/extended/phone-site.md`).
+- "items" instead of "pieces" in the store list, Categories, About, the item page, Questions and the stock-photo line.
+- `.ai/extended/thrift-plus-decisions.md`: V11 (the card) and V12 (the standard example; how wording decisions are kept).
+- Price tag: an ink block with soft lime numbers (was black with lime), from `--tag-bg` / `--tag-num` in `kit.css`; every tag-like chip uses them. A gold deal tag (`<Tag deal />`, `--deal-bg` / `--deal-num`) on Black Friday, the door busters and BO-HO-GO; the Black Friday teaser card is cranberry and the door busters card cream, so gold is never on black. `.ai/extended/brand.md` has the phone tokens.
 
 ## [2.324.1] - 2026-11-20
 
