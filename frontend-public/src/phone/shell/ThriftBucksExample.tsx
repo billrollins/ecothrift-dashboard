@@ -112,12 +112,12 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
           <div>
             <small>Use them now</small>
             <b className="tn">
-              <span>Pay</span> {whole(EXAMPLE.today)} <span>today</span>
+              <span>Pay</span> {whole(EXAMPLE.today)}
             </b>
             <em>Half value</em>
             <span>
               <strong>{EXAMPLE.bucks} ThriftBucks</strong>
-              used today
+              {whole(EXAMPLE.tag - EXAMPLE.today)} off today
             </span>
           </div>
         </div>
@@ -126,7 +126,7 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
         </p>
         {joinHref ? (
           <a className="btn tbx-join" href={joinHref}>
-            Join free
+            Join Thrift+ free
           </a>
         ) : null}
       </div>

@@ -36,7 +36,7 @@
 .tbx-bars i.now { background: var(--green); }
 .tbx-now { position: relative; margin-top: 4px; padding-top: 11px; text-align: right; font-size: 14px; font-weight: 800;
   letter-spacing: .06em; text-transform: uppercase; color: var(--ink); }
-.tbx-now::before { content: ''; position: absolute; right: -3px; top: -1px; border: 9px solid transparent; border-top: 0;
+.tbx-now::before { content: ''; position: absolute; right: -2px; top: -1px; border: 8px solid transparent; border-top: 0;
   border-bottom-color: var(--green); }
 .tbx-now b { display: block; font-size: 26px; font-weight: 900; letter-spacing: 0; text-transform: none; line-height: 1.1;
   color: var(--green); }
@@ -53,7 +53,7 @@
 .tbx-two em { margin-top: 4px; font-style: normal; font-size: 19px; font-weight: 900; line-height: 1.1; color: var(--green); }
 .tbx-two > div > span { font-size: 14px; line-height: 1.25; color: var(--ink); }
 .tbx-two strong { display: block; font-weight: 800; color: var(--ink); }
-.tbx-or { position: absolute; left: 50%; top: 19px; transform: translate(-50%, -50%); width: 24px; height: 24px; display: grid;
+.tbx-or { position: absolute; left: 50%; top: 48px; transform: translate(-50%, -50%); width: 24px; height: 24px; display: grid;
   place-items: center; border-radius: 50%; background: var(--card); border: 2px solid var(--line); font-style: normal;
   font-size: 13px; font-weight: 800; line-height: 1; color: var(--ink-2); }
 
@@ -66,5 +66,4 @@
 @media (max-width: 370px) {
   .tbx-back { padding: 10px; }
   .tbx { max-height: calc(100dvh - 20px); padding: 16px 12px; }
-  .tbx-two b { font-size: 22px; }
 }
