@@ -215,6 +215,17 @@ describe('Thrift+ on the receipt (the 10-12 policy)', () => {
     expect('training' in data).toBe(false);
   });
 
+  it("sends the sale's claim link for the receipt QR only when the server gave one (owner 2026-11-20, #204)", () => {
+    const claim = 'HTTPS://ECOTHRIFT.US/J/1ABCDEFGHIJKL';
+    const guest = (extra: Record<string, unknown>) => buildReceiptData(cart({
+      lines: [lamp], thrift_plus: block({ member: null, guest_line: 'x', bucks_line_id: null, ...extra }),
+    })).thrift_plus as Record<string, unknown>;
+    expect(guest({ claim_url: claim }).claim_url).toBe(claim);
+    expect('claim_url' in guest({})).toBe(false); // older server, another day: the print server's plain join QR
+    const member = buildReceiptData(cart({ lines: [lamp], thrift_plus: block({ claim_url: claim }) }));
+    expect('claim_url' in (member.thrift_plus as Record<string, unknown>)).toBe(false);
+  });
+
   it("gives a member each line's mark, leaves the ThriftBucks line out of the items, and sends the B14 numbers", () => {
     const data = buildReceiptData(cart({ lines: [lamp, sweater, pinkTag, bucksLine], thrift_plus: block() }));
     expect(data.items).toEqual([

@@ -363,6 +363,21 @@ export async function savePhone(phone: string, code: string): Promise<ThriftPlus
   }
 }
 
+// ── A non-member receipt's QR (owner 2026-11-20, #204): join today, the trip's ThriftBucks are added ─────────
+
+/** Claim the receipt kept from `?claim=` (receiptClaim.ts). Answers the ThriftBucks added and the words to show. */
+export async function claimReceipt(token: string): Promise<{ added: string; message: string }> {
+  try {
+    const { data } = await http.post<{ added: string; message: string; session?: ThriftPlusSession }>(
+      '/me/claim-receipt/', { token },
+    );
+    if (data.session?.status === 'member') member = data.session.member;
+    return { added: data.added, message: data.message };
+  } catch (err) {
+    throw problem(err, 'Your ThriftBucks could not be added. Ask at the register.');
+  }
+}
+
 export async function continueAsGuest(): Promise<ThriftPlusSession> {
   writeJson(LS.guest, true);
   member = null;

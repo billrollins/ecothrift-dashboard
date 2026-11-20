@@ -77,8 +77,12 @@ THRIFT_PLUS_TERMS_LINE = (
 # print can go"). B12's terms now sit behind the website line and its QR; THRIFT_PLUS_TERMS_LINE is no longer printed.
 THRIFT_PLUS_SITE_LEAD = "See expiration details and more at"
 THRIFT_PLUS_SITE = "www.ecothrift.us"
-# The QR under the member block: upper case so it packs as alphanumeric (a smaller code, bigger dots on the tape).
-THRIFT_PLUS_SITE_QR = "HTTPS://WWW.ECOTHRIFT.US"
+# Owner 2026-11-20 (1.10.1): the non-member block shows the website too, not the join link.
+THRIFT_PLUS_JOIN_LEAD = "Join free and see more at"
+# The QRs (owner 2026-11-20, 1.10.1): a member's opens the Thrift+ page, a non-member's goes straight to joining. Lower
+# case on purpose: the site's routes are lower case (an upper-case /JOIN or /THRIFTPLUS does not reach those pages).
+THRIFT_PLUS_SITE_QR = "https://ecothrift.us/thriftplus"
+THRIFT_PLUS_JOIN_QR = "https://ecothrift.us/join"
 THRIFT_PLUS_RETURNS_LINE = (
     "Thrift+ 3-day returns: lines marked 3-day return, any reason, 80% back as Thrift+ credit."
 )
@@ -86,6 +90,8 @@ THRIFT_PLUS_RETURNS_LINE = (
 # send the words as ``thrift_plus.non_member_line``; these are the same words, for a payload without them.
 THRIFT_PLUS_GUEST_AS_IS = "Non-member: All sales final. Sold AS IS."
 BLOCK_NON_MEMBER_AS_IS = "All sales final · Sold AS IS"
+# The heading over a non-member's items on every layout (1.10.1; the thermal picture draws it as a framed band).
+NON_MEMBER_ITEMS_HEAD = "ALL SALES FINAL · SOLD AS IS"
 # In the block the head already says NON-MEMBER, so the line drops its "Non-member: " lead.
 _NON_MEMBER_LEAD = "Non-member:"
 MARK_3_DAY_RETURN = "3-day return"
@@ -480,8 +486,10 @@ def _bottom_block(data: dict[str, Any]) -> tuple[str, list[tuple[str, bool]], li
       the payload has balances) and "Thrift+ credit: $40.00" only when there is credit; "See expiration details and
       more at" / "www.ecothrift.us", and the QR to it (``_block_qr``). No fine print, and no "used" here: ThriftBucks
       used is a row above Subtotal.
-    - A non-member: "NON-MEMBER", "You missed out on 12.60 ThriftBucks and 1 item that qualifies for a 3-day return",
-      how to join, "All sales final. Sold AS IS."
+    - A non-member (owner 2026-11-20, 1.10.1, two AI panel rounds): "Missed 12.60 ThriftBucks" as the big line, "and
+      3-day returns on qualifying items" (when an item qualified), "Join Thrift+ free to collect next time.", "Scan to
+      join or visit www.ecothrift.us", and the QR to the join page. No "NON-MEMBER" label and no AS IS line here:
+      ALL SALES FINAL · SOLD AS IS heads the items.
     - No Thrift+ on the payload (Thrift+ off, an old dashboard): the NO REFUNDS block as before.
 
     "Collected", never "earned" (V2: a receipt never says "earn").
@@ -491,19 +499,30 @@ def _bottom_block(data: dict[str, Any]) -> tuple[str, list[tuple[str, bool]], li
         return (RECEIPT_POLICY_PNG_HEADLINE, [(RECEIPT_POLICY_PNG_SUB, True)], list(RECEIPT_POLICY_LINES))
     returns = _return_items(data)
     if not _is_member_receipt(data):
-        lines: list[tuple[str, bool]] = []
+        # Owner 2026-11-20: "you missed out on xxx bucks and returns needs to be the MAIN thing ... all sales final etc is
+        # in wrong spot". AI panel round 1 (6 of 6): the missed ThriftBucks as the big line, no "NON-MEMBER" label,
+        # "on qualifying items" with the returns, a scan cue for the QR. ALL SALES FINAL · SOLD AS IS heads the items.
         missed = _missed_bucks(data)
-        parts = []
+        lines: list[tuple[str, bool]] = []
+        # Round 2 (7 models, middle grade A-): "Missed" goes in the big line so the number can't read as a balance (4 of
+        # 7); "Scan to join" says what the QR does (3 of 7).
         if missed:
-            parts.append(f"{missed} ThriftBucks")
-        if returns:
-            parts.append("3-day returns")
-        if parts:  # owner 2026-10-16: "You missed out on:" over "12.60 ThriftBucks and 3-day returns"
-            lines.append(("You missed out on:", False))
-            lines.append((" and ".join(parts), True))
-        lines.append((BLOCK_JOIN, False))
-        lines.append((BLOCK_NON_MEMBER_AS_IS, True))
-        return (BLOCK_HEAD_NON_MEMBER, lines, [])
+            # Owner 2026-11-20 picked option C of five printed: join the same day and this trip's ThriftBucks are theirs
+            # (the QR carries the receipt; Dash Update for the claim). Returns are not claimable, so no returns line.
+            head = f"Claim {missed} ThriftBucks"
+            lines.append(("You missed them at checkout.", False))
+            lines.append(("Join free today and they are yours.", True))
+            lines.append(("Scan to join in 2 seconds", True))
+            lines.append((f"or visit {THRIFT_PLUS_SITE}", False))
+            return (head, lines, [])
+        elif returns:
+            head = "Missed 3-day returns"
+            lines.append(("on qualifying items", True))
+        else:
+            head = "Thrift+ is free"
+        lines.append(("Join Thrift+ free to collect next time.", False))
+        lines.append((f"Scan to join or visit {THRIFT_PLUS_SITE}", True))
+        return (head, lines, [])
 
     member = _tp_member(data)
     head = f"{BLOCK_HEAD_MEMBER} {member}" if member else BLOCK_HEAD_MEMBER
@@ -528,9 +547,26 @@ def _bottom_block(data: dict[str, Any]) -> tuple[str, list[tuple[str, bool]], li
     return (head, lines, [])
 
 
+_CLAIM_URL = re.compile(r"^https://[A-Za-z0-9.-]+/[A-Za-z0-9/?=&._-]+$", re.IGNORECASE)
+
+
+def _claim_url(data: dict[str, Any]) -> str:
+    """The dashboard's claim link for this sale (``thrift_plus.claim_url``, Dash Update #204): join today and this
+    trip's ThriftBucks are added. Dash sends ``HTTPS://ECOTHRIFT.US/J/<TOKEN>`` in capitals so the QR packs as
+    alphanumeric and stays the member QR's size. "" when absent (an older dashboard, another day) or not a plain link."""
+    url = str((_tp(data) or {}).get("claim_url") or "").strip()
+    return url if len(url) <= 64 and _CLAIM_URL.match(url) else ""
+
+
 def _block_qr(data: dict[str, Any]) -> str:
-    """What the QR under the block opens: the website, on a member's receipt (owner 2026-11-20); "" otherwise."""
-    return THRIFT_PLUS_SITE_QR if _tp(data) is not None and _is_member_receipt(data) else ""
+    """What the QR under the block opens (owner 2026-11-20): the Thrift+ page on a member's receipt; on a non-member's
+    the sale's claim link when Dash sent one (join today, the trip's ThriftBucks are theirs, #204), else the join page;
+    "" when the payload has no Thrift+ (the NO REFUNDS block)."""
+    if _tp(data) is None:
+        return ""
+    if _is_member_receipt(data):
+        return THRIFT_PLUS_SITE_QR
+    return _claim_url(data) or THRIFT_PLUS_JOIN_QR
 
 
 def qr_picture(text: str, module: int) -> Image.Image:
@@ -700,6 +736,9 @@ def format_receipt_tape(data: dict[str, Any]) -> bytes:
     if data.get("cashier"):
         buf += _lr("Cashier:", data["cashier"])
     buf += _separator()
+    if _tp(data) is not None and not _is_member_receipt(data):  # 1.10.1: the AS IS notice heads the items, not the box
+        buf += _center_text(NON_MEMBER_ITEMS_HEAD)
+        buf += _separator()
 
     # --- Line items ---
     items: list[dict[str, Any]] = data.get("items", [])
@@ -879,6 +918,9 @@ def format_receipt_text(data: dict[str, Any]) -> str:
     if data.get("cashier"):
         lines.append(_txt_lr("Cashier:", data["cashier"]))
     lines.append("-" * W)
+    if _tp(data) is not None and not _is_member_receipt(data):  # 1.10.1: the AS IS notice heads the items, not the box
+        lines.append(NON_MEMBER_ITEMS_HEAD.center(W).rstrip())
+        lines.append("-" * W)
 
     items: list[dict[str, Any]] = data.get("items", [])
     for item in items:
@@ -1331,6 +1373,11 @@ def render_receipt_to_image(
     y += _text_h(f_hdr_small) + 10 * S
     draw.line([x0, y, x1, y], fill=t["rule"], width=lw1)
     y += 12 * S
+    if _tp(data) is not None and not _is_member_receipt(data):  # 1.10.1: the AS IS notice heads the items, not the box
+        f_asis = _sans_bold(13 * S)
+        aw = _text_w(draw, NON_MEMBER_ITEMS_HEAD, f_asis)
+        draw.text((x0 + (inner - aw) / 2, y), NON_MEMBER_ITEMS_HEAD, font=f_asis, fill=t["text"])
+        y += _text_h(f_asis) + 10 * S
 
     items: list[dict[str, Any]] = data.get("items", [])
     for item in items:

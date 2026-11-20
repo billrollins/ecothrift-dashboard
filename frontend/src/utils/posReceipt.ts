@@ -172,7 +172,7 @@ export const NON_MEMBER_RECEIPT_LINE = 'Non-member: All sales final. Sold AS IS.
  *   ThriftBucks" (balances.bucks after the sale; credit only when there is some), and www.ecothrift.us with a QR
  *   (print server 1.10.0, owner 2026-11-20, #193; the B12 fine print is no longer printed).
  * - Non-member (the code's "guest"): every line AS IS, one line under the items, NON_MEMBER_RECEIPT_LINE, and what
- *   membership would have collected.
+ *   membership would have collected; `claim_url` (a finished sale, its own day) claims it by joining today (#204).
  * There is no Thrift+ card (owner 2026-10-14): nothing here names one. An older print server ignores the key.
  */
 export function thriftPlusReceipt(cart: Cart): Record<string, unknown> | undefined {
@@ -192,6 +192,9 @@ export function thriftPlusReceipt(cart: Cart): Record<string, unknown> | undefin
       guest_all_as_is: true,
       guest_line: block.guest_line || '',
       non_member_line: NON_MEMBER_RECEIPT_LINE,
+      // Print server 1.10.1 puts it in the QR (owner 2026-11-20, #204): join today and this trip's ThriftBucks are
+      // theirs. Only a finished sale on its own day has one; without it the QR opens the plain join page.
+      ...(block.claim_url ? { claim_url: block.claim_url } : {}),
     };
   }
   return {

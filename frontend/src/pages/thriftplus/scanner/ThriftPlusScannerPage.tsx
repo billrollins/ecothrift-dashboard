@@ -9,6 +9,8 @@
  * Members get a bottom bar (owner 2026-10-20): Scan, Bucks, My QR, Account (memberTabs.tsx, TripScanner.tsx).
  * A Thrift+ Perks price tag's QR (ECOTHRIFT.US/I/<SKU>, 2026-10-28) lands on /scan?tag=<SKU>: the tag opens at once;
  * a phone that isn't signed in sees it as a guest, with Get Thrift+.
+ * A non-member receipt's QR (ECOTHRIFT.US/J/<TOKEN>, owner 2026-11-20, #204) lands on /scan?view=join&claim=<TOKEN>:
+ * the phone keeps the token, and once they finish joining that trip's ThriftBucks are added (ReceiptClaimNote.tsx).
  * Data: ../../../api/thriftPlusScanner.api.ts (the real API).
  */
 import { useEffect, useRef, useState } from 'react';
@@ -27,6 +29,8 @@ import { useSideways, useStandaloneLock, useUprightLock } from './screenLock';
 import { loadDetector } from './useQrCamera';
 import { viewAfterSignIn } from './scannerLogic';
 import { useSignIn, useThriftPlusSession } from './useThriftPlus';
+import { CLAIM_PARAM, rememberReceiptClaim } from './receiptClaim';
+import { ReceiptClaimNote, useReceiptClaim } from './ReceiptClaimNote';
 
 const TYPE_ONLY_KEY = 'tp-type-only';
 
@@ -48,6 +52,17 @@ export default function ThriftPlusScannerPage() {
     next.delete('preview');
     setPageParams(next, { replace: true });
   }, [preview]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A non-member receipt's QR (#204): the token is kept on the phone (it outlives a texted link), then off the address.
+  const claimParam = pageParams.get(CLAIM_PARAM);
+  if (claimParam) rememberReceiptClaim(claimParam);
+  useEffect(() => {
+    if (!claimParam) return;
+    setPageParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete(CLAIM_PARAM);
+      return next;
+    }, { replace: true });
+  }, [claimParam]); // eslint-disable-line react-hooks/exhaustive-deps
   const open = useQuery({ queryKey: ['thriftPlus', 'open'], queryFn: isOpen, staleTime: 60_000 });
   const [staffSignIn, setStaffSignIn] = useState(false);
   // Testing without a camera (owner, 2026-10-10): /scan?type=1 skips the camera for this browser tab; ?type=0 turns it back on.
@@ -91,6 +106,7 @@ export default function ThriftPlusScannerPage() {
   }, [signinToken]); // eslint-disable-line react-hooks/exhaustive-deps
   // Held while the link signs in, so an answer from before it can't sign the phone back out.
   const session = useThriftPlusSession(!signinToken);
+  const [claimNote, closeClaimNote] = useReceiptClaim(session.data);
   // ecothrift.us/join: the Join screen when signed out or scanning without signing in; signed in, TripScanner opens
   // the Member QR instead.
   const joinShown = joinAsked && session.data?.status === 'guest';
@@ -169,6 +185,7 @@ export default function ThriftPlusScannerPage() {
         ) : (
           <TripScanner session={session.data.status === 'signed_out' ? { status: 'guest' } : session.data} />
         )}
+        {claimNote && <ReceiptClaimNote note={claimNote} onClose={closeClaimNote} />}
       </Box>
       {/* The trip scanner has its own sideways screens (the camera keeps scanning); every other screen asks to turn upright. */}
       {sideways && !tripShown && <TurnUprightScreen lock={lock} />}

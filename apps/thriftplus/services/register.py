@@ -1227,6 +1227,13 @@ def cart_block(cart) -> dict | None:
                 block['returns_until'] = deadline(sold_on).isoformat()
                 if cart.status != 'open':
                     block['return_note'] = closed_note(sold_on)
+        elif cart.status == 'completed':
+            # Owner 2026-11-20 (#204, B15): a non-member's receipt QR claims this trip's ThriftBucks by joining today.
+            from apps.thriftplus.services.receipt_claim import url_for_receipt
+
+            url = url_for_receipt(cart)
+            if url:
+                block['claim_url'] = url
         return block
     except Exception:
         logger.exception('thrift+ cart block failed for cart %s', cart.pk)
@@ -1263,7 +1270,10 @@ def _cart_block(cart, member: CartMember | None, live: bool) -> dict:
     block = _empty_block(cart, live=live, lines=lines, share=share)
     block['restricted_line_ids'] = restricted_lines(cart)
     if member is None:
-        t = trip.totals(trip_lines(item_lines), member=False, choice=None, share=share)
+        # A finished sale has closed its items' rewards (after_complete): read them as the re-ring does, so the receipt
+        # printed right after the sale still says what the trip would have collected (#204: "Claim 12.60 ThriftBucks").
+        t = trip.totals(trip_lines(item_lines, include_closed=cart.status != 'open'), member=False, choice=None,
+                        share=share)
         block['instant_reason'] = 'No Thrift+ member on this sale.'
         block['guest_line'] = trip.guest_line(t)
         # A non-member's lines are all AS IS; ``join_mark`` is what the line would be for a member, so the receipt can

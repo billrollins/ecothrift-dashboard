@@ -113,7 +113,7 @@ function apply(a: SessionAnswer) {
   answerListeners.forEach((fn) => fn(a))
 }
 
-function previewHeader(): Record<string, string> {
+export function previewHeader(): Record<string, string> {
   try {
     const code = localStorage.getItem(PREVIEW_KEY)
     return code ? { 'X-ThriftPlus-Preview': code } : {}

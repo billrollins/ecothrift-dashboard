@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.328.0] -->
-<!-- Last reviewed: 2026-11-20 (2.328.0) -->
+<!-- Line 1 release: ## [2.329.0] -->
+<!-- Last reviewed: 2026-11-20 (2.329.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,25 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.329.0] - 2026-11-20
+
+User-facing theme: **A non-member's receipt says "Claim 12.60 ThriftBucks": join free the same day by its QR and that trip's ThriftBucks are added.**
+
+> **For Bill:** A non-member's receipt now leads with "Claim 12.60 ThriftBucks ... Join free today and they are yours." Its QR carries the sale: if they join and finish that same day, the app adds the trip's ThriftBucks (usable from tomorrow) and tells them so.
+
+User-facing theme: **A non-member's receipt says "Claim 12.60 ThriftBucks": join free the same day by its QR and that trip's ThriftBucks are added.** (Dash Update #204; print server 1.10.1)
+
+> **For Bill:** A non-member's receipt now leads with "Claim 12.60 ThriftBucks ... Join free today and they are yours." Its QR carries the sale: if they join and finish that same day, the app adds the trip's ThriftBucks (usable from tomorrow) and tells them so.
+
+### Added (Thrift+, Dash Update #204, rulebook B15)
+- **Claim link on the receipt:** a finished non-member sale on its own day sends `thrift_plus.claim_url` = `HTTPS://ECOTHRIFT.US/J/<TOKEN>` (the sale id plus a 60-bit HMAC, capitals so the QR packs as alphanumeric and stays the member QR's size). `thriftplus/services/receipt_claim.py`; `register.cart_block` adds it; `posReceipt.thriftPlusReceipt` passes it to the print server (1.10.1 puts it in the QR; an older server ignores it).
+- **`/J/<token>`** (any case) redirects to `/scan?view=join&claim=<TOKEN>` (`core.views.receipt_claim_link`; a short-link pass-through on the public host like `/i/`).
+- **`POST /api/thriftplus/public/me/claim-receipt/`** `{token}`: a member who finished joining the day of the sale (store time), on a membership made that day, gets the trip's ThriftBucks through the register's re-ring (kept, usable from tomorrow, no instant redemption, no credit; items stay AS IS). Refused: BAD_TOKEN, TOO_LATE, ALREADY_CLAIMED (one claim per sale; a sale with a member), NOT_CLAIMABLE (void, training, open), NOT_NEW, NOT_FINISHED, NOTHING. Logged as event `receipt_claim`; 20 tries an hour per member.
+- **Both scanners** (live `/scan` and the phone site's): `?claim=` is kept on the phone for that day (`scanner/receiptClaim.ts`, shared), sent once the join is finished, and "12.60 ThriftBucks from today's trip are in your account." / "Use them from tomorrow." shows as an overlay (`ReceiptClaimNote.tsx`; on the phone site from the shell, `phone/shell/ReceiptClaim.tsx`, since a signed-in member leaves /scan for /thriftplus at once).
+
+### Fixed
+- **A finished non-member sale lost "would have collected":** completing a sale closes its items' rewards, so the cart read back for the receipt (and reprints) had an empty `guest_line` and no "If member" ThriftBucks. The non-member block of a finished sale now reads the closed rewards, as the re-ring does.
 
 ## [2.328.0] - 2026-11-20
 
