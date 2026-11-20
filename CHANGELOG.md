@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.326.0] -->
-<!-- Last reviewed: 2026-11-20 (2.326.0) -->
+<!-- Line 1 release: ## [2.327.0] -->
+<!-- Last reviewed: 2026-11-20 (2.327.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,35 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.327.0] - 2026-11-20
+
+User-facing theme: **The phone site's header, Visit block and footer were each taken through a critic cycle with a 7-model AI panel (all ended at A-), and the home lost its fine print, its extra explainers and its old lime.** (Dash Update #185; the phone site is still switched off)
+
+> **For Bill:**
+> - **Header:** the logo is centred, every small word is at least 13 px, and the Omaha line sits on the light page. On tall phones the logo row stays; on smaller ones only search and the bottom bar stay.
+> - **Visit:** the map is drawn from your aerial photo (Eco-Thrift is the west half of the building, next to Mega Saver), with a working Call button and today's hours marked.
+> - **Footer:** the black link bar and the footer logo are gone, replaced by four light tiles (About, Questions, Careers, Returns). About is three plain rows, with no "we check every item". Returns opens its own short page.
+> - **Quick fixes:**
+>   - Best finds shows only pieces with a real photo.
+>   - The Thrift+ band and How it works are gone, so the top card is the one ThriftBucks explainer.
+>   - No fine print on the main screens: the words that keep a claim true are in the line or behind a link (rulebook V13).
+>   - The soft lime replaces the old lime everywhere.
+>   - The white edge under the search button is fixed.
+
+### Added
+- `pages/Returns.tsx`: a short Returns screen (three steps from terms section 8, non-members AS IS, a link to the full policy); the home's returns card, the footer and the menu open it.
+- Tests: `pages/home/Finds.test.tsx`, `pages/home/Visit.test.tsx`, more `shell/TopBar.test.tsx`.
+
+### Changed (Phone site, still switched off)
+- Header and bars (`shell/TopBar.tsx`, `BottomBar.tsx`, `shell.css`): 74 px logo row with equal side columns; 13 px account and bar labels; one balance size; the store line on the page ground; Black Friday search button; what stays fixed is decided once at load (logo row only at 740 px tall or more).
+- Visit (`pages/home/Visit.tsx`): drawn map true to the southwest corner, Eco-Thrift the west half next to Mega Saver; Call button; "Southwest corner, next to Mega Saver"; today's hours row marked.
+- Footer and info pages (`pages/home/Footer.tsx`, `About.tsx`, `Questions.tsx`, `Menu.tsx`, `words.ts`): Help and info tiles; About cut to three rows with no checking or testing claim; Questions has one ThriftBucks answer with the standard example window; menu names match.
+- Best finds: only pieces with their own photo (`apps/storefront/services/snapshot.py` `best_finds`); a card whose photo fails is left out; no fine print.
+- Home: the Thrift+ band and How it works removed (one explainer); cards link to `/thriftplus` and `/returns`.
+- No fine print on the home cards, the store list or the Thrift+ page (rulebook V13); BO-HO-GO says "Thrift+ members · Clothing".
+- `kit.css`: `--lime` is the soft lime `#e3efbe` (was `#c8e382`); the search button uses the tag colours; `phone.html` theme colour matches the header green.
+- `.ai/extended/thrift-plus-decisions.md`: V13. `.ai/extended/brand.md`: one lime.
 
 ## [2.326.0] - 2026-11-20
 
