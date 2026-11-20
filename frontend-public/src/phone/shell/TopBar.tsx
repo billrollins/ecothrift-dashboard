@@ -1,5 +1,6 @@
 /**
- * The top of every page (mockup shell/01-top.html): the store line on home only; the logo row scrolls away; the search row sticks. Search: Enter or the button opens /store?q=; a tag number (6 or 7 digits) opens
+ * The top of every page (mockup shell/01-top.html): the logo row, the search row (always in reach; shell.css says what stays
+ * on which screen), and on home only the store line under them. Search: Enter or the button opens /store?q=; a tag number (6 or 7 digits) opens
  * the scanner on that tag (/scan?tag=ITM<7 digits>). On /store the box IS the store's query: typing updates `?q=`
  * (replace), so the Store page only reads `useSearchParams().get('q')`.
  */
@@ -59,7 +60,7 @@ function Account() {
       <Link className="acct fade" to="/thriftplus" aria-label={`Thrift+: ${amount} ThriftBucks`}>
         <span className="in">
           <small>ThriftBucks</small>
-          <b className="tn" style={amount.length > 6 ? { fontSize: 15 } : undefined}>{amount}</b>
+          <b className={amount.length > 6 ? 'tn long' : 'tn'}>{amount}</b>
         </span>
       </Link>
     )
