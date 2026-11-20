@@ -28,7 +28,7 @@ export const EXAMPLE = {
 /** The growth strip: the first 7 days carry none, then the bars grow day by day; the last bar is today's (no day number:
  *  the owner, 11-20, "after 7 days items START getting thrift bucks", never 20.00 at day 7). */
 const FIRST_DAYS = 7
-const GROW = [8, 14, 20, 27, 33, 40, 47, 54, 61, 68, 76, 84, 92, 100]
+const GROW = [16, 22, 28, 35, 41, 48, 54, 61, 67, 74, 80, 87, 93, 100]
 
 const money = (n: number) => `$${n.toFixed(2)}`
 const bucks = (n: number) => n.toFixed(2)
@@ -111,7 +111,7 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
             <b className="tn">
               <span>Pay</span> {money(EXAMPLE.today)} <span>today</span>
             </b>
-            <strong>{bucks(EXAMPLE.bucks)} ThriftBucks</strong>
+            <strong className="spent">{bucks(EXAMPLE.bucks)} ThriftBucks</strong>
             <span>
               used <u>today</u>
               <br />
