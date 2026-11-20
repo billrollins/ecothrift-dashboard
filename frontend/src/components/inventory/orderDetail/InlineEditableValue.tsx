@@ -1,3 +1,9 @@
+/**
+ * One order field in the Order window (Dash Update #191). Read and edit look the same: the value as text, in the
+ * surrounding font. Editable (the owner), a click turns it into an input in place; Enter or leaving the field saves,
+ * Escape puts it back. Read only (everyone else), it is plain selectable text. A saved field flashes a green line,
+ * a failed one red.
+ */
 import { useEffect, useRef, useState } from 'react';
 import { Box } from '@mui/material';
 import {
@@ -7,19 +13,24 @@ import {
 } from '../../../utils/formInputs';
 
 export interface InlineEditableValueProps {
-  /** Stable id for parent-driven success/error flash borders */
+  /** Matches the keys in `savedKey` / `failedKey` (the field's API name). */
   fieldId: string;
   value: string;
   displayFormatter?: (v: string) => string;
   onCommit: (next: string) => void;
-  type?: 'text' | 'currency' | 'integer';
-  mono?: boolean;
+  type?: 'text' | 'currency' | 'integer' | 'date' | 'select';
+  /** For `select`. */
+  options?: { value: string; label: string }[];
   placeholder?: string;
-  successFlashKey?: string | null;
-  errorFlashKey?: string | null;
+  savedKey?: string | null;
+  failedKey?: string | null;
   multiline?: boolean;
-  inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
+  readOnly?: boolean;
+  /** Screen-reader name of the field (its label). */
+  label?: string;
 }
+
+const flashes = (key: string | null | undefined, id: string) => Boolean(key?.split(',').includes(id));
 
 export default function InlineEditableValue({
   fieldId,
@@ -27,184 +38,152 @@ export default function InlineEditableValue({
   displayFormatter,
   onCommit,
   type = 'text',
-  mono,
+  options,
   placeholder,
-  successFlashKey,
-  errorFlashKey,
+  savedKey,
+  failedKey,
   multiline,
-  inputProps,
+  readOnly,
+  label,
 }: InlineEditableValueProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
-  const ref = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const ref = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(null);
 
   useEffect(() => {
     if (!editing) setDraft(value);
   }, [value, editing]);
 
-  const flashOk = successFlashKey?.split(',').includes(fieldId);
-  const flashErr = errorFlashKey?.split(',').includes(fieldId);
-
-  const borderBottom = editing
-    ? '2px solid #0f172a'
-    : flashOk
-      ? '2px solid #2e7d32'
-      : flashErr
-        ? '2px solid #ef4444'
-        : undefined;
-
-  const start = () => {
-    setDraft(value);
-    setEditing(true);
-    window.setTimeout(() => {
-      const el = ref.current;
-      if (el && typeof el.select === 'function') el.select();
-    }, 20);
-  };
-
-  const revertEdit = () => {
-    setDraft(value);
-    setEditing(false);
-  };
-
-  const commit = () => {
+  useEffect(() => {
     if (!editing) return;
+    const el = ref.current;
+    el?.focus();
+    if (el && 'select' in el && typeof el.select === 'function' && type !== 'date') el.select();
+  }, [editing, type]);
+
+  const ok = flashes(savedKey, fieldId);
+  const bad = flashes(failedKey, fieldId);
+  const empty = !value;
+  const shown = empty
+    ? placeholder ?? '-'
+    : type === 'select'
+      ? options?.find((o) => o.value === value)?.label ?? value
+      : displayFormatter
+        ? displayFormatter(value)
+        : value;
+
+  const commitValue = (raw: string) => {
     setEditing(false);
-    let next = draft;
-    if (type === 'currency' || type === 'integer') next = next.trim();
-    else next = next.trimEnd();
-    const cur = (value ?? '').trim();
-    if (next === cur) return;
+    const next = type === 'text' ? raw.trimEnd() : raw.trim();
+    if (next === (value ?? '').trim()) return;
     onCommit(next);
   };
+  const revert = () => {
+    setDraft(value);
+    setEditing(false);
+  };
+  const keys = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      revert();
+    }
+    if (e.key === 'Enter' && !multiline) {
+      e.preventDefault();
+      commitValue(draft);
+    }
+  };
 
-  const displayEmpty = !value || value === '';
+  // Same font as the text around it, so the input sits where the value was.
+  const inputSx = {
+    font: 'inherit', color: 'inherit', fontVariantNumeric: 'tabular-nums', border: 0, outline: 'none', p: 0, m: 0,
+    bgcolor: 'transparent', borderBottom: 2, borderColor: 'text.primary', width: '100%', boxSizing: 'border-box',
+  } as const;
 
-  const formattedDisplay =
-    displayFormatter && !displayEmpty ? displayFormatter(value) : value;
-
-  if (editing) {
-    const commonSx = {
-      fontSize: 15,
-      fontWeight: 600,
-      color: '#1e293b',
-      border: 'none',
-      borderBottom: borderBottom ?? '2px solid #0f172a',
-      outline: 'none',
-      background: 'transparent',
-      paddingBottom: '2px',
-      width: '100%',
-      fontFamily: mono ? "'DM Mono', ui-monospace, monospace" : 'inherit',
-      fontVariantNumeric: 'tabular-nums' as const,
-    };
-
-    const prefix = type === 'currency' ? (
-      <Box
-        component="span"
-        sx={{
-          position: 'absolute',
-          left: 0,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          fontSize: 15,
-          color: '#64748b',
-          fontWeight: 600,
-        }}
-      >
-        $
-      </Box>
-    ) : null;
-
-    const inner = multiline ? (
-      <Box
-        component="textarea"
-        ref={ref as React.RefObject<HTMLTextAreaElement>}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            e.stopPropagation();
-            revertEdit();
-          }
-        }}
-        sx={{
-          ...commonSx,
-          resize: 'vertical',
-          minHeight: 72,
-          py: 0.5,
-        }}
-        maxLength={500}
-      />
-    ) : (
+  if (editing && !readOnly) {
+    if (type === 'select') {
+      return (
+        <Box
+          component="select"
+          ref={ref as React.RefObject<HTMLSelectElement>}
+          aria-label={label}
+          value={draft}
+          onChange={(e) => commitValue((e.target as HTMLSelectElement).value)}
+          onBlur={() => setEditing(false)}
+          onKeyDown={keys}
+          sx={inputSx}
+        >
+          <option value="">-</option>
+          {options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </Box>
+      );
+    }
+    if (multiline) {
+      return (
+        <Box
+          component="textarea"
+          ref={ref as React.RefObject<HTMLTextAreaElement>}
+          aria-label={label}
+          value={draft}
+          maxLength={500}
+          rows={2}
+          onChange={(e) => setDraft((e.target as HTMLTextAreaElement).value)}
+          onBlur={() => commitValue(draft)}
+          onKeyDown={keys}
+          sx={{ ...inputSx, resize: 'vertical', display: 'block' }}
+        />
+      );
+    }
+    return (
       <Box
         component="input"
         ref={ref as React.RefObject<HTMLInputElement>}
-        type={type === 'integer' ? 'number' : type === 'currency' ? 'text' : 'text'}
+        aria-label={label}
+        type={type === 'date' ? 'date' : type === 'integer' ? 'number' : 'text'}
         inputMode={type === 'currency' ? 'decimal' : type === 'integer' ? 'numeric' : undefined}
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onFocus={selectInputContentsOnFocus}
+        onChange={(e) => setDraft((e.target as HTMLInputElement).value)}
+        onBlur={() => commitValue(draft)}
+        onFocus={type === 'date' ? undefined : selectInputContentsOnFocus}
         onWheel={type === 'integer' || type === 'currency' ? preventWheelChangeNumber : undefined}
-        onPaste={
-          type === 'currency'
-            ? (e) => {
-                e.preventDefault();
-                setDraft(sanitizeDecimalPaste(e.clipboardData.getData('text')));
-              }
-            : undefined
-        }
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            commit();
-          }
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            e.stopPropagation();
-            revertEdit();
-          }
-        }}
-        sx={{
-          ...commonSx,
-          paddingLeft: type === 'currency' ? '14px' : 0,
-        }}
-        {...inputProps}
+        onPaste={type === 'currency' ? (e) => {
+          e.preventDefault();
+          setDraft(sanitizeDecimalPaste(e.clipboardData.getData('text')));
+        } : undefined}
+        onKeyDown={keys}
+        sx={inputSx}
       />
-    );
-
-    return (
-      <Box sx={{ position: 'relative', width: '100%' }}>
-        {prefix}
-        {inner}
-      </Box>
     );
   }
 
+  const line = ok ? 'success.main' : bad ? 'error.main' : 'transparent';
+  if (readOnly) {
+    return (
+      <Box component="span" sx={{ color: empty ? 'text.secondary' : 'inherit', whiteSpace: multiline ? 'pre-wrap' : undefined }}>
+        {empty ? '-' : shown}
+      </Box>
+    );
+  }
   return (
     <Box
       component="span"
-      onClick={start}
+      role="button"
+      tabIndex={0}
+      aria-label={label ? `${label}: ${empty ? 'not set' : shown}` : undefined}
+      onClick={() => setEditing(true)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setEditing(true);
+        }
+      }}
       sx={{
-        fontSize: 15,
-        fontWeight: 600,
-        color: displayEmpty ? '#c4c9d1' : '#1e293b',
-        cursor: 'pointer',
-        borderBottom: flashOk ? '2px solid #2e7d32' : flashErr ? '2px solid #ef4444' : '1px dashed transparent',
-        transition: 'border-color 150ms ease',
-        fontFamily: mono ? "'DM Mono', ui-monospace, monospace" : 'inherit',
-        fontVariantNumeric: 'tabular-nums',
-        display: multiline ? 'block' : 'inline',
-        width: multiline ? '100%' : 'auto',
-        maxWidth: '100%',
-        '&:hover': {
-          borderBottomColor: flashOk || flashErr ? undefined : '#cbd5e1',
-        },
+        cursor: 'text', color: empty ? 'text.secondary' : 'inherit', whiteSpace: multiline ? 'pre-wrap' : undefined,
+        borderBottom: 2, borderColor: line, transition: 'border-color 150ms ease', outline: 'none',
+        '&:hover, &:focus-visible': { borderColor: ok || bad ? line : 'divider' },
       }}
     >
-      {displayEmpty ? placeholder ?? '-' : formattedDisplay}
+      {shown}
     </Box>
   );
 }

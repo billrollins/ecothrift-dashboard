@@ -26,7 +26,7 @@ KINDS = ('pay', 'hours', 'days', 'start', 'must_have')
 _DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 _DAY_WORD = (r'(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues|tue|wed|thurs|thur|thu|fri|sat|sun)'
              r'\b\.?')
-_DAY_RANGE = re.compile(_DAY_WORD + r'\s*(?:-|–|—|to|through|thru)\s*' + _DAY_WORD, re.I)
+_DAY_RANGE = re.compile(_DAY_WORD + r'\s*(?:-|\u2013|\u2014|to|through|thru)\s*' + _DAY_WORD, re.I)
 _DAY_ONE = re.compile(r'\b' + _DAY_WORD, re.I)
 _MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 
@@ -114,10 +114,10 @@ def job_days(job) -> list[str] | None:
 
 
 def _days_span(days: list[str]) -> str:
-    """Monday..Friday → "Mon–Fri"; a list that is not a run → "Mon, Wed, Fri"."""
+    """Monday..Friday → "Mon\u2013Fri"; a list that is not a run → "Mon, Wed, Fri"."""
     index = [_DAY_NAMES.index(d) for d in days]
     if len(index) > 2 and index == list(range(index[0], index[-1] + 1)):
-        return f'{days[0][:3]}–{days[-1][:3]}'
+        return f'{days[0][:3]}\u2013{days[-1][:3]}'
     return ', '.join(d[:3] for d in days)
 
 
@@ -186,7 +186,7 @@ def flags(application, jobs=None) -> list[dict]:
     starts = [job.pay_min for job in jobs if job.pay_min is not None]
     if asked and starts and asked[0] > max(starts):
         start = max(starts)
-        asked_text = money(asked[0]) if asked[0] == asked[1] else f'{money(asked[0])}–{money(asked[1])}'
+        asked_text = money(asked[0]) if asked[0] == asked[1] else f'{money(asked[0])}\u2013{money(asked[1])}'
         out.append({'key': 'pay', 'kind': 'pay', 'label': f'Asks {asked_text} (starts at {money(start)})', 'short': asked_text,
                     'values': {'asked': asked_text, 'start_pay': money(start)}})
 
@@ -199,7 +199,7 @@ def flags(application, jobs=None) -> list[dict]:
         if not any(fits(job) for job in jobs):
             job = jobs[0]
             low, high = job_hours(job)
-            short = (f'up to {high:g}' if low is None else f'{low:g}+' if high is None else f'{low:g}–{high:g}')
+            short = (f'up to {high:g}' if low is None else f'{low:g}+' if high is None else f'{low:g}\u2013{high:g}')
             out.append({'key': 'hours', 'kind': 'hours', 'label': f'Wants {hours:g} hrs ({short})', 'short': f'{hours:g}h',
                         'values': {'hours_wanted': f'{hours:g}', 'job_hours': _hours_text(job)}})
 

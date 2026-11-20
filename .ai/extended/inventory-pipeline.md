@@ -28,7 +28,7 @@ Vendor → PurchaseOrder → CSV upload (S3) → Standardize (expression formula
 
 1. **Vendor** — Source of purchased inventory (liquidation, retail, direct, other).
 2. **PurchaseOrder** — Order placed with a vendor; tracks status from ordered through completion.
-3. **CSV manifest upload** — Staff uploads a vendor CSV via `POST /inventory/orders/{id}/upload-manifest/`. File is saved to S3, preview persisted in `manifest_preview` JSON field. (Done on OrderDetailPage.)
+3. **CSV manifest upload** — Staff uploads a vendor CSV via `POST /inventory/orders/{id}/upload-manifest/`. File is saved to S3, preview persisted in `manifest_preview` JSON field. (Done in the Order window, owner only, or on the Preprocessing page.)
 4. **Standardize** (Step 1 of PreprocessingPage) — Uses persisted **`manifest_preview`** on the PO for headers/sample rows until **`POST .../process-manifest/`** commits (pulls full CSV from S3). Expression formulas map vendor columns to standard fields (preview-standardize / Formula Preview). Commit now creates/updates permanent **`ManifestRow`** rows (stable order + raw line spine, close-to-original standardized wording) and links **`PreprocessingRow.manifest_row_id`** overlays. Compatibility `standard_*` fields remain for now, but the long-term source for standardized data is `ManifestRow`.
 5. **Clean** (Step 2 of PreprocessingPage) — **Primary (v2.28.0): in-app Run AI Cleanup** (`WebAiCleanupPanel` — browser pool of **`POST …/ai-cleanup-batch/`** calls, batch 10 / concurrency 4, resume via **`ai-cleanup-status`** `uncleaned_row_ids`, completion via **`ai-cleanup-complete`**). **Fallback: offline CSV** under the **Advanced** disclosure (`RowProcessingPanel` — **`GET …/download-cleanup-csv/`** exports **`row_id`** as stable **`ManifestRow.id`**; toolbar **Run Cleanup** applies in **50-row `partial: true` chunks** of **`POST …/apply-cleanup-csv/`**, then `ai-cleanup-complete`). Both paths merge into **`PreprocessingRow.ai_*`** / **`ai_title`** (optional **`ai_status`**) via the shared `services/ai_cleanup.py` helper and auto-generate **product match candidates** (`services/product_matching.py`) at completion. Local Grok harness: **`workspace/ai-cleanup-grok/`** (frozen; `.cleaned.csv` interchange). **Legacy `POST …/ai-cleanup-rows/`: 410 Gone on staging orders** — see § AI Row Cleanup below and archived initiative [`preprocessing_ai_cleanup_review`](../initiatives/_archived/preprocessing_ai_cleanup_review.md).
 6. **Final Decisions** (Step 3 of PreprocessingPage; stepper label **Final Decisions**) — Staging-only review: **`GET/PATCH .../preprocessing-review/`** over **`PreprocessingRow`**, with standardized fallbacks from linked `ManifestRow`. Staff edits **`ai_*`** / **`final_*`** fields and pricing; substantive listing or price **`PATCH`** clears **`ai_status`** server-side. Review serializers expose **`match_candidates`**, **`final_matched_product`**, **`match_source`**, hydrated **`matched_product_detail`**, and peer **`same_product_row_numbers`**; match decisions **`PATCH`** immediately (sets `match_source='staff'`; match-only patches do **not** clear `ai_status`). **`POST …/regenerate-match-candidates/`** re-runs the P1 matcher (staff decisions preserved). Bulk pricing: **Scale AI prices** (Adjust % or Target total $, anchored to `proposed_price`) or **% of retail**; rows without a base are skipped. **`POST .../finalize-preprocessing/`** validates price + title/description, then creates/replaces **`ProcessingRow`** bookmarks linked to `manifest_row_id` **and copies the decided match to `ProcessingRow.matched_product`**; workspace row detail reads ProcessingRow match first. Re-standardize (`bulk_clear_preprocess_ai_and_final_layers`) resets match fields along with `ai_*`/`final_*`.
@@ -64,8 +64,7 @@ manifest order), then blanks up to the larger of `PurchaseOrder.pallet_count` an
 
 ### Truck finalize (E2, 2026-10-21)
 
-`/inventory/orders/:id/truck` (order modal **Finish truck**, the Pallets dialog, the intake timeline's **Truck
-finalized** step). `services/truck_finalize.py`; `GET /inventory/orders/{id}/truck-finalize/[?lines=all]`.
+`/inventory/orders/:id/truck` (Order window **Finish truck**, the Pallets dialog). `services/truck_finalize.py`; `GET /inventory/orders/{id}/truck-finalize/[?lines=all]`.
 
 - Per manifest line and in total, units and $ at the manifest price: **manifest**, **unfulfilled** (hand-entered
   `ManifestAdjustment`: line, units, before/after arrival, refund if known, note), **expected** (manifest less
@@ -404,7 +403,7 @@ Shipped 2026-06-10 per the Fable verdict in [`preprocessing_ai_cleanup_review`](
 | Status / resume | **`GET …/ai-cleanup-status/`** | `{ total_rows, cleaned_rows, remaining_rows, generation, use_staging, uncleaned_row_ids[] }` — client partitions `uncleaned_row_ids` into batches; resume = re-fetch and process what's left |
 | Batch | **`POST …/ai-cleanup-batch/`** `{ row_ids: [≤25] }` | One Anthropic call (25s client timeout) over those staging rows only; merges **`PreprocessingRow.ai_*`** + snapshots `final_*`; **no** ManifestRow writes, **no** Product/Item creation; `ai_cleanup_generation` guard discards stale saves (`cancelled: true`) |
 | Complete | **`POST …/ai-cleanup-complete/`** | Fast, idempotent, no AI: `generate_match_candidates_for_order` + `ai_cleaned_at` + `preprocess_status=cleaned` |
-| Cancel / undo | **`POST …/cancel-ai-cleanup/`** / intake timeline | Clears `ai_*`, bumps generation → running pools stop, in-flight batches discard |
+| Cancel / undo | **`POST …/cancel-ai-cleanup/`** / `undo/` API (no UI since #191) | Clears `ai_*`, bumps generation → running pools stop, in-flight batches discard |
 
 **UI:** `WebAiCleanupPanel.tsx` (Step 2 primary) — browser worker pool (`utils/aiCleanupPool.ts`): **batch 10, concurrency default 4, cap 8**, per-batch retry ×2 with backoff, pause (client-side; in-flight batches finish + save) / resume, progress (batches, rows/s, ETA). Requires gthread gunicorn (`Procfile --threads 8`) so 4–8 concurrent AI waits don't starve the 2-worker dyno.
 
@@ -581,20 +580,17 @@ Cross-reference mapping of vendor identifiers to internal `Product`.
 - Filters: status, vendor, date range
 - "New Order" dialog with same section layout as edit: Order # + Date → Details → Costs → Notes
 
-### Order Detail Page (`OrderDetailPage.tsx`)
+### Order window (`components/objects/OrderCard.tsx`, Dash Update #191, 2026-11-20)
 
-- Status stepper: ordered → paid → shipped → delivered → processing → complete
-- Display sections: Dates → Details (description, condition, retail value, items) → Costs → Notes
-- Action buttons: Mark Paid, Undo Paid, Mark Shipped / Edit Shipped, Mark Delivered, Undo Delivered
-- "Shipped" modal with dual modes (Mark Shipped / Edit Shipped) and date pickers
-- Manifest section: upload CSV, file info bar with download link, persisted CSV preview table
-- Preprocessing UI replaced with **Standard Manifest builder** (standard columns first, function chains, preview, and **Standardize Manifest** CTA)
-- Preprocessing now follows a 3-step accordion flow (Upload -> Raw Sample -> Standardize), with multi-open accordion support
-- Raw sample supports server-side search over the full manifest and returns top 100 rows in a scrollable preview
-- Standardized preview supports server-side search over full normalized output (`search_term`) and returns top 100 rows
-- Pre-arrival pricing table on standardized `ManifestRow` data
-- Actions follow the new flow: Save Pre-Arrival Pricing → Match Products → Build Check-In Queue → Open Processing Workspace
-- Includes order reset modal using reverse-sequence artifact preview + guarded purge deletion
+- The only order view (`OrderDetailPage.tsx` and the intake timeline drawer were removed). Header with the step
+  buttons (Start Preprocessing, Receiving, Start Processing, Finish truck, Close the truck, Truck Plan); cards
+  Lifecycle (five dates, "Current", later steps, **All dates** for every recorded date/time), Costs (margin), Units,
+  Manifest (file → `PurchaseOrderManifestDialog` preview/download; rows, categories, est. value), notes/claims.
+- Read and edit look the same: the owner (superuser, not viewing as) clicks a value to change it and it auto-saves
+  (`orderDetail/useOrderAutosave.ts`, PATCH after 0.5 s; dates set the status while ordered → delivered); everyone
+  else reads. Staff change orders through their pages (Receiving and so on).
+- No UI undo or delete any more (Bill: cleanups go through Claude Code). The API stays: `undo-preview/`, `undo/`,
+  `delete-preview/`, `purge-delete/`, `remove-manifest/`.
 
 ### Processing Page (`ProcessingPage.tsx`) — v1.9.0 — **legacy**
 

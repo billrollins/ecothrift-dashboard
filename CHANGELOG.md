@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.322.0] -->
-<!-- Last reviewed: 2026-11-20 (2.322.0) -->
+<!-- Line 1 release: ## [2.323.0] -->
+<!-- Last reviewed: 2026-11-20 (2.323.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,27 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.323.0] - 2026-11-20
+
+User-facing theme: **One order window for everyone: it shows everything, and the owner edits right in it (auto-save). The order edit page and its intake drawer (undo, delete) are gone.**
+
+> **For Bill:** Click an order and you see it all: the dates and the step it is on (All dates opens every date and time), costs with margin, units, and the manifest (file, day, rows, categories, value; the file opens the preview/download). You click any value to change it and it saves itself: no Edit, no Save. Staff see the same window read only and change orders through their pages (Receiving and so on). The intake timeline drawer, its undo steps, manifest remove and Delete are gone, and so are Preprocessing's "Undo" and "Rewind finalize" buttons that opened it; ask Claude Code for those cleanups.
+
+User-facing theme: **One order window for everyone: it shows everything, and the owner edits right in it (auto-save). The order edit page and its intake drawer (undo, delete) are gone.** (Dash Update #191, Item-style windows)
+
+> **For Bill:** Click an order and you see it all: the dates and the step it is on (All dates opens every date and time), costs with margin, units, and the manifest (file, day, rows, categories, value; the file opens the preview/download). You click any value to change it and it saves itself: no Edit, no Save. Staff see the same window read only and change orders through their pages (Receiving and so on). The intake timeline drawer, its undo steps, manifest remove and Delete are gone, and so are Preprocessing's "Undo" and "Rewind finalize" buttons that opened it; ask Claude Code for those cleanups.
+
+### Changed (Order window: the only order view)
+- `OrderCard.tsx`: reads `/card/` and `detail-surface`. Header with the step buttons (Start Preprocessing, Receiving, Start Processing, Finish truck, Close the truck, Truck Plan; same gates as before). Lifecycle: the five dates, "Current" on the last step done, the later steps, and **All dates** (created, manifest uploaded, standardized, AI cleanup, review saved, finalized, receiving, processing, truck finalized, claim filed, closed, last changed); Lifecycle has its own column (last on a phone), so opening it moves nothing else. Costs (purchase, fees, shipping, total, retail, margin, est. shrink, Truck Plan), Units (condition, items, pallets, manifest, where), Manifest (upload when none, owner only), notes/claims.
+- Read and edit look the same: `InlineEditableValue` shows the value in the surrounding font; for the owner (superuser, not viewing as) a click turns it into an input in place (text, money, count, date, condition list); Enter or leaving saves, Escape puts it back. `useOrderAutosave` sends one PATCH after half a second of quiet (dates set the status while ordered → delivered, as before), refreshes the window, flashes green or red.
+
+### Removed
+- `OrderDetailPage.tsx` (the order edit page) and `OrderIntakeTimelineDrawer.tsx` (intake timeline, undo to a step, remove manifest, purge delete), with their frontend hooks and API calls. Preprocessing's "Undo" (standardize) and "Rewind finalize…" buttons, which opened that drawer. The server endpoints stay for Claude Code cleanups: `undo-preview/`, `undo/`, `delete-preview/`, `purge-delete/`, `remove-manifest/`.
+- Shared order rules now in `components/inventory/orderDetail/orderSteps.ts`. No API change: `detail-surface` already carries every field. Tests: `test_po_manifest_meta_surface.py` (the fields the window reads), `OrderVendorCards.test.tsx` (lifecycle, costs, manifest with and without, All dates, staff read only, owner edit saves).
+
+### Fixed (housekeeping)
+- `apps/hiring/callouts.py` and its tests wrote en/em dashes as typed characters, failing `apps/routines/tests.py` NoDashesTests (red on main since v2.318.0); they are now `\u2013` / `\u2014` escapes. Flags read the same.
 
 ## [2.322.0] - 2026-11-20
 

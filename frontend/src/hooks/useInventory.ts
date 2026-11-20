@@ -20,8 +20,6 @@ import {
   createOrder,
   updateOrder,
   deleteOrder,
-  getOrderDeletePreview,
-  purgeDeleteOrder,
   markOrderPaid,
   revertOrderPaid,
   markOrderShipped,
@@ -30,8 +28,6 @@ import {
   revertOrderDelivered,
   uploadManifest,
   removeManifest,
-  getUndoPreview,
-  postIntakeUndo,
   previewStandardize,
   processManifest,
   updateManifestPricing,
@@ -92,7 +88,6 @@ import { prepS1 } from '../utils/preprocessingStep1Diag';
 import { devLog } from '../utils/logger';
 import type {
   SuggestFormulasPayload,
-  IntakeUndoStage,
   SuggestFinalizationPayload,
   FinalizeRowsPayload,
   SuggestItemRequest,
@@ -341,39 +336,6 @@ export function useDeleteOrder() {
   });
 }
 
-export function useOrderDeletePreview() {
-  return useMutation({
-    mutationFn: async (orderId: number) => {
-      const { data } = await getOrderDeletePreview(orderId);
-      return data;
-    },
-  });
-}
-
-export function usePurgeDeleteOrder() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      orderId,
-      data,
-    }: {
-      orderId: number;
-      data: { confirm_order_number: string };
-    }) => {
-      const { data: result } = await purgeDeleteOrder(orderId, data);
-      return result;
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
-      queryClient.removeQueries({ queryKey: ['purchaseOrders', variables.orderId] });
-      queryClient.invalidateQueries({ queryKey: ['items'] });
-      queryClient.invalidateQueries({ queryKey: ['batchGroups'] });
-      queryClient.invalidateQueries({ queryKey: ['itemHistory'] });
-    },
-  });
-}
-
 export function useMarkOrderPaid() {
   const queryClient = useQueryClient();
 
@@ -514,41 +476,6 @@ export function useRemoveManifest() {
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
       queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', orderId] });
-    },
-  });
-}
-
-export function useIntakeUndoPreview(orderId: number | null, stage: IntakeUndoStage | null) {
-  return useQuery({
-    queryKey: ['intakeUndoPreview', orderId, stage],
-    queryFn: async () => {
-      const { data } = await getUndoPreview(orderId!, stage!);
-      return data;
-    },
-    enabled: orderId != null && stage != null,
-  });
-}
-
-export function useIntakeUndo() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      orderId,
-      to_stage,
-    }: {
-      orderId: number;
-      to_stage: IntakeUndoStage;
-    }) => {
-      const { data } = await postIntakeUndo(orderId, { to_stage });
-      return data;
-    },
-    onSuccess: (data, variables) => {
-      queryClient.setQueryData(['purchaseOrderSurface', variables.orderId], data);
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
-      queryClient.invalidateQueries({ queryKey: ['purchaseOrders', variables.orderId] });
-      queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', variables.orderId] });
-      queryClient.invalidateQueries({ queryKey: ['preprocessingQueue'] });
     },
   });
 }

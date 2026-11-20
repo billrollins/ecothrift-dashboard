@@ -78,7 +78,7 @@ class FlagTests(Base):
 
     def test_pay_above_the_start(self):
         self.assertEqual(self.labels(self.app(pay_wanted='$22')), ['Asks $22 (starts at $15)'])
-        self.assertEqual(self.labels(self.app(pay_wanted='18-19-20')), ['Asks $18–$20 (starts at $15)'])
+        self.assertEqual(self.labels(self.app(pay_wanted='18-19-20')), ['Asks $18\u2013$20 (starts at $15)'])
         self.assertEqual(self.labels(self.app(pay_wanted='$15')), [])
         self.assertEqual(self.labels(self.app(pay_wanted='Open')), [])
         Job.objects.filter(pk=self.retail.pk).update(pay_min=None)
@@ -92,7 +92,7 @@ class FlagTests(Base):
                                         start_date='January 15', _miss=True, pay_wanted='$15'))
         self.assertEqual([(c['kind'], c['label'], c['short']) for c in found], [
             ('hours', 'Wants 20 hrs (30+)', '20h'),
-            ('days', 'Days: 2 of Mon–Fri', 'Days'),
+            ('days', 'Days: 2 of Mon\u2013Fri', 'Days'),
             ('start', 'Starts Jan 15', 'Late start'),
             ('must_have', 'Lift 50 lbs: no', 'Lift 50 lbs'),
         ])

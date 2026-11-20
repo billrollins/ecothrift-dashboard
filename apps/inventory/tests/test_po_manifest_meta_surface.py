@@ -168,3 +168,39 @@ class PurchaseOrderManifestMetaSurfaceTests(TestCase):
         self.assertIsNone(self.po.ai_formulas)
         self.assertFalse(self.po.manifest_signature)
         self.assertIsNone(self.po.manifest_headers)
+
+    def test_detail_surface_carries_what_the_order_window_shows(self):
+        """Dash Update #191: the Order window reads detail-surface for Lifecycle, Costs and Manifest without Edit."""
+        self.po.paid_date = '2025-06-02'
+        self.po.expected_delivery = '2025-06-09'
+        self.po.pallet_count = 3
+        self.po.fees = Decimal('2.50')
+        self.po.save(update_fields=['paid_date', 'expected_delivery', 'pallet_count', 'fees'])
+        self.client.post(
+            f'/api/inventory/orders/{self.po.pk}/upload-manifest/',
+            {'file': SimpleUploadedFile('window.csv', b'Category,SKU\nA,1\nB,2\n', content_type='text/csv')},
+            format='multipart',
+        )
+        r = self.client.get(f'/api/inventory/orders/{self.po.pk}/detail-surface/')
+        self.assertEqual(r.status_code, 200, r.data)
+        d = r.data
+        # Lifecycle: the five dates.
+        self.assertEqual(d['ordered_date'], '2025-06-01')
+        self.assertEqual(d['paid_date'], '2025-06-02')
+        self.assertIsNone(d['shipped_date'])
+        self.assertEqual(d['expected_delivery'], '2025-06-09')
+        self.assertIsNone(d['delivered_date'])
+        # Costs and the header row.
+        self.assertEqual(d['purchase_cost'], '10.00')
+        self.assertEqual(d['fees'], '2.50')
+        self.assertEqual(d['retail_value'], '30.00')
+        self.assertEqual(d['vendor_code'], 'MV-META')
+        self.assertEqual(d['pallet_count'], 3)
+        self.assertIn('item_count', d)
+        self.assertIn('closeout_status', d)
+        # Manifest: loaded, with its file, day, rows and categories.
+        self.assertTrue(d['has_manifest'])
+        self.assertEqual(d['manifest_filename'], 'window.csv')
+        self.assertIsNotNone(d['manifest_uploaded_at'])
+        self.assertEqual(d['manifest_row_count'], 2)
+        self.assertEqual(d['manifest_category_count'], 2)
