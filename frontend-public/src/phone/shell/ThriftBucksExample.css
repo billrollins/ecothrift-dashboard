@@ -4,7 +4,7 @@
 .tbx-back { position: fixed; inset: 0; z-index: 60; background: rgba(16, 20, 15, .55); display: grid; place-items: center;
   padding: 16px; }
 .tbx { position: relative; width: 100%; max-width: 380px; max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--card);
-  color: var(--ink); border-radius: 18px; padding: 18px 18px 18px; box-shadow: 0 12px 40px rgba(0, 0, 0, .3); }
+  color: var(--ink); border-radius: 18px; padding: 16px 18px; box-shadow: 0 12px 40px rgba(0, 0, 0, .3); }
 .tbx:focus { outline: none; }
 .tbx-x { position: absolute; top: 6px; right: 6px; width: 44px; height: 44px; border: 0; background: none; font-size: 30px;
   line-height: 1; color: var(--ink-2); cursor: pointer; }
@@ -20,20 +20,25 @@
 .tbx-item s { font-size: 22px; font-weight: 800; color: var(--ink-2); text-decoration-thickness: 2px; }
 .tbx-item .tag { font-size: 37px; }
 
-/* The growth strip: the V12 sentence, today's ThriftBucks over today's bar, the bars, two short axis labels. */
+/* The growth strip, in story order: the V12 sentence, the bars (7 quiet days, a gap, then growth to today's bar),
+   then under it a bracket "First 7 days" on the left and, under today's bar, "This one carries today 20.00 ThriftBucks". */
 .tbx-carry { margin-top: 12px; font-size: 15px; font-weight: 600; line-height: 1.3; }
-.tbx-grow { margin-top: 4px; }
-.tbx-now { position: relative; text-align: right; padding-bottom: 8px; font-size: 13px; font-weight: 800; letter-spacing: .06em;
-  text-transform: uppercase; color: var(--ink-2); }
-.tbx-now b { display: block; margin-top: 0; font-size: 24px; font-weight: 900; letter-spacing: 0; text-transform: none;
-  line-height: 1.1; color: var(--green); }
-.tbx-now::after { content: ''; position: absolute; right: 2px; bottom: 0; border: 6px solid transparent; border-bottom: 0;
-  border-top-color: var(--green); }
-.tbx-bars { position: relative; margin-top: 3px; height: 38px; display: flex; align-items: flex-end; gap: 3px; }
+.tbx-bars { margin-top: 10px; height: 40px; display: flex; gap: 8px; }
+.tbx-bars > div { display: flex; align-items: flex-end; gap: 3px; }
+.tbx-bars > div:first-child { flex: 7; }
+.tbx-bars > div:last-child { flex: 14; }
 .tbx-bars i { flex: 1; min-width: 0; background: var(--leaf); border-radius: 2px 2px 0 0; }
-.tbx-bars i.w { height: 4px; background: var(--line); border-radius: 2px; }
+.tbx-bars i.w { height: 3px; background: var(--ink-2); border-radius: 2px; }
 .tbx-bars i.now { background: var(--green); }
-.tbx-bars span { position: absolute; left: 0; bottom: 9px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.tbx-under { position: relative; margin-top: 4px; }
+.tbx-first { position: absolute; left: 0; top: 9px; width: calc((100% - 8px) * 7 / 21); text-align: center; font-size: 13px;
+  font-weight: 700; color: var(--ink-2); }
+.tbx-now { position: relative; padding-top: 9px; text-align: right; font-size: 13px; font-weight: 800; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-2); }
+.tbx-now::before { content: ''; position: absolute; right: 0; top: 0; border: 6px solid transparent; border-top: 0;
+  border-bottom-color: var(--green); }
+.tbx-now b { display: block; font-size: 26px; font-weight: 900; letter-spacing: 0; text-transform: none; line-height: 1.1;
+  color: var(--green); }
 
 /* The choice: two equal boxes, "or" between them. */
 .tbx-pick { margin-top: 12px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
@@ -44,12 +49,12 @@
 .tbx-two b { font-size: 26px; font-stretch: 66%; font-weight: 900; line-height: 1.05; white-space: nowrap; }
 .tbx-two b span { font-size: 15px; font-stretch: 100%; font-weight: 700; }
 .tbx-two > div > span { font-size: 13px; line-height: 1.25; color: var(--ink-2); text-wrap: balance; }
-.tbx-two em { margin-top: auto; padding-top: 2px; font-style: normal; font-size: 13px; font-weight: 800; color: var(--green); }
+.tbx-two em { margin-top: auto; padding-top: 2px; font-style: normal; font-size: 13px; font-weight: 800; color: var(--green); text-wrap: balance; }
+.tbx-two em span { white-space: nowrap; }
 .tbx-or { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 28px; height: 28px; display: grid;
   place-items: center; border-radius: 50%; background: var(--card); border: 2px solid var(--line); font-style: normal;
   font-size: 13px; font-weight: 800; color: var(--ink-2); }
 
 /* The non-member: a third row at body size. */
-.tbx-non { margin-top: 8px; padding: 8px 4px; border-top: 2px solid var(--line); border-bottom: 2px solid var(--line); text-align: center;
-  font-size: clamp(14px, 4vw, 15px); color: var(--ink); }
+.tbx-non { margin-top: 12px; text-align: center; font-size: clamp(14px, 4vw, 15px); color: var(--ink); }
 .tbx .tbx-join { margin-top: 12px; width: 100%; min-height: 48px; background: var(--green); color: #fff; font-size: 17px; }

@@ -25,9 +25,10 @@ export const EXAMPLE = {
   today: 90, // tag - bucks / 2
 } as const
 
-/** The growth strip: the first 7 days carry none, then the bars grow day by day; the last bar is today's. */
+/** The growth strip: the first 7 days carry none, then the bars grow day by day; the last bar is today's (no day number:
+ *  the owner, 11-20, "after 7 days items START getting thrift bucks", never 20.00 at day 7). */
 const FIRST_DAYS = 7
-const GROW = [12, 20, 28, 37, 46, 56, 66, 77, 88, 100]
+const GROW = [8, 14, 20, 27, 33, 40, 47, 54, 61, 68, 76, 84, 92, 100]
 
 const money = (n: number) => `$${n.toFixed(2)}`
 const bucks = (n: number) => n.toFixed(2)
@@ -64,20 +65,26 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
         <p className="tbx-carry">
           After 7 days on our floor, most items start to carry ThriftBucks. They grow every day.
         </p>
-        <div className="tbx-grow">
-          <p className="tbx-now">
-            This one carries today
-            <b className="tn">{bucks(EXAMPLE.bucks)} ThriftBucks</b>
-          </p>
-          <div className="tbx-bars" aria-hidden="true">
-            <span>First 7 days</span>
+        <div className="tbx-bars" aria-hidden="true">
+          <div>
             {Array.from({ length: FIRST_DAYS }, (_, i) => (
-              <i key={`w${i}`} className="w" />
+              <i key={i} className="w" />
             ))}
+          </div>
+          <div>
             {GROW.map((h, i) => (
               <i key={i} className={i === GROW.length - 1 ? 'now' : undefined} style={{ height: `${h}%` }} />
             ))}
           </div>
+        </div>
+        <div className="tbx-under">
+          <span className="tbx-first" aria-hidden="true">
+            First 7 days
+          </span>
+          <p className="tbx-now">
+            This one carries today
+            <b className="tn">{bucks(EXAMPLE.bucks)} ThriftBucks</b>
+          </p>
         </div>
         <p className="tbx-pick">Thrift+ members pick one</p>
         <div className="tbx-two">
@@ -98,7 +105,9 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
               <span>Pay</span> {money(EXAMPLE.today)}
             </b>
             <span>today</span>
-            <em>Half their value</em>
+            <em>
+              Half value: <span>{money(EXAMPLE.tag - EXAMPLE.today)} off</span>
+            </em>
           </div>
         </div>
         <p className="tbx-non">

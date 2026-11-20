@@ -108,7 +108,7 @@ describe('home specials, a normal day', () => {
     expect(bars.at(-1)).toHaveClass('now')
     expect(box.querySelector('.tbx-bars')).not.toHaveTextContent(/\d{2}|day \d/i)
     expect(box).toHaveTextContent('Keep themPay $100.0020.00 ThriftBucks come off your next visitFull value')
-    expect(box).toHaveTextContent('Use them nowPay $90.00todayHalf their value')
+    expect(box).toHaveTextContent('Use them nowPay $90.00todayHalf value: $10.00 off')
     expect(box).toHaveTextContent('Non-member: pays $100.00. All sales final.')
     expect(box).not.toHaveTextContent(/\$\s*20\.00|earn|discount|points|cash back|reward|guest/i)
     expect(within(box).getByRole('link', { name: 'Join free' })).toHaveAttribute('href', '/scan?view=join')
