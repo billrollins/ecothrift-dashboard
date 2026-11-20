@@ -102,7 +102,7 @@ describe('home specials, a normal day', () => {
     // Owner 11-20 (round 8 screens): the opening on one easy line; ".00" only at the top, whole numbers below.
     expect(box).toHaveTextContent('ThriftBucks start after 7 days on most items.')
     expect(box.querySelector('.tbx-rise')).toHaveTextContent('They grow every day.')
-    expect(box).toHaveTextContent('This one carries today:20 ThriftBucksThrift+ is free. Members collect ThriftBucks.Members: pick one per trip')
+    expect(box).toHaveTextContent('This one carries today:20 ThriftBucksKeep them')
     // The growth strip shows the sentence: 7 days with none, then bars that grow to today's (no day number on it).
     const bars = Array.from(box.querySelectorAll('.tbx-bars i'))
     expect(bars.slice(0, 7).every((b) => b.classList.contains('w'))).toBe(true)

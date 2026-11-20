@@ -97,8 +97,6 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
           This one carries today:
           <b className="tn">{EXAMPLE.bucks} ThriftBucks</b>
         </p>
-        <p className="tbx-free">Thrift+ is free. Members collect ThriftBucks.</p>
-        <p className="tbx-pick">Members: pick one per trip</p>
         <div className="tbx-two">
           <div>
             <small>Keep them</small>
