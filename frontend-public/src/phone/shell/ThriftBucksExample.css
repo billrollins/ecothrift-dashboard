@@ -51,8 +51,8 @@
 .tbx-two b { font-size: 26px; font-stretch: 66%; font-weight: 900; line-height: 1.05; white-space: nowrap; }
 .tbx-two b span { font-size: 15px; font-stretch: 100%; font-weight: 700; }
 .tbx-two em { margin-top: 4px; font-style: normal; font-size: 19px; font-weight: 900; line-height: 1.1; color: var(--green); }
-.tbx-two > div > span { font-size: 14px; line-height: 1.25; color: var(--ink); }
-.tbx-two strong { display: block; font-weight: 800; color: var(--ink); }
+.tbx-two > div > span { font-size: 14px; font-weight: 700; line-height: 1.25; color: var(--ink); }
+.tbx-two strong { margin-top: 1px; font-size: 18px; font-weight: 900; line-height: 1.15; color: var(--ink); }
 .tbx-or { position: absolute; left: 50%; top: 48px; transform: translate(-50%, -50%); width: 24px; height: 24px; display: grid;
   place-items: center; border-radius: 50%; background: var(--card); border: 2px solid var(--line); font-style: normal;
   font-size: 13px; font-weight: 800; line-height: 1; color: var(--ink-2); }

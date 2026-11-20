@@ -4,6 +4,9 @@
  * carries, then the member's two choices and the non-member's price. Every surface that explains ThriftBucks uses
  * EXAMPLE's numbers and words; change them only in the rulebook first.
  *
+ * The two choices read across as a contrast, row for row (owner 2026-11-20: "Full > Half, 20 > 10, next visit >
+ * today"): value, amount, when.
+ *
  * Laid out as a store sign, in the order it happens (critic cycle 2026-11-20, the AI panel): the tag; a growth strip
  * that SHOWS the V12 sentence (7 grey days with none, then bars that grow to today's, with no day number, so nothing
  * says 20.00 at day 7); two equal boxes with "or" between them; the non-member as a third row. Static, so the same
@@ -101,10 +104,8 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
               <span>Pay</span> {whole(EXAMPLE.tag)}
             </b>
             <em>Full value</em>
-            <span>
-              <strong>{EXAMPLE.bucks} ThriftBucks</strong>
-              off your next visit
-            </span>
+            <strong className="tn">{EXAMPLE.bucks} ThriftBucks</strong>
+            <span>off your next visit</span>
           </div>
           <i className="tbx-or" aria-hidden="true">
             or
@@ -115,10 +116,8 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
               <span>Pay</span> {whole(EXAMPLE.today)}
             </b>
             <em>Half value</em>
-            <span>
-              <strong>{EXAMPLE.bucks} ThriftBucks</strong>
-              {whole(EXAMPLE.tag - EXAMPLE.today)} off today
-            </span>
+            <strong className="tn">{whole(EXAMPLE.tag - EXAMPLE.today)} off</strong>
+            <span>today, at checkout</span>
           </div>
         </div>
         <p className="tbx-non">
