@@ -1,0 +1,26 @@
+/* Returns (prefix rt): numbered white cards, one green band with the big number. No lime (owner 11-20). */
+.rt { background: var(--ground); padding-bottom: 24px; }
+.rt-hd { background: var(--green); color: #fff; padding: 14px var(--gut) 18px; }
+.rt .lbl { font-size: 13px; }                     /* 13 px floor for every label on the page */
+.rt-hd .lbl { color: var(--cream); opacity: .85; }
+.rt-hd h1 { font-size: 46px; margin-top: 6px; }
+
+.rt-steps { display: grid; gap: 8px; padding: 16px var(--gut) 0; }
+.rt-step { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 12px; min-height: 64px; padding: 10px 14px 10px 10px;
+           border-radius: var(--r); background: #fff; }
+.rt-step b { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 8px;
+             background: var(--green); color: #fff; font-size: 30px; }
+.rt-step span { font-size: 16px; font-weight: 700; line-height: 1.25; }
+.rt-back { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: var(--r); background: var(--green); color: #fff; }
+.rt-back span { font-size: 64px; color: #fff; }
+.rt-back b { font-size: 17px; font-weight: 800; line-height: 1.2; }
+
+.rt-non { margin: 10px var(--gut) 0; padding: 16px; border-radius: var(--r); background: var(--cream); }
+.rt-non .lbl { color: var(--ink-2); }
+.rt-non-t { margin-top: 6px; font-size: 20px; font-weight: 800; line-height: 1.2; }
+.rt-non .btn { margin-top: 14px; }
+
+/* The full policy: one plain row, the shape of the home's "All 23 categories". */
+.rt-full { display: flex; align-items: center; justify-content: space-between; min-height: 56px; margin: 10px var(--gut) 0; padding: 0 16px;
+           border-radius: var(--r); background: #fff; font-size: 15px; font-weight: 800; }
+.rt-full span { color: var(--green); font-size: 18px; }

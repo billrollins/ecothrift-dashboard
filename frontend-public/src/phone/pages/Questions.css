@@ -2,7 +2,8 @@
 .qa { background: var(--card); }
 .qa .backrow { background: var(--ground); }
 .qa-hd { background: var(--green); color: #fff; padding: 14px var(--gut) 18px; }
-.qa-hd .lbl { color: var(--lime); }
+.qa .lbl { font-size: 13px; }                     /* 13 px floor for every label on the page */
+.qa-hd .lbl { color: var(--cream); opacity: .85; }
 .qa-hd h1 { font-size: 46px; margin-top: 6px; }
 
 .qa-list { background: var(--card); padding: 2px var(--gut) 4px; }
@@ -10,6 +11,9 @@
 .qa-row:last-child { border-bottom: 0; }
 .qa-q { font-size: 17px; font-weight: 800; line-height: 1.25; }
 .qa-a { margin-top: 4px; font-size: 15px; font-weight: 400; line-height: 1.4; color: var(--ink-2); }
+/* "See the example": opens the one ThriftBucks window over the page (nothing on the page moves). 48 px tall. */
+.qa-ex { display: inline-flex; align-items: center; gap: 6px; min-height: 48px; margin: 0 0 -8px; font-size: 15px; font-weight: 800; color: var(--green); }
+.qa-ex span { font-size: 18px; }
 
 /* Policies: a short block of plain links, one line each */
 .qa-pol { background: var(--card); padding: 18px var(--gut) 6px; border-top: 1px solid var(--line); }
@@ -24,4 +28,4 @@
 .qa-call { background: var(--cream); padding: 22px var(--gut) 26px; }
 .qa-call .lbl { color: var(--ink-2); }
 .qa-call .qa-ph { font-size: 40px; margin-top: 8px; user-select: all; -webkit-user-select: all; }
-.qa-call .fine { margin-top: 8px; color: var(--ink-2); }
+.qa-call .qa-hrs { margin-top: 10px; font-size: 14px; font-weight: 600; line-height: 1.35; color: var(--ink-2); }

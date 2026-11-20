@@ -1,4 +1,4 @@
-/** Small parts the W3 pages (Categories, About, Questions) share: the mockup's Back row. */
+/** Small parts the W3 pages (Categories, About, Questions) share: the mockup's Back row, the week as one line. */
 import { useNavigate } from 'react-router-dom'
 import type { MouseEvent } from 'react'
 
@@ -24,4 +24,9 @@ export function BackRow({ className = '' }: { className?: string }) {
       Back
     </a>
   )
+}
+
+/** The week as one quiet line: "Monday to Saturday 9 AM to 6 PM · Sunday closed". */
+export function hoursLine(rows: Array<[string, string]>): string {
+  return rows.map(([d, t]) => `${d} ${t === 'Closed' ? 'closed' : t}`).join(' · ')
 }

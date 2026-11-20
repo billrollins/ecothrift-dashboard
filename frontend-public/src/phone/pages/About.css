@@ -1,49 +1,14 @@
-/* About (mockup pages/about.html, prefix ab): colour bands, no paragraphs */
+/* About (prefix ab): a green title, three plain white rows, the way onward. No lime (owner 11-20). */
 .ab { background: var(--ground); }
 .ab .backrow { background: var(--ground); }
-.ab-band { display: block; padding: 24px var(--gut) 26px; }
-.ab-go { position: relative; }
-.ab-go .ab-arw { position: absolute; right: var(--gut); top: 24px; font-size: 22px; font-weight: 800; line-height: 1; }
+.ab .lbl { font-size: 13px; }
+.ab-hd { background: var(--green); color: #fff; padding: 14px var(--gut) 20px; }
+.ab-hd .lbl { color: var(--cream); opacity: .85; }
+.ab-hd h1 { margin-top: 8px; font-size: 46px; }
 
-.ab-hero { background: var(--green); color: #fff; }
-.ab-hero .lbl { color: var(--lime); }
-.ab-hero h1 { margin-top: 10px; font-size: 50px; }
-.ab-hero h1 em { font-style: normal; color: var(--lime); }
-.ab-hero .ab-sub { margin-top: 12px; font-size: 16px; font-weight: 600; line-height: 1.3; opacity: .92; }
-.ab-hero .ab-pic { margin-top: 18px; height: 190px; border-radius: var(--r); background: var(--lime); overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
-.ab-hero .ab-pic img { width: 100%; height: 100%; object-fit: contain; padding: 10px 12px 6px; mix-blend-mode: multiply; }
-
-.ab-num { font-size: 92px; }
-.ab-num.mid { font-size: 76px; }
-.ab-unit { margin-top: 4px; font-size: 30px; }
-.ab-note { margin-top: 10px; font-size: 14px; font-weight: 600; }
-.ab-lime { background: var(--lime); color: var(--ink); }
-.ab-lime .lbl { color: var(--green-d); }
-.ab-white { background: #fff; color: var(--ink); }
-.ab-white .ab-arw { color: var(--green); }
-.ab-black { background: #000; color: #fff; }
-.ab-black .ab-num, .ab-black .lbl { color: var(--lime); }
-.ab-green { background: var(--green); color: #fff; }
-.ab-green .lbl { color: var(--lime); }
-.ab-cream { background: var(--cream); color: var(--ink); }
-.ab .lbl + .ab-num, .ab .lbl + .disp { margin-top: 10px; }
-
-.ab-deps { margin-top: 16px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.ab-deps span { aspect-ratio: 1; border-radius: 10px; background: var(--cream); display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.ab-deps img { width: 100%; height: 100%; object-fit: contain; padding: 8px; mix-blend-mode: multiply; }
-
-.ab-truck { display: block; margin-top: 14px; width: 100%; height: 70px; }
-
-.ab-steps { margin-top: 14px; display: grid; gap: 8px; }
-.ab-step { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 12px; background: #fff; border-radius: var(--r); padding: 10px 14px 10px 10px; min-height: 64px; }
-.ab-step b { display: flex; align-items: center; justify-content: center; width: 52px; height: 44px; border-radius: 8px; background: var(--tag-bg); color: var(--tag-num); font-size: 32px; }
-.ab-step span { font-size: 17px; font-weight: 800; line-height: 1.15; }
-.ab-h2 { font-size: 40px; }
-
-.ab-hrs { margin-top: 14px; display: flex; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, .22); font-size: 15px; }
-.ab-hrs b { color: var(--lime); white-space: nowrap; }
-
-.ab-tagline { background: #fff; padding: 30px var(--gut) 34px; }
-.ab-tagline img { height: 46px; width: auto; }
-.ab-tagline p { margin-top: 16px; font-size: 44px; }
-.ab-tagline p em { font-style: normal; color: var(--leaf); }
+.ab-facts { display: grid; gap: 10px; padding: 16px var(--gut) 0; }
+.ab-f { display: block; padding: 14px 16px; border-radius: var(--r); background: #fff; }
+.ab-f b { display: block; font-size: 18px; font-weight: 800; line-height: 1.2; }
+.ab-f span { display: block; margin-top: 4px; font-size: 15px; line-height: 1.35; color: var(--ink-2); }
+.ab-f em { display: flex; align-items: center; min-height: 40px; margin-top: 4px; font-style: normal; font-size: 15px; font-weight: 800; color: var(--green); }
+.ab .info { padding: 22px 0 16px; }
