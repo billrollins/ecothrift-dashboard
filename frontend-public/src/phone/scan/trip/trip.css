@@ -159,10 +159,11 @@ html[data-day="bf"] .tr-ans:not(.tr-ans-0) .tr-big, html[data-day="bf"] .tr-go {
 .tr-sum-n { position: absolute; top: -6px; right: -9px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--lime);
             color: var(--ink); font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; }
 .tr-sum-w { flex: none; margin-left: 4px; font-size: 14px; font-weight: 700; }
-.tr-sum-t { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; white-space: nowrap; overflow: hidden; }
+.tr-sum-t { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 7px; white-space: nowrap; }
 .tr-sum-t b { flex: none; font-stretch: 66%; font-weight: 900; font-size: 20px; color: var(--lime); }
-@media (max-width: 379px) { .tr-sum-w { display: none; } }   /* a small phone: the bag and its count say it */
-.tr-sum-t span { min-width: 0; font-size: 12px; font-weight: 700; opacity: .82; overflow: hidden; text-overflow: ellipsis; }
+/* The words on two lines beside the number, never cut off (Dash Update #185: "ThriftBucks for mem..." with a big total). */
+@media (max-width: 349px) { .tr-sum-w { display: none; } }   /* narrower than any phone we size for: the bag and its count say it */
+.tr-sum-l { flex: none; display: flex; flex-direction: column; font-size: 11.5px; font-weight: 700; line-height: 1.1; opacity: .82; text-align: left; }
 
 /* Undo: a layer over the summary row (it covers, never pushes), for 4.5 s. */
 .tr-undo { position: fixed; z-index: 55; left: 50%; transform: translateX(-50%); width: min(398px, calc(100% - 32px));

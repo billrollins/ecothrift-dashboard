@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { TestTag } from '../api'
 import { bucks } from '../../lib/format'
+import { tagSku } from '../../shell/TopBar'
 import { IconKeyboard } from './icons'
 
 /** The quiet button on the camera that opens the box. */
@@ -26,7 +27,11 @@ export function TypeTagButton({ onClick }: { onClick: () => void }) {
   )
 }
 
-/** The "Tag number" box. `focus`: the keyboard comes up at once (the box was asked for, or type-only mode). */
+/**
+ * The "Tag number" box. `focus`: the keyboard comes up at once (the box was asked for, or type-only mode). The site
+ * shows a tag as "TAG 0156211": 6 or 7 typed digits are read as that tag (`ITM` + 7 digits, as the top bar's search
+ * does), before the scanner reads the code; anything else goes as typed.
+ */
 export function TagForm({ focus, onCode }: { focus: boolean; onCode: (code: string) => void }) {
   const [typed, setTyped] = useState('')
   const input = useRef<HTMLInputElement>(null)
@@ -42,7 +47,7 @@ export function TagForm({ focus, onCode }: { focus: boolean; onCode: (code: stri
         const code = typed.trim()
         if (!code) return
         setTyped('')
-        onCode(code)
+        onCode(tagSku(code) ?? code)
       }}
     >
       <input

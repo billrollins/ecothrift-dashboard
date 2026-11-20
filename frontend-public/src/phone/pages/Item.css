@@ -4,8 +4,10 @@
 .it-top .backrow { flex: none; }
 .it-top .lbl { color: var(--ink-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* The piece's own photo (only when it has one, known at the first paint). */
-.it-pic { position: relative; height: min(260px, 36dvh); background: var(--cream); overflow: hidden; }
+/* The piece's own photo (only when it has one, known at the first paint). On a short phone (360 x 640, 390 x 664) it
+   leaves the name and the price in view without a scroll (Dash Update #185): what is left of the screen under about
+   480 px of bars and words, never under 150 px nor over 260 px. */
+.it-pic { position: relative; height: max(150px, min(260px, 36dvh, 100dvh - 480px)); background: var(--cream); overflow: hidden; }
 .it-pic img { width: 100%; height: 100%; object-fit: contain; }
 .it-pic::after { content: attr(data-cat); position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
                  font-size: 12px; font-weight: 700; color: var(--ink-2); }

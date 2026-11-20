@@ -20,7 +20,7 @@ from django.test import RequestFactory, SimpleTestCase, TestCase, override_setti
 
 import apps.core.middleware as mw
 from apps.core.middleware import (
-    OWNED_PATH_RE, PublicSiteMiddleware, boot_script, is_phone, phone_scan_on, phone_site_on,
+    PublicSiteMiddleware, boot_script, is_phone, phone_owns, phone_scan_on, phone_site_on,
 )
 
 IPHONE = ('Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) '
@@ -36,9 +36,11 @@ PHONE_HTML = '<!doctype html><html><head><!--ECO_BOOT--></head><body><div id="ro
 OWNED = ('/', '/store', '/store/', '/store/item/p123', '/store/item/m45', '/categories', '/thriftplus', '/about',
          '/questions', '/careers', '/menu', '/visit', '/visit/', '/blog', '/blog/a-post', '/terms', '/privacy',
          '/account', '/account/sign-in', '/account/history', '/verify', '/careers/apply', '/careers/interview',
-         '/careers/cashier', '/thriftplus/warranty')
+         '/careers/cashier', '/thriftplus/warranty',
+         # Any other page too: a mistyped address gets the phone site's not-found page (Dash Update #185).
+         '/no-such-page', '/store/other/1', '/a/b/c/')
 # The online store is switched off; its pages stay on the current site.
-NOT_OWNED = ('/hold/abc', '/checkout', '/shop', '/shop/a-lamp', '/store/other/1', '/hold-link-expired')
+NOT_OWNED = ('/hold/abc', '/checkout', '/checkout/', '/shop', '/shop/', '/shop/a-lamp', '/hold-link-expired')
 
 
 class _Files(SimpleTestCase):
@@ -130,6 +132,19 @@ class SwitchOnTests(_Files):
                 self.assertEqual(self.site(self.get(path, ua=ua)), 'phone', path)
             for path in NOT_OWNED:
                 self.assertEqual(self.site(self.get(path, ua=ua)), 'classic', path)
+
+    def test_old_shopify_addresses_still_redirect_first(self):
+        # The legacy 301s run before the phone site decides, for phones as for desktops.
+        for ua in (IPHONE, DESKTOP):
+            for old, new in (('/products/a-lamp', '/shop/a-lamp'), ('/pages/visit-us', '/visit'), ('/cart', '/shop'),
+                             ('/blogs/news/what-we-are-working-on-now', '/blog/turns-two')):
+                response = self.get(old, ua=ua)
+                self.assertEqual((response.status_code, response['Location']), (301, f'http://ecothrift.us{new}'), old)
+
+    def test_a_mistyped_address_on_a_phone_gets_the_phone_site(self):
+        self.assertEqual(self.site(self.get('/no-such-page', ua=IPHONE)), 'phone')
+        self.assertEqual(self.site(self.get('/no-such-page', ua=DESKTOP)), 'classic')
+        self.assertEqual(self.site(self.get('/no-such-page', ua=IPHONE, cookie='classic')), 'classic')
 
     def test_desktops_and_tablets_keep_the_current_site(self):
         for ua in (DESKTOP, IPAD, ''):
@@ -398,9 +413,9 @@ class PhoneDetectTests(SimpleTestCase):
 
     def test_owned_paths_match_the_plan(self):
         for path in OWNED:
-            self.assertTrue(OWNED_PATH_RE.match(path), path)
+            self.assertTrue(phone_owns(path), path)
         for path in NOT_OWNED:
-            self.assertFalse(OWNED_PATH_RE.match(path), path)
+            self.assertFalse(phone_owns(path), path)
 
 
 class SettingTests(TestCase):

@@ -1,19 +1,20 @@
 /**
- * Home 2, best finds (mockup blocks/20-finds.html): a white band, a slider of the feed's `finds`. Photo (the feed's
- * photo when it gives one: a photo-sheet photo or a stock photo, never an Add item photo; the item page carries the stock
- * photo's "may not match" line; else its category's studio picture), name, the tag price, retail struck, and the
- * ThriftBucks on their own line; "Thrift+ members" once in the band. A card opens that piece.
+ * Home 2, best finds (mockup blocks/20-finds.html): a white band, a slider of the feed's `finds`. Photo only when the
+ * piece has its own (the feed's photo: a photo-sheet photo or a stock photo, never an Add item photo; the item page
+ * carries the stock photo's "may not match" line); else, and when that photo fails to load, a calm text tile of the
+ * same size with the category in small capitals (owner 11-19: no stand-in pictures). Then the name, the tag price,
+ * retail struck, and the ThriftBucks on their own line (grey "0.00 ThriftBucks" when none, as the list says it);
+ * "Thrift+ members" once in the band. A card opens that piece.
  */
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useHome, type Find } from '../../lib/boot'
 import { bucks, money } from '../../lib/format'
 import { catName } from '../../lib/stock'
-import { catPic } from '../../shell/pictures'
 import { Tag } from '../../shell/Tag'
 import './Finds.css'
 
-/** The same list, but never two of one category side by side (they would show the same picture). */
+/** The same list, but never two of one category side by side (two text tiles of one name would read as a repeat). */
 export function spread<T extends { cat: string }>(rows: T[]): T[] {
   const left = rows.slice()
   const out: T[] = []
@@ -27,16 +28,16 @@ export function spread<T extends { cat: string }>(rows: T[]): T[] {
 
 function Photo({ f }: { f: Find }) {
   const [missing, setMissing] = useState(false)
-  const pic = catPic(f.cat)
-  const own = f.photo
-  const gone = missing || (!own && !pic)
+  if (!f.photo || missing) {
+    return (
+      <div className="ph-img ph-txt">
+        <span className="lbl ph-cat">{catName(f.cat)}</span>
+      </div>
+    )
+  }
   return (
-    <div className={`ph-img${gone ? ' fd-miss' : ''}`} data-dept={catName(f.cat)}>
-      {own ? (
-        <img src={own} width={150} height={150} alt="" loading="lazy" decoding="async" onError={() => setMissing(true)} />
-      ) : pic ? (
-        <img className="cut" src={pic.src} width={pic.width} height={pic.height} alt="" loading="lazy" decoding="async" onError={() => setMissing(true)} />
-      ) : null}
+    <div className="ph-img">
+      <img src={f.photo} width={150} height={150} alt="" loading="lazy" decoding="async" onError={() => setMissing(true)} />
     </div>
   )
 }
@@ -58,7 +59,7 @@ function Card({ f }: { f: Find }) {
             <span className="if-bf">{b} ThriftBucks off</span>
           </>
         ) : (
-          <span className="fd-none">No ThriftBucks on this one</span>
+          <span className="fd-none">0.00 ThriftBucks</span>
         )}
       </p>
     </Link>

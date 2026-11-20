@@ -18,9 +18,11 @@ type State = { slug: string; post: BlogPostDetail | null; missing: boolean }
 export default function BlogPost() {
   const { slug = '' } = useParams()
   const [state, setState] = useState<State>({ slug: '', post: null, missing: false })
+  const [heroOk, setHeroOk] = useState(true)
 
   useEffect(() => {
     let active = true
+    setHeroOk(true)
     fetchBlogPost(slug)
       .then((post) => {
         if (active) setState({ slug, post, missing: false })
@@ -96,8 +98,16 @@ export default function BlogPost() {
           {post.date ? <span>· {post.date}</span> : null}
         </p>
       </header>
-      {post.hero ? (
-        <img className="bp-hero" src={post.hero.url} alt={post.hero.alt || post.title} width={390} height={219} />
+      {/* A hero that does not load is taken away: no stand-in, no broken-image mark (Dash Update #185). */}
+      {post.hero && heroOk ? (
+        <img
+          className="bp-hero"
+          src={post.hero.url}
+          alt={post.hero.alt || post.title}
+          width={390}
+          height={219}
+          onError={() => setHeroOk(false)}
+        />
       ) : null}
       <div className="lg-body bp-body" dangerouslySetInnerHTML={{ __html: post.body_html }} />
       <div className="bp-end">

@@ -36,6 +36,18 @@ export { TripList } from './TripList'
 
 const quiet = (p: Promise<unknown>) => void p.catch(() => undefined)
 
+/** The total's words on two short lines beside the number ("ThriftBucks" over "for members"), so a 4-digit total
+ *  and "This trip" fit a 360 px phone with nothing cut off (Dash Update #185). One space between, for screen readers. */
+function TwoLines({ words }: { words: string }) {
+  const cut = words.indexOf(' ')
+  if (cut < 0) return <span className="tr-sum-l">{words}</span>
+  return (
+    <span className="tr-sum-l">
+      <span>{words.slice(0, cut)}</span> <span>{words.slice(cut + 1)}</span>
+    </span>
+  )
+}
+
 export default function Trip({ session, onJoin }: TripProps) {
   // The site's top rows are hidden on every /scan view (ScanApp sets `data-scan`), so the camera gets the room.
   const member = session.status === 'member' ? session.member : null
@@ -316,7 +328,7 @@ export default function Trip({ session, onJoin }: TripProps) {
         <span className="tr-sum-w">This trip</span>
         <span className="tr-sum-t tn" data-target="trip-total">
           <b>{total > 0 ? '+' : ''}{bucks(total)}</b>
-          <span>{word}</span>
+          <TwoLines words={word} />
         </span>
         {tripOpen ? <IconUp /> : <IconDown />}
       </button>

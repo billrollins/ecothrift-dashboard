@@ -46,10 +46,17 @@ _HOLD_PATH_RE = re.compile(r'^/hold/(?P<token>[\w-]+)/?$')
 # ── The phone site (owner 2026-11-19; workspace/app-mockups/real-build/PLAN.md "The switch and the preview") ──────
 # A second, lean public entry (frontend-public/phone.html). It answers when the visitor is on a phone AND the switch is
 # on AND the path is one it owns; the cookie lets the owner preview it in production before the switch is on.
-# Keep OWNED_PATH_RE in step with frontend-public/dev-tools/phoneDev.ts.
-OWNED_PATH_RE = re.compile(
-    r'^/(?:store(?:/item/[\w-]+)?|categories|thriftplus(?:/[\w-]+)?|about|questions|careers(?:/[\w-]+)?|menu|visit'
-    r'|terms|privacy|blog(?:/[\w-]+)?|account(?:/[\w-]+)*|verify|sell|order/[\w-]+)?/?$')
+# It owns every page request that reaches it (the pass-throughs, the member app's paths and the old Shopify redirects
+# are handled before) except the online store's own pages, which stay on the current site (switched off; PLAN.md "go
+# 100%"). So a mistyped address on a phone gets the phone site's not-found page (Dash Update #185).
+# Keep CLASSIC_ONLY_RE in step with frontend-public/dev-tools/phoneDev.ts.
+CLASSIC_ONLY_RE = re.compile(r'^/(?:(?:shop|checkout)(?:/.*)?|hold.*)$')
+
+
+def phone_owns(path: str) -> bool:
+    """A page path the phone site answers (for a visitor who gets it): every one but the store's /shop, /checkout,
+    /hold... pages."""
+    return not CLASSIC_ONLY_RE.match(path)
 PHONE_SETTING_KEY = 'storefront.phone_site'  # AppSetting: "off" (default) | "on"
 PHONE_SETTING_SECONDS = 30
 # The second switch (PLAN-SCANNER.md section 5): the Thrift+ scanner at /scan in the phone site, rolled back on its own.
@@ -368,7 +375,7 @@ class PublicSiteMiddleware:
     def _wants_phone(self, request, path: str) -> bool:
         """The cookie decides when set; else a phone gets the phone site when the switch is on. Owned paths only.
         The switch is read only for a phone with no cookie, so a desktop request never costs a query."""
-        if not self.phone_index_path or not OWNED_PATH_RE.match(path):
+        if not self.phone_index_path or not phone_owns(path):
             return False
         choice = cookie_choice(request)
         if choice:

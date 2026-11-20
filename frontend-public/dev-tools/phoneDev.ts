@@ -2,8 +2,8 @@
  * Dev and check tooling for the phone site (not shipped: vite.config.ts loads it; nothing under src/ imports it).
  *
  * phoneDev(): active only on the dev server AND only when ECO_DEV_SITE=phone, so the owner's own dev server is unchanged.
- *   - Serves phone.html for the paths the phone site owns (PLAN.md), with the home feed stamped at <!--ECO_BOOT-->
- *     the way apps/core/middleware.py does it in production.
+ *   - Serves phone.html for every page the phone site owns (all but /shop, /checkout, /hold...), with the home feed
+ *     stamped at <!--ECO_BOOT--> the way apps/core/middleware.py does it in production.
  *   - Answers /api/storefront/home.json and stock.json from the backend (ECOTHRIFT_API_PORT) when it answers, else from
  *     the fixtures in dev-fixtures/ (made from the round-3 mockup's data).
  *   - Fakes /api/thriftplus/public/session/ as a signed-in member when ECO_DEV_MEMBER=1 or the cookie eco_dev_member=1;
@@ -18,9 +18,17 @@ import path from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 
-/** The paths the phone site owns (PLAN.md); keep in step with OWNED_PATH_RE in apps/core/middleware.py. */
-export const OWNED_PATH_RE =
-  /^\/(?:store(?:\/item\/[\w-]+)?|categories|thriftplus(?:\/[\w-]+)?|about|questions|careers(?:\/[\w-]+)?|menu|visit|terms|privacy|blog(?:\/[\w-]+)?|account(?:\/[\w-]+)*|verify|sell|order\/[\w-]+)?\/?$/
+/** The online store's own pages stay on the current site; keep in step with CLASSIC_ONLY_RE in apps/core/middleware.py. */
+export const CLASSIC_ONLY_RE = /^\/(?:(?:shop|checkout)(?:\/.*)?|hold.*)$/
+/** Never a page of the phone site: what production passes through before it decides (the API, files, the short links,
+ *  the member app's /scan/... /qr /card /join, robots and sitemap) and the dev server's own files. */
+const NOT_A_PAGE_RE =
+  /^\/(?:api|static|assets|media|db-admin|i|I|scan|qr|card|join|src|node_modules|@[\w-]+|__[\w-]+)(?:\/|$)|^\/(?:robots\.txt|sitemap\.xml|sms-opt-in\.png)$|\.\w+$/
+
+/** A page the phone site answers (production: apps/core/middleware.py `phone_owns`, after its pass-throughs). */
+export function phoneOwns(p: string): boolean {
+  return !NOT_A_PAGE_RE.test(p) && !CLASSIC_ONLY_RE.test(p)
+}
 
 const BOOT_MARKER = '<!--ECO_BOOT-->'
 
@@ -107,7 +115,7 @@ export function phoneDev(opts: { rootDir: string; apiTarget: string }): Plugin {
             return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(path.resolve(opts.rootDir, 'dev-tools', 'shoot.html'), 'utf8'))
           }
           const wantsHtml = String(req.headers.accept || '').includes('text/html')
-          if (req.method === 'GET' && wantsHtml && OWNED_PATH_RE.test(p)) {
+          if (req.method === 'GET' && wantsHtml && phoneOwns(p)) {
             let html = fs.readFileSync(path.resolve(opts.rootDir, 'phone.html'), 'utf8')
             // Collect page errors for the shoot tool (dev only).
             let stamp = '<script>window.__errs=[];addEventListener("error",function(e){__errs.push((e.message||"error")+" @"+(e.filename||"")+":"+(e.lineno||0))});' +

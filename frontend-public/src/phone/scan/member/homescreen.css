@@ -5,10 +5,16 @@
 .hs-words b { font-size: 14px; font-weight: 800; }
 .hs-words span { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
 
-/* The banner: one row, 64 px tall whatever it says (two lines of words at most), so it never changes its own height. */
-.hs-banner { height: 72px; padding: 0 2px 0 12px; box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
+/* The banner: one row, 72 px tall whatever it says, so it never changes its own height. The title and the line each
+   wrap to two lines inside it, never cut off, down to 360 px with "Show me" (Dash Update #185): a smaller icon and
+   tighter gaps and type than the Account card. */
+.hs-banner { height: 72px; gap: 8px; padding: 0 0 0 10px; box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
+.hs-banner .hs-icon { border-radius: 10px; }
+.hs-banner .hs-words { gap: 1px; line-height: 1.15; }
+.hs-banner .hs-words b { font-size: 13px; }
+.hs-banner .hs-words span { font-size: 12px; }
 .hs-banner .hs-words b, .hs-banner .hs-words span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.hs-banner .hs-words b { -webkit-line-clamp: 1; }
+.hs-banner .hs-go { padding: 0 12px; }
 .hs-go { flex: none; min-height: 44px; padding: 0 16px; font-size: 14px; }
 .hs-dismiss { flex: none; width: 44px; height: 44px; display: grid; place-items: center; color: var(--ink-2); }
 .hs-dismiss svg.i { width: 20px; height: 20px; }

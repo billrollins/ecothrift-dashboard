@@ -53,8 +53,13 @@ function Scroll() {
 }
 
 export default function App() {
-  // The searchable stock loads once, in the background, after the first paint (lib/stock.ts).
-  useEffect(() => loadStockSoon(), [])
+  // The searchable stock loads once, in the background, after the first paint (lib/stock.ts); never while the scanner
+  // starts (it never uses it, and in the store a phone is on cellular: Dash Update #185). Leaving /scan starts it then;
+  // a page that needs it (the list, an item, the categories) asks for it itself.
+  const onScan = useLocation().pathname.replace(/\/$/, '') === '/scan'
+  useEffect(() => {
+    if (!onScan) loadStockSoon()
+  }, [onScan])
   return (
     <div className="ph">
       <Scroll />

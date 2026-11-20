@@ -361,15 +361,16 @@ describe('Sign in and join: Google, an email or a phone, and a code (Join v2, ow
       expect(where()).toBe('')
     })
 
-    it('Sign out leaves the screen', async () => {
+    it('Sign out leaves the screen, and the address becomes a bare /scan (Dash Update #185)', async () => {
       const user = userEvent.setup()
       fake.requestSignInEmail('dana@example.com')
-      renderScan(`/scan?signin=${fake.outbox()[0].token}`)
+      renderScan(`/scan?signin=${fake.outbox()[0].token}&view=finish`)
       const add = await screen.findByTestId('add-phone')
       await user.click(within(add).getByRole('button', { name: 'Sign out' }))
       expect(await screen.findByRole('button', { name: 'Send my code' })).toBeInTheDocument()
       expect(screen.queryByTestId('add-phone')).toBeNull()
       expect(fake.isSignedIn()).toBe(false)
+      await waitFor(() => expect(where()).toBe(''))
     })
 
     it('a member who joined with a phone is never asked', async () => {

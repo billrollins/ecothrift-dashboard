@@ -9,7 +9,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useQrCamera } from '../core'
+import { classifyCode, useQrCamera } from '../core'
 import type { UprightLock } from '../contracts'
 import { _resetApi } from '../api'
 import { _resetScanStore } from '../store'
@@ -249,13 +249,27 @@ describe('The live camera window (piece S3)', () => {
     await user.click(screen.getByRole('button', { name: 'Look up' }))
     expect(onCode).not.toHaveBeenCalled() // nothing typed: nothing sent
     await user.type(box, '  0183652 {Enter}')
-    expect(onCode).toHaveBeenCalledWith('0183652')
+    expect(onCode).toHaveBeenCalledWith('ITM0183652') // the tag number the site shows, read as the tag
     expect(screen.queryByLabelText('Tag number')).toBeNull()
     expect(screen.getByTestId('zoom-pill')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Type tag #/ }))
     await user.click(screen.getByRole('button', { name: 'Back to the camera' }))
     expect(screen.queryByLabelText('Tag number')).toBeNull()
     expect(onCode).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads 6 or 7 typed digits as the tag the site shows ("TAG 0156211"); anything else goes as typed (Dash Update #185)', async () => {
+    const onCode = vi.fn()
+    const user = userEvent.setup()
+    render(<Scanner typeOnly onCode={onCode} />)
+    const box = await screen.findByLabelText('Tag number')
+    for (const typed of ['0156211', '156211', 'ITM0156211', 'itm0156211', '12345', '01562110', '0156 211']) {
+      await user.type(box, `${typed}{Enter}`)
+    }
+    const sent = onCode.mock.calls.map((c) => c[0])
+    expect(sent).toEqual(['ITM0156211', 'ITM0156211', 'ITM0156211', 'itm0156211', '12345', '01562110', '0156 211'])
+    // What the scanner then reads: our price tag, not "That's not our price tag".
+    for (const code of sent.slice(0, 4)) expect(classifyCode(code)).toMatchObject({ kind: 'tag', sku: 'ITM0156211' })
   })
 
   it('Restart starts the camera again; a second tap within 10 s reloads the page (owner 2026-10-16)', async () => {

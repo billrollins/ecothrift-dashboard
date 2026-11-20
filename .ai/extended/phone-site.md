@@ -47,8 +47,8 @@ seen by him alone until he says go ("i want access and no normal visitors to see
 ## Who gets it (`apps/core/middleware.py`)
 
 - AppSetting **`storefront.phone_site`** (`"off"` default | `"on"`): a phone (`Mobi` in the User-Agent) gets the phone entry
-  on the paths it owns (`OWNED_PATH_RE`: every customer path except `/shop`, `/checkout`, `/hold`, whose store is switched
-  off). AppSetting **`storefront.phone_scan`** (`"off"` | `"on"`): with both on, a phone's `/scan` is the phone scanner. Each
+  on every page path (`phone_owns`) except `/shop`, `/checkout`, `/hold...` (`CLASSIC_ONLY_RE`; that store is switched
+  off), so a mistyped address gets the phone site's not-found page. The pass-throughs and the old Shopify 301s run first. AppSetting **`storefront.phone_scan`** (`"off"` | `"on"`): with both on, a phone's `/scan` is the phone scanner. Each
   is read through a 30-second in-process cache. Neither is seeded: absent = off.
 - **The owner's preview:** `python manage.py phone_preview_link` prints `https://ecothrift.us/?site=phone&k=<signed key>`.
   Opening it within a week sets the cookie `eco_site` to that key (httpOnly, 30 days): that browser, phone or computer, gets

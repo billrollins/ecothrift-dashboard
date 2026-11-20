@@ -168,10 +168,23 @@ function snapshot() {
 
 /** Start loading after the browser is idle (after the first paint), so it never competes with the first screen. */
 export function loadStockSoon() {
-  if (stock || inflight || typeof window === 'undefined') return
+  if (typeof window === 'undefined') return
+  watchVisibility()
+  if (stock || inflight) return
   const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }
   if (w.requestIdleCallback) w.requestIdleCallback(() => void loadStock(), { timeout: 1500 })
   else window.setTimeout(() => void loadStock(), 200)
+}
+
+/** A shopper who comes back to the tab gets a fresh list: when the copy is older than two minutes, ask again with the
+ *  ETag (a 304 when nothing changed, so it costs almost nothing). Set up once. */
+let watching = false
+function watchVisibility() {
+  if (watching || typeof document === 'undefined') return
+  watching = true
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && stock && Date.now() - fetchedAt >= REVALIDATE_MS) void loadStock()
+  })
 }
 
 /** `{stock, ready}`: the stock once it is here. Loads it in the background on first use. */

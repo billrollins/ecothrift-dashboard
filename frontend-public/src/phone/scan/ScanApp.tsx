@@ -123,6 +123,15 @@ export default function ScanApp() {
   }, [screen.kind, view, setParams])
 
   const signOut = useAction(actions.signOut)
+  // Sign out (Finish joining, Add your mobile number): the address goes back to a bare /scan with the sign-in screen,
+  // never /scan?view=finish over sign-in (Dash Update #185). Cleared once the sign-out has landed, so the screen that
+  // was up cannot put its own view back first.
+  const leave = () => {
+    void signOut.run(undefined).then(
+      () => setParams(new URLSearchParams(), { replace: true }),
+      () => undefined,
+    )
+  }
 
   let body
   switch (screen.kind) {
@@ -139,14 +148,14 @@ export default function ScanApp() {
       body = <Navigate to={screen.to} replace />
       break
     case 'phone':
-      body = <AddPhone firstName={screen.member.first_name} onSignOut={() => signOut.fire(undefined)} />
+      body = <AddPhone firstName={screen.member.first_name} onSignOut={leave} />
       break
     case 'finish':
       body = (
         <FinishJoining
           member={screen.member}
           onDone={() => setParams({ view: 'qr' }, { replace: true })}
-          onSignOut={() => signOut.fire(undefined)}
+          onSignOut={leave}
         />
       )
       break

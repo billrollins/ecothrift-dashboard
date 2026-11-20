@@ -12,9 +12,11 @@ import './legal/legal.css'
 import './legal/blog.css'
 
 export function PostCard({ post, eager = false }: { post: BlogPostSummary; eager?: boolean }) {
+  // A hero that fails to load is removed, never a broken-image icon (as on the post page).
+  const [heroOk, setHeroOk] = useState(true)
   return (
     <Link className="bl-card" to={`/blog/${post.slug}`}>
-      {post.hero ? (
+      {post.hero && heroOk ? (
         <img
           className="bl-pic"
           src={post.hero.url}
@@ -23,6 +25,7 @@ export function PostCard({ post, eager = false }: { post: BlogPostSummary; eager
           height={201}
           loading={eager ? 'eager' : 'lazy'}
           decoding="async"
+          onError={() => setHeroOk(false)}
         />
       ) : null}
       <span className="bl-txt">

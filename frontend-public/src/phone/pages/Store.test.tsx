@@ -42,18 +42,18 @@ describe('Store listing (logic)', () => {
     expect(view('where=x&sort=y').sort).toBe('best')
   })
 
-  it('shows the true shelf count and the coming rows with nothing typed; empty categories are left out, mixed lots last', () => {
+  it('shows the true shelf count and the coming pieces with nothing typed; empty categories are left out, mixed lots last', () => {
     const l = listing(stock, view(''), 35098)
-    expect(l.counts).toEqual({ instore: 35098, coming: 2 })
+    expect(l.counts).toEqual({ instore: 35098, coming: 4 }) // pieces: the two truck rows hold 1 + 3
     expect(l.chips.map((c) => c.id)).toEqual(['kitchen', 'decor', 'furniture', 'other'])
     expect(l.chips[0].n).toBe(2149)
     expect(l.rows).toHaveLength(73)
   })
 
-  it('counts matches for both lists when there is a search or a category', () => {
+  it('counts matching pieces (not product rows) for both lists when there is a search or a category', () => {
     const l = listing(stock, view('q=lamp'), 35098)
-    expect(l.counts).toEqual({ instore: 1, coming: 0 })
-    expect(l.chips).toEqual([{ id: 'decor', name: 'Home décor & lighting', n: 1 }])
+    expect(l.counts).toEqual({ instore: 53, coming: 0 }) // one row, 53 on the shelf
+    expect(l.chips).toEqual([{ id: 'decor', name: 'Home décor & lighting', n: 53 }])
     const c = listing(stock, view('cat=furniture'), 35098)
     expect(c.counts).toEqual({ instore: 195, coming: 1 })
     expect(c.rows.map((r) => r.id)).toEqual(['p3'])
@@ -61,6 +61,7 @@ describe('Store listing (logic)', () => {
 
   it('opens Coming when only the trucks match a search and no list was asked for', () => {
     expect(listing(stock, view('q=chandelier'), null).where).toBe('coming')
+    expect(listing(stock, view('q=chandelier'), null).counts.coming).toBe(3)
     expect(listing(stock, view('where=instore&q=chandelier'), null).where).toBe('instore')
   })
 
@@ -126,7 +127,19 @@ describe('Store page', () => {
     expect(container.querySelectorAll('a.sh-r')).toHaveLength(30)
     fireEvent.click(screen.getByText('Show 30 more'))
     expect(container.querySelectorAll('a.sh-r')).toHaveLength(60)
-    expect(screen.getByText('35,098')).toBeInTheDocument()
+    expect(screen.getAllByText('35,098')).toHaveLength(2) // the switch and the result line, in pieces
+  })
+
+  it('the result line counts pieces, in the same unit as the switch and the chips (Dash Update #185)', () => {
+    const { container, unmount } = page('/store?cat=kitchen')
+    expect(container.querySelector('.sh-n')?.textContent).toBe('2,149 pieces')
+    expect(container.querySelector('.sh-chips [aria-pressed="true"] .cnt')?.textContent).toBe('2,149')
+    unmount()
+    const lamp = page('/store?q=lamp')
+    expect(lamp.container.querySelector('.sh-n')?.textContent).toBe('53 pieces for “lamp”')
+    expect(lamp.container.querySelector('.sh-sw [aria-pressed="true"] .cnt')?.textContent).toBe('53')
+    lamp.unmount()
+    expect(page('/store?q=planked').container.querySelector('.sh-n')?.textContent).toBe('1 piece for “planked”')
   })
 
   it('a row states its ThriftBucks, the units, and opens its piece', () => {

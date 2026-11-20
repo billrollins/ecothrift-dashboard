@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import Blog from './Blog'
 import BlogPost from './BlogPost'
@@ -70,6 +70,24 @@ describe('Blog post', () => {
     expect(api.fetchBlogPost).toHaveBeenCalledWith('why-we-sort')
     expect(container.querySelector('.bp-body h2')?.textContent).toBe('A heading')
     expect(container.querySelector('a[href="/blog"]')).not.toBeNull()
+  })
+
+  it('takes away a hero image that does not load, with no stand-in (Dash Update #185)', async () => {
+    api.fetchBlogPost.mockResolvedValue({
+      ...SUMMARY,
+      hero: { id: 1, url: '/media/gone.jpg', alt: 'A truck' },
+      body_html: '<p>First line.</p>',
+      author_role: 'Owner',
+      meta_title: '',
+      meta_description: '',
+    })
+    const { container } = renderAt('/blog/why-we-sort')
+    const hero = await screen.findByAltText('A truck')
+    expect(hero).toHaveClass('bp-hero')
+    fireEvent.error(hero)
+    expect(container.querySelector('.bp-hero')).toBeNull()
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.querySelector('.bp-body')?.textContent).toBe('First line.')
   })
 
   it('shows not found for a missing post', async () => {

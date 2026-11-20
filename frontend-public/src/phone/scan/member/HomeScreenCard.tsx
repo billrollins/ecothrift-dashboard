@@ -124,7 +124,7 @@ export function HomeScreenCard({ variant }: HomeScreenCardProps) {
     <>
       {way && !dismissed && !isStandalone() ? (
         <div className={banner ? 'hs hs-banner' : 'hs hs-acct'} data-testid={banner ? 'home-banner' : 'home-card'}>
-          <AppIcon size={banner ? 44 : 56} />
+          <AppIcon size={banner ? 36 : 56} />
           <div className="hs-words">
             <b>{TITLE}</b>
             <span>{WHY}</span>

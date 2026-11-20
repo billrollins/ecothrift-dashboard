@@ -4,7 +4,6 @@
 .cm .sh .cm-n { font-size: 13px; font-weight: 700; color: var(--lime); white-space: nowrap; }
 .cm .rail { padding-bottom: 2px; }
 .cm .pc .ph-img { background: var(--cream); }
-.cm .pc .ph-img img.cut { mix-blend-mode: multiply; }
 .cm .cm-chip { position: absolute; left: 8px; bottom: 8px; background: #000; color: var(--lime); border-radius: 6px; padding: 4px 7px 3px;
                font-size: 10px; letter-spacing: .08em; }
 .cm .pc .nm { color: #fff; }

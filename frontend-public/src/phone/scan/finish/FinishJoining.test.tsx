@@ -134,6 +134,8 @@ describe('Finish joining (C7)', () => {
     await user.click(within(finish).getByRole('button', { name: 'Sign out' }))
     await waitFor(() => expect(screen.queryByTestId('finish-joining')).toBeNull())
     expect(fake.isSignedIn()).toBe(false)
+    // The address is a bare /scan with sign-in, never ?view=finish over it (Dash Update #185).
+    await waitFor(() => expect(where()).toBe(''))
   })
 
   it('the selfie camera opens in the app with an oval to fit the face in (:703, owner 2026-10-19)', async () => {

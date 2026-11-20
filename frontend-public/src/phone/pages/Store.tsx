@@ -38,9 +38,22 @@ export function readView(params: URLSearchParams): View {
   }
 }
 
+/** The pieces a row stands for: its units in store, its quantity on a truck (at least one). */
+export function piecesOf(r: Row): number {
+  return Math.max(1, (r.where === 'coming' ? r.qty : r.units) || 0)
+}
+
+/** The pieces in a list of rows. */
+export function pieces(rows: Row[]): number {
+  let n = 0
+  for (const r of rows) n += piecesOf(r)
+  return n
+}
+
 /**
- * Everything the list shows, from the stock in memory. `shelfPieces` is the true count of pieces on the shelf (home
- * feed); the stock holds one row per product, so with nothing typed the switch and the chips show the true counts.
+ * Everything the list shows, from the stock in memory. Every count is in pieces, never product rows (Dash Update
+ * #185: the switch, the chips and the result line agree): a row counts its units (a truck row its quantity).
+ * `shelfPieces` is the true count of pieces on the shelf (home feed), used with nothing typed and no category.
  */
 export function listing(stock: Stock, v: View, shelfPieces: number | null): Listing {
   const { q, cat, sort } = v
@@ -57,7 +70,7 @@ export function listing(stock: Stock, v: View, shelfPieces: number | null): List
 
   const n: Record<string, number> = {}
   if (where === 'instore' && !q) for (const c of stock.cats) n[c.id] = c.pieces || 0
-  else for (const r of base) n[r.cat] = (n[r.cat] || 0) + 1
+  else for (const r of base) n[r.cat] = (n[r.cat] || 0) + piecesOf(r)
   const chips = stock.cats
     .filter((c) => n[c.id] || c.id === cat)
     .map((c) => ({ id: c.id, name: c.name, n: n[c.id] || 0 }))
@@ -65,10 +78,10 @@ export function listing(stock: Stock, v: View, shelfPieces: number | null): List
 
   const truePieces = shelfPieces ?? stock.cats.reduce((sum, c) => sum + (c.pieces || 0), 0)
   const countFor = (w: Where): number => {
-    if (!q && !cat) return w === 'instore' ? truePieces : stock.coming.length
+    if (!q && !cat) return w === 'instore' ? truePieces : pieces(stock.coming)
     if (!q && w === 'instore') return stock.cats.find((c) => c.id === cat)?.pieces || 0
-    if (w === where) return rows.length
-    return find(w, { q, cat }, stock).length
+    if (w === where) return pieces(rows)
+    return pieces(find(w, { q, cat }, stock))
   }
   return { where, rows, counts: { instore: countFor('instore'), coming: countFor('coming') }, chips }
 }
@@ -262,7 +275,10 @@ export default function Store() {
           <span className="sh-n tn">
             {list ? (
               <>
-                <b>{count(list.rows.length)}</b> {v.q ? `for “${v.q}”` : list.rows.length === 1 ? 'result' : 'results'}
+                <span>
+                  <b>{count(list.counts[where])}</b> {list.counts[where] === 1 ? 'piece' : 'pieces'}
+                </span>
+                {v.q ? <span>{` for “${v.q}”`}</span> : null}
               </>
             ) : null}
           </span>
