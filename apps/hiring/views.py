@@ -9,6 +9,7 @@ from django.db.models import Count, Prefetch, Q
 from django.http import Http404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
@@ -234,11 +235,44 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         application = self.get_object()
         data = request.data
         send = data.get('send') in (True, 'true', '1', 1)
+        drafted = None
+        if data.get('ai_job'):  # Dash #192: the email started from the AI's draft, not the reason's template
+            from apps.hiring import reply
+
+            drafted = reply.drafted(application, data.get('ai_job'))
+            if drafted is None:
+                raise ValidationError({'detail': 'That draft is gone. Write it again.'})
+        text = compose.parse_text(data.get('text'), compose.Review()).text_body
         services.mark_not_now(
             application, reason=data.get('reason') or '', note=data.get('note') or '', send=send,
             subject=data.get('subject') or '', body=data.get('body') or '', by=request.user,
+            drafted=drafted, text=text,
         )
         return Response(ApplicationDetailSerializer(self._fresh(application)).data)
+
+    @action(detail=True, methods=['post'], url_path='reply-draft')
+    def reply_draft(self, request, pk=None):
+        """Follow up / Not now (Dash #192): the AI writes the email and a text from what staff typed. Poll
+        hiring/ai/<id>/; the result is the review's email and text drafts. Nothing is saved or sent."""
+        from apps.hiring import reply
+
+        application = self.get_object()
+        data = request.data if isinstance(request.data, dict) else {}
+        job = reply.start_draft(application, which=str(data.get('which') or ''), context=str(data.get('context') or ''),
+                                reason=str(data.get('reason') or ''), user=request.user)
+        return Response({'id': str(job.pk), 'status': job.status}, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=True, methods=['post'], url_path='follow-up')
+    def follow_up(self, request, pk=None):
+        """Send the reviewed follow-up: ``ai_job``, ``email`` ({subject, body} or {skip}), ``text`` ({body} or
+        {skip}). From our mailbox and our number; logged on the application."""
+        from apps.hiring import reply
+
+        application = self.get_object()
+        data = request.data if isinstance(request.data, dict) else {}
+        result = reply.send_follow_up(application, job_id=data.get('ai_job'), email=data.get('email'),
+                                      text=data.get('text'), by=request.user)
+        return Response({**result, 'application': ApplicationDetailSerializer(self._fresh(application)).data})
 
     @action(detail=True, methods=['post'], url_path='texts-stop')
     def texts_stop(self, request, pk=None):

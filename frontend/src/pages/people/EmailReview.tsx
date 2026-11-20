@@ -62,13 +62,17 @@ export function EmailCompose({
         {row('From', draft.from)}
         {row(
           'Words from',
-          <>
-            {draft.source}.{' '}
-            <Link href={`/people/emails?key=${encodeURIComponent(draft.key)}`} target="_blank" rel="noopener" sx={{ whiteSpace: 'nowrap' }}>
-              Edit the template
-              <OpenInNewIcon sx={{ fontSize: 13, ml: 0.25, verticalAlign: '-2px' }} />
-            </Link>
-          </>,
+          draft.ai ? (
+            draft.source
+          ) : (
+            <>
+              {draft.source}.{' '}
+              <Link href={`/people/emails?key=${encodeURIComponent(draft.key)}`} target="_blank" rel="noopener" sx={{ whiteSpace: 'nowrap' }}>
+                Edit the template
+                <OpenInNewIcon sx={{ fontSize: 13, ml: 0.25, verticalAlign: '-2px' }} />
+              </Link>
+            </>
+          ),
         )}
         {draft.attachments.length > 0 &&
           row(
@@ -85,6 +89,8 @@ export function EmailCompose({
           Practice run: the subject starts with [Practice] and a first line says it is a practice.
         </Alert>
       )}
+      {/* The chip legend only where Dash fills values in (an AI draft has none). */}
+      {Object.keys(draft.values).length > 0 && (
       <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', mb: 1.5, fontSize: 12, color: ccTokens.ink2 }}>
         <span>
           <span className="ef-chip ef-swatch">Dana</span> filled in by Dash (tap to type over)
@@ -93,6 +99,7 @@ export function EmailCompose({
           <span className="ef-typed ef-swatch">Dana B.</span> typed over: no longer from Dash
         </span>
       </Box>
+      )}
       <EmailEditor
         label="Subject"
         template={draft.subject}
@@ -133,7 +140,7 @@ export function EmailCompose({
           </>
         ) : (
           <Typography variant="caption" color="text.secondary">
-            The template&rsquo;s words, as they will go out.
+            {draft.ai ? 'The AI’s words, as they will go out.' : 'The template’s words, as they will go out.'}
           </Typography>
         )}
       </Box>
@@ -224,7 +231,7 @@ export function CallOutSection({
 }
 
 /** The text that goes with the email (Phase 6): read it, edit it, or send no text this time. */
-function TextSection({
+export function TextSection({
   draft,
   on,
   onToggle,

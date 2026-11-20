@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.322.0] -->
-<!-- Last reviewed: 2026-11-20 (2.322.0) -->
+<!-- Line 1 release: ## [2.324.1] -->
+<!-- Last reviewed: 2026-11-20 (2.324.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,58 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.324.1] - 2026-11-20
+
+User-facing theme: **The order window's empty Manifest card takes a dropped file again.**
+
+> **For Bill:** When an order has no manifest, the Manifest card in the order window is a drop box again, like the old order page: drag a CSV or TSV onto it, or click it to browse. Staff still just see "No manifest yet."
+
+User-facing theme: **The order window's empty Manifest card takes a dropped file again.**
+
+> **For Bill:** When an order has no manifest, the Manifest card in the order window is a drop box again, like the old order page: drag a CSV or TSV onto it, or click it to browse. Staff still just see "No manifest yet."
+
+### Fixed (Order window: manifest drop box)
+- `OrderCard.tsx`: with no manifest, the owner's Manifest card is a dashed drop zone (drag a CSV/TSV or click to browse; Enter/Space too), restored from the retired order page (v2.323.0). Test: `OrderVendorCards.test.tsx` drops a file and checks the upload.
+
+## [2.324.0] - 2026-11-20
+
+User-facing theme: **Receipts: the Thrift+ block shows ThriftBucks today with their expiry, the balance and a QR to ecothrift.us (print server 1.10.0); applicants get AI-written Follow up and Not now emails and texts.**
+
+> **For Bill:** Member receipts now show today's ThriftBucks with their expiry date, the member's balance, and www.ecothrift.us with a QR; the fine print is gone. It reaches the registers when print server 1.10.0 is installed on each one. On any applicant there is now a Follow up button next to Not now. Type or paste what you want to tell them, press Write it with AI, and the email (and a short text) opens in the usual review: edit, Send or Cancel. It goes from our hiring mailbox (and our number, only to people who ticked the text box) and shows on their history. Not now has the same box: pick the reason, type what to tell them, and the AI's email replaces the standard one ("Use the standard email" goes back).
+
+User-facing theme: **Receipts: the Thrift+ block shows ThriftBucks today with their expiry, the balance and a QR to ecothrift.us (print server 1.10.0); applicants get AI-written Follow up and Not now emails and texts.** (Dash Updates #193, #192)
+
+> **For Bill:** Member receipts now show today's ThriftBucks with their expiry date, the member's balance, and www.ecothrift.us with a QR; the fine print is gone. It reaches the registers when print server 1.10.0 is installed on each one. On any applicant there is now a Follow up button next to Not now. Type or paste what you want to tell them, press Write it with AI, and the email (and a short text) opens in the usual review: edit, Send or Cancel. It goes from our hiring mailbox (and our number, only to people who ticked the text box) and shows on their history. Not now has the same box: pick the reason, type what to tell them, and the AI's email replaces the standard one ("Use the standard email" goes back).
+
+### Changed
+- **Receipts: the Thrift+ member block says what is worth knowing** (Dash Update #193; print server 1.10.0). The block now reads "+13.68 ThriftBucks today, expires Dec 20" (a redeemed-instantly trip keeps its "-35.00 ThriftBucks instantly: $17.50 off"), "Your balance: 42.10 ThriftBucks" (after this sale; a Thrift+ credit line only when there is credit), "See expiration details and more at www.ecothrift.us" and a QR to the website. The fine print paragraph and the block's "35.00 used" are gone (ThriftBucks used stays above Subtotal). Non-member and return receipts keep their blocks (a return prints no balance). Dash sends the same payload; the change is in the print server, which needs a release and an install on each register.
+
+### Added (Applicants: Follow up / Not now written by AI)
+- `apps/hiring/reply.py`: an AI draft (`HiringAiJob` kind `reply`, migration `hiring 0022`, background run polled like the other hiring AI) from staff's words, the application (roles, stage, answers, flags from `callouts`, interviews, latest history) and the store facts (one location from the careers file, the store hours setting); Sonnet 5.5 at medium; house voice from the Not now template; braces and the AI's own sign-off stripped, then the presser's name and the house sign-off. The result is the review's email draft (`ai: true`, no template link) and a text draft (`texts.draft_words`: offered only with their tick; practice, no number, no tick or stopped say why).
+- `POST hiring/applications/<id>/reply-draft/` (`which` follow_up / not_now, `context`, `reason`), `POST .../follow-up/` (`ai_job`, `email`, `text`): mails through `emails.send`, logs "Emailed: Follow-up email" with the words and the notes it came from; the stage stays. Not now keeps its one path: `not-now/` takes `ai_job` (the email's edits are measured against the AI's words) and `text`, sent through `texts.send_words` → `texting.service.send` (consent checked there).
+- Applicant page: Follow up on every stage; `FollowUpDialog` and `AiWriteBox` (`ReplyUi.tsx`, fixed-height status line, "Writing… Ns"); the Not now dialog gets the same box, the text block and "Send email and text". The review hides the "filled in by Dash" legend when an email has no Dash values. Tests `test_reply.py` (AI mocked) and `replyUi.test.tsx`.
+
+## [2.323.0] - 2026-11-20
+
+User-facing theme: **One order window for everyone: it shows everything, and the owner edits right in it (auto-save). The order edit page and its intake drawer (undo, delete) are gone.**
+
+> **For Bill:** Click an order and you see it all: the dates and the step it is on (All dates opens every date and time), costs with margin, units, and the manifest (file, day, rows, categories, value; the file opens the preview/download). You click any value to change it and it saves itself: no Edit, no Save. Staff see the same window read only and change orders through their pages (Receiving and so on). The intake timeline drawer, its undo steps, manifest remove and Delete are gone, and so are Preprocessing's "Undo" and "Rewind finalize" buttons that opened it; ask Claude Code for those cleanups.
+
+User-facing theme: **One order window for everyone: it shows everything, and the owner edits right in it (auto-save). The order edit page and its intake drawer (undo, delete) are gone.** (Dash Update #191, Item-style windows)
+
+> **For Bill:** Click an order and you see it all: the dates and the step it is on (All dates opens every date and time), costs with margin, units, and the manifest (file, day, rows, categories, value; the file opens the preview/download). You click any value to change it and it saves itself: no Edit, no Save. Staff see the same window read only and change orders through their pages (Receiving and so on). The intake timeline drawer, its undo steps, manifest remove and Delete are gone, and so are Preprocessing's "Undo" and "Rewind finalize" buttons that opened it; ask Claude Code for those cleanups.
+
+### Changed (Order window: the only order view)
+- `OrderCard.tsx`: reads `/card/` and `detail-surface`. Header with the step buttons (Start Preprocessing, Receiving, Start Processing, Finish truck, Close the truck, Truck Plan; same gates as before). Lifecycle: the five dates, "Current" on the last step done, the later steps, and **All dates** (created, manifest uploaded, standardized, AI cleanup, review saved, finalized, receiving, processing, truck finalized, claim filed, closed, last changed); Lifecycle has its own column (last on a phone), so opening it moves nothing else. Costs (purchase, fees, shipping, total, retail, margin, est. shrink, Truck Plan), Units (condition, items, pallets, manifest, where), Manifest (upload when none, owner only), notes/claims.
+- Read and edit look the same: `InlineEditableValue` shows the value in the surrounding font; for the owner (superuser, not viewing as) a click turns it into an input in place (text, money, count, date, condition list); Enter or leaving saves, Escape puts it back. `useOrderAutosave` sends one PATCH after half a second of quiet (dates set the status while ordered → delivered, as before), refreshes the window, flashes green or red.
+
+### Removed
+- `OrderDetailPage.tsx` (the order edit page) and `OrderIntakeTimelineDrawer.tsx` (intake timeline, undo to a step, remove manifest, purge delete), with their frontend hooks and API calls. Preprocessing's "Undo" (standardize) and "Rewind finalize…" buttons, which opened that drawer. The server endpoints stay for Claude Code cleanups: `undo-preview/`, `undo/`, `delete-preview/`, `purge-delete/`, `remove-manifest/`.
+- Shared order rules now in `components/inventory/orderDetail/orderSteps.ts`. No API change: `detail-surface` already carries every field. Tests: `test_po_manifest_meta_surface.py` (the fields the window reads), `OrderVendorCards.test.tsx` (lifecycle, costs, manifest with and without, All dates, staff read only, owner edit saves).
+
+### Fixed (housekeeping)
+- `apps/hiring/callouts.py` and its tests wrote en/em dashes as typed characters, failing `apps/routines/tests.py` NoDashesTests (red on main since v2.318.0); they are now `\u2013` / `\u2014` escapes. Flags read the same.
 
 ## [2.322.0] - 2026-11-20
 

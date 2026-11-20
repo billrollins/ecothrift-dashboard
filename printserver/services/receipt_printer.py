@@ -73,6 +73,12 @@ THRIFT_PLUS_TERMS_LINE = (
     "ThriftBucks are Thrift+ rewards. Use them starting tomorrow; they expire 30 days after you collect them. "
     "No cash value. Terms: ecothrift.us/terms"
 )
+# Owner 2026-11-20 (Dash Update #193): the member block says what is worth knowing, and the fine print goes ("so fine
+# print can go"). B12's terms now sit behind the website line and its QR; THRIFT_PLUS_TERMS_LINE is no longer printed.
+THRIFT_PLUS_SITE_LEAD = "See expiration details and more at"
+THRIFT_PLUS_SITE = "www.ecothrift.us"
+# The QR under the member block: upper case so it packs as alphanumeric (a smaller code, bigger dots on the tape).
+THRIFT_PLUS_SITE_QR = "HTTPS://WWW.ECOTHRIFT.US"
 THRIFT_PLUS_RETURNS_LINE = (
     "Thrift+ 3-day returns: lines marked 3-day return, any reason, 80% back as Thrift+ credit."
 )
@@ -467,12 +473,13 @@ def _bucks_used_row(data: dict[str, Any]) -> tuple[str, str] | None:
 
 def _bottom_block(data: dict[str, Any]) -> tuple[str, list[tuple[str, bool]], list[str]]:
     """The black block at the bottom of every receipt (owner 2026-10-16): (head, lines as (text, bold), fine print).
-    No balances (owner: "do not say anything about balance").
 
-    - A member: "THRIFT+ MEMBER Pat" (the first name, or the words alone; no card, no last 4); "You collected 20.00
-      ThriftBucks, use by Nov 19" and/or "You used 35.00 ThriftBucks" (or "You used 35.00 ThriftBucks instantly:
-      $17.50 off"); "You have 2 items that qualify for 3-day returns"; "SOLD AS IS unless marked 3-day return"; then
-      B12 word for word in small type.
+    - A member (owner 2026-11-20, Dash Update #193: "more valuable info and less not value"): "THRIFT+ MEMBER Pat"
+      (the first name, or the words alone; no card, no last 4); "+20.00 ThriftBucks today, expires Dec 20" (or
+      "-35.00 ThriftBucks instantly: $17.50 off"); "Your balance: 42.10 ThriftBucks" (the total after this sale, when
+      the payload has balances) and "Thrift+ credit: $40.00" only when there is credit; "See expiration details and
+      more at" / "www.ecothrift.us", and the QR to it (``_block_qr``). No fine print, and no "used" here: ThriftBucks
+      used is a row above Subtotal.
     - A non-member: "NON-MEMBER", "You missed out on 12.60 ThriftBucks and 1 item that qualifies for a 3-day return",
       how to join, "All sales final. Sold AS IS."
     - No Thrift+ on the payload (Thrift+ off, an old dashboard): the NO REFUNDS block as before.
@@ -500,23 +507,48 @@ def _bottom_block(data: dict[str, Any]) -> tuple[str, list[tuple[str, bool]], li
 
     member = _tp_member(data)
     head = f"{BLOCK_HEAD_MEMBER} {member}" if member else BLOCK_HEAD_MEMBER
-    # Today's ThriftBucks on one line (owner 2026-10-16: no use-by date, no balances):
-    # "+20.00 ThriftBucks today · 35.00 used" (no minus, owner 2026-10-16), or "-35.00 ThriftBucks instantly: $17.50 off".
     instant_off = _tp_amount(tp, "instant_off")
     instant_bucks = _tp_amount(tp, "instant_bucks")
     collected = _tp_amount(tp, "collected")
-    used = _tp_amount(tp, "bucks_used")
-    parts = []
+    lines = []
     if instant_off > 0 or instant_bucks > 0:  # one choice per trip (B1): redeemed instantly, nothing kept
         text = f"-{_tb(instant_bucks)} ThriftBucks instantly" if instant_bucks > 0 else "ThriftBucks instantly"
-        parts.append(text + (f": ${instant_off:.2f} off" if instant_off > 0 else ""))
+        lines.append((text + (f": ${instant_off:.2f} off" if instant_off > 0 else ""), True))
     elif collected > 0:
-        parts.append(f"+{_tb(collected)} ThriftBucks today")
-    if used > 0:
-        parts.append(f"{_tb(used)} used")
-    lines = [(" · ".join(parts), True)] if parts else []
-    # B12 (the new words) at normal size in the block; the item groups say what is AS IS.
-    return (head, lines, [THRIFT_PLUS_TERMS_LINE])
+        until = _use_by(tp.get("use_by"))
+        lines.append((f"+{_tb(collected)} ThriftBucks today" + (f", expires {until}" if until else ""), True))
+    balances = tp.get("balances")
+    if isinstance(balances, dict):  # a return receipt sends none: no balance line
+        lines.append((f"Your balance: {_tb(_tp_amount(balances, 'bucks'))} ThriftBucks", True))
+        credit = _tp_amount(balances, "credit")
+        if credit > 0:
+            lines.append((f"Thrift+ credit: ${credit:.2f}", True))
+    lines.append((THRIFT_PLUS_SITE_LEAD, False))
+    lines.append((THRIFT_PLUS_SITE, True))
+    return (head, lines, [])
+
+
+def _block_qr(data: dict[str, Any]) -> str:
+    """What the QR under the block opens: the website, on a member's receipt (owner 2026-11-20); "" otherwise."""
+    return THRIFT_PLUS_SITE_QR if _tp(data) is not None and _is_member_receipt(data) else ""
+
+
+def qr_picture(text: str, module: int) -> Image.Image:
+    """A QR as a grayscale picture, ``module`` dots a module with a 2-module white edge. Square dots, no resizing, so
+    it prints crisp on the thermal tape. The code itself comes from the tag designs (``qr_matrix``)."""
+    from services.tag_designs import qr_ecc_for, qr_matrix
+
+    ecc = qr_ecc_for(text, 1000)
+    matrix = qr_matrix(text, ecc)
+    n = len(matrix) + 4
+    im = Image.new("L", (n * module, n * module), 255)
+    d = ImageDraw.Draw(im)
+    for r, row in enumerate(matrix):
+        for c, on in enumerate(row):
+            if on:
+                x, y = (c + 2) * module, (r + 2) * module
+                d.rectangle([x, y, x + module - 1, y + module - 1], fill=0)
+    return im
 
 
 def _credit_paid_row(data: dict[str, Any]) -> tuple[str, str] | None:
@@ -1482,13 +1514,17 @@ def render_receipt_to_image(
             for ln in _wrap_text(text, f_policy_s, draw, box_w):
                 rows.append((ln, f_policy_s, t["policy_sub"], 2 * S))
             rows[-1] = (*rows[-1][:3], 6 * S)
-    policy_h = 2 * pad + sum(_text_h(f) + gap for _ln, f, _fill, gap in rows)
+    qr_text = _block_qr(data)  # owner 2026-11-20: the website as a QR, on a white square inside the block
+    qr = qr_picture(qr_text, 3 * S).convert(im.mode) if qr_text else None
+    policy_h = 2 * pad + sum(_text_h(f) + gap for _ln, f, _fill, gap in rows) + (qr.height + 6 * S if qr else 0)
     _fill_rounded(draw, (x0, policy_top, x1, policy_top + policy_h), max(2, 10 * S), t["policy_bg"])
     py = policy_top + pad
     for ln, font, fill, gap in rows:
         lw = _text_w(draw, ln, font)
         draw.text((x0 + (inner - lw) / 2, py), ln, font=font, fill=fill)
         py += _text_h(font) + gap
+    if qr:
+        im.paste(qr, (int(x0 + (inner - qr.width) / 2), int(py + 6 * S)))
 
     y = policy_top + policy_h + margin
     if training:

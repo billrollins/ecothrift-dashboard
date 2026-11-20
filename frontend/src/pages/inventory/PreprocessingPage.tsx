@@ -62,7 +62,7 @@ import {
 } from '../../components/inventory/preprocessing/formulaPreviewSnapshot';
 import { formatCurrency } from '../../utils/format';
 import { stableFormulasFingerprint } from '../../utils/stableFormulasFingerprint';
-import { IconAiAssist as AutoAwesome, IconDelete as DeleteOutline } from '../../icons/ecoIcons';
+import { IconAiAssist as AutoAwesome } from '../../icons/ecoIcons';
 
 /** Stable fallbacks - avoid `?? []` literals that allocate new refs each render (breaks useStandardManifest deps). */
 const EMPTY_HEADERS: string[] = [];
@@ -658,11 +658,6 @@ export default function PreprocessingPage() {
     await executeStandardizeManifestCore();
   };
 
-  const handleClearStandardizationRequest = () => {
-    if (!orderId) return;
-    navigate(`/inventory/orders/${orderId}?drawer=timeline&undo=standardize`);
-  };
-
   // Chunked offline apply (Fable verdict slice 6): 50 rows per partial POST so one bad
   // row fails its chunk - not all 744 - and a 744-row PO can't H12 the apply. The final
   // ai-cleanup-complete call owns match candidates + order flags. Re-applying after a
@@ -838,16 +833,6 @@ export default function PreprocessingPage() {
     } else if (completedStep >= 0) {
       stepperActionSlot = (
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Button
-            variant="outlined"
-            color="warning"
-            size="small"
-            startIcon={<DeleteOutline />}
-            onClick={handleClearStandardizationRequest}
-            sx={{ fontSize: 13, fontWeight: 600, textTransform: 'none' }}
-          >
-            Undo
-          </Button>
           {(step1State === 'edited' || step1State === 'edited_partial' || step1State === 'done') && (
             <Button
               variant="contained"
@@ -1230,15 +1215,6 @@ export default function PreprocessingPage() {
                   <Button variant="contained" onClick={handleOpenProcessing} sx={{ mr: 1 }}>
                     Open Processing
                   </Button>
-                  {order ? (
-                    <Button
-                      variant="outlined"
-                      color="warning"
-                      onClick={() => navigate(`/inventory/orders/${order.id}?drawer=timeline&undo=finalize`)}
-                    >
-                      Rewind finalize…
-                    </Button>
-                  ) : null}
                 </Box>
               ) : (
                 <Alert severity="info">

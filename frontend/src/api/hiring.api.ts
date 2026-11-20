@@ -275,6 +275,8 @@ export interface EmailDraft {
   skip_allowed?: boolean;
   /** The invite only: its call-outs, to untick, edit or add to before it goes. */
   notes?: InviteNotes | null;
+  /** Written by AI from staff's words for this one email (Dash #192): no template behind it. */
+  ai?: boolean;
 }
 
 /** What to send: the edited template (linked values still {placeholders}), or nothing. */
@@ -343,7 +345,17 @@ export const getNotNowDraft = (id: number, reason: string) =>
   api.get<EmailDraft>(`/hiring/applications/${id}/not-now-draft/`, { params: { reason } });
 export const markNotNow = (
   id: number,
-  data: { reason: string; note: string; send: boolean; subject: string; body: string },
+  data: {
+    reason: string;
+    note: string;
+    send: boolean;
+    subject: string;
+    body: string;
+    /** The AI draft the words started from (Dash #192). */
+    ai_job?: string;
+    /** The text to send from our number as well (only with their tick). */
+    text?: { body: string };
+  },
 ) => api.post<ApplicationDetail>(`/hiring/applications/${id}/not-now/`, data);
 export const createPractice = (data: { job?: number | null; first_name?: string; last_name?: string; email?: string; phone?: string }) =>
   api.post<ApplicationDetail>('/hiring/applications/practice/', data);
@@ -607,7 +619,7 @@ export const AI_ACTIONS: { key: AiAction; label: string }[] = [
 
 export interface AiJob<R = Record<string, unknown>> {
   id: string;
-  kind: 'job' | 'email' | 'careers' | 'questions';
+  kind: 'job' | 'email' | 'careers' | 'questions' | 'reply';
   status: 'running' | 'done' | 'failed';
   result: R;
   error: string;
@@ -624,17 +636,51 @@ export async function runAi<R = Record<string, unknown>>(
   onTick?: (seconds: number) => void,
 ): Promise<AiJob<R>> {
   const { data } = await startAi(payload);
+  return waitForAi<R>(data.id, onTick);
+}
+
+/** Poll a started AI run until it is done (every 2 s, up to 5 minutes). Throws with the reason on failure. */
+export async function waitForAi<R = Record<string, unknown>>(id: string, onTick?: (seconds: number) => void): Promise<AiJob<R>> {
   const started = Date.now();
   for (;;) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
     const seconds = Math.round((Date.now() - started) / 1000);
     onTick?.(seconds);
-    const { data: job } = await getAiJob<R>(data.id);
+    const { data: job } = await getAiJob<R>(id);
     if (job.status === 'done') return job;
     if (job.status === 'failed') throw new Error(job.error || 'The AI run failed. Try again.');
     if (seconds > 300) throw new Error('The AI is taking too long. Try again, or pick a faster model.');
   }
 }
+
+// ── Follow up / Not now, written by AI (Dash #192) ──────────────────────────
+
+export type ReplyWhich = 'follow_up' | 'not_now';
+
+/** The AI's draft: the review's email and text (null: it wrote no text). */
+export interface ReplyDraft {
+  which: ReplyWhich;
+  reason: string;
+  email: EmailDraft;
+  text: TextDraft | null;
+}
+
+/** Start the AI on a Follow up or Not now email from what staff typed, and wait for the draft. */
+export async function draftReply(
+  id: number,
+  data: { which: ReplyWhich; context: string; reason?: string },
+  onTick?: (seconds: number) => void,
+): Promise<{ job: string; draft: ReplyDraft }> {
+  const { data: started } = await api.post<{ id: string; status: string }>(`/hiring/applications/${id}/reply-draft/`, data);
+  const job = await waitForAi<ReplyDraft>(started.id, onTick);
+  return { job: job.id, draft: job.result };
+}
+
+export const sendFollowUp = (id: number, aiJob: string, email?: EmailChoice, text?: TextChoice) =>
+  api.post<{ sent: boolean | null; text_status: string | null; application: ApplicationDetail }>(
+    `/hiring/applications/${id}/follow-up/`,
+    { ai_job: aiJob, email, text },
+  );
 
 /** Every email Eco-Thrift sends about hiring, in the order an applicant meets them. */
 export const EMAIL_TEMPLATES: { key: string; label: string; group: string; to: string; when: string }[] = [

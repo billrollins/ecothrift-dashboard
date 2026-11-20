@@ -22,9 +22,10 @@ BANNED = re.compile(
 )
 # Owner 2026-10-14: there is no Thrift+ card. The Thrift+ block never says "card" (payment card rows may).
 CARD = re.compile(r"\bcards?\b", re.IGNORECASE)
-# B12, owner 2026-10-16: "Use ThriftBucks tomorrow; expire in 30 days" (attorney to confirm the new words).
+# B12's fine print, printed on member receipts until owner 2026-11-20 (Dash Update #193: "so fine print can go").
 B12 = ("ThriftBucks are Thrift+ rewards. Use them starting tomorrow; they expire 30 days after you collect them. "
        "No cash value. Terms: ecothrift.us/terms")
+SITE = [("See expiration details and more at", False), ("www.ecothrift.us", True)]
 
 
 def _fixture(name: str) -> dict:
@@ -51,17 +52,65 @@ class MemberReceiptTests(unittest.TestCase):
     def setUp(self):
         self.data = _fixture("receipt_thriftplus_member")
 
-    def test_member_block_says_this_trip_and_no_balances(self):
-        """Owner 2026-10-16: today's ThriftBucks on one line; no use-by date, no balances."""
+    def test_member_block_says_today_expiry_balance_and_the_website(self):
+        """Owner 2026-11-20 (#193): today's ThriftBucks and when they expire, the balance after this sale, the website
+        and its QR. No fine print, and no "used" in the block (it is a row above Subtotal)."""
         head, lines, fine = rp._bottom_block(self.data)
         self.assertEqual(head, "THRIFT+ MEMBER Pat")
-        self.assertEqual(lines, [("+20.00 ThriftBucks today · 35.00 used", True)])
-        self.assertEqual(fine, [B12])
+        self.assertEqual(lines, [
+            ("+20.00 ThriftBucks today, expires Nov 19", True),
+            ("Your balance: 20.00 ThriftBucks", True),
+            *SITE,
+        ])
+        self.assertEqual(fine, [])
+        self.assertEqual(rp._block_qr(self.data), "HTTPS://WWW.ECOTHRIFT.US")
         for text in _both(self.data):
+            flat = " ".join(ln.strip() for ln in text.splitlines())
+            self.assertNotIn(B12, flat)
+            self.assertNotIn("No cash value", text)
+            self.assertNotIn("35.00 used", text)  # the block's "· 35.00 used" is gone
+            self.assertEqual(text.count("ThriftBucks used"), 1)  # the row above Subtotal stays
+            self.assertNotIn("$20.00 ThriftBucks", text)
+            self.assertIn("Your balance: 20.00 ThriftBucks", text)
+            self.assertIn("www.ecothrift.us", text)
+            self.assertNotIn("Thrift+ credit:", text)  # no credit balance: no credit line
+            self.assertRegex(text, r"Thrift\+ credit +\$40\.00")  # credit paid is still a payment row
+
+    def test_balance_adds_thrift_plus_credit_only_when_there_is_some(self):
+        tp = {**self.data["thrift_plus"], "balances": {"bucks": "42.10", "bucks_use_by": None, "credit": "12.50"}}
+        _head, lines, _fine = rp._bottom_block({**self.data, "thrift_plus": tp})
+        self.assertEqual(lines[1:3], [("Your balance: 42.10 ThriftBucks", True), ("Thrift+ credit: $12.50", True)])
+
+    def test_no_balances_prints_no_balance_line(self):
+        """A return receipt sends ``balances: None`` and no use-by date: today's line alone, then the website."""
+        tp = {**self.data["thrift_plus"], "balances": None, "use_by": None, "bucks_used": 0}
+        data = {**self.data, "thrift_plus": tp}
+        _head, lines, _fine = rp._bottom_block(data)
+        self.assertEqual(lines, [("+20.00 ThriftBucks today", True), *SITE])
+        for text in _both(data):
             self.assertNotIn("balance", text.lower())
-            self.assertNotIn("use by", text.lower())
-            self.assertNotIn("Your ThriftBucks", text)
-            self.assertRegex(text, r"Thrift\+ credit +\$40\.00")  # credit is a payment row
+
+    def test_nothing_collected_still_shows_balance_and_website(self):
+        tp = {**self.data["thrift_plus"], "collected": "0.00"}
+        _head, lines, _fine = rp._bottom_block({**self.data, "thrift_plus": tp})
+        self.assertEqual(lines, [("Your balance: 20.00 ThriftBucks", True), *SITE])
+
+    def test_block_lines_fit_the_tape(self):
+        for text, _bold in rp._bottom_block(self.data)[1]:
+            self.assertTrue(all(len(ln) <= rp.W for ln in rp._block_text_lines(text)), text)
+
+    def test_the_picture_draws_the_qr_in_the_block(self):
+        """The printed picture is taller by the QR; the QR decodes to the website (checked by its matrix)."""
+        from services import receipt_raster as rr
+        from services.tag_designs import qr_matrix
+
+        with_qr = rr.render_thermal_receipt(self.data)
+        no_qr = {**self.data, "thrift_plus": {**self.data["thrift_plus"], "guest_all_as_is": True, "member": ""}}
+        self.assertEqual(rp._block_qr(no_qr), "")
+        pic = rp.qr_picture(rp.THRIFT_PLUS_SITE_QR, rr.QR_MODULE)
+        self.assertEqual(pic.width, (len(qr_matrix(rp.THRIFT_PLUS_SITE_QR, "Q")) + 4) * rr.QR_MODULE)
+        self.assertLessEqual(pic.width, 230)  # about 28 mm at most
+        self.assertGreater(with_qr.height, pic.height)
 
     @staticmethod
     def dot(text: str) -> str:
@@ -91,15 +140,13 @@ class MemberReceiptTests(unittest.TestCase):
                 self.assertNotIn(rp.REVERSE_ON.decode("latin-1"), text)  # white-on-black lines printed striped
         self.assertLessEqual(len(rp.RECEIPT_REVIEW_LINE), rp.W)
 
-    def test_every_member_receipt_carries_the_b12_line_word_for_word(self):
+    def test_no_member_receipt_carries_the_fine_print(self):
+        """Owner 2026-11-20: "so fine print can go"; the website line takes its place."""
         for name in ("receipt_thriftplus_member", "receipt_thriftplus_training"):
             for text in _both(_fixture(name)):
                 flat = " ".join(ln.strip() for ln in text.splitlines())
-                self.assertIn(B12, flat)
-        self.assertEqual(rp.THRIFT_PLUS_TERMS_LINE, B12)
-        lines = rp._wrap_chars(B12)
-        self.assertTrue(all(len(ln) <= rp.W for ln in lines))
-        self.assertTrue(any("30 days" in ln for ln in lines))  # "30 days" never splits on the tape
+                self.assertNotIn(B12, flat)
+                self.assertIn("See expiration details and more at", flat)
 
     def test_no_card_and_no_last_4_in_the_thrift_plus_block(self):
         """Owner 2026-10-14: no Thrift+ card. The first name, or nothing; a card_last4 sent by mistake is ignored."""
@@ -147,9 +194,14 @@ class MemberReceiptTests(unittest.TestCase):
     def test_instant_redemption_prints_bucks_and_dollars(self):
         data = _fixture("receipt_thriftplus_training")
         _head, lines, _fine = rp._bottom_block(data)
-        self.assertEqual(lines, [("-35.00 ThriftBucks instantly: $17.50 off", True)])
+        self.assertEqual(lines, [
+            ("-35.00 ThriftBucks instantly: $17.50 off", True),
+            ("Your balance: 12.00 ThriftBucks", True),
+            *SITE,
+        ])
         for text in _both(data):
             self.assertNotIn("today", text)
+            self.assertNotIn("expires", text)
 
     def test_png_renders(self):
         for name in ("receipt_thriftplus_member", "receipt_thriftplus_training"):
@@ -165,6 +217,7 @@ class GuestReceiptTests(unittest.TestCase):
         self.assertEqual(lines, [("You missed out on:", False), ("12.60 ThriftBucks and 3-day returns", True),
                                  ("Join free: ecothrift.us/join", False), ("All sales final · Sold AS IS", True)])
         self.assertEqual(fine, [])
+        self.assertEqual(rp._block_qr(data), "")  # the non-member block is unchanged: no QR, no balance
         for text in _both(data):
             lines_ = _lines(text)
             # Owner 2026-10-15: "Non-member" replaces "guest" wherever a customer reads.

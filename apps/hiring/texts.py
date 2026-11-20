@@ -29,6 +29,8 @@ LABELS = {
     'interview_cancelled': 'Interview cancelled',
     'interview_reminder': 'Interview reminder',
     'first_day': 'First-day reminder',
+    'follow_up': 'Follow-up text',
+    'not_now': 'Not now text',
 }
 
 FIELD_LABELS = {
@@ -93,8 +95,9 @@ def consent_summary(phone: str) -> dict:
             'first_day': state.opted_in and state.wording_version in FIRST_DAY_VERSIONS}
 
 
-def _draft(application, key: str, values: dict) -> dict:
-    words = template(key)
+def _draft(application, key: str, values: dict, words: str | None = None) -> dict:
+    """The review's text block. ``words``: text written for this one message (an AI draft) instead of a template."""
+    words = template(key) if words is None else words
     names = [n for n in FIELD_LABELS if '{' + n + '}' in words]
     summary = consent_summary(application.phone)
     allowed = summary['state'] == 'agreed' and not application.is_practice
@@ -162,6 +165,25 @@ def send(application, key: str, *, values: dict, by=None) -> TextMessage | None:
         first_text=OPT_IN_TEXT, versions=FIRST_DAY_VERSIONS if key == 'first_day' else (),
     )
     _log(application, message, label, by)
+    return message
+
+
+def draft_words(application, key: str, words: str) -> dict:
+    """The review's text block for words written for this one message (Dash #192: Follow up / Not now)."""
+    return _draft(application, key, {}, words=words)
+
+
+def send_words(application, key: str, words: str, *, by=None, edited: bool = False) -> TextMessage | None:
+    """One text in words written for this message (not a template). Consent is checked by ``texting.send``; nothing
+    is recorded for someone who never ticked the box."""
+    words = ' '.join((words or '').split())
+    if not words:
+        return None
+    message = texting.send(
+        phone=application.phone, kind=KIND, key=key, body=words, ref=ref(application), by=by,
+        practice=application.is_practice, edited=edited, first_text=OPT_IN_TEXT,
+    )
+    _log(application, message, LABELS.get(key, key), by)
     return message
 
 

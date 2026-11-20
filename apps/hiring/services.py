@@ -330,7 +330,10 @@ def not_now_draft(application, reason: str) -> dict:
 
 
 @transaction.atomic
-def mark_not_now(application, *, reason: str, note: str, send: bool, subject: str, body: str, by) -> Application:
+def mark_not_now(application, *, reason: str, note: str, send: bool, subject: str, body: str, by,
+                 drafted: dict | None = None, text: str | None = None) -> Application:
+    """``drafted``: the AI's words this email started from (Dash #192, ``reply.drafted``), instead of the reason's
+    template. ``text``: the reviewed text to send from our number as well (consent is checked when it goes)."""
     if reason not in REASONS:
         raise ValidationError({'reason': 'Pick a reason.'})
     if reason == 'other' and not (note or '').strip():
@@ -343,7 +346,7 @@ def mark_not_now(application, *, reason: str, note: str, send: bool, subject: st
     # The words come from the review screen with linked values still {placeholders}: fill them now.
     from apps.hiring import compose
 
-    template = not_now_template(reason, application)
+    template = drafted if drafted is not None else not_now_template(reason, application)
     used = {'subject': subject or '', 'body': body or ''}
     edited = send and compose.edited(template, used)
     typed_over = compose.typed_over(template, used) if send else []
@@ -377,7 +380,14 @@ def mark_not_now(application, *, reason: str, note: str, send: bool, subject: st
     _event(application, ApplicationEvent.KIND_EMAIL, by=by, text=email_text,
            data={'email': 'not_now', 'status': application.not_now_email_status,
                  'subject': application.not_now_email_subject, 'body': application.not_now_email_body,
-                 'edited': edited, 'typed_over': typed_over})
+                 'edited': edited, 'typed_over': typed_over,
+                 **({'ai': True, 'context': drafted.get('context') or ''} if drafted is not None else {})})
+    if text and text.strip():
+        from apps.hiring import texts
+
+        original = (drafted or {}).get('text') or ''
+        texts.send_words(application, 'not_now', text, by=by,
+                         edited=' '.join(text.split()) != ' '.join(original.split()))
     return application
 
 

@@ -22,8 +22,9 @@ honestly, out of the fields it already has:
 **What the current server cannot do.** A later print server release can read ``kind: "return"`` and the ``return``
 block (both are already here; the current server ignores them) and then print: a RETURN band across the top (today the
 word is only in the receipt number line); each reason on its own line under its item; "ThriftBucks taken back" as a
-row of its own; the sale's day as a row; BACK instead of PRICE over the amounts; and it can leave out the two lines
-that are about a sale (the Google review line, and "Use them starting tomorrow" in the ThriftBucks words).
+row of its own; the sale's day as a row; BACK instead of PRICE over the amounts; and it can leave out the Google
+review line, which is about a sale. (Since print server 1.10.0 the member block prints no fine print, and no balance
+line here, because ``balances`` is None.)
 
 A practice return (the training register) carries ``training``: the server bands it TRAINING, top and bottom.
 """

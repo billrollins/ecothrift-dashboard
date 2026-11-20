@@ -384,7 +384,14 @@ def work_questions(params: dict) -> tuple[dict, str]:
     return {'questions': out, 'removed': removed, 'summary': str(raw.get('summary') or '').strip()[:500]}, model
 
 
+def _work_reply(params: dict) -> tuple[dict, str]:
+    from apps.hiring.reply import work_reply
+
+    return work_reply(params)
+
+
 WORK = {
+    HiringAiJob.KIND_REPLY: _work_reply,
     HiringAiJob.KIND_QUESTIONS: work_questions,
     HiringAiJob.KIND_JOB: work_job,
     HiringAiJob.KIND_EMAIL: work_email,

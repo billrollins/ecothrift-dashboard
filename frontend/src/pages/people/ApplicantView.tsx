@@ -49,6 +49,7 @@ import { CandidateMarks, CopyValue, OutreachCard } from './outreachUi';
 import { OfferCard, OfferDialog } from './offerUi';
 import { StartOnboardingDialog } from './onboardingUi';
 import { PracticeChip } from './PracticeDialog';
+import { FollowUpDialog } from './ReplyUi';
 import { answerText, errorText, shortDate, STAGE_LABEL, STAGES } from './peopleUi';
 import { IconBack as ArrowBackIcon, IconClose as CloseIcon } from '../../icons/ecoIcons';
 import { StaffLink } from '../../components/staff/StaffLink';
@@ -182,6 +183,7 @@ export function ApplicantView({
   const [booking, setBooking] = useState(false);
   const [offering, setOffering] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [followUpOpen, setFollowUpOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const { review, dialog: reviewDialog } = useEmailReview();
 
@@ -325,10 +327,21 @@ export function ApplicantView({
       )}
     </>
   );
-  const notNowButton = !closed && (
-    <Button color="inherit" disabled={busy} onClick={() => setNotNowOpen(true)}>
-      Not now
+  // Dash #192: Follow up on every applicant (the AI writes it from what you type); Not now while still open.
+  const followUpButton = (
+    <Button disabled={busy} onClick={() => setFollowUpOpen(true)}>
+      Follow up
     </Button>
+  );
+  const notNowButton = (
+    <>
+      {followUpButton}
+      {!closed && (
+        <Button color="inherit" disabled={busy} onClick={() => setNotNowOpen(true)}>
+          Not now
+        </Button>
+      )}
+    </>
   );
 
   // ── The next step: what to do with this person now ────────────────────────
@@ -358,7 +371,7 @@ export function ApplicantView({
       </>
     );
   } else if (app.stage === 'interview_scheduled') {
-    step = scheduled ? null : (
+    step = scheduled ? followUpButton : (
       <>
         {linkButtons('email')}
         {notNowButton}
@@ -400,11 +413,18 @@ export function ApplicantView({
       </>
     );
   } else if (app.stage === 'hired') {
-    step = !app.employee && !app.is_practice ? (
-      <Button variant="contained" onClick={() => setEmployeeOpen(true)}>
-        Create employee in Dash
-      </Button>
-    ) : null;
+    step = (
+      <>
+        {!app.employee && !app.is_practice && (
+          <Button variant="contained" onClick={() => setEmployeeOpen(true)}>
+            Create employee in Dash
+          </Button>
+        )}
+        {followUpButton}
+      </>
+    );
+  } else if (app.stage === 'not_now') {
+    step = followUpButton;
   }
 
   const stepText =
@@ -861,6 +881,16 @@ export function ApplicantView({
           setNotNowReason('');
           await refreshWith(updated);
           enqueueSnackbar(`${updated.full_name}: Not now`, { variant: 'success' });
+        }}
+      />
+      <FollowUpDialog
+        open={followUpOpen}
+        application={app}
+        onClose={() => setFollowUpOpen(false)}
+        onDone={async (updated, message) => {
+          setFollowUpOpen(false);
+          await refreshWith(updated);
+          enqueueSnackbar(message, { variant: 'success', autoHideDuration: 9000 });
         }}
       />
       <PickTimeDialog

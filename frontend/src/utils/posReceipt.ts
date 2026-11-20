@@ -167,9 +167,10 @@ export const NON_MEMBER_RECEIPT_LINE = 'Non-member: All sales final. Sold AS IS.
 /**
  * Thrift+ on the receipt (the 10-12 policy; the print server's 1.9.0 block). ThriftBucks are numbers (the
  * printer adds the word, never "$"); instant_off and credit are dollars; dates are ISO.
- * - Member: "THRIFT+ MEMBER Pat" (the first name only), "ThriftBucks collected 35.00, use by Nov 19" (or redeemed
- *   instantly: $17.50 off), "ThriftBucks used 33.27" above Subtotal, Thrift+ credit used, both balances, and the B12
- *   rewards line (printed by the print server on every member receipt).
+ * - Member: "THRIFT+ MEMBER Pat" (the first name only), "+35.00 ThriftBucks today, expires Dec 20" (or redeemed
+ *   instantly: $17.50 off), "ThriftBucks used 33.27" above Subtotal, Thrift+ credit used, "Your balance: 42.10
+ *   ThriftBucks" (balances.bucks after the sale; credit only when there is some), and www.ecothrift.us with a QR
+ *   (print server 1.10.0, owner 2026-11-20, #193; the B12 fine print is no longer printed).
  * - Non-member (the code's "guest"): every line AS IS, one line under the items, NON_MEMBER_RECEIPT_LINE, and what
  *   membership would have collected.
  * There is no Thrift+ card (owner 2026-10-14): nothing here names one. An older print server ignores the key.

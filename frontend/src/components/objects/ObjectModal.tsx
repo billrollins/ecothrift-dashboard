@@ -6,8 +6,8 @@
  *   (with a Back arrow) instead of stacking a second modal.
  * - A product opens the Product window (`ProductCard.tsx`, Dash Updates #11): read-only, Edit for the editor; it also
  *   has a full page (`/inventory/products/:id`) for the work that needs room.
- * - An order opens the Order window (`OrderCard.tsx`, Dash Updates #12), wide; Edit shows the order page it showed
- *   before; `/inventory/orders/:id` opens the Orders list with it.
+ * - An order opens the Order window (`OrderCard.tsx`, Dash Updates #12, #191), wide: the only order view (the owner
+ *   edits in it); `/inventory/orders/:id` opens the Orders list with it.
  * - A truck plan (`TruckPlanCard.tsx`, Dash Updates #81) is the plan for one order's truck; its id is the order's.
  *
  * - An item opens the universal Item modal (`ItemCard.tsx`): read-only, every department's view, Edit for the editor.
@@ -46,7 +46,6 @@ const ItemCheckInManagePanel = lazy(() =>
   import('../../pages/inventory/workbench/ItemCheckInManagePanel').then((m) => ({ default: m.ItemCheckInManagePanel })));
 const ItemManagePanel = lazy(() =>
   import('../../pages/inventory/workbench/ItemManagePanel').then((m) => ({ default: m.ItemManagePanel })));
-const OrderDetailPage = lazy(() => import('../../pages/inventory/OrderDetailPage'));
 const RegisterWindow = lazy(() =>
   import('../pos/windows/RegisterWindow').then((m) => ({ default: m.RegisterWindow })));
 const DrawerWindow = lazy(() =>
@@ -288,7 +287,7 @@ export function ObjectModalProvider({
                   {current.type === 'vendor' && <VendorCardBody vendorId={current.id} />}
                   {current.type === 'restoration' && <RestorationCardBody jobId={current.id} />}
                   {current.type === 'order' && (
-                    <OrderCardBody orderId={current.id} renderEditor={() => <OrderDetailPage orderId={current.id} embedded />} />
+                    <OrderCardBody orderId={current.id} />
                   )}
                   {current.type === 'truck-plan' && <TruckPlanCardBody orderId={current.id} />}
                   {current.type === 'close-truck' && <CloseTruckCardBody orderId={current.id} />}

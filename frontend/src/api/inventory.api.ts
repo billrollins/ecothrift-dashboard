@@ -242,40 +242,6 @@ export interface CheckInOrderItemsResponse {
   order_status: string;
 }
 
-export interface OrderDeletePreviewItem {
-  id: number;
-  sku: string;
-  title: string;
-  status: string;
-}
-
-export interface OrderDeletePreviewStep {
-  key: string;
-  label: string;
-  description: string;
-  count: number;
-}
-
-export interface OrderDeletePreviewResponse {
-  order_id: number;
-  order_number: string;
-  steps: OrderDeletePreviewStep[];
-  items: OrderDeletePreviewItem[];
-  warnings: string[];
-}
-
-export interface PurgeDeleteOrderPayload {
-  confirm_order_number: string;
-}
-
-export interface PurgeDeleteOrderResponse {
-  order_id: number;
-  order_number: string;
-  deleted: Record<string, number>;
-  steps: OrderDeletePreviewStep[];
-  manifest_file_shared: boolean;
-}
-
 // Vendors CRUD
 export function getVendors(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<Vendor> }> {
   return api.get<PaginatedResponse<Vendor>>('/inventory/vendors/', { params });
@@ -416,17 +382,6 @@ export function deleteOrder(id: number): Promise<{ data: void }> {
   return api.delete(`/inventory/orders/${id}/`);
 }
 
-export function getOrderDeletePreview(orderId: number): Promise<{ data: OrderDeletePreviewResponse }> {
-  return api.get<OrderDeletePreviewResponse>(`/inventory/orders/${orderId}/delete-preview/`);
-}
-
-export function purgeDeleteOrder(
-  orderId: number,
-  data: PurgeDeleteOrderPayload,
-): Promise<{ data: PurgeDeleteOrderResponse }> {
-  return api.post<PurgeDeleteOrderResponse>(`/inventory/orders/${orderId}/purge-delete/`, data);
-}
-
 export function markOrderPaid(id: number, date?: string): Promise<{ data: Order }> {
   return api.post<Order>(`/inventory/orders/${id}/mark-paid/`, date ? { paid_date: date } : undefined);
 }
@@ -472,36 +427,6 @@ export function uploadManifest(orderId: number, file: File): Promise<{ data: Pur
 
 export function removeManifest(orderId: number): Promise<{ data: PurchaseOrderDetailSurface }> {
   return api.post<PurchaseOrderDetailSurface>(`/inventory/orders/${orderId}/remove-manifest/`, {});
-}
-
-export type IntakeUndoStage = 'manifest_upload' | 'standardize' | 'ai_cleanup' | 'finalize';
-
-export interface IntakeUndoPreview {
-  target_stage: string;
-  fields_to_null: string[];
-  status_resets: Record<string, string>;
-  rows_to_delete: Record<string, number>;
-  rows_to_update: Record<string, number>;
-  files_to_delete: string[];
-  cascade_warnings: string[];
-  safe: boolean;
-  blocked_reason: string | null;
-}
-
-export function getUndoPreview(
-  orderId: number,
-  toStage: IntakeUndoStage,
-): Promise<{ data: IntakeUndoPreview }> {
-  return api.get<IntakeUndoPreview>(`/inventory/orders/${orderId}/undo-preview/`, {
-    params: { to_stage: toStage },
-  });
-}
-
-export function postIntakeUndo(
-  orderId: number,
-  body: { to_stage: IntakeUndoStage },
-): Promise<{ data: PurchaseOrderDetailSurface }> {
-  return api.post<PurchaseOrderDetailSurface>(`/inventory/orders/${orderId}/undo/`, body);
 }
 
 export function processManifest(
