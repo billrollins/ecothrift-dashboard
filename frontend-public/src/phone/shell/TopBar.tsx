@@ -20,6 +20,20 @@ export function tagSku(text: string): string | null {
   return /^\d{6,7}$/.test(t) ? `ITM${t.padStart(7, '0')}` : null
 }
 
+/**
+ * What stays on screen is decided once, when the page loads, and never again (critic cycle 11-20): a phone browser's
+ * address bar hiding mid-scroll makes the window taller, and that must never bring the logo row in. A window 740 px or
+ * taller (the installed app, big phones) keeps the logo row on screen as well as the search row (shell.css,
+ * `html[data-head="stay"]`); a shorter one lets the logo row scroll away with the page.
+ */
+export const TALL_PX = 740
+export function headStays(height: number): boolean {
+  return height >= TALL_PX
+}
+if (typeof window !== 'undefined') {
+  document.documentElement.setAttribute('data-head', headStays(window.innerHeight) ? 'stay' : 'scroll')
+}
+
 export function isHomePath(pathname: string): boolean {
   return pathname === '/' || pathname === '/visit' || pathname === '/visit/'
 }
@@ -60,7 +74,7 @@ function Account() {
       <Link className="acct fade" to="/thriftplus" aria-label={`Thrift+: ${amount} ThriftBucks`}>
         <span className="in">
           <small>ThriftBucks</small>
-          <b className={amount.length > 6 ? 'tn long' : 'tn'}>{amount}</b>
+          <b className="tn">{amount}</b>
         </span>
       </Link>
     )
