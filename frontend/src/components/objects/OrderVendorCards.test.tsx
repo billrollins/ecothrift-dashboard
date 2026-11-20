@@ -1,6 +1,6 @@
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -119,6 +119,24 @@ describe('Order and Vendor windows (Dash Updates #12, #13)', () => {
     expect(within(dialog).getByRole('button', { name: 'Start Preprocessing' })).toBeDisabled();
     expect(within(dialog).getByRole('button', { name: 'Start Processing' })).toBeDisabled();
     expect(within(dialog).getByText('Paid', { selector: 'p' }).textContent).toContain('Current');
+  });
+
+  it('the owner drops a manifest file on the empty Manifest card and it uploads (Bill, 2026-11-20)', async () => {
+    serve(ORDER, { ...SURFACE, has_manifest: false, manifest_filename: null });
+    client.post.mockResolvedValue({ data: {} });
+    auth.user = { id: 1, is_superuser: true, view_as: null };
+    try {
+      wrap(<ObjectLink type="order" id={12} label="CSTCO-12" />);
+      await userEvent.setup().click(screen.getByRole('button', { name: 'CSTCO-12' }));
+      const dialog = await screen.findByRole('dialog');
+      const zone = await within(dialog).findByTestId('order-manifest-drop');
+      const file = new File(['Qty,Title', '1,Lamp'], 'manifest.csv', { type: 'text/csv' });
+      fireEvent.drop(zone, { dataTransfer: { files: [file] } });
+      await vi.waitFor(() => expect(client.post).toHaveBeenCalled(), { timeout: 2000 });
+      expect(String(client.post.mock.calls[0][0])).toContain('/inventory/orders/12/upload-manifest/');
+    } finally {
+      auth.user = { id: 2, is_superuser: false, view_as: null };
+    }
   });
 
   it('All dates opens every recorded date and time inside Lifecycle', async () => {

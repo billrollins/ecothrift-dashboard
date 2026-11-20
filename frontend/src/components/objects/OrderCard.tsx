@@ -135,6 +135,7 @@ function CardView({ c, o, canEdit }: { c: OrderCardData; o: PurchaseOrderDetailS
   const qc = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const upload = useUploadManifest();
+  const [dropOver, setDropOver] = useState(false);
   const { save, savedKey, failedKey } = useOrderAutosave(o.id);
   const fileRef = useRef<HTMLInputElement>(null);
   const [viewer, setViewer] = useState(false);
@@ -359,30 +360,40 @@ function CardView({ c, o, canEdit }: { c: OrderCardData; o: PurchaseOrderDetailS
                 </Stack>
               </Stack>
             ) : (
-              <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
-                <Typography sx={{ fontSize: 14, color: 'text.secondary', flex: 1 }}>No manifest yet.</Typography>
-                {canEdit ? (
-                  <>
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept=".csv,.tsv,text/csv,text/tab-separated-values"
-                      hidden
-                      data-testid="order-manifest-file"
-                      onChange={(e) => { void onPickFile(e.target.files?.[0]); e.target.value = ''; }}
-                    />
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      disabled={upload.isPending}
-                      startIcon={upload.isPending ? <CircularProgress size={14} /> : <IconUpload fontSize="small" />}
-                      onClick={() => fileRef.current?.click()}
-                    >
-                      Upload manifest
-                    </Button>
-                  </>
-                ) : null}
-              </Stack>
+              canEdit ? (
+                <Box
+                  role="button"
+                  tabIndex={0}
+                  data-testid="order-manifest-drop"
+                  aria-label="Upload manifest"
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileRef.current?.click(); }}
+                  onDragEnter={(e) => { e.preventDefault(); setDropOver(true); }}
+                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+                  onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropOver(false); }}
+                  onDrop={(e) => { e.preventDefault(); setDropOver(false); if (!upload.isPending) void onPickFile(e.dataTransfer.files?.[0]); }}
+                  onClick={() => { if (!upload.isPending) fileRef.current?.click(); }}
+                  sx={{
+                    border: 2, borderStyle: 'dashed', borderColor: dropOver ? 'primary.main' : 'divider', borderRadius: 2,
+                    py: 3, px: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+                    bgcolor: dropOver ? 'action.hover' : 'transparent', cursor: upload.isPending ? 'wait' : 'pointer',
+                  }}
+                >
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept=".csv,.tsv,text/csv,text/tab-separated-values"
+                    hidden
+                    data-testid="order-manifest-file"
+                    onChange={(e) => { void onPickFile(e.target.files?.[0]); e.target.value = ''; }}
+                  />
+                  {upload.isPending ? <CircularProgress size={24} /> : <IconUpload sx={{ color: 'text.secondary' }} />}
+                  <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.secondary' }}>
+                    No manifest yet. Drop a CSV or TSV here, or click to browse
+                  </Typography>
+                </Box>
+              ) : (
+                <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>No manifest yet.</Typography>
+              )
             )}
           </Section>
           {c.claim || c.disputed_claim || c.disputes.length || c.notes ? (

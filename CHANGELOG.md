@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.324.0] -->
-<!-- Last reviewed: 2026-11-20 (2.324.0) -->
+<!-- Line 1 release: ## [2.324.1] -->
+<!-- Last reviewed: 2026-11-20 (2.324.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.324.1] - 2026-11-20
+
+User-facing theme: **The order window's empty Manifest card takes a dropped file again.**
+
+> **For Bill:** When an order has no manifest, the Manifest card in the order window is a drop box again, like the old order page: drag a CSV or TSV onto it, or click it to browse. Staff still just see "No manifest yet."
+
+User-facing theme: **The order window's empty Manifest card takes a dropped file again.**
+
+> **For Bill:** When an order has no manifest, the Manifest card in the order window is a drop box again, like the old order page: drag a CSV or TSV onto it, or click it to browse. Staff still just see "No manifest yet."
+
+### Fixed (Order window: manifest drop box)
+- `OrderCard.tsx`: with no manifest, the owner's Manifest card is a dashed drop zone (drag a CSV/TSV or click to browse; Enter/Space too), restored from the retired order page (v2.323.0). Test: `OrderVendorCards.test.tsx` drops a file and checks the upload.
 
 ## [2.324.0] - 2026-11-20
 
