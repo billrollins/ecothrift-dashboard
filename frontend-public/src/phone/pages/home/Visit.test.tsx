@@ -30,17 +30,18 @@ describe('Visit', () => {
     const roads = [...svg.querySelectorAll('rect.rd')]
     const center = roads.find((r) => num(r, 'width') === 358)! // the street across
     const s84 = roads.find((r) => num(r, 'height') === 196)! // the street down
-    const store = svg.querySelector('rect.bldg')!
+    const store = svg.querySelector('rect.outline')! // the whole building
     expect(num(store, 'y')).toBeGreaterThan(num(center, 'y') + num(center, 'height'))
     expect(num(store, 'x') + num(store, 'width')).toBeLessThan(num(s84, 'x'))
     expect(svg.textContent).toContain('W CENTER RD')
     expect(svg.textContent).toContain('S 84TH ST')
     expect(svg.textContent).toContain('ECO-THRIFT')
     // Eco-Thrift is the WEST half of its building only (owner 2026-11-20): the neighbours' half is east of it.
-    const nbr = svg.querySelector('rect.nbr')!
-    expect(num(nbr, 'x')).toBeGreaterThan(num(store, 'x'))
-    expect(num(nbr, 'x') + num(nbr, 'width')).toBeLessThan(num(s84, 'x'))
-    expect(svg.textContent).toContain('MEGA')
+    const texts = [...svg.querySelectorAll('text')]
+    const ours = texts.find((e) => e.textContent === 'ECO-THRIFT')!
+    const mega = texts.find((e) => e.textContent === 'MEGA')!
+    expect(num(mega, 'x')).toBeGreaterThan(num(ours, 'x'))
+    expect(num(mega, 'x')).toBeLessThan(num(store, 'x') + num(store, 'width'))
     expect(container.querySelector('img, iframe, image, script')).toBeNull()
   })
 
@@ -48,7 +49,7 @@ describe('Visit', () => {
     render(<Visit />)
     expect(screen.getByRole('heading', { name: '84th & Center' })).toBeInTheDocument()
     expect(screen.getByText('Southwest corner')).toBeInTheDocument()
-    expect(screen.getByText('West half of the Mega Saver building')).toBeInTheDocument()
+    expect(screen.getByText('West half of the building, next to Mega Saver')).toBeInTheDocument()
     expect(screen.getByText('8425 W Center Rd, Omaha, NE 68124')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^Directions$/ })).toHaveAttribute('href', STORE.retail.mapsPlaceUrl)
     expect(screen.getByRole('link', { name: `Call ${STORE.retail.phone}` })).toHaveAttribute('href', `tel:${STORE.retail.phoneHref}`)
