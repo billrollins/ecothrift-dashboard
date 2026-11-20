@@ -4,6 +4,11 @@
  * carries, then the member's two choices and the non-member's price. Every surface that explains ThriftBucks uses
  * EXAMPLE's numbers and words; change them only in the rulebook first.
  *
+ * Laid out as a store sign, in the order it happens (critic cycle 2026-11-20, the AI panel): the tag; a growth strip
+ * that SHOWS the V12 sentence (7 grey days with none, then bars that grow to today's, with no day number, so nothing
+ * says 20.00 at day 7); two equal boxes with "or" between them; the non-member as a third row. Static, so the same
+ * design prints as the poster and the register's sheet and serves as the scanner's info sheet.
+ *
  * Shown in a window over the page (fixed, so nothing on the page moves): the × button, a tap outside, or Escape closes
  * it. It opens with no animation.
  */
@@ -19,6 +24,10 @@ export const EXAMPLE = {
   bucks: 20,
   today: 90, // tag - bucks / 2
 } as const
+
+/** The growth strip: the first 7 days carry none, then the bars grow day by day; the last bar is today's. */
+const FIRST_DAYS = 7
+const GROW = [12, 20, 28, 37, 46, 56, 66, 77, 88, 100]
 
 const money = (n: number) => `$${n.toFixed(2)}`
 const bucks = (n: number) => n.toFixed(2)
@@ -39,9 +48,8 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
         <button type="button" className="tbx-x" aria-label="Close" onClick={onClose}>
           ×
         </button>
-        <p className="lbl">Example</p>
         <h2 id="tbx-h" className="disp">
-          A normal item
+          <span>Example ·</span> A normal item
         </h2>
         <div className="tbx-item">
           <div>
@@ -50,31 +58,51 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
           </div>
           <div>
             <span className="tbx-k">Our tag</span>
-            <Tag price={EXAMPLE.tag} cents="auto" />
+            <Tag price={EXAMPLE.tag} />
           </div>
         </div>
         <p className="tbx-carry">
           After 7 days on our floor, most items start to carry ThriftBucks. They grow every day.
         </p>
-        <p className="tbx-now">
-          This one carries today
-          <b className="tn">{bucks(EXAMPLE.bucks)} ThriftBucks</b>
-        </p>
+        <div className="tbx-grow">
+          <p className="tbx-now">
+            This one carries today
+            <b className="tn">{bucks(EXAMPLE.bucks)} ThriftBucks</b>
+          </p>
+          <div className="tbx-bars" aria-hidden="true">
+            <span>First 7 days</span>
+            {Array.from({ length: FIRST_DAYS }, (_, i) => (
+              <i key={`w${i}`} className="w" />
+            ))}
+            {GROW.map((h, i) => (
+              <i key={i} className={i === GROW.length - 1 ? 'now' : undefined} style={{ height: `${h}%` }} />
+            ))}
+          </div>
+        </div>
         <p className="tbx-pick">Thrift+ members pick one</p>
         <div className="tbx-two">
           <div>
             <small>Keep them</small>
-            <b className="tn">Pay {money(EXAMPLE.tag)}</b>
+            <b className="tn">
+              <span>Pay</span> {money(EXAMPLE.tag)}
+            </b>
             <span>{bucks(EXAMPLE.bucks)} ThriftBucks come off your next visit</span>
+            <em>Full value</em>
           </div>
+          <i className="tbx-or" aria-hidden="true">
+            or
+          </i>
           <div>
             <small>Use them now</small>
-            <b className="tn">Pay {money(EXAMPLE.today)}</b>
+            <b className="tn">
+              <span>Pay</span> {money(EXAMPLE.today)}
+            </b>
             <span>today</span>
+            <em>Half their value</em>
           </div>
         </div>
         <p className="tbx-non">
-          Non-member: pays <b className="tn">{money(EXAMPLE.tag)}</b>. All sales final.
+          <b>Non-member:</b> pays <b className="tn">{money(EXAMPLE.tag)}</b>. All sales final.
         </p>
         {joinHref ? (
           <a className="btn tbx-join" href={joinHref}>

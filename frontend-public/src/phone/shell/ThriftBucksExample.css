@@ -1,29 +1,55 @@
-/* The standard ThriftBucks example (ThriftBucksExample.tsx): a window over the page; fixed, so nothing moves. */
+/* The standard ThriftBucks example (ThriftBucksExample.tsx): a window over the page; fixed, so nothing moves.
+   A store sign in the order it happens: the tag, the growth strip, two equal boxes, the non-member. 13 px and up.
+   Green means ThriftBucks (and the main button); labels are quiet ink. */
 .tbx-back { position: fixed; inset: 0; z-index: 60; background: rgba(16, 20, 15, .55); display: grid; place-items: center;
   padding: 16px; }
-.tbx { position: relative; width: 100%; max-width: 380px; max-height: calc(100dvh - 32px); overflow-y: auto; background: #fff;
-  color: var(--ink); border-radius: 18px; padding: 20px 18px 18px; box-shadow: 0 12px 40px rgba(0, 0, 0, .3); }
-.tbx-x { position: absolute; top: 8px; right: 8px; width: 44px; height: 44px; border: 0; background: none; font-size: 30px;
-  line-height: 1; color: var(--ink-2); cursor: pointer; }
-.tbx .lbl { color: var(--green); }
-.tbx h2 { margin-top: 4px; font-size: 34px; }
-.tbx-item { margin-top: 14px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
-  padding: 12px 14px; background: var(--cream); border-radius: 12px; }
-.tbx-item div { display: flex; flex-direction: column; gap: 4px; }
-.tbx-k { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
-.tbx-item s { font-size: 24px; font-weight: 800; color: var(--ink-2); text-decoration-thickness: 2px; }
-.tbx-item .tag { font-size: 44px; }
-.tbx-carry { margin-top: 14px; font-size: 15px; font-weight: 600; line-height: 1.3; }
-.tbx-now { margin-top: 8px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
-.tbx-now b { display: block; margin-top: 2px; font-size: 26px; font-weight: 900; letter-spacing: 0; text-transform: none; color: var(--green); }
-.tbx-pick { margin-top: 14px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
-.tbx-two { margin-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.tbx-two > div { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: 12px; border: 2px solid var(--line); }
-.tbx-two > div:last-child { border-color: var(--green); }
-.tbx-two small { font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--green); }
-.tbx-two b { font-size: 20px; font-weight: 900; }
-.tbx-two > div > span { font-size: 13px; line-height: 1.25; color: var(--ink-2); }
-.tbx-non { margin-top: 12px; font-size: 14px; color: var(--ink-2); }
-.tbx-non b { color: var(--ink); }
-.tbx-join { margin-top: 14px; width: 100%; min-height: 48px; background: var(--green); color: #fff; font-size: 17px; }
+.tbx { position: relative; width: 100%; max-width: 380px; max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--card);
+  color: var(--ink); border-radius: 18px; padding: 18px 18px 18px; box-shadow: 0 12px 40px rgba(0, 0, 0, .3); }
 .tbx:focus { outline: none; }
+.tbx-x { position: absolute; top: 6px; right: 6px; width: 44px; height: 44px; border: 0; background: none; font-size: 30px;
+  line-height: 1; color: var(--ink-2); cursor: pointer; }
+.tbx h2 { padding-right: 36px; font-size: 24px; line-height: 1; }
+.tbx h2 span { color: var(--ink-2); }
+
+/* The item: retail struck, our tag. */
+.tbx-item { margin-top: 10px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+  padding: 8px 12px 10px; background: var(--cream); border-radius: 12px; }
+.tbx-item div { display: flex; flex-direction: column; gap: 4px; }
+.tbx-item div:last-child { align-items: flex-end; }
+.tbx-k { font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.tbx-item s { font-size: 22px; font-weight: 800; color: var(--ink-2); text-decoration-thickness: 2px; }
+.tbx-item .tag { font-size: 37px; }
+
+/* The growth strip: the V12 sentence, today's ThriftBucks over today's bar, the bars, two short axis labels. */
+.tbx-carry { margin-top: 12px; font-size: 15px; font-weight: 600; line-height: 1.3; }
+.tbx-grow { margin-top: 4px; }
+.tbx-now { position: relative; text-align: right; padding-bottom: 8px; font-size: 13px; font-weight: 800; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-2); }
+.tbx-now b { display: block; margin-top: 0; font-size: 24px; font-weight: 900; letter-spacing: 0; text-transform: none;
+  line-height: 1.1; color: var(--green); }
+.tbx-now::after { content: ''; position: absolute; right: 2px; bottom: 0; border: 6px solid transparent; border-bottom: 0;
+  border-top-color: var(--green); }
+.tbx-bars { position: relative; margin-top: 3px; height: 38px; display: flex; align-items: flex-end; gap: 3px; }
+.tbx-bars i { flex: 1; min-width: 0; background: var(--leaf); border-radius: 2px 2px 0 0; }
+.tbx-bars i.w { height: 4px; background: var(--line); border-radius: 2px; }
+.tbx-bars i.now { background: var(--green); }
+.tbx-bars span { position: absolute; left: 0; bottom: 9px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+
+/* The choice: two equal boxes, "or" between them. */
+.tbx-pick { margin-top: 12px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.tbx-two { position: relative; margin-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tbx-two > div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 11px; border-radius: 12px;
+  background: var(--cream); text-align: center; }
+.tbx-two small { font-size: 13px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--ink); }
+.tbx-two b { font-size: 26px; font-stretch: 66%; font-weight: 900; line-height: 1.05; white-space: nowrap; }
+.tbx-two b span { font-size: 15px; font-stretch: 100%; font-weight: 700; }
+.tbx-two > div > span { font-size: 13px; line-height: 1.25; color: var(--ink-2); text-wrap: balance; }
+.tbx-two em { margin-top: auto; padding-top: 2px; font-style: normal; font-size: 13px; font-weight: 800; color: var(--green); }
+.tbx-or { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 28px; height: 28px; display: grid;
+  place-items: center; border-radius: 50%; background: var(--card); border: 2px solid var(--line); font-style: normal;
+  font-size: 13px; font-weight: 800; color: var(--ink-2); }
+
+/* The non-member: a third row at body size. */
+.tbx-non { margin-top: 8px; padding: 8px 4px; border-top: 2px solid var(--line); border-bottom: 2px solid var(--line); text-align: center;
+  font-size: clamp(14px, 4vw, 15px); color: var(--ink); }
+.tbx .tbx-join { margin-top: 12px; width: 100%; min-height: 48px; background: var(--green); color: #fff; font-size: 17px; }
