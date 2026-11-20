@@ -96,14 +96,26 @@ describe('home specials, a normal day', () => {
   it('Example opens the standard example in a window; ×, a tap outside and Escape close it', () => {
     show()
     fireEvent.click(screen.getByRole('button', { name: 'Example' }))
-    const box = screen.getByRole('dialog', { name: 'A normal item' })
-    expect(box).toHaveTextContent('Retail$200.00')
-    expect(box).toHaveTextContent('After 7 days on our floor, most items start to carry ThriftBucks. They grow every day.')
-    expect(box).toHaveTextContent('This one carries today20.00 ThriftBucks')
-    expect(box).toHaveTextContent('Keep themPay $100.00')
-    expect(box).toHaveTextContent('Use them nowPay $90.00')
-    expect(box).toHaveTextContent('Non-member: pays $100.00. All sales final.')
-    expect(within(box).getByRole('link', { name: 'Join free' })).toHaveAttribute('href', '/scan?view=join')
+    const box = screen.getByRole('dialog', { name: 'Example · A normal item' })
+    expect(box.querySelector('.tbx-item .tag-was')).toHaveTextContent('$20000') // retail $200.00, a struck ghost tag
+    expect(box.querySelector('.tbx-item .tag:not(.tag-was)')).toHaveTextContent('$10000') // our tag $100.00, cents shown
+    // Owner 11-20 (round 8 screens): the opening on one easy line; ".00" only at the top, whole numbers below.
+    expect(box).toHaveTextContent('ThriftBucks start after 7 days.')
+    expect(box.querySelector('.tbx-rise')).toHaveTextContent('They grow every day.')
+    expect(box).toHaveTextContent('Today this item has20 ThriftBucksKeep them')
+    // The growth strip shows the sentence: 7 days with none, then bars that grow to today's (no day number on it).
+    const bars = Array.from(box.querySelectorAll('.tbx-bars i'))
+    expect(bars.slice(0, 7).every((b) => b.classList.contains('w'))).toBe(true)
+    expect(bars.slice(7).some((b) => b.classList.contains('w'))).toBe(false)
+    expect(bars.at(-1)).toHaveClass('now')
+    expect(box.querySelector('.tbx-bars')).not.toHaveTextContent(/\d{2}|day \d|20\.00/i)
+    expect(box).toHaveTextContent('Keep themPay $100today20 ThriftBucksoff next visitFull value')
+    expect(box).toHaveTextContent('Use themPay $90$10 off todayNo ThriftBucksoff next visitHalf value')
+    expect(box).toHaveTextContent('Non-member: pays $100. All sales final.')
+    expect(box).not.toHaveTextContent(/\$\s*20\b|earn|discount|points|cash back|reward|guest/i)
+    // Never a "$" next to ThriftBucks (the owner's "$10 off today" is dollars off today's price, on its own).
+    box.querySelectorAll('.tbx-now b, .tbx-two div:first-child strong').forEach((el) => expect(el.textContent).toMatch(/^\d+ ThriftBucks$/))
+    expect(within(box).getByRole('link', { name: 'Join Thrift+ free' })).toHaveAttribute('href', '/scan?view=join')
     fireEvent.click(within(box).getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Example' }))
