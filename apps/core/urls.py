@@ -5,7 +5,7 @@ from .dash_fixes import DashFixCoderListView, DashFixCoderView, DashFixViewSet
 from .photo_drops import PhotoDropViewSet
 from .views import (
     WorkLocationViewSet, AppSettingViewSet, S3FileViewSet,
-    AiActionViewSet, AiModelViewSet,
+    AiActionViewSet, AiModelViewSet, AiTierViewSet,
     app_version, print_server_version, print_server_releases,
     print_server_version_public, label_size, price_tag_switch, price_tag_design_switch, tag_marks,
     dev_log_config, dev_log_line,
@@ -25,6 +25,7 @@ router.register(r'dash-fixes', DashFixViewSet, basename='dashfix')
 router.register(r'photo-drops', PhotoDropViewSet, basename='photodrop')
 router.register(r'ai/models', AiModelViewSet, basename='ai-model')
 router.register(r'ai/actions', AiActionViewSet, basename='ai-action')
+router.register(r'ai/tiers', AiTierViewSet, basename='ai-tier')
 router.register(r'requests', ApprovalRequestViewSet, basename='approval-request')
 
 urlpatterns = [

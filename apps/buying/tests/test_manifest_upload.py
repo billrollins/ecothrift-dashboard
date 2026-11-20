@@ -173,7 +173,7 @@ class MapFastCatBatchTests(TestCase):
         from apps.core.models import AiAction
 
         # No model picked in Settings > AI: the env fallback (an Anthropic model with no key) applies.
-        AiAction.objects.filter(purpose='KEY_MAPPING').update(model=None)
+        AiAction.objects.filter(purpose='KEY_MAPPING').update(model=None, tier='standard')  # Standard: no model here
         ManifestRow.objects.create(
             auction=self.auction,
             row_number=1,

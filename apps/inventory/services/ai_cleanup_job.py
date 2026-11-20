@@ -298,7 +298,7 @@ def _standard_pass(order_id: int, token: str, order: PurchaseOrder, concurrency:
     try:
         if not intake_standard.is_enabled():
             return False
-        api_key, key_error = resolve_cleanup_api_key(intake_standard.std.MODEL)
+        api_key, key_error = resolve_cleanup_api_key(intake_standard.model_and_effort()[0])
         if key_error:
             _update(order_id, token, standard_error=key_error)
             return False

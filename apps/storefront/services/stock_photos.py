@@ -252,17 +252,16 @@ def match_key(ids: dict[str, list[str]], brand: str = '', model: str = '') -> st
 # ── The models (Settings > AI) ────────────────────────────────────────────────
 
 def _choice(purpose: str, default_model: str, default_effort: str, *, anthropic: bool = False) -> tuple[str, str]:
-    """The model and effort Settings > AI gives the purpose; the defaults when it has no row or no active model (never
-    ``settings.AI_MODEL``). The finder searches the web, which needs a Claude model."""
-    from apps.core.ai_config import EFFORT_VALUES
-    from apps.core.models import AiAction
+    """The model and effort Settings > AI gives the purpose (its own, else its tier's); the defaults when it has
+    neither (never ``settings.AI_MODEL``). The finder searches the web, which needs a Claude model."""
+    from apps.core.ai_config import resolve
     from apps.core.services.llm_router import resolve_provider
 
-    row = AiAction.objects.select_related('model').filter(purpose=purpose).first()
-    slug = row.model.slug if row is not None and row.model is not None and row.model.status == 'active' else ''
+    r = resolve(purpose)
+    slug = r['model'] if r['model_from'] != 'env' else ''
     if not slug or (anthropic and resolve_provider(slug) != 'anthropic'):
         slug = default_model
-    effort = row.effort if row is not None and row.effort in EFFORT_VALUES else default_effort
+    effort = r['effort'] if r['effort_from'] != 'none' else default_effort
     return slug, effort
 
 

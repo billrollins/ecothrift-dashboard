@@ -16,14 +16,14 @@ from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin, I
 from apps.accounts.services.access import admin_or, owner_or
 from .models import (
     WorkLocation, AppSetting, AppSettingHistory, S3File, PrintServerRelease,
-    AiAction, AiModel,
+    AiAction, AiModel, AiTier,
 )
 from .serializers import (
     WorkLocationSerializer, AppSettingSerializer,
     S3FileSerializer, PrintServerReleaseSerializer,
-    AiActionSerializer, AiModelSerializer,
+    AiActionSerializer, AiModelSerializer, AiTierSerializer,
 )
-from .services.ai_catalog import action_choices, discover_models
+from .services.ai_catalog import action_choices
 
 
 class WorkLocationViewSet(viewsets.ModelViewSet):
@@ -408,7 +408,7 @@ def robots_txt(request):
 
 class AiModelViewSet(viewsets.ModelViewSet):
     """Settings > AI model catalog. Super Admin only."""
-    queryset = AiModel.objects.all()
+    queryset = AiModel.objects.prefetch_related('tiers')
     serializer_class = AiModelSerializer
     permission_classes = [IsAuthenticated, IsSuperAdmin]
     pagination_class = None
@@ -419,12 +419,16 @@ class AiModelViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def archive(self, request, pk=None):
+        """Archive: the tiers on it go blank (the page asks for a new pick) and actions that named it follow their
+        tier again. Nothing else changes (Dash #195)."""
         row = self.get_object()
         with transaction.atomic():
             row.status = AiModel.STATUS_ARCHIVED
             row.save(update_fields=['status', 'updated_at'])
+            tiers = list(AiTier.objects.filter(model=row).values_list('label', flat=True))
+            AiTier.objects.filter(model=row).update(model=None, updated_by=request.user)
             cleared = AiAction.objects.filter(model=row).update(model=None, updated_by=request.user)
-        return Response({**AiModelSerializer(row).data, 'cleared_actions': cleared})
+        return Response({**AiModelSerializer(row).data, 'cleared_actions': cleared, 'cleared_tiers': tiers})
 
     @action(detail=True, methods=['post'])
     def unarchive(self, request, pk=None):
@@ -433,45 +437,60 @@ class AiModelViewSet(viewsets.ModelViewSet):
         row.save(update_fields=['status', 'updated_at'])
         return Response(AiModelSerializer(row).data)
 
-    @action(detail=False, methods=['post'])
-    def discover(self, request):
-        return Response({'providers': discover_models()})
-
-    def perform_update(self, serializer):
-        """A price typed in by hand is logged like one saved from the price check."""
-        from apps.core.services import ai_prices
-
-        before = (serializer.instance.input_price, serializer.instance.output_price)
-        row = serializer.save()
-        if (row.input_price, row.output_price) != before:
-            ai_prices.log_change([{
-                'slug': row.slug, 'old_input': ai_prices._text(before[0]), 'old_output': ai_prices._text(before[1]),
-                'new_input': ai_prices._text(row.input_price), 'new_output': ai_prices._text(row.output_price),
-            }], self.request.user, 'typed in')
-
-    @action(detail=False, methods=['get', 'post'], url_path='price-check')
-    def price_check(self, request):
-        """GET the last price check. POST starts one (its own process): ``{"auto": true}`` is Update's
-        follow-up (runs only when a price is missing, and fills those); otherwise it is Refresh prices,
-        which saves nothing until the changes are reviewed."""
-        from apps.core.services import ai_prices
+    @action(detail=False, methods=['get', 'post'])
+    def refresh(self, request):
+        """POST: the Refresh button (provider lists, Artificial Analysis and the three-model price triage, all at
+        once; seconds). GET: the last Refresh's summary."""
+        from .services import ai_refresh
 
         if request.method == 'POST':
-            return Response(ai_prices.start(save_blanks=bool(request.data.get('auto')), user=request.user))
-        return Response(ai_prices.state())
+            return Response(ai_refresh.refresh(request.user))
+        return Response(ai_refresh.last())
 
-    @action(detail=False, methods=['post'], url_path='price-check/apply')
-    def price_check_apply(self, request):
-        """Save the reviewed price changes for ``ids`` (model ids) from the last check. Logged with who and when."""
-        from apps.core.services import ai_prices
+    @action(detail=True, methods=['post'], url_path='accept-price')
+    def accept_price(self, request, pk=None):
+        """Save the price a Refresh flagged on this model (logged with who and when)."""
+        from .services import ai_refresh
 
-        ids = request.data.get('ids')
-        if not isinstance(ids, list) or not ids:
-            return Response({'detail': 'Pick at least one change to save.'}, status=status.HTTP_400_BAD_REQUEST)
+        row = self.get_object()
         try:
-            return Response(ai_prices.apply(ids, request.user))
+            ai_refresh.accept_flag(row, request.user)
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(AiModelSerializer(row).data)
+
+    @action(detail=True, methods=['post'], url_path='dismiss-price')
+    def dismiss_price(self, request, pk=None):
+        """Keep the saved price and clear the flag."""
+        from .services import ai_refresh
+
+        row = self.get_object()
+        ai_refresh.dismiss_flag(row)
+        return Response(AiModelSerializer(row).data)
+
+    def perform_update(self, serializer):
+        """A price typed in by hand is logged like one saved from a Refresh, and its source becomes "typed"."""
+        from .services import ai_refresh
+
+        before = (serializer.instance.input_price, serializer.instance.output_price)
+        before_image = serializer.instance.image_price
+        row = serializer.save()
+        if row.image_price != before_image:
+            row.price_source, row.price_checked_at = 'typed', timezone.now()
+            row.price_flag, row.flag_input, row.flag_output = '', None, None
+            row.save(update_fields=['price_source', 'price_checked_at', 'price_flag', 'flag_input', 'flag_output'])
+            ai_refresh.log_change([{
+                'slug': row.slug, 'old_input': ai_refresh._text(before_image), 'old_output': None,
+                'new_input': ai_refresh._text(row.image_price), 'new_output': None,
+            }], self.request.user, 'typed in (per image)')
+        if (row.input_price, row.output_price) != before:
+            row.price_source, row.price_checked_at = 'typed', timezone.now()
+            row.price_flag, row.flag_input, row.flag_output = '', None, None
+            row.save(update_fields=['price_source', 'price_checked_at', 'price_flag', 'flag_input', 'flag_output'])
+            ai_refresh.log_change([{
+                'slug': row.slug, 'old_input': ai_refresh._text(before[0]), 'old_output': ai_refresh._text(before[1]),
+                'new_input': ai_refresh._text(row.input_price), 'new_output': ai_refresh._text(row.output_price),
+            }], self.request.user, 'typed in')
 
     @action(detail=True, methods=['post'])
     def test(self, request, pk=None):
@@ -488,7 +507,8 @@ class AiModelViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Type a message.'}, status=status.HTTP_400_BAD_REQUEST)
         started = time.monotonic()
         try:
-            result = llm_complete(model_id=row.slug, user=message[:4000], max_tokens=1000, timeout=90,
+            # 25 s: the page's Try sends one request per model side by side, each inside Heroku's 30 s.
+            result = llm_complete(model_id=row.slug, user=message[:4000], max_tokens=1000, timeout=25, max_retries=0,
                                   log_source='settings_ai_test', log_detail=row.slug)
         except Exception as exc:
             return Response({'detail': f'The model call failed: {str(exc)[:300]}'}, status=status.HTTP_502_BAD_GATEWAY)
@@ -505,17 +525,84 @@ class AiModelViewSet(viewsets.ModelViewSet):
         })
 
 
+    @action(detail=True, methods=['post'], url_path='test-image')
+    def test_image(self, request, pk=None):
+        """Settings > AI "Try" for an image model: one picture from the prompt, its time and its per-image cost."""
+        from .services.image_router import ImageError, generate_image
+
+        row = self.get_object()
+        prompt = str(request.data.get('message') or '').strip()
+        if not prompt:
+            return Response({'detail': 'Type what to draw.'}, status=status.HTTP_400_BAD_REQUEST)
+        if row.modality != AiModel.MODALITY_IMAGE:
+            return Response({'detail': 'That is not an image model.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            out = generate_image(row.slug, prompt[:2000], timeout=27, log_source='settings_ai_test', log_detail=row.slug)
+        except ImageError as exc:
+            return Response({'detail': str(exc)[:300]}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({'image': f"data:{out['content_type']};base64,{out['b64']}", 'model_used': out['model_used'],
+                         'seconds': out['seconds'], 'cost': out['cost']})
+
+
+class AiTierViewSet(viewsets.ModelViewSet):
+    """Settings > AI tier map (Dash #195): Fast, Standard, Best and Image, each a model and an effort."""
+    queryset = AiTier.objects.select_related('model')
+    serializer_class = AiTierSerializer
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+    pagination_class = None
+    lookup_field = 'key'
+    http_method_names = ['get', 'patch', 'head', 'options']
+
+    def perform_update(self, serializer):
+        serializer.save(updated_by=self.request.user)
+
+
 class AiActionViewSet(viewsets.ModelViewSet):
-    """Settings > AI per-action model + effort. Super Admin writes; Manager+ reads choices."""
+    """Settings > AI actions: Workspace > Page > Function, each on a tier. Super Admin writes; Manager+ reads
+    choices."""
     queryset = AiAction.objects.select_related('model', 'updated_by')
     serializer_class = AiActionSerializer
     permission_classes = [IsAuthenticated, IsSuperAdmin]
     pagination_class = None
     lookup_field = 'purpose'
-    http_method_names = ['get', 'patch', 'head', 'options']
+    http_method_names = ['get', 'post', 'patch', 'head', 'options']
+
+    def list(self, request, *args, **kwargs):
+        from .services.ai_actions import rows
+
+        return Response(rows())
+
+    def _row(self, purpose):
+        from .services.ai_actions import rows
+
+        return next(r for r in rows() if r['purpose'] == purpose)
+
+    def update(self, request, *args, **kwargs):
+        super().update(request, *args, **kwargs)
+        return Response(self._row(self.get_object().purpose))
 
     def perform_update(self, serializer):
-        serializer.save(updated_by=self.request.user)
+        """A new tier answers the review's proposal for this action, so the proposal clears."""
+        extra = {}
+        if 'tier' in serializer.validated_data:
+            extra = {'suggested_tier': '', 'suggested_reason': ''}
+        serializer.save(updated_by=self.request.user, **extra)
+
+    @action(detail=True, methods=['post'], url_path='dismiss-suggestion')
+    def dismiss_suggestion(self, request, purpose=None):
+        row = self.get_object()
+        row.suggested_tier, row.suggested_reason = '', ''
+        row.save(update_fields=['suggested_tier', 'suggested_reason', 'updated_at'])
+        return Response(self._row(row.purpose))
+
+    @action(detail=False, methods=['get', 'post'])
+    def review(self, request):
+        """POST starts the AI tier review (a thread); GET is its state. Proposals land on the actions."""
+        from .services import ai_actions
+
+        if request.method == 'POST':
+            return Response(ai_actions.start_review(request.user))
+        return Response(ai_actions.review_state())
 
     @action(
         detail=True,

@@ -268,7 +268,9 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
   },
   // Edited by its own page or panel; never a row here.
   'hiring.careers': { label: 'Careers page', help: 'Edited in People → Jobs.', tab: 'people', kind: 'hidden' },
-  ai_price_check: { label: 'Last AI price check', help: 'Settings → AI: Estimate API costs.', tab: 'system', kind: 'state' },
+  ai_price_check: { label: 'Last AI price check', help: 'The old web price check (replaced by Refresh, Dash #195).', tab: 'system', kind: 'state' },
+  ai_refresh: { label: 'Last AI Refresh', help: 'Settings → AI → Models: Refresh.', tab: 'system', kind: 'state' },
+  ai_tier_review: { label: 'Last AI tier review', help: 'Settings → AI → Actions: AI: suggest tiers.', tab: 'system', kind: 'state' },
   buying_seller_revenue_factors: {
     label: 'Seller revenue factors',
     help: "Finished trucks' actual ÷ predicted revenue, by seller (fit_seller_factors).",

@@ -53,7 +53,8 @@ class ReplyTests(Base):
         self.assertIn('Name: Dana Miles', kwargs['user'])
         self.assertIn('Role applied for: Retail Associate', kwargs['user'])
         self.assertIn('8425 West Center Road', kwargs['user'])  # store facts from the careers file
-        self.assertEqual((kwargs['model_override'], kwargs['effort']), ('claude-sonnet-5-5', 'medium'))
+        # Settings > AI decides the model (Dash #195): the HIRING_REPLY action, nothing fixed in code.
+        self.assertEqual((kwargs['purpose'], kwargs['model_override'], kwargs['effort']), ('HIRING_REPLY', None, None))
         email = result['email']
         self.assertEqual((email['key'], email['to'], email['ai'], email['values']), ('follow_up', ['dana@example.com'], True, {}))
         # The AI's own "Thanks, Bill" is dropped; the sign-off is ours, with the name of whoever pressed the button.

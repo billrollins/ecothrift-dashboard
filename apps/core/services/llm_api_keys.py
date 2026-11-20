@@ -24,6 +24,15 @@ def resolve_meta_api_key() -> str:
     return str(getattr(settings, "META_API_KEY", "") or "").strip()
 
 
+def resolve_openai_api_key() -> str:
+    return str(getattr(settings, "OPENAI_API_KEY", "") or "").strip()
+
+
+def resolve_artificial_analysis_key() -> str:
+    """Artificial Analysis data API (Settings > AI prices and scores). Not a model key."""
+    return str(getattr(settings, "ARTIFICIAL_ANALYSIS_API_KEY", "") or "").strip()
+
+
 def api_key_status() -> dict[str, dict[str, str | bool]]:
     """Present/missing only - never returns secret values."""
     return {
@@ -46,6 +55,10 @@ def api_key_status() -> dict[str, dict[str, str | bool]]:
                 if resolve_google_api_key()
                 else "missing"
             ),
+        },
+        "openai": {
+            "ok": bool(resolve_openai_api_key()),
+            "source": "OPENAI_API_KEY in .env" if resolve_openai_api_key() else "missing",
         },
         "meta": {
             "ok": bool(resolve_meta_api_key()),

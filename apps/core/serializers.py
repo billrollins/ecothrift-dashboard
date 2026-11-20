@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import (
+    AiTier,
     WorkLocation,
     AppSetting,
     AppSettingHistory,
@@ -9,7 +10,7 @@ from .models import (
     AiModel,
     ApprovalRequest,
 )
-from apps.core.ai_config import settings_model
+from apps.core.ai_config import EFFORT_VALUES, settings_model
 
 
 class WorkLocationSerializer(serializers.ModelSerializer):
@@ -73,9 +74,19 @@ class AiModelSerializer(serializers.ModelSerializer):
         model = AiModel
         fields = [
             'id', 'slug', 'label', 'provider', 'modality', 'status', 'source',
-            'input_price', 'output_price', 'created_at', 'updated_at',
+            'input_price', 'output_price', 'image_price', 'price_source', 'price_checked_at', 'price_flag', 'flag_input',
+            'flag_output', 'aa_slug', 'aa_name', 'aa_intelligence', 'aa_task_cost', 'aa_speed', 'aa_checked_at',
+            'release_date', 'tier_keys', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'status', 'source', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'status', 'source', 'price_source', 'price_checked_at', 'price_flag', 'flag_input',
+                            'flag_output', 'aa_name', 'aa_intelligence', 'aa_task_cost', 'aa_speed', 'aa_checked_at',
+                            'release_date', 'created_at', 'updated_at']
+
+    tier_keys = serializers.SerializerMethodField()
+
+    def get_tier_keys(self, obj):
+        """The tiers this model is, e.g. ['fast']: the page marks them and warns before archiving."""
+        return [t.key for t in obj.tiers.all()]
 
     def validate_slug(self, value):
         slug = str(value or '').strip()
@@ -101,45 +112,71 @@ class AiModelSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {'modality': 'Type cannot change. Archive this model and add it again.'},
             )
-        if modality == AiModel.MODALITY_IMAGE and provider != AiModel.PROVIDER_XAI:
+        if modality == AiModel.MODALITY_IMAGE and provider not in (
+                AiModel.PROVIDER_XAI, AiModel.PROVIDER_OPENAI, AiModel.PROVIDER_GOOGLE):
             raise serializers.ValidationError(
-                {'modality': 'Image models must be xAI. Label Studio only calls xAI for images.'},
+                {'modality': 'Image models must be xAI, OpenAI or Google (the image calls Dash can make).'},
             )
         return attrs
 
 
-class AiActionSerializer(serializers.ModelSerializer):
-    model = serializers.PrimaryKeyRelatedField(
-        queryset=AiModel.objects.all(), allow_null=True, required=False,
-    )
+class AiTierSerializer(serializers.ModelSerializer):
+    model = serializers.PrimaryKeyRelatedField(queryset=AiModel.objects.all(), allow_null=True, required=False)
     model_slug = serializers.CharField(source='model.slug', read_only=True, default=None)
     env_model = serializers.SerializerMethodField()
-    updated_by_name = serializers.CharField(
-        source='updated_by.full_name', read_only=True, default=None,
-    )
 
     class Meta:
-        model = AiAction
-        fields = [
-            'purpose', 'label', 'modality', 'model', 'model_slug', 'effort', 'env_model',
-            'updated_by_name', 'updated_at',
-        ]
-        read_only_fields = ['purpose', 'label', 'modality', 'updated_at']
+        model = AiTier
+        fields = ['key', 'label', 'modality', 'model', 'model_slug', 'effort', 'env_model', 'updated_at']
+        read_only_fields = ['key', 'label', 'modality', 'updated_at']
 
     def get_env_model(self, obj):
-        return settings_model(obj.purpose)
+        return settings_model('LABEL_IMAGE' if obj.modality == AiModel.MODALITY_IMAGE else '')
 
     def validate(self, attrs):
         instance = self.instance
         model = attrs['model'] if 'model' in attrs else getattr(instance, 'model', None)
-        effort = attrs.get('effort', getattr(instance, 'effort', AiAction.EFFORT_OFF))
-        modality = getattr(instance, 'modality', AiModel.MODALITY_TEXT)
+        effort = attrs.get('effort', getattr(instance, 'effort', 'off'))
         if model is not None:
+            if model.status != AiModel.STATUS_ACTIVE:
+                raise serializers.ValidationError({'model': 'That model is archived.'})
+            if model.modality != instance.modality:
+                raise serializers.ValidationError({'model': f'This tier needs a {instance.modality} model.'})
+        if effort not in EFFORT_VALUES:
+            raise serializers.ValidationError({'effort': 'Effort must be off, low, medium, high, or max.'})
+        if instance.modality == AiModel.MODALITY_IMAGE and effort != 'off':
+            raise serializers.ValidationError({'effort': 'Image models have no effort setting.'})
+        return attrs
+
+
+class AiActionSerializer(serializers.ModelSerializer):
+    """Writes one action's tier and overrides (model, effort). The page reads rows from ``ai_actions.rows``."""
+
+    model = serializers.PrimaryKeyRelatedField(
+        queryset=AiModel.objects.all(), allow_null=True, required=False,
+    )
+
+    class Meta:
+        model = AiAction
+        fields = ['purpose', 'tier', 'model', 'effort']
+        read_only_fields = ['purpose']
+
+    def validate(self, attrs):
+        instance = self.instance
+        model = attrs['model'] if 'model' in attrs else getattr(instance, 'model', None)
+        effort = attrs.get('effort', getattr(instance, 'effort', AiAction.EFFORT_TIER))
+        tier = attrs.get('tier', getattr(instance, 'tier', AiTier.STANDARD))
+        modality = getattr(instance, 'modality', AiModel.MODALITY_TEXT)
+        if (tier == AiTier.IMAGE) != (modality == AiModel.MODALITY_IMAGE):
+            raise serializers.ValidationError({'tier': f'This action needs a {modality} tier.'})
+        if 'model' in attrs and model is not None:
             if model.status != AiModel.STATUS_ACTIVE:
                 raise serializers.ValidationError({'model': 'That model is archived.'})
             if model.modality != modality:
                 raise serializers.ValidationError({'model': f'This action needs a {modality} model.'})
-        if modality == AiModel.MODALITY_IMAGE and effort != AiAction.EFFORT_OFF:
+        if effort not in ('',) + tuple(EFFORT_VALUES):
+            raise serializers.ValidationError({'effort': 'Effort must be blank (the tier\'s), off, low, medium, high, or max.'})
+        if modality == AiModel.MODALITY_IMAGE and effort not in ('', AiAction.EFFORT_OFF):
             raise serializers.ValidationError({'effort': 'Image actions have no effort setting.'})
         return attrs
 

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-10 (requirements-dev.txt) -->
+<!-- Last updated: 2026-11-20 (#195 OPENAI routing, ARTIFICIAL_ANALYSIS_API_KEY) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -204,8 +204,11 @@ Defined in `.env` (local values) and `.envprod` (mirror of Heroku Config Vars, w
 | `GOOGLE_API_KEY` | Google Gemini API key (**`GEMINI_API_KEY`** is an alias; used for `gemini-*` ids) | — |
 | `META_API_KEY` | Meta API key for the Muse Spark models (`muse-spark-*` ids: the standardize pipeline locally, and Run AI Cleanup in production). Local and prod share one value (house D10). Added to `.envprod` 2026-10-01 for the push | — |
 | `XAI_API_BASE` | OpenAI-compatible base URL for Grok | `https://api.x.ai/v1` |
-| `AI_PROVIDER` | `auto` (route by model id: `grok*` → xAI, `gemini*` → Google, else Anthropic), or force `anthropic` / `xai` / `google`. A catalog row's provider in Settings > AI wins over the prefix rule when `auto` | `auto` |
-| `AI_MODEL` | Emergency fallback model id only. Per-feature model + effort are chosen in **Settings > AI** (superuser; `core.AiAction`). Used when a feature has no model there or the DB cannot be read | `claude-sonnet-4-6` |
+| `OPENAI_API_KEY` | OpenAI API key (house key; used for `gpt-*` / `o<digit>*` ids since Dash #195) | — |
+| `OPENAI_API_BASE` | OpenAI base URL | `https://api.openai.com/v1` |
+| `ARTIFICIAL_ANALYSIS_API_KEY` | Artificial Analysis data API (free key from artificialanalysis.ai): model prices, Intelligence Index, speed for Settings > AI Refresh (Dash #195). Blank = "no AA data", the rest works | — |
+| `AI_PROVIDER` | `auto` (route by model id: `grok*` → xAI, `gemini*` → Google, `muse*` → Meta, `gpt*` / `o<digit>*` → OpenAI, else Anthropic), or force `anthropic` / `openai` / `xai` / `google` / `meta`. A catalog row's provider in Settings > AI wins over the prefix rule when `auto` | `auto` |
+| `AI_MODEL` | Emergency fallback model id only. Per-feature model + effort are chosen in **Settings > AI** (superuser; each `core.AiAction` is on a `core.AiTier`). Used when a feature and its tier have no model, or the DB cannot be read | `claude-sonnet-4-6` |
 | ~~`AI_MODEL_<PURPOSE>`~~, ~~`AI_MODEL_FAST`~~ | **Removed.** Migration `core/0006_ai_models_from_env` copied their values into Settings > AI; code no longer reads them. Gone from `.env`, `.envprod` and Heroku (unset 2026-10-07, Heroku v420; T23) | - |
 | `AI_PRICING` | Defined in **`ecothrift/settings.py`** (per-model input/output/cache rates) — not env; costs recorded in the **`AIUsage`** table | — |
 | `VITE_DEV_LOG` | Frontend dev console (`devLog`) for Add Item / suggest | `false` |
