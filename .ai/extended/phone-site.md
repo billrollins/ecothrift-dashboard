@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-20 (owner: home's first card is "Don't shop without Thrift+", no strip above the header, "items" not "pieces") -->
+<!-- Last updated: 2026-11-20 (storefront.phone_site ON; earlier: owner: home's first card is "Don't shop without Thrift+", no strip above the header, "items" not "pieces") -->
 # The phone site: the public site and the Thrift+ scanner, rebuilt for phones
 
 **Owner, 2026-11-19:** one fast site and app for phones ("performance and FAST snappyness as a priority"), in the look he
@@ -59,6 +59,14 @@ seen by him alone until he says go ("i want access and no normal visitors to see
 - `/qr`, `/card`, `/join`, `/i/<code>`, the dash-host redirect, the web app manifest (`/scan/manifest.webmanifest`, id `/qr`,
   start_url `/scan`) and its icons are unchanged. There is no service worker: the update bar compares the page's build
   version with `home.json`'s `app`.
+
+## Going live
+
+- **2026-11-20: `storefront.phone_site` ON** (owner, after his preview walk: "its pretty perfect"; "make all updates first build
+  ship deploy then turn on. i want this out ASAP"). Every phone gets the phone site; `/scan` stays the current scanner.
+  Rollback: set it to `off` (Dash settings, or `AppSetting` `storefront.phone_site`); new loads follow in 30 seconds.
+- **`storefront.phone_scan`: still off.** Waits for the owner's real-phone check of the scanner rows
+  (`thrift-plus-surfaces.md`, table "The phone site": iPhone Safari, the installed app, Android Chrome).
 
 ## Before a switch goes on
 

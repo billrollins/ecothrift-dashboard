@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-20 (Dash Updates #197 (table "The ThriftBucks example") and #204: C18 a non-member receipt's claim QR, both scanners); earlier 2026-11-19 (Dash Update #185: the phone site's scanner, a second home for C1 to C17 on phones, behind two switches; table "The phone site" below; not yet checked on a real phone) -->
+<!-- Last updated: 2026-11-20 (#185: the phone site's table checked for go-live, `storefront.phone_site` on; C12 points at the home card; C18 phone row; earlier: Dash Updates #197 (table "The ThriftBucks example") and #204: C18 a non-member receipt's claim QR, both scanners); earlier 2026-11-19 (Dash Update #185: the phone site's scanner, a second home for C1 to C17 on phones, behind two switches; table "The phone site" below; not yet checked on a real phone) -->
 # Thrift+ surfaces: every place someone joins, signs in or is finalized
 
 **Owner 2026-11-03 (J8, J22, Dash Update #58):** a join on the customer's own phone is finished in the app (a first and last
@@ -47,25 +47,27 @@ change there changes both. Map (`frontend-public/src/phone/...`):
 
 | Row | Phone file | Difference on the phone (look only, unless said) | Checked on a phone |
 |---|---|---|---|
-| C1 | `scan/signin/index.tsx` | Same ways in and words; labels shown above the fields; messages in a reserved line under the field | not yet |
-| C2 | `scan/signin/Join.tsx` | Same | not yet |
-| C3 | `scan/signin/parts.tsx` | Same words, same place under every "Send my code" (pinned by `scan/signin/SignIn.test.tsx`) | not yet |
-| C4 | `scan/signin/CheckCode.tsx` | Same; "Send my code" keeps its words with a spinner while sending | not yet |
-| C5 | `scan/signin/StoreQrScan.tsx` | Window capped at 300 px | not yet |
-| C6 | `scan/ScanApp.tsx`, `scan/route.ts` | Same | not yet |
-| C6a | `scan/signin/AddPhone.tsx` | No longer a full-screen layer: the site's bottom bar stays; no skip; Sign out | not yet |
-| C7 | `scan/finish/` | Same steps and words; `TERMS_VERSION` pinned to the live one by `finish/termsVersion.test.ts` | not yet |
-| C8 | `pages/ThriftPlus.tsx` (`?show=qr`), `scan/member/Wallet.tsx` | **No My QR tab**: /qr and ?view=qr open the Thrift+ page's large QR (small on the page, full size on a tap, cached for no signal) | not yet |
-| C9 | `pages/ThriftPlus.tsx` (`?show=account`), `scan/member/Account.tsx` | **No Account tab**: a view of the Thrift+ page; Sign out lands on the signed-out Thrift+ page and still ends the website session | not yet |
-| C10, C11 | `pages/SignIn.tsx` (goes to /scan), `pages/Verify.tsx` | Website sign-in IS the scanner's sign-in on a phone; /verify works as before, then opens /thriftplus | not yet |
-| C12 | `pages/home/ThriftPlusBand.tsx`, `pages/ThriftPlus.tsx`, `shell/` | Links to /scan?view=join and /scan; the bottom bar's Scan | not yet |
-| C13 | `pages/Terms.tsx`, `pages/Privacy.tsx` | Same words from the same data files, one calm page | not yet |
-| C15 | `shell/BottomBar.tsx` | **No scanner tabs**: the site's bar (Home, In store, Scan, Thrift+) everywhere; Bucks, My QR and Account are views of /thriftplus (`?show=bucks|qr|account`) | not yet |
-| C16 | `scan/member/HomeScreenCard.tsx`, `shell/Prompts.tsx` | Owner 11-19: on **every** phone-site page, signed in or out (was Scan after sign-in), above the bottom bar; same two-week dismissal key; never in the installed app | not yet |
-| C17 (tag) | `scan/trip/` | Same: the tag's answer; signed out with Get Thrift+ | not yet |
-| C17 (install) | `frontend-public/phone.html` | The same manifest and iPhone tags as `index.html` | not yet |
+| C1 | `scan/signin/index.tsx` | Same ways in and words; labels shown above the fields; messages in a reserved line under the field | code: same words pinned by tests (11-20); real phone: owner, before `storefront.phone_scan` |
+| C2 | `scan/signin/Join.tsx` | Same | code: same words pinned by tests (11-20); real phone: owner, before `storefront.phone_scan` |
+| C3 | `scan/signin/parts.tsx` | Same words, same place under every "Send my code" (pinned by `scan/signin/SignIn.test.tsx`) | code: same words pinned by tests (11-20); real phone: owner, before `storefront.phone_scan` |
+| C4 | `scan/signin/CheckCode.tsx` | Same; "Send my code" keeps its words with a spinner while sending | code: same words pinned by tests (11-20); real phone: owner, before `storefront.phone_scan` |
+| C5 | `scan/signin/StoreQrScan.tsx` | Window capped at 300 px | code: same words pinned by tests (11-20); real phone: owner, before `storefront.phone_scan` |
+| C6 | `scan/ScanApp.tsx`, `scan/route.ts` | Same | code: same words pinned by tests (11-20); real phone: owner, before `storefront.phone_scan` |
+| C6a | `scan/signin/AddPhone.tsx` | No longer a full-screen layer: the site's bottom bar stays; no skip; Sign out | code: same words pinned by tests (11-20); real phone: owner, before `storefront.phone_scan` |
+| C7 | `scan/finish/` | Same steps and words; `TERMS_VERSION` pinned to the live one by `finish/termsVersion.test.ts` | code: same words pinned by tests (11-20); real phone: owner, before `storefront.phone_scan` |
+| C8 | `pages/ThriftPlus.tsx` (`?show=qr`), `scan/member/Wallet.tsx` | **No My QR tab**: /qr and ?view=qr open the Thrift+ page's large QR (small on the page, full size on a tap, cached for no signal) | code: same words pinned by tests (11-20); real phone: owner, before `storefront.phone_scan` |
+| C9 | `pages/ThriftPlus.tsx` (`?show=account`), `scan/member/Account.tsx` | **No Account tab**: a view of the Thrift+ page; Sign out lands on the signed-out Thrift+ page and still ends the website session | code: same words pinned by tests (11-20); real phone: owner, before `storefront.phone_scan` |
+| C10, C11 | `pages/SignIn.tsx` (goes to /scan), `pages/Verify.tsx` | Website sign-in IS the scanner's sign-in on a phone; /verify works as before, then opens /thriftplus | owner's preview walk 11-20 ("its pretty perfect"); live for phones with `storefront.phone_site` on |
+| C12 | `pages/home/Specials.tsx` (the first card: Join free, Example), `pages/ThriftPlus.tsx`, `shell/` | Links to /scan?view=join and /scan; the bottom bar's Scan. The Thrift+ band and How it works are gone (11-20: one explainer, rulebook V12) | owner's preview walk 11-20 ("its pretty perfect"); live for phones with `storefront.phone_site` on |
+| C13 | `pages/Terms.tsx`, `pages/Privacy.tsx` | Same words from the same data files, one calm page | owner's preview walk 11-20 ("its pretty perfect"); live for phones with `storefront.phone_site` on |
+| C15 | `shell/BottomBar.tsx` | **No scanner tabs**: the site's bar (Home, In store, Scan, Thrift+) everywhere; Bucks, My QR and Account are views of /thriftplus (`?show=bucks|qr|account`) | code: same words pinned by tests (11-20); real phone: owner, before `storefront.phone_scan` |
+| C16 | `scan/member/HomeScreenCard.tsx`, `shell/Prompts.tsx` | Owner 11-19: on **every** phone-site page, signed in or out (was Scan after sign-in), above the bottom bar; same two-week dismissal key; never in the installed app | owner's preview walk 11-20 ("its pretty perfect"); live for phones with `storefront.phone_site` on |
+| C17 (tag) | `scan/trip/` | Same: the tag's answer; signed out with Get Thrift+ | code: same words pinned by tests (11-20); real phone: owner, before `storefront.phone_scan` |
+| C17 (install) | `frontend-public/phone.html` | The same manifest and iPhone tags as `index.html` | owner's preview walk 11-20 ("its pretty perfect"); live for phones with `storefront.phone_site` on |
+| C18 | `scan/ScanApp.tsx` (keeps the claim), `shell/ReceiptClaim.tsx` (claims it on any page) | Same words; a signed-in member leaves /scan for /thriftplus at once | code: same words pinned by tests (11-20); real phone: owner, before `storefront.phone_scan` |
 
-**Before `storefront.phone_scan` goes on:** every row here checked on a real phone (iPhone Safari, the installed app,
+**11-20:** `storefront.phone_site` went on (owner: "make all updates first build ship deploy then turn on"); the scanner rows
+are code-checked and wait for the owner's real-phone check. **Before `storefront.phone_scan` goes on:** every row here checked on a real phone (iPhone Safari, the installed app,
 Android Chrome), and C14 (the opt-in screenshot) still matches what a desktop shows (it does: desktops keep C1).
 
 ## Staff
