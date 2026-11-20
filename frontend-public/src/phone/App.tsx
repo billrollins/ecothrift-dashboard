@@ -18,6 +18,7 @@ const Categories = lazy(() => import('./pages/Categories'))
 const ThriftPlus = lazy(() => import('./pages/ThriftPlus'))
 const About = lazy(() => import('./pages/About'))
 const Questions = lazy(() => import('./pages/Questions'))
+const Returns = lazy(() => import('./pages/Returns'))
 const Careers = lazy(() => import('./pages/Careers'))
 const CareerRole = lazy(() => import('./pages/CareerRole'))
 const CareersApply = lazy(() => import('./pages/CareersApply'))
@@ -77,6 +78,7 @@ export default function App() {
             <Route path="/thriftplus/*" element={<Navigate to="/terms" replace />} />
             <Route path="/about" element={<About />} />
             <Route path="/questions" element={<Questions />} />
+            <Route path="/returns" element={<Returns />} />
             <Route path="/careers" element={<Careers />} />
             <Route path="/careers/apply" element={<CareersApply />} />
             <Route path="/careers/interview" element={<CareersInterview />} />

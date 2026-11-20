@@ -10,3 +10,6 @@
 .mn-list a { display: flex; align-items: center; justify-content: space-between; height: 52px; border-bottom: 1px solid var(--line);
              font-size: 17px; font-weight: 700; }
 .mn-list a span { color: var(--green); font-size: 18px; }
+.mn-list a:has(+ .mn-lbl) { border-bottom: 0; }
+.mn-lbl { padding: 22px 0 8px; border-top: 6px solid var(--ground); margin: 0 calc(-1 * var(--gut)); padding-left: var(--gut); font-size: 13px; color: var(--ink-2); }
+.mn-list a:last-child { border-bottom: 0; }

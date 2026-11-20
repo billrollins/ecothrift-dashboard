@@ -1,13 +1,17 @@
-// W3: Categories, About and Questions. Their logic (tile order, the hours line) and a render of each.
+// W3: Categories, About and Questions, the home's close and the menu. Their logic (tile order, the hours line) and a
+// render of each.
 import { afterEach, describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { _setFeed, type HomeFeed } from '../lib/boot'
 import { _setStock, CATS, parseStock } from '../lib/stock'
-import About, { openRow } from './About'
+import About from './About'
 import Categories, { orderCats } from './Categories'
+import Footer from './home/Footer'
+import Menu from './Menu'
 import Questions, { hoursLine } from './Questions'
-import { FAQ, POLICIES } from './words'
+import Returns from './Returns'
+import { FAQ, INFO, POLICIES, RETURNS } from './words'
 
 const FEED: HomeFeed = {
   v: 'x', as_of: '2026-11-19T12:00:00-06:00', day: 'normal',
@@ -47,9 +51,17 @@ describe('Questions logic', () => {
   it('keeps the two shortened answers and points each policy at its page', () => {
     expect(FAQ.find((f) => f.q.startsWith('Can you hold'))?.a).toBe('No. First come, first served.')
     expect(FAQ.find((f) => f.q.startsWith('When does'))?.a).toBe('Trucks arrive most weeks.')
-    expect(POLICIES.map((p) => p.to)).toEqual(['/terms#s8', '/terms', '/privacy', '/terms#store-terms'])
+    expect(POLICIES.map((p) => p.to)).toEqual(['/returns', '/terms', '/privacy', ''])
   })
-  it('shows every question and answer at rest, with no buttons and nothing hidden', () => {
+  it('has one ThriftBucks answer, one line that opens the example, and no returns question (returns live in Policies)', () => {
+    const tb = FAQ.filter((f) => /ThriftBucks/.test(f.q))
+    expect(tb).toHaveLength(1)
+    expect(tb[0].example).toBe(true)
+    expect(tb[0].a).toBe('What Thrift+ members collect on most items.')
+    expect(FAQ.some((f) => /return/i.test(f.q))).toBe(false)
+    expect(FAQ.map((f) => f.a).join(' ')).not.toMatch(/earn|discount|points|cash back|rewards|store credit|guest/i)
+  })
+  it('shows every question and answer at rest, nothing hidden; the one button opens the standard example', () => {
     _setFeed(FEED)
     const { container } = render(
       <MemoryRouter>
@@ -60,13 +72,20 @@ describe('Questions logic', () => {
       expect(screen.getByText(f.q)).toBeTruthy()
       expect(screen.getByText(f.a)).toBeTruthy()
     }
-    expect(container.querySelectorAll('button')).toHaveLength(0)
+    const buttons = container.querySelectorAll('button')
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0].textContent).toContain('See the example')
     expect(container.querySelectorAll('[hidden], [aria-expanded]')).toHaveLength(0)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(buttons[0])
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.getByText('20.00 ThriftBucks')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Policies' })).toBeTruthy()
     const links = [...container.querySelectorAll('a.qa-pr')].map((a) => a.getAttribute('href'))
-    expect(links).toEqual(['/terms#s8', '/terms', '/privacy', '/terms#store-terms'])
+    expect(links).toEqual(['/returns', '/terms', '/privacy'])
     expect(screen.getByText('(402) 881-9861')).toBeTruthy()
     expect(screen.getByText('Monday to Saturday 9 AM to 6 PM · Sunday closed')).toBeTruthy()
+    expect(screen.getByText('We text sign-in codes and links only.').closest('a')).toBeNull()
   })
 })
 
@@ -90,16 +109,64 @@ describe('pages render', () => {
     expect(tiles[22].getAttribute('href')).toBe('/store?cat=other')
     expect(screen.getByText('35,071')).toBeTruthy()
   })
-  it('About shows the feed numbers and hours', () => {
+  it('About is three plain rows and the way onward: no counts, no pictures, no logo, no checking claims', () => {
     _setFeed(FEED)
-    render(
+    const { container } = render(
       <MemoryRouter>
         <About />
       </MemoryRouter>,
     )
-    expect(screen.getByText('35,071')).toBeTruthy()
-    expect(screen.getByText('23')).toBeTruthy()
-    expect(screen.getByText('9 AM to 6 PM')).toBeTruthy()
-    expect(openRow([['Sunday', 'Closed']])).toEqual(['Monday to Saturday', '9 AM to 6 PM'])
+    expect(container.querySelectorAll('.ab-f')).toHaveLength(3)
+    expect(screen.getByText('Directions ›').closest('a')?.getAttribute('href')).toMatch(/^https:/)
+    expect(screen.getByText('Monday to Saturday 9 AM to 6 PM · Sunday closed')).toBeTruthy()
+    expect(container.textContent).not.toMatch(/well under retail/i)
+    expect(container.querySelectorAll('img')).toHaveLength(0)
+    expect(container.textContent).not.toMatch(/check|test|inspect|guarantee/i)
+    const onward = [...container.querySelectorAll('a.info-t')].map((a) => a.getAttribute('href'))
+    expect(onward).toEqual(['/questions', '/careers'])
+  })
+})
+
+describe("the home's close and the menu", () => {
+  it('the close is four tiles (About, Questions, Careers, Returns), Privacy, Thrift+ terms; no logo, no black slab', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <Footer />
+      </MemoryRouter>,
+    )
+    const tiles = [...container.querySelectorAll('a.info-t')]
+    expect(tiles.map((a) => a.querySelector('b')?.textContent)).toEqual(['About', 'Questions', 'Careers', 'Returns'])
+    expect(tiles.map((a) => a.getAttribute('href'))).toEqual(['/about', '/questions', '/careers', '/returns'])
+    expect(screen.getByText('3 days or AS IS')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Privacy' }).getAttribute('href')).toBe('/privacy')
+    expect(screen.getByRole('link', { name: 'Thrift+ terms' }).getAttribute('href')).toBe('/terms')
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.querySelectorAll('button, [aria-expanded], details')).toHaveLength(0)
+  })
+  it('Returns is the plain answer: three steps, 80% back, non-members AS IS, then the full policy', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <Returns />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('3-day returns')
+    expect(container.querySelectorAll('.rt-step')).toHaveLength(RETURNS.steps.length)
+    expect(screen.getByText('80%')).toBeTruthy()
+    expect(screen.getByText('Sold AS IS. All sales final.')).toBeTruthy()
+    expect(container.querySelector('a.rt-full')?.getAttribute('href')).toBe('/terms#s8')
+    expect(container.querySelectorAll('button, [aria-expanded], details')).toHaveLength(0)
+  })
+  it('the menu ends with the same title, names and places as the close', () => {
+    _setFeed(FEED)
+    const { container } = render(
+      <MemoryRouter>
+        <Menu />
+      </MemoryRouter>,
+    )
+    expect(container.querySelector('.mn-lbl')?.textContent).toBe('Help and info')
+    expect(screen.getByText('On the truck')).toBeTruthy()
+    const rows = [...container.querySelectorAll('.mn-list a')].slice(-4)
+    expect(rows.map((a) => a.firstChild?.textContent)).toEqual(INFO.map((i) => i.name))
+    expect(rows.map((a) => a.getAttribute('href'))).toEqual(INFO.map((i) => i.to))
   })
 })
