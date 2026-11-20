@@ -19,7 +19,27 @@ Eco-Thrift is a **green** brand. Navy, beige-sand, and mint gradients are leftov
 | **Late / warning** | `#F0C766` / `#4A3200` | Semantic | Late, grace |
 | **Blocking** | `#6A3FA0` | Semantic | Blocking pin only |
 
-Public storefront (`frontend-public/src/styles.css`) uses a deeper forest `--brand: #18452d`. **Do not mix that into the dashboard.** Staff UI stays on `#2e7d32` so it matches MUI, receiving, processing, TARS, and login.
+Public storefront (`frontend-public/src/styles.css`) uses a deeper forest `--brand: #18452d`. **Do not mix that into the dashboard.**
+
+## The phone site and Thrift+ app (`frontend-public/src/phone/kit.css`)
+
+The phone site has its own tokens, set in `kit.css` `:root` and nowhere else; a card or page never picks its own colours
+(owner 2026-11-20: "how you are creating theme/branding consistent on mobile"). Boards: phone brand board
+https://claude.ai/artifact/7pCUJWUqe4hF855DWMb31r, price tag colours https://claude.ai/artifact/BGfSd7NotSCa4QBR56QZjZ.
+
+| Token | Hex | Use |
+|-------|-----|-----|
+| `--green` | `#1d5424` | Header, bands, main buttons (from the logo) |
+| `--green-d` | `#143c19` | The store line under the search |
+| `--leaf` | `#3f9f35` | Checks, "open now" |
+| `--cream` / `--ground` | `#f4f2ea` / `#eef0ea` | Cards / the page behind them |
+| `--ink` / `--ink-2` | `#10140f` / `#4d564b` | Words / quieter words |
+| `--cran` | `#b4232c` | Loss words ("way too much"), Black Friday |
+| `--tag-bg` / `--tag-num` | `#10140f` / `#e3efbe` | **The price tag: ink block, soft lime numbers** (owner 2026-11-20 picked "1 soft lime" over the black-and-lime tag). Every tag-like chip uses these two. |
+| `--lime` | `#c8e382` | The older lime accent (buttons on the green bands, BO-HO-GO card); under review |
+
+Gold `#f2c35b`: the owner likes it, "just not on black"; where it goes is open (G1 ThriftBucks on green, G2 a deal tag, G3 sale badges).
+One font: Archivo (condensed heavy uppercase for headlines). Staff UI stays on `#2e7d32` so it matches MUI, receiving, processing, TARS, and login.
 
 ## Same colour, same meaning
 

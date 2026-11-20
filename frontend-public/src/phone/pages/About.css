@@ -36,7 +36,7 @@
 
 .ab-steps { margin-top: 14px; display: grid; gap: 8px; }
 .ab-step { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 12px; background: #fff; border-radius: var(--r); padding: 10px 14px 10px 10px; min-height: 64px; }
-.ab-step b { display: flex; align-items: center; justify-content: center; width: 52px; height: 44px; border-radius: 8px; background: #000; color: var(--lime); font-size: 32px; }
+.ab-step b { display: flex; align-items: center; justify-content: center; width: 52px; height: 44px; border-radius: 8px; background: var(--tag-bg); color: var(--tag-num); font-size: 32px; }
 .ab-step span { font-size: 17px; font-weight: 800; line-height: 1.15; }
 .ab-h2 { font-size: 40px; }
 
