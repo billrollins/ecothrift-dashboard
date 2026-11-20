@@ -54,7 +54,10 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
           </div>
         </div>
         <p className="tbx-carry">
-          After 7 days on our floor, most items carry
+          After 7 days on our floor, most items start to carry ThriftBucks. They grow every day.
+        </p>
+        <p className="tbx-now">
+          This one carries today
           <b className="tn">{bucks(EXAMPLE.bucks)} ThriftBucks</b>
         </p>
         <p className="tbx-pick">Thrift+ members pick one</p>

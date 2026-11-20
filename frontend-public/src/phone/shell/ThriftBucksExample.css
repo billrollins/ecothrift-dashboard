@@ -14,7 +14,8 @@
 .tbx-item s { font-size: 24px; font-weight: 800; color: var(--ink-2); text-decoration-thickness: 2px; }
 .tbx-item .tag { font-size: 44px; }
 .tbx-carry { margin-top: 14px; font-size: 15px; font-weight: 600; line-height: 1.3; }
-.tbx-carry b { display: block; margin-top: 2px; font-size: 26px; font-weight: 900; color: var(--green); }
+.tbx-now { margin-top: 8px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.tbx-now b { display: block; margin-top: 2px; font-size: 26px; font-weight: 900; letter-spacing: 0; text-transform: none; color: var(--green); }
 .tbx-pick { margin-top: 14px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
 .tbx-two { margin-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tbx-two > div { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: 12px; border: 2px solid var(--line); }
