@@ -109,8 +109,8 @@ describe('home specials, a normal day', () => {
     expect(bars.slice(7).some((b) => b.classList.contains('w'))).toBe(false)
     expect(bars.at(-1)).toHaveClass('now')
     expect(box.querySelector('.tbx-bars')).not.toHaveTextContent(/\d{2}|day \d|20\.00/i)
-    expect(box).toHaveTextContent('Keep themPay $100today20 ThriftBucksfor next visitFull value')
-    expect(box).toHaveTextContent('Use themPay $90$10 off todayNo ThriftBucksfor next visitHalf value')
+    expect(box).toHaveTextContent('Keep themPay $100today20 ThriftBucksoff next visitFull value')
+    expect(box).toHaveTextContent('Use themPay $90$10 off todayNo ThriftBucksoff next visitHalf value')
     expect(box).toHaveTextContent('Non-member: pays $100. All sales final.')
     expect(box).not.toHaveTextContent(/\$\s*20\b|earn|discount|points|cash back|reward|guest/i)
     // Never a "$" next to ThriftBucks (the owner's "$10 off today" is dollars off today's price, on its own).

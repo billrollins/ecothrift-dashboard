@@ -51,9 +51,9 @@
 .tbx-two { position: relative; margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .tbx-two > div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px 6px;
   border-radius: 14px; background: var(--lime); text-align: center; }
-/* Owner 2026-11-20: the titles raised off the card: the lettering itself casts a soft shadow (with a light top edge). */
+/* Owner 2026-11-20: the titles raised off the card: the lettering sits on a crisp light edge (Carbon, round 18: not blurry). */
 .tbx-two small { font-size: 16px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; color: var(--ink);
-  text-shadow: 0 -1px 0 var(--card), 0 2px 1px rgba(16, 20, 15, .22), 0 4px 6px rgba(16, 20, 15, .22); }
+  text-shadow: 0 2px 0 var(--card); }
 .tbx-two b { margin-bottom: 0; font-size: 26px; font-stretch: 66%; font-weight: 900; line-height: 1.05; white-space: nowrap; }
 .tbx-two b span { font-size: 15px; font-stretch: 100%; font-weight: 700; }
 .tbx-two > div > span { font-size: 14px; font-weight: 700; line-height: 1.25; color: var(--ink); }
@@ -61,10 +61,9 @@
 /* Owner 2026-11-20: the next-visit row matches across: "20 ThriftBucks" (quiet green) vs "No ThriftBucks" (grey). */
 .tbx-two strong { margin-top: 0; font-size: 17px; font-weight: 800; line-height: 1.15; white-space: nowrap; color: var(--green); }
 .tbx-two strong.none { color: var(--ink-2); }
-/* Owner 2026-11-20: Full / Half value as a raised, rounded footer: the one 3D object on each card. */
-.tbx-two em { align-self: stretch; margin-top: 8px; padding: 7px 6px 8px; border-radius: 10px; border: 1px solid var(--line);
-  background: linear-gradient(var(--card), var(--cream)); box-shadow: inset 0 1px 0 var(--card), 0 2px 0 var(--line),
-  0 4px 8px rgba(16, 20, 15, .12); font-style: normal; font-size: 16px; font-weight: 900; line-height: 1.15; color: var(--ink); }
+/* Carbon (round 18): Full / Half value as a flat band across the card's foot, not a button. */
+.tbx-two em { align-self: stretch; margin: 10px -6px -6px; padding: 8px 6px 9px; border-radius: 0 0 14px 14px; background: var(--cream);
+  font-style: normal; font-size: 16px; font-weight: 900; line-height: 1.15; color: var(--ink); }
 /* The hinge between the two choices: a bold ink "OR" at mid-height. */
 .tbx-or { position: absolute; z-index: 1; left: 50%; top: 44px; transform: translate(-50%, -50%); width: 36px; height: 36px; display: grid;
   place-items: center; border-radius: 50%; background: var(--ink); border: 3px solid var(--card); font-style: normal;
