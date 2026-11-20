@@ -96,7 +96,7 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
           </div>
         </div>
         <p className="tbx-now">
-          This one carries today:
+          Today this item has
           <b className="tn">{EXAMPLE.bucks} ThriftBucks</b>
         </p>
         <div className="tbx-two">
