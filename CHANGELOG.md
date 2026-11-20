@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.321.0] -->
-<!-- Last reviewed: 2026-11-19 (2.321.0) -->
+<!-- Line 1 release: ## [2.322.0] -->
+<!-- Last reviewed: 2026-11-20 (2.322.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.322.0] - 2026-11-20
+
+User-facing theme: **The phone site's scanner uses the whole screen, and eleven things found in a full walk are fixed.** (Dash Update #185; the phone site is still switched off)
+
+> **For Bill:** Before your phone walk, a tester went through every screen at two phone sizes on real data. Fixed: truck and Best finds cards no longer show a category picture in place of the product (a plain tile when a piece has no photo of its own); a mistyped address on a phone gets the new site's page; typing a tag as the site shows it (0156211) works in the scanner; list counts are all in pieces; "0.00 ThriftBucks" everywhere; the install card and trip total no longer cut off; Scan no longer downloads the whole store list; signing out mid-join leaves a clean address; a missing blog picture no longer shows a broken icon; the price is in view on an item page with a photo on a small phone. Also: the scanner's sign-in, join and selfie steps use the whole screen (their buttons are in view without scrolling); a member who has not finished joining sees "Finish joining" in the top bar; the 1 MB camera file for iPhones loads only when the camera is about to open; the store list refreshes when a shopper comes back to the tab.
+
+### Changed (Phone site, still switched off)
+- Scanner: every `/scan` view hides the site's logo and search rows (`html[data-scan]`); the decoder warms with the scanning view only; typed 6 or 7 digits become `ITM` + 7 digits; sign-out leaves `/scan`.
+- Top bar: "Finish joining" for a member with `needs_phone` or finish steps left.
+- Home sliders: a card without its own photo shows a category text tile; home cards say "0.00 ThriftBucks".
+- Store list: counts in pieces in the switch, the chips and the result line.
+- Serving: on a phone that gets the phone site, every page path except `/shop`, `/checkout` and `/hold` is the phone site (so a mistyped address gets its not-found page); old Shopify redirects still run first (`apps/core/middleware.py` `phone_owns`, `CLASSIC_ONLY_RE`).
+- `lib/stock.ts`: revalidates with the ETag when the tab comes back after two minutes; `/scan` no longer loads it.
+- Install card and trip total fit at 360 to 390 px; blog pictures that fail are removed; item photo height shrinks on short screens.
+
+### Fixed (tests)
+- `apps/core/tests/test_ai_settings.py` counts the two Settings > AI purposes v2.320.0 added (`STOREFRONT_STOCK_PHOTO`, `STOREFRONT_PHOTO_CHECK`); it failed on main since then.
 
 ## [2.321.0] - 2026-11-19
 
