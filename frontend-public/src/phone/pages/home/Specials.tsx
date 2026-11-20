@@ -41,35 +41,29 @@ const BOHO_ENDS = Date.parse('2027-01-01T06:00:00Z') // after Thu Dec 31
 
 /**
  * The first card on every normal day (owner 2026-11-20: "Do not shop without Thrift+ ... Needs to stop people NOW";
- * rulebook V11). Signed out it opens the join; a member's button says "My Thrift+". The button keeps one width, so
- * nothing moves when the session answers.
+ * rulebook V11): the headline, then the two kinds of shopper side by side as two rows (bad, then good; from the AI
+ * panel's review), a full-width button and one fine-print line. Signed out it opens the join; a member's button says
+ * "My Thrift+". The button is full width, so nothing moves when the session answers.
  */
 function Shout() {
   const { status } = useMember()
   const member = status === 'member'
   const inner = (
     <>
-      <span className="lbl">Please read</span>
+      <span className="lbl">Before you shop</span>
       <h2 className="disp">
         Don’t shop <em>without Thrift+</em>
       </h2>
-      <ul className="hc-why">
-        <li>Without it, you pay the full tag.</li>
-        <li>Members collect ThriftBucks.</li>
-        <li>Only members can return.</li>
-      </ul>
-      <div className="hc-cta">
-        <span className="btn btn-lime">{member ? 'My Thrift+' : 'Join free'}</span>
-        <p className="fine">
-          Thrift+ members.
-          <br />
-          Most items.
-          <br />
-          Free to join.
-          <br />
-          Nothing owed.
+      <div className="hc-vs">
+        <p className="vs-no">
+          <small>Non-member</small>Full tag. All sales final.
+        </p>
+        <p className="vs-yes">
+          <small>Thrift+ member</small>ThriftBucks. 3-day returns.
         </p>
       </div>
+      <span className="btn btn-lime hc-join">{member ? 'My Thrift+' : 'Join free'}</span>
+      <p className="fine">Thrift+ members. Most items. Returns on qualifying items. Free to join. Nothing owed.</p>
     </>
   )
   return member ? (
