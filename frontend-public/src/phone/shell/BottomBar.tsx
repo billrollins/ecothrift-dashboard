@@ -9,19 +9,22 @@ import { isHomePath } from './TopBar'
 export function BottomBar() {
   const { pathname } = useLocation()
   const on = (yes: boolean) => (yes ? 'on' : undefined)
+  const now = (yes: boolean) => (yes ? ('page' as const) : undefined)
   const home = isHomePath(pathname)
+  const store = pathname.startsWith('/store')
+  const plus = pathname.startsWith('/thriftplus')
   return (
     <nav className="bb" aria-label="Main">
-      <Link className={on(home)} to="/" aria-current={home ? 'page' : undefined}>
+      <Link className={on(home)} to="/" aria-current={now(home)}>
         <IconHome />
         Home
       </Link>
-      <Link className={on(pathname.startsWith('/store'))} to="/store">
+      <Link className={on(store)} to="/store" aria-current={now(store)}>
         <IconList />
         In store
       </Link>
       {scanIsRoute() ? (
-        <Link className="scan" to="/scan" aria-current={pathname === '/scan' ? 'page' : undefined}>
+        <Link className="scan" to="/scan" aria-current={now(pathname === '/scan')}>
           <span className="k">
             <IconScan />
           </span>
@@ -35,7 +38,7 @@ export function BottomBar() {
           Scan
         </a>
       )}
-      <Link className={on(pathname.startsWith('/thriftplus'))} to="/thriftplus">
+      <Link className={on(plus)} to="/thriftplus" aria-current={now(plus)}>
         <IconTag />
         Thrift+
       </Link>

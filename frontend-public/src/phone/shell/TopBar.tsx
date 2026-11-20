@@ -1,5 +1,6 @@
 /**
- * The top of every page (mockup shell/01-top.html): the store line on home only; the logo row scrolls away; the search row sticks. Search: Enter or the button opens /store?q=; a tag number (6 or 7 digits) opens
+ * The top of every page (mockup shell/01-top.html): the logo row, the search row (always in reach; shell.css says what stays
+ * on which screen), and on home only the store line under them. Search: Enter or the button opens /store?q=; a tag number (6 or 7 digits) opens
  * the scanner on that tag (/scan?tag=ITM<7 digits>). On /store the box IS the store's query: typing updates `?q=`
  * (replace), so the Store page only reads `useSearchParams().get('q')`.
  */
@@ -17,6 +18,20 @@ import { IconClear, IconMenu, IconNext, IconPerson, IconPin, IconSearch } from '
 export function tagSku(text: string): string | null {
   const t = text.trim()
   return /^\d{6,7}$/.test(t) ? `ITM${t.padStart(7, '0')}` : null
+}
+
+/**
+ * What stays on screen is decided once, when the page loads, and never again (critic cycle 11-20): a phone browser's
+ * address bar hiding mid-scroll makes the window taller, and that must never bring the logo row in. A window 740 px or
+ * taller (the installed app, big phones) keeps the logo row on screen as well as the search row (shell.css,
+ * `html[data-head="stay"]`); a shorter one lets the logo row scroll away with the page.
+ */
+export const TALL_PX = 740
+export function headStays(height: number): boolean {
+  return height >= TALL_PX
+}
+if (typeof window !== 'undefined') {
+  document.documentElement.setAttribute('data-head', headStays(window.innerHeight) ? 'stay' : 'scroll')
 }
 
 export function isHomePath(pathname: string): boolean {
@@ -59,7 +74,7 @@ function Account() {
       <Link className="acct fade" to="/thriftplus" aria-label={`Thrift+: ${amount} ThriftBucks`}>
         <span className="in">
           <small>ThriftBucks</small>
-          <b className="tn" style={amount.length > 6 ? { fontSize: 15 } : undefined}>{amount}</b>
+          <b className="tn">{amount}</b>
         </span>
       </Link>
     )

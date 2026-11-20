@@ -1,30 +1,46 @@
-/* The shell (from the mockup's shell/01-top.html and shell/90-bottombar.html): always on screen.
-   The strip, the logo row and the store line scroll away; only the search row stays stuck to the top.
-   The logo row is 66 px tall and the search row 62 px (128 px together: the Scan page will size itself with these). */
+/* The shell (from the mockup's shell/01-top.html and shell/90-bottombar.html): the same header at the same place on every
+   page. The logo row is 74 px and the search row 62 px. What stays on screen is decided once, when the page loads, by
+   the window's height (TopBar.tsx sets html[data-head]; never while scrolling: critic cycle 11-20, panel 5 of 7): on most
+   phone browsers the logo row scrolls away with the page and the search row sticks; in a window 740 px or taller (the
+   installed app, big phones) the logo row stays too. The bottom bar is always there. Nothing in the header changes size. */
 
-/* Row one: menu | logo in the middle | account. Fixed side columns so the logo never moves between signed out and in. */
+/* Row one: menu | logo | account. Equal side columns, so the logo sits on the screen's centre and never moves between
+   signed out, a balance and Finish joining. The menu glyph and the account's words line up with the search field's
+   edges (the gutter). */
 .top { background: var(--green); color: #fff; padding: 0 var(--gut); }
-.top .row { display: grid; grid-template-columns: 44px 1fr 64px; align-items: center; height: 66px; }
-.top .menu { width: 44px; height: 44px; margin-left: -10px; display: grid; place-items: center; color: #fff; }
-.top .home { justify-self: center; display: block; }
-.top .logo { display: block; height: clamp(48px, 15vw, 60px); width: auto; max-width: 100%; }
-.top .acct { justify-self: end; width: 64px; height: 50px; margin-right: -6px; display: grid; place-items: center; text-align: center; color: #fff; }
-.top .acct > span { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.05; white-space: nowrap; }
-.top .acct .out svg.i { width: 24px; height: 24px; margin-bottom: 2px; }
-.top .acct .out small { font-size: 11.5px; font-weight: 700; }
-.top .acct .in small { font-size: 10px; font-weight: 700; color: var(--lime); letter-spacing: .01em; }
-.top .acct .in b { font-size: 19px; font-weight: 900; margin-top: 1px; }
+.top .row { display: grid; grid-template-columns: 50px minmax(0, 1fr) 50px; column-gap: 8px; align-items: center; height: 74px; }
+.top .menu { justify-self: start; width: 44px; height: 44px; margin-left: -11px; display: grid; place-items: center; color: #fff; }
+.top .home { justify-self: center; display: block; width: 100%; max-width: 236px; }
+/* As wide as the middle allows, up to 236 px (58 px tall at 390 wide, 52 px at 360), with 8 px or more above and below. */
+.top .logo { display: block; width: 100%; height: auto; }
+.top .acct { justify-self: end; height: 50px; min-width: 44px; display: flex; align-items: center; justify-content: flex-end; color: #fff; }
+.top .acct > span { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; line-height: 1.05; white-space: nowrap; text-align: right; }
 .top .acct.wait > span { opacity: 0; }
-/* A member with a step left in the app: "Finish joining" in the balance's slot and size, a link to the scanner. */
-.top .acct .fin small { font-size: 12.5px; font-weight: 800; color: var(--lime); }
-.top .acct .fin b { display: flex; align-items: center; gap: 1px; font-size: 12.5px; font-weight: 800; color: var(--lime); margin-top: 2px; }
+/* Signed out: the person over "Sign in", as one unit on the right edge. */
+.top .acct .out { align-items: center; }
+.top .acct .out svg.i { width: 24px; height: 24px; margin-bottom: 3px; }
+.top .acct .out small { font-size: 13px; font-weight: 700; }
+/* A member: "ThriftBucks" over the balance, in the kit's narrow number type so 1,234.50 fits the 50 px column. */
+.top .acct .in small { font-size: 13px; font-weight: 700; font-stretch: 62%; color: var(--lime); }
+/* One size for every balance (35.00 to 1,234.50): 18 px, narrow, so the slot always looks the same. */
+.top .acct .in b { font-size: 18px; font-weight: 800; font-stretch: 62%; letter-spacing: -.025em; line-height: 1; margin-top: 2px; }
+/* A member with a step left in the app: "Finish joining" in the balance's slot, a link to the scanner. */
+.top .acct .fin small, .top .acct .fin b { font-size: 13px; font-weight: 800; font-stretch: 80%; color: var(--lime); }
+.top .acct .fin b { display: flex; align-items: center; gap: 1px; margin-top: 3px; }
 .top .acct .fin svg.i { width: 12px; height: 12px; stroke-width: 3; }
 
-/* The search row: the only part that stays stuck. */
+/* The search row: always in reach. */
 .find { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: var(--green); padding: 8px var(--gut); }
+/* A tall window: the logo row stays as well (it never shrinks), and the search row sits under it. */
+html[data-head="stay"] .top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 31; }
+html[data-head="stay"] .find { top: calc(env(safe-area-inset-top, 0px) + 74px); }
+html[data-head="stay"] { scroll-padding-top: 146px; }   /* kit.css says 72 px for the search row alone */
 /* The white field stops where the button starts, so no white edge shows under the button's corner (owner 2026-11-20:
    "a white line/pixel underneath ... looks like an error"). */
-.box { display: flex; align-items: center; height: 46px; background: linear-gradient(90deg, #fff calc(100% - 56px), var(--tag-bg) 0); border-radius: 10px; overflow: hidden; color: var(--ink); }
+.box { --cam-bg: var(--tag-bg); --cam-fg: var(--tag-num);
+       display: flex; align-items: center; height: 46px; background: linear-gradient(90deg, #fff calc(100% - 56px), var(--cam-bg) 0); border-radius: 10px; overflow: hidden; color: var(--ink); }
+/* Black Friday's header is near-black, where an ink button has no edge: the tag's two colours swap. */
+html[data-day="bf"] .box { --cam-bg: var(--tag-num); --cam-fg: var(--tag-bg); }
 .box input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; padding: 0 4px 0 14px; font: inherit; font-size: 16px; color: var(--ink);
              -webkit-appearance: none; appearance: none; border-radius: 0; }
 .box input::placeholder { color: #6b7468; }
@@ -32,23 +48,26 @@
 .box .clr { flex: none; width: 40px; height: 46px; display: grid; place-items: center; color: var(--ink-2); opacity: 0; pointer-events: none; transition: opacity .1s; }
 .box .clr svg.i { width: 20px; height: 20px; }
 .box.has .clr { opacity: 1; pointer-events: auto; }
-.box .cam { flex: none; align-self: stretch; width: 56px; display: grid; place-items: center; background: var(--tag-bg); color: var(--tag-num); }
+.box .cam { flex: none; align-self: stretch; width: 56px; display: grid; place-items: center; background: var(--cam-bg); color: var(--cam-fg); }
 .box .cam svg.i { width: 26px; height: 26px; }
 
-.storeline { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 var(--gut); background: var(--green-d); color: #fff; font-size: 13px; font-weight: 600; }
-.storeline svg.i { width: 16px; height: 16px; }
-.storeline .open { margin-left: auto; display: flex; align-items: center; gap: 6px; color: var(--lime); font-weight: 800; white-space: nowrap; }
-.storeline .open i { width: 8px; height: 8px; border-radius: 50%; background: var(--lime); }
-.storeline .open.shut { color: #ffd3c9; } .storeline .open.shut i { background: #ffd3c9; }
+/* Home only: the store line, under the green header on the page's own ground, like a store app's "your store" line.
+   One size; the address quiet (regular weight, ink-2), the open words bold, so it reads second to search. */
+.storeline { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 var(--gut); background: var(--ground); color: var(--ink-2);
+             border-bottom: 1px solid var(--line); font-size: 14px; font-weight: 500; }
+.storeline svg.i { width: 16px; height: 16px; color: var(--green); flex: none; }
+/* Open or closed is told by the words and the dot (leaf green: open), the same on every day. */
+.storeline .open { margin-left: auto; display: flex; align-items: center; gap: 6px; color: var(--ink); font-weight: 700; white-space: nowrap; }
+.storeline .open i { width: 8px; height: 8px; border-radius: 50%; background: var(--leaf); }
+.storeline .open.shut { color: var(--cran); } .storeline .open.shut i { background: var(--cran); }
 
 /* The bottom bar: four places, always under the thumb. Scan is the black one. */
 .bb { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 40; width: min(100%, 430px);
       display: grid; grid-template-columns: repeat(4, 1fr); height: calc(var(--bar) + env(safe-area-inset-bottom, 0px));
       padding-bottom: env(safe-area-inset-bottom, 0px); background: #fff; border-top: 1px solid var(--line); }
-.bb a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 11.5px; font-weight: 700; color: var(--ink-2); }
-.bb a.on { color: var(--green); }
-.bb a.scan span.k { display: grid; place-items: center; width: 44px; height: 30px; border-radius: 9px; background: #000; color: var(--lime); }
-.bb a.scan { color: var(--ink); }
+.bb a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.bb a.on, .bb a[aria-current='page'] { color: var(--green); box-shadow: inset 0 3px 0 var(--green); }   /* colour and a bar: not colour alone */
+.bb a.scan span.k { display: grid; place-items: center; width: 44px; height: 30px; border-radius: 9px; background: var(--ink); color: var(--lime); }
 .bb svg.i { width: 23px; height: 23px; }
 .bb a > svg.i { margin: 3.5px 0; }
 

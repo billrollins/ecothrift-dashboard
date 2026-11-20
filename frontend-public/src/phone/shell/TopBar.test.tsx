@@ -8,7 +8,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { _setFeed, type HomeFeed } from '../lib/boot'
 import { _resetMember } from '../lib/member'
-import { TopBar } from './TopBar'
+import { headStays, TopBar } from './TopBar'
 
 let session: unknown = { status: 'signed_out' }
 const ANA = { first_name: 'Ana', bucks_available: '35.00', bucks_use_by: '2026-12-19', ready: true }
@@ -53,6 +53,14 @@ describe('the account slot', () => {
     expect(screen.queryByText('Finish')).not.toBeInTheDocument()
   })
 
+  it('every balance is one size: 1,234.50 has no size of its own', async () => {
+    session = { status: 'member', member: { ...ANA, bucks_available: '1234.50' } }
+    show()
+    const link = await screen.findByRole('link', { name: 'Thrift+: 1,234.50 ThriftBucks' })
+    expect(link.querySelector('b')).toHaveClass('tn', { exact: true })
+    expect(link.querySelector('b')).not.toHaveAttribute('style')
+  })
+
   it('no mobile number yet: Finish joining, to /scan, in the same slot', async () => {
     session = { status: 'member', member: { ...ANA, bucks_available: '0.00', needs_phone: true } }
     show()
@@ -74,5 +82,16 @@ describe('the account slot', () => {
     _resetMember()
     show()
     await waitFor(() => expect(screen.getByRole('link', { name: 'Thrift+: 0.00 ThriftBucks' })).toBeInTheDocument())
+  })
+})
+
+describe('what stays on screen', () => {
+  it('is decided once at load: a 740 px or taller window keeps the logo row, a shorter one lets it scroll', () => {
+    expect(headStays(640)).toBe(false)
+    expect(headStays(664)).toBe(false)
+    expect(headStays(739)).toBe(false)
+    expect(headStays(740)).toBe(true)
+    expect(headStays(844)).toBe(true)
+    expect(['stay', 'scroll']).toContain(document.documentElement.getAttribute('data-head'))
   })
 })
