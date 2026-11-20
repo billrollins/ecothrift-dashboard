@@ -100,7 +100,7 @@ describe('home specials, a normal day', () => {
     expect(box).toHaveTextContent('Retail$200.00')
     expect(box.querySelector('.tbx-item .tag')).toHaveTextContent('$10000') // our tag $100.00, cents shown
     expect(box).toHaveTextContent('After 7 days on our floor, most items start to carry ThriftBucks. They grow every day.')
-    expect(box).toHaveTextContent('This one carries today20.00 ThriftBucks')
+    expect(box).toHaveTextContent('This one carries today:20.00 ThriftBucks')
     // The growth strip shows the sentence: 7 days with none, then bars that grow to today's (no day number on it).
     const bars = Array.from(box.querySelectorAll('.tbx-bars i'))
     expect(bars.slice(0, 7).every((b) => b.classList.contains('w'))).toBe(true)
@@ -108,7 +108,7 @@ describe('home specials, a normal day', () => {
     expect(bars.at(-1)).toHaveClass('now')
     expect(box.querySelector('.tbx-bars')).not.toHaveTextContent(/\d{2}|day \d/i)
     expect(box).toHaveTextContent('Keep themPay $100.0020.00 ThriftBucks come off your next visitFull value')
-    expect(box).toHaveTextContent('Use them nowPay $90.00todayHalf value: $10.00 off')
+    expect(box).toHaveTextContent('Use them nowPay $90.00todayHalf value')
     expect(box).toHaveTextContent('Non-member: pays $100.00. All sales final.')
     expect(box).not.toHaveTextContent(/\$\s*20\.00|earn|discount|points|cash back|reward|guest/i)
     expect(within(box).getByRole('link', { name: 'Join free' })).toHaveAttribute('href', '/scan?view=join')
