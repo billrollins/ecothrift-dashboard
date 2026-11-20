@@ -4,41 +4,45 @@
 /* The map: cream ground, white streets, the store in the logo's green. Text in it is 15 units: 13.7 px at 360 wide. */
 .visit .map { display: block; margin: 0 0 18px; border-radius: var(--r); overflow: hidden; background: var(--cream); border: 1px solid var(--line); }
 .visit .map svg { display: block; width: 100%; height: auto; font-family: var(--sans); }
-.visit .map .tree { fill: var(--leaf); opacity: .22; }
-.visit .map .nb { fill: var(--line); }
-.visit .map .lot { fill: var(--ground); }
+.visit .map .lot { fill: var(--line); }
 .visit .map .stall { fill: none; stroke: var(--card); stroke-width: 1.5; }
 .visit .map .rd { fill: var(--card); }
 .visit .map .edge { fill: none; stroke: var(--line); stroke-width: 1.5; }
 .visit .map .median { fill: none; stroke: var(--line); stroke-width: 2; }
 .visit .map .nm { font-size: 15px; font-weight: 800; letter-spacing: .07em; fill: var(--ink-2); }
-.visit .map .bldg-base { fill: var(--green-d); }
 .visit .map .bldg { fill: var(--green); }
 .visit .map .mark { fill: var(--card); }
-.visit .map .sign { font-size: 16px; font-weight: 900; font-stretch: 66%; letter-spacing: .02em; fill: var(--card); }
+.visit .map .canopy { fill: var(--card); stroke: var(--ink-2); stroke-width: 1.5; }
+.visit .map .nbr { fill: var(--line); }
+.visit .map .nbrline { fill: none; stroke: var(--card); stroke-width: 1.5; }
+.visit .map .nbrname { font-size: 15px; font-weight: 900; font-stretch: 66%; letter-spacing: .03em; fill: var(--ink-2); }
+.visit .map .sign { font-size: 17px; font-weight: 900; font-stretch: 66%; letter-spacing: .02em; fill: var(--card); }
 .visit .map .nbg { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
 .visit .map .nar { fill: var(--ink); }
 .visit .map .nn { font-size: 15px; font-weight: 900; fill: var(--ink); }
 
-/* Open or not: one line, never wraps (the longest, "Opens Wednesday 9 AM", fits at 360). */
-.visit .open { display: flex; align-items: center; gap: 8px; height: 24px; font-size: 17px; font-weight: 800; color: var(--green); white-space: nowrap; }
-.visit .open i { width: 11px; height: 11px; border-radius: 50%; background: var(--leaf); flex: none; }
-.visit .open.shut { color: var(--cran); } .visit .open.shut i { background: var(--cran); }
+/* Open or not: one line, never wraps (the longest, "Closed · Opens 9 AM tomorrow", 316 px, fits at 360). */
+.visit .open { display: flex; align-items: center; gap: 9px; height: 26px; font-size: 18px; font-weight: 800; color: var(--green); white-space: nowrap; }
+.visit .open i { width: 12px; height: 12px; border-radius: 50%; background: var(--leaf); flex: none; }
+.visit .open.shut { color: var(--ink); } .visit .open.shut i { background: var(--cran); }
 
-.visit h2 { margin-top: 8px; font-size: 44px; }
-.visit .corner { margin-top: 8px; font-size: 16px; font-weight: 800; }
-.visit .city { margin-top: 2px; font-size: 15px; color: var(--ink-2); }
+.visit h2 { margin-top: 6px; font-size: 44px; }
+.visit .corner { margin-top: 8px; font-size: 17px; font-weight: 800; }
+.visit .addr { margin-top: 3px; font-size: 15px; color: var(--ink-2); }
 
-/* Directions (the store's green) and Call: two 48 px buttons, one thumb. */
+/* Directions (the store's green, the one filled button) and Call: two 48 px buttons, one thumb. */
 .visit .acts { margin-top: 16px; display: flex; gap: 10px; }
-.visit .acts .btn { flex: 1 1 0; min-width: 0; padding: 0 10px; gap: 7px; }
+.visit .acts .btn { flex: 1 1 0; min-width: 0; padding: 0 10px; gap: 8px; }
 .visit .acts .go { background: var(--green); color: var(--card); border: 2px solid var(--green); }
 .visit .acts .go svg.i { fill: currentColor; stroke: none; width: 18px; height: 18px; }
-.visit .acts .call svg.i { width: 19px; height: 19px; stroke-width: 2; }
+.visit .acts .call { color: var(--green); }
+.visit .acts .call svg.i { width: 20px; height: 20px; }
 
-/* The week: today's row is bold and says so. */
+/* The week: only today's row is bold, and says so. */
 .hours { margin-top: 18px; border-top: 1px solid var(--line); }
-.hours div { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
-.hours div span:last-child { font-weight: 700; white-space: nowrap; }
-.hours div em { margin-left: 8px; font-style: normal; font-size: 13px; font-weight: 800; color: var(--green); }
-.hours div.now span:first-child { font-weight: 800; }
+.hours div { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+.hours div span:first-child { display: flex; align-items: center; gap: 8px; }
+.hours div span:last-child { white-space: nowrap; }
+.hours div em { font-style: normal; font-size: 13px; font-weight: 800; line-height: 1; color: var(--green); background: var(--ground); border-radius: 999px; padding: 4px 9px; }
+.hours div.now span { font-weight: 800; }
+.hours div.now em { font-weight: 800; }

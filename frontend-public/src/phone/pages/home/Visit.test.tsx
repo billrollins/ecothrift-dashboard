@@ -36,13 +36,20 @@ describe('Visit', () => {
     expect(svg.textContent).toContain('W CENTER RD')
     expect(svg.textContent).toContain('S 84TH ST')
     expect(svg.textContent).toContain('ECO-THRIFT')
+    // Eco-Thrift is the WEST half of its building only (owner 2026-11-20): the neighbours' half is east of it.
+    const nbr = svg.querySelector('rect.nbr')!
+    expect(num(nbr, 'x')).toBeGreaterThan(num(store, 'x'))
+    expect(num(nbr, 'x') + num(nbr, 'width')).toBeLessThan(num(s84, 'x'))
+    expect(svg.textContent).toContain('MEGA')
     expect(container.querySelector('img, iframe, image, script')).toBeNull()
   })
 
   it('says the corner in words, opens maps for Directions and dials for Call', () => {
     render(<Visit />)
     expect(screen.getByRole('heading', { name: '84th & Center' })).toBeInTheDocument()
-    expect(screen.getByText('Southwest corner · 8425 W Center Rd')).toBeInTheDocument()
+    expect(screen.getByText('Southwest corner')).toBeInTheDocument()
+    expect(screen.getByText('West half of the Mega Saver building')).toBeInTheDocument()
+    expect(screen.getByText('8425 W Center Rd, Omaha, NE 68124')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^Directions$/ })).toHaveAttribute('href', STORE.retail.mapsPlaceUrl)
     expect(screen.getByRole('link', { name: `Call ${STORE.retail.phone}` })).toHaveAttribute('href', `tel:${STORE.retail.phoneHref}`)
   })

@@ -52,49 +52,47 @@ const MARK = [
   'M12.3 88.4C-20.2 163 13.9 250.2 88.5 282.7L88.5 282.7C107.1 290.9 127.3 295.1 147.5 295.1L147.5 295.1C150.9 295.1 154.3 294.9 157.8 294.7L157.8 294.7C212.9 290.8 260.8 257 282.8 206.5L282.8 206.5C300.8 165.3 299.2 118.7 278.2 78.8L278.2 78.8C273.7 70.3 268.4 62.2 262.4 54.7L262.4 54.7C259.4 51 256.2 47.4 252.9 44L252.9 44C251 42.2 248 42.1 246.2 44L246.2 44C244.3 45.8 244.3 48.8 246.1 50.7L246.1 50.7C249.2 53.8 252.2 57.2 255 60.7L255 60.7C260.6 67.7 265.6 75.2 269.8 83.2L269.8 83.2C289.4 120.6 291 164.1 274.1 202.8L274.1 202.8C253.5 250 208.7 281.6 157.1 285.2L157.1 285.2C135 286.8 112.6 282.9 92.3 274L92.3 274C22.5 243.6 -9.5 162 21 92.2L21 92.2C50.9 23.9 130.8 -8.5 199.7 19.6L199.7 19.6L197.4 23.9C197.1 24.5 197.1 25.3 197.5 25.9L197.5 25.9C197.9 26.6 198.6 26.9 199.4 26.9L199.4 26.9L219 26.1C219.7 26.1 220.4 25.7 220.7 25L220.7 25C221.1 24.3 221 23.6 220.6 22.9L220.6 22.9L210.2 6.4C209.8 5.7 209.1 5.4 208.3 5.4L208.3 5.4C207.6 5.4 206.9 5.8 206.6 6.5L206.6 6.5L204.1 11.2C185.8 3.6 166.8 0 148 0L148 0C91 0 36.4 33.2 12.3 88.4',
 ]
 
-/** Trees along the streets: a little warmth, nothing to read. */
-const TREES: Array<[number, number]> = [
-  [52, 36], [70, 38], [196, 36], [214, 38], [282, 34], [300, 36], [318, 34], [336, 36],
-  [280, 98], [280, 118], [16, 108], [34, 110], [104, 186], [122, 184],
-]
+/** Parking stalls in front of the store (two rows) and along 84th. */
+const STALLS = [
+  ...[80, 89, 98, 107, 116, 125, 134, 143, 152, 161].map((x) => `M${x} 84v9M${x} 99v9`),
+  ...[124, 133, 142, 151, 160, 169].map((y) => `M240 ${y}h8`),
+].join('')
 
+/**
+ * The corner, north up (owner's aerial, 2026-11-20): W Center Rd across, S 84th St down; in the south-west block one
+ * long building behind its lot. Eco-Thrift is its WEST half only; the east half is two small shops and Mega Saver,
+ * whose gas canopy stands in the lot. Driveways from both streets. 358 x 196 units; names are 15 units (13.7 px at
+ * 360 wide). Hand-drawn: no map data or imagery copied.
+ */
 function Map() {
   return (
     <svg viewBox="0 0 358 196" aria-hidden="true">
-      {TREES.map(([x, y]) => <circle key={`${x}-${y}`} className="tree" cx={x} cy={y} r="5.5" />)}
-      {/* Neighbours: plain blocks, no names. */}
-      <rect className="nb" x="84" y="10" width="28" height="22" rx="2" />
-      <rect className="nb" x="124" y="6" width="40" height="26" rx="2" />
-      <rect className="nb" x="284" y="10" width="12" height="12" rx="2" />
-      <rect className="nb" x="302" y="10" width="12" height="12" rx="2" />
-      <rect className="nb" x="320" y="10" width="12" height="12" rx="2" />
-      <rect className="nb" x="338" y="10" width="12" height="12" rx="2" />
-      <rect className="nb" x="296" y="86" width="34" height="24" rx="2" />
-      <rect className="nb" x="292" y="138" width="20" height="40" rx="2" />
-      <rect className="nb" x="-4" y="128" width="96" height="40" rx="2" />
-      <rect className="nb" x="80" y="84" width="18" height="14" rx="2" />
-      <rect className="nb" x="190" y="170" width="18" height="12" rx="2" />
-      {/* The store's lot: in front of it (north) and along 84th, with the two driveways. */}
-      <path className="lot" d="M108 79h130v80h-10v-50H108z" />
-      <path className="stall" d="M116 83v8M124 83v8M132 83v8M140 83v8M148 83v8M156 83v8M182 83v8M190 83v8M198 83v8M206 83v8M214 83v8M222 83v8M230 83v8M230 116h6M230 124h6M230 132h6M230 140h6M230 148h6" />
-      <rect className="rd" x="164" y="73" width="10" height="7" />
-      <rect className="rd" x="237" y="94" width="5" height="10" />
-      {/* The roads: both are wide, divided streets. */}
-      <rect className="rd" x="0" y="46" width="358" height="28" />
-      <rect className="rd" x="241" y="0" width="26" height="196" />
-      <path className="edge" d="M0 46H241M267 46H358M0 74H164M174 74H241M267 74H358M241 0V46M267 0V46M241 74V94M241 104V196M267 74V196" />
-      <path className="median" d="M0 60H236M272 60H358M254 0V41M254 79V196" />
-      <text className="nm" x="12" y="65.2">W CENTER RD</text>
-      <text className="nm" transform="translate(259.2 188) rotate(-90)">S 84TH ST</text>
-      {/* The store: the building wears the logo. */}
-      <rect className="bldg-base" x="110" y="113" width="118" height="42" rx="5" />
-      <rect className="bldg" x="110" y="109" width="118" height="42" rx="5" />
-      <g transform="translate(117 118) scale(0.0811)">
+      {/* The lot and its two driveways. */}
+      <path className="lot" d="M72 80h176v100h-8V112H72z" />
+      <rect className="lot" x="92" y="72" width="16" height="10" />
+      <rect className="lot" x="246" y="88" width="12" height="16" />
+      <path className="stall" d={STALLS} />
+      {/* Mega Saver's gas canopy. */}
+      <rect className="canopy" x="180" y="86" width="52" height="16" rx="2" />
+      {/* The streets: both wide and divided; the centre lines stop for the names. */}
+      <rect className="rd" x="0" y="42" width="358" height="32" />
+      <rect className="rd" x="256" y="0" width="32" height="196" />
+      <path className="edge" d="M0 42H256M288 42H358M0 74H92M108 74H256M288 74H358M256 0V42M288 0V42M256 74V88M256 104V196M288 74V196" />
+      <path className="median" d="M144 58H250M294 58H358M272 0V36M272 80V94" />
+      <text className="nm" x="14" y="63.4">W CENTER RD</text>
+      <text className="nm" transform="translate(277.4 188) rotate(-90)">S 84TH ST</text>
+      {/* The building: the neighbours' east half, then Eco-Thrift's west half wearing its sign. */}
+      <rect className="nbr" x="160" y="112" width="80" height="64" rx="5" />
+      <path className="nbrline" d="M174 112v64M188 112v64" />
+      <text className="nbrname" x="214" y="140.5" textAnchor="middle">MEGA</text>
+      <text className="nbrname" x="214" y="157.5" textAnchor="middle">SAVER</text>
+      <rect className="bldg" x="72" y="112" width="92" height="64" rx="5" />
+      <g transform="translate(104 119) scale(0.0946)">
         {MARK.map((d) => <path key={d.slice(0, 12)} className="mark" d={d} fillRule="evenodd" />)}
       </g>
-      <text className="sign" x="147" y="135.5">ECO-THRIFT</text>
+      <text className="sign" x="118" y="167" textAnchor="middle">ECO-THRIFT</text>
       {/* North. */}
-      <g transform="translate(24 23)">
+      <g transform="translate(24 22)">
         <circle className="nbg" r="15" />
         <path className="nar" d="M0 -11.5L4.5 -3.5H-4.5z" />
         <text className="nn" y="10.5" textAnchor="middle">N</text>
@@ -111,26 +109,28 @@ export default function Visit() {
   const maps = STORE.retail.mapsPlaceUrl
   return (
     <section className="visit" id="visit">
-      <a className="map" href={maps} target="_blank" rel="noopener" aria-label="Directions to 8425 W Center Rd, southwest corner of 84th and Center">
+      <a className="map" href={maps} target="_blank" rel="noopener" aria-label="Map: Eco-Thrift, the west half of the Mega Saver building on the southwest corner of 84th and Center. Directions">
         <Map />
       </a>
       <p className={`open${open.open ? '' : ' shut'}`}>
         <i />
-        {open.label}
+        {open.open ? open.label : `Closed · ${open.label.replace(/(Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day/, (d) => d.slice(0, 3))}`}
       </p>
       <h2 className="disp">84th &amp; Center</h2>
-      <p className="corner">Southwest corner · 8425 W Center Rd</p>
-      <p className="city">Omaha, NE 68124</p>
+      <p className="corner">Southwest corner</p>
+      <p className="addr">West half of the Mega Saver building</p>
+      <p className="addr">8425 W Center Rd, Omaha, NE 68124</p>
+      <p className="addr tn">{STORE.retail.phone}</p>
       <div className="acts">
         <a className="btn go" href={maps} target="_blank" rel="noopener">
           <svg className="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4L3.5 11l7 2.5L13 20.5z" /></svg>
           Directions
         </a>
-        <a className="btn btn-line call tn" href={`tel:${STORE.retail.phoneHref}`} aria-label={`Call ${STORE.retail.phone}`}>
+        <a className="btn btn-line call" href={`tel:${STORE.retail.phoneHref}`} aria-label={`Call ${STORE.retail.phone}`}>
           <svg className="i" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 4h3.5l1.8 4.4-2.3 1.5a11 11 0 0 0 6.1 6.1l1.5-2.3L20 15.5V19a1.5 1.5 0 0 1-1.6 1.5A16 16 0 0 1 3.5 5.6 1.5 1.5 0 0 1 5 4z" />
           </svg>
-          {STORE.retail.phone}
+          Call
         </a>
       </div>
       <div className="hours">
