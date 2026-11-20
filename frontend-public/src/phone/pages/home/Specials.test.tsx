@@ -102,7 +102,7 @@ describe('home specials, a normal day', () => {
     // Owner 11-20 (round 8 screens): the opening on one easy line; ".00" only at the top, whole numbers below.
     expect(box).toHaveTextContent('ThriftBucks start after 7 days on most items.')
     expect(box.querySelector('.tbx-rise')).toHaveTextContent('They grow every day.')
-    expect(box).toHaveTextContent('This one carries today:20 ThriftBucks')
+    expect(box).toHaveTextContent('This one carries today:20 ThriftBucksThrift+ members collect them.')
     // The growth strip shows the sentence: 7 days with none, then bars that grow to today's (no day number on it).
     const bars = Array.from(box.querySelectorAll('.tbx-bars i'))
     expect(bars.slice(0, 7).every((b) => b.classList.contains('w'))).toBe(true)
@@ -110,7 +110,7 @@ describe('home specials, a normal day', () => {
     expect(bars.at(-1)).toHaveClass('now')
     expect(box.querySelector('.tbx-bars')).not.toHaveTextContent(/\d{2}|day \d|20\.00/i)
     expect(box).toHaveTextContent('Keep themPay $100Full value20 ThriftBucksoff your next visit')
-    expect(box).toHaveTextContent('Use them nowPay $90Half value$10 offtoday, at checkout')
+    expect(box).toHaveTextContent('Use them nowPay $90Half value$10 offtoday')
     expect(box).toHaveTextContent('Non-member: pays $100. All sales final.')
     expect(box).not.toHaveTextContent(/\$\s*20\b|earn|discount|points|cash back|reward|guest/i)
     // Never a "$" next to ThriftBucks (the owner's "$10 off today" is dollars off today's price, on its own).

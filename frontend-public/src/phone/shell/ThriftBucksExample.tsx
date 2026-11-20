@@ -75,7 +75,7 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
               <br />
               on our floor:
               <br />
-              none yet
+              <b>none yet</b>
             </span>
             <div>
               {Array.from({ length: FIRST_DAYS }, (_, i) => (
@@ -95,6 +95,7 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
         <p className="tbx-now">
           This one carries today:
           <b className="tn">{EXAMPLE.bucks} ThriftBucks</b>
+          <span>Thrift+ members collect them.</span>
         </p>
         <p className="tbx-pick">Thrift+ members pick one</p>
         <div className="tbx-two">
@@ -116,8 +117,8 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
               <span>Pay</span> {whole(EXAMPLE.today)}
             </b>
             <em>Half value</em>
-            <strong className="tn">{whole(EXAMPLE.tag - EXAMPLE.today)} off</strong>
-            <span>today, at checkout</span>
+            <strong className="tn off">{whole(EXAMPLE.tag - EXAMPLE.today)} off</strong>
+            <span>today</span>
           </div>
         </div>
         <p className="tbx-non">
