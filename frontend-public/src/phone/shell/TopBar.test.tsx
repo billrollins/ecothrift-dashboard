@@ -53,6 +53,14 @@ describe('the account slot', () => {
     expect(screen.queryByText('Finish')).not.toBeInTheDocument()
   })
 
+  it('a balance over 6 characters takes the smaller size, so 1,234.50 fits the slot at 360', async () => {
+    session = { status: 'member', member: { ...ANA, bucks_available: '1234.50' } }
+    show()
+    const link = await screen.findByRole('link', { name: 'Thrift+: 1,234.50 ThriftBucks' })
+    expect(link.querySelector('b')).toHaveClass('long')
+    expect(link.querySelector('b')).not.toHaveAttribute('style')
+  })
+
   it('no mobile number yet: Finish joining, to /scan, in the same slot', async () => {
     session = { status: 'member', member: { ...ANA, bucks_available: '0.00', needs_phone: true } }
     show()
