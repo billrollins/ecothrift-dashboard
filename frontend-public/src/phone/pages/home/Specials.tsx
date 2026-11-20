@@ -55,15 +55,19 @@ function Shout() {
       </h2>
       <ul className="hc-why">
         <li>Without it, you pay the full tag.</li>
-        <li>Members collect ThriftBucks on most items.</li>
+        <li>Members collect ThriftBucks.</li>
         <li>Only members can return.</li>
       </ul>
       <div className="hc-cta">
         <span className="btn btn-lime">{member ? 'My Thrift+' : 'Join free'}</span>
         <p className="fine">
-          Thrift+ members. Most items.
+          Thrift+ members.
           <br />
-          Free to join. Nothing owed.
+          Most items.
+          <br />
+          Free to join.
+          <br />
+          Nothing owed.
         </p>
       </div>
     </>
@@ -80,7 +84,7 @@ function Shout() {
 }
 
 /** BO-HO-GO on clothing and shoes, Nov 27 to Dec 31 (the same card in the Black Friday set). */
-function Boho({ label }: { label: string }) {
+function Boho({ label, fine = 'Thrift+ members. Nov 27 to Dec 31.' }: { label: string; fine?: string }) {
   return (
     <Link className="hc hc-lime hc-boho" to="/store?cat=apparel">
       <span className="lbl">{label}</span>
@@ -107,7 +111,7 @@ function Boho({ label }: { label: string }) {
           <small>for both</small>
         </div>
       </div>
-      <p className="fine">Thrift+ members. Nov 27 to Dec 31.</p>
+      <p className="fine">{fine}</p>
     </Link>
   )
 }
@@ -135,13 +139,12 @@ function Normal() {
         </div>
       </Link>
       )}
-      {boho && <Boho label={now < BOHO_STARTS ? 'Starts Fri Nov 27 · Clothing and shoes' : 'Through Dec 31 · Clothing and shoes'} />}
+      {boho && <Boho label={now < BOHO_STARTS ? 'Starts Fri Nov 27' : 'Through Dec 31'} fine="Clothing and shoes. Thrift+ members." />}
       <Link className="hc hc-green" to="/#thriftplus">
         <span className="lbl">Every day</span>
         <h2 className="disp">
           3-day returns<em>Thrift+ members only</em>
         </h2>
-        <p className="sub">Changed your mind? Bring it back.</p>
         <p className="fine">Qualifying items.</p>
         <div className="pct disp tn">
           80%<small>back as Thrift+ credit</small>

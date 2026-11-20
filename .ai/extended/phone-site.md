@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-19 (v2.320.0: seller photos for featured pieces, daily) -->
+<!-- Last updated: 2026-11-20 (owner: home's first card is "Don't shop without Thrift+", no strip above the header, "items" not "pieces") -->
 # The phone site: the public site and the Thrift+ scanner, rebuilt for phones
 
 **Owner, 2026-11-19:** one fast site and app for phones ("performance and FAST snappyness as a priority"), in the look he
@@ -39,7 +39,7 @@ seen by him alone until he says go ("i want access and no normal visitors to see
   `storefront.stock_photos_web` is on (off: it found 0 of 7 in a test, about $0.07 each).
 - Daily at the end of `materialize_routines` (`storefront_stock_photos`; switch `storefront.stock_photos`; at most
   `storefront.stock_photos_manifest_daily` = 300 downloads; 10-minute cap). Best finds = the best pieces that have a photo.
-- The item page says "Stock photo. The piece in our store may not match it exactly." under a seller photo (not under a
+- The item page says "Stock photo. The item in our store may not match it exactly." under a seller photo (not under a
   photo-sheet photo). A wrong photo: Django admin, Stock photos, Reject (not looked up again for 90 days).
 - Truck featuring with photos pulled in preprocessing is Dash Update #186 (Mainline).
   A coming piece has no price and no ThriftBucks: it states its retail and "Priced on arrival".
@@ -77,3 +77,9 @@ seen by him alone until he says go ("i want access and no normal visitors to see
   `apps/storefront/tests/`; the phone scanner's tests are in the `thriftplus` lane of `scripts/dev/lean_test.py`.
 - Rules the owner set for every page: few words; no pictures standing in for a product; nothing that expands, jumps or
   shifts; ThriftBucks only (no "pay today" dollar figure); an in-store row always states its ThriftBucks.
+- Home (owner 2026-11-20): the first card on a normal day is "Don't shop without Thrift+" (rulebook V11), then the dated
+  cards (Black Friday to Nov 27, BO-HO-GO to Dec 31; they end by themselves) and 3-day returns, "Thrift+ members only".
+  Never a count of what is in store as a headline. The word is "items", never "pieces".
+- **Nothing above the header** (owner 2026-11-20: "i HATE ANYTHING that pushes content out of alignment"): the header
+  sits at the top of every page. A notice or banner goes under the store line (Omaha · open until) or above Best finds,
+  under the first cards, never above the header.
