@@ -30,8 +30,10 @@ export const EXAMPLE = {
 const FIRST_DAYS = 7
 const GROW = [16, 22, 28, 35, 41, 48, 54, 61, 67, 74, 80, 87, 93, 100]
 
+/** Owner 2026-11-20 (round 8 screens): ".00" only at the top (retail, our tag); whole numbers everywhere else read
+ *  easier ("$100", "20 ThriftBucks"). Never a "$" next to ThriftBucks. */
 const money = (n: number) => `$${n.toFixed(2)}`
-const bucks = (n: number) => n.toFixed(2)
+const whole = (n: number) => `$${n}`
 
 export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void; joinHref?: string }) {
   const box = useRef<HTMLDivElement>(null)
@@ -62,7 +64,7 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
             <Tag price={EXAMPLE.tag} />
           </div>
         </div>
-        <p className="tbx-carry">After 7 days on our floor, most items start to carry ThriftBucks.</p>
+        <p className="tbx-carry">ThriftBucks start after 7 days on most items.</p>
         <div className="tbx-bars">
           <div className="tbx-wait" aria-hidden="true">
             <span>
@@ -87,20 +89,19 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
         </div>
         <p className="tbx-now">
           This one carries today:
-          <b className="tn">{bucks(EXAMPLE.bucks)} ThriftBucks</b>
+          <b className="tn">{EXAMPLE.bucks} ThriftBucks</b>
         </p>
         <p className="tbx-pick">Thrift+ members pick one</p>
         <div className="tbx-two">
           <div>
             <small>Keep them</small>
             <b className="tn">
-              <span>Pay</span> {money(EXAMPLE.tag)}
+              <span>Pay</span> {whole(EXAMPLE.tag)}
             </b>
-            <strong>{bucks(EXAMPLE.bucks)} ThriftBucks</strong>
+            <em>Full value</em>
             <span>
-              come off your <u>next visit</u>
-              <br />
-              at <u>full value</u>
+              <strong>{EXAMPLE.bucks} ThriftBucks</strong>
+              for next time
             </span>
           </div>
           <i className="tbx-or" aria-hidden="true">
@@ -109,18 +110,17 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
           <div>
             <small>Use them now</small>
             <b className="tn">
-              <span>Pay</span> {money(EXAMPLE.today)} <span>today</span>
+              <span>Pay</span> {whole(EXAMPLE.today)} <span>today</span>
             </b>
-            <strong className="spent">{bucks(EXAMPLE.bucks)} ThriftBucks</strong>
+            <em>Half value</em>
             <span>
-              used <u>today</u>
-              <br />
-              at <u>half value</u>
+              <strong>{EXAMPLE.bucks} ThriftBucks</strong>
+              used today
             </span>
           </div>
         </div>
         <p className="tbx-non">
-          <b>Non-member:</b> pays <b className="tn">{money(EXAMPLE.tag)}</b>. All sales final.
+          <b>Non-member:</b> pays <b className="tn">{whole(EXAMPLE.tag)}</b>. All sales final.
         </p>
         {joinHref ? (
           <a className="btn tbx-join" href={joinHref}>
