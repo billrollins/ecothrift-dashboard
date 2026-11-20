@@ -29,6 +29,8 @@ export type HomeFeed = {
   app?: string
   day: 'normal' | 'bf'
   shelf: { pieces: number; products: number; categories: number }
+  /** The floor's ThriftBucks today: % of items that carry some, and the typical item's share of its tag (home card). */
+  bucks?: { share: number; typical: number }
   hours: Hours | null
   thrift_plus_open: boolean
   finds: Find[]

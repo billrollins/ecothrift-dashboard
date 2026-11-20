@@ -111,6 +111,10 @@ class FeedTests(TestCase):
         for p in (plain, marked, consigned, capped, closed):
             item = p.items.get()
             self.assertEqual(R.num(scanner.reward_for(item, item.price)), self._row(data, p.pk)[5])
+        # The home card's proof (owner 2026-11-20): 2 of the 5 items carry ThriftBucks (13 of 40, 9 of 10); the typical
+        # one (the upper middle of two) carries 90% of its tag.
+        home = json.loads(self.client.get(HOME).content)
+        self.assertEqual(home['bucks'], {'share': 40, 'typical': 90})
 
     def test_several_units_count_and_pick_the_representative(self):
         p = self._product('Mug set')
@@ -267,7 +271,7 @@ class FeedTests(TestCase):
         _reward(self._item(lamp, '40.00', retail='100.00', check='passed'), D('6.00'))
         AppSetting.objects.update_or_create(key='storefront.day', defaults={'value': 'bf'})
         home = json.loads(self.client.get(HOME).content)
-        self.assertEqual(set(home), {'v', 'as_of', 'app', 'day', 'shelf', 'hours', 'thrift_plus_open', 'finds', 'coming', 'top_cats'})
+        self.assertEqual(set(home), {'v', 'as_of', 'app', 'day', 'shelf', 'bucks', 'hours', 'thrift_plus_open', 'finds', 'coming', 'top_cats'})
         self.assertEqual(home['app'], json.loads((Path(settings.BASE_DIR) / 'package.json').read_text(encoding='utf-8'))['version'])
         self.assertEqual(home['day'], 'bf')
         self.assertEqual(home['finds'], [{'pid': lamp.pk, 'name': 'Lamp (display)', 'cat': 'decor', 'price': 40, 'retail': 100,

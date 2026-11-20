@@ -5,8 +5,11 @@
  */
 import { useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { useHome } from '../../lib/boot'
 import { useDay } from '../../lib/day'
 import { useMember } from '../../lib/member'
+import { IconCheck } from '../../shell/icons'
+import { ThriftBucksExample } from '../../shell/ThriftBucksExample'
 import { Tag } from '../../shell/Tag'
 import './Specials.css'
 
@@ -40,40 +43,61 @@ const BOHO_STARTS = Date.parse('2026-11-27T06:00:00Z') // Fri Nov 27
 const BOHO_ENDS = Date.parse('2027-01-01T06:00:00Z') // after Thu Dec 31
 
 /**
- * The first card on every normal day (owner 2026-11-20: "Do not shop without Thrift+ ... Needs to stop people NOW";
- * rulebook V11): the headline, then the two kinds of shopper side by side as two rows (bad, then good; from the AI
- * panel's review), a full-width button and one fine-print line. Signed out it opens the join; a member's button says
- * "My Thrift+". The button is full width, so nothing moves when the session answers.
+ * The first card on every normal day (owner 2026-11-20: "BIGGEST thing is if they do not have Thrift+ they are paying
+ * WAY TOO MUCH"; rulebook V11). One big line in his words, three quiet check lines that prove it with today's floor
+ * (home.json `bucks`: the share of items that carry ThriftBucks and the typical item's share of its tag), one button.
+ * No fine print (owner: "this is website UI not a form or contract"; the join page carries the terms): the proof
+ * lines carry the qualifiers. Join free opens the join (a member: My Thrift+); Example opens the standard ThriftBucks
+ * example (shell/ThriftBucksExample.tsx, rulebook V12) in a window over the page.
+ * LOOK picks the colours while the owner chooses: 'cream' (the loss in cranberry) or 'lime' (a price tag).
  */
+const LOOK: 'cream' | 'lime' = 'cream'
+const JOIN = '/scan?view=join'
+
 function Shout() {
   const { status } = useMember()
+  const feed = useHome()
   const member = status === 'member'
-  const inner = (
-    <>
-      <span className="lbl">Before you shop</span>
+  const b = feed?.bucks
+  const known = Boolean(b && b.share > 0 && b.typical > 0)
+  const [example, setExample] = useState(false)
+  return (
+    <div className={`hc hc-shout hc-shout-${LOOK}`}>
       <h2 className="disp">
-        Don’t shop <em>without Thrift+</em>
+        <span>No Thrift+?</span>
+        <span>You’re paying</span>
+        <em>way too much.</em>
       </h2>
-      <div className="hc-vs">
-        <p className="vs-no">
-          <small>Non-member</small>Full tag. All sales final.
-        </p>
-        <p className="vs-yes">
-          <small>Thrift+ member</small>ThriftBucks. 3-day returns.
-        </p>
+      <ul className="hc-ok">
+        <li>
+          <IconCheck />
+          {known ? `ThriftBucks on ${b!.share}% of our items` : 'ThriftBucks on most of our items'}
+        </li>
+        <li>
+          <IconCheck />
+          {known ? `Typically ${b!.typical}% of the tag` : 'Collected by Thrift+ members'}
+        </li>
+        <li>
+          <IconCheck />
+          3-day returns for members
+        </li>
+      </ul>
+      <div className="hc-acts">
+        {member ? (
+          <Link className="btn hc-join" to="/thriftplus">
+            My Thrift+
+          </Link>
+        ) : (
+          <a className="btn hc-join" href={JOIN}>
+            Join free
+          </a>
+        )}
+        <button type="button" className="btn hc-ex" onClick={() => setExample(true)}>
+          Example
+        </button>
       </div>
-      <span className="btn btn-lime hc-join">{member ? 'My Thrift+' : 'Join free'}</span>
-      <p className="fine">Thrift+ members. Most items. Returns on qualifying items. Free to join. Nothing owed.</p>
-    </>
-  )
-  return member ? (
-    <Link className="hc hc-shout" to="/thriftplus">
-      {inner}
-    </Link>
-  ) : (
-    <a className="hc hc-shout" href="/scan?view=join">
-      {inner}
-    </a>
+      {example ? <ThriftBucksExample onClose={() => setExample(false)} joinHref={member ? undefined : JOIN} /> : null}
+    </div>
   )
 }
 

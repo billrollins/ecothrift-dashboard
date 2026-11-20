@@ -77,9 +77,11 @@ seen by him alone until he says go ("i want access and no normal visitors to see
   `apps/storefront/tests/`; the phone scanner's tests are in the `thriftplus` lane of `scripts/dev/lean_test.py`.
 - Rules the owner set for every page: few words; no pictures standing in for a product; nothing that expands, jumps or
   shifts; ThriftBucks only (no "pay today" dollar figure); an in-store row always states its ThriftBucks.
-- Home (owner 2026-11-20): the first card on a normal day is "Don't shop without Thrift+" (rulebook V11), then the dated
-  cards (Black Friday to Nov 27, BO-HO-GO to Dec 31; they end by themselves) and 3-day returns, "Thrift+ members only".
-  Never a count of what is in store as a headline. The word is "items", never "pieces".
+- Home (owner 2026-11-20): the first card on a normal day is "No Thrift+? You're paying way too much." with three proof
+  lines from today's floor (home.json `bucks`), Join free and Example (rulebook V11); Example opens the standard
+  ThriftBucks example (V12, `shell/ThriftBucksExample.tsx`), the one explanation every surface uses. No fine print on
+  the card. Then the dated cards (Black Friday to Nov 27, BO-HO-GO to Dec 31; they end by themselves) and 3-day returns,
+  "Thrift+ members only". Never a count of what is in store as a headline. The word is "items", never "pieces".
 - **Nothing above the header** (owner 2026-11-20: "i HATE ANYTHING that pushes content out of alignment"): the header
   sits at the top of every page. A notice or banner goes under the store line (Omaha · open until) or above Best finds,
   under the first cards, never above the header.

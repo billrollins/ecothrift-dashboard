@@ -45,3 +45,4 @@ export const IconTag = (p: P) => (
     <circle cx="7.5" cy="7.5" r="1.3" />
   </I>
 )
+export const IconCheck = (p: P) => <I {...p} d="M5 12.5l4.5 4.5L19 7.5" />

@@ -93,8 +93,10 @@ WHERE p.id IN (SELECT product_id FROM {Item._meta.db_table} WHERE status = 'on_s
   AND {_not_restricted('p.id')}"""
 
 
-def _instore(s: R.Settings, timings: dict) -> tuple[list[dict], list[int]]:
-    """One dict per product, and the shelf pieces per category index."""
+def _instore(s: R.Settings, timings: dict) -> tuple[list[dict], list[int], dict]:
+    """One dict per product, the shelf pieces per category index, and the floor's ThriftBucks in two numbers (the home
+    card's proof, owner 2026-11-20): ``share`` = % of items that carry ThriftBucks today, ``typical`` = the median item's
+    ThriftBucks as a % of its tag (among items that carry some)."""
     t = time.perf_counter()
     with connection.cursor() as cur:
         cur.execute(_instore_sql(s.use_profile))
@@ -113,12 +115,15 @@ def _instore(s: R.Settings, timings: dict) -> tuple[list[dict], list[int]]:
     best: dict[int, tuple] = {}   # pid -> (sort key, row)
     units: dict[int, int] = {}
     zero = R.ZERO
+    shares: list[float] = []   # tb / tag for each item that carries ThriftBucks
     for row in items:
         iid, pid, sku, tag, retail, check, source, reward, start, status, bucket = row
         cat = R.bucket_index(bucket)
         pieces[cat] += 1
         units[pid] = units.get(pid, 0) + 1
         tb = R.thriftbucks(tag, source=source, reward=reward, starting_price=start, status=status, s=s) if reward else zero
+        if tb > 0 and tag:
+            shares.append(float(tb) / float(tag))
         key = (-tb, tag, iid)
         held = best.get(pid)
         if held is None or key < held[0]:
@@ -134,8 +139,13 @@ def _instore(s: R.Settings, timings: dict) -> tuple[list[dict], list[int]]:
         })
     # A stable order (pid last): an unchanged shelf gives the same bytes, so the same ETag.
     out.sort(key=lambda r: (0, -(r['retail'] - r['price']), r['pid']) if r['retail'] else (1, -r['tb'], -r['price'], r['pid']))
+    shares.sort()
+    bucks = {
+        'share': round(100 * len(shares) / len(items)) if items else 0,
+        'typical': round(100 * shares[len(shares) // 2]) if shares else 0,
+    }
     timings['instore_rows'] = time.perf_counter() - t
-    return out, pieces
+    return out, pieces, bucks
 
 
 def _coming(timings: dict) -> tuple[list[dict], list[dict]]:
@@ -195,7 +205,7 @@ def build(settings: R.Settings | None = None) -> dict:
     s = settings or R.load_settings()
     R.remember(s)
     timings['settings'] = time.perf_counter() - start
-    instore, pieces = _instore(s, timings)
+    instore, pieces, bucks = _instore(s, timings)
     trucks, coming = _coming(timings)
     t = time.perf_counter()
     try:
@@ -209,7 +219,7 @@ def build(settings: R.Settings | None = None) -> dict:
     timings['total'] = time.perf_counter() - start
     return {
         'as_of': timezone.now(), 'settings': s, 'instore': instore, 'pieces': pieces, 'trucks': trucks,
-        'coming': coming, 'finds': best_finds(instore), 'hours': hours, 'timings': timings,
+        'coming': coming, 'finds': best_finds(instore), 'hours': hours, 'timings': timings, 'bucks': bucks,
     }
 
 
@@ -246,6 +256,8 @@ def home_payload(snap: dict) -> dict:
         'app': APP_VERSION,
         'day': s.day,
         'shelf': {'pieces': sum(snap['pieces']), 'products': len(snap['instore']), 'categories': len(R.CATS)},
+        # The floor's ThriftBucks: % of items that carry some, and the typical item's share of its tag (home card).
+        'bucks': snap.get('bucks') or {'share': 0, 'typical': 0},
         'hours': snap['hours'],
         'thrift_plus_open': s.thrift_plus_open,
         'finds': [_find(r) for r in snap['finds']],

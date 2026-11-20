@@ -67,19 +67,28 @@
 .hc-dots i.on { background: var(--ink); width: 18px; border-radius: 3px; }
 
 /* ---------- Normal days (owner 2026-11-20) ---------- */
-/* Don't shop without Thrift+: cranberry, the stop sign of the set; the headline, two rows (non-member dark, member lime),
-   a full-width button, one fine-print line. Sized to fit the fixed 292px card from 360 to 390px wide. */
-.hc-shout { background: var(--cran); color: #fff; padding-bottom: 10px; }
-.hc-shout .lbl { opacity: 1; color: #fff; letter-spacing: .08em; }
-.hc-shout h2 { margin-top: 6px; font-size: min(38px, 9.5vw); line-height: .9; }
-.hc-shout h2 em { font-style: normal; color: var(--lime); display: block; white-space: nowrap; }
-.hc-vs { margin: 10px 0 8px; display: grid; gap: 4px; }
-.hc-vs p { border-radius: 8px; padding: 4px 10px 5px; font-size: min(15px, 3.9vw); font-weight: 800; line-height: 1.1; }
-.hc-vs small { display: block; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .85; }
-.hc-vs .vs-no { background: rgba(0, 0, 0, .28); color: #fff; }
-.hc-vs .vs-yes { background: var(--lime); color: var(--ink); }
-.hc-join { margin-top: auto; width: 100%; min-height: 42px; }
-.hc-shout .fine { margin-top: 5px; opacity: .9; font-size: 10.5px; line-height: 1.25; }
+/* The Thrift+ card: one big line (three short rows), three quiet check lines, one button, no fine print
+   (owner 2026-11-20). Fits the fixed 292px card from 360 to 390px wide. Two colour looks while the owner chooses. */
+.hc-shout { padding: 20px 18px 18px; }
+.hc-shout h2 { margin-top: 0; font-size: min(44px, 11vw); line-height: .9; }
+.hc-shout h2 span, .hc-shout h2 em { display: block; white-space: nowrap; }
+.hc-shout h2 em { font-style: normal; }
+.hc-ok { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 6px; font-size: min(15.5px, 4vw); font-weight: 600; line-height: 1.2; }
+.hc-ok li { display: flex; align-items: center; gap: 8px; }
+.hc-ok svg.i { flex: none; width: 18px; height: 18px; stroke-width: 3; }
+.hc-acts { margin-top: auto; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.hc-join { min-height: 48px; font-size: 17px; }
+.hc-ex { min-height: 48px; padding: 0 16px; font-size: 15px; background: transparent; color: var(--green); box-shadow: inset 0 0 0 2px var(--green); }
+
+.hc-shout-cream { background: var(--cream); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.hc-shout-cream h2 em { color: var(--cran); }
+.hc-shout-cream .hc-ok svg.i { color: var(--green); }
+.hc-shout-cream .hc-join { background: var(--green); color: #fff; }
+
+.hc-shout-lime { background: var(--lime); color: var(--ink); }
+.hc-shout-lime h2 em { color: var(--cran); }
+.hc-shout-lime .hc-ok svg.i { color: var(--green); }
+.hc-shout-lime .hc-join { background: var(--green); color: #fff; }
 
 /* 3-day returns: who it is for, in the headline */
 .hc-green h2 em { font-style: normal; display: block; margin-top: 4px; font-size: 26px; color: var(--lime); }
