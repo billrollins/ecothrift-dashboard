@@ -196,7 +196,10 @@ class IdeasTests(TestCase):
         self.assertIn('Post ideas:', out.getvalue())
 
     def test_the_ai_action_is_seeded(self):
-        self.assertTrue(AiAction.objects.filter(purpose='SOCIAL_POST', effort='low').exists())
+        from apps.core.ai_config import ai_effort
+
+        self.assertTrue(AiAction.objects.filter(purpose='SOCIAL_POST').exists())
+        self.assertEqual(ai_effort('SOCIAL_POST'), 'low')  # the tier's effort since Dash #195
 
 
 @override_settings(STORAGES=IN_MEMORY)

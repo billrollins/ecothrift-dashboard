@@ -315,8 +315,10 @@ class AiModel(models.Model):
     PROVIDER_XAI = 'xai'
     PROVIDER_GOOGLE = 'google'
     PROVIDER_META = 'meta'
+    PROVIDER_OPENAI = 'openai'
     PROVIDER_CHOICES = [
         (PROVIDER_ANTHROPIC, 'Anthropic'),
+        (PROVIDER_OPENAI, 'OpenAI'),
         (PROVIDER_XAI, 'xAI'),
         (PROVIDER_GOOGLE, 'Google'),
         (PROVIDER_META, 'Meta'),
@@ -350,6 +352,27 @@ class AiModel(models.Model):
                                       help_text='USD per 1M input tokens. Blank = unknown.')
     output_price = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True,
                                        help_text='USD per 1M output tokens. Blank = unknown.')
+    # Where the saved prices came from (Dash #195): aa (Artificial Analysis), triage (2+ of 3 models agreed), typed.
+    price_source = models.CharField(max_length=12, blank=True, default='')
+    price_checked_at = models.DateTimeField(null=True, blank=True)
+    # Image models are priced per picture, not per token (Dash #195): USD per generated image. Blank = unknown.
+    image_price = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)
+    # A Refresh found other prices than the saved ones: they wait here for the owner (never saved unseen).
+    price_flag = models.CharField(max_length=400, blank=True, default='')
+    flag_input = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)
+    flag_output = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)
+    # Artificial Analysis (Dash #195): the matched AA model, its Intelligence Index, AA's cost per task of that index
+    # (USD for one test question, thinking included: the price-per-performance number; what AA spent, not us), and
+    # output speed (tokens per second).
+    aa_slug = models.CharField(max_length=120, blank=True, default='')
+    aa_name = models.CharField(max_length=200, blank=True, default='')
+    # Text: the AA Intelligence Index. Image: AA's text-to-image arena ELO. The page calls both "Perf".
+    aa_intelligence = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    aa_task_cost = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+    aa_speed = models.DecimalField(max_digits=8, decimal_places=1, null=True, blank=True)
+    aa_checked_at = models.DateTimeField(null=True, blank=True)
+    # When the model came out: AA's release date, else the date the provider's model list gives (Dash #195).
+    release_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -360,9 +383,39 @@ class AiModel(models.Model):
         return self.slug
 
 
-class AiAction(models.Model):
-    """Model + effort for one AI purpose. A blank model means use the .env value."""
+class AiTier(models.Model):
+    """One rung of the tier map (Dash #195): Fast, Standard, Best (text) and Image. Actions point at a tier, so
+    archiving or swapping a model changes only this map. A tier with no model uses ``.env`` ``AI_MODEL``."""
 
+    FAST = 'fast'
+    STANDARD = 'standard'
+    BEST = 'best'
+    IMAGE = 'image'
+    KEY_CHOICES = [(FAST, 'Fast'), (STANDARD, 'Standard'), (BEST, 'Best'), (IMAGE, 'Image')]
+
+    key = models.CharField(max_length=10, unique=True, choices=KEY_CHOICES)
+    label = models.CharField(max_length=40)
+    modality = models.CharField(max_length=10, choices=AiModel.MODALITY_CHOICES, default=AiModel.MODALITY_TEXT)
+    model = models.ForeignKey(AiModel, on_delete=models.SET_NULL, null=True, blank=True, related_name='tiers')
+    effort = models.CharField(max_length=10, default='off')
+    sort = models.PositiveSmallIntegerField(default=0)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort', 'key']
+
+    def __str__(self):
+        return self.key
+
+
+class AiAction(models.Model):
+    """One AI job in Dash (Dash #195): where it runs (workspace > page > function, ``label`` is the function), the
+    tier it uses, and optional overrides. A blank ``model`` follows the tier; a blank ``effort`` uses the tier's."""
+
+    EFFORT_TIER = ''
     EFFORT_OFF = 'off'
     EFFORT_LOW = 'low'
     EFFORT_MEDIUM = 'medium'
@@ -378,13 +431,20 @@ class AiAction(models.Model):
 
     purpose = models.CharField(max_length=64, unique=True)
     label = models.CharField(max_length=120)
+    workspace = models.CharField(max_length=40, blank=True, default='')
+    page = models.CharField(max_length=80, blank=True, default='')
+    description = models.TextField(blank=True, default='')
     modality = models.CharField(
         max_length=10, choices=AiModel.MODALITY_CHOICES, default=AiModel.MODALITY_TEXT,
     )
+    tier = models.CharField(max_length=10, choices=AiTier.KEY_CHOICES, default=AiTier.STANDARD)
     model = models.ForeignKey(
         AiModel, on_delete=models.SET_NULL, null=True, blank=True, related_name='actions',
     )
-    effort = models.CharField(max_length=10, choices=EFFORT_CHOICES, default=EFFORT_OFF)
+    effort = models.CharField(max_length=10, blank=True, default=EFFORT_TIER)
+    # The AI tier review's proposal (Dash #195), waiting for the owner to take or dismiss.
+    suggested_tier = models.CharField(max_length=10, blank=True, default='')
+    suggested_reason = models.CharField(max_length=400, blank=True, default='')
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='+',

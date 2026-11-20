@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.325.0] -->
-<!-- Last reviewed: 2026-11-20 (2.325.0) -->
+<!-- Line 1 release: ## [2.326.0] -->
+<!-- Last reviewed: 2026-11-20 (2.326.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,26 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.326.0] - 2026-11-20
+
+User-facing theme: **Settings > AI rebuilt: one Refresh gets every model, price and score in seconds; actions sit on Fast / Standard / Best tiers, listed by workspace with their cost per run; AI suggests the tiers.**
+
+> **For Bill:** Settings > AI now has three parts. **Models:** one Refresh asks every provider (OpenAI is in now, and image models from OpenAI, Google and xAI), Artificial Analysis and three models at once, in seconds; new prices fill in, and a price that differs from yours shows "Check" until you pick. Tick models to Try them side by side (answers or pictures, with time and cost) or archive them; click any name, id or price to change it; Text / Image and Live / Archived switch the list; a Released column shows when each model came out. OpenAI and Google image prices are filled from their own pricing pages. **Tiers:** Fast, Standard and Best (plus Image) each have one model and one effort; archiving or swapping a model only changes this map, so actions are never stale. **Actions:** every AI job in Dash by Workspace > Page > Function, its tier, what it runs on, runs in 30 days and cost per run; "AI: suggest tiers" proposes a tier per action and you click to take it.
+
+User-facing theme: **Settings > AI rebuilt: one Refresh gets every model, price and score in seconds; actions sit on Fast / Standard / Best tiers, listed by workspace with their cost per run; AI suggests the tiers.** (Dash Update #195)
+
+> **For Bill:** Settings > AI now has three parts. **Models:** one Refresh asks every provider (OpenAI is in now, and image models from OpenAI, Google and xAI), Artificial Analysis and three models at once, in seconds; new prices fill in, and a price that differs from yours shows "Check" until you pick. Tick models to Try them side by side (answers or pictures, with time and cost) or archive them; click any name, id or price to change it; Text / Image and Live / Archived switch the list; a Released column shows when each model came out. OpenAI and Google image prices are filled from their own pricing pages. **Tiers:** Fast, Standard and Best (plus Image) each have one model and one effort; archiving or swapping a model only changes this map, so actions are never stale. **Actions:** every AI job in Dash by Workspace > Page > Function, its tier, what it runs on, runs in 30 days and cost per run; "AI: suggest tiers" proposes a tier per action and you click to take it.
+
+### Changed (Settings > AI, Dash Update #195)
+- **Tier map** (`core.AiTier`, migration `core/0018_ai_tiers`): Fast, Standard, Best (text) and Image, one model and one effort each. Actions point at a tier; an action may still have its own model or effort. `ai_model` / `ai_effort` resolve action, then tier, then `.env` `AI_MODEL`. Archiving a model clears the tiers and actions on it. The migration keeps every action on the model and effort it ran on (Spark actions on Fast, Opus 5.5 on Best, blank ones on Standard with no model = `AI_MODEL`, as before). `best_text_models()` gives the best model per provider (for #196).
+- **Actions by workspace:** each action has workspace, page, function and a one-line description, listed in the sidebar's workspace order, with runs and cost per run from `AIUsage` (thinking tokens included) at the model it runs on now, cost per run on each tier, and 30-day spend. Three AI jobs that picked their model in code got rows: `PRODUCT_STANDARDIZE` (intake standardize; Fast, effort high, as before), `HIRING_REPLY` (Sonnet 5.5 as its own model, as before) and `AI_TIER_REVIEW`. Sonnet 5.5 and Gemini 3.8 Flash, still called by code while archived, are back on the list as the stock-photo finder's and photo check's own models.
+- **AI: suggest tiers:** one call to the `AI_TIER_REVIEW` model with every text action (what it does, runs, tokens, cost per run on each tier) and the tier map (price, Artificial Analysis Intelligence Index and cost per test task); a proposed tier waits on the action until it is taken or dismissed.
+- **Refresh replaces "Refresh prices" and "Update":** provider list APIs (Anthropic, OpenAI, xAI, Google, Meta), Artificial Analysis (`ARTIFICIAL_ANALYSIS_API_KEY`; without it "no AA data") and a three-model price triage run in parallel. A blank price is filled from AA (or two agreeing triage models); a saved price is never overwritten: a different one waits as a flag with Use / Keep saved. Models a provider stopped listing are named. The old Opus web price check (`check_ai_prices`, minutes) is removed.
+- **Models table:** a Text / Image toggle and a Live / Archived toggle (with counts; image models show $ per image and arena Perf), checkboxes with bulk Try and Archive (Unarchive in the Archived view), click-to-edit model id, name, AA model and prices (the edit dialog and per-row buttons are gone). Perf (AA Intelligence Index, or the text-to-image arena ELO for image models) and AA cost per task (AA's cost for one test question, thinking included). The tier picker lists Model, Perf, Cost, best first.
+- **Image models from every provider:** `services/image_router.py` calls xAI, OpenAI (gpt-image) and Google (Nano Banana, Imagen); Label Studio's background image uses it. Image models carry a per-image price: xAI's from its own model list; OpenAI's and Google's from their pricing pages, read 2026-11-20 (`IMAGE_PAGE_PRICES`: OpenAI at medium quality 1024x1024, which the router now asks for; Google at 1K), filling only a blank price; a typed price wins and every picture is logged at it. Try sends one prompt to several text and image models at once.
+- **OpenAI routing:** `gpt-*` / `o<digit>*` models route to OpenAI (`OPENAI_API_KEY`, chat completions). Thinking tokens of xAI and Gemini now count in the usage log, so their logged cost includes thinking.
+- Tests: `apps/core/tests/test_ai_settings.py` (tier resolution follows a swap and an archive, the migration's mapping, Refresh merging and price flags, AA matching, two-of-three triage, action order and cost per run, the tier review, router token counts); `AiPanel.test.tsx`.
 
 ## [2.325.0] - 2026-11-20
 

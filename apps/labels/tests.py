@@ -608,7 +608,7 @@ class AiCreateApiTests(APITestCase):
         self.assertEqual(resp.status_code, 200, resp.content)
         self.assertEqual(mock_llm.call_count, 2)
 
-    @patch('apps.labels.ai_create.requests.post')
+    @patch('requests.post')
     def test_generate_background_success(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.status_code = 200

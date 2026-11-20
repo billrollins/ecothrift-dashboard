@@ -10,14 +10,11 @@ import json
 import logging
 import math
 import re
-from decimal import Decimal
 from typing import Any
 
-import requests
 from django.conf import settings
 
 from apps.core.ai_config import ai_effort, ai_model
-from apps.core.services.llm_api_keys import resolve_xai_api_key
 from apps.core.services.llm_router import LLMAPIError, LLMConfigError, llm_complete
 
 from .definition import (
@@ -34,9 +31,6 @@ from .definition import (
 )
 
 logger = logging.getLogger(__name__)
-
-# What one generated background image costs (xAI list price), for the Owner page's AI spend.
-IMAGE_COST_USD = Decimal('0.07')
 
 # Nearest-match targets for xAI aspect_ratio (width:height).
 _ASPECT_TARGETS: list[tuple[str, float]] = [
@@ -188,19 +182,14 @@ def generate_background_image(
     width_in: float,
     height_in: float,
 ) -> dict[str, str]:
-    """Call xAI image generations; return b64 payload for client approval (no S3 write)."""
+    """Make the background picture with the LABEL_IMAGE model; return b64 for client approval (no S3 write)."""
     brief = (brief or '').strip()
     if not brief:
         raise LabelAIError('brief is required.')
     if len(brief) > 2000:
         raise LabelAIError('brief is too long (max 2000 characters).')
 
-    api_key = resolve_xai_api_key()
-    if not api_key:
-        raise LabelAIError(
-            'XAI_API_KEY (or GROK_API_KEY) is not configured.',
-            status=503,
-        )
+    from apps.core.services.image_router import ImageError, generate_image
 
     model_id = ai_model('LABEL_IMAGE')
     aspect = aspect_ratio_for_inches(float(width_in), float(height_in))
@@ -210,54 +199,17 @@ def generate_background_image(
         height_in=float(height_in),
         aspect=aspect,
     )
-    base_url = (getattr(settings, 'XAI_API_BASE', None) or 'https://api.x.ai/v1').strip().rstrip('/')
-    payload = {
-        'model': model_id,
-        'prompt': prompt,
-        'n': 1,
-        'response_format': 'b64_json',
-        'aspect_ratio': aspect,
-    }
+    # Any image model in Settings > AI (xAI, OpenAI or Google) through the house image router (Dash #195); the
+    # call is logged at the model's per-image price.
     try:
-        resp = requests.post(
-            f'{base_url}/images/generations',
-            headers={
-                'Authorization': f'Bearer {api_key}',
-                'Content-Type': 'application/json',
-            },
-            json=payload,
-            timeout=120,
-        )
-    except requests.RequestException as exc:
-        raise LabelAIError(f'Image API connection error: {exc}', status=503) from exc
-
-    if resp.status_code == 401:
-        raise LabelAIError('Image API authentication failed.', status=503)
-    if resp.status_code == 429:
-        raise LabelAIError('Image API rate limited; try again shortly.', status=503)
-    if resp.status_code >= 400:
-        detail = resp.text[:400]
-        raise LabelAIError(f'Image API error ({resp.status_code}): {detail}', status=400)
-
-    try:
-        data = resp.json()
-        items = data.get('data') or []
-        if not items:
-            raise ValueError('empty data')
-        b64 = items[0].get('b64_json')
-        if not b64:
-            raise ValueError('missing b64_json')
-    except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
-        raise LabelAIError('Image API returned an unexpected response.') from exc
-
-    from apps.core.services.ai_usage_log import log_ai_usage
-
-    # Images are priced per picture, not per token (xAI's list price for one generated image).
-    log_ai_usage('label_ai_image', model_id, purpose='LABEL_IMAGE', cost_usd=IMAGE_COST_USD,
-                 detail=f'{aspect} {width_in}x{height_in} in')
+        out = generate_image(model_id, prompt, aspect=aspect, log_source='label_ai_image', log_purpose='LABEL_IMAGE',
+                             log_detail=f'{aspect} {width_in}x{height_in} in')
+    except ImageError as exc:
+        raise LabelAIError(str(exc), status=exc.status) from exc
+    b64 = out['b64']
     return {
         'image_b64': b64,
-        'content_type': 'image/png',
+        'content_type': out['content_type'],
         'prompt_used': prompt,
         'aspect_ratio': aspect,
         'model': model_id,

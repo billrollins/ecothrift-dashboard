@@ -43,6 +43,16 @@ NEAREST = 5
 SCORE_VECTOR_SAME = 85   # the dedupe bar: matched automatically
 SCORE_VECTOR_NEAR = 70   # offered to staff
 
+# Settings > AI action (Dash #195): Fast tier (Spark), effort high, as standardize.MODEL / EFFORT were.
+PURPOSE = 'PRODUCT_STANDARDIZE'
+
+
+def model_and_effort() -> tuple[str, str]:
+    """The model and effort Settings > AI gives intake standardizing."""
+    from apps.core.ai_config import ai_effort, ai_model
+
+    return ai_model(PURPOSE), ai_effort(PURPOSE)
+
 
 def is_enabled() -> bool:
     value = AppSetting.objects.filter(key=SWITCH_KEY).values_list('value', flat=True).first()
@@ -102,9 +112,10 @@ def run_standard_batch(order: PurchaseOrder, row_ids: list[int], *, api_key: str
     generation = order.ai_cleanup_generation
     if before_model_call is not None:
         before_model_call()  # no database connection is held through the model call
-    res = llm_complete(model_id=std.MODEL, system=system, user=json.dumps(items, ensure_ascii=False),
-                       max_tokens=16000, effort=std.EFFORT, timeout=timeout, api_key=api_key,
-                       log_source='intake_standard', log_detail=f'order {order.pk}')
+    model_id, effort = model_and_effort()
+    res = llm_complete(model_id=model_id, system=system, user=json.dumps(items, ensure_ascii=False),
+                       max_tokens=16000, effort=effort, timeout=timeout, api_key=api_key,
+                       log_source='intake_standard', log_purpose=PURPOSE, log_detail=f'order {order.pk}')
     answers = {str(a.get('id')): a for a in std._parse(res.text) if isinstance(a, dict)}
     if PurchaseOrder.objects.values_list('ai_cleanup_generation', flat=True).get(pk=order.pk) != generation:
         return {'rows_saved': 0, 'cancelled': True}  # cleanup was undone meanwhile: save nothing
@@ -117,7 +128,7 @@ def run_standard_batch(order: PurchaseOrder, row_ids: list[int], *, api_key: str
         clean, problems = std.validate(a, cats, given[str(row.id)])
         status = dict(row.ai_status) if isinstance(row.ai_status, dict) else {}
         status['standard'] = {**{k: clean.get(k) for k in (*PROFILE_FIELDS, 'item_details', 'confidence', 'flags')},
-                              'problems': problems, 'rules_version': version, 'source': f'ai:{std.MODEL}'}
+                              'problems': problems, 'rules_version': version, 'source': f'ai:{model_id}'}
         row.ai_status = status
         row.save(update_fields=['ai_status', 'updated_at'])
         saved += 1
@@ -213,7 +224,7 @@ def apply_to_product(product_id: int, preprocessing_row_id: int | None) -> dict[
             if value in (None, '', {}):
                 continue
             # `set_field` never replaces a value a person set.
-            if set_field(product, field, value, source=s.get('source') or f'ai:{std.MODEL}',
+            if set_field(product, field, value, source=s.get('source') or f'ai:{model_and_effort()[0]}',
                          confidence=str(s.get('confidence') or ''), profile=profile):
                 applied += 1
     embedded = embed_products([product]) if profile.vector_text else {}

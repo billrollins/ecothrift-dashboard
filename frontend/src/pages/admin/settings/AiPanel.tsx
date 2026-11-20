@@ -1,19 +1,19 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   Box,
   Button,
   Card,
   CardContent,
+  Checkbox,
+  Chip,
   Dialog,
   DialogActions,
+  Divider,
   DialogContent,
   DialogTitle,
-  FormControlLabel,
-  IconButton,
   MenuItem,
   Stack,
-  Switch,
   Table,
   TableBody,
   TableCell,
@@ -23,167 +23,196 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import ChatOutlined from '@mui/icons-material/ChatOutlined';
-import { useQueryClient } from '@tanstack/react-query';
+import PlayArrowRounded from '@mui/icons-material/PlayArrowRounded';
 import { useSnackbar } from 'notistack';
 import {
-  AI_EFFORTS,
-  EFFORT_LABEL,
   PROVIDER_LABEL,
-  type AiActionSetting,
+  TIER_LABEL,
   type AiCatalogModel,
-  type AiDiscoverProviderResult,
-  type AiEffort,
+  type AiCatalogModelWrite,
   type AiModality,
   type AiProvider,
+  type AiRefreshSummary,
 } from '../../../api/aiSettings.api';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import {
   useAiActions,
+  useAiModelPriceFlag,
   useAiModels,
+  useAiRefreshSummary,
+  useAiTiers,
   useArchiveAiModel,
   useCreateAiModel,
-  useDiscoverAiModels,
+  useRunAiRefresh,
   useUnarchiveAiModel,
-  useUpdateAiAction,
   useUpdateAiModel,
 } from '../../../hooks/useAiSettings';
 import { formatApiError } from '../labelStudio/labelStudioUtils';
-import { AiTestDialog } from './AiTestDialog';
+import { AiActionsCard } from './AiActionsCard';
+import { AiTiersCard, byPerf } from './AiTiersCard';
+import { AiTryDialog } from './AiTryDialog';
 import { PriceCell } from './AiPriceCell';
-import { AiPriceCheck, PRICE_CHECK_KEY, useAiPriceCheck } from './AiPriceCheck';
-import { startAiPriceCheck } from '../../../api/aiSettings.api';
-import { IconEdit as EditIcon } from '../../../icons/ecoIcons';
+import { InlineTextCell } from './InlineTextCell';
+import { Segmented } from './Segmented';
+import { IconAdd, IconArchive, IconRefresh, IconUndo } from '../../../icons/ecoIcons';
+import { longDate, monthYear, plain, timeOf, usd } from './aiFormat';
 
-const MODALITY_LABEL: Record<AiModality, string> = { text: 'Text', image: 'Image' };
+const PROVIDER_ORDER: AiProvider[] = ['anthropic', 'openai', 'xai', 'google', 'meta'];
+const SOURCE_LABEL: Record<string, string> = { aa: 'AA', triage: '2 of 3', typed: 'Typed', list: 'Provider' };
 
-const ACTION_TIPS: Record<string, string> = {
-  AI_CHAT: 'A model picked in the chat box wins over this one.',
-  INVENTORY_CLEANUP: 'Only the models offered on the preprocessing cleanup step work here; any other falls back to the first one there.',
-  INVENTORY_CLASSIFY: 'Answers in about 50 tokens. Keep effort Off and do not pick Claude Opus 5.5 (it always thinks), or answers can come back empty.',
-  LABEL_IMAGE: 'Only xAI image models work here. No effort setting.',
-  FLOORPLAN_SVG: 'Must answer within 25 seconds. If it times out, pick a faster model or lower effort.',
-  FLOORPLAN_ADJUST: 'Must answer within 25 seconds. If it times out, pick a faster model or lower effort.',
-};
-
-interface ModelDraft {
-  id: number | null;
+interface NewModel {
   slug: string;
   label: string;
   provider: AiProvider;
   modality: AiModality;
 }
 
-const NEW_DRAFT: ModelDraft = { id: null, slug: '', label: '', provider: 'anthropic', modality: 'text' };
+const NEW_MODEL: NewModel = { slug: '', label: '', provider: 'anthropic', modality: 'text' };
+
+/** One line for the last Refresh: when, how long, what changed. The full detail is its tooltip. */
+function refreshLine(s: AiRefreshSummary | undefined): { line: string; detail: string } {
+  if (!s?.finished_at) return { line: 'Not refreshed yet', detail: '' };
+  const added = (s.providers ?? []).flatMap((p) => p.added);
+  const failed = (s.providers ?? []).filter((p) => !p.ok);
+  const p = s.prices ?? { filled: 0, confirmed: 0, flagged: 0, none: 0 };
+  const parts = [
+    `Refreshed ${timeOf(s.finished_at)} in ${s.seconds ?? 0} s`,
+    added.length ? `${added.length} new` : 'no new models',
+    s.aa?.ok ? `AA matched ${s.aa.matched}` : 'no AA data',
+    `${p.filled} prices filled, ${p.confirmed} confirmed`,
+  ];
+  if (p.flagged) parts.push(`${p.flagged} to check`);
+  if (s.gone?.length) parts.push(`${s.gone.length} no longer listed`);
+  if (failed.length) parts.push(`${failed.map((f) => PROVIDER_LABEL[f.provider]).join(', ')} failed`);
+  const detail = [
+    added.length ? `New: ${added.join(', ')}` : '',
+    s.gone?.length ? `No longer listed by the provider: ${s.gone.join(', ')}` : '',
+    s.aa?.error ? s.aa.error : '',
+    ...failed.map((f) => `${PROVIDER_LABEL[f.provider]}: ${f.error}`),
+    ...(s.triage ?? []).map((t) => `Triage ${t.model}: ${t.ok ? `${t.priced} prices known` : t.error}`),
+  ].filter(Boolean).join('\n');
+  return { line: parts.join(' · '), detail };
+}
 
 export function AiPanel() {
-  const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const modelsQuery = useAiModels();
+  const tiersQuery = useAiTiers();
   const actionsQuery = useAiActions();
+  const summaryQuery = useAiRefreshSummary();
   const createModel = useCreateAiModel();
   const updateModel = useUpdateAiModel();
   const archiveModel = useArchiveAiModel();
   const unarchiveModel = useUnarchiveAiModel();
-  const discover = useDiscoverAiModels();
-  const updateAction = useUpdateAiAction();
+  const refresh = useRunAiRefresh();
+  const priceFlag = useAiModelPriceFlag();
 
-  const [showArchived, setShowArchived] = useState(false);
-  const [draft, setDraft] = useState<ModelDraft | null>(null);
-  const [draftError, setDraftError] = useState<string | null>(null);
-  const [discoverResults, setDiscoverResults] = useState<AiDiscoverProviderResult[] | null>(null);
-  const [testModelId, setTestModelId] = useState<number | null>(null);
-  const [updating, setUpdating] = useState(false);
-  const priceCheck = useAiPriceCheck();
-  const checking = priceCheck.data?.status === 'running';
-  const [reviewWhenDone, setReviewWhenDone] = useState(false);
-  const reviewOpened = useCallback(() => setReviewWhenDone(false), []);
+  const [view, setView] = useState<'active' | 'archived'>('active');
+  const [kind, setKind] = useState<AiModality>('text');
+  const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [trying, setTrying] = useState<AiCatalogModel[] | null>(null);
+  const [adding, setAdding] = useState<NewModel | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [flagged, setFlagged] = useState<AiCatalogModel | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const models = useMemo(() => modelsQuery.data ?? [], [modelsQuery.data]);
-  const actions = actionsQuery.data ?? [];
+  // One type and one status at a time; by provider, then best Perf first.
   const visibleModels = useMemo(
-    () => (showArchived ? models : models.filter((m) => m.status === 'active')),
-    [models, showArchived],
+    () =>
+      models.filter((m) => m.status === view && m.modality === kind).slice().sort(
+        (a, b) => PROVIDER_ORDER.indexOf(a.provider) - PROVIDER_ORDER.indexOf(b.provider) || byPerf(a, b),
+      ),
+    [models, view, kind],
   );
+  const count = (k: AiModality, v: 'active' | 'archived') => models.filter((m) => m.modality === k && m.status === v).length;
 
-  if (modelsQuery.isLoading || actionsQuery.isLoading) {
+  if (modelsQuery.isLoading || actionsQuery.isLoading || tiersQuery.isLoading) {
     return <LoadingScreen message="Loading AI settings..." />;
   }
-  if (modelsQuery.isError || actionsQuery.isError) {
+  if (modelsQuery.isError || actionsQuery.isError || tiersQuery.isError) {
     return <Typography color="error">Could not load AI settings.</Typography>;
   }
+  const tiers = tiersQuery.data ?? [];
+  const actions = actionsQuery.data ?? [];
+  const summary = refreshLine(refresh.data ?? summaryQuery.data);
+  const chosen = visibleModels.filter((m) => picked.has(m.id));
+  const allPicked = visibleModels.length > 0 && chosen.length === visibleModels.length;
 
-  const openDraft = (next: ModelDraft) => {
-    setDraftError(null);
-    setDraft(next);
+  const toggle = (id: number) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const switchView = (next: 'active' | 'archived') => {
+    setView(next);
+    setPicked(new Set());
   };
 
-  const saveDraft = async () => {
-    if (!draft) return;
-    setDraftError(null);
-    const slug = draft.slug.trim();
+  const switchKind = (next: AiModality) => {
+    setKind(next);
+    setPicked(new Set());
+  };
+  const image = kind === 'image';
+
+  const saveField = async (m: AiCatalogModel, data: Partial<AiCatalogModelWrite>) => {
     try {
-      if (draft.id == null) {
-        await createModel.mutateAsync({ slug, label: draft.label.trim(), provider: draft.provider, modality: draft.modality });
-        enqueueSnackbar(`Added ${slug}`, { variant: 'success' });
-      } else {
-        await updateModel.mutateAsync({ id: draft.id, data: { slug, label: draft.label.trim(), provider: draft.provider } });
-        enqueueSnackbar(`Saved ${slug}`, { variant: 'success' });
-      }
-      setDraft(null);
+      await updateModel.mutateAsync({ id: m.id, data: { provider: m.provider, ...data } });
     } catch (err) {
-      setDraftError(formatApiError(err, 'Could not save the model.'));
+      enqueueSnackbar(formatApiError(err, 'Could not save.'), { variant: 'error' });
+      throw err;
     }
   };
 
-  const runArchive = async (row: AiCatalogModel) => {
-    try {
-      const data = await archiveModel.mutateAsync(row.id);
-      enqueueSnackbar(`Archived ${row.slug}. ${data.cleared_actions} action(s) now use the default model.`, { variant: 'success' });
-    } catch (err) {
-      enqueueSnackbar(formatApiError(err, 'Could not archive.'), { variant: 'error' });
-    }
+  const runBulk = async (archive: boolean) => {
+    setBulkBusy(true);
+    const results = await Promise.allSettled(
+      chosen.map((m) => (archive ? archiveModel.mutateAsync(m.id) : unarchiveModel.mutateAsync(m.id))),
+    );
+    setBulkBusy(false);
+    setPicked(new Set());
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    const tiersCleared = results.flatMap((r) =>
+      r.status === 'fulfilled' && r.value && 'cleared_tiers' in r.value ? (r.value.cleared_tiers as string[]) : [],
+    );
+    const done = results.length - failed;
+    const verb = archive ? 'Archived' : 'Unarchived';
+    const tierNote = tiersCleared.length ? ` Pick a new model for ${tiersCleared.join(', ')}.` : '';
+    const failNote = failed ? ` ${failed} could not be changed.` : '';
+    enqueueSnackbar(`${verb} ${done} model${done === 1 ? '' : 's'}.${tierNote}${failNote}`, {
+      variant: failed ? 'error' : tiersCleared.length ? 'warning' : 'success',
+    });
   };
 
-  const runUnarchive = async (row: AiCatalogModel) => {
-    try {
-      await unarchiveModel.mutateAsync(row.id);
-      enqueueSnackbar(`${row.slug} is back in the lists`, { variant: 'success' });
-    } catch (err) {
-      enqueueSnackbar(formatApiError(err, 'Could not unarchive.'), { variant: 'error' });
-    }
-  };
-
-  // Update: look for new models, then get prices for any model that has none (the server skips the
-  // check when no price is missing).
-  const runUpdate = async () => {
-    setUpdating(true);
-    try {
-      const data = await discover.mutateAsync();
-      const added = data.providers.flatMap((p) => p.added);
-      queryClient.setQueryData(PRICE_CHECK_KEY, await startAiPriceCheck(true));
-      enqueueSnackbar(added.length ? `Added ${added.join(', ')}. Getting their prices.` : 'No new models.', { variant: 'success' });
-    } catch (err) {
-      enqueueSnackbar(formatApiError(err, 'Could not update.'), { variant: 'error' });
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  // Refresh prices: check every model's price on the web; the changes are reviewed before any is saved.
   const runRefresh = async () => {
     try {
-      queryClient.setQueryData(PRICE_CHECK_KEY, await startAiPriceCheck(false));
-      setReviewWhenDone(true);
+      await refresh.mutateAsync();
     } catch (err) {
-      enqueueSnackbar(formatApiError(err, 'Could not start the price check.'), { variant: 'error' });
+      enqueueSnackbar(formatApiError(err, 'Could not refresh.'), { variant: 'error' });
     }
   };
 
-  const saveAction = async (row: AiActionSetting, data: { model?: number | null; effort?: AiEffort }) => {
+  const saveNew = async () => {
+    if (!adding) return;
+    setAddError(null);
     try {
-      await updateAction.mutateAsync({ purpose: row.purpose, data });
-      enqueueSnackbar(`Saved ${row.label}`, { variant: 'success' });
+      await createModel.mutateAsync({ ...adding, slug: adding.slug.trim(), label: adding.label.trim() });
+      enqueueSnackbar(`Added ${adding.slug.trim()}`, { variant: 'success' });
+      setAdding(null);
+    } catch (err) {
+      setAddError(formatApiError(err, 'Could not add the model.'));
+    }
+  };
+
+  const answerFlag = async (accept: boolean) => {
+    if (!flagged) return;
+    try {
+      await priceFlag.mutateAsync({ id: flagged.id, accept });
+      enqueueSnackbar(accept ? `Saved the new price for ${flagged.slug}` : `Kept the saved price for ${flagged.slug}`, { variant: 'success' });
+      setFlagged(null);
     } catch (err) {
       enqueueSnackbar(formatApiError(err, 'Could not save.'), { variant: 'error' });
     }
@@ -191,211 +220,198 @@ export function AiPanel() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <AiTestDialog
-        key={testModelId ?? 'none'}
-        open={testModelId != null}
-        onClose={() => setTestModelId(null)}
-        models={models}
-        initialModelId={testModelId}
-      />
+      {trying && <AiTryDialog models={trying} onClose={() => setTrying(null)} />}
+
       <Card variant="outlined">
         <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-            <Typography variant="h6" sx={{ flex: 1 }}>Models</Typography>
-            <Tooltip
-              title="Check every model's input and output price on the web. You see the changes and their sources before anything is saved."
-              enterDelay={400}
-            >
-              <span>
-                <Button variant="outlined" size="small" onClick={() => void runRefresh()} disabled={checking}>
-                  {checking ? 'Checking prices...' : 'Refresh prices'}
-                </Button>
-              </span>
-            </Tooltip>
-            <Tooltip title="Look for new models at each provider, then get the price of any model that has none" enterDelay={400}>
-              <span>
-                <Button variant="contained" size="small" onClick={() => void runUpdate()} disabled={updating}>
-                  {updating ? 'Updating...' : 'Update'}
-                </Button>
-              </span>
+          {/* Title, the one main action, and what the last Refresh did: one line, read left to right. */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+            <Typography variant="h6" sx={{ flexShrink: 0 }}>Models</Typography>
+            <Button variant="contained" size="small" startIcon={<IconRefresh />} onClick={() => void runRefresh()}
+              disabled={refresh.isPending} sx={{ height: 32, flexShrink: 0, minWidth: 116 }}>
+              {refresh.isPending ? 'Refreshing...' : 'Refresh'}
+            </Button>
+            <Tooltip title={summary.detail ? <Box sx={{ whiteSpace: 'pre-line' }}>{summary.detail}</Box> : ''} enterDelay={250}>
+              <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
+                {refresh.isPending ? 'Asking every provider, Artificial Analysis and three models...' : summary.line}
+              </Typography>
             </Tooltip>
           </Box>
-          <AiPriceCheck openWhenDone={reviewWhenDone} onOpened={reviewOpened} />
-          <Table size="small">
+
+          {/* What you see, then what you can do with what you picked: one group from the left, divided by kind. */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 2, mb: 1.5 }}>
+            <Segmented label="Model type" value={kind} onChange={switchKind} options={[
+              { value: 'text', label: 'Text', count: count('text', view) },
+              { value: 'image', label: 'Image', count: count('image', view) },
+            ]} />
+            <Segmented label="Live or archived" value={view} onChange={switchView} options={[
+              { value: 'active', label: 'Live', count: count(kind, 'active') },
+              { value: 'archived', label: 'Archived', count: count(kind, 'archived') },
+            ]} />
+            <Divider orientation="vertical" flexItem sx={{ mx: 1, my: 0.5 }} />
+            {view === 'active' ? (
+              <>
+                <Button size="small" variant="outlined" startIcon={<PlayArrowRounded />} disabled={!chosen.length}
+                  onClick={() => setTrying(chosen)} sx={{ height: 32 }}>
+                  Try
+                </Button>
+                <Button size="small" variant="outlined" startIcon={<IconArchive />} disabled={!chosen.length || bulkBusy}
+                  onClick={() => void runBulk(true)} sx={{ height: 32 }}>
+                  Archive
+                </Button>
+              </>
+            ) : (
+              <Button size="small" variant="outlined" startIcon={<IconUndo />} disabled={!chosen.length || bulkBusy}
+                onClick={() => void runBulk(false)} sx={{ height: 32 }}>
+                Unarchive
+              </Button>
+            )}
+            <Divider orientation="vertical" flexItem sx={{ mx: 1, my: 0.5 }} />
+            <Button size="small" startIcon={<IconAdd />} sx={{ height: 32 }}
+              onClick={() => { setAddError(null); setAdding({ ...NEW_MODEL, modality: kind }); }}>
+              Add model
+            </Button>
+            {chosen.length > 0 && (
+              <Chip size="small" label={`${chosen.length} picked`} onDelete={() => setPicked(new Set())} sx={{ ml: 1 }} />
+            )}
+          </Box>
+          <Table size="small" sx={{ '& td, & th': { px: 1 } }}>
             <TableHead>
               <TableRow>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    size="small"
+                    checked={allPicked}
+                    indeterminate={chosen.length > 0 && !allPicked}
+                    onChange={() => setPicked(allPicked ? new Set() : new Set(visibleModels.map((m) => m.id)))}
+                    inputProps={{ 'aria-label': 'Pick every model' }}
+                  />
+                </TableCell>
                 <TableCell>Model id</TableCell>
-                <TableCell>Name</TableCell>
+                <TableCell>Name · AA model</TableCell>
                 <TableCell>Provider</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell align="right">Input $/1M</TableCell>
-                <TableCell align="right">Output $/1M</TableCell>
-                <TableCell align="right" />
+                <TableCell>Released</TableCell>
+                <TableCell>Tier</TableCell>
+                {image ? (
+                  <TableCell align="right">$ per image</TableCell>
+                ) : (
+                  <>
+                    <TableCell align="right">Input $/1M</TableCell>
+                    <TableCell align="right">Output $/1M</TableCell>
+                  </>
+                )}
+                <TableCell>Price from</TableCell>
+                <TableCell align="right">
+                  <Tooltip title={image ? "Artificial Analysis text-to-image arena ELO" : 'Artificial Analysis Intelligence Index'} enterDelay={250}>
+                    <span>Perf</span>
+                  </Tooltip>
+                </TableCell>
+                {!image && (
+                  <>
+                    <TableCell align="right">
+                      <Tooltip title="What one Artificial Analysis test task cost on this model, thinking included (AA's spend, not ours): performance for the money" enterDelay={250}>
+                        <span>AA $/task</span>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell align="right">Tokens/s</TableCell>
+                  </>
+                )}
               </TableRow>
             </TableHead>
             <TableBody>
               {visibleModels.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8}>No models yet. Click Update.</TableCell>
+                  <TableCell colSpan={image ? 9 : 12}>{view === 'active' ? 'No models yet. Click Refresh.' : 'Nothing archived.'}</TableCell>
                 </TableRow>
               ) : (
                 visibleModels.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell sx={{ fontFamily: 'monospace' }}>{m.slug}</TableCell>
-                    <TableCell>{m.label || '\u2014'}</TableCell>
+                  <TableRow key={m.id} hover selected={picked.has(m.id)}>
+                    <TableCell padding="checkbox">
+                      <Checkbox size="small" checked={picked.has(m.id)} onChange={() => toggle(m.id)}
+                        inputProps={{ 'aria-label': `Pick ${m.slug}` }} />
+                    </TableCell>
+                    <TableCell sx={{ maxWidth: 220 }}>
+                      <InlineTextCell mono value={m.slug} label={`${m.slug} model id`} onSave={(slug) => saveField(m, { slug })} />
+                    </TableCell>
+                    <TableCell sx={{ maxWidth: 220 }}>
+                      <InlineTextCell value={m.label} label={`${m.slug} name`} placeholder="name" onSave={(label) => saveField(m, { label })} />
+                      <br />
+                      <InlineTextCell caption mono value={m.aa_slug} label={`${m.slug} AA model`} placeholder="AA: no match"
+                        onSave={(aa_slug) => saveField(m, { aa_slug })} />
+                    </TableCell>
                     <TableCell>{PROVIDER_LABEL[m.provider]}</TableCell>
-                    <TableCell>{MODALITY_LABEL[m.modality]}</TableCell>
-                    <TableCell>{m.status === 'active' ? 'Active' : 'Archived'}</TableCell>
-                    <TableCell align="right"><PriceCell model={m} field="input_price" /></TableCell>
-                    <TableCell align="right"><PriceCell model={m} field="output_price" /></TableCell>
-                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                      {m.status === 'active' && m.modality === 'text' ? (
-                        <Tooltip title="Test this model" enterDelay={250}>
-                          <IconButton size="small" aria-label={`Test ${m.slug}`} onClick={() => setTestModelId(m.id)}>
-                            <ChatOutlined fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      ) : null}
-                      <Tooltip title="Edit" enterDelay={250}>
-                        <IconButton
-                          size="small"
-                          onClick={() => openDraft({ id: m.id, slug: m.slug, label: m.label, provider: m.provider, modality: m.modality })}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      {m.status === 'active' ? (
-                        <Button size="small" color="error" onClick={() => void runArchive(m)} disabled={archiveModel.isPending}>
-                          Archive
-                        </Button>
+                    <TableCell sx={{ whiteSpace: 'nowrap', color: m.release_date ? 'text.primary' : 'text.disabled' }}>
+                      <Tooltip title={longDate(m.release_date)} enterDelay={300}><span>{monthYear(m.release_date)}</span></Tooltip>
+                    </TableCell>
+                    <TableCell>{m.tier_keys.map((k) => TIER_LABEL[k]).join(', ') || '—'}</TableCell>
+                    {image ? (
+                      <TableCell align="right"><PriceCell model={m} field="image_price" /></TableCell>
+                    ) : (
+                      <>
+                        <TableCell align="right"><PriceCell model={m} field="input_price" /></TableCell>
+                        <TableCell align="right"><PriceCell model={m} field="output_price" /></TableCell>
+                      </>
+                    )}
+                    <TableCell>
+                      {m.price_flag ? (
+                        <Chip size="small" color="warning" label="Check" onClick={() => setFlagged(m)} />
                       ) : (
-                        <Button size="small" onClick={() => void runUnarchive(m)}>
-                          Unarchive
-                        </Button>
+                        <Typography variant="body2" color="text.secondary">{SOURCE_LABEL[m.price_source] ?? '—'}</Typography>
                       )}
                     </TableCell>
+                    <TableCell align="right">{plain(m.aa_intelligence, image ? 0 : 1)}</TableCell>
+                    {!image && (
+                      <>
+                        <TableCell align="right">{m.aa_task_cost != null ? usd(m.aa_task_cost) : '—'}</TableCell>
+                        <TableCell align="right">{plain(m.aa_speed, 0)}</TableCell>
+                      </>
+                    )}
                   </TableRow>
                 ))
               )}
             </TableBody>
           </Table>
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-            <FormControlLabel
-              control={<Switch size="small" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />}
-              label="Show archived"
-            />
-          </Box>
+          <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 1 }}>
+            Scores and prices: Artificial Analysis (artificialanalysis.ai)
+          </Typography>
         </CardContent>
       </Card>
 
-      <Card variant="outlined">
-        <CardContent>
-          <Typography variant="h6" sx={{ mb: 1 }}>Actions</Typography>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Action</TableCell>
-                <TableCell sx={{ width: '45%' }}>Model</TableCell>
-                <TableCell sx={{ width: '25%' }}>Effort</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {actions.map((row) => {
-                const tip = ACTION_TIPS[row.purpose];
-                const options = models.filter((m) => m.status === 'active' && m.modality === row.modality);
-                return (
-                  <TableRow key={row.purpose}>
-                    <TableCell>
-                      <Tooltip title={tip ? `${row.purpose}. ${tip}` : row.purpose} enterDelay={250}>
-                        <span>{row.label}</span>
-                      </Tooltip>
-                    </TableCell>
-                    <TableCell>
-                      <TextField
-                        select
-                        size="small"
-                        fullWidth
-                        value={row.model == null ? '' : String(row.model)}
-                        SelectProps={{ displayEmpty: true }}
-                        disabled={updateAction.isPending}
-                        onChange={(e) =>
-                          void saveAction(row, { model: e.target.value === '' ? null : Number(e.target.value) })
-                        }
-                      >
-                        <MenuItem value="">Default ({row.env_model})</MenuItem>
-                        {options.map((m) => (
-                          <MenuItem key={m.id} value={String(m.id)}>
-                            {(m.label || m.slug) + ' (' + PROVIDER_LABEL[m.provider] + ')'}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    </TableCell>
-                    <TableCell>
-                      <TextField
-                        select
-                        size="small"
-                        fullWidth
-                        value={row.effort}
-                        disabled={row.modality === 'image' || updateAction.isPending}
-                        onChange={(e) => void saveAction(row, { effort: e.target.value as AiEffort })}
-                      >
-                        {AI_EFFORTS.map((eff) => (
-                          <MenuItem key={eff} value={eff}>
-                            {EFFORT_LABEL[eff]}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <AiTiersCard tiers={tiers} models={models} actions={actions} />
 
-      <Dialog open={draft != null} onClose={() => setDraft(null)} fullWidth maxWidth="sm">
-        <DialogTitle>{draft?.id == null ? 'Add model' : 'Edit model'}</DialogTitle>
+      <AiActionsCard actions={actions} tiers={tiers} models={models} />
+
+      <Dialog open={flagged != null} onClose={() => setFlagged(null)} fullWidth maxWidth="xs">
+        <DialogTitle>{flagged?.slug}</DialogTitle>
         <DialogContent>
-          {draft && (
+          <Typography variant="body2">{flagged?.price_flag}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => void answerFlag(false)} disabled={priceFlag.isPending}>Keep saved</Button>
+          <Button variant="contained" onClick={() => void answerFlag(true)} disabled={priceFlag.isPending}>
+            {flagged?.modality === 'image'
+              ? `Use ${usd(flagged?.flag_input)} per image`
+              : `Use ${usd(flagged?.flag_input)} / ${usd(flagged?.flag_output)}`}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={adding != null} onClose={() => setAdding(null)} fullWidth maxWidth="sm">
+        <DialogTitle>Add model</DialogTitle>
+        <DialogContent>
+          {adding && (
             <Stack spacing={2} sx={{ mt: 1 }}>
-              {draftError && <Alert severity="error">{draftError}</Alert>}
-              <TextField
-                label="Model id"
-                value={draft.slug}
-                onChange={(e) => setDraft({ ...draft, slug: e.target.value })}
-                placeholder="claude-opus-5-5"
-                fullWidth
-              />
-              <TextField
-                label="Name"
-                value={draft.label}
-                onChange={(e) => setDraft({ ...draft, label: e.target.value })}
-                placeholder="Claude Opus 5.5"
-                fullWidth
-              />
-              <TextField
-                select
-                label="Provider"
-                value={draft.provider}
-                onChange={(e) => setDraft({ ...draft, provider: e.target.value as AiProvider })}
-                fullWidth
-              >
-                {(Object.keys(PROVIDER_LABEL) as AiProvider[]).map((p) => (
-                  <MenuItem key={p} value={p}>
-                    {PROVIDER_LABEL[p]}
-                  </MenuItem>
-                ))}
+              {addError && <Alert severity="error">{addError}</Alert>}
+              <TextField label="Model id" value={adding.slug} onChange={(e) => setAdding({ ...adding, slug: e.target.value })}
+                placeholder="claude-opus-5-5" fullWidth />
+              <TextField label="Name" value={adding.label} onChange={(e) => setAdding({ ...adding, label: e.target.value })}
+                placeholder="Claude Opus 5.5" fullWidth />
+              <TextField select label="Provider" value={adding.provider}
+                onChange={(e) => setAdding({ ...adding, provider: e.target.value as AiProvider })} fullWidth>
+                {PROVIDER_ORDER.map((p) => <MenuItem key={p} value={p}>{PROVIDER_LABEL[p]}</MenuItem>)}
               </TextField>
-              <TextField
-                select
-                label="Type"
-                value={draft.modality}
-                onChange={(e) => setDraft({ ...draft, modality: e.target.value as AiModality })}
-                disabled={draft.id != null}
-                fullWidth
-              >
+              <TextField select label="Type" value={adding.modality}
+                onChange={(e) => setAdding({ ...adding, modality: e.target.value as AiModality })} fullWidth>
                 <MenuItem value="text">Text</MenuItem>
                 <MenuItem value="image">Image</MenuItem>
               </TextField>
@@ -403,17 +419,12 @@ export function AiPanel() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDraft(null)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={() => void saveDraft()}
-            disabled={!draft?.slug.trim() || createModel.isPending || updateModel.isPending}
-          >
-            Save
+          <Button onClick={() => setAdding(null)}>Cancel</Button>
+          <Button variant="contained" onClick={() => void saveNew()} disabled={!adding?.slug.trim() || createModel.isPending}>
+            Add
           </Button>
         </DialogActions>
       </Dialog>
-
     </Box>
   );
 }

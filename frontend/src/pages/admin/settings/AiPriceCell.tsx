@@ -2,7 +2,7 @@ import { Box, InputBase, Typography } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useState } from 'react';
-import { saveAiModelPrices, type AiCatalogModel } from '../../../api/aiSettings.api';
+import { saveAiModelPrices, updateAiModel, type AiCatalogModel } from '../../../api/aiSettings.api';
 import { IconEdit as EditOutlined } from '../../../icons/ecoIcons';
 
 function shown(v: string | null): string {
@@ -13,7 +13,7 @@ function shown(v: string | null): string {
  * A model's price per 1M tokens: plain text with a dotted underline (and a pencil on hover) until
  * clicked, then a small borderless input. Saves on blur or Enter; Escape cancels. Blank = unknown.
  */
-export function PriceCell({ model, field }: { model: AiCatalogModel; field: 'input_price' | 'output_price' }) {
+export function PriceCell({ model, field }: { model: AiCatalogModel; field: 'input_price' | 'output_price' | 'image_price' }) {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const [editing, setEditing] = useState(false);
@@ -25,10 +25,10 @@ export function PriceCell({ model, field }: { model: AiCatalogModel; field: 'inp
     setSeen(saved);
     setValue(saved);
   }
-  const label = `${model.slug} ${field === 'input_price' ? 'input' : 'output'} price`;
+  const label = `${model.slug} ${field === 'input_price' ? 'input' : field === 'output_price' ? 'output' : 'per-image'} price`;
 
-  if (model.modality !== 'text') {
-    return <Typography variant="body2" color="text.disabled">per image</Typography>;
+  if ((field === 'image_price') !== (model.modality === 'image')) {
+    return <Typography variant="body2" color="text.disabled">{'\u2014'}</Typography>;
   }
 
   async function save() {
@@ -36,16 +36,20 @@ export function PriceCell({ model, field }: { model: AiCatalogModel; field: 'inp
     const next = value.trim() === '' ? null : value.trim();
     if (next === (model[field] != null ? shown(model[field]) : null)) return;
     if (next !== null && !(Number(next) >= 0)) {
-      enqueueSnackbar('A price is dollars per million tokens, like 3 or 0.25.', { variant: 'warning' });
+      enqueueSnackbar(field === 'image_price' ? 'A price is dollars per picture, like 0.04.' : 'A price is dollars per million tokens, like 3 or 0.25.', { variant: 'warning' });
       setValue(shown(model[field]));
       return;
     }
     try {
-      await saveAiModelPrices(
-        model.id,
-        field === 'input_price' ? next : model.input_price,
-        field === 'output_price' ? next : model.output_price,
-      );
+      if (field === 'image_price') {
+        await updateAiModel(model.id, { image_price: next });
+      } else {
+        await saveAiModelPrices(
+          model.id,
+          field === 'input_price' ? next : model.input_price,
+          field === 'output_price' ? next : model.output_price,
+        );
+      }
       void queryClient.invalidateQueries({ queryKey: ['ai-settings', 'models'] });
     } catch {
       enqueueSnackbar('Could not save the price.', { variant: 'error' });
@@ -84,7 +88,9 @@ export function PriceCell({ model, field }: { model: AiCatalogModel; field: 'inp
         '&:hover, &:focus-visible': { borderColor: 'primary.main' },
       }}
     >
-      <Typography variant="body2" color={value ? 'text.primary' : 'text.disabled'}>{value ? `$${value}` : 'set'}</Typography>
+      <Typography variant="body2" color={value ? 'text.primary' : 'text.disabled'}>
+        {value ? `$${value}${field === 'image_price' ? '/image' : ''}` : 'set'}
+      </Typography>
       <EditOutlined className="pencil" sx={{ fontSize: 14 }} />
     </Box>
   );

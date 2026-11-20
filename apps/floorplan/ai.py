@@ -140,6 +140,7 @@ def _call_model(*, purpose, model, effort, system, user, max_tokens, log_detail)
             max_retries=0,
             effort=run_effort,
             log_source='floorplan_ai',
+            log_purpose=purpose,
             log_detail=log_detail,
         )
     except LLMConfigError as exc:

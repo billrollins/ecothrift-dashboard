@@ -24,9 +24,8 @@ from apps.hiring.models import Application, ApplicationEvent, HiringAiJob
 FOLLOW_UP = 'follow_up'
 NOT_NOW = 'not_now'
 WHICH = (FOLLOW_UP, NOT_NOW)
-# The house escalation tier (model ladder): Sonnet 5.5, medium effort.
-MODEL = 'claude-sonnet-5-5'
-EFFORT = 'medium'
+# Settings > AI action (Dash #195); it started on Sonnet 5.5 at medium effort (the model ladder's escalation step).
+PURPOSE = 'HIRING_REPLY'
 CONTEXT_MAX = 6000
 SOURCE = 'Written by AI from your words. Read it before you send.'
 
@@ -184,9 +183,9 @@ def work_reply(params: dict) -> tuple[dict, str]:
         f'Store facts:\n{store_facts()}'
     )
     raw, model = llm_chat_tool_input(
-        purpose=ai.PURPOSE, system=system_prompt(which, reason_label), user=user_text, tool_name=TOOL, tools=[SCHEMA],
-        max_tokens=2000, timeout=240, model_override=params.get('model') or MODEL,
-        effort=params.get('effort') or EFFORT, log_source='hiring.reply', log_detail=which,
+        purpose=PURPOSE, system=system_prompt(which, reason_label), user=user_text, tool_name=TOOL, tools=[SCHEMA],
+        max_tokens=2000, timeout=240, model_override=params.get('model') or None,
+        effort=params.get('effort') or None, log_source='hiring.reply', log_detail=which,
     )
     subject = ' '.join(str(raw.get('subject') or '').replace('{', '(').replace('}', ')').split())[:200]
     body = clean_body(str(raw.get('body') or ''))

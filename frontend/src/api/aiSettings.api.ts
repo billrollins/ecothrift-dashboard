@@ -1,8 +1,9 @@
 import api from './client';
 
-export type AiProvider = 'anthropic' | 'xai' | 'google' | 'meta';
+export type AiProvider = 'anthropic' | 'openai' | 'xai' | 'google' | 'meta';
 export type AiModality = 'text' | 'image';
 export type AiEffort = 'off' | 'low' | 'medium' | 'high' | 'max';
+export type AiTierKey = 'fast' | 'standard' | 'best' | 'image';
 
 export const AI_EFFORTS: AiEffort[] = ['off', 'low', 'medium', 'high', 'max'];
 export const EFFORT_LABEL: Record<AiEffort, string> = {
@@ -14,10 +15,13 @@ export const EFFORT_LABEL: Record<AiEffort, string> = {
 };
 export const PROVIDER_LABEL: Record<AiProvider, string> = {
   anthropic: 'Anthropic',
+  openai: 'OpenAI',
   xai: 'xAI',
   google: 'Google',
   meta: 'Meta (Spark)',
 };
+export const TIER_LABEL: Record<AiTierKey, string> = { fast: 'Fast', standard: 'Standard', best: 'Best', image: 'Image' };
+export const TEXT_TIERS: AiTierKey[] = ['fast', 'standard', 'best'];
 
 export interface AiCatalogModel {
   id: number;
@@ -30,6 +34,27 @@ export interface AiCatalogModel {
   /** USD per 1M tokens; null = unknown. */
   input_price: string | null;
   output_price: string | null;
+  /** Image models: USD per picture; null = unknown. */
+  image_price: string | null;
+  /** aa | triage | typed | '' (older prices). */
+  price_source: string;
+  price_checked_at: string | null;
+  /** A Refresh found other prices: why, and the prices offered. Empty = nothing waiting. */
+  price_flag: string;
+  flag_input: string | null;
+  flag_output: string | null;
+  /** Artificial Analysis: the matched model, Intelligence Index, AA's cost per test task (USD, thinking included;
+   *  what AA spent, not ours), tokens per second. */
+  aa_slug: string;
+  aa_name: string;
+  aa_intelligence: string | null;
+  aa_task_cost: string | null;
+  aa_speed: string | null;
+  aa_checked_at: string | null;
+  /** When the model came out (YYYY-MM-DD): AA's release date, else the provider's list date; null = unknown. */
+  release_date: string | null;
+  /** The tiers this model is. */
+  tier_keys: AiTierKey[];
   created_at: string;
   updated_at: string;
 }
@@ -50,6 +75,21 @@ export async function testAiModel(id: number, message: string): Promise<AiTestRe
   return data;
 }
 
+export interface AiImageTestResult {
+  /** A data: URI. */
+  image: string;
+  model_used: string;
+  seconds: number;
+  /** USD per picture, null when the model's per-image price isn't set. */
+  cost: string | null;
+}
+
+/** Try an image model: one picture from the prompt. */
+export async function testAiImage(id: number, message: string): Promise<AiImageTestResult> {
+  const { data } = await api.post<AiImageTestResult>(`/core/ai/models/${id}/test-image/`, { message }, { timeout: 60000 });
+  return data;
+}
+
 /** Save a model's prices (USD per 1M tokens; blank = unknown). */
 export async function saveAiModelPrices(id: number, input_price: string | null, output_price: string | null): Promise<AiCatalogModel> {
   const { data } = await api.patch<AiCatalogModel>(`/core/ai/models/${id}/`, { input_price, output_price });
@@ -61,26 +101,80 @@ export interface AiCatalogModelWrite {
   label?: string;
   provider: AiProvider;
   modality?: AiModality;
+  aa_slug?: string;
+  image_price?: string | null;
 }
 
-export interface AiActionSetting {
-  purpose: string;
+export interface AiTier {
+  key: AiTierKey;
   label: string;
   modality: AiModality;
   model: number | null;
   model_slug: string | null;
   effort: AiEffort;
+  /** What a tier with no model runs (.env AI_MODEL). */
   env_model: string;
+  updated_at: string;
+}
+
+/** One AI job in Dash: Workspace > Page > Function (label), its tier, what it runs, and what it costs. */
+export interface AiActionRow {
+  purpose: string;
+  label: string;
+  workspace: string;
+  page: string;
+  description: string;
+  modality: AiModality;
+  tier: AiTierKey;
+  /** The action's own model (overrides the tier), or null. */
+  model: number | null;
+  model_slug: string | null;
+  /** The action's own effort, or '' for the tier's. */
+  effort: AiEffort | '';
+  run_model: string;
+  run_effort: AiEffort;
+  model_from: 'action' | 'tier' | 'env';
+  effort_from: 'action' | 'tier' | 'none';
+  runs_30d: number;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  /** USD for one run at today's model and price; null = no runs or no price. */
+  cost_per_run: string | null;
+  cost_month: string | null;
+  spent_30d: string | null;
+  tier_costs: Partial<Record<AiTierKey, string | null>>;
+  suggested_tier: AiTierKey | '';
+  suggested_reason: string;
   updated_by_name: string | null;
   updated_at: string;
 }
 
-export interface AiDiscoverProviderResult {
-  provider: AiProvider;
-  ok: boolean;
-  found: number;
-  added: string[];
-  error: string;
+export interface AiActionWrite {
+  tier?: AiTierKey;
+  model?: number | null;
+  effort?: AiEffort | '';
+}
+
+export interface AiRefreshSummary {
+  finished_at?: string;
+  seconds?: number;
+  by?: string;
+  providers?: { provider: AiProvider; ok: boolean; found: number; added: string[]; error: string }[];
+  gone?: string[];
+  aa?: { ok: boolean; models: number; matched: number; error: string };
+  triage?: { model: string; ok: boolean; priced: number; error: string }[];
+  prices?: { filled: number; confirmed: number; flagged: number; none: number };
+}
+
+export interface AiTierReview {
+  status?: 'running' | 'done' | 'failed';
+  started_at?: string;
+  finished_at?: string;
+  by?: string;
+  model?: string;
+  proposed?: number;
+  reviewed?: number;
+  error?: string;
 }
 
 export interface AiActionChoices {
@@ -103,86 +197,61 @@ export function updateAiModel(id: number, data: Partial<AiCatalogModelWrite>): P
   return api.patch<AiCatalogModel>(`/core/ai/models/${id}/`, data);
 }
 
-export function archiveAiModel(id: number): Promise<{ data: AiCatalogModel & { cleared_actions: number } }> {
-  return api.post<AiCatalogModel & { cleared_actions: number }>(`/core/ai/models/${id}/archive/`);
+export type AiArchiveResult = AiCatalogModel & { cleared_actions: number; cleared_tiers: string[] };
+
+export function archiveAiModel(id: number): Promise<{ data: AiArchiveResult }> {
+  return api.post<AiArchiveResult>(`/core/ai/models/${id}/archive/`);
 }
 
 export function unarchiveAiModel(id: number): Promise<{ data: AiCatalogModel }> {
   return api.post<AiCatalogModel>(`/core/ai/models/${id}/unarchive/`);
 }
 
-export function discoverAiModels(): Promise<{ data: { providers: AiDiscoverProviderResult[] } }> {
-  return api.post<{ providers: AiDiscoverProviderResult[] }>('/core/ai/models/discover/');
+export function acceptAiModelPrice(id: number): Promise<{ data: AiCatalogModel }> {
+  return api.post<AiCatalogModel>(`/core/ai/models/${id}/accept-price/`);
 }
 
-export function getAiActions(): Promise<{ data: AiActionSetting[] }> {
-  return api.get<AiActionSetting[]>('/core/ai/actions/');
+export function dismissAiModelPrice(id: number): Promise<{ data: AiCatalogModel }> {
+  return api.post<AiCatalogModel>(`/core/ai/models/${id}/dismiss-price/`);
 }
 
-export function updateAiAction(
-  purpose: string,
-  data: { model?: number | null; effort?: AiEffort },
-): Promise<{ data: AiActionSetting }> {
-  return api.patch<AiActionSetting>(`/core/ai/actions/${encodeURIComponent(purpose)}/`, data);
+export function getAiRefresh(): Promise<{ data: AiRefreshSummary }> {
+  return api.get<AiRefreshSummary>('/core/ai/models/refresh/');
+}
+
+/** Provider lists, Artificial Analysis and the three-model price triage, all at once (seconds). */
+export function runAiRefresh(): Promise<{ data: AiRefreshSummary }> {
+  return api.post<AiRefreshSummary>('/core/ai/models/refresh/', {}, { timeout: 60000 });
+}
+
+export function getAiTiers(): Promise<{ data: AiTier[] }> {
+  return api.get<AiTier[]>('/core/ai/tiers/');
+}
+
+export function updateAiTier(key: AiTierKey, data: { model?: number | null; effort?: AiEffort }): Promise<{ data: AiTier }> {
+  return api.patch<AiTier>(`/core/ai/tiers/${key}/`, data);
+}
+
+export function getAiActions(): Promise<{ data: AiActionRow[] }> {
+  return api.get<AiActionRow[]>('/core/ai/actions/');
+}
+
+export function updateAiAction(purpose: string, data: AiActionWrite): Promise<{ data: AiActionRow }> {
+  return api.patch<AiActionRow>(`/core/ai/actions/${encodeURIComponent(purpose)}/`, data);
+}
+
+export function dismissAiSuggestion(purpose: string): Promise<{ data: AiActionRow }> {
+  return api.post<AiActionRow>(`/core/ai/actions/${encodeURIComponent(purpose)}/dismiss-suggestion/`);
+}
+
+export function getAiTierReview(): Promise<{ data: AiTierReview }> {
+  return api.get<AiTierReview>('/core/ai/actions/review/');
+}
+
+export function startAiTierReview(): Promise<{ data: AiTierReview }> {
+  return api.post<AiTierReview>('/core/ai/actions/review/');
 }
 
 export function getAiActionChoices(purpose: string): Promise<{ data: AiActionChoices }> {
   return api.get<AiActionChoices>(`/core/ai/actions/${encodeURIComponent(purpose)}/choices/`);
-}
-
-/** One model in the last price check. Prices are USD per 1M tokens; null = not set / not found. */
-export interface AiPriceCheckRow {
-  id: number;
-  slug: string;
-  label: string;
-  provider: AiProvider;
-  /** What Dash had when the check ran. */
-  current_input: string | null;
-  current_output: string | null;
-  /** What the check read on the web (null when it could not verify). */
-  found_input: string | null;
-  found_output: string | null;
-  verdict: 'confirmed' | 'changed' | 'not_verified';
-  source_url: string;
-  note: string;
-  /** '' = not saved; 'auto' = a missing price the automatic run filled in; 'review' = saved from the review. */
-  saved: '' | 'auto' | 'review';
-  /** The price was changed after the check, so Save skipped it. */
-  stale?: boolean;
-}
-
-export interface AiPriceCheck {
-  status?: 'running' | 'done' | 'failed';
-  /** True for the automatic run (after Update); false for Refresh prices. */
-  auto?: boolean;
-  requested_by?: string;
-  started_at?: string;
-  finished_at?: string;
-  checker?: string;
-  effort?: string;
-  web_searches?: number;
-  web_fetches?: number;
-  results: AiPriceCheckRow[];
-  error?: string;
-  saved?: { by: string; at: string; count: number };
-}
-
-export async function getAiPriceCheck(): Promise<AiPriceCheck> {
-  const { data } = await api.get<AiPriceCheck>('/core/ai/models/price-check/');
-  return { ...data, results: data.results ?? [] };
-}
-
-/**
- * Start the price check (it runs on its own; poll getAiPriceCheck). `auto` is Update's follow-up: it runs
- * only when a price is missing and fills those in. Without it (Refresh prices) nothing is saved until reviewed.
- */
-export async function startAiPriceCheck(auto: boolean): Promise<AiPriceCheck> {
-  const { data } = await api.post<AiPriceCheck>('/core/ai/models/price-check/', { auto });
-  return { ...data, results: data.results ?? [] };
-}
-
-/** Save the reviewed price changes for these model ids, from the last check. */
-export async function applyAiPriceCheck(ids: number[]): Promise<AiPriceCheck> {
-  const { data } = await api.post<AiPriceCheck>('/core/ai/models/price-check/apply/', { ids });
-  return { ...data, results: data.results ?? [] };
 }

@@ -1,8 +1,8 @@
 """One LLM routing layer: purpose → model id → provider → API key → completion.
 
-Provider is inferred from the model id: ``grok-*`` → xAI, ``gemini-*`` → Google,
-``muse-*`` → Meta (Spark), anything else → Anthropic. ``AI_PROVIDER``
-(auto | anthropic | xai | google | meta)
+Provider is the catalog's (Settings > AI), else inferred from the model id: ``grok-*`` → xAI,
+``gemini-*`` → Google, ``muse-*`` → Meta (Spark), ``gpt-*`` / ``o<digit>*`` / ``chatgpt-*`` → OpenAI,
+anything else → Anthropic. ``AI_PROVIDER`` (auto | anthropic | openai | xai | google | meta)
 force-overrides the inference for every call.
 
 Application code should use :func:`llm_chat_text` / :func:`llm_chat_tool_input`
@@ -25,6 +25,7 @@ from apps.core.services.llm_api_keys import (
     resolve_anthropic_api_key,
     resolve_google_api_key,
     resolve_meta_api_key,
+    resolve_openai_api_key,
     resolve_xai_api_key,
 )
 
@@ -41,7 +42,9 @@ PROVIDER_KEY_HINT = {
     'xai': 'XAI_API_KEY (or GROK_API_KEY)',
     'google': 'GOOGLE_API_KEY (or GEMINI_API_KEY)',
     'meta': 'META_API_KEY',
+    'openai': 'OPENAI_API_KEY',
 }
+PROVIDERS = ('anthropic', 'openai', 'xai', 'google', 'meta')
 
 SUGGEST_MAPPINGS_JSON_SCHEMA: dict = {
     'type': 'object',
@@ -104,9 +107,9 @@ class LLMResult:
 
 
 def resolve_provider(model_id: str) -> str:
-    """anthropic | xai | google | meta - by model id, unless AI_PROVIDER forces one."""
+    """anthropic | openai | xai | google | meta - by model id, unless AI_PROVIDER forces one."""
     raw = (getattr(settings, 'AI_PROVIDER', None) or 'auto').strip().lower()
-    if raw in ('anthropic', 'xai', 'google', 'meta'):
+    if raw in PROVIDERS:
         return raw
     if raw != 'auto':
         logger.warning('Unknown AI_PROVIDER=%r; using auto.', raw)
@@ -120,6 +123,8 @@ def resolve_provider(model_id: str) -> str:
         return 'google'
     if mid.startswith('muse'):
         return 'meta'
+    if mid.startswith(('gpt', 'chatgpt')) or (len(mid) > 1 and mid[0] == 'o' and mid[1].isdigit()):
+        return 'openai'
     return 'anthropic'
 
 
@@ -133,6 +138,8 @@ def resolve_api_key(provider: str) -> str:
         key = resolve_anthropic_api_key()
     elif provider == 'meta':
         key = resolve_meta_api_key()
+    elif provider == 'openai':
+        key = resolve_openai_api_key()
     else:
         raise LLMConfigError(f'Unknown LLM provider {provider!r}.')
     if not key:
@@ -160,6 +167,7 @@ def effort_payload(provider: str, model_id: str, effort: str | None) -> str | No
 
     anthropic: output_config.effort low|medium|high|max
     xai:       reasoning_effort low|medium|high, max -> xhigh
+    openai:    reasoning_effort low|medium|high, max -> xhigh (dropped on a 400)
     meta:      reasoning_effort low|medium|high, max -> high (dropped on a 400)
     google:    thinkingConfig.thinkingLevel low|medium|high (max -> high), gemini-3* only
     """
@@ -168,7 +176,7 @@ def effort_payload(provider: str, model_id: str, effort: str | None) -> str | No
         return None
     if provider == 'anthropic':
         return e
-    if provider == 'xai':
+    if provider in ('xai', 'openai'):
         return 'xhigh' if e == 'max' else e
     if provider == 'meta':
         return 'high' if e == 'max' else e
@@ -426,8 +434,9 @@ def _openai_compatible_complete(
     effort: str | None = None,
     force_tool: bool = True,
     max_retries: int | None = None,
+    token_param: str = 'max_tokens',
 ) -> LLMResult:
-    """POST {base_url}/chat/completions in the OpenAI format (xAI, Meta Spark)."""
+    """POST {base_url}/chat/completions in the OpenAI format (OpenAI, xAI, Meta Spark)."""
     base_url = base_url.strip().rstrip('/')
     oai_messages = []
     if system:
@@ -441,7 +450,7 @@ def _openai_compatible_complete(
 
     payload: dict = {'model': model_id, 'messages': oai_messages}
     if max_tokens is not None:
-        payload['max_tokens'] = max_tokens
+        payload[token_param] = max_tokens
     if temperature is not None:
         payload['temperature'] = temperature
     if effort:
@@ -486,11 +495,17 @@ def _openai_compatible_complete(
                     break
 
     usage = data.get('usage') or {}
+    prompt, completion = int(usage.get('prompt_tokens') or 0), int(usage.get('completion_tokens') or 0)
+    # Thinking is billed as output. OpenAI counts it inside completion_tokens; xAI reports it apart (then
+    # total_tokens is larger than prompt + completion), so it is added here and the logged cost includes it.
+    reasoning = int((usage.get('completion_tokens_details') or {}).get('reasoning_tokens') or 0)
+    if reasoning and int(usage.get('total_tokens') or 0) >= prompt + completion + reasoning:
+        completion += reasoning
     return LLMResult(
         text=str(message.get('content') or ''),
         model_used=str(data.get('model') or model_id),
-        input_tokens=int(usage.get('prompt_tokens') or 0),
-        output_tokens=int(usage.get('completion_tokens') or 0),
+        input_tokens=prompt,
+        output_tokens=completion,
         stop_reason=str(choice.get('finish_reason') or ''),
         response_id=str(data.get('id') or ''),
         tool_input=tool_input,
@@ -500,6 +515,13 @@ def _openai_compatible_complete(
 def _xai_complete(**kwargs) -> LLMResult:
     base_url = (getattr(settings, 'XAI_API_BASE', None) or 'https://api.x.ai/v1')
     return _openai_compatible_complete(base_url=base_url, provider_label='Grok', **kwargs)
+
+
+def _openai_complete(**kwargs) -> LLMResult:
+    base_url = (getattr(settings, 'OPENAI_API_BASE', None) or 'https://api.openai.com/v1')
+    # Reasoning models refuse max_tokens; max_completion_tokens works for every current chat model.
+    return _openai_compatible_complete(base_url=base_url, provider_label='OpenAI',
+                                       token_param='max_completion_tokens', **kwargs)
 
 
 def _meta_complete(**kwargs) -> LLMResult:
@@ -588,7 +610,8 @@ def _google_complete(
         text=text,
         model_used=str(data.get('modelVersion') or model_id),
         input_tokens=int(usage.get('promptTokenCount') or 0),
-        output_tokens=int(usage.get('candidatesTokenCount') or 0),
+        # Gemini bills its thinking (thoughtsTokenCount) as output, apart from the answer.
+        output_tokens=int(usage.get('candidatesTokenCount') or 0) + int(usage.get('thoughtsTokenCount') or 0),
         stop_reason=str(candidate.get('finishReason') or ''),
         response_id=str(data.get('responseId') or ''),
         tool_input=tool_input,
@@ -600,6 +623,7 @@ _PROVIDER_CALLS = {
     'xai': _xai_complete,
     'google': _google_complete,
     'meta': _meta_complete,
+    'openai': _openai_complete,
 }
 
 
@@ -698,7 +722,7 @@ def llm_complete(
             cache_read_tokens=result.cache_read_tokens,
             auction_id=log_auction_id,
             marketplace=log_marketplace,
-            purpose=log_purpose,
+            purpose=log_purpose or _source_purpose(log_source),
             duration_ms=int((time.monotonic() - started) * 1000),
             context=web,
             cost_usd=cost,
@@ -709,6 +733,13 @@ def llm_complete(
     except Exception:  # noqa: BLE001 - usage logging must never fail a call
         logger.exception('AI usage logging failed for %s', log_source or log_purpose)
     return result
+
+
+def _source_purpose(source: str) -> str:
+    """The Settings > AI action a log source belongs to, for callers that pass no purpose."""
+    from apps.core.services.ai_actions import SOURCE_PURPOSE
+
+    return SOURCE_PURPOSE.get(source or '', '')
 
 
 def llm_chat_text(
