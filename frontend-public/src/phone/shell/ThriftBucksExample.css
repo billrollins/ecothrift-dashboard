@@ -52,17 +52,16 @@
 .tbx-two small { font-size: 14px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--ink); }
 .tbx-two b { font-size: 26px; font-stretch: 66%; font-weight: 900; line-height: 1.05; white-space: nowrap; }
 .tbx-two b span { font-size: 15px; font-stretch: 100%; font-weight: 700; }
-.tbx-two em { margin-top: 4px; padding: 2px 8px; border-radius: 6px; background: var(--card); font-style: normal; font-size: 13px;
-  font-weight: 800; letter-spacing: .05em; text-transform: uppercase; line-height: 1.2; color: var(--ink-2); }
+.tbx-two em { margin-top: 6px; font-style: normal; font-size: 16px; font-weight: 900; line-height: 1.15; color: var(--ink); }
 .tbx-two > div > span { font-size: 14px; font-weight: 700; line-height: 1.25; color: var(--ink); }
-.tbx-two strong { margin-top: 3px; font-size: 24px; font-stretch: 72%; font-weight: 900; line-height: 1.05; white-space: nowrap; color: var(--green); }
+.tbx-two strong { margin-top: 0; font-size: 22px; font-stretch: 72%; font-weight: 900; line-height: 1.05; white-space: nowrap; color: var(--green); }
 .tbx-two strong.off { color: var(--ink); }
 .tbx-or { position: absolute; left: 50%; top: 48px; transform: translate(-50%, -50%); width: 24px; height: 24px; display: grid;
   place-items: center; border-radius: 50%; background: var(--card); border: 2px solid var(--line); font-style: normal;
   font-size: 13px; font-weight: 800; line-height: 1; color: var(--ink-2); }
 
 /* The non-member: the third outcome, a cream band at body size. */
-.tbx-non { margin-top: 8px; padding: 10px 8px; border-radius: 12px; background: var(--cream); text-align: center;
+.tbx-non { margin-top: 10px; padding: 8px 4px 0; border-top: 2px solid var(--line); text-align: center;
   font-size: clamp(14px, 4vw, 15px); color: var(--ink); }
 .tbx .tbx-join { margin-top: 12px; width: 100%; min-height: 48px; background: var(--green); color: #fff; font-size: 17px; }
 
