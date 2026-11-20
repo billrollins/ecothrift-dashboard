@@ -158,7 +158,7 @@ function Normal() {
       </Link>
       )}
       {boho && <Boho when={now < BOHO_STARTS ? 'Starts Fri Nov 27' : 'Through Dec 31'} />}
-      <Link className="hc hc-green" to="/terms#s8">
+      <Link className="hc hc-green" to="/returns">
         <span className="lbl">Every day</span>
         <h2 className="disp">
           3-day returns<em>Thrift+ members only</em>
