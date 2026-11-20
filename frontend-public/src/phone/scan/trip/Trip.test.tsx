@@ -236,6 +236,9 @@ describe('Thrift+ trip scanner (owner 2026-10-13)', () => {
     const about = await screen.findByTestId('thriftplus-sheet')
     expect(within(about).getByRole('dialog', { name: 'What is Thrift+?' })).toBeInTheDocument()
     expect(within(about).getByText('ThriftBucks, 3-day returns and more!')).toBeInTheDocument()
+    // The standard example (rulebook V12), the same content as the home's Example window.
+    expect(within(about).getByTestId('thriftbucks-example')).toHaveTextContent('Example · A normal item')
+    expect(within(about).getByTestId('thriftbucks-example')).toHaveTextContent('$10 off today')
     expect(within(about).getByTestId('terms-link')).toHaveAttribute('href', 'https://ecothrift.us/terms')
     // "Non-member", never "guest" (owner 2026-10-15, APP D10).
     expect(about).toHaveTextContent('Non-members pay the tag. Everything a non-member buys is sold AS IS. All sales final.')

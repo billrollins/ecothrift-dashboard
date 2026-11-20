@@ -9,6 +9,7 @@
 import type { ReactNode } from 'react'
 import { money, wouldPayChoices, type PriceFeelReason, type ThriftPlusItemCard } from '../core'
 import { asset } from '../../shell/Tag'
+import { ThriftBucksExampleBody } from '../../shell/ThriftBucksExample'
 import { Button, IconCheck, IconLink, Sheet } from '../ui'
 
 export const TERMS_URL = 'https://ecothrift.us/terms'
@@ -68,6 +69,10 @@ export function AboutSheet({ onClose }: { onClose: () => void }) {
         <img src={asset('phone/thriftplus-wordmark-white.svg')} width={120} height={30} alt="Thrift+" />
       </div>
       <h2 className="tr-sheet-h">ThriftBucks, 3-day returns and more!</h2>
+      {/* The standard example (rulebook V12): the same content as the home's Example window. */}
+      <div className="tbx tbx-inline" data-testid="thriftbucks-example">
+        <ThriftBucksExampleBody headingId="tbx-h-sheet" />
+      </div>
       <ul className="tr-facts">
         {facts.map((p) => (
           <li key={p.title}>

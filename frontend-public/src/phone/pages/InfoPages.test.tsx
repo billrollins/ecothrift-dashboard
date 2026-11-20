@@ -79,7 +79,7 @@ describe('Questions logic', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     fireEvent.click(buttons[0])
     expect(screen.getByRole('dialog')).toBeTruthy()
-    expect(screen.getByText('20.00 ThriftBucks')).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: 'Example · A normal item' })).toHaveTextContent('Today this item has20 ThriftBucks')
     expect(screen.getByRole('heading', { name: 'Policies' })).toBeTruthy()
     const links = [...container.querySelectorAll('a.qa-pr')].map((a) => a.getAttribute('href'))
     expect(links).toEqual(['/returns', '/terms', '/privacy'])

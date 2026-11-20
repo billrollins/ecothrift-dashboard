@@ -39,6 +39,95 @@ const GROW = Array.from({ length: 24 }, (_, i) => Math.round(14 + (86 * i) / 23)
 const money = (n: number) => `$${n.toFixed(2)}`
 const whole = (n: number) => `$${n}`
 
+/**
+ * The example itself, without the window: the same content wherever ThriftBucks are explained (the home's Example
+ * window, the scanner's "What is Thrift+?" sheet), so the two can never drift apart. `joinHref` adds "Join Thrift+ free"
+ * (non-members only).
+ */
+export function ThriftBucksExampleBody({ joinHref, headingId = 'tbx-h' }: { joinHref?: string; headingId?: string }) {
+  return (
+    <>
+    <h2 id={headingId} className="disp">
+      <span>Example ·</span> A normal item
+    </h2>
+    <div className="tbx-item">
+      <div>
+        <span className="tbx-k">Retail</span>
+        <s aria-label={`Retail ${money(EXAMPLE.retail)}, struck`}>
+          <Tag price={EXAMPLE.retail} className="tag-was" />
+        </s>
+      </div>
+      <div>
+        <span className="tbx-k">Our tag</span>
+        <Tag price={EXAMPLE.tag} />
+      </div>
+    </div>
+    <p className="tbx-carry">ThriftBucks start after 7 days.</p>
+    <div className="tbx-bars">
+      <div className="tbx-wait" aria-hidden="true">
+        <span>
+          First 7 days
+          <br />
+          on our floor:
+          <br />
+          <b>none yet</b>
+        </span>
+        <div>
+          {Array.from({ length: FIRST_DAYS }, (_, i) => (
+            <i key={i} className="w" />
+          ))}
+        </div>
+      </div>
+      <div className="tbx-rise">
+        <p>They grow every day.</p>
+        <div aria-hidden="true">
+          {GROW.map((h, i) => (
+            <i key={i} className={i === GROW.length - 1 ? 'now' : undefined} style={{ height: `${h}%` }} />
+          ))}
+        </div>
+      </div>
+    </div>
+    <p className="tbx-now">
+      Today this item has
+      <b className="tn">{EXAMPLE.bucks} ThriftBucks</b>
+    </p>
+    <div className="tbx-two">
+      <div>
+        <small>Keep them</small>
+        <b className="tn">
+          <span>Pay</span> {whole(EXAMPLE.tag)}
+        </b>
+        <span className="tbx-when">today</span>
+        <strong className="tn">{EXAMPLE.bucks} ThriftBucks</strong>
+        <span>off next visit</span>
+        <em>Full value</em>
+      </div>
+      <i className="tbx-or" aria-hidden="true">
+        or
+      </i>
+      <div>
+        <small>Use them</small>
+        <b className="tn">
+          <span>Pay</span> {whole(EXAMPLE.today)}
+        </b>
+        <span className="tbx-when">{whole(EXAMPLE.tag - EXAMPLE.today)} off today</span>
+        <strong className="none">No ThriftBucks</strong>
+        <span>off next visit</span>
+        <em>Half value</em>
+      </div>
+    </div>
+    <p className="tbx-non">
+      <b>Non-member:</b> pays <b className="tn">{whole(EXAMPLE.tag)}</b>. All sales final.
+    </p>
+    {joinHref ? (
+      <a className="btn tbx-join" href={joinHref}>
+        Join Thrift+ free
+      </a>
+    ) : null}
+    </>
+  )
+}
+
 export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void; joinHref?: string }) {
   const box = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -55,83 +144,7 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
         <button type="button" className="tbx-x" aria-label="Close" onClick={onClose}>
           ×
         </button>
-        <h2 id="tbx-h" className="disp">
-          <span>Example ·</span> A normal item
-        </h2>
-        <div className="tbx-item">
-          <div>
-            <span className="tbx-k">Retail</span>
-            <s aria-label={`Retail ${money(EXAMPLE.retail)}, struck`}>
-              <Tag price={EXAMPLE.retail} className="tag-was" />
-            </s>
-          </div>
-          <div>
-            <span className="tbx-k">Our tag</span>
-            <Tag price={EXAMPLE.tag} />
-          </div>
-        </div>
-        <p className="tbx-carry">ThriftBucks start after 7 days.</p>
-        <div className="tbx-bars">
-          <div className="tbx-wait" aria-hidden="true">
-            <span>
-              First 7 days
-              <br />
-              on our floor:
-              <br />
-              <b>none yet</b>
-            </span>
-            <div>
-              {Array.from({ length: FIRST_DAYS }, (_, i) => (
-                <i key={i} className="w" />
-              ))}
-            </div>
-          </div>
-          <div className="tbx-rise">
-            <p>They grow every day.</p>
-            <div aria-hidden="true">
-              {GROW.map((h, i) => (
-                <i key={i} className={i === GROW.length - 1 ? 'now' : undefined} style={{ height: `${h}%` }} />
-              ))}
-            </div>
-          </div>
-        </div>
-        <p className="tbx-now">
-          Today this item has
-          <b className="tn">{EXAMPLE.bucks} ThriftBucks</b>
-        </p>
-        <div className="tbx-two">
-          <div>
-            <small>Keep them</small>
-            <b className="tn">
-              <span>Pay</span> {whole(EXAMPLE.tag)}
-            </b>
-            <span className="tbx-when">today</span>
-            <strong className="tn">{EXAMPLE.bucks} ThriftBucks</strong>
-            <span>off next visit</span>
-            <em>Full value</em>
-          </div>
-          <i className="tbx-or" aria-hidden="true">
-            or
-          </i>
-          <div>
-            <small>Use them</small>
-            <b className="tn">
-              <span>Pay</span> {whole(EXAMPLE.today)}
-            </b>
-            <span className="tbx-when">{whole(EXAMPLE.tag - EXAMPLE.today)} off today</span>
-            <strong className="none">No ThriftBucks</strong>
-            <span>off next visit</span>
-            <em>Half value</em>
-          </div>
-        </div>
-        <p className="tbx-non">
-          <b>Non-member:</b> pays <b className="tn">{whole(EXAMPLE.tag)}</b>. All sales final.
-        </p>
-        {joinHref ? (
-          <a className="btn tbx-join" href={joinHref}>
-            Join Thrift+ free
-          </a>
-        ) : null}
+        <ThriftBucksExampleBody joinHref={joinHref} />
       </div>
     </div>,
     document.body,
