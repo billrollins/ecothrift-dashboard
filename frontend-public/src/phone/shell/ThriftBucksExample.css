@@ -20,46 +20,49 @@
 .tbx-item s { font-size: 22px; font-weight: 800; color: var(--ink-2); text-decoration-thickness: 2px; }
 .tbx-item .tag { font-size: 37px; }
 
-/* The growth strip, in story order: the V12 sentence; the bars (7 flat days labelled "First 7 days, none yet", a gap,
-   then growth to today's darker bar); under today's bar a pointer and "This one carries today: 20.00 ThriftBucks". */
+/* The growth strip, in story order: the first V12 sentence; the bars, labelled in the V12 words (7 flat days "First 7
+   days, none yet", a gap, then "They grow every day." over bars that rise to today's darker bar); under today's bar a
+   pointer and "This one carries today: 20.00 ThriftBucks". */
 .tbx-carry { margin-top: 12px; font-size: 15px; font-weight: 600; line-height: 1.3; }
-.tbx-bars { margin-top: 10px; height: 44px; display: flex; gap: 8px; }
-.tbx-wait { flex: 7; display: flex; flex-direction: column; justify-content: flex-end; gap: 5px; min-width: 0; }
+.tbx-bars { margin-top: 10px; height: 52px; display: flex; gap: 8px; }
+.tbx-wait { flex: 7; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; }
 .tbx-wait span { text-align: center; font-size: 13px; font-weight: 700; line-height: 1.15; color: var(--ink-2); }
 .tbx-wait div { display: flex; gap: 3px; }
-.tbx-rise { flex: 14; display: flex; align-items: flex-end; gap: 3px; min-width: 0; }
+.tbx-rise { flex: 14; position: relative; min-width: 0; }
+.tbx-rise p { position: absolute; left: 0; top: 0; font-size: 13px; font-weight: 800; line-height: 1.15; color: var(--green); }
+.tbx-rise div { height: 100%; display: flex; align-items: flex-end; gap: 3px; }
 .tbx-bars i { flex: 1; min-width: 0; background: var(--leaf); border-radius: 2px 2px 0 0; }
 .tbx-bars i.w { height: 4px; background: var(--ink-2); border-radius: 2px; }
 .tbx-bars i.now { background: var(--green); }
-.tbx-now { position: relative; margin-top: 4px; padding-top: 9px; text-align: right; font-size: 13px; font-weight: 800;
+.tbx-now { position: relative; margin-top: 4px; padding-top: 11px; text-align: right; font-size: 13px; font-weight: 800;
   letter-spacing: .06em; text-transform: uppercase; color: var(--ink); }
-.tbx-now::before { content: ''; position: absolute; right: 0; top: 0; border: 6px solid transparent; border-top: 0;
+.tbx-now::before { content: ''; position: absolute; right: -2px; top: 0; border: 8px solid transparent; border-top: 0;
   border-bottom-color: var(--green); }
 .tbx-now b { display: block; font-size: 26px; font-weight: 900; letter-spacing: 0; text-transform: none; line-height: 1.1;
   color: var(--green); }
 
-/* The choice: two equal boxes, line for line (title, pay, when, value), "or" between the titles. */
+/* The choice: two equal boxes, row for row (title; what you pay; the 20.00 ThriftBucks and where they go), "or" between
+   the titles. */
 .tbx-pick { margin-top: 12px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
 .tbx-two { position: relative; margin-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.tbx-two > div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 8px; border-radius: 12px;
+.tbx-two > div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px 11px; border-radius: 12px;
   background: var(--cream); text-align: center; }
 .tbx-two small { font-size: 13px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--ink); }
 .tbx-two b { font-size: 26px; font-stretch: 66%; font-weight: 900; line-height: 1.05; white-space: nowrap; }
 .tbx-two b span { font-size: 15px; font-stretch: 100%; font-weight: 700; }
-.tbx-two > div > span { font-size: 13px; line-height: 1.25; color: var(--ink); text-wrap: balance; }
-.tbx-two strong { font-weight: 800; color: var(--green); }
-.tbx-two u { text-decoration: none; font-weight: 800; }
-.tbx-two em { margin-top: auto; padding-top: 4px; font-style: normal; font-size: 13px; font-weight: 800; color: var(--green); }
+.tbx-two > div > span { margin-top: 2px; font-size: 13px; line-height: 1.25; color: var(--ink); }
+.tbx-two strong { display: block; font-weight: 800; color: var(--green); }
 .tbx-or { position: absolute; left: 50%; top: 19px; transform: translate(-50%, -50%); width: 24px; height: 24px; display: grid;
   place-items: center; border-radius: 50%; background: var(--card); border: 2px solid var(--line); font-style: normal;
   font-size: 13px; font-weight: 800; line-height: 1; color: var(--ink-2); }
 
-/* The non-member: a third row at body size. */
-.tbx-non { margin-top: 12px; text-align: center; font-size: clamp(14px, 4vw, 15px); color: var(--ink); }
+/* The non-member: the third outcome, a cream band at body size. */
+.tbx-non { margin-top: 8px; padding: 10px 8px; border-radius: 12px; background: var(--cream); text-align: center;
+  font-size: clamp(14px, 4vw, 15px); color: var(--ink); }
 .tbx .tbx-join { margin-top: 12px; width: 100%; min-height: 48px; background: var(--green); color: #fff; font-size: 17px; }
 
 /* A small phone (360 px): a little less margin so each box note breaks into two lines, not three. */
 @media (max-width: 370px) {
-  .tbx-back { padding: 12px; }
-  .tbx { max-height: calc(100dvh - 24px); padding: 16px 14px; }
+  .tbx-back { padding: 10px; }
+  .tbx { max-height: calc(100dvh - 20px); padding: 16px 12px; }
 }

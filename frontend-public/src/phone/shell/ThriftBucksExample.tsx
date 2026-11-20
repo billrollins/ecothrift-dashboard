@@ -62,11 +62,9 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
             <Tag price={EXAMPLE.tag} />
           </div>
         </div>
-        <p className="tbx-carry">
-          After 7 days on our floor, most items start to carry ThriftBucks. They grow every day.
-        </p>
-        <div className="tbx-bars" aria-hidden="true">
-          <div className="tbx-wait">
+        <p className="tbx-carry">After 7 days on our floor, most items start to carry ThriftBucks.</p>
+        <div className="tbx-bars">
+          <div className="tbx-wait" aria-hidden="true">
             <span>
               First 7 days
               <br />
@@ -79,9 +77,12 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
             </div>
           </div>
           <div className="tbx-rise">
-            {GROW.map((h, i) => (
-              <i key={i} className={i === GROW.length - 1 ? 'now' : undefined} style={{ height: `${h}%` }} />
-            ))}
+            <p>They grow every day.</p>
+            <div aria-hidden="true">
+              {GROW.map((h, i) => (
+                <i key={i} className={i === GROW.length - 1 ? 'now' : undefined} style={{ height: `${h}%` }} />
+              ))}
+            </div>
           </div>
         </div>
         <p className="tbx-now">
@@ -98,7 +99,6 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
             <span>
               <strong>{bucks(EXAMPLE.bucks)} ThriftBucks</strong> come off your next visit
             </span>
-            <em>Full value</em>
           </div>
           <i className="tbx-or" aria-hidden="true">
             or
@@ -106,12 +106,11 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
           <div>
             <small>Use them now</small>
             <b className="tn">
-              <span>Pay</span> {money(EXAMPLE.today)}
+              <span>Pay</span> {money(EXAMPLE.today)} <span>today</span>
             </b>
             <span>
-              <u>today</u>
+              <strong>{bucks(EXAMPLE.bucks)} ThriftBucks</strong> at half value
             </span>
-            <em>Half value</em>
           </div>
         </div>
         <p className="tbx-non">
