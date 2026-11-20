@@ -1,17 +1,16 @@
-v2.320.0 — Phone site: seller photos for featured pieces, refreshed daily
+v2.321.0 — Owner page: owed line runs on 3 weeks as ThriftBucks expire
 
-User-facing theme: **The phone site's Best finds now show each piece's own catalog photo, pulled daily from the seller's truck list.** (Dash Update #185; the phone site is still switched off)
+User-facing theme: **The Owner page's owed line runs on into the next 3 weeks, dropping as ThriftBucks expire.**
 
-> **For Bill:** Your order: "yes we need this scheduled for daily. Pick the best items we have ensure they have nice stock photos", with "a small disclaimer once you do click into the product details", and your rule "NEVER EVER EVER use photos you got from us for other purposes ... you CAN use the photo sheets photos". Each morning (with the daily routines job) Dash looks at the pieces on the floor and gives each one a photo-sheet photo if it has one, else the seller's own catalog photo from its truck list. Wayfair's lists carry one for every row (the address in the list is broken, Dash rebuilds the real one): on a test copy, 100 floor pieces got their photo at no cost. Walmart and other lists have none, so those pieces only show a photo-sheet photo for now. Best finds now features only pieces with a photo. The item page says "Stock photo. The piece in our store may not match it exactly." under a seller photo. A wrong photo: Dash admin, Stock photos, Reject (that piece is not looked up again for 90 days). An AI web search for photos is built but OFF (it found 0 of 7 in a test).
+> **For Bill:** You asked how many ThriftBucks expire today, tomorrow and on. Owner → "Owed to members" is now one line on one time scale: green for the last 8 weeks up to today (dotted mark), then orange for the next 21 days, stepping down each day by the ThriftBucks that expire then (if nobody spends or collects). Under the orange part, a bar per day shows how big that day's drop is (hover a bar: the day, the amount, how many members). Below: expiring tomorrow, in 7 days and in 21 days. The Thrift+ page is left alone for its later overhaul.
 
-### Added (Phone site: stock photos)
-- `apps/storefront` `StockPhoto` (migration `storefront 0001`, which also adds two Settings > AI purposes): one photo per piece, from the seller's manifest image (Wayfair: rebuilt from the image number in `Image URL`), or an AI web search when `storefront.stock_photos_web` is on (off). Admin list with Reject.
-- `storefront_stock_photos` command, run at the end of `materialize_routines` (never stops the routines; 10-minute cap; at most `storefront.stock_photos_manifest_daily` = 300 downloads; `storefront.stock_photos` off stops it).
-- Feeds: a public photo is a photo-sheet photo, else a found or approved stock photo; never an Add item photo. Best finds = the best pieces that have a photo. The photo address serves only those.
-- Item page: the photo on top; the "Stock photo" line under a seller photo, in reserved space.
-- `.ai/extended/thrift-plus-surfaces.md`: a table maps every customer row to its phone-site version (not yet checked on a real phone).
+User-facing theme: **The Owner page's owed line runs on into the next 3 weeks, dropping as ThriftBucks expire.** (Dash Update #188, Thrift+)
 
-### For #186 and #187 (Mainline)
-- `find_stock_photo(*, key, title, brand='', model='', identifiers=None, product=None, manifest_row=None, web=None)`, `manifest_image_url(manifest_row)`, `StockPhoto` statuses found / approved / rejected / none with `approved_by` / `approved_at`.
+> **For Bill:** You asked how many ThriftBucks expire today, tomorrow and on. Owner → "Owed to members" is now one line on one time scale: green for the last 8 weeks up to today (dotted mark), then orange for the next 21 days, stepping down each day by the ThriftBucks that expire then (if nobody spends or collects). Under the orange part, a bar per day shows how big that day's drop is (hover a bar: the day, the amount, how many members). Below: expiring tomorrow, in 7 days and in 21 days. The Thrift+ page is left alone for its later overhaul.
+
+### Added (Owner page: owed, then expiring by day)
+- `apps/thriftplus/services/ledger.py` `expiring_by_day(on, days=21)`: replays `lots()` for every real (non-practice) membership with ThriftBucks rows; lots with something left and use-by today or later, grouped by expiry day (use-by + 1) through `on + days`, with members per day; `total` and `members` count every unused lot, any day. Read-only; one query per membership (a few hundred: fine). Same math as the 11-19 one-off.
+- `GET /api/thriftplus/rewards/expiring/?days=21` (managers; `days` 1 to 90).
+- Owner page, "Owed to members": `OwedChart` replaces the owed sparkline. Points placed by date (the last week's short segment is no longer stretched), past in green, today dashed, the projection in orange as steps (owed now minus what expires through each day), drop bars from the bottom (hover titles), two caption lines; fixed height loading or loaded, and the time scale is fixed before the expiring numbers arrive, so nothing moves. Tests `test_expiring_bucks.py` (partly spent, voided, own use-by, past-date and practice lots, the API) and `OwnerPage.test.tsx`.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

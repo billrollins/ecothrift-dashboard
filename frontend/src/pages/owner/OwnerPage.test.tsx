@@ -31,6 +31,12 @@ vi.mock('../../api/core.api', () => ({
 vi.mock('../../api/supplies.api', () => ({
   getSupplySpendSummary: vi.fn().mockResolvedValue({ this_week: '75.45', this_month: '327.45' }),
 }));
+vi.mock('../../api/thriftplus.api', () => ({
+  fetchExpiringBucks: vi.fn(async () => ({
+    today: '2026-10-21', days: 21, total: '5114.37', members: 312,
+    rows: [{ day: '2026-10-22', amount: '14.04', members: 7 }, { day: '2026-10-24', amount: '20.51', members: 1 }, { day: '2026-11-05', amount: '109.02', members: 13 }],
+  })),
+}));
 vi.mock('../../api/owner.api', () => ({
   fetchScorecard: vi.fn(async () => ({
     today: '2026-10-21',
@@ -79,6 +85,12 @@ describe('Owner page (2026-10-21)', () => {
     expect(within(table).getAllByText('45.0%')).toHaveLength(4);
     expect(within(table).getAllByText('Coming')).toHaveLength(4);
     expect(screen.getByText('$840')).toBeInTheDocument();
+    // One time line (#188): owed in green up to today, then dropping in orange as ThriftBucks expire, a bar per drop.
+    const chart = screen.getByTestId('owed-chart');
+    expect(await within(chart).findByText('Tomorrow: $14.04, 7 members')).toBeInTheDocument();
+    expect(within(chart).getByText('Sat, Oct 24: $20.51, 1 member')).toBeInTheDocument();
+    expect(within(chart).getByText('Today: $840 owed')).toBeInTheDocument();
+    expect(chart).toHaveTextContent('Expiring tomorrow $147 days $35 | 21 days $144');
     expect(await screen.findByText('Requests to approve')).toBeInTheDocument();
     expect(screen.queryByText('Time-change requests')).not.toBeInTheDocument();
   });

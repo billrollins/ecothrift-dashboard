@@ -204,6 +204,38 @@ def owed_bucks(on: date | None = None, *, accounts=None) -> Decimal:
     return max(ZERO, total)
 
 
+def expiring_by_day(on: date | None = None, *, days: int = 21) -> dict:
+    """Kept ThriftBucks still unused, by the day they expire (the day after the lot's use-by), on real memberships
+    (Dash Update #188, the 11-19 one-off). ``rows``: each expiry day from tomorrow through ``on + days`` that has any,
+    with the ThriftBucks and how many members. ``total`` / ``members``: everything unused, any day. Replays the lots
+    of every membership with ThriftBucks rows (a few hundred: fine)."""
+    on = _today(on)
+    last = on + timedelta(days=days)
+    by_day: dict[date, Decimal] = {}
+    who: dict[date, set[int]] = {}
+    total, holders = ZERO, set()
+    ids = (LedgerEntry.objects.filter(kind=LedgerEntry.KIND_BANK, account__is_practice=False)
+           .values_list('account_id', flat=True).distinct())
+    for account in Account.objects.filter(pk__in=list(ids)):
+        for lot in lots(account):
+            if lot.amount <= 0 or lot.use_by < on:
+                continue
+            total += lot.amount
+            holders.add(account.pk)
+            day = lot.use_by + timedelta(days=1)
+            if day <= last:
+                by_day[day] = by_day.get(day, ZERO) + lot.amount
+                who.setdefault(day, set()).add(account.pk)
+    return {
+        'today': on.isoformat(),
+        'days': days,
+        'total': str(total.quantize(ZERO)),
+        'members': len(holders),
+        'rows': [{'day': d.isoformat(), 'amount': str(by_day[d].quantize(ZERO)), 'members': len(who[d])}
+                 for d in sorted(by_day)],
+    }
+
+
 # ── Writing rows ───────────────────────────────────────────────────────────────
 
 
