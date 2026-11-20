@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-19 (Dash Update #185: the phone site's scanner, a second home for C1 to C17 on phones, behind two switches; table "The phone site" below; not yet checked on a real phone) -->
+<!-- Last updated: 2026-11-20 (Dash Update #197: table "The ThriftBucks example", every place that explains ThriftBucks; earlier 2026-11-19, Dash Update #185: the phone site's scanner, a second home for C1 to C17 on phones, behind two switches; table "The phone site" below; not yet checked on a real phone) -->
 # Thrift+ surfaces: every place someone joins, signs in or is finalized
 
 **Owner 2026-11-03 (J8, J22, Dash Update #58):** a join on the customer's own phone is finished in the app (a first and last
@@ -84,6 +84,29 @@ Android Chrome), and C14 (the opt-in screenshot) still matches what a desktop sh
 | S11 | Thrift+ members (lookup) (checked 11-03: shows S7) | /pos/members, Cashier menu · `pages/pos/MembersLookupPage.tsx` | Find, then the member card (S7). `?person=<person_id>` opens that card | `register/pending/`, `register/member/` |
 | S12 | Assisted join (owner 11-03, J22) | S2 → "No smartphone? Assisted join" · `finalize/AssistedJoin.tsx` | First + last name, then Text them a code (their mobile; staff type the 6 digits) or No phone: check their ID; then S4 with I agree. 11-03: the one join that still goes through Finalize and the ID check | `register/assist/send/`, `register/assist/check/`, `register/assist/no-phone/`, then `register/finish/` |
 | S13 | Finish here (owner 11-05, J8, J13; Dash Update #79) | S3 → Finish here · `finalize/StoreFinish.tsx` | A stuck phone join: "Phone ending NNNN is confirmed. Hand this phone to <name>: they take their own selfie and tap I agree." Take my selfie, Read the terms, then the customer's own tap on I agree finishes it. No ID check; never an Assisted join | `people/<id>/finish-in-store/` → `members.finish_in_store` |
+
+## The ThriftBucks example (rulebook V12)
+
+Every place a customer reads how ThriftBucks work uses V12's one example: retail **$200.00**, our tag **$100.00**, **20.00
+ThriftBucks**; keep them (pay $100.00, 20.00 ThriftBucks come off your next visit) or use them now (pay $90.00 today); a
+non-member pays $100.00, all sales final. A number with the word, never "$"; "collect", never "earn". Change V12 first, then
+every row here. Swept 11-20 (Dash Update #197).
+
+| # | Surface | Where (file) | State |
+|---|---|---|---|
+| E1 | Phone site: the Example window (home card's Example button) | `frontend-public/src/phone/shell/ThriftBucksExample.tsx` `EXAMPLE` | The source (#185) |
+| E2 | Phone site: How it works, the home Thrift+ band, the signed-out Thrift+ page | `phone/pages/home/HowItWorks.tsx`, `ThriftPlusBand.tsx`, `pages/ThriftPlus.tsx` | Same $100.00 / 20.00 numbers (#185) |
+| E3 | Phone site: the scanner's What is Thrift+? and How we price sheets | `phone/scan/trip/Sheets.tsx` | **Owed (#185 owns it):** the same change as E4 (it still says "They grow as an item sits", "Kept for next time, the Default", "Or redeem them instantly", no example) |
+| E4 | Live scanner (ecothrift.us/scan): What is Thrift+? sheet, How we price | `frontend/src/pages/thriftplus/scanner/tripSheets.tsx` `THRIFTBUCKS_EXAMPLE` | **11-20:** the example first, then "ThriftBucks on most items. After 7 days on our floor...", "Keep them.", "Or use them now." |
+| E5 | ecothrift.us/thriftplus (desktop and phones with the phone site off) | `frontend-public/src/data/thriftPlusAbout.ts` `THRIFTBUCKS_EXAMPLE`, `pages/ThriftPlusPage.tsx` | **11-20:** the example in the Get ThriftBucks poster's place (English, Spanish draft); Meet Thrift+ text says "After 7 days on our floor..." |
+| E6 | ecothrift.us home band, Visit "Bring your phone", header Price check | `data/thriftPlusAbout.ts`, `components/Layout.tsx` | No explanation, only "see its ThriftBucks": no change |
+| E7 | Thrift+ terms, "All you need to know" and §3 to §4 | `frontend-public/src/data/thriftPlusTerms.en.ts`, `.es.ts` | Legal text (versioned): "They grow as an item sits, up to 95% of the tag" and "Redeemed instantly" agree with V12; no example in terms. Left as is |
+| E8 | Register (POS), Thrift+ panel, member card, signup dialog; Thrift+ Staff app | `frontend/src/components/pos/ThriftPlus*.tsx`, `components/thriftplus/MemberCard.tsx`, `pages/thriftplus/staff/` | Staff screens: amounts and buttons only, no customer explanation. No change |
+| E9 | Social: AI post ideas and the Weekend pick slot | `apps/marketing/services/ideas.py`, `settings.py`; `frontend/src/api/marketing.api.ts` | At most "Thrift+ members collect ThriftBucks", no amounts (V10). **11-20:** the slot hint said "how members earn": now "collect" |
+| P1 | Print: Thrift+ poster 2, Get ThriftBucks (printed 10-15; also the web image `public/thriftplus/thriftplus-poster-2-thriftbucks*.webp`) | `workspace/posters2/`, `.ai/reference/thrift-plus-posters/` | **Proposed remake (not reprinted):** replace the $49.36 lamp / 13.69 ThriftBucks with the V12 example (Retail $200.00 struck, Our tag $100.00, 20.00 ThriftBucks; Keep them: pay $100.00 / Use them now: pay $90.00 today; Non-member pays $100.00, all sales final). "When do they start? After an item's first 7 days on the floor. Then they grow daily." stays (it matches) |
+| P2 | Print: Thrift+ poster 1, Meet Thrift+ | the same | **Proposed:** its ThriftBucks-grow-as-items-sit line becomes "After 7 days on our floor, most items start to carry ThriftBucks. They grow every day." |
+| P3 | Print: S2 Thrift+ explained (drafts, #113), the `bucks` and `one` signs | `design/signage/copy/thriftplus.json` | **Proposed:** sub "ThriftBucks grow as an item sits." becomes the V12 carry line; add the example block (the three numbers and the two choices) to `bucks`; "Or redeem instantly" becomes "Or use them now" (V12) |
+| P4 | Print: S5 register Returns and AS IS sign, S12/S13 QR signs | `design/signage/copy/register-returns.json`, `signs.md` | No ThriftBucks explanation: no change |
 
 ## Not Thrift+
 

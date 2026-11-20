@@ -47,8 +47,8 @@ export const RETAIL_INFO: Info = {
 };
 const PRICING_INFO: Info = {
   title: 'How we price',
-  text: 'Pricing used items is tricky. We start well below retail, and ThriftBucks grow as an item sits. That way every price gets '
-    + 'to just right in time.',
+  text: 'Pricing used items is tricky. We start well below retail. After 7 days on our floor, most items start to carry '
+    + 'ThriftBucks, and they grow every day. That way every price gets to just right in time.',
 };
 export const RETURNS_INFO: Record<'yes' | 'no', Info> = {
   yes: {
@@ -127,13 +127,63 @@ export function TripHeader({ member, onAbout, onWallet, onBalance, onSignIn }: {
   );
 }
 
-/** What Thrift+ is: the terms page's "All you need to know", then the full terms. */
+/**
+ * The standard ThriftBucks example (rulebook V12, owner 2026-11-20: "this needs to be very consistent across the app").
+ * Same numbers and words as the phone site's `frontend-public/src/phone/shell/ThriftBucksExample.tsx` (`EXAMPLE`);
+ * change the rulebook first, then every surface (`.ai/extended/thrift-plus-surfaces.md`, "The ThriftBucks example").
+ * Amounts in cents; the instant choice is half the ThriftBucks' value (B1).
+ */
+export const THRIFTBUCKS_EXAMPLE = { retail: 20000, tag: 10000, bucks: 2000, today: 9000 } as const;
+
+function ThriftBucksExampleBox() {
+  const e = THRIFTBUCKS_EXAMPLE;
+  const k = { fontSize: u(24), fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: sc.ink2 } as const;
+  const choice = (label: string, pay: number, line: string) => (
+    <Box sx={{ flex: 1, bgcolor: '#fff', borderRadius: u(20), p: u(22), display: 'flex', flexDirection: 'column', gap: u(6) }}>
+      <Box sx={k}>{label}</Box>
+      <Box sx={{ fontFamily: sc.money, fontWeight: 800, fontSize: u(40), color: sc.priceGreen }}>Pay {money(pay)}</Box>
+      <Box sx={{ fontSize: u(26), lineHeight: 1.35, color: sc.ink }}>{line}</Box>
+    </Box>
+  );
+  return (
+    <Box data-testid="thriftbucks-example" sx={{ mt: u(28), bgcolor: sc.greenTint, borderRadius: u(28), p: u(30), color: sc.ink }}>
+      <Box sx={k}>Example · A normal item</Box>
+      <Box sx={{ display: 'flex', gap: u(40), mt: u(14), alignItems: 'baseline' }}>
+        <Box>
+          <Box sx={k}>Retail</Box>
+          <Box component="s" sx={{ fontFamily: sc.money, fontWeight: 700, fontSize: u(40), color: sc.ink3 }}>{money(e.retail)}</Box>
+        </Box>
+        <Box>
+          <Box sx={k}>Our tag</Box>
+          <Box sx={{ fontFamily: sc.money, fontWeight: 800, fontSize: u(48), color: sc.ink }}>{money(e.tag)}</Box>
+        </Box>
+      </Box>
+      <Box sx={{ mt: u(18), fontSize: u(28), lineHeight: 1.4 }}>
+        After 7 days on our floor, most items start to carry ThriftBucks. They grow every day.
+      </Box>
+      <Box sx={{ mt: u(10), fontSize: u(28) }}>
+        This one carries today: <Box component="b" sx={{ color: sc.priceGreen }}>{tbNumber(e.bucks / 100)} ThriftBucks</Box>
+      </Box>
+      <Box sx={{ mt: u(22), fontSize: u(28), fontWeight: 800 }}>Thrift+ members pick one</Box>
+      <Box sx={{ display: 'flex', gap: u(16), mt: u(12) }}>
+        {choice('Keep them', e.tag, `${tbNumber(e.bucks / 100)} ThriftBucks come off your next visit`)}
+        {choice('Use them now', e.today, 'today')}
+      </Box>
+      <Box sx={{ mt: u(18), fontSize: u(28) }}>
+        Non-member: pays <b>{money(e.tag)}</b>. All sales final.
+      </Box>
+    </Box>
+  );
+}
+
+/** What Thrift+ is: the standard example (V12), the terms page's "All you need to know", then the full terms. */
 export function ThriftPlusSheet({ onClose }: { onClose: () => void }) {
+  // Words match the standard example (V12): "Keep them" / "Use them now", "collect", never "$" beside ThriftBucks.
   const facts: Array<{ icon: React.ReactNode; title: string; text: string }> = [
     { icon: <VolunteerActivismRounded />, title: 'Free to join.', text: 'Nothing owed.' },
-    { icon: <TrendingUpRounded />, title: 'ThriftBucks on most items.', text: "They grow as an item sits, up to 95% of the tag. Scan any tag to see today's ThriftBucks." },
-    { icon: <SavingsRounded />, title: 'Kept for next time, the Default.', text: 'Your ThriftBucks stay on your account. Use them from the next day, for 30 days, at full value.' },
-    { icon: <BoltRounded />, title: 'Or redeem them instantly.', text: "At 50% of their value, off today's price. Just tell the cashier." },
+    { icon: <TrendingUpRounded />, title: 'ThriftBucks on most items.', text: "After 7 days on our floor. They grow every day, up to 95% of the tag. Scan any tag to see today's ThriftBucks." },
+    { icon: <SavingsRounded />, title: 'Keep them.', text: 'They come off your next visit at full value: from the next day, for 30 days.' },
+    { icon: <BoltRounded />, title: 'Or use them now.', text: "At 50% of their value, off today's price. Just tell the cashier." },
     { icon: <AssignmentReturnRounded />, title: '3-day returns.', text: 'Bring a qualifying item back within 3 days, for any reason: 80% of what you paid comes back as Thrift+ credit.' },
     // "Non-member", never "guest", in customer words (owner 2026-10-15, APP D10).
     { icon: <SellRounded />, title: 'Non-members pay the tag.', text: 'Everything a non-member buys is sold AS IS. All sales final.' },
@@ -152,6 +202,7 @@ export function ThriftPlusSheet({ onClose }: { onClose: () => void }) {
       <Box component="h2" sx={{ m: 0, fontFamily: sc.condensed, fontWeight: 700, fontSize: u(50), color: sc.titleGreen, lineHeight: 1.1 }}>
         ThriftBucks, 3-day returns and more!
       </Box>
+      <ThriftBucksExampleBox />
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: u(22), mt: u(28) }}>
         {facts.map((p) => (
           <Box key={p.title} sx={{ display: 'flex', gap: u(22), alignItems: 'flex-start' }}>

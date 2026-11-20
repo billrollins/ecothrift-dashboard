@@ -2,7 +2,14 @@ import { Link, useLocation } from 'react-router-dom'
 import LangToggle from '../components/LangToggle'
 import ScanIcon from '../components/ScanIcon'
 import { absolutePublicAssetUrl, publicAssetUrl } from '../data/content'
-import { POSTER_ALT, THRIFT_PLUS_ABOUT, THRIFT_PLUS_IMAGES, type AboutPoster } from '../data/thriftPlusAbout'
+import {
+  POSTER_ALT,
+  THRIFT_PLUS_ABOUT,
+  THRIFT_PLUS_IMAGES,
+  THRIFTBUCKS_EXAMPLE,
+  type AboutPoster,
+  type ExampleWords,
+} from '../data/thriftPlusAbout'
 import { THRIFT_PLUS_TERMS } from '../data/thriftPlusTerms'
 import { useThriftPlusLang, withLangFromAddress } from '../lib/thriftPlusLang'
 import { useSeo } from '../useSeo'
@@ -10,7 +17,8 @@ import './ThriftPlusPage.css'
 
 /**
  * ecothrift.us/thriftplus: "What is Thrift+?" (owner 10-15), the three posters with a short text each, beside the
- * terms (/terms). English | Español like /terms (lib/thriftPlusLang.ts); the posters stay in English. Words:
+ * terms (/terms); since 11-20 the Get ThriftBucks section shows the standard example (rulebook V12, Dash Update #197)
+ * in place of its poster, which still shows an older lamp example. English | Español like /terms (lib/thriftPlusLang.ts); the posters stay in English. Words:
  * data/thriftPlusAbout.ts, from .ai/reference/thrift-plus-posters/11-website.md. Only while Thrift+ is open
  * (App.tsx ThriftPlusRoute).
  */
@@ -36,6 +44,62 @@ function Poster({ poster, eager }: { poster: AboutPoster; eager: boolean }) {
         />
       </picture>
     </a>
+  )
+}
+
+const money = (n: number) => `$${n.toFixed(2)}`
+const bucks = (n: number) => n.toFixed(2)
+
+/**
+ * The standard ThriftBucks example (rulebook V12), in place of the Get ThriftBucks poster: the same numbers and words
+ * as the phone site and the scanner. ThriftBucks are a number with the word, never "$".
+ */
+function ThriftBucksExample({ w }: { w: ExampleWords }) {
+  const e = THRIFTBUCKS_EXAMPLE
+  return (
+    <div className="tpa-ex" data-testid="thriftbucks-example">
+      <p className="tpa-ex__lbl">{w.label}</p>
+      <p className="tpa-ex__h">{w.heading}</p>
+      <div className="tpa-ex__item">
+        <div>
+          <span className="tpa-ex__k">{w.retail}</span>
+          <s className="tpa-ex__retail">{money(e.retail)}</s>
+        </div>
+        <div>
+          <span className="tpa-ex__k">{w.tag}</span>
+          <span className="tpa-ex__tag">{money(e.tag)}</span>
+        </div>
+      </div>
+      <p className="tpa-ex__carry">{w.carry}</p>
+      <p className="tpa-ex__now">
+        {w.now}
+        <b>{bucks(e.bucks)} ThriftBucks</b>
+      </p>
+      <p className="tpa-ex__pick">{w.pick}</p>
+      <div className="tpa-ex__two">
+        <div>
+          <small>{w.keep.label}</small>
+          <b>
+            {w.keep.pay} {money(e.tag)}
+          </b>
+          <span>
+            {bucks(e.bucks)} {w.keep.line}
+          </span>
+        </div>
+        <div>
+          <small>{w.use.label}</small>
+          <b>
+            {w.use.pay} {money(e.today)}
+          </b>
+          <span>{w.use.line}</span>
+        </div>
+      </div>
+      <p className="tpa-ex__non">
+        {w.non.before}
+        <b>{money(e.tag)}</b>
+        {w.non.after}
+      </p>
+    </div>
   )
 }
 
@@ -83,7 +147,7 @@ export default function ThriftPlusPage() {
 
         {c.posters.map((poster, i) => (
           <section key={poster.id} id={poster.id} className="tpa-sec" aria-labelledby={`${poster.id}-title`}>
-            <Poster poster={poster} eager={i === 0} />
+            {poster.example ? <ThriftBucksExample w={c.example} /> : <Poster poster={poster} eager={i === 0} />}
             <div className="tpa-sec__text">
               <h2 id={`${poster.id}-title`} className="tpa-sec__title">
                 {poster.heading}

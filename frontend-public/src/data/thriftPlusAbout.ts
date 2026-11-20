@@ -42,6 +42,8 @@ export const THRIFT_PLUS_ABOUT_LINE = { en: 'New to Thrift+? See what it is →'
 export interface AboutPoster {
   /** The section's anchor on /thriftplus. */
   id: string
+  /** Show the standard ThriftBucks example (rulebook V12) in place of the poster image. */
+  example?: boolean
   /** thriftplus/<file>.webp (1300 x 1900) and thriftplus/<file>-650.webp (phones). */
   file: string
   heading: string
@@ -59,6 +61,30 @@ export interface ThriftPlusAboutContent {
   posters: AboutPoster[]
   /** "The full rules are in the **Thrift+ terms**." The bold words link to /terms. */
   closing: { before: string; link: string; after: string }
+  /** The standard ThriftBucks example's words (rulebook V12); the numbers are THRIFTBUCKS_EXAMPLE. */
+  example: ExampleWords
+}
+
+/**
+ * The standard ThriftBucks example (rulebook V12, owner 2026-11-20: "this needs to be very consistent across the app").
+ * The same numbers as the phone site's `phone/shell/ThriftBucksExample.tsx` (`EXAMPLE`) and the scanner's info sheet;
+ * change the rulebook first, then every surface (`.ai/extended/thrift-plus-surfaces.md`). The instant choice is half
+ * the ThriftBucks' value (B1).
+ */
+export const THRIFTBUCKS_EXAMPLE = { retail: 200, tag: 100, bucks: 20, today: 90 } as const
+
+export interface ExampleWords {
+  label: string
+  heading: string
+  retail: string
+  tag: string
+  carry: string
+  now: string
+  pick: string
+  keep: { label: string; pay: string; line: string }
+  use: { label: string; pay: string; line: string }
+  /** Before and after the bold price. */
+  non: { before: string; after: string }
 }
 
 /** The posters' alt text: the posters stay in English, so the alt text does too. */
@@ -82,13 +108,14 @@ const EN: ThriftPlusAboutContent = {
       id: 'meet',
       file: 'thriftplus-poster-1-meet',
       heading: 'Meet Thrift+',
-      text: 'Membership is free and easy: join on your phone in a minute. ThriftBucks grow as items sit, and you have 3 days to bring a qualifying item back.',
+      text: 'Membership is free and easy: join on your phone in a minute. After 7 days on our floor, most items start to carry ThriftBucks, and they grow every day. You have 3 days to bring a qualifying item back.',
     },
     {
       id: 'thriftbucks',
       file: 'thriftplus-poster-2-thriftbucks',
       heading: 'Get ThriftBucks',
-      text: "Members collect ThriftBucks on most items. On this $49.36 lamp, that's 13.69 ThriftBucks to use within 30 days, or redeem them instantly at 50%. Non-members pay the tag.",
+      example: true,
+      text: 'Thrift+ members collect ThriftBucks on most items. Keep them for your next visit, good for 30 days at full value, or use them now at 50% of their value. Non-members pay the tag.',
     },
     {
       id: 'returns',
@@ -98,6 +125,18 @@ const EN: ThriftPlusAboutContent = {
     },
   ],
   closing: { before: 'The full rules are in the ', link: 'Thrift+ terms', after: '.' },
+  example: {
+    label: 'Example',
+    heading: 'A normal item',
+    retail: 'Retail',
+    tag: 'Our tag',
+    carry: 'After 7 days on our floor, most items start to carry ThriftBucks. They grow every day.',
+    now: 'This one carries today',
+    pick: 'Thrift+ members pick one',
+    keep: { label: 'Keep them', pay: 'Pay', line: 'ThriftBucks come off your next visit' },
+    use: { label: 'Use them now', pay: 'Pay', line: 'today' },
+    non: { before: 'Non-member: pays ', after: '. All sales final.' },
+  },
 }
 
 const ES: ThriftPlusAboutContent = {
@@ -113,13 +152,14 @@ const ES: ThriftPlusAboutContent = {
       id: 'meet',
       file: 'thriftplus-poster-1-meet',
       heading: 'Conozca Thrift+',
-      text: 'Ser miembro es gratis y fácil: empiece en su teléfono y termine en cualquier caja. Los ThriftBucks crecen mientras el artículo está en la tienda, y tiene 3 días para devolver un artículo que califique.',
+      text: 'Ser miembro es gratis y fácil: únase en su teléfono en un minuto. Después de 7 días en nuestro piso, la mayoría de los artículos empiezan a tener ThriftBucks, y crecen cada día. Tiene 3 días para devolver un artículo que califique.',
     },
     {
       id: 'thriftbucks',
       file: 'thriftplus-poster-2-thriftbucks',
       heading: 'Reciba ThriftBucks',
-      text: 'Los miembros reúnen ThriftBucks en la mayoría de los artículos. En esta lámpara de $49.36, son 13.69 ThriftBucks para usar dentro de 30 días, o canjéelos al instante al 50%. Quienes no son miembros pagan la etiqueta.',
+      example: true,
+      text: 'Los miembros de Thrift+ reúnen ThriftBucks en la mayoría de los artículos. Guárdelos para su próxima visita, válidos 30 días a su valor completo, o úselos ahora al 50% de su valor. Quienes no son miembros pagan la etiqueta.',
     },
     {
       id: 'returns',
@@ -129,6 +169,18 @@ const ES: ThriftPlusAboutContent = {
     },
   ],
   closing: { before: 'Las reglas completas están en los ', link: 'términos de Thrift+', after: '.' },
+  example: {
+    label: 'Ejemplo',
+    heading: 'Un artículo normal',
+    retail: 'Precio de tienda',
+    tag: 'Nuestra etiqueta',
+    carry: 'Después de 7 días en nuestro piso, la mayoría de los artículos empiezan a tener ThriftBucks. Crecen cada día.',
+    now: 'Este tiene hoy',
+    pick: 'Los miembros de Thrift+ eligen uno',
+    keep: { label: 'Guárdelos', pay: 'Pague', line: 'ThriftBucks se restan en su próxima visita' },
+    use: { label: 'Úselos ahora', pay: 'Pague', line: 'hoy' },
+    non: { before: 'Quien no es miembro: paga ', after: '. Ventas finales.' },
+  },
 }
 
 export const THRIFT_PLUS_ABOUT: Record<TermsLang, ThriftPlusAboutContent> = { en: EN, es: ES }

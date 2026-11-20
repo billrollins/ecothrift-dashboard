@@ -18,8 +18,8 @@ SEEDED = {
         'duties': ['Stock and straighten the floor', 'Run the register', 'Take care of customers'],
     },
     'processing-associate': {
-        'summary': "Sort incoming loads, check every item, then price and tag it so it's right when it hits the floor.",
-        'duties': ['Sort incoming loads', 'Check every item', 'Price and tag it in our app'],
+        'summary': "Sort incoming loads, price and tag each item, and set aside what needs repair.",
+        'duties': ['Sort incoming loads', 'Price and tag each item in our app', 'Set aside what needs repair'],
     },
     'restoration-associate': {
         'summary': "Bring items back to life and pull usable parts from the ones that can't be saved.",
@@ -72,7 +72,6 @@ TEXT = {
         ),
         'duties': [
             'Unload and sort incoming pallets and loads',
-            'Check every item: complete, working, damaged?',
             'Look it up and price it in our app from its retail price, condition and what similar items sold for',
             'Print and attach tags, and send items to the floor or to restoration',
             'Pull items that need testing or repair for the restoration team',

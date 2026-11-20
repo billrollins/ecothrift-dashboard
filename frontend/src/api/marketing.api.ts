@@ -203,7 +203,7 @@ export const POST_TYPE_IDEAS: Record<SocialPostType, string> = {
   new_this_week: '4 to 8 real photos of the best new stock.',
   category_spotlight: 'One category, its best pieces.',
   coming_soon: 'A truck being unloaded, what is being processed.',
-  weekend_pick: 'One standout item, and how members earn ThriftBucks.',
+  weekend_pick: 'One standout item, and that Thrift+ members collect ThriftBucks.',
   live_from_floor: 'A quick look at the floor right now.',
   scheduled: "The week's best, set to go out while we are closed.",
 };

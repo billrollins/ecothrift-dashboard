@@ -143,7 +143,7 @@ export default function HomePage() {
             <h1>Quality goods, fair prices, every week.</h1>
             <p>
               Eco-Thrift is a liquidation and thrift store in Omaha. Brand-name overstock and
-              secondhand finds, inspected and priced fairly, with new stock arriving weekly.
+              secondhand finds, sorted and priced by people who know thrift, with new stock arriving weekly.
             </p>
             <p className="intro__note">
               Most of what we carry is on the floor at the Canfield store. {onlineNote}

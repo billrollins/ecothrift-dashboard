@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.327.0] -->
-<!-- Last reviewed: 2026-11-20 (2.327.0) -->
+<!-- Line 1 release: ## [2.328.0] -->
+<!-- Last reviewed: 2026-11-20 (2.328.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,26 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.328.0] - 2026-11-20
+
+User-facing theme: **One ThriftBucks example everywhere (retail $200.00, our tag $100.00, 20.00 ThriftBucks), and nowhere says we check every item. Plus: the phone site's category photos redone.**
+
+> **For Bill:** The scanner's "What is Thrift+?" sheet and ecothrift.us/thriftplus now show the same example as the phone site (keep 20.00 ThriftBucks or pay $90.00 today; a non-member pays $100.00). The home page says "sorted and priced by people who know thrift" (was "inspected"), and the Processing job no longer says "check every item". The phone site's 22 category photos and the About sofa are new plain product photos you passed.
+
+User-facing theme: **One ThriftBucks example everywhere (retail $200.00, our tag $100.00, 20.00 ThriftBucks), and nowhere says we check every item. Plus: the phone site's category photos redone.** (Dash Updates #197, #203, #202)
+
+> **For Bill:** The scanner's "What is Thrift+?" sheet and ecothrift.us/thriftplus now show the same example as the phone site (keep 20.00 ThriftBucks or pay $90.00 today; a non-member pays $100.00). The home page says "sorted and priced by people who know thrift" (was "inspected"), and the Processing job no longer says "check every item". The phone site's 22 category photos and the About sofa are new plain product photos you passed.
+
+### Changed
+- Scanner (ecothrift.us/scan), What is Thrift+? sheet: the standard example (rulebook V12) first; the lines say "After 7 days on our floor...", "Keep them." and "Or use them now." (were "They grow as an item sits", "Kept for next time, the Default", "Or redeem them instantly"); How we price says the same (`frontend/src/pages/thriftplus/scanner/tripSheets.tsx` `THRIFTBUCKS_EXAMPLE`; test in `ThriftPlusScannerPage.test.tsx`).
+- ecothrift.us/thriftplus: the example in the Get ThriftBucks poster's place (the poster still shows the old $49.36 lamp); Meet Thrift+ text says "After 7 days on our floor..."; Spanish draft of both, and the Spanish "finish at any register" line is now "join on your phone in a minute" (`frontend-public/src/data/thriftPlusAbout.ts`, `pages/ThriftPlusPage.tsx`, `.css`; new `ThriftPlusPage.test.tsx`).
+- Never claim we check, test or inspect every item (rulebook V13, `brand.md` Words): ecothrift.us home and its server shell say "sorted and priced by people who know thrift" (`frontend-public/src/pages/HomePage.tsx`, `apps/core/templates/public/home_shell.html`); the phone site's About says "We sort it and price it" / "Sorted and priced by people" (`frontend-public/src/phone/pages/words.ts`); the Processing job seed text drops "check every item" (`apps/hiring/migrations/0002_seed_roles.py`, `0004_role_page_text.py`; the live job is a prod data change).
+- Social Weekend pick slot hint: "collect", not "earn" (`frontend/src/api/marketing.api.ts`).
+- `.ai/extended/thrift-plus-surfaces.md`: new table "The ThriftBucks example", every surface that explains ThriftBucks, with the proposed poster and sign changes (not reprinted); `thrift-plus-decisions.md` V12 sweep note and V13; `.ai/reference/thrift-plus-posters/11-website.md`.
+
+### Changed (Phone site: category photos, Dash Update #202)
+- All 22 category photos and the About sofa redone as plain product photos on white (gpt-image-2.6, cropped, 300 px JPEGs; the sofa 900 px), passed by Bill ("all A", health redone). Unused `c-chair.jpg` and `c-mattress.jpg` removed. Trail: workspace/critic/category-photos/.
 
 ## [2.327.0] - 2026-11-20
 

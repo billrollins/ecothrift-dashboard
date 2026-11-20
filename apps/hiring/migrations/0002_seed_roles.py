@@ -26,8 +26,8 @@ ROLES = [
         'slug': 'processing-associate',
         'title': 'Processing Associate',
         'tagline': 'Price our items with care.',
-        'summary': "Sort incoming loads, check every item, then price and tag it so it's right when it hits the floor.",
-        'duties': ['Sort incoming loads', 'Check every item', 'Price and tag it in our app'],
+        'summary': "Sort incoming loads, price and tag each item, and set aside what needs repair.",
+        'duties': ['Sort incoming loads', 'Price and tag each item in our app', 'Set aside what needs repair'],
         'schedule': 'Typically Monday through Friday',
         'questions': [{
             'key': 'careful_fast', 'label': "You'll price hundreds of items a day in an app. What makes you careful and fast?",

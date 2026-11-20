@@ -40,6 +40,10 @@ https://claude.ai/artifact/7pCUJWUqe4hF855DWMb31r, price tag colours https://cla
 | `--deal-bg` / `--deal-num` | `#f2c35b` / `#10140f` | **The deal tag** (owner 2026-11-20, "G2"): gold block, ink numbers, only for special deals (door busters, Black Friday, BO-HO-GO). Gold means a deal and nothing else, and is never on black ("just not on black"): the Black Friday teaser is cranberry and the door busters card cream. `<Tag deal />`. |
 One font: Archivo (condensed heavy uppercase for headlines). Staff UI stays on `#2e7d32` so it matches MUI, receiving, processing, TARS, and login.
 
+## Words
+
+- **Never claim we check, test or inspect every item** (owner 2026-11-20, rulebook V13): we sort and price every item; only an item actually tested may say so ("Tested by Eco-Thrift").
+
 ## Same colour, same meaning
 
 From [`.ai/extended/ux-spec.md`](ux-spec.md): never colour alone; green = good; red = risk. On Routines that means:

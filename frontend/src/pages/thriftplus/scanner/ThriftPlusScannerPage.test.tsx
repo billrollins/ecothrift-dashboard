@@ -285,6 +285,15 @@ describe('Thrift+ trip scanner (owner 2026-10-13)', () => {
     const about = await screen.findByTestId('thriftplus-sheet');
     expect(within(about).getByText('ThriftBucks, 3-day returns and more!')).toBeInTheDocument();
     expect(within(about).getByTestId('terms-link')).toHaveAttribute('href', 'https://ecothrift.us/terms');
+    // The standard example (rulebook V12): the same numbers and words on every surface.
+    const example = within(about).getByTestId('thriftbucks-example');
+    expect(example).toHaveTextContent('Example · A normal item');
+    expect(example).toHaveTextContent('Retail$200.00Our tag$100.00');
+    expect(example).toHaveTextContent('After 7 days on our floor, most items start to carry ThriftBucks. They grow every day.');
+    expect(example).toHaveTextContent('This one carries today: 20.00 ThriftBucks');
+    expect(example).toHaveTextContent('Keep themPay $100.0020.00 ThriftBucks come off your next visit');
+    expect(example).toHaveTextContent('Use them nowPay $90.00today');
+    expect(example).toHaveTextContent('Non-member: pays $100.00. All sales final.');
     // "Non-member", never "guest" (owner 2026-10-15, APP D10).
     expect(about).toHaveTextContent('Non-members pay the tag. Everything a non-member buys is sold AS IS. All sales final.');
     await user.click(within(about).getByRole('button', { name: 'Close' }));
