@@ -203,8 +203,11 @@ class FeedTests(TestCase):
         for c in range(3, 20):
             rows.append({'pid': 100 + c, 'cat': c, 'price': D('5'), 'retail': D(50 + c), 'photo': False})
         finds = snapshot.best_finds(rows)
+        self.assertEqual([f['pid'] for f in finds], [50])  # only pieces with a photo; 51 shows no retail
+        for r in rows:
+            r['photo'] = True
+        finds = snapshot.best_finds(rows)
         self.assertEqual(len(finds), 12)
-        self.assertEqual(finds[0]['pid'], 50)  # a photo first, though it saves least
         self.assertNotIn(51, [f['pid'] for f in finds])
         self.assertEqual([f['pid'] for f in finds if f['cat'] == 0], [9, 8])  # at most 2 per category, biggest saving first
 
@@ -274,10 +277,15 @@ class FeedTests(TestCase):
         self.assertEqual(set(home), {'v', 'as_of', 'app', 'day', 'shelf', 'bucks', 'hours', 'thrift_plus_open', 'finds', 'coming', 'top_cats'})
         self.assertEqual(home['app'], json.loads((Path(settings.BASE_DIR) / 'package.json').read_text(encoding='utf-8'))['version'])
         self.assertEqual(home['day'], 'bf')
+        # An Add item photo is never a public photo, and Best finds shows only pieces with one (owner 2026-11-20).
+        self.assertEqual(home['finds'], [])
+        self.assertIn('label', home['hours'])
+        holder.reset()
+        with patch.object(snapshot.photos, 'kinds', return_value={lamp.pk: snapshot.photos.KIND_STOCK}):
+            home = json.loads(self.client.get(HOME).content)
         self.assertEqual(home['finds'], [{'pid': lamp.pk, 'name': 'Lamp (display)', 'cat': 'decor', 'price': 40, 'retail': 100,
                                           'tb': 6, 'units': 1, 'tag': lamp.items.get().sku[3:],
-                                          'photo': None, 'photo_kind': None}])  # an Add item photo never goes public
-        self.assertIn('label', home['hours'])
+                                          'photo': f'/api/storefront/photo/{lamp.pk}/', 'photo_kind': 'stock'}])
 
     # ── One product ────────────────────────────────────────────────────────────
 
@@ -324,7 +332,8 @@ class FeedTests(TestCase):
         RestrictedProduct.objects.create(product=bow, reason='18+')
         ball = self._product('Ball', profile_cat='Sports & outdoors')
         self._item(ball, '5.00', retail='20.00', check='passed')
-        _, data = self._stock()
+        with patch.object(snapshot.photos, 'kinds', return_value={bow.pk: snapshot.photos.KIND_STOCK, ball.pk: snapshot.photos.KIND_STOCK}):
+            _, data = self._stock()
         self.assertEqual([r[0] for r in data['instore']], [ball.pk])
         self.assertEqual({c['id']: c['pieces'] for c in data['cats']}['sports'], 1)
         home = json.loads(self.client.get(HOME).content)

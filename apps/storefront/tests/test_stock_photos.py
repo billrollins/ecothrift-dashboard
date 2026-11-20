@@ -119,7 +119,7 @@ class PublicPhotoTests(Base):
         self.assertEqual(finds[stocked.pk]['photo_kind'], 'stock')
         self.assertEqual(finds[both.pk]['photo_kind'], 'sheet')
 
-    def test_best_finds_are_the_best_with_a_photo_and_fill_only_under_eight(self):
+    def test_best_finds_are_only_the_best_with_a_photo(self):
         cats = ['Toys & games', 'Electronics', 'Furniture', 'Kitchen & dining', 'Bedding & bath', 'Tools & hardware',
                 'Pet supplies', 'Automotive', 'Appliances', 'Arts & crafts']
         big = self.product('Big saving, no photo', cat='Sports & outdoors', retail='900.00')
@@ -129,8 +129,8 @@ class PublicPhotoTests(Base):
             self.stock(p)
             with_photo.append(p.pk)
         finds = [f['pid'] for f in self.home_json()['finds']]
-        self.assertEqual(finds[:7], list(reversed(with_photo)))  # 7 with a photo lead, best saving first
-        self.assertIn(big.pk, finds)  # fewer than 8: filled with the best without
+        self.assertEqual(finds, list(reversed(with_photo)))  # only the 7 with a photo, best saving first
+        self.assertNotIn(big.pk, finds)  # never a fill without a photo (owner 2026-11-20)
         p = self.product('Photo 7', cat=cats[7], retail='40.00')
         self.stock(p)
         holder.reset()

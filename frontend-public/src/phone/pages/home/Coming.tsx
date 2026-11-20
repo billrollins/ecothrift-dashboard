@@ -47,7 +47,6 @@ export default function Coming() {
           <Card key={it.id} it={it} truck={trucks.get(it.truck)} />
         ))}
       </div>
-      <p className="fine cm-fine">Not held for anyone. Priced when the truck lands.</p>
     </section>
   )
 }

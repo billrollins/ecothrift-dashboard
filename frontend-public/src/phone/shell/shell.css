@@ -22,7 +22,9 @@
 
 /* The search row: the only part that stays stuck. */
 .find { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: var(--green); padding: 8px var(--gut); }
-.box { display: flex; align-items: center; height: 46px; background: #fff; border-radius: 10px; overflow: hidden; color: var(--ink); }
+/* The white field stops where the button starts, so no white edge shows under the button's corner (owner 2026-11-20:
+   "a white line/pixel underneath ... looks like an error"). */
+.box { display: flex; align-items: center; height: 46px; background: linear-gradient(90deg, #fff calc(100% - 56px), var(--tag-bg) 0); border-radius: 10px; overflow: hidden; color: var(--ink); }
 .box input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; padding: 0 4px 0 14px; font: inherit; font-size: 16px; color: var(--ink);
              -webkit-appearance: none; appearance: none; border-radius: 0; }
 .box input::placeholder { color: #6b7468; }
@@ -30,7 +32,7 @@
 .box .clr { flex: none; width: 40px; height: 46px; display: grid; place-items: center; color: var(--ink-2); opacity: 0; pointer-events: none; transition: opacity .1s; }
 .box .clr svg.i { width: 20px; height: 20px; }
 .box.has .clr { opacity: 1; pointer-events: auto; }
-.box .cam { flex: none; align-self: stretch; width: 56px; display: grid; place-items: center; background: #000; color: var(--lime); }
+.box .cam { flex: none; align-self: stretch; width: 56px; display: grid; place-items: center; background: var(--tag-bg); color: var(--tag-num); }
 .box .cam svg.i { width: 26px; height: 26px; }
 
 .storeline { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 var(--gut); background: var(--green-d); color: #fff; font-size: 13px; font-weight: 600; }

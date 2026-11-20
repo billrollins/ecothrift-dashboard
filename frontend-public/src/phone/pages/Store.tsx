@@ -341,9 +341,6 @@ export default function Store() {
           <p className="fine">Not held. Priced when the truck lands.</p>
         ) : (
           <p className="fine">
-            <span>
-              {day === 'bf' ? 'Thrift+ members: ThriftBucks come off today. Most items.' : 'Thrift+ members collect the ThriftBucks. Most items.'}
-            </span>
             <span>Not held. First come, first served.</span>
             <span>Our list can run behind the shelf. It may already be sold.</span>
           </p>

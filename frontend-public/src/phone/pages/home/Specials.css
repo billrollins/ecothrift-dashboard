@@ -54,7 +54,7 @@
 .hc-pair .hc-both { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
 .hc-pair .tag { font-size: 52px; }
 .hc-pair .hc-both small { font-size: 12px; font-weight: 800; }
-.hc-boho .fine { margin-top: 8px; }
+.hc-boho .hc-when { margin-top: 8px; font-size: 13px; font-weight: 800; }
 
 /* 3. Door busters: cream, three names and gold deal tags (gold is never on black) */
 .hc-door { background: var(--cream); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }

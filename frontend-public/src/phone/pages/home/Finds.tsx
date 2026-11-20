@@ -1,16 +1,14 @@
 /**
- * Home 2, best finds (mockup blocks/20-finds.html): a white band, a slider of the feed's `finds`. Photo only when the
- * piece has its own (the feed's photo: a photo-sheet photo or a stock photo, never an Add item photo; the item page
- * carries the stock photo's "may not match" line); else, and when that photo fails to load, a calm text tile of the
- * same size with the category in small capitals (owner 11-19: no stand-in pictures). Then the name, the tag price,
- * retail struck, and the ThriftBucks on their own line (grey "0.00 ThriftBucks" when none, as the list says it);
- * "Thrift+ members" once in the band. A card opens that piece.
+ * Home 2, best finds (mockup blocks/20-finds.html): a white band, a slider of the feed's `finds`, which are only pieces
+ * with their own photo (a photo-sheet photo or a stock photo, never an Add item photo; owner 2026-11-20: "these items will
+ * all HAVE to be curated and have photos... NO category tiles"). A card whose photo fails to load is left out, never a
+ * tile. Then the name, the tag price, retail struck, and the ThriftBucks on their own line (grey "0.00 ThriftBucks"
+ * when none). No fine print (owner 2026-11-20, rulebook V13). A card opens that piece.
  */
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useHome, type Find } from '../../lib/boot'
 import { bucks, money } from '../../lib/format'
-import { catName } from '../../lib/stock'
 import { Tag } from '../../shell/Tag'
 import './Finds.css'
 
@@ -26,27 +24,13 @@ export function spread<T extends { cat: string }>(rows: T[]): T[] {
   return out
 }
 
-function Photo({ f }: { f: Find }) {
-  const [missing, setMissing] = useState(false)
-  if (!f.photo || missing) {
-    return (
-      <div className="ph-img ph-txt">
-        <span className="lbl ph-cat">{catName(f.cat)}</span>
-      </div>
-    )
-  }
-  return (
-    <div className="ph-img">
-      <img src={f.photo} width={150} height={150} alt="" loading="lazy" decoding="async" onError={() => setMissing(true)} />
-    </div>
-  )
-}
-
-function Card({ f }: { f: Find }) {
+function Card({ f, onFail }: { f: Find; onFail: (pid: number) => void }) {
   const b = bucks(f.tb)
   return (
     <Link className="pc" to={`/store/item/p${f.pid}`}>
-      <Photo f={f} />
+      <div className="ph-img">
+        <img src={f.photo!} width={150} height={150} alt="" loading="lazy" decoding="async" onError={() => onFail(f.pid)} />
+      </div>
       <p className="nm">{f.name}</p>
       <div className="fd-pr">
         <Tag price={f.price} />
@@ -80,7 +64,11 @@ function Blank() {
 
 export default function Finds() {
   const feed = useHome()
-  if (feed && !feed.finds.length) return null
+  // Pieces whose photo failed to load are left out; when none is left, so is the section (never an empty band).
+  const [failed, setFailed] = useState<ReadonlySet<number>>(() => new Set())
+  const onFail = (pid: number) => setFailed((prev) => new Set(prev).add(pid))
+  const shown = feed ? feed.finds.filter((f) => f.photo && !failed.has(f.pid)) : []
+  if (feed && !shown.length) return null
   return (
     <section className="fd" id="finds">
       <div className="sh">
@@ -88,12 +76,8 @@ export default function Finds() {
         <Link to="/store">See all</Link>
       </div>
       <div className="rail fd-rail">
-        {feed ? spread(feed.finds).map((f) => <Card key={f.pid} f={f} />) : [0, 1, 2].map((k) => <Blank key={k} />)}
+        {feed ? spread(shown).map((f) => <Card key={f.pid} f={f} onFail={onFail} />) : [0, 1, 2].map((k) => <Blank key={k} />)}
       </div>
-      <p className="fine fd-fine">
-        <span className="if-normal">Thrift+ members collect these ThriftBucks. Most items.</span>
-        <span className="if-bf">Thrift+ members: these come off today. Most items.</span>
-      </p>
     </section>
   )
 }

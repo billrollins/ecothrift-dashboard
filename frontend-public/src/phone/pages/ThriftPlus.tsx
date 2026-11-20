@@ -133,7 +133,6 @@ function SignedOut({ guest }: { guest: boolean }) {
             Sign in
           </ScanLink>
         </div>
-        <p className="fine ac-fn">Thrift+ members. Most items. Free to join. Nothing owed.</p>
       </section>
       <section className="ac-three">
         <div>

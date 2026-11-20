@@ -101,11 +101,12 @@ function Shout() {
   )
 }
 
-/** BO-HO-GO on clothing and shoes, Nov 27 to Dec 31 (the same card in the Black Friday set). */
-function Boho({ label, fine = 'Thrift+ members. Nov 27 to Dec 31.' }: { label: string; fine?: string }) {
+/** BO-HO-GO on clothing and shoes for Thrift+ members, Nov 27 to Dec 31 (the same card in the Black Friday set). No fine
+ *  print (owner 2026-11-20, rulebook V13): who and what are in the label, the dates in their own line. */
+function Boho({ when }: { when: string }) {
   return (
     <Link className="hc hc-lime hc-boho" to="/store?cat=apparel">
-      <span className="lbl">{label}</span>
+      <span className="lbl">Thrift+ members · Clothing</span>
       <h2 className="disp">BO-HO-GO</h2>
       <div className="hc-steps">
         {[['BO', 'Buy one'], ['HO', 'Half off'], ['GO', 'Get one free']].map(([k, v]) => (
@@ -129,7 +130,7 @@ function Boho({ label, fine = 'Thrift+ members. Nov 27 to Dec 31.' }: { label: s
           <small>for both</small>
         </div>
       </div>
-      <p className="fine">{fine}</p>
+      <p className="hc-when">{when}</p>
     </Link>
   )
 }
@@ -143,13 +144,12 @@ function Normal() {
     <Rail n={2 + (teaser ? 1 : 0) + (boho ? 1 : 0)}>
       <Shout />
       {teaser && (
-      <Link className="hc hc-black" to="/#thriftplus">
+      <Link className="hc hc-black" to="/thriftplus">
         <span className="lbl">Fri Nov 27</span>
         <h2 className="disp">
           Black <em>Friday</em>
         </h2>
-        <p className="sub">Your ThriftBucks come off that day, in full.</p>
-        <p className="fine">Thrift+ members. Most items.</p>
+        <p className="sub">Thrift+ members: your ThriftBucks come off that day, in full.</p>
         <div className="hc-sum">
           <span className="was tn">$100</span>
           <Tag price={80} cents="auto" deal />
@@ -157,13 +157,12 @@ function Normal() {
         </div>
       </Link>
       )}
-      {boho && <Boho label={now < BOHO_STARTS ? 'Starts Fri Nov 27' : 'Through Dec 31'} fine="Clothing and shoes. Thrift+ members." />}
-      <Link className="hc hc-green" to="/#thriftplus">
+      {boho && <Boho when={now < BOHO_STARTS ? 'Starts Fri Nov 27' : 'Through Dec 31'} />}
+      <Link className="hc hc-green" to="/terms#s8">
         <span className="lbl">Every day</span>
         <h2 className="disp">
           3-day returns<em>Thrift+ members only</em>
         </h2>
-        <p className="fine">Qualifying items.</p>
         <div className="pct disp tn">
           80%<small>back as Thrift+ credit</small>
         </div>
@@ -182,14 +181,13 @@ const DOOR: Array<[name: string, price: number, note: string]> = [
 function BlackFriday() {
   return (
     <Rail n={3}>
-      <Link className="hc hc-cran" to="/#thriftplus">
-        <span className="lbl">Black Friday · Everything</span>
+      <Link className="hc hc-cran" to="/thriftplus">
+        <span className="lbl">Black Friday · Thrift+ members</span>
         <h2 className="disp">
           Your
           <br />
           ThriftBucks <em>come off today</em>
         </h2>
-        <p className="fine">Thrift+ members. Most items.</p>
         <div className="hc-sum">
           <span className="was tn">$100</span>
           <span className="hc-arrow" aria-hidden="true">→</span>
@@ -197,11 +195,10 @@ function BlackFriday() {
           <span className="cap">with 20.00 ThriftBucks</span>
         </div>
       </Link>
-      <Boho label="Clothing and shoes" />
+      <Boho when="Nov 27 to Dec 31" />
       <Link className="hc hc-door" to="/#visit">
-        <span className="lbl">Door busters</span>
+        <span className="lbl">Door busters · Everyone</span>
         <h2 className="disp">One of a kind</h2>
-        <p className="fine">Everyone, Thrift+ members or not.</p>
         <div className="hc-rows tn">
           {DOOR.map(([name, price, note]) => (
             <div key={name}>

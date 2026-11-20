@@ -37,7 +37,6 @@ logger = logging.getLogger(__name__)
 COMING_STATUSES = ('paid', 'shipped')
 FINDS = 12
 FINDS_PER_CAT = 2
-FINDS_MIN_PHOTOS = 8  # fewer pieces with a photo than this: fill with the best without
 TOP_CATS = 6
 HOME_COMING = 12
 
@@ -189,13 +188,9 @@ def ranked(instore: list[dict], limit: int, per_cat: int = FINDS_PER_CAT, taken:
 
 
 def best_finds(instore: list[dict], limit: int = FINDS, per_cat: int = FINDS_PER_CAT) -> list[dict]:
-    """The best-ranked products that have a public photo; only when fewer than ``FINDS_MIN_PHOTOS`` do, the best
-    without fill the list (after them, so the photos lead the slider)."""
-    taken: dict[int, int] = {}
-    out = ranked([r for r in instore if r['photo']], limit, per_cat, taken)
-    if len(out) < FINDS_MIN_PHOTOS:
-        out += ranked([r for r in instore if not r['photo']], limit - len(out), per_cat, taken)
-    return out
+    """The best-ranked products that have a public photo, and only those (owner 2026-11-20: "these items will all HAVE to
+    be curated and have photos... NO category tiles"): fewer photos means fewer cards, never a fill without one."""
+    return ranked([r for r in instore if r['photo']], limit, per_cat, {})
 
 
 def build(settings: R.Settings | None = None) -> dict:
