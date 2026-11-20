@@ -12,8 +12,12 @@
 .hc-lime h2 span { display: block; font-size: 40px; margin-top: 2px; }
 .hc-lime img { position: absolute; right: 4px; bottom: 8px; width: 70%; height: auto; mix-blend-mode: multiply; }
 
-.hc-black { background: #0b0d0a; color: #fff; }
-.hc-black .lbl { color: var(--lime); opacity: 1; }
+/* The Black Friday teaser (normal days): cranberry like the day's own card, so its gold deal tag is never on black
+   (owner 2026-11-20: gold "just not on black"). */
+.hc-black { background: var(--cran); color: #fff; }
+.hc-black .lbl { color: #fff; opacity: 1; }
+.hc-black .hc-sum .was { color: #fff; opacity: .7; }
+.hc-black .hc-sum .cap { color: #fff; opacity: .9; }
 .hc-black h2 em { font-style: normal; color: var(--lime); display: block; }
 .hc-sum { margin-top: auto; margin-bottom: 18px; display: flex; align-items: flex-end; gap: 12px; }
 .hc-sum .was { font-stretch: 66%; font-weight: 800; font-size: 30px; line-height: 1; color: #9aa396; text-decoration: line-through; text-decoration-thickness: 3px; }
@@ -52,12 +56,12 @@
 .hc-pair .hc-both small { font-size: 12px; font-weight: 800; }
 .hc-boho .fine { margin-top: 8px; }
 
-/* 3. Door busters: black, three names and prices */
-.hc-door { background: var(--ink); color: #fff; }
-.hc-door .lbl { color: var(--lime); opacity: 1; }
+/* 3. Door busters: cream, three names and gold deal tags (gold is never on black) */
+.hc-door { background: var(--cream); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.hc-door .lbl { color: var(--cran); opacity: 1; }
 .hc-door h2 { font-size: 40px; }
 .hc-rows { margin-top: auto; margin-bottom: 10px; }
-.hc-rows div { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 4px 0; border-top: 1px solid var(--ink-2); }
+.hc-rows div { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 4px 0; border-top: 1px solid var(--line); }
 .hc-rows p { font-size: 13.5px; font-weight: 700; line-height: 1.2; }
 .hc-rows p s { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 600; opacity: .7; text-decoration-thickness: 1.5px; }
 .hc-rows .tag { font-size: 27px; flex: none; }

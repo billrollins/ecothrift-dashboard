@@ -30,6 +30,10 @@
      Every tag-like chip uses these two, so the tag's look lives here only. */
   --tag-bg: #10140f;
   --tag-num: #e3efbe;
+  /* The deal tag (owner 2026-11-20, G2): gold block, ink numbers, only for special deals (door busters, Black Friday,
+     BO-HO-GO). Gold is never on black and means nothing else. */
+  --deal-bg: #f2c35b;
+  --deal-num: #10140f;
   --line: #dde1d7;
   --r: 14px;
   --gut: 16px;
@@ -73,6 +77,7 @@ h1, h2, h3, p { margin: 0; }
 /* The price tag: an ink block with soft lime numbers (--tag-bg, --tag-num). */
 .tag { display: inline-flex; align-items: flex-start; background: var(--tag-bg); color: var(--tag-num); border-radius: 8px; padding: 6px 10px 4px;
        font-stretch: 66%; font-weight: 900; line-height: .9; }
+.tag-deal { background: var(--deal-bg); color: var(--deal-num); }
 .tag small { font-size: .42em; margin-right: 2px; margin-top: .12em; }
 .tag sup { font-size: .36em; margin-left: 2px; margin-top: .14em; }
 

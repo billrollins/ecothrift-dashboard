@@ -125,7 +125,7 @@ function Boho({ label, fine = 'Thrift+ members. Nov 27 to Dec 31.' }: { label: s
           </li>
         </ul>
         <div className="hc-both">
-          <Tag price={4.5} cents="auto" />
+          <Tag price={4.5} cents="auto" deal />
           <small>for both</small>
         </div>
       </div>
@@ -152,7 +152,7 @@ function Normal() {
         <p className="fine">Thrift+ members. Most items.</p>
         <div className="hc-sum">
           <span className="was tn">$100</span>
-          <Tag price={80} cents="auto" />
+          <Tag price={80} cents="auto" deal />
           <span className="cap">A $100.00 tag with 20.00 ThriftBucks</span>
         </div>
       </Link>
@@ -193,7 +193,7 @@ function BlackFriday() {
         <div className="hc-sum">
           <span className="was tn">$100</span>
           <span className="hc-arrow" aria-hidden="true">→</span>
-          <Tag price={80} cents="auto" />
+          <Tag price={80} cents="auto" deal />
           <span className="cap">with 20.00 ThriftBucks</span>
         </div>
       </Link>
@@ -209,7 +209,7 @@ function BlackFriday() {
                 {name}
                 {note ? <s>{note}</s> : null}
               </p>
-              <Tag price={price} cents="auto" />
+              <Tag price={price} cents="auto" deal />
             </div>
           ))}
         </div>
