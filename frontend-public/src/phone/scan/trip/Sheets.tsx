@@ -27,8 +27,8 @@ export const RETAIL_INFO: Info = {
 }
 const PRICING_INFO: Info = {
   title: 'How we price',
-  text: 'Pricing used items is tricky. We start well below retail, and ThriftBucks grow as an item sits. That way every price gets '
-    + 'to just right in time.',
+  text: 'Pricing used items is tricky. We start well below retail. After 7 days on our floor, most items start to carry '
+    + 'ThriftBucks, and they grow every day. That way every price gets to just right in time.',
 }
 export const RETURNS_INFO: Record<'yes' | 'no', Info> = {
   yes: {
@@ -54,9 +54,10 @@ const FEEL_DONE: Record<PriceFeelReason, { title: string; text: string; info?: I
 export function AboutSheet({ onClose }: { onClose: () => void }) {
   const facts: Array<{ title: string; text: string }> = [
     { title: 'Free to join.', text: 'Nothing owed.' },
-    { title: 'ThriftBucks on most items.', text: "They grow as an item sits, up to 95% of the tag. Scan any tag to see today's ThriftBucks." },
-    { title: 'Kept for next time, the Default.', text: 'Your ThriftBucks stay on your account. Use them from the next day, for 30 days, at full value.' },
-    { title: 'Or redeem them instantly.', text: "At 50% of their value, off today's price. Just tell the cashier." },
+    // Same words as the live scanner's sheet (frontend tripSheets.tsx, v2.328.0) and the standard example (rulebook V12).
+    { title: 'ThriftBucks on most items.', text: "After 7 days on our floor. They grow every day, up to 95% of the tag. Scan any tag to see today's ThriftBucks." },
+    { title: 'Keep them.', text: 'They come off your next visit at full value: from the next day, for 30 days.' },
+    { title: 'Or use them now.', text: "At 50% of their value, off today's price. Just tell the cashier." },
     { title: '3-day returns.', text: 'Bring a qualifying item back within 3 days, for any reason: 80% of what you paid comes back as Thrift+ credit.' },
     // "Non-member", never "guest", in customer words (owner 2026-10-15, APP D10).
     { title: 'Non-members pay the tag.', text: 'Everything a non-member buys is sold AS IS. All sales final.' },

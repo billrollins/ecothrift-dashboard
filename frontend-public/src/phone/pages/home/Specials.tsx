@@ -102,7 +102,7 @@ function Shout() {
 }
 
 /** BO-HO-GO on clothing and shoes for Thrift+ members, Nov 27 to Dec 31 (the same card in the Black Friday set). No fine
- *  print (owner 2026-11-20, rulebook V13): who and what are in the label, the dates in their own line. */
+ *  print (owner 2026-11-20, rulebook V14): who and what are in the label, the dates in their own line. */
 function Boho({ when }: { when: string }) {
   return (
     <Link className="hc hc-lime hc-boho" to="/store?cat=apparel">

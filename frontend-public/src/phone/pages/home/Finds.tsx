@@ -3,7 +3,7 @@
  * with their own photo (a photo-sheet photo or a stock photo, never an Add item photo; owner 2026-11-20: "these items will
  * all HAVE to be curated and have photos... NO category tiles"). A card whose photo fails to load is left out, never a
  * tile. Then the name, the tag price, retail struck, and the ThriftBucks on their own line (grey "0.00 ThriftBucks"
- * when none). No fine print (owner 2026-11-20, rulebook V13). A card opens that piece.
+ * when none). No fine print (owner 2026-11-20, rulebook V14). A card opens that piece.
  */
 import { useState } from 'react'
 import { Link } from 'react-router-dom'

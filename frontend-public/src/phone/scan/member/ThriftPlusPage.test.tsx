@@ -100,7 +100,7 @@ describe('the old tabs are views of /thriftplus (memberTabs.test.tsx, call 1)', 
     expect(page).toHaveTextContent('30days at full value')
     expect(page).toHaveTextContent('50%if you redeem the same day')
     expect(page).toHaveTextContent('3day returns, qualifying items')
-    expect(page).not.toHaveTextContent('Most items.') // no fine print (owner 2026-11-20, rulebook V13)
+    expect(page).not.toHaveTextContent('Most items.') // no fine print (owner 2026-11-20, rulebook V14)
     expect(screen.queryByTestId('account-page')).toBeNull()
     expect(screen.queryByTestId('thriftplus-trip')).toBeNull() // signed out with nothing scanned: it stands alone
     out.unmount()
