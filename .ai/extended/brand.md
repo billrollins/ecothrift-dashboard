@@ -36,7 +36,7 @@ https://claude.ai/artifact/7pCUJWUqe4hF855DWMb31r, price tag colours https://cla
 | `--ink` / `--ink-2` | `#10140f` / `#4d564b` | Words / quieter words |
 | `--cran` | `#b4232c` | Loss words ("way too much"), Black Friday |
 | `--tag-bg` / `--tag-num` | `#10140f` / `#e3efbe` | **The price tag: ink block, soft lime numbers** (owner 2026-11-20 picked "1 soft lime" over the black-and-lime tag). Every tag-like chip uses these two. |
-| `--lime` | `#c8e382` | The older lime accent (buttons on the green bands, BO-HO-GO card); under review |
+| `--lime` | `#e3efbe` | **The one lime** (owner 2026-11-20: "just use the subtle lime and replace the ugly lime you had before everywhere"; was `#c8e382`): highlights on green, the BO-HO-GO card. Same colour as the tag numbers. |
 | `--deal-bg` / `--deal-num` | `#f2c35b` / `#10140f` | **The deal tag** (owner 2026-11-20, "G2"): gold block, ink numbers, only for special deals (door busters, Black Friday, BO-HO-GO). Gold means a deal and nothing else, and is never on black ("just not on black"): the Black Friday teaser is cranberry and the door busters card cream. `<Tag deal />`. |
 One font: Archivo (condensed heavy uppercase for headlines). Staff UI stays on `#2e7d32` so it matches MUI, receiving, processing, TARS, and login.
 
