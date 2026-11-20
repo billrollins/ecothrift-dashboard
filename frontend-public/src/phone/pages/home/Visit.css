@@ -12,8 +12,7 @@
 .visit .map .nm { font-size: 15px; font-weight: 800; letter-spacing: .07em; fill: var(--ink-2); }
 .visit .map .bldg { fill: var(--green); }
 .visit .map .mark { fill: var(--card); }
-.visit .map .canopy { fill: var(--cream); stroke: var(--ink-2); stroke-width: 1.2; }
-.visit .map .door { fill: var(--lime); }
+.visit .map .door { fill: var(--card); }
 .visit .map .outline { fill: none; stroke: var(--ink-2); stroke-width: 1.2; }
 .visit .map .nbr { fill: var(--cream); }
 .visit .map .nbrline { fill: none; stroke: var(--ink-2); stroke-width: .8; }
@@ -29,9 +28,8 @@
 
 .visit h2 { margin-top: 6px; font-size: 44px; }
 .visit .corner { margin-top: 8px; font-size: 17px; font-weight: 800; }
+.visit .corner + .addr { margin-top: 6px; }
 .visit .addr { margin-top: 3px; font-size: 15px; color: var(--ink-2); }
-.visit .addr a { color: inherit; }
-.visit .street { margin-top: 3px; font-size: 15px; font-weight: 700; }
 
 /* Directions (the store's green, the one filled button) and Call: two 48 px buttons, one thumb. */
 .visit .acts { margin-top: 16px; display: flex; gap: 12px; }
@@ -44,8 +42,6 @@
 /* The week: only today's row is bold, and says so. */
 .hours { margin-top: 18px; border-top: 1px solid var(--line); }
 .hours div { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
-.hours div span:first-child { display: flex; align-items: center; gap: 6px; }
 .hours div span:last-child { white-space: nowrap; }
-.hours div em { font-style: normal; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--green); }
+.hours div em { font-style: normal; white-space: pre; }
 .hours div.now span { font-weight: 800; }
-.hours div.now em { font-weight: 800; }

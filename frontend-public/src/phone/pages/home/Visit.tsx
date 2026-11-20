@@ -53,37 +53,35 @@ const MARK = [
 ]
 
 /** Parking stalls: two rows in front of Eco-Thrift. */
-const STALLS = [38, 46, 54, 74, 82, 90, 98, 106, 114, 122, 130, 138, 146, 154].map((x) => `M${x} 55v8M${x} 75v8`).join('')
+const STALLS = [40, 50, 84, 94, 104, 114, 124, 134, 144, 154, 164, 174, 184, 194, 204].map((x) => `M${x} 56v8M${x} 76v8`).join('')
 
 /**
  * The corner, north up (owner's aerial, 2026-11-20): W Center Rd across, S 84th St down; in the south-west block one
  * long building set back behind a big lot that fronts Center. Eco-Thrift is its WEST half only ("dont say we are the
- * whole building"), its doors facing the lot; the east half is small shops and Mega Saver, whose gas canopy stands in
- * the lot. Driveways from both streets. 300 x 164 units, drawn 358 px wide at 390: names are 15 units (16.4 px at 360).
+ * whole building"), its doors facing the lot; the east half is two small shops and Mega Saver. Driveways from both
+ * streets. 300 x 164 units, drawn 358 px wide at 390: names are 15 units (16.4 px at 360).
  * Hand-drawn: nothing copied.
  */
 function Map() {
   return (
     <svg viewBox="0 0 300 164" aria-hidden="true">
       {/* The lot and its driveways from both streets. */}
-      <path className="lot" d="M30 50H221V90H30z M54 43H68V51H54z M219 60H227V74H219z" />
+      <path className="lot" d="M30 50H221V90H30z M52 43H74V51H52z M219 58H227V76H219z" />
       <path className="stall" d={STALLS} />
-      {/* Mega Saver's gas canopy. */}
-      <rect className="canopy" x="168" y="56" width="44" height="24" />
       {/* The streets: both wide and divided; the centre lines stop for the names. */}
       <rect className="rd" x="0" y="18" width="300" height="26" />
       <rect className="rd" x="226" y="0" width="26" height="164" />
-      <path className="edge" d="M0 18H226M252 18H300M0 44H54M68 44H226M252 44H300M226 0V18M252 0V18M226 44V60M226 74V164M252 44V164" />
+      <path className="edge" d="M0 18H226M252 18H300M0 44H52M74 44H226M252 44H300M226 0V18M252 0V18M226 44V58M226 76V164M252 44V164" />
       <path className="median" d="M140 31H221M257 31H300M239 0V13M239 49V64" />
       <text className="nm" x="10" y="36.4">W CENTER RD</text>
       <text className="nm" transform="translate(244.4 157) rotate(-90)">S 84TH ST</text>
-      {/* One building: Eco-Thrift the west half, wearing its sign, doors on the lot; small shops and Mega Saver east. */}
+      {/* One building: Eco-Thrift the west half, wearing its sign, doors on the lot; two small shops and Mega Saver east. */}
       <rect className="nbr" x="30" y="92" width="184" height="60" rx="4" />
-      <path className="nbrline" d="M142 92v60" />
-      <text className="nbrname" x="178" y="119" textAnchor="middle">MEGA</text>
-      <text className="nbrname" x="178" y="135" textAnchor="middle">SAVER</text>
+      <path className="nbrline" d="M141 92v60M154 92v60" />
+      <text className="nbrname" x="184" y="119" textAnchor="middle">MEGA</text>
+      <text className="nbrname" x="184" y="135" textAnchor="middle">SAVER</text>
       <path className="bldg" d="M34 92H128V152H34a4 4 0 0 1-4-4V96a4 4 0 0 1 4-4z" />
-      <rect className="door" x="71" y="92" width="16" height="4" />
+      <rect className="door" x="70" y="95" width="18" height="4" rx="1" />
       <g transform="translate(66 100) scale(0.0878)">
         {MARK.map((d) => <path key={d.slice(0, 12)} className="mark" d={d} fillRule="evenodd" />)}
       </g>
@@ -114,12 +112,9 @@ export default function Visit() {
         {open.open ? open.label : `Closed · ${open.label.replace(/(Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day/, (d) => d.slice(0, 3))}`}
       </p>
       <h2 className="disp">84th &amp; Center</h2>
-      <p className="corner">Southwest corner</p>
-      <p className="addr">West half of the building, next to Mega Saver</p>
-      <p className="street">8425 W Center Rd, Omaha, NE 68124</p>
-      <p className="addr tn">
-        <a href={`tel:${STORE.retail.phoneHref}`}>{STORE.retail.phone}</a>
-      </p>
+      <p className="corner">Southwest corner, next to Mega Saver</p>
+      <p className="addr">8425 W Center Rd, Omaha, NE 68124</p>
+      <p className="addr tn">{STORE.retail.phone}</p>
       <div className="acts">
         <a className="btn go" href={maps} target="_blank" rel="noopener">
           <svg className="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4L3.5 11l7 2.5L13 20.5z" /></svg>
@@ -137,7 +132,7 @@ export default function Visit() {
           <div key={day} className={i === today ? 'now' : undefined}>
             <span>
               {day}
-              {i === today ? <em>Today</em> : null}
+              {i === today ? <em> · Today</em> : null}
             </span>
             <span>{time}</span>
           </div>
