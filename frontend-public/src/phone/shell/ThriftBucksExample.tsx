@@ -70,6 +70,8 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
             <span>
               First 7 days
               <br />
+              on our floor:
+              <br />
               none yet
             </span>
             <div>
@@ -101,7 +103,7 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
             <em>Full value</em>
             <span>
               <strong>{EXAMPLE.bucks} ThriftBucks</strong>
-              for next time
+              off your next visit
             </span>
           </div>
           <i className="tbx-or" aria-hidden="true">
