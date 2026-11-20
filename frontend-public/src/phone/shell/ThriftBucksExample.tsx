@@ -105,9 +105,9 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
             <b className="tn">
               <span>Pay</span> {whole(EXAMPLE.tag)}
             </b>
-            <em>Full value</em>
             <strong className="tn">{EXAMPLE.bucks} ThriftBucks</strong>
             <span>off your next visit</span>
+            <em>Full value</em>
           </div>
           <i className="tbx-or" aria-hidden="true">
             or
@@ -117,9 +117,9 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
             <b className="tn">
               <span>Pay</span> {whole(EXAMPLE.today)}
             </b>
-            <em>Half value</em>
             <strong className="tn off">{whole(EXAMPLE.tag - EXAMPLE.today)} off</strong>
             <span>today</span>
+            <em>Half value</em>
           </div>
         </div>
         <p className="tbx-non">
