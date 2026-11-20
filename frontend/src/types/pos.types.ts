@@ -409,6 +409,11 @@ export interface ThriftPlusCartBlock {
   balances: { bucks: string; bucks_use_by: string | null; credit: string };
   /** Guests: "This trip would have collected 35.00 ThriftBucks." */
   guest_line: string;
+  /**
+   * A finished non-member sale on its own day: the receipt QR's link that claims this trip's ThriftBucks by joining
+   * today (owner 2026-11-20, #204, rulebook B15), HTTPS://ECOTHRIFT.US/J/<TOKEN>. Absent otherwise, and from older servers.
+   */
+  claim_url?: string;
   /** Closed days in this sale's 3-day return window: say it to the member (owner 2026-10-20). '' when none. */
   return_note?: string;
   /** ISO date: the last day this sale's 3-day returns are taken (sale day + 3). Only for a member with a 3-day-return line. */

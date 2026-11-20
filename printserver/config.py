@@ -1,7 +1,7 @@
-VERSION = "1.10.0"
+VERSION = "1.10.1"
 RELEASE_NOTES = (
-    'Receipts: the Thrift+ member block shows ThriftBucks today and when they expire, the balance, and the website '
-    'with a QR; the fine print is gone.'
+    'Receipts: a non-member is told to claim the ThriftBucks they missed by joining today, and the QR carries the sale '
+    'so joining adds them; ALL SALES FINAL heads their items; a member QR opens the Thrift+ page.'
 )
 
 # Default URL for the public version-check endpoint on the dashboard backend.
@@ -9,6 +9,21 @@ RELEASE_NOTES = (
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.10.1] — 2026-11-20 (install on every register once the Dash release with #204 is live)
+
+Owner 2026-11-20: what a non-member missed is the main thing, and they can still get it by joining the same day
+(option C of five printed; Dash Update #204).
+
+- Non-member block, when the trip would have collected ThriftBucks: "Claim 12.60 ThriftBucks" as the big line, then
+  "You missed them at checkout." / "Join free today and they are yours." / "Scan to join in 2 seconds" / "or visit
+  www.ecothrift.us". No "NON-MEMBER" label and no AS IS line in the box. With nothing to claim: "Missed 3-day
+  returns" or "Thrift+ is free", "Join Thrift+ free to collect next time.", "Scan to join or visit www.ecothrift.us".
+- The non-member QR carries the sale when Dash sends `thrift_plus.claim_url` (HTTPS://ECOTHRIFT.US/J/<TOKEN>, in
+  capitals so the code stays the member QR's size): joining that day adds the trip's ThriftBucks. Without it (an
+  older Dash, a reprint another day) it opens https://ecothrift.us/join.
+- ALL SALES FINAL · SOLD AS IS heads a non-member's items on every layout (thermal picture, text tape, preview).
+- Member block: the QR now opens the Thrift+ page (https://ecothrift.us/thriftplus); the words are unchanged.
+
 ## [1.10.0] — 2026-11-20 (install on every register)
 
 Owner 2026-11-20 (Dash Update #193): "Thrift+ section in receipt needs more valuable info and less not value."

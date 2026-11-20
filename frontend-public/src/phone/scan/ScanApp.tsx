@@ -14,6 +14,9 @@
  *   302 to /scan on the server.
  * - `?view=finish`: Finish joining (also forced while a pending member has steps left; after Add your mobile number).
  * - `?tag=<SKU>`: a price tag's QR; a signed-out phone sees the item as a non-member for this visit (piece S4 opens it).
+ * - `?claim=<TOKEN>`: a non-member receipt's QR (ECOTHRIFT.US/J/<TOKEN>, owner 2026-11-20, #204), with view=join. The
+ *   phone keeps the token, then it comes off the address; once they finish joining the site's shell claims it
+ *   (shell/ReceiptClaim.tsx) and the trip's ThriftBucks are added.
  * - Thrift+ off for this phone (`session/` 403 THRIFT_PLUS_OFF): Coming soon, with "Staff sign in".
  *
  * Each screen is a later piece (contracts.ts). The whole scanner is one lazy chunk, loaded only on /scan.
@@ -22,7 +25,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { setPreviewCode } from './api'
 import { TurnUpright } from './camera'
-import { useSideways, useStandaloneLock, useUprightLock, viewAfterSignIn, type EmailSignIn } from './core'
+import { CLAIM_PARAM, rememberReceiptClaim, useSideways, useStandaloneLock, useUprightLock, viewAfterSignIn, type EmailSignIn } from './core'
 import FinishJoining from './finish'
 import { rememberTypeOnly, screenOf } from './route'
 import SignIn, { AddPhone } from './signin'
@@ -52,6 +55,18 @@ export default function ScanApp() {
   }, [preview]) // eslint-disable-line react-hooks/exhaustive-deps
 
   rememberTypeOnly(params.get('type'))
+
+  // A non-member receipt's QR (#204): the token is kept on the phone (it outlives a texted link), then off the address.
+  const claimParam = params.get(CLAIM_PARAM)
+  useEffect(() => {
+    if (!claimParam) return
+    rememberReceiptClaim(claimParam) // in an effect: it tells the shell (an event), never during a render
+    setParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete(CLAIM_PARAM)
+      return next
+    }, { replace: true })
+  }, [claimParam]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // The texted or emailed link: signs this phone in, once.
   const signinToken = params.get('signin')

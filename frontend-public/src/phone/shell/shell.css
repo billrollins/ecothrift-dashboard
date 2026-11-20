@@ -83,3 +83,16 @@ html[data-day="bf"] .box { --cam-bg: var(--tag-num); --cam-fg: var(--tag-bg); }
 .soon h1 { font-size: 40px; }
 .soon p { margin-top: 10px; color: var(--ink-2); font-weight: 600; }
 .soon .btn { margin-top: 18px; }
+
+/* A non-member receipt's QR, claimed (#204, ReceiptClaim.tsx): fixed at the top over the page, so nothing moves. */
+.rc { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); left: 50%; transform: translateX(-50%); z-index: 60;
+      width: calc(min(100vw, 430px) - 2 * var(--gut));
+      display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; background: var(--card);
+      color: var(--ink); border: 1px solid #d9dccf; box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
+.rc.ok { background: var(--green); color: #fff; border-color: transparent; }
+.rc-text { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.rc-text strong { font-size: 17px; font-weight: 800; line-height: 1.25; }
+.rc-text span { font-size: 14px; opacity: .9; }
+.rc-ok { min-height: 44px; padding: 0 14px; border: 0; border-radius: 10px; font: inherit; font-weight: 800; font-size: 15px;
+         background: rgba(0, 0, 0, .06); color: inherit; cursor: pointer; }
+.rc.ok .rc-ok { background: rgba(255, 255, 255, .18); }

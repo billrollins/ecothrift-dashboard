@@ -10,6 +10,7 @@ import Home from './pages/Home'
 import { loadStockSoon } from './lib/stock'
 import { BottomBar } from './shell/BottomBar'
 import { Prompts } from './shell/Prompts'
+import { ReceiptClaim } from './shell/ReceiptClaim'
 import { TopBar } from './shell/TopBar'
 
 const Store = lazy(() => import('./pages/Store'))
@@ -101,6 +102,7 @@ export default function App() {
       </main>
       <BottomBar />
       <Prompts />
+      <ReceiptClaim />
     </div>
   )
 }

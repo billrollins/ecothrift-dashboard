@@ -275,6 +275,15 @@ def i_link(request, code: str):
     return HttpResponseRedirect(f'/scan?tag={code.upper()}')
 
 
+def receipt_claim_link(request, token: str):
+    """ECOTHRIFT.US/J/<TOKEN> (any case): a non-member receipt's QR (owner 2026-11-20, #204, rulebook B15). Opens the
+    app's Join with the token; once they finish joining the app claims the trip's ThriftBucks
+    (``thriftplus.services.receipt_claim``). The token is checked there, not here."""
+    from django.http import HttpResponseRedirect
+
+    return HttpResponseRedirect(f'/scan?view=join&claim={token.upper()}')
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def print_server_version_public(request):

@@ -42,6 +42,12 @@ class ScanThrottle(_Throttle):
     scope = 'thriftplus_scan'
 
 
+class ClaimThrottle(_Throttle):
+    """A receipt claim (#204): a few tries per member an hour; the token is 60 bits, this only keeps the log quiet."""
+    scope = 'thriftplus_claim'
+    rate = '20/hour'
+
+
 def _error(exc: Exception, code: int = status.HTTP_400_BAD_REQUEST) -> Response:
     return Response({'detail': str(exc), 'code': getattr(exc, 'code', 'ERROR')}, status=code)
 
@@ -808,3 +814,28 @@ def remove_person(request):
     if target.pk == you.pk:
         return member_auth.clear_cookie(Response({'status': 'signed_out'}))
     return Response(_me_payload(request))
+
+
+# ── Claim a non-member receipt's ThriftBucks by joining that day (owner 2026-11-20, #204, rulebook B15) ──
+
+@api_view(['POST'])
+@authentication_classes(AUTH)
+@permission_classes([IsMember])
+@throttle_classes([ClaimThrottle])
+def claim_receipt(request):
+    """``me/claim-receipt/``: ``{token}`` from the receipt's QR (``/J/<token>``). The new member, finished joining the
+    day of the sale, gets that trip's ThriftBucks as kept (a re-ring). Answers ``{added, message}`` and the session
+    payload under ``session``. 400 with ``code``: BAD_TOKEN, NOT_CLAIMABLE, TOO_LATE, ALREADY_CLAIMED, NOT_NEW,
+    NOT_FINISHED (the app keeps the token and tries again once they finish), NOTHING."""
+    from apps.thriftplus.services import receipt_claim
+
+    try:
+        added = receipt_claim.claim(request.user.person, str(request.data.get('token') or ''))
+    except receipt_claim.ClaimError as exc:
+        return _error(exc)
+    request.user.account.refresh_from_db()
+    return Response({
+        'added': f'{added:.2f}',
+        'message': f"{added:.2f} ThriftBucks from today's trip are in your account.",
+        'session': _session_payload(request),
+    })

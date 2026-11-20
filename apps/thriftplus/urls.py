@@ -91,6 +91,8 @@ public = [
     # Phone first (owner 2026-10-20): a member with no phone adds one with a texted code.
     path('me/phone/send/', public_views.phone_send),
     path('me/phone/', public_views.phone_save),
+    # A non-member receipt's QR (owner 2026-11-20, #204): join that day and the trip's ThriftBucks are added.
+    path('me/claim-receipt/', public_views.claim_receipt),
 ]
 
 # Every public route is behind the Thrift+ switch (owner, 2026-10-07), except signing in: while it is off, only staff

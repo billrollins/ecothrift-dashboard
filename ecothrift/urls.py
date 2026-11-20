@@ -6,7 +6,7 @@ from django.urls import path, include, re_path
 from django.views.generic import TemplateView, RedirectView
 from django.conf import settings
 
-from apps.core.views import i_link, robots_txt, sitemap_xml
+from apps.core.views import i_link, receipt_claim_link, robots_txt, sitemap_xml
 from apps.inventory import views_public_dispute as dispute_views
 
 # Django contrib.admin must not use /admin/ — React SPA routes live at /admin/* (settings, users, etc.).
@@ -26,6 +26,8 @@ urlpatterns = [
     # ecothrift.us/i/<code>: the interview short link in texts (owner 2026-10-12), and the Thrift+ Perks price tag's QR,
     # HTTPS://ECOTHRIFT.US/I/<SKU> in capitals (2026-10-28), which opens the item in the Thrift+ app (core.views.i_link).
     re_path(r'^[iI]/(?P<code>[A-Za-z0-9-]{1,20})/?$', i_link, name='hiring-short-link'),
+    # ECOTHRIFT.US/J/<TOKEN>: a non-member receipt's QR (owner 2026-11-20, #204): Join, then this trip's ThriftBucks.
+    re_path(r'^[jJ]/(?P<token>[A-Za-z0-9]{1,30})/?$', receipt_claim_link, name='thriftplus-receipt-claim'),
     path('sitemap.xml', sitemap_xml, name='sitemap-xml'),
     # The B-Stock dispute page (E2b): no sign-in, the unguessable link is the key; sent to B-Stock with a dispute.
     path('dispute/<str:token>/', dispute_views.dispute_page, name='bstock-dispute'),

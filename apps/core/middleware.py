@@ -29,8 +29,9 @@ _PASSTHROUGH_PREFIXES = ('/api/', '/static/', '/assets/', '/media/', '/db-admin/
 _PASSTHROUGH_PATHS = ('/robots.txt', '/sitemap.xml', '/sms-opt-in.png')
 
 # The interview short link in texts (ecothrift.us/i/<code>) and the price tag's QR (ECOTHRIFT.US/I/<SKU>, capitals):
-# a Django redirect, on any public host.
-_SHORT_LINK_PREFIXES = ('/i/', '/I/')
+# a Django redirect, on any public host. ECOTHRIFT.US/J/<TOKEN>: a non-member receipt's QR, join today and claim the
+# trip's ThriftBucks (owner 2026-11-20, #204).
+_SHORT_LINK_PREFIXES = ('/i/', '/I/', '/j/', '/J/')
 
 # Dashboard SPA routes that customers open on the public host: the Thrift+ scanner
 # (www.ecothrift.us/scan). They pass through to the dashboard app, which serves them publicly.

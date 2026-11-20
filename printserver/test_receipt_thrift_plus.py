@@ -63,7 +63,7 @@ class MemberReceiptTests(unittest.TestCase):
             *SITE,
         ])
         self.assertEqual(fine, [])
-        self.assertEqual(rp._block_qr(self.data), "HTTPS://WWW.ECOTHRIFT.US")
+        self.assertEqual(rp._block_qr(self.data), "https://ecothrift.us/thriftplus")  # owner 11-20: the Thrift+ page
         for text in _both(self.data):
             flat = " ".join(ln.strip() for ln in text.splitlines())
             self.assertNotIn(B12, flat)
@@ -105,11 +105,11 @@ class MemberReceiptTests(unittest.TestCase):
         from services.tag_designs import qr_matrix
 
         with_qr = rr.render_thermal_receipt(self.data)
-        no_qr = {**self.data, "thrift_plus": {**self.data["thrift_plus"], "guest_all_as_is": True, "member": ""}}
-        self.assertEqual(rp._block_qr(no_qr), "")
+        no_qr = {k: v for k, v in self.data.items() if k != "thrift_plus"}
+        self.assertEqual(rp._block_qr(no_qr), "")  # no Thrift+ on the payload: the NO REFUNDS block, no QR
         pic = rp.qr_picture(rp.THRIFT_PLUS_SITE_QR, rr.QR_MODULE)
         self.assertEqual(pic.width, (len(qr_matrix(rp.THRIFT_PLUS_SITE_QR, "Q")) + 4) * rr.QR_MODULE)
-        self.assertLessEqual(pic.width, 230)  # about 28 mm at most
+        self.assertLessEqual(pic.width, 240)  # about 30 mm at most (lower-case links, 11-20)
         self.assertGreater(with_qr.height, pic.height)
 
     @staticmethod
@@ -133,7 +133,7 @@ class MemberReceiptTests(unittest.TestCase):
             for text in _both(_fixture(name)):
                 lines = [ln for ln in _lines(text) if ln]
                 review = lines.index(rp.RECEIPT_REVIEW_LINE)
-                head = next(i for i, ln in enumerate(lines) if ln.startswith(("THRIFT+ MEMBER", "NON-MEMBER")))
+                head = next(i for i, ln in enumerate(lines) if ln.startswith(("THRIFT+ MEMBER", "Claim ", "Missed ", "Thrift+ is free")))
                 self.assertLessEqual(head - review, 2)  # the PNG/text block edge may sit between them
                 self.assertNotIn("GOOGLE REVIEW REWARD", text)
                 self.assertNotIn("THANK YOU\n", text)
@@ -213,18 +213,52 @@ class GuestReceiptTests(unittest.TestCase):
     def test_guest_gets_the_non_member_block(self):
         data = _fixture("receipt_thriftplus_guest")
         head, lines, fine = rp._bottom_block(data)
-        self.assertEqual(head, "NON-MEMBER")
-        self.assertEqual(lines, [("You missed out on:", False), ("12.60 ThriftBucks and 3-day returns", True),
-                                 ("Join free: ecothrift.us/join", False), ("All sales final · Sold AS IS", True)])
+        # Owner 2026-11-20 (1.10.1): what they missed is the main thing; no label, no AS IS line in the box.
+        self.assertEqual(head, "Claim 12.60 ThriftBucks")  # owner 11-20: option C, join the same day to claim
+        self.assertEqual(lines, [("You missed them at checkout.", False),
+                                 ("Join free today and they are yours.", True),
+                                 ("Scan to join in 2 seconds", True),
+                                 ("or visit www.ecothrift.us", False)])
         self.assertEqual(fine, [])
-        self.assertEqual(rp._block_qr(data), "")  # the non-member block is unchanged: no QR, no balance
+        # Owner 2026-11-20 (1.10.1): the non-member block has the website and its QR too, and no join link.
+        self.assertEqual(rp._block_qr(data), "https://ecothrift.us/join")  # straight to joining
+        for text in _both(data):
+            self.assertNotIn("ecothrift.us/join", text)
         for text in _both(data):
             lines_ = _lines(text)
             # Owner 2026-10-15: "Non-member" replaces "guest" wherever a customer reads.
-            self.assertIn("NON-MEMBER", lines_)
+            self.assertTrue(any(ln.startswith("ALL SALES FINAL") for ln in lines_))  # 1.10.1: over the items
             self.assertNotIn("guest", text.lower())
             self.assertNotIn("ThriftBucks used", text)
             self.assertNotIn("THRIFT+ MEMBER", text)
+
+    def test_the_qr_carries_the_sales_claim_link_when_dash_sends_one(self):
+        """Dash Update #204 (owner 2026-11-20): join today by the receipt QR and this trip's ThriftBucks are added. Dash
+        sends HTTPS://ECOTHRIFT.US/J/<TOKEN> in capitals: an alphanumeric QR the member QR's size, about 29 mm."""
+        from services import receipt_raster as rr
+        from services.tag_designs import qr_matrix
+
+        claim = "HTTPS://ECOTHRIFT.US/J/2N9ABCDEFGHIJKL"
+        longest = "HTTPS://ECOTHRIFT.US/J/GJDGXS" + "ABCDEFGHIJKL"  # sale id 1,000,000,000
+        data = _fixture("receipt_thriftplus_guest")
+        data["thrift_plus"]["claim_url"] = claim
+        self.assertEqual(rp._block_qr(data), claim)
+        for url in (claim, longest):
+            self.assertEqual(len(qr_matrix(url, "Q")), len(qr_matrix(rp.THRIFT_PLUS_SITE_QR, "Q")))  # the same size
+            self.assertLessEqual(rp.qr_picture(url, rr.QR_MODULE).width, 240)  # about 30 mm at most
+        plain = rr.render_thermal_receipt(_fixture("receipt_thriftplus_guest"))
+        self.assertEqual(rr.render_thermal_receipt(data).height, plain.height)  # the tape is no longer for it
+        for text in _both(data):
+            self.assertNotIn("/J/", text)  # only in the QR; the words still say www.ecothrift.us
+            self.assertIn("www.ecothrift.us", text)
+        # No link (an older dashboard, a reprint another day) or not a plain https link: the join page.
+        for bad in ("", None, "javascript:alert(1)", "http://ecothrift.us/j/ABC", "HTTPS://ECOTHRIFT.US/J/AB CD",
+                    "https://ecothrift.us/" + "x" * 60):
+            data["thrift_plus"]["claim_url"] = bad
+            self.assertEqual(rp._block_qr(data), rp.THRIFT_PLUS_JOIN_QR, bad)
+        member = _fixture("receipt_thriftplus_member")
+        member["thrift_plus"]["claim_url"] = claim
+        self.assertEqual(rp._block_qr(member), rp.THRIFT_PLUS_SITE_QR)  # a member's QR never changes
 
     def test_a_non_member_sub_line_says_what_joining_would_give(self):
         data = _fixture("receipt_thriftplus_guest")
@@ -243,7 +277,7 @@ class GuestReceiptTests(unittest.TestCase):
         data["items"] = [{**it, "join_mark": "AS IS"} for it in data["items"]]
         for text in _both(data):
             self.assertNotIn("missed", text)
-            self.assertIn("NON-MEMBER", _lines(text))
+            self.assertTrue(any(ln.startswith("ALL SALES FINAL") for ln in _lines(text)))
 
     def test_a_receipt_without_thrift_plus_keeps_no_refunds(self):
         data = {k: v for k, v in _fixture("receipt_thriftplus_guest").items() if k != "thrift_plus"}
