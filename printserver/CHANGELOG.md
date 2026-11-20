@@ -5,6 +5,17 @@ Ship: `.ai/protocols/ship-print-server.md`. Script: `python printserver/distribu
 
 ---
 
+## [1.10.0] — 2026-11-20 (install on every register)
+
+Owner 2026-11-20 (Dash Update #193): "Thrift+ section in receipt needs more valuable info and less not value."
+
+- A member's receipt block now says: "+13.68 ThriftBucks today, expires Dec 20" (a redeemed-instantly trip keeps
+  "-35.00 ThriftBucks instantly: $17.50 off"), "Your balance: 42.10 ThriftBucks" (the total after this sale; a
+  "Thrift+ credit: $12.50" line only when there is credit), "See expiration details and more at www.ecothrift.us",
+  and a QR to https://www.ecothrift.us under it.
+- Gone from the block: the fine print paragraph and "· 35.00 used" (ThriftBucks used stays as the row above
+  Subtotal). The non-member block and receipts without Thrift+ are unchanged. A return receipt prints no balance line.
+
 ## [1.9.13] — 2026-11-05 (install on register 2 and any PC where the print server will not start)
 
 Owner 2026-11-05: register 2's print server crashed on start with "DLL load failed while importing win32ui".

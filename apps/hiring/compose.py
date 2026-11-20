@@ -36,6 +36,7 @@ EMAIL_LABELS = {
     'offer_sent': 'Offer email',
     'first_day': 'First-day email',
     'not_now': 'Not now email',
+    'follow_up': 'Follow-up email',
 }
 
 # What each filled-in value is, for the chip's label.

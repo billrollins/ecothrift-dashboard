@@ -28,12 +28,15 @@ import {
   type EmailDraft,
   type Job,
   type Option,
+  type ReplyDraft,
 } from '../../api/hiring.api';
 import { PayLevelField } from '../../components/hr/PayLevelField';
 import { usePayLevels } from '../../hooks/usePayLevels';
 import { levelForPay } from '../../utils/payLevels';
-import { EmailCompose, useEmailReview } from './EmailReview';
+import { EmailCompose, TextSection, useEmailReview } from './EmailReview';
+import { fillTemplate, textStats } from './emailTemplate';
 import { errorText } from './peopleUi';
+import { AiWriteBox, useAiReply } from './ReplyUi';
 
 // ── Not now ─────────────────────────────────────────────────────────────────
 
@@ -61,6 +64,14 @@ export function NotNowDialog({
   const [words, setWords] = useState({ subject: '', body: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // Dash #192: the email written by AI from what Bill typed (instead of the reason's template), and its text.
+  const [context, setContext] = useState('');
+  const [ai, setAi] = useState<{ job: string; draft: ReplyDraft } | null>(null);
+  const [textOn, setTextOn] = useState(true);
+  const [textWords, setTextWords] = useState('');
+  const writer = useAiReply(application.id);
+  const aiRef = useRef(ai);
+  aiRef.current = ai;
 
   useEffect(() => {
     if (open) {
@@ -68,8 +79,30 @@ export function NotNowDialog({
       setNote('');
       setDraft(null);
       setError('');
+      setContext('');
+      setAi(null);
+      writer.setError('');
     }
-  }, [open, initialReason]);
+  }, [open, initialReason]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function writeWithAi() {
+    if (!reason) {
+      setError('Pick a reason first.');
+      return;
+    }
+    setError('');
+    const result = await writer.write('not_now', context, reason);
+    if (!result) return;
+    setAi(result);
+    setWords({ subject: result.draft.email.subject, body: result.draft.email.body });
+    setTextOn(true);
+    setTextWords(result.draft.text?.template ?? '');
+  }
+
+  function useTemplate() {
+    setAi(null);
+    if (draft) setWords({ subject: draft.subject, body: draft.body });
+  }
 
   // Each reason has its own email: the template, with the values Dash fills in as chips.
   useEffect(() => {
@@ -80,7 +113,7 @@ export function NotNowDialog({
       .then(({ data }) => {
         if (!alive) return;
         setDraft(data);
-        setWords({ subject: data.subject, body: data.body });
+        if (!aiRef.current) setWords({ subject: data.subject, body: data.body });
       })
       .catch(() => undefined);
     return () => {
@@ -94,9 +127,22 @@ export function NotNowDialog({
       setError('Pick a reason.');
       return;
     }
+    const text = send && ai?.draft.text?.allowed && textOn ? textWords : '';
+    if (text && ai?.draft.text && textStats(fillTemplate(text, ai.draft.text.values)).length > ai.draft.text.max) {
+      setError(`The text is over ${ai.draft.text.max} characters. Shorten it, or switch the text off.`);
+      return;
+    }
     setBusy(true);
     try {
-      const { data } = await markNotNow(application.id, { reason, note, send, subject: words.subject, body: words.body });
+      const { data } = await markNotNow(application.id, {
+        reason,
+        note,
+        send,
+        subject: words.subject,
+        body: words.body,
+        ...(ai ? { ai_job: ai.job } : {}),
+        ...(text ? { text: { body: text } } : {}),
+      });
       onDone(data);
     } catch (err) {
       setError(errorText(err, 'Could not save.'));
@@ -125,16 +171,37 @@ export function NotNowDialog({
             minRows={2}
             fullWidth
           />
-          {reason && !draft && <CircularProgress size={22} />}
-          {reason && draft && (
+          <AiWriteBox
+            value={context}
+            onChange={setContext}
+            onWrite={() => void writeWithAi()}
+            writing={writer.writing}
+            seconds={writer.seconds}
+            disabled={busy || !reason}
+            label="What to tell them (optional)"
+            hint={reason ? 'The AI writes the email (and a text) from this instead of the standard one.' : 'Pick a reason first.'}
+          />
+          {writer.error && <Alert severity="error">{writer.error}</Alert>}
+          {reason && !draft && !ai && <CircularProgress size={22} />}
+          {reason && (ai || draft) && (
             <>
-              <Typography variant="subtitle2" sx={{ mt: 1 }}>
-                The email
-              </Typography>
-              <EmailCompose key={reason} draft={draft} onChange={setWords} />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, minHeight: 32 }}>
+                <Typography variant="subtitle2" sx={{ flex: 1 }}>
+                  The email
+                </Typography>
+                {ai && (
+                  <Button size="small" onClick={useTemplate} disabled={busy}>
+                    Use the standard email
+                  </Button>
+                )}
+              </Box>
+              <EmailCompose key={ai ? `ai-${ai.job}` : reason} draft={ai ? ai.draft.email : draft!} onChange={setWords} />
+              {ai?.draft.text && (
+                <TextSection key={`text-${ai.job}`} draft={ai.draft.text} on={textOn} onToggle={setTextOn} onChange={setTextWords} />
+              )}
               <Typography variant="caption" color="text.secondary">
                 The auto-reply already told them when to expect word from us. Don&rsquo;t send is fine
-                for early stages. Either way the words are kept on their record.
+                for early stages (no email and no text). Either way the words are kept on their record.
               </Typography>
             </>
           )}
@@ -145,11 +212,15 @@ export function NotNowDialog({
         <Button onClick={onClose} disabled={busy}>
           Cancel
         </Button>
-        <Button onClick={() => finish(false)} disabled={busy || !reason}>
+        <Button onClick={() => finish(false)} disabled={busy || writer.writing || !reason}>
           Don&rsquo;t send
         </Button>
-        <Button variant="contained" onClick={() => finish(true)} disabled={busy || !reason || !draft || !application.email}>
-          Send email
+        <Button
+          variant="contained"
+          onClick={() => finish(true)}
+          disabled={busy || writer.writing || !reason || !(ai || draft) || !application.email}
+        >
+          {ai?.draft.text?.allowed && textOn ? 'Send email and text' : 'Send email'}
         </Button>
       </DialogActions>
     </Dialog>

@@ -11,7 +11,8 @@ Layout (owner 2026-10-16, decided line by line in chat):
   80% of value as store credit"), then SOLD AS IS under a thin rule; a non-member's
   all under ALL SALES FINAL · SOLD AS IS. A THRIFTBUCKS column ("+9.60"; for a non-member, IF MEMBER) before PRICE;
 - Items total (when ThriftBucks paid part), ThriftBucks used, Subtotal, Tax, TOTAL; payment on one line;
-- one bold Google review line, then the black block: who, today's ThriftBucks, and the B12 line at normal size.
+- one bold Google review line, then the black block: who, today's ThriftBucks and when they expire, the balance, and
+  the website with its QR (owner 2026-11-20; the B12 fine print is gone).
 """
 from __future__ import annotations
 
@@ -35,6 +36,9 @@ INK = 150  # darker than this prints black
 # (OUTLINE dots thick) with black text.
 OUTLINE = 4  # the outer line of a double frame; the inner line is 1 dot, INNER_GAP inside it
 INNER_GAP = 4
+# The member block's QR (owner 2026-11-20): dots a module. A 25-module code is 29 x 7 = 203 dots (about 25 mm) with
+# its white edge: big enough for any phone camera at arm's length on 203 dpi paper.
+QR_MODULE = 7
 
 
 def _font(size: int, bold: bool = False) -> ImageFont.ImageFont:
@@ -344,12 +348,14 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
         font = _font(24, True) if bold else _font(22)
         for ln in wrap_phrases(text, font, box_w):
             plan.append((ln, font, 4))
-    if fine:  # the B12 line: normal size (owner 2026-10-16), not fine print
+    if fine:  # the NO REFUNDS lines (no Thrift+ on the payload): normal size
         plan[-1] = (plan[-1][0], plan[-1][1], 14)
         for text in fine:
             for ln in rp._wrap_text(text, _font(21), d, box_w):
                 plan.append((ln, _font(21), 2))
-    block_h = 2 * pad + sum(h(f) + gap for _ln, f, gap in plan)
+    qr_text = rp._block_qr(data)  # owner 2026-11-20: the website as a QR, under its line
+    qr = rp.qr_picture(qr_text, QR_MODULE) if qr_text else None
+    block_h = 2 * pad + sum(h(f) + gap for _ln, f, gap in plan) + (qr.height + 4 if qr else 0)
     # Owner 2026-10-19: no deep black (a gray dot fill printed "ugly"): a bold outlined box, black text, a rule under
     # the member line.
     frame((x0, y, x1, y + block_h), radius=18)
@@ -359,6 +365,10 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
         y += h(font) + gap
         if font is f_head and (i + 1 == len(plan) or plan[i + 1][1] is not f_head):
             d.rectangle([box[0] + 40, y - 7, box[1] - 40, y - 5], fill=0)
+    if qr:
+        y += 4
+        im.paste(qr, (box[0] + (box_w - qr.width) // 2, y))
+        y += qr.height
     y += pad + 10
 
     if banners:

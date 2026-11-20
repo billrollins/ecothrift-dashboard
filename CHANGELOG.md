@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.323.0] -->
-<!-- Last reviewed: 2026-11-20 (2.323.0) -->
+<!-- Line 1 release: ## [2.324.0] -->
+<!-- Last reviewed: 2026-11-20 (2.324.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.324.0] - 2026-11-20
+
+User-facing theme: **Receipts: the Thrift+ block shows ThriftBucks today with their expiry, the balance and a QR to ecothrift.us (print server 1.10.0); applicants get AI-written Follow up and Not now emails and texts.**
+
+> **For Bill:** Member receipts now show today's ThriftBucks with their expiry date, the member's balance, and www.ecothrift.us with a QR; the fine print is gone. It reaches the registers when print server 1.10.0 is installed on each one. On any applicant there is now a Follow up button next to Not now. Type or paste what you want to tell them, press Write it with AI, and the email (and a short text) opens in the usual review: edit, Send or Cancel. It goes from our hiring mailbox (and our number, only to people who ticked the text box) and shows on their history. Not now has the same box: pick the reason, type what to tell them, and the AI's email replaces the standard one ("Use the standard email" goes back).
+
+User-facing theme: **Receipts: the Thrift+ block shows ThriftBucks today with their expiry, the balance and a QR to ecothrift.us (print server 1.10.0); applicants get AI-written Follow up and Not now emails and texts.** (Dash Updates #193, #192)
+
+> **For Bill:** Member receipts now show today's ThriftBucks with their expiry date, the member's balance, and www.ecothrift.us with a QR; the fine print is gone. It reaches the registers when print server 1.10.0 is installed on each one. On any applicant there is now a Follow up button next to Not now. Type or paste what you want to tell them, press Write it with AI, and the email (and a short text) opens in the usual review: edit, Send or Cancel. It goes from our hiring mailbox (and our number, only to people who ticked the text box) and shows on their history. Not now has the same box: pick the reason, type what to tell them, and the AI's email replaces the standard one ("Use the standard email" goes back).
+
+### Changed
+- **Receipts: the Thrift+ member block says what is worth knowing** (Dash Update #193; print server 1.10.0). The block now reads "+13.68 ThriftBucks today, expires Dec 20" (a redeemed-instantly trip keeps its "-35.00 ThriftBucks instantly: $17.50 off"), "Your balance: 42.10 ThriftBucks" (after this sale; a Thrift+ credit line only when there is credit), "See expiration details and more at www.ecothrift.us" and a QR to the website. The fine print paragraph and the block's "35.00 used" are gone (ThriftBucks used stays above Subtotal). Non-member and return receipts keep their blocks (a return prints no balance). Dash sends the same payload; the change is in the print server, which needs a release and an install on each register.
+
+### Added (Applicants: Follow up / Not now written by AI)
+- `apps/hiring/reply.py`: an AI draft (`HiringAiJob` kind `reply`, migration `hiring 0022`, background run polled like the other hiring AI) from staff's words, the application (roles, stage, answers, flags from `callouts`, interviews, latest history) and the store facts (one location from the careers file, the store hours setting); Sonnet 5.5 at medium; house voice from the Not now template; braces and the AI's own sign-off stripped, then the presser's name and the house sign-off. The result is the review's email draft (`ai: true`, no template link) and a text draft (`texts.draft_words`: offered only with their tick; practice, no number, no tick or stopped say why).
+- `POST hiring/applications/<id>/reply-draft/` (`which` follow_up / not_now, `context`, `reason`), `POST .../follow-up/` (`ai_job`, `email`, `text`): mails through `emails.send`, logs "Emailed: Follow-up email" with the words and the notes it came from; the stage stays. Not now keeps its one path: `not-now/` takes `ai_job` (the email's edits are measured against the AI's words) and `text`, sent through `texts.send_words` → `texting.service.send` (consent checked there).
+- Applicant page: Follow up on every stage; `FollowUpDialog` and `AiWriteBox` (`ReplyUi.tsx`, fixed-height status line, "Writing… Ns"); the Not now dialog gets the same box, the text block and "Send email and text". The review hides the "filled in by Dash" legend when an email has no Dash values. Tests `test_reply.py` (AI mocked) and `replyUi.test.tsx`.
 
 ## [2.323.0] - 2026-11-20
 

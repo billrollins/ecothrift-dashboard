@@ -351,8 +351,10 @@ class HiringAiJob(models.Model):
     KIND_JOB = 'job'
     KIND_EMAIL = 'email'
     KIND_QUESTIONS = 'questions'
+    KIND_REPLY = 'reply'
     KIND_CHOICES = [(KIND_CAREERS, 'Whole careers file'), (KIND_JOB, 'One role'), (KIND_EMAIL, 'One email'),
-                    (KIND_QUESTIONS, "One role's interview questions")]
+                    (KIND_QUESTIONS, "One role's interview questions"),
+                    (KIND_REPLY, 'A follow-up or Not now email to one applicant')]
 
     STATUS_RUNNING = 'running'
     STATUS_DONE = 'done'
