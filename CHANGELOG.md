@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.330.0] -->
-<!-- Last reviewed: 2026-11-20 (2.330.0) -->
+<!-- Line 1 release: ## [2.331.0] -->
+<!-- Last reviewed: 2026-11-20 (2.331.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.331.0] - 2026-11-20
+
+User-facing theme: **The phone site goes live for every phone (the switch goes on right after this release); the new scanner waits for the owner's phone check.** (Dash Update #185)
+
+> **For Bill:** Every phone now gets the new site. Desktops keep the current site, and the scanner stays the current one until you check it on your phone (camera in Safari and in the installed app, a Google and a text sign-in, a join). Rollback is one switch.
+
+### Changed
+- `.ai/extended/thrift-plus-surfaces.md`, table "The phone site": the site rows checked (the owner's preview walk), the scanner rows code-checked and waiting for his real-phone check; C12 points at the home card (the Thrift+ band is gone); a phone row for C18 (the receipt claim).
+- `.ai/extended/phone-site.md`: a Going live section (AppSetting `storefront.phone_site` on 2026-11-20; `storefront.phone_scan` still off).
 
 ## [2.330.0] - 2026-11-20
 
