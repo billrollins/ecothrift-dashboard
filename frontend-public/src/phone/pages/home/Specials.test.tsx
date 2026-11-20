@@ -97,8 +97,8 @@ describe('home specials, a normal day', () => {
     show()
     fireEvent.click(screen.getByRole('button', { name: 'Example' }))
     const box = screen.getByRole('dialog', { name: 'Example · A normal item' })
-    expect(box).toHaveTextContent('Retail$200.00')
-    expect(box.querySelector('.tbx-item .tag')).toHaveTextContent('$10000') // our tag $100.00, cents shown
+    expect(box.querySelector('.tbx-item .tag-was')).toHaveTextContent('$20000') // retail $200.00, a struck ghost tag
+    expect(box.querySelector('.tbx-item .tag:not(.tag-was)')).toHaveTextContent('$10000') // our tag $100.00, cents shown
     // Owner 11-20 (round 8 screens): the opening on one easy line; ".00" only at the top, whole numbers below.
     expect(box).toHaveTextContent('ThriftBucks start after 7 days on most items.')
     expect(box.querySelector('.tbx-rise')).toHaveTextContent('They grow every day.')
@@ -110,7 +110,7 @@ describe('home specials, a normal day', () => {
     expect(bars.at(-1)).toHaveClass('now')
     expect(box.querySelector('.tbx-bars')).not.toHaveTextContent(/\d{2}|day \d|20\.00/i)
     expect(box).toHaveTextContent('Keep themPay $10020 ThriftBucksoff your next visitFull value')
-    expect(box).toHaveTextContent('Use them nowPay $90$10 offtodayHalf value')
+    expect(box).toHaveTextContent('Use nowPay $90$10 offtodayHalf value')
     expect(box).toHaveTextContent('Non-member: pays $100. All sales final.')
     expect(box).not.toHaveTextContent(/\$\s*20\b|earn|discount|points|cash back|reward|guest/i)
     // Never a "$" next to ThriftBucks (the owner's "$10 off today" is dollars off today's price, on its own).

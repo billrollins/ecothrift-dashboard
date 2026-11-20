@@ -61,7 +61,9 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
         <div className="tbx-item">
           <div>
             <span className="tbx-k">Retail</span>
-            <s className="tn">{money(EXAMPLE.retail)}</s>
+            <s aria-label={`Retail ${money(EXAMPLE.retail)}, struck`}>
+              <Tag price={EXAMPLE.retail} className="tag-was" />
+            </s>
           </div>
           <div>
             <span className="tbx-k">Our tag</span>
@@ -111,7 +113,7 @@ export function ThriftBucksExample({ onClose, joinHref }: { onClose: () => void;
             or
           </i>
           <div>
-            <small>Use them now</small>
+            <small>Use now</small>
             <b className="tn">
               <span>Pay</span> {whole(EXAMPLE.today)}
             </b>

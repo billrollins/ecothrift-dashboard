@@ -11,14 +11,17 @@
 .tbx h2 { padding-right: 36px; font-size: 24px; line-height: 1; word-spacing: .12em; }
 .tbx h2 span { color: var(--ink-2); }
 
-/* The item: retail struck, our tag. */
-.tbx-item { margin-top: 10px; display: flex; align-items: stretch; justify-content: space-between; gap: 12px;
-  padding: 6px 12px 8px; background: var(--cream); border-radius: 12px; }
-.tbx-item div { display: flex; flex-direction: column; justify-content: space-between; gap: 4px; }
-.tbx-item div:last-child { align-items: flex-end; }
+/* The item (owner 2026-11-20: retail and our tag symmetric): two tags of the same size under matching labels. Retail is
+   the same tag as a ghost: outlined, quiet ink, struck through; our tag is the solid ink-and-lime price tag. */
+.tbx-item { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 8px 12px 10px;
+  background: var(--cream); border-radius: 12px; }
+.tbx-item > div { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.tbx-item s { position: relative; display: inline-flex; text-decoration: none; }
+.tbx-item s::after { content: ''; position: absolute; left: -4px; right: -4px; top: 50%; height: 3px; border-radius: 2px;
+  background: var(--ink-2); transform: rotate(-8deg); }
+.tbx-item .tag-was { background: none; color: var(--ink-2); box-shadow: inset 0 0 0 2px var(--ink-2); }
 .tbx-k { font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
-.tbx-item s { font-size: 22px; font-weight: 800; color: var(--ink-2); text-decoration-thickness: 2px; }
-.tbx-item .tag { font-size: 37px; }
+.tbx-item .tag { font-size: 34px; }
 
 /* The growth strip, in story order: the first V12 sentence; the bars, labelled in the V12 words (7 flat days "First 7
    days, none yet", a gap, then "They grow every day." over bars that rise to today's darker bar); under today's bar a
@@ -46,7 +49,7 @@
    the titles. */
 
 .tbx-two { position: relative; margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.tbx-two > div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 6px 6px;
+.tbx-two > div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 6px 6px;
   border-radius: 14px; background: var(--lime); text-align: center; }
 .tbx-two small { font-size: 14px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--ink); }
 .tbx-two b { margin-bottom: 8px; font-size: 26px; font-stretch: 66%; font-weight: 900; line-height: 1.05; white-space: nowrap; }
