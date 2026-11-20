@@ -276,7 +276,7 @@ export default function Store() {
             {list ? (
               <>
                 <span>
-                  <b>{count(list.counts[where])}</b> {list.counts[where] === 1 ? 'piece' : 'pieces'}
+                  <b>{count(list.counts[where])}</b> {list.counts[where] === 1 ? 'item' : 'items'}
                 </span>
                 {v.q ? <span>{` for “${v.q}”`}</span> : null}
               </>

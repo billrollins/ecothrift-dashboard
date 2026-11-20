@@ -55,7 +55,7 @@ export default function About() {
         <p className="disp ab-num tn" style={hide(pieces === undefined)}>
           {pieces === undefined ? '0' : count(pieces)}
         </p>
-        <p className="disp ab-unit">Pieces</p>
+        <p className="disp ab-unit">Items</p>
         <span className="ab-arw" aria-hidden="true">›</span>
       </Link>
 

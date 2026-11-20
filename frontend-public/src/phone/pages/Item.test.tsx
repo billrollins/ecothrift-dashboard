@@ -249,7 +249,7 @@ describe('Item page', () => {
   it('a sold piece (404) is no longer listed', async () => {
     itemAnswer = { status: 404 }
     open('/store/item/p1')
-    expect(await screen.findByRole('heading', { name: 'This piece is no longer listed' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'This item is no longer listed' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'See the list' })).toHaveAttribute('href', '/store')
   })
 
@@ -299,13 +299,13 @@ describe('Item page', () => {
 
   it('a coming piece not in the stock is no longer listed', async () => {
     open('/store/item/m999')
-    expect(await screen.findByRole('heading', { name: 'This piece is no longer listed' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'This item is no longer listed' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'See the list' })).toHaveAttribute('href', '/store?where=coming')
   })
 
   it('a bad address is no longer listed', () => {
     open('/store/item/zzz')
-    expect(screen.getByRole('heading', { name: 'This piece is no longer listed' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'This item is no longer listed' })).toBeInTheDocument()
   })
 
   it('Back returns to where the visitor came from; a direct visit goes to the list', async () => {

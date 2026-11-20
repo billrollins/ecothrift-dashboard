@@ -132,14 +132,14 @@ describe('Store page', () => {
 
   it('the result line counts pieces, in the same unit as the switch and the chips (Dash Update #185)', () => {
     const { container, unmount } = page('/store?cat=kitchen')
-    expect(container.querySelector('.sh-n')?.textContent).toBe('2,149 pieces')
+    expect(container.querySelector('.sh-n')?.textContent).toBe('2,149 items')
     expect(container.querySelector('.sh-chips [aria-pressed="true"] .cnt')?.textContent).toBe('2,149')
     unmount()
     const lamp = page('/store?q=lamp')
-    expect(lamp.container.querySelector('.sh-n')?.textContent).toBe('53 pieces for “lamp”')
+    expect(lamp.container.querySelector('.sh-n')?.textContent).toBe('53 items for “lamp”')
     expect(lamp.container.querySelector('.sh-sw [aria-pressed="true"] .cnt')?.textContent).toBe('53')
     lamp.unmount()
-    expect(page('/store?q=planked').container.querySelector('.sh-n')?.textContent).toBe('1 piece for “planked”')
+    expect(page('/store?q=planked').container.querySelector('.sh-n')?.textContent).toBe('1 item for “planked”')
   })
 
   it('a row states its ThriftBucks, the units, and opens its piece', () => {

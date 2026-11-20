@@ -1,11 +1,6 @@
 /* The shell (from the mockup's shell/01-top.html and shell/90-bottombar.html): always on screen.
    The strip, the logo row and the store line scroll away; only the search row stays stuck to the top.
    The logo row is 66 px tall and the search row 62 px (128 px together: the Scan page will size itself with these). */
-.strip { display: flex; align-items: center; justify-content: center; gap: 8px; height: 32px; padding: 0 var(--gut); background: var(--strip-bg); color: var(--strip-fg);
-         font-size: min(12.5px, 3.2vw); font-weight: 600; white-space: nowrap; }
-.strip b { font-weight: 800; text-decoration: underline; text-underline-offset: 2px; }
-.strip > span { overflow: hidden; text-overflow: ellipsis; }
-.strip .if-bf { font-weight: 700; }
 
 /* Row one: menu | logo in the middle | account. Fixed side columns so the logo never moves between signed out and in. */
 .top { background: var(--green); color: #fff; padding: 0 var(--gut); }

@@ -11,7 +11,7 @@ import { CATS, photoUrl, type ComingRow, type InStoreRow, type PhotoKind, type S
 
 export const ITEM_URL = (pid: number) => `/api/storefront/item/${pid}/`
 /** The words under a stock photo (owner 11-19: "Photo of stock item, may not match"). */
-export const STOCK_LINE = 'Stock photo. The piece in our store may not match it exactly.'
+export const STOCK_LINE = 'Stock photo. The item in our store may not match it exactly.'
 const KEEP_MS = 60_000
 
 /** The endpoint's answer (BRIEF-BE.md). Never notes, cost or location. */

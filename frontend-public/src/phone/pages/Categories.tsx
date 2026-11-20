@@ -53,7 +53,7 @@ export default function Categories() {
           <span className="tn" style={pieces === undefined ? { opacity: 0 } : undefined}>
             {pieces === undefined ? '0' : count(pieces)}
           </span>{' '}
-          pieces in store today
+          items in store today
         </p>
         <h1 className="disp dp-h">
           <span>{cats.length}</span> categories

@@ -1,6 +1,5 @@
 /**
- * The top of every page (mockup shell/01-top.html): the lime strip and the store line on home only; the logo row
- * scrolls away; the search row sticks. Search: Enter or the button opens /store?q=; a tag number (6 or 7 digits) opens
+ * The top of every page (mockup shell/01-top.html): the store line on home only; the logo row scrolls away; the search row sticks. Search: Enter or the button opens /store?q=; a tag number (6 or 7 digits) opens
  * the scanner on that tag (/scan?tag=ITM<7 digits>). On /store the box IS the store's query: typing updates `?q=`
  * (replace), so the Store page only reads `useSearchParams().get('q')`.
  */
@@ -160,13 +159,8 @@ export function TopBar() {
   const open = useOpenStatus(feed?.hours)
   return (
     <>
-      {home ? (
-        <Link className="strip" to="/#thriftplus">
-          <span className="if-normal">Thrift+ members collect ThriftBucks on most items</span>
-          <span className="if-bf">Thrift+ members: your ThriftBucks come off today.</span>
-          <b className="if-out if-normal">Join free</b>
-        </Link>
-      ) : null}
+      {/* No strip above the header (owner 2026-11-20: "i HATE ANYTHING that pushes content out of alignment"): the
+          header sits at the same place on every page. A notice goes under the store line or above Best finds. */}
       <header className="top">
         <div className="row">
           <Link className="menu" to="/menu" aria-label="Menu">

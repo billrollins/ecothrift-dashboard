@@ -336,7 +336,7 @@ function Gone({ where }: { where: 'instore' | 'coming' }) {
     <section className="it it-end">
       <TopRow where={where} label="" />
       <div className="it-main">
-        <h1 className="it-nm">This piece is no longer listed</h1>
+        <h1 className="it-nm">This item is no longer listed</h1>
         <Link className="btn btn-ink it-more" to={listHref(where)}>
           <span>See the list</span>
         </Link>
@@ -350,7 +350,7 @@ function Unreachable({ where }: { where: 'instore' | 'coming' }) {
     <section className="it it-end">
       <TopRow where={where} label="" />
       <div className="it-main">
-        <h1 className="it-nm">We can’t load this piece right now</h1>
+        <h1 className="it-nm">We can’t load this item right now</h1>
         <button type="button" className="btn btn-ink it-more" onClick={() => window.location.reload()}>
           Try again
         </button>

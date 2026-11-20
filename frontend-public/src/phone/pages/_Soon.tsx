@@ -3,7 +3,7 @@
 import { Link, useLocation } from 'react-router-dom'
 
 const NAMES: Array<[RegExp, string]> = [
-  [/^\/store\/item\//, 'This piece'],
+  [/^\/store\/item\//, 'This item'],
   [/^\/store/, 'In store'],
   [/^\/categories/, 'Categories'],
   [/^\/thriftplus/, 'Thrift+'],

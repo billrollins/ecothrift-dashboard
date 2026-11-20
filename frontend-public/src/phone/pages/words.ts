@@ -9,12 +9,12 @@ export type Faq = { q: string; a: string }
 /** ECO.copy.faq, with the mockup's two shortened answers (no list to hold from, no "On the way" screen). */
 export const FAQ: Faq[] = [
   { q: 'What is Eco-Thrift?', a: 'A liquidation and thrift store in Omaha. We buy overstock and returns by the truckload and price them well under retail.' },
-  { q: 'How do prices work?', a: 'Every piece has a tag price. That is what a non-member pays. Thrift+ members also collect ThriftBucks on most items.' },
+  { q: 'How do prices work?', a: 'Every item has a tag price. That is what a non-member pays. Thrift+ members also collect ThriftBucks on most items.' },
   { q: 'What are ThriftBucks?', a: 'What Thrift+ members collect when they buy. Keep them for your next visit, good for 30 days at full value, or redeem them at the register the same day at 50%.' },
-  { q: 'Why do some pieces have more ThriftBucks?', a: 'An item’s ThriftBucks grow the longer it sits on the shelf. Scan the tag to see today’s.' },
+  { q: 'Why do some items have more ThriftBucks?', a: 'An item’s ThriftBucks grow the longer it sits on the shelf. Scan the tag to see today’s.' },
   { q: 'What does Thrift+ cost?', a: 'Free to join. Nothing owed.' },
   { q: 'Can I return something?', a: 'Thrift+ members have 3 days on qualifying items, with 80% back as Thrift+ credit. Everything a non-member buys is sold AS IS.' },
-  { q: 'Can you hold a piece for me?', a: 'No. First come, first served.' },
+  { q: 'Can you hold an item for me?', a: 'No. First come, first served.' },
   { q: 'When does new stock arrive?', a: 'Trucks arrive most weeks.' },
 ]
 
@@ -33,8 +33,8 @@ export const ABOUT = {
   head: 'Big-store stock.',
   headEm: 'Well under retail.',
   sub: ['Liquidation and thrift,', 'in Omaha.'],
-  steps: ['We buy by the truckload', 'We check every piece', 'It goes on the shelf, well under retail'],
-  stepsHead: 'Every piece checked',
+  steps: ['We buy by the truckload', 'We check every item', 'It goes on the shelf, well under retail'],
+  stepsHead: 'Every item checked',
   tagline: 'Another chance for',
   taglineEm: 'everything and everyone',
 }
