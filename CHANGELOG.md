@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.329.0] -->
-<!-- Last reviewed: 2026-11-20 (2.329.0) -->
+<!-- Line 1 release: ## [2.330.0] -->
+<!-- Last reviewed: 2026-11-20 (2.330.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.330.0] - 2026-11-20
+
+User-facing theme: **The ThriftBucks example is final (an 18-round critic cycle, signed off by the owner) and is now the same one component on the home's Example window, the Questions page and the phone scanner's What is Thrift+? sheet.** (Dash Update #185; the phone site is still switched off)
+
+> **For Bill:** The example you signed off is in: "ThriftBucks start after 7 days", a growth strip, "Today this item has 20 ThriftBucks", then Keep them (Pay $100, 20 ThriftBucks off next visit, Full value) or Use them (Pay $90, $10 off today, Half value), "Non-member: pays $100. All sales final.", and "Join Thrift+ free". The phone scanner's What is Thrift+? sheet now shows the very same example and says what the live scanner says. Plus Mainline's latest work merged in.
+
+### Changed (Phone site, still switched off)
+- `shell/ThriftBucksExample.tsx`/`.css`: the final example (critic cycle with the 7-model panel, 18 rounds, last full-panel grade A; the owner's own final pass); its content is `ThriftBucksExampleBody`, shown in the home's Example window, on Questions and in the phone scanner's What is Thrift+? sheet (`scan/trip/Sheets.tsx`).
+- Phone scanner sheet: the live scanner's words (How we price, Keep them., Or use them now., After 7 days on our floor...).
+- `.ai/extended/thrift-plus-decisions.md`: V12 has the final words and number rules; the no-fine-print rule is V14 (Dash Update #203 took V13).
 
 ## [2.329.0] - 2026-11-20
 

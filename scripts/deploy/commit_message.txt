@@ -1,20 +1,12 @@
-v2.329.0 — Receipt claim: join the same day by the QR and get that trip's ThriftBucks
+v2.330.0 — Phone site: the final ThriftBucks example, the same in the phone scanner
 
-User-facing theme: **A non-member's receipt says "Claim 12.60 ThriftBucks": join free the same day by its QR and that trip's ThriftBucks are added.**
+User-facing theme: **The ThriftBucks example is final (an 18-round critic cycle, signed off by the owner) and is now the same one component on the home's Example window, the Questions page and the phone scanner's What is Thrift+? sheet.** (Dash Update #185; the phone site is still switched off)
 
-> **For Bill:** A non-member's receipt now leads with "Claim 12.60 ThriftBucks ... Join free today and they are yours." Its QR carries the sale: if they join and finish that same day, the app adds the trip's ThriftBucks (usable from tomorrow) and tells them so.
+> **For Bill:** The example you signed off is in: "ThriftBucks start after 7 days", a growth strip, "Today this item has 20 ThriftBucks", then Keep them (Pay $100, 20 ThriftBucks off next visit, Full value) or Use them (Pay $90, $10 off today, Half value), "Non-member: pays $100. All sales final.", and "Join Thrift+ free". The phone scanner's What is Thrift+? sheet now shows the very same example and says what the live scanner says. Plus Mainline's latest work merged in.
 
-User-facing theme: **A non-member's receipt says "Claim 12.60 ThriftBucks": join free the same day by its QR and that trip's ThriftBucks are added.** (Dash Update #204; print server 1.10.1)
-
-> **For Bill:** A non-member's receipt now leads with "Claim 12.60 ThriftBucks ... Join free today and they are yours." Its QR carries the sale: if they join and finish that same day, the app adds the trip's ThriftBucks (usable from tomorrow) and tells them so.
-
-### Added (Thrift+, Dash Update #204, rulebook B15)
-- **Claim link on the receipt:** a finished non-member sale on its own day sends `thrift_plus.claim_url` = `HTTPS://ECOTHRIFT.US/J/<TOKEN>` (the sale id plus a 60-bit HMAC, capitals so the QR packs as alphanumeric and stays the member QR's size). `thriftplus/services/receipt_claim.py`; `register.cart_block` adds it; `posReceipt.thriftPlusReceipt` passes it to the print server (1.10.1 puts it in the QR; an older server ignores it).
-- **`/J/<token>`** (any case) redirects to `/scan?view=join&claim=<TOKEN>` (`core.views.receipt_claim_link`; a short-link pass-through on the public host like `/i/`).
-- **`POST /api/thriftplus/public/me/claim-receipt/`** `{token}`: a member who finished joining the day of the sale (store time), on a membership made that day, gets the trip's ThriftBucks through the register's re-ring (kept, usable from tomorrow, no instant redemption, no credit; items stay AS IS). Refused: BAD_TOKEN, TOO_LATE, ALREADY_CLAIMED (one claim per sale; a sale with a member), NOT_CLAIMABLE (void, training, open), NOT_NEW, NOT_FINISHED, NOTHING. Logged as event `receipt_claim`; 20 tries an hour per member.
-- **Both scanners** (live `/scan` and the phone site's): `?claim=` is kept on the phone for that day (`scanner/receiptClaim.ts`, shared), sent once the join is finished, and "12.60 ThriftBucks from today's trip are in your account." / "Use them from tomorrow." shows as an overlay (`ReceiptClaimNote.tsx`; on the phone site from the shell, `phone/shell/ReceiptClaim.tsx`, since a signed-in member leaves /scan for /thriftplus at once).
-
-### Fixed
-- **A finished non-member sale lost "would have collected":** completing a sale closes its items' rewards, so the cart read back for the receipt (and reprints) had an empty `guest_line` and no "If member" ThriftBucks. The non-member block of a finished sale now reads the closed rewards, as the re-ring does.
+### Changed (Phone site, still switched off)
+- `shell/ThriftBucksExample.tsx`/`.css`: the final example (critic cycle with the 7-model panel, 18 rounds, last full-panel grade A; the owner's own final pass); its content is `ThriftBucksExampleBody`, shown in the home's Example window, on Questions and in the phone scanner's What is Thrift+? sheet (`scan/trip/Sheets.tsx`).
+- Phone scanner sheet: the live scanner's words (How we price, Keep them., Or use them now., After 7 days on our floor...).
+- `.ai/extended/thrift-plus-decisions.md`: V12 has the final words and number rules; the no-fine-print rule is V14 (Dash Update #203 took V13).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
