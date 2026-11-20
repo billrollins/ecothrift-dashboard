@@ -28,8 +28,8 @@ describe('Visit', () => {
     const { container } = render(<Visit />)
     const svg = container.querySelector('.map svg')!
     const roads = [...svg.querySelectorAll('rect.rd')]
-    const center = roads.find((r) => num(r, 'width') === 358)! // the street across
-    const s84 = roads.find((r) => num(r, 'height') === 196)! // the street down
+    const center = roads.find((r) => num(r, 'width') === 300)! // the street across
+    const s84 = roads.find((r) => num(r, 'height') === 164)! // the street down
     const store = svg.querySelector('rect.outline')! // the whole building
     expect(num(store, 'y')).toBeGreaterThan(num(center, 'y') + num(center, 'height'))
     expect(num(store, 'x') + num(store, 'width')).toBeLessThan(num(s84, 'x'))

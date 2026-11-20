@@ -53,48 +53,46 @@ const MARK = [
 ]
 
 /** Parking stalls: two rows in front of Eco-Thrift. */
-const STALLS = [64, 74, 84, 104, 114, 124, 134, 144, 154, 164].map((x) => `M${x} 66v9M${x} 89v9`).join('')
+const STALLS = [38, 46, 54, 74, 82, 90, 98, 106, 114, 122, 130, 138, 146, 154].map((x) => `M${x} 55v8M${x} 75v8`).join('')
 
 /**
  * The corner, north up (owner's aerial, 2026-11-20): W Center Rd across, S 84th St down; in the south-west block one
  * long building set back behind a big lot that fronts Center. Eco-Thrift is its WEST half only ("dont say we are the
- * whole building"); the east half is two small shops and Mega Saver, whose gas canopy stands in the lot. Driveways
- * from both streets. 358 x 196 units; names are 15 units (13.7 px at 360 wide). Hand-drawn: nothing copied.
+ * whole building"), its doors facing the lot; the east half is small shops and Mega Saver, whose gas canopy stands in
+ * the lot. Driveways from both streets. 300 x 164 units, drawn 358 px wide at 390: names are 15 units (16.4 px at 360).
+ * Hand-drawn: nothing copied.
  */
 function Map() {
   return (
-    <svg viewBox="0 0 358 196" aria-hidden="true">
-      {/* The lot, open to both streets at its driveways. */}
-      <path className="lot" d="M56 62H250V182H244V104H56z" />
-      <rect className="drive" x="84" y="53" width="16" height="11" />
-      <rect className="drive" x="249" y="76" width="10" height="16" />
+    <svg viewBox="0 0 300 164" aria-hidden="true">
+      {/* The lot and its driveways from both streets. */}
+      <path className="lot" d="M30 50H221V90H30z M54 43H68V51H54z M219 60H227V74H219z" />
       <path className="stall" d={STALLS} />
-      {/* Mega Saver's gas canopy over its pumps. */}
-      <rect className="canopy" x="188" y="70" width="50" height="22" rx="3" />
-      <path className="pumps" d="M198 77v8M213 77v8M228 77v8" />
+      {/* Mega Saver's gas canopy. */}
+      <rect className="canopy" x="168" y="56" width="44" height="24" />
       {/* The streets: both wide and divided; the centre lines stop for the names. */}
-      <rect className="rd" x="0" y="24" width="358" height="30" />
-      <rect className="rd" x="258" y="0" width="30" height="196" />
-      <path className="edge" d="M0 24H258M288 24H358M0 54H84M100 54H258M288 54H358M258 0V24M288 0V24M258 54V76M258 92V196M288 54V196" />
-      <path className="median" d="M144 39H252M294 39H358M273 0V19M273 59V94" />
-      <text className="nm" x="14" y="44.4">W CENTER RD</text>
-      <text className="nm" transform="translate(278.4 188) rotate(-90)">S 84TH ST</text>
-      {/* One building: Eco-Thrift the west half, wearing its sign; two small shops and Mega Saver the east half. */}
-      <rect className="nbr" x="56" y="106" width="188" height="70" rx="5" />
-      <path className="nbrline" d="M172 106v70M184 106v70" />
-      <text className="nbrname" x="214" y="139" textAnchor="middle">MEGA</text>
-      <text className="nbrname" x="214" y="155" textAnchor="middle">SAVER</text>
-      <path className="bldg" d="M61 106H160V176H61a5 5 0 0 1-5-5V111a5 5 0 0 1 5-5z" />
-      <g transform="translate(93 115) scale(0.1014)">
+      <rect className="rd" x="0" y="18" width="300" height="26" />
+      <rect className="rd" x="226" y="0" width="26" height="164" />
+      <path className="edge" d="M0 18H226M252 18H300M0 44H54M68 44H226M252 44H300M226 0V18M252 0V18M226 44V60M226 74V164M252 44V164" />
+      <path className="median" d="M140 31H221M257 31H300M239 0V13M239 49V64" />
+      <text className="nm" x="10" y="36.4">W CENTER RD</text>
+      <text className="nm" transform="translate(244.4 157) rotate(-90)">S 84TH ST</text>
+      {/* One building: Eco-Thrift the west half, wearing its sign, doors on the lot; small shops and Mega Saver east. */}
+      <rect className="nbr" x="30" y="92" width="184" height="60" rx="4" />
+      <path className="nbrline" d="M142 92v60" />
+      <text className="nbrname" x="178" y="119" textAnchor="middle">MEGA</text>
+      <text className="nbrname" x="178" y="135" textAnchor="middle">SAVER</text>
+      <path className="bldg" d="M34 92H128V152H34a4 4 0 0 1-4-4V96a4 4 0 0 1 4-4z" />
+      <rect className="door" x="71" y="92" width="16" height="4" />
+      <g transform="translate(66 100) scale(0.0878)">
         {MARK.map((d) => <path key={d.slice(0, 12)} className="mark" d={d} fillRule="evenodd" />)}
       </g>
-      <text className="sign" x="108" y="166" textAnchor="middle">ECO-THRIFT</text>
-      <rect className="outline" x="56" y="106" width="188" height="70" rx="5" />
+      <text className="sign" x="79" y="144" textAnchor="middle">ECO-THRIFT</text>
+      <rect className="outline" x="30" y="92" width="184" height="60" rx="4" />
       {/* North. */}
-      <g transform="translate(333 172)">
-        <circle className="nbg" r="15" />
-        <path className="nar" d="M0 -11.5L4.5 -3.5H-4.5z" />
-        <text className="nn" y="10.5" textAnchor="middle">N</text>
+      <g className="north" transform="translate(278 128)">
+        <path className="nar" d="M0 -13L6 -3H-6z" />
+        <text className="nn" y="14" textAnchor="middle">N</text>
       </g>
     </svg>
   )
@@ -118,7 +116,7 @@ export default function Visit() {
       <h2 className="disp">84th &amp; Center</h2>
       <p className="corner">Southwest corner</p>
       <p className="addr">West half of the building, next to Mega Saver</p>
-      <p className="addr">8425 W Center Rd, Omaha, NE 68124</p>
+      <p className="street">8425 W Center Rd, Omaha, NE 68124</p>
       <p className="addr tn">
         <a href={`tel:${STORE.retail.phoneHref}`}>{STORE.retail.phone}</a>
       </p>

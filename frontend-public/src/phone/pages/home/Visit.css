@@ -1,28 +1,26 @@
 /* Home 7, visit: the drawn map, open or not, the corner, Directions and Call, the week. Kit tokens only. */
 .visit { background: var(--card); padding: 24px var(--gut) 26px; }
 
-/* The map: cream ground, white streets, the store in the logo's green. Text in it is 15 units: 13.7 px at 360 wide. */
+/* The map: cream ground, white streets, the store in the logo's green. Text in it is 15 units or more: 16.4 px at 360 wide. */
 .visit .map { display: block; margin: 0 0 18px; border-radius: var(--r); overflow: hidden; background: var(--cream); border: 1px solid var(--line); }
 .visit .map svg { display: block; width: 100%; height: auto; font-family: var(--sans); }
-.visit .map .lot { fill: var(--ground); stroke: var(--line); stroke-width: 1.5; }
-.visit .map .drive { fill: var(--ground); }
-.visit .map .stall { fill: none; stroke: var(--line); stroke-width: 1.2; }
+.visit .map .lot { fill: var(--line); }
+.visit .map .stall { fill: none; stroke: var(--card); stroke-width: 1.2; }
 .visit .map .rd { fill: var(--card); }
-.visit .map .edge { fill: none; stroke: var(--line); stroke-width: 1.5; }
+.visit .map .edge { fill: none; stroke: var(--ink-2); stroke-width: .8; }
 .visit .map .median { fill: none; stroke: var(--line); stroke-width: 2; }
 .visit .map .nm { font-size: 15px; font-weight: 800; letter-spacing: .07em; fill: var(--ink-2); }
 .visit .map .bldg { fill: var(--green); }
 .visit .map .mark { fill: var(--card); }
-.visit .map .canopy { fill: var(--line); }
-.visit .map .pumps { fill: none; stroke: var(--ink-2); stroke-width: 3; stroke-linecap: round; }
-.visit .map .outline { fill: none; stroke: var(--ink-2); stroke-width: 1.5; }
+.visit .map .canopy { fill: var(--cream); stroke: var(--ink-2); stroke-width: 1.2; }
+.visit .map .door { fill: var(--lime); }
+.visit .map .outline { fill: none; stroke: var(--ink-2); stroke-width: 1.2; }
 .visit .map .nbr { fill: var(--cream); }
-.visit .map .nbrline { fill: none; stroke: var(--ink-2); stroke-width: 1; }
+.visit .map .nbrline { fill: none; stroke: var(--ink-2); stroke-width: .8; }
 .visit .map .nbrname { font-size: 15px; font-weight: 700; font-stretch: 66%; letter-spacing: .03em; fill: var(--ink-2); }
 .visit .map .sign { font-size: 16px; font-weight: 900; font-stretch: 66%; letter-spacing: .02em; fill: var(--card); }
-.visit .map .nbg { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
-.visit .map .nar { fill: var(--ink); }
-.visit .map .nn { font-size: 15px; font-weight: 900; fill: var(--ink); }
+.visit .map .nar { fill: var(--ink-2); }
+.visit .map .nn { font-size: 15px; font-weight: 900; fill: var(--ink-2); }
 
 /* Open or not: one line, never wraps (the longest, "Closed · Opens 9 AM tomorrow", about 299 px at 17 px, fits 328 at 360). */
 .visit .open { display: flex; align-items: center; gap: 9px; height: 26px; font-size: 17px; font-weight: 800; color: var(--green); white-space: nowrap; }
@@ -33,6 +31,7 @@
 .visit .corner { margin-top: 8px; font-size: 17px; font-weight: 800; }
 .visit .addr { margin-top: 3px; font-size: 15px; color: var(--ink-2); }
 .visit .addr a { color: inherit; }
+.visit .street { margin-top: 3px; font-size: 15px; font-weight: 700; }
 
 /* Directions (the store's green, the one filled button) and Call: two 48 px buttons, one thumb. */
 .visit .acts { margin-top: 16px; display: flex; gap: 12px; }
@@ -47,6 +46,6 @@
 .hours div { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
 .hours div span:first-child { display: flex; align-items: center; gap: 6px; }
 .hours div span:last-child { white-space: nowrap; }
-.hours div em { font-style: normal; font-size: 13px; font-weight: 800; line-height: 1; color: var(--green); background: var(--ground); border-radius: 999px; padding: 4px 8px; }
+.hours div em { font-style: normal; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--green); }
 .hours div.now span { font-weight: 800; }
 .hours div.now em { font-weight: 800; }
