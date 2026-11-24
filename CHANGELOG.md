@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.331.0] -->
-<!-- Last reviewed: 2026-11-20 (2.331.0) -->
+<!-- Line 1 release: ## [2.332.0] -->
+<!-- Last reviewed: 2026-11-24 (2.332.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.332.0] - 2026-11-24
+
+User-facing theme: **Photo projects: scan a tag, take a photo, and let Grok clean it up**
+
+> **For Bill:** Processing > Photo projects is live. Make a project, tap Scan + photo, scan the tag, take the photo, add a note, Save, repeat. Open any photo for Remove background, Clean up or Square thumbnail (Grok, about 20 seconds); the original is always kept. You see every project; whoever makes one picks who else sees it.
+
+### Added
+- **Photo projects** (Processing > Photo projects, `/photo-projects`): a phone-first photo app. Make a project (name, optional description, who else can see it); tap **Scan + photo**, scan the tag (or type it, or tap No tag), take the photo, add a note if you like, Save, and it is back to scanning. The owner sees every project; the creator picks who else can. Each photo opens to **Remove background**, **Clean up** (keeps the setting, removes tags and stickers) or **Square thumbnail**, run by Grok Imagine 2.0 in about 20 seconds; the original is always kept beside the edited copy, with Download. Deleting a photo is immediate; a deleted project disappears now and is removed for good after 30 days. New `core.PhotoProject` and `core.ProjectPhoto` (migration `core/0019_photo_projects`), API `/api/core/photo-projects/` and `/api/core/project-photos/`, service `apps/core/services/photo_projects.py`, tests `apps/core/tests/test_photo_projects.py`.
 
 ## [2.331.0] - 2026-11-20
 

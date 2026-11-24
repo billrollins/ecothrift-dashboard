@@ -69,6 +69,7 @@ import { PendingBstockLoginNotice } from './pages/routines/runners/PendingBstock
 const TimePayrollPage = lazy(() => import('./pages/admin/TimePayrollPage'));
 const DashFixesPage = lazy(() => import('./pages/dashFixes/DashFixesPage'));
 const PhotoDropsPage = lazy(() => import('./pages/photoDrops/PhotoDropsPage'));
+const PhotoProjectsPage = lazy(() => import('./pages/photoProjects/PhotoProjectsPage'));
 const IconsPage = lazy(() => import('./pages/admin/IconsPage'));
 const DesignLabPage = lazy(() => import('./pages/designlab/DesignLabPage'));
 const DesignLabDemoPage = lazy(() => import('./pages/designlab/DemoPage'));
@@ -670,6 +671,9 @@ function AppRoutes() {
         <Route path="/dash-updates" element={<DashFixesPage />} />
         {/* Home > Photo drops (#82): every staff login, their own photo drawer. */}
         <Route path="/photo-drops" element={<PhotoDropsPage />} />
+        {/* Photo projects (owner 2026-11-24): every staff login; the API limits who sees which project. */}
+        <Route path="/photo-projects" element={<PhotoProjectsPage />} />
+        <Route path="/photo-projects/:id" element={<PhotoProjectsPage />} />
         <Route path="/dash-fixes" element={<Navigate to="/dash-updates" replace />} />
         <Route path="/admin/enhancement-requests" element={<Navigate to="/dash-updates" replace />} />
         <Route

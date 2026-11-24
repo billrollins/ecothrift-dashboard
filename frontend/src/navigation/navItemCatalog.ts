@@ -23,6 +23,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Photo drops',
     icon: 'upload',
   },
+  /** Photo projects (owner 2026-11-24): scan a tag, take a photo, Grok cleans up a copy. */
+  photoProjects: {
+    id: 'photoProjects',
+    path: '/photo-projects',
+    label: 'Photo projects',
+    icon: 'scan',
+  },
   /** Dash Home tabs (2026-11-13): HR, Calendar and Messages; icons for the tab bars only. */
   homeHr: {
     id: 'homeHr',

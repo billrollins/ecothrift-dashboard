@@ -612,3 +612,59 @@ class PhotoDrop(models.Model):
 
     def __str__(self):
         return f'Photo drop {self.pk} ({self.owner_id})'
+
+
+class PhotoProject(models.Model):
+    """A photo project (owner 2026-11-24): staff scan a tag, take a photo, add a note; Grok can clean it up.
+
+    Seen by its creator, the people it is shared with, and owner-level logins. Deleting a project sets
+    ``deleted_at``; ``services/photo_projects.purge_deleted`` removes it for good after 30 days.
+    """
+
+    name = models.CharField(max_length=120)
+    description = models.TextField(blank=True, default='')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='photo_projects',
+    )
+    shared_with = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name='shared_photo_projects')
+    created_at = models.DateTimeField(auto_now_add=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'Photo project {self.pk}: {self.name}'
+
+
+class ProjectPhoto(models.Model):
+    """One photo in a photo project: the original, and Grok's edited copy when one was made."""
+
+    EDIT_CHOICES = [
+        ('remove_background', 'Remove background'),
+        ('clean_up', 'Clean up'),
+        ('square', 'Square thumbnail'),
+    ]
+    EDIT_STATUS = [('', 'None'), ('working', 'Working'), ('done', 'Done'), ('failed', 'Failed')]
+
+    project = models.ForeignKey(PhotoProject, on_delete=models.CASCADE, related_name='photos')
+    item = models.ForeignKey('inventory.Item', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    scanned_code = models.CharField(max_length=80, blank=True, default='')
+    note = models.TextField(blank=True, default='')
+    file = models.ForeignKey(S3File, on_delete=models.PROTECT, related_name='+')
+    thumbnail = models.ForeignKey(S3File, on_delete=models.PROTECT, related_name='+', null=True, blank=True)
+    edited = models.ForeignKey(S3File, on_delete=models.SET_NULL, related_name='+', null=True, blank=True)
+    edited_thumbnail = models.ForeignKey(S3File, on_delete=models.SET_NULL, related_name='+', null=True, blank=True)
+    edit_kind = models.CharField(max_length=30, blank=True, default='', choices=EDIT_CHOICES)
+    edit_status = models.CharField(max_length=10, blank=True, default='', choices=EDIT_STATUS)
+    edit_error = models.CharField(max_length=255, blank=True, default='')
+    width = models.PositiveIntegerField(default=0)
+    height = models.PositiveIntegerField(default=0)
+    taken_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'Project photo {self.pk} ({self.project_id})'

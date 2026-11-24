@@ -92,6 +92,7 @@ const TEMPLATE: Record<string, PageTemplate> = {
   // Dash Home tabs (2026-11-13): HR (staff view), Calendar (being designed), Messages
   homeHr: 'overview', homeCalendar: 'calendar', homeMessages: 'list-detail',
   photoDrops: 'list-detail',
+  photoProjects: 'list-detail',
   // Buying
   auctions: 'data-table', estimateProfit: 'form', vendors: 'list-detail', orders: 'data-table', preprocessing: 'command-center',
   wishlist: 'list-detail', auctionsOld: 'list-detail', watchlist: 'list-detail', reportCards: 'report',
