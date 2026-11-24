@@ -102,6 +102,7 @@ def cookie_choice(request) -> str | None:
 _BOOT_MARKER = '<!--ECO_BOOT-->'
 _phone_setting_cache: tuple[bool, float] | None = None
 _phone_scan_cache: tuple[bool, float] | None = None
+_black_friday_cache: tuple[bool, float] | None = None
 _boot_cache: tuple[str, str] | None = None   # (etag, the <script> tag), so a warm page re-escapes nothing
 
 
@@ -139,12 +140,51 @@ def phone_scan_on() -> bool:
     return on
 
 
+def black_friday_on() -> bool:
+    """Black Friday shows (``pos.black_friday``, #220), read at most every 30 seconds per worker: the desktop site's
+    home is then the Black Friday panel. A desktop is NEVER sent to the phone site for it (owner 2026-11-24: "NEVER
+    NEVER NEVER have the desktop app have Mobile elements or be Mobile view"). Off on any error."""
+    global _black_friday_cache
+    try:
+        from apps.pos.services import black_friday
+
+        if black_friday.forced():  # the owner's Black Friday test, this request only: never cached
+            return True
+    except Exception:
+        pass
+    now = time.monotonic()
+    if _black_friday_cache is not None and now < _black_friday_cache[1]:
+        return _black_friday_cache[0]
+    try:
+        from apps.pos.services import black_friday
+
+        on = black_friday.shown_live()
+    except Exception:
+        on = False
+    _black_friday_cache = (on, now + PHONE_SETTING_SECONDS)
+    return on
+
+
 def is_phone(request) -> bool:
     """A phone: the User-Agent says ``Mobi``, and ``Sec-CH-UA-Mobile`` (when the browser sends it) says ``?1``."""
     if 'Mobi' not in request.META.get('HTTP_USER_AGENT', ''):
         return False
     hint = request.META.get('HTTP_SEC_CH_UA_MOBILE')
     return hint is None or hint.strip() == '?1'
+
+
+def test_pick(request):
+    """The owner's Testing page pick for this request, a ``site_testing.Pick`` (None for everyone else: only a browser
+    carrying the signed ``eco_test`` cookie reads the setting). A phone follows the Mobile pick, a computer the Desktop
+    one; what each pick serves is on the Pick itself (``site_testing.PICKS``)."""
+    try:
+        from apps.core.services import site_testing
+
+        if site_testing.COOKIE not in request.COOKIES:
+            return None
+        return site_testing.pick_for(request, phone=is_phone(request))
+    except Exception:
+        return None
 
 
 def boot_script(scan: bool = False) -> str:
@@ -164,6 +204,14 @@ def boot_script(scan: bool = False) -> str:
         if holder.peek() is None:
             return ''
         home = holder.get().home
+        from apps.pos.services import black_friday
+
+        if black_friday.forced():  # the owner's Black Friday test: its own stamp, never the cached one
+            from apps.storefront.views import black_friday_home
+
+            body = black_friday_home(home.raw).decode('utf-8').replace('<', '\\u003c')
+            tag = f'{_STAMP_OPEN}{body}</script>'
+            return _with_scan(tag) if scan else tag
         if _boot_cache is not None and _boot_cache[0] == home.etag:
             tag = _boot_cache[1]
         else:
@@ -286,9 +334,7 @@ class PublicSiteMiddleware:
             except Exception:  # pragma: no cover - get_host validates against ALLOWED_HOSTS
                 host = ''
             if self.public_hosts and host in self.public_hosts:
-                response = self._handle_public(request, host)
-                if response is not None:
-                    return response
+                return self._public(request, host)
             elif host and host == self.dash_host:
                 response = self._member_app_off_dash(request)
                 if response is not None:
@@ -312,6 +358,73 @@ class PublicSiteMiddleware:
         if query:
             target = f'{target}?{query}'
         return HttpResponseRedirect(target)
+
+    def _public(self, request, host):
+        """A request on a public host. The owner's Testing page (services/site_testing.py): ``?test=`` links or unlinks
+        this browser; a linked browser with a pick on gets that version, Black Friday shown for this request only,
+        and the TEST badge on its pages. Everyone else costs nothing extra (no cookie, no read)."""
+        if request.method == 'GET' and 'test' in request.GET:
+            return self._test_link(request)
+        pick = test_pick(request)
+        token = None
+        if pick is not None and pick.black_friday:
+            try:
+                from apps.pos.services import black_friday
+
+                token = black_friday.force()
+            except Exception:
+                token = None
+        request.eco_test = pick
+        try:
+            response = self._handle_public(request, host)
+            if response is None:
+                response = self.get_response(request)
+            if pick is not None:
+                response = self._with_badge(request, response, pick)
+            return response
+        finally:
+            if token is not None:
+                from apps.pos.services import black_friday
+
+                black_friday.unforce(token)
+
+    def _test_link(self, request):
+        """``?test=<signed link>`` from the Testing page links this browser (and drops the old 30-day preview cookie, so
+        nothing else decides what it sees); ``?test=off`` unlinks it. Then back to the same address without it."""
+        from apps.core.services import site_testing
+
+        value = request.GET.get('test') or ''
+        params = request.GET.copy()
+        params.pop('test', None)
+        target = request.path + (f'?{params.urlencode()}' if params else '')
+        response = HttpResponseRedirect(target)
+        response['Cache-Control'] = 'no-store'
+        if value == 'off':
+            response.delete_cookie(site_testing.COOKIE)
+        elif site_testing.link_ok(value):
+            response.set_cookie(site_testing.COOKIE, site_testing.device_value(), max_age=site_testing.DEVICE_SECONDS,
+                                samesite='Lax', secure=request.is_secure(), httponly=True)
+            response.delete_cookie(SITE_COOKIE)
+        return response
+
+    def _with_badge(self, request, response, pick):
+        """Put the TEST badge on an HTML page (a fixed element before </body>: it moves nothing). Never cached."""
+        try:
+            kind = response.get('Content-Type', '')
+            if response.status_code != 200 or getattr(response, 'streaming', False) or 'text/html' not in kind:
+                return response
+            from apps.core.services import site_testing
+
+            badge = site_testing.badge_html(pick, site_testing.state().get('until'), phone=is_phone(request))
+            html = response.content.decode(response.charset or 'utf-8')
+            if badge and '</body>' in html:
+                response.content = html.replace('</body>', badge + '</body>', 1)
+                if response.has_header('Content-Length'):
+                    response['Content-Length'] = str(len(response.content))
+            response['Cache-Control'] = 'no-store'
+        except Exception:
+            pass
+        return response
 
     def _handle_public(self, request, host):
         path = request.path
@@ -375,9 +488,13 @@ class PublicSiteMiddleware:
 
     def _wants_phone(self, request, path: str) -> bool:
         """The cookie decides when set; else a phone gets the phone site when the switch is on. Owned paths only.
-        The switch is read only for a phone with no cookie, so a desktop request never costs a query."""
+        The switch is read only for a phone with no cookie, so a desktop request never costs a query. A desktop never
+        gets the phone site, Black Friday included (owner 2026-11-24)."""
         if not self.phone_index_path or not phone_owns(path):
             return False
+        pick = getattr(request, 'eco_test', None)
+        if pick is not None and pick.site != 'live':  # the owner's Testing page says which site
+            return pick.site == 'phone'
         choice = cookie_choice(request)
         if choice:
             return choice == 'phone'
@@ -388,6 +505,9 @@ class PublicSiteMiddleware:
         read only for a phone with no cookie (a desktop never costs a query)."""
         if not self.phone_index_path:
             return False
+        pick = getattr(request, 'eco_test', None)
+        if pick is not None and pick.scanner != 'live':  # the owner's Testing page says which scanner
+            return pick.scanner == 'phone'
         choice = cookie_choice(request)
         if choice:
             return choice == 'phone'
@@ -413,6 +533,11 @@ class PublicSiteMiddleware:
 
     def _shell_html(self, path: str) -> str:
         if path == '/':
+            if black_friday_on():  # Black Friday (#220): the home paints as the sale at once, before the bundle
+                try:
+                    return render_to_string('public/black_friday_shell.html')
+                except Exception:
+                    return ''
             return self._home_shell_html()
         return self._hold_shell_html(path)
 
@@ -530,6 +655,10 @@ class PublicSiteMiddleware:
                 if _HOLD_SHELL_MARKER in html:
                     shell = self._shell_html(path)
                     html = html.replace(_HOLD_SHELL_MARKER, shell, 1)
+                if black_friday_on():
+                    # Every page of the desktop site knows the day before its first paint (lib/blackFriday.ts), so
+                    # nothing swaps or moves, and Home is the sale however the visitor reaches it.
+                    html = html.replace('<html', '<html data-day="bf"', 1)
                 return HttpResponse(html)
         # No public build (e.g. local dev): fall back to the holding page.
         return HttpResponse(render_to_string(_HOLDING_TEMPLATE))

@@ -200,3 +200,11 @@ html[data-day="bf"] .tr-ans:not(.tr-ans-0) .tr-big, html[data-day="bf"] .tr-go {
 .tr-done-info { margin-top: 16px; padding: 14px; border-radius: 12px; background: var(--ground); font-size: 14px; line-height: 1.45; }
 .tr-done-info p { margin-top: 4px; color: var(--ink-2); }
 .tr-done-btn { margin-top: 18px; }
+
+/* Black Friday (#220): the guest's small join note floats over the page; nothing moves when it comes or goes. */
+.tr-bfnote { position: fixed; left: 50%; transform: translateX(-50%); top: calc(10px + env(safe-area-inset-top));
+  width: min(400px, calc(100% - 24px)); z-index: 40; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px;
+  border-radius: 14px; background: #10140f; color: #fff; font-size: 14px; line-height: 1.25; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+.tr-bfnote span { flex: 1; min-width: 0; }
+.tr-bfnote-join { border: 0; border-radius: 10px; background: #fff; color: #10140f; font-weight: 800; font-size: 14px; padding: 8px 12px; }
+.tr-bfnote-x { border: 0; background: transparent; color: #fff; font-size: 22px; width: 36px; height: 36px; }

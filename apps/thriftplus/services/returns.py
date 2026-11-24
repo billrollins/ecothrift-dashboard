@@ -227,7 +227,10 @@ def mark_for(item, *, price: Decimal | None = None, reward: Decimal = ZERO, rule
 def line_price(line) -> Decimal:
     """The line's unit price after its percent sale (what the guide compares)."""
     pct = line.sale_percent or ZERO
-    return ((line.unit_price or ZERO) * (Decimal('1') - pct / Decimal('100'))).quantize(CENT, rounding=ROUND_HALF_UP)
+    price = ((line.unit_price or ZERO) * (Decimal('1') - pct / Decimal('100'))).quantize(CENT, rounding=ROUND_HALF_UP)
+    if line.sale_off:  # a dollar store sale (Black Friday), per unit
+        price = max(ZERO, price - (line.sale_off / (line.quantity or 1)).quantize(CENT, rounding=ROUND_HALF_UP))
+    return price
 
 
 # ── What a return gives back (W3, W4) ──────────────────────────────────────────

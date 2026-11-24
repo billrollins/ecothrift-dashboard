@@ -69,12 +69,14 @@ class _Files(SimpleTestCase):
         mw._home_shell_cache = ('', float('inf'))  # the classic home shell stamps nothing (no DB here)
         mw._phone_setting_cache = None
         mw._phone_scan_cache = None
+        mw._black_friday_cache = None
         mw._boot_cache = None
 
     def tearDown(self):
         mw._home_shell_cache = None
         mw._phone_setting_cache = None
         mw._phone_scan_cache = None
+        mw._black_friday_cache = None
         mw._boot_cache = None
 
     def get(self, path, ua=DESKTOP, cookie=None, host='ecothrift.us', **extra):
@@ -114,6 +116,37 @@ class SwitchOffTests(_Files):
         # /scan with the cookie is the phone scanner now (ScanSwitchTests); the rest of the member app is not.
         for path in ('/join', '/qr', '/card', '/scan/list', '/api/storefront/home.json', '/static/site/x.js', '/robots.txt', '/i/abc'):
             self.assertEqual(self.get(path, ua=IPHONE, cookie='phone').content, b'django', path)
+
+
+class BlackFridayTests(_Files):
+    """Black Friday (#220). Owner 2026-11-24: "NEVER NEVER NEVER have the desktop app have Mobile elements or be Mobile
+    view": a desktop keeps the desktop site, whose home is stamped with the day; it is never sent to the phone site."""
+
+    def test_a_desktop_never_gets_the_phone_site_for_black_friday(self):
+        with patch.object(mw, 'black_friday_on', return_value=True), patch.object(mw, 'phone_site_on', return_value=True):
+            for path in OWNED:
+                self.assertEqual(self.site(self.get(path, ua=DESKTOP)), 'classic', path)
+            self.assertEqual(self.site(self.get('/', ua=IPHONE)), 'phone')
+        with patch.object(mw, 'black_friday_on', return_value=True), patch.object(mw, 'phone_site_on', return_value=False):
+            self.assertEqual(self.site(self.get('/', ua=IPHONE)), 'classic')  # the phone switch alone decides for phones
+
+    def test_the_desktop_home_is_stamped_with_the_day_and_paints_the_sale_first(self):
+        with patch.object(mw, 'black_friday_on', return_value=True):
+            home = self.get('/', ua=DESKTOP).content.decode()
+            self.assertIn('<html data-day="bf">', home)
+            self.assertIn('All prices reduced.', home)
+            self.assertIn('Get directions', home)
+            self.assertIn('Fri 6 AM to 6 PM', home)
+            visit = self.get('/visit', ua=DESKTOP).content.decode()
+            self.assertIn('<html data-day="bf">', visit)  # every desktop page knows the day; only Home paints the sale
+            self.assertNotIn('All prices reduced.', visit)
+        with patch.object(mw, 'black_friday_on', return_value=False):
+            home = self.get('/', ua=DESKTOP).content.decode()
+            self.assertNotIn('data-day', home)
+            self.assertNotIn('All prices reduced.', home)
+
+    def test_no_window_is_off(self):
+        self.assertFalse(mw.black_friday_on())  # no database here: a failed read is off
 
 
 class SwitchOnTests(_Files):

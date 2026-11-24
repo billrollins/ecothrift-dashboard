@@ -207,6 +207,9 @@ class CartLineSerializer(serializers.ModelSerializer):
     sale_savings = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     # The sale's name as the customer sees it ("Labor Day 10%"); blank when the line has no sale.
     sale_display = serializers.SerializerMethodField()
+    # Black Friday (#220): the item's retail, struck through before the price; only a retail the tag may print, and
+    # only above the price paid. None on any other line.
+    retail = serializers.SerializerMethodField()
 
     class Meta:
         model = CartLine
@@ -216,14 +219,23 @@ class CartLineSerializer(serializers.ModelSerializer):
             'resale_source_sku', 'resale_source_item_id',
             'line_kind', 'meta',
             'sale_label', 'sale_percent', 'sale_display', 'list_total', 'sale_savings', 'thrift_savings',
-            'tax_exempt', 'created_at',
+            'sale_off', 'retail', 'tax_exempt', 'created_at',
         ]
         read_only_fields = [
             'id', 'line_total', 'created_at', 'tax_exempt',
             'resale_source_sku', 'resale_source_item_id',
             'line_kind', 'meta',
-            'sale_label', 'sale_percent', 'list_total', 'sale_savings', 'thrift_savings',
+            'sale_label', 'sale_percent', 'list_total', 'sale_savings', 'thrift_savings', 'sale_off',
         ]
+
+    def get_retail(self, obj) -> str | None:
+        if obj.sale_label != CartLine.SALE_LABEL_BLACK_FRIDAY or obj.item_id is None:
+            return None
+        from apps.inventory.services.tag_retail import tag_retail
+
+        retail = tag_retail(obj.item)
+        unit = (obj.line_total or Decimal('0')) / (obj.quantity or 1)
+        return f'{retail:.2f}' if retail is not None and retail > unit else None
 
     def get_sale_display(self, obj) -> str:
         if not obj.sale_label:

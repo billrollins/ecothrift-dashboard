@@ -55,9 +55,9 @@ def product_payload(pid: int) -> dict | None:
         tb = R.thriftbucks(tag, source=source, reward=reward, starting_price=start, status=status, s=s) if reward else R.ZERO
         units.append(((-tb, tag, iid), sku, tag, retail, check or '', condition, notes, tb, bucket))
     units.sort(key=lambda u: u[0])
-    _, sku, tag, retail, check, condition, notes, tb, bucket = units[0]
+    (_, _, iid), sku, tag, retail, check, condition, notes, tb, bucket = units[0]
     profile = getattr(product, 'profile', None)
-    price = R.shown_price(tag, s)
+    price, tb = R.priced(tag, tb, s, R.bf_bucks([iid], s).get(iid))  # Black Friday (#220): one price, no ThriftBucks
     rep = SimpleNamespace(product_id=product.pk, product=product, condition=condition, notes=notes, price=tag)
     as_is = why_as_is(rep, price=price, reward=tb, rules=s.guide)
     kind = photos.kind_of(product)

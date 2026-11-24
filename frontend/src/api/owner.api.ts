@@ -104,3 +104,22 @@ export async function fetchAiSpend(range: SpendRange): Promise<AiSpend> {
   const { data } = await api.get<AiSpend>('/core/owner/ai-spend/', { params: { range } });
   return data;
 }
+
+/** Owner page, Testing (owner 2026-11-24): what the owner's linked devices see on the website, for 24 hours. */
+export type TestPick = '' | 'legacy' | 'new' | 'bf';
+export interface TestOption { key: TestPick; label: string; what: string }
+export interface OwnerTesting {
+  /** The picks that are on now ('' = Live) and when they end (ISO; null when nothing is on). */
+  state: { mobile: TestPick; desktop: TestPick; until: string | null };
+  options: { mobile: TestOption[]; desktop: TestOption[] };
+  /** What customers see today, in words. */
+  live: { mobile: string; desktop: string };
+  /** Opens on a device once to link it (an hour to use it); `unlink` takes the device off. */
+  link: string;
+  unlink: string;
+  hours: number;
+}
+
+export const fetchOwnerTesting = () => api.get<OwnerTesting>('/core/owner/testing/').then((r) => r.data);
+export const saveOwnerTesting = (body: { mobile?: TestPick; desktop?: TestPick; end?: boolean }) =>
+  api.post<OwnerTesting>('/core/owner/testing/', body).then((r) => r.data);

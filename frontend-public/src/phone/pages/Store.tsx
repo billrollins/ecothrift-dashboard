@@ -296,7 +296,7 @@ export default function Store() {
           <span>On the next trucks. Not in store yet.</span>
         ) : day === 'bf' ? (
           <span>
-            <b>Thrift+ members:</b> ThriftBucks come off today. Most items.
+            <b>Black Friday, Fri &amp; Sat:</b> one price for everyone, the retail crossed out.
           </span>
         ) : (
           <span>

@@ -11,6 +11,7 @@ import ThriftPlusSignupDialog from './ThriftPlusSignupDialog';
 
 const calls = vi.hoisted(() => ({
   choice: [] as string[],
+  build: [] as boolean[],
   bucks: [] as Array<[number, boolean]>,
   here: [] as number[],
   phones: [] as string[],
@@ -53,6 +54,10 @@ vi.mock('../../api/thriftplusRegister.api', () => ({
   detachThriftCard: async () => ({}),
   refreshCart: async () => ({}),
   uploadThriftSalePhoto: async () => undefined,
+  setThriftBuild: async (_id: number, build: boolean) => {
+    calls.build.push(build);
+    return {};
+  },
   setThriftChoice: async (_id: number, choice: string) => {
     calls.choice.push(choice);
     return {};
@@ -70,6 +75,7 @@ vi.mock('../../api/thriftplusRegister.api', () => ({
 
 beforeEach(() => {
   calls.choice = [];
+  calls.build = [];
   calls.bucks = [];
   calls.phones = [];
   calls.attached = [];
@@ -140,6 +146,19 @@ function wrap(node: ReactNode) {
 }
 
 describe('Thrift+ at the register', () => {
+  it('on Black Friday offers the Black Friday price (the default) or build, and no instant redemption (#220)', async () => {
+    const bf = block({
+      collected: '0.00', instant_offered: false, instant_reason: 'This trip collects no ThriftBucks.', use_by: null,
+      black_friday: { on: true, builds: false, build_bucks: '35.00', build_more: '35.00' },
+    });
+    wrap(<ThriftPlusPanel cart={cartWith(bf)} onCart={() => undefined} />);
+    expect(screen.getByTestId('thrift-black-friday')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Black Friday price (Default)' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: /redeem instantly/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'or build: pay $35.00 more, keep 35.00 ThriftBucks' }));
+    expect(calls.build).toEqual([true]);
+  });
+
   it('shows a non-member only what the trip would have collected: finding a member is the cart\'s Thrift+ member button', () => {
     const line = 'This trip would have collected 35.00 ThriftBucks.';
     wrap(<ThriftPlusPanel cart={cartWith(block({ member: null, instant_offered: false, guest_line: line }))} onCart={() => undefined} />);

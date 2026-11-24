@@ -115,13 +115,13 @@ function SignedOut({ guest }: { guest: boolean }) {
               <b className="tn">Keep 20.00 ThriftBucks</b>for your next visit
             </div>
             <div className="ac-out if-bf">
-              <b className="tn">20.00 ThriftBucks</b>come off today, in full
+              <b className="tn">Black Friday $80.00</b>the same price for everyone
             </div>
             <div className="ac-out if-normal">
               <b className="tn">Or pay $90.00</b>at the register today
             </div>
             <div className="ac-out if-bf">
-              <b className="tn">You pay $80.00</b>at the register today
+              <b className="tn">Or keep 20.00 ThriftBucks</b>pay $100.00 and ask to build
             </div>
           </div>
         </div>
@@ -187,7 +187,7 @@ function MemberMain({ member }: { member: ThriftPlusMember }) {
     line !== 'Show this at the register.'
       ? line
       : day === 'bf'
-        ? 'They come off today, in full · Thrift+ members'
+        ? 'Black Friday: one price for everyone · Like to build? Ask at the register'
         : useBy
           ? `Use by ${useBy} · Thrift+ members`
           : 'Thrift+ members. Most items.'

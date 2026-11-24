@@ -33,6 +33,20 @@ describe('saleSuffix', () => {
   });
 });
 
+describe('Black Friday on the receipt (#220)', () => {
+  it('names the retail (or Black Friday) and never the tag; no ThriftBucks and no Join for line', () => {
+    expect(saleSuffix(line({ sale_label: 'black_friday', retail: '479.99' }))).toBe(' (Retail $479.99)');
+    expect(saleSuffix(line({ sale_label: 'black_friday', retail: null }))).toBe(' (Black Friday)');
+    const bf = line({ id: 7, sale_label: 'black_friday', retail: '50.00', quantity: 1, unit_price: '20.00', line_total: '18.00', line_kind: 'item' });
+    const cart = {
+      id: 1, status: 'completed', subtotal: '18.00', tax_amount: '1.26', total: '19.26', lines: [bf],
+      thrift_plus: { member: null, guest_line: '', collected: '0.00', lines: { 7: { reward: '2.00', mark: 'AS IS', join_mark: '3-day return' } } },
+    } as unknown as Cart;
+    const items = buildReceiptData(cart).items as Array<Record<string, unknown>>;
+    expect(items[0]).toEqual({ name: 'Lamp (Retail $50.00)', quantity: 1, unit_price: 18, line_total: 18, mark: 'AS IS' });
+  });
+});
+
 describe('receiptLineFromCartLine', () => {
   it('uses effective unit price from line_total', () => {
     const item = receiptLineFromCartLine(

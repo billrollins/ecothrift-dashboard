@@ -74,7 +74,8 @@ const FEEL_DONE: Record<PriceFeelReason, { title: string; text: string; info?: I
  * The field header: tap it for what Thrift+ is. The pill, top right on every screen: members get two buttons in one pill
  * (owner 2026-10-15, APP D11), their balance (the balance sheet) and the QR (the Member QR sheet); non-members sign in.
  */
-export function TripHeader({ member, onAbout, onWallet, onBalance, onSignIn }: {
+export function TripHeader({ member, onAbout, onWallet, onBalance, onSignIn, blackFriday = false }: {
+  blackFriday?: boolean;
   member: ThriftPlusMember | null;
   onAbout: () => void;
   onWallet: () => void;
@@ -85,14 +86,23 @@ export function TripHeader({ member, onAbout, onWallet, onBalance, onSignIn }: {
     boxShadow: '0 4px 14px rgba(0,0,0,0.16)', fontFamily: sc.font, whiteSpace: 'nowrap' } as const;
   const ready = bucksReady(member?.banked_rewards, member?.bucks_available);
   return (
-    <FieldBanner>
+    <FieldBanner blackFriday={blackFriday}>
       <Box sx={{ position: 'relative', width: u(900), height: '100%', mx: 'auto' }}>
+        {blackFriday ? (
+          // Black Friday (#220): the sale's name where the Thrift+ mark sits; nobody needs Thrift+ those days.
+          <Box data-testid="bf-header" sx={{ position: 'absolute', left: u(35), top: u(34), color: '#fff', fontFamily: sc.condensed, fontWeight: 700,
+            fontSize: u(64), lineHeight: 0.92, letterSpacing: '0.01em', textTransform: 'uppercase' }}>
+            Black Friday
+            <Box sx={{ fontFamily: sc.font, fontSize: u(24), fontWeight: 800, letterSpacing: '0.08em', color: '#e3efbe', mt: u(6) }}>Fri &amp; Sat · all prices reduced</Box>
+          </Box>
+        ) : (
         <ButtonBase onClick={onAbout} aria-label="What is Thrift+?" data-testid="about-thriftplus"
           sx={{ position: 'absolute', inset: 0, display: 'block', textAlign: 'left' }}>
           <Box sx={{ position: 'absolute', left: u(35), top: u(40) }}>
             <ThriftPlusLogo width={u(290)} />
           </Box>
         </ButtonBase>
+        )}
         {member ? (
           <Box sx={{ ...shell, display: 'flex', alignItems: 'stretch', overflow: 'hidden' }}>
             <ButtonBase onClick={onBalance} data-testid="wallet-pill"

@@ -208,7 +208,7 @@ export interface BankTransaction {
 }
 
 export type CartLineKind = 'item' | 'manual' | 'discount' | 'delivery' | 'assembly';
-export type SaleLabel = '' | 'labor_day' | 'summer';
+export type SaleLabel = '' | 'labor_day' | 'summer' | 'black_friday';
 
 export interface CartLine {
   id: number;
@@ -230,6 +230,10 @@ export interface CartLine {
   sale_savings?: string;
   /** Thrift+: the member rebate taken off this line (0 while Thrift+ is dark). */
   thrift_savings?: string;
+  /** Black Friday (#220): dollars the Black Friday price takes off this line ("35.00"). */
+  sale_off?: string;
+  /** Black Friday: the item's retail, struck through before the price (only one the tag may print), else null. */
+  retail?: string | null;
   /** "No tax": this line is not taxed; the rest of the sale is. Drinks (meta.category "drinks", 2026-11-03) always. */
   tax_exempt?: boolean;
   created_at: string;
@@ -385,6 +389,9 @@ export interface ThriftPlusCartBlock {
   instant_reason: string;
   /** "0.50" */
   instant_share: string;
+  /** Black Friday (#220) on this open sale: one price for everyone; a member may build (pay the tag, keep the
+   * ThriftBucks). `build_bucks` ThriftBucks kept and `build_more` dollars more today if they build. Null otherwise. */
+  black_friday?: { on: boolean; builds: boolean; build_bucks: string; build_more: string } | null;
   /** ThriftBucks this trip collects (full value), "35.00". */
   collected: string;
   /** ISO date: today's collected ThriftBucks are usable through this day (sale day + 30). */

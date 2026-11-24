@@ -108,6 +108,8 @@ export function typeOnlyMode(): boolean {
 export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, { status: 'signed_out' }> }) {
   const member = session.status === 'member' ? session.member : null;
   const isGuest = session.status === 'guest';
+  const guestBlackFriday = session.status === 'guest' && !!session.black_friday;
+  const blackFriday = !!session.black_friday;
   const qc = useQueryClient();
   const cart = useThriftPlusCart();
   const actions = useCartActions();
@@ -333,11 +335,13 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
     <Box ref={rootRef} onPointerDown={() => camera.poke()} sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
       {member?.test_mode && <TestModeBar />}
-      <TripHeader member={member} onAbout={() => setSheet('about')} onWallet={() => goTab('qr')} onBalance={() => goTab('bucks')} onSignIn={() => auth.signOut.mutate()} />
+      <TripHeader member={member} onAbout={() => setSheet('about')} onWallet={() => goTab('qr')} onBalance={() => goTab('bucks')} onSignIn={() => auth.signOut.mutate()}
+        blackFriday={blackFriday} />
       <Box sx={{ flex: 1, minHeight: 0, width: u(900), mx: 'auto', px: u(20), pt: u(18), pb: barShown ? u(20) : `calc(${u(20)} + env(safe-area-inset-bottom, 0px))`,
         display: 'flex', flexDirection: 'column', gap: u(18) }}>
         {homeBanner && <HomeScreenCard variant="banner" />}
-        <SummaryBar count={count} total={shown} lines={lines} open={mode === 'trip' || mode === 'item'} onToggle={toggleTrip} isGuest={isGuest} />
+        <SummaryBar count={count} total={shown} lines={lines} open={mode === 'trip' || mode === 'item'} onToggle={toggleTrip} isGuest={isGuest}
+          blackFriday={guestBlackFriday} />
 
         <Box data-testid="stage" sx={cameraSideways ? { position: 'fixed', inset: 0, zIndex: 70 } : { position: 'relative', flex: 1, minHeight: 0 }}>
           {mode === 'trip' ? (
@@ -395,7 +399,7 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
           {undo.node}
         </Box>
 
-        {mode === 'card' && top?.fromLink && isGuest && !answer && (
+        {mode === 'card' && top?.fromLink && isGuest && !answer && !blackFriday && (
           <Box sx={{ flexShrink: 0, display: 'flex' }}>
             <BigButton primary onClick={() => setParams({ view: 'join' })} testId="get-thrift-plus">
               Get Thrift+
@@ -518,15 +522,19 @@ function TestModeBar() {
  * This trip, fixed at the top: the cart and its count, the ThriftBucks back, the items' badges. A tap flips between
  * the camera and the trip's lines (owner 2026-10-13); the chevron says which way.
  */
-function SummaryBar({ count, total, lines, open, onToggle, isGuest = false }: {
+function SummaryBar({ count, total, lines, open, onToggle, isGuest = false, blackFriday = false }: {
   count: number;
   total: number;
   lines: ThriftPlusCartLine[];
   open: boolean;
   onToggle: () => void;
   isGuest?: boolean;
+  blackFriday?: boolean;
 }) {
   const word = isGuest ? 'ThriftBucks for members' : 'ThriftBucks back';
+  // Black Friday (#220): the trip's total in dollars at the Black Friday price, the same for everyone.
+  const bf = blackFriday || lines.some((l) => l.item.black_friday);
+  const priceTotal = lines.reduce((sum, l) => sum + (l.item.available ? (Number.parseFloat(l.item.price) || 0) * l.qty : 0), 0);
   return (
     <ButtonBase
       onClick={onToggle}
@@ -547,9 +555,9 @@ function SummaryBar({ count, total, lines, open, onToggle, isGuest = false }: {
         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: u(12), whiteSpace: 'nowrap' }}>
           <Box data-target="trip-total" sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(58), lineHeight: 1.05, color: total > 0 ? sc.green : sc.ink3,
             fontVariantNumeric: 'tabular-nums' }}>
-            {total > 0 ? '+' : ''}{tbNumber(total)}
+            {bf ? money(priceTotal.toFixed(2)) : `${total > 0 ? '+' : ''}${tbNumber(total)}`}
           </Box>
-          <Box sx={{ fontSize: u(28), fontWeight: 700, color: sc.greenDeep }}>{word}</Box>
+          <Box sx={{ fontSize: u(28), fontWeight: 700, color: bf ? '#b4232c' : sc.greenDeep }}>{bf ? 'Black Friday' : word}</Box>
         </Box>
       </Box>
       <Box aria-hidden sx={{ flexShrink: 0, display: 'flex' }}>
@@ -680,12 +688,16 @@ function FoundTag({ item, isGuest, verified18, qty, onFeel, onRetail, onReturns 
       </Box>
       <Box sx={{ width: '70%', height: u(2), bgcolor: sc.line, my: u(18) }} />
       {item.retail_price && <RetailPrice value={item.retail_price} onClick={onRetail} />}
-      <Box sx={{ fontSize: u(24), color: sc.ink2, letterSpacing: '0.16em', textTransform: 'uppercase', mt: u(4) }}>Our price</Box>
-      <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(priceSize(money(item.price))), lineHeight: 0.95, color: sc.priceGreen,
+      <Box sx={{ fontSize: u(24), color: sc.ink2, letterSpacing: '0.16em', textTransform: 'uppercase', mt: u(4) }}>
+        {item.black_friday ? 'Black Friday' : 'Our price'}
+      </Box>
+      <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(priceSize(money(item.price))), lineHeight: 0.95, color: item.black_friday ? '#10140f' : sc.priceGreen,
         whiteSpace: 'nowrap' }}>{money(item.price)}</Box>
       <Box data-testid="reward-band" sx={{ mt: u(28), py: u(16), px: u(28), borderRadius: u(24), bgcolor: reward > 0 ? sc.greenTint : '#f3f3ef',
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: u(16) }}>
-        {reward > 0 ? (
+        {item.black_friday ? (
+          <Box data-testid="bf-band" sx={{ fontSize: u(30), fontWeight: 800, color: sc.ink, py: u(10) }}>Fri &amp; Sat price for everyone</Box>
+        ) : reward > 0 ? (
           <>
             <BigBucks value={tb} size={u(tbNumber(reward).length >= 6 ? 86 : 104)} sparkle={false} />
             <Box sx={{ fontSize: u(30), fontWeight: 800, color: sc.greenDeep, lineHeight: 1.1, textAlign: 'left' }}>
@@ -775,7 +787,7 @@ function TripLine({ line, onQty, onRemove, onOpen }: {
           </Box>
         </Box>
         <Box sx={{ flexShrink: 0, fontFamily: sc.condensed, fontWeight: 700, fontSize: u(40), color: reward > 0 ? sc.green : sc.ink3 }}>
-          {reward > 0 ? `+${tbNumber(reward)}` : '0.00'}
+          {item.black_friday ? '' : reward > 0 ? `+${tbNumber(reward)}` : '0.00'}
         </Box>
         {open ? (
           <Box onPointerDown={(e) => e.stopPropagation()} sx={{ flexShrink: 0 }}>

@@ -84,7 +84,9 @@ function FoundTag({ item, isGuest, verified18, qty, onFeel, onRetail, onReturns,
   if (item.age_restricted) notes.push({ text: verified18 ? '18+' : '18+: ID checked at the register', tone: 'tr-warn' })
   const note = item.returnable && item.return_note ? item.return_note : ''
 
-  const band = reward > 0 ? (
+  const band = item.black_friday ? (
+    <span className="tr-ans-none" data-testid="bf-band">Fri &amp; Sat price for everyone</span>
+  ) : reward > 0 ? (
     <>
       <span className="tr-big tn">+{bucks(reward)}</span>
       <span className="tr-ans-w">{isGuest ? 'ThriftBucks for members' : 'ThriftBucks back'}</span>
@@ -131,10 +133,10 @@ function FoundTag({ item, isGuest, verified18, qty, onFeel, onRetail, onReturns,
       </div>
       <div className="tr-nums">
         <div className="tr-tc">
-          <span className="lbl">Our price</span>
+          <span className="lbl">{item.black_friday ? 'Black Friday' : 'Our price'}</span>
           <PriceTag price={price} className={tagSize(price)} />
         </div>
-        {onJoin ? (
+        {onJoin && !item.black_friday ? (
           <button type="button" className={`tr-ans tr-join${reward > 0 ? '' : ' tr-ans-0'}`} data-testid="get-thrift-plus" onPointerDown={(e) => e.stopPropagation()}
             onClick={onJoin}>
             <span className="tr-rb" data-testid="reward-band">{band}</span>

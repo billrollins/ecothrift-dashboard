@@ -13,7 +13,7 @@
 import { useSyncExternalStore } from 'react'
 import { bucks } from '../../lib/format'
 import type { TripListProps } from '../contracts'
-import type { ThriftPlusCartLine } from '../core'
+import { money, type ThriftPlusCartLine } from '../core'
 import { actions, useCart, useScanSession } from '../store'
 import { IconTrash } from '../ui'
 import { useSlideToRemove } from './gestures'
@@ -140,9 +140,13 @@ function TripLine({ line, onOpen }: { line: ThriftPlusCartLine; onOpen?: () => v
         <div className="tr-line-txt">
           <span className="tr-line-nm">{item.title}</span>
           <span className="tr-line-sub tn">
-            <span className={reward > 0 ? 'tr-plus' : 'tr-zero'}>
-              {reward > 0 ? `+ ${bucks(reward)}` : '0.00'} ThriftBucks
-            </span>
+            {item.black_friday ? (
+              <span className="tr-plus">Black Friday</span>
+            ) : (
+              <span className={reward > 0 ? 'tr-plus' : 'tr-zero'}>
+                {reward > 0 ? `+ ${bucks(reward)}` : '0.00'} ThriftBucks
+              </span>
+            )}
           </span>
         </div>
         <QtyStepper qty={qty} onChange={(q) => setLineQty(line, q)} />
@@ -194,10 +198,22 @@ export function TripList({ onOpen, children }: TripListProps) {
   const cart = useCart()
   const count = cart.data?.totals.item_count ?? 0
   const total = Number.parseFloat(cart.data?.totals.reward_total ?? '0') || 0
+  // Black Friday (#220): the trip's total at the Black Friday price, the same for everyone; no ThriftBucks.
+  const bf = (cart.data?.lines ?? []).some((l) => l.item.black_friday)
+  const priceTotal = Number.parseFloat(cart.data?.totals.price_total ?? '0') || 0
   return (
     <div className="tr-triplist" data-testid="trip-list">
       <TripLines onOpen={onOpen}>{children}</TripLines>
-      {count > 0 ? (
+      {count > 0 && bf ? (
+        <div className="tr-band" data-testid="trip-band">
+          <span className="lbl tn">This trip · {count} {count === 1 ? 'item' : 'items'}</span>
+          <span className="tr-band-n tn">
+            <b>{money(priceTotal)}</b>
+            <span>Black Friday</span>
+          </span>
+          <span className="fine">Before tax. The same price for everyone.</span>
+        </div>
+      ) : count > 0 ? (
         <div className="tr-band" data-testid="trip-band">
           <span className="lbl tn">This trip · {count} {count === 1 ? 'item' : 'items'}</span>
           <span className="tr-band-n tn">

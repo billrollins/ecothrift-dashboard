@@ -63,6 +63,7 @@ CENT = Decimal('0.01')
 TEST_REGISTERS_KEY = 'thrift_plus_test_registers'
 RERING_WINDOW = timedelta(minutes=30)
 BUCKS_TAG = 'bucks'
+BLACK_FRIDAY = 'black_friday'  # CartLine.SALE_LABEL_BLACK_FRIDAY
 BUCKS_LABEL = 'ThriftBucks used'
 ERROR_TEXT = 'Thrift+ could not work out this sale. It is priced as a non-member sale; call a manager.'
 PENDING_TEXT = ('Not finished joining yet. They finish in the Thrift+ app on their phone (a selfie and I agree). '
@@ -223,8 +224,9 @@ def tag_total(line) -> Decimal:
     if not line.thrift_savings:
         return line.line_total or ZERO
     pct = line.sale_percent or ZERO
-    return (Decimal(str(line.unit_price or 0)) * int(line.quantity or 0)
-            * (Decimal('1') - pct / Decimal('100'))).quantize(Decimal('0.01'))
+    total = (Decimal(str(line.unit_price or 0)) * int(line.quantity or 0)
+             * (Decimal('1') - pct / Decimal('100'))).quantize(Decimal('0.01'))
+    return max(ZERO, total - (line.sale_off or ZERO))
 
 
 def total_with_tax(subtotal: Decimal, rate: Decimal) -> Decimal:
@@ -275,7 +277,8 @@ def _discounts(cart_id: int, item_lines: list) -> tuple[dict[int, Decimal], dict
     # Split a cart-wide discount by each line's price before any rebate: line_total moves as the rebate
     # syncs, and a moving base would make the split wobble between recalculations.
     base = {
-        l.pk: max(ZERO, (l.unit_price or ZERO) * (Decimal('1') - (l.sale_percent or ZERO) / Decimal('100')) * (l.quantity or 1))
+        l.pk: max(ZERO, (l.unit_price or ZERO) * (Decimal('1') - (l.sale_percent or ZERO) / Decimal('100')) * (l.quantity or 1)
+                  - (l.sale_off or ZERO))
         for l in item_lines
     }
     total = sum(base.values(), ZERO)
@@ -323,7 +326,9 @@ def trip_lines(lines: list, *, include_closed: bool = False) -> list[trip.TripLi
     - consignment gets none;
     - a percent sale (Labor Day, Summer) scales the tag and the reward alike, and so does a percent
       discount line (Google review), the biggest one;
-    - the line's discount dollars cap what it can give back."""
+    - the line's discount dollars cap what it can give back;
+    - a Black Friday line (owner 2026-11-24, #220) is priced at its Black Friday price and collects nothing: its
+      ThriftBucks already came off."""
     share = rules().floor_share
     rewards_by_item = _rewards([l.item_id for l in lines], include_closed=include_closed)
     pct_by_line, dollars_by_line = _discounts(lines[0].cart_id, lines) if lines else ({}, {})
@@ -333,7 +338,9 @@ def trip_lines(lines: list, *, include_closed: bool = False) -> list[trip.TripLi
         factor = Decimal('1') - (line.sale_percent or ZERO) / Decimal('100')
         price = (tag * factor).quantize(CENT, rounding=ROUND_HALF_UP)
         reward = ZERO
-        if line.item.source != 'consignment' and tag > 0:
+        if line.sale_label == BLACK_FRIDAY:
+            price = max(ZERO, price - ((line.sale_off or ZERO) / (line.quantity or 1)).quantize(CENT, rounding=ROUND_HALF_UP))
+        elif line.item.source != 'consignment' and tag > 0:
             reward = min(rewards_by_item.get(line.item_id, ZERO), max(ZERO, tag - floor_for(tag, share)))
             reward = (reward * factor).quantize(CENT, rounding=ROUND_DOWN)
             extra = pct_by_line.get(line.pk, ZERO)
@@ -389,6 +396,12 @@ def paid_by_line(lines: list, bucks_by_line: dict[int, Decimal]) -> dict[int, De
 
 
 # ── The trip's plan: credit, kept ThriftBucks, instant ─────────────────────────
+
+
+def _black_friday_on(cart) -> bool:
+    from apps.pos.services import black_friday
+
+    return black_friday.charged(cart)
 
 
 @dataclass
@@ -469,6 +482,8 @@ def plan(cart, member: CartMember | None, *, lines: list | None = None, include_
     # 3. Instant: only on what is left (owner 10-14).
     if member.rering:
         p.instant_reason = 'No instant redemption on a re-ring.'
+    elif member.builds and _black_friday_on(cart):
+        p.instant_reason = 'Black Friday: building keeps the ThriftBucks.'
     elif t.full_value <= 0:
         p.instant_reason = 'This trip collects no ThriftBucks.'
     elif credit >= p.total_at_tag:
@@ -652,7 +667,7 @@ def attach(cart, code: str = '', *, person=None, user=None, here: bool = False) 
         before = member_of(cart)
         defaults = {'account': who.account, 'person': who, 'card': card, 'attached_by': user}
         if before is None or before.account_id != who.account_id:
-            defaults.update(reward_choice=CartMember.CHOICE_BANK, use_bucks=True, here_at=None, here_by=None)
+            defaults.update(reward_choice=CartMember.CHOICE_BANK, use_bucks=True, here_at=None, here_by=None, builds=False)
         if scanned or here:
             defaults.update(here_at=timezone.now(), here_by=user)
         member, _ = CartMember.objects.update_or_create(cart=cart, defaults=defaults)
@@ -698,6 +713,27 @@ def set_choice(cart, choice: str, *, user=None) -> CartMember:
         member.save(update_fields=['reward_choice'])
         members.log('register_choice', account=member.account, person=member.person, card=member.card, actor=user,
                     cart=cart.pk, choice=choice)
+        cart.recalculate()
+    return member
+
+
+def set_build(cart, build: bool, *, user=None) -> CartMember:
+    """Black Friday (owner 2026-11-24, #220): the member builds (pays our tag and keeps the trip's ThriftBucks) or takes
+    the Black Friday price (the default). Only while Black Friday is on. Logged."""
+    from apps.pos.services import black_friday
+
+    member = _open_member(cart)
+    if build and not black_friday.charged(cart):
+        raise RegisterError('NOT_BLACK_FRIDAY', 'Building is a Black Friday choice; today the ThriftBucks are kept as usual.')
+    with transaction.atomic():
+        member.builds = bool(build)
+        fields = ['builds']
+        if build and member.reward_choice != CartMember.CHOICE_BANK:
+            member.reward_choice = CartMember.CHOICE_BANK
+            fields.append('reward_choice')
+        member.save(update_fields=fields)
+        members.log('register_build', account=member.account, person=member.person, card=member.card, actor=user,
+                    cart=cart.pk, build=bool(build))
         cart.recalculate()
     return member
 
@@ -1258,7 +1294,20 @@ def _empty_block(cart, *, live: bool, lines: list, share: Decimal) -> dict:
         'balances': {'bucks': '0.00', 'bucks_use_by': None, 'credit': '0.00'}, 'guest_line': '', 'lines': {},
         'bucks_line_id': line.pk if line is not None else None, 'restricted_line_ids': [],
         'amount_due': _money(amount_due(cart)),
+        'black_friday': _black_friday_block(cart),
     }
+
+
+def _black_friday_block(cart) -> dict | None:
+    """Black Friday on an open sale (#220): on, whether the member builds, and what building would keep and cost."""
+    if cart.status != 'open':
+        return None
+    from apps.pos.services import black_friday
+
+    if not black_friday.charged(cart):
+        return None
+    offer = black_friday.build_offer(cart)
+    return {'on': True, 'builds': black_friday.builds(cart), 'build_bucks': offer['bucks'], 'build_more': offer['more']}
 
 
 def _cart_block(cart, member: CartMember | None, live: bool) -> dict:

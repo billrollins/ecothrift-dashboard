@@ -882,6 +882,14 @@ class RegisterViewSet(viewsets.ViewSet):
         return self._run(request, lambda cart: register.set_bucks(cart, use, user=request.user))
 
     @action(detail=False, methods=['post'])
+    def build(self, request):
+        """Black Friday (#220): ``{build: true}`` the member pays our tag and keeps the ThriftBucks; false: the Black
+        Friday price (the default)."""
+        build = request.data.get('build', False)
+        build = build if isinstance(build, bool) else _truthy(build)
+        return self._run(request, lambda cart: register.set_build(cart, build, user=request.user))
+
+    @action(detail=False, methods=['post'])
     def rering(self, request):
         return self._run(request, lambda cart: register.rering(cart, str(request.data.get('code') or ''),
                                                                person=request.data.get('person'), user=request.user))

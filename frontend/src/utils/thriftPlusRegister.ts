@@ -45,7 +45,8 @@ export function instantOffOnLines(cart: Cart | null | undefined): number {
 export function saleSavings(cart: Cart | null | undefined): number {
   return moneyCents(
     (cart?.lines ?? [])
-      .filter((ln) => !isBucksLine(cart, ln))
+      // Black Friday shows the retail and the price, never the tag (owner 2026-11-24): not a savings row.
+      .filter((ln) => !isBucksLine(cart, ln) && ln.sale_label !== 'black_friday')
       .reduce((sum, ln) => sum + num(ln.sale_savings) - num(ln.thrift_savings), 0),
   );
 }

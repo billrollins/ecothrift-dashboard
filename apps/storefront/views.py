@@ -53,6 +53,28 @@ def _matches(request, etag: str) -> bool:
     return any((t[2:] if t.startswith('W/') else t) == etag for t in tags)
 
 
+def black_friday_home(raw: bytes) -> bytes:
+    """The home feed as the owner's Black Friday test sees it (apps/core/services/site_testing.py): the day is ``bf`` and
+    the finds carry no ThriftBucks. The shared list's prices are not changed (one snapshot serves every visitor)."""
+    import json
+
+    body = json.loads(raw)
+    body['day'] = 'bf'
+    for find in body.get('finds') or []:
+        if isinstance(find, dict):
+            find['tb'] = 0
+    return json.dumps(body, separators=(',', ':')).encode('utf-8')
+
+
+def _test_black_friday() -> bool:
+    try:
+        from apps.pos.services import black_friday
+
+        return black_friday.forced()
+    except Exception:
+        return False
+
+
 def _feed(request, which: str):
     try:
         built = holder.get()
@@ -60,6 +82,10 @@ def _feed(request, which: str):
         logger.exception('storefront: first snapshot build failed')
         response = JsonResponse({'detail': 'The store list is loading. Try again in a moment.'}, status=503)
         response['Retry-After'] = '5'
+        response['Cache-Control'] = 'no-store'
+        return response
+    if which == 'home' and _test_black_friday():  # the owner's test device only: never cached, never shared
+        response = HttpResponse(black_friday_home(built.home.raw), content_type='application/json')
         response['Cache-Control'] = 'no-store'
         return response
     enc = built.stock if which == 'stock' else built.home

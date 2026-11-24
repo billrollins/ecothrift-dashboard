@@ -711,6 +711,40 @@ def owner_needs_you(request):
     return Response(needs_you())
 
 
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def owner_testing(request):
+    """Owner page, Testing: what the owner's linked devices see on the website, for 24 hours.
+
+    GET: ``{state: {mobile, desktop, until}, options, live, link, hours}``. POST ``{mobile, desktop}`` ('' = Live)
+    sets the picks for 24 hours from now; ``{end: true}`` ends testing at once."""
+    from django.conf import settings as dj_settings
+
+    from apps.core import middleware as mw
+    from apps.core.services import site_testing
+
+    if request.method == 'POST':
+        if request.data.get('end'):
+            site_testing.end(user=request.user)
+        else:
+            now = site_testing.state(fresh=True)
+            site_testing.save(str(request.data.get('mobile', now['mobile']) or ''),
+                              str(request.data.get('desktop', now['desktop']) or ''), user=request.user)
+    host = (getattr(dj_settings, 'PUBLIC_SITE_CANONICAL_HOST', '') or 'ecothrift.us').strip()
+    base = (getattr(dj_settings, 'ONLINE_SALES_PUBLIC_BASE_URL', '') or f'https://{host}').rstrip('/')
+    site = 'the new phone site' if mw._read_switch(mw.PHONE_SETTING_KEY) else 'the old site'
+    scanner = 'the new scanner' if (mw._read_switch(mw.PHONE_SETTING_KEY) and mw._read_switch(mw.PHONE_SCAN_SETTING_KEY)) \
+        else 'the old scanner'
+    return Response({
+        'state': site_testing.state(fresh=True),
+        'options': site_testing.options(),
+        'live': {'mobile': f'{site}, {scanner}'.capitalize(), 'desktop': 'The desktop site'},
+        'link': f'{base}/?test={site_testing.link_token()}',
+        'unlink': f'{base}/?test=off',
+        'hours': site_testing.HOURS,
+    })
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsSuperAdmin])
 def owner_social(request):

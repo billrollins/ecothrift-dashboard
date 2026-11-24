@@ -111,7 +111,7 @@ html[data-day="normal"] .if-bf, html[data-day="bf"] .if-normal { display: none !
 .pc .was s { text-decoration-thickness: 1.5px; }
 
 /* Black Friday: colour only. Same structure, same sizes, same words in the same places. */
-html[data-day="bf"] { --green: #0b0d0a; --green-d: #000000; --strip-bg: #b4232c; --strip-fg: #ffffff; }   /* --leaf stays green: it means open */
+html[data-day="bf"] { --green: #10140f; --green-d: #000000; --strip-bg: #b4232c; --strip-fg: #ffffff; }   /* --leaf stays green: it means open */
 
 /* A count badge (categories, tabs). */
 .cnt { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 20px; padding: 0 7px; border-radius: 999px;

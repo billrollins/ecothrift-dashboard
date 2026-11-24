@@ -149,9 +149,10 @@ class Settings:
     retail_mode: str         # tags.retail_on_tag
     use_profile: bool        # the effective-category switch
     guide: object            # returns.Guide (3-day returns)
-    day: str                 # storefront.day: normal | bf
+    day: str                 # storefront.day: normal | bf (bf while the Black Friday window is on, #220)
     refresh_seconds: int     # storefront.snapshot_seconds
     thrift_plus_open: bool
+    black_friday: bool = False  # the Black Friday window (pos.black_friday): one price, no ThriftBucks shown
 
 
 def _setting(key: str):
@@ -167,9 +168,11 @@ def load_settings() -> Settings:
     from apps.thriftplus.services import members
     from apps.thriftplus.services.returns import guide
     from apps.thriftplus.services.rewards import rules
+    from apps.pos.services import black_friday
     from apps.thriftplus.services.scanner import _sale_factor
 
-    day = str(_setting(DAY_KEY) or 'normal').strip().lower()
+    bf_on = black_friday.shown_live()  # shared by every visitor: never the owner's test
+    day = 'bf' if bf_on else str(_setting(DAY_KEY) or 'normal').strip().lower()
     try:
         seconds = int(_setting(SECONDS_KEY) or DEFAULT_SECONDS)
     except (TypeError, ValueError):
@@ -177,7 +180,7 @@ def load_settings() -> Settings:
     return Settings(
         factor=_sale_factor(), floor_share=rules().floor_share, retail_mode=tag_settings()['tags.retail_on_tag'],
         use_profile=effective_category.is_enabled(), guide=guide(), day=day if day in DAYS else 'normal',
-        refresh_seconds=min(3600, max(30, seconds)), thrift_plus_open=members.is_enabled(),
+        refresh_seconds=min(3600, max(30, seconds)), thrift_plus_open=members.is_enabled(), black_friday=bf_on,
     )
 
 
@@ -211,6 +214,25 @@ def shown_price(tag: Decimal, s: Settings) -> Decimal:
     return (tag * s.factor).quantize(CENT, rounding=ROUND_HALF_UP)
 
 
+def bf_bucks(item_ids, s: Settings) -> dict:
+    """Black Friday (#220): each item's Saturday ThriftBucks (``black_friday.saturday_bucks``); {} on other days."""
+    if not s.black_friday:
+        return {}
+    from apps.pos.services import black_friday
+
+    return black_friday.saturday_bucks(item_ids)
+
+
+def priced(tag: Decimal, tb: Decimal, s: Settings, saturday: Decimal | None = None) -> tuple[Decimal, Decimal]:
+    """(price, ThriftBucks) as the site shows one unit: on Black Friday (#220) the Black Friday price (our tag less its
+    Saturday ThriftBucks, ``black_friday.unit_price``) and none."""
+    if s.black_friday:
+        from apps.pos.services import black_friday
+
+        return black_friday.unit_price(tag, saturday or ZERO, s.floor_share, ten_min=black_friday.ten_percent_min()), ZERO
+    return shown_price(tag, s), tb
+
+
 def shown_retail(tag: Decimal, retail: Decimal | None, retail_check: str, s: Settings) -> Decimal:
     """``tag_retail``'s rule (above 0, above the price, checked); 0 when the tag would not print it."""
     value = tag_retail(SimpleNamespace(retail=retail, price=tag, retail_check=retail_check), mode=s.retail_mode)
@@ -230,7 +252,7 @@ def thriftbucks(tag: Decimal, *, source: str, reward: Decimal | None, starting_p
     if marked_down(tag, starting_price):
         return ZERO
     value = min(reward, max(ZERO, tag - floor_for(tag, s.floor_share)))
-    return (value * s.factor).quantize(CENT, rounding=ROUND_DOWN)
+    return (value * (Decimal('1') if s.black_friday else s.factor)).quantize(CENT, rounding=ROUND_DOWN)
 
 
 def num(value: Decimal | None):

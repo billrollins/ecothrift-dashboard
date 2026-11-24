@@ -115,6 +115,7 @@ def _instore(s: R.Settings, timings: dict) -> tuple[list[dict], list[int], dict]
     units: dict[int, int] = {}
     zero = R.ZERO
     shares: list[float] = []   # tb / tag for each item that carries ThriftBucks
+    saturday = R.bf_bucks([row[0] for row in items], s)  # Black Friday (#220): each item's Saturday ThriftBucks
     for row in items:
         iid, pid, sku, tag, retail, check, source, reward, start, status, bucket = row
         cat = R.bucket_index(bucket)
@@ -126,14 +127,15 @@ def _instore(s: R.Settings, timings: dict) -> tuple[list[dict], list[int], dict]
         key = (-tb, tag, iid)
         held = best.get(pid)
         if held is None or key < held[0]:
-            best[pid] = (key, (sku, tag, retail, check, tb, cat))
+            best[pid] = (key, (sku, tag, retail, check, tb, cat, iid))
     out = []
-    for pid, (_, (sku, tag, retail, check, tb, cat)) in best.items():
+    for pid, (_, (sku, tag, retail, check, tb, cat, iid)) in best.items():
         title, display = products.get(pid, ('', ''))
         n = units[pid]
+        price, tb = R.priced(tag, tb, s, saturday.get(iid))  # Black Friday (#220): one price, no ThriftBucks
         out.append({
             'pid': pid, 'name': R.clean_name((display or '').strip() or title), 'cat': cat,
-            'price': R.shown_price(tag, s), 'retail': R.shown_retail(tag, retail, check or '', s), 'tb': tb,
+            'price': price, 'retail': R.shown_retail(tag, retail, check or '', s), 'tb': tb,
             'units': n, 'tag': R.tag_digits(sku) if n == 1 else '', 'photo': photo_kinds.get(pid, photos.KIND_NONE),
         })
     # A stable order (pid last): an unchanged shelf gives the same bytes, so the same ETag.

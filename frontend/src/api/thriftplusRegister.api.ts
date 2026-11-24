@@ -47,6 +47,12 @@ export async function detachThriftCard(cartId: number): Promise<Cart> {
 }
 
 /** Kept (the Default, 'bank') or redeemed instantly ('instant'). Refused (400) when instant isn't offered. */
+/** Black Friday (#220): the member builds (pays our tag, keeps the ThriftBucks) or takes the Black Friday price. */
+export async function setThriftBuild(cartId: number, build: boolean): Promise<Cart> {
+  const { data } = await api.post<Cart>('/thriftplus/register/build/', { cart: cartId, build });
+  return data;
+}
+
 export async function setThriftChoice(cartId: number, choice: 'instant' | 'bank'): Promise<Cart> {
   const { data } = await api.post<Cart>('/thriftplus/register/choice/', { cart: cartId, choice });
   return data;

@@ -184,17 +184,21 @@ export async function fetchScannerSettings(): Promise<ScannerSettings> {
 }
 
 export async function getSession(): Promise<ThriftPlusSession> {
+  let blackFriday = false;
   try {
     const { data } = await http.get<ThriftPlusSession>('/session/');
     if (data.status === 'member') {
       member = data.member;
       return data;
     }
+    // Black Friday (#220): one price for everyone, so a signed-out phone scans at once.
+    blackFriday = data.status === 'signed_out' && data.black_friday === true;
   } catch {
     // Offline: fall through to what the phone knows.
   }
   member = null;
-  return readJson(LS.guest, false) ? { status: 'guest' } : { status: 'signed_out' };
+  if (readJson(LS.guest, false)) return { status: 'guest' };
+  return blackFriday ? { status: 'signed_out', black_friday: true } : { status: 'signed_out' };
 }
 
 export async function signIn(login: string, password: string): Promise<ThriftPlusSession> {

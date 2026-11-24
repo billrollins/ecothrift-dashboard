@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-21 (sale names and percents are owner settings; manager PIN for price edits and discounts over the cap) -->
+<!-- Last updated: 2026-11-24 (Black Friday, #220; earlier 2026-10-21: sale names and percents are owner settings; manager PIN for price edits and discounts over the cap) -->
 # Discount logic
 
 How every price change at the register works (Thrift+ member rewards, store sales, Google review, manual discounts, BOGO, banking), and the checks that keep any new discount from opening an arbitrage. **Read this before adding or changing any discount.**
@@ -86,6 +86,19 @@ Code:
 13. **The guest line uses the same math.** "You lost $X" or "would have earned $X" uses R′ after percent discounts, and the $10 cover as a new member would have it.
 
 14. **Re-ring uses the same math as a member sale at that moment.** The instant part is paid as store credit.
+
+## Black Friday (owner 2026-11-24, Dash Update #220, rulebook F5)
+
+One price for everyone while `pos.black_friday` is on (Fri and Sat): our tag less the ThriftBucks the item would show on
+Saturday Nov 28 (the nightly `rewards.step` run forward), never below the floor; a 10%-off minimum is one switch
+(`black_friday_price` in `apps/pos/services/black_friday.py`, the one method). It is a dollar store sale on the line
+(`sale_label` `black_friday`, `CartLine.sale_off`), set by `Cart.recalculate` before Thrift+ runs; a Black Friday line
+collects nothing (its ThriftBucks already came off), so it can never pay back more than was paid. A member who builds
+(`CartMember.builds`) pays the tag and keeps the ThriftBucks as on any day. It replaces the store sale on the line; the
+cashier's line sale stays only where it takes more off (no stacking). Arbitrage checks: 1 nothing is banked on a Black
+Friday line; 2 a return gives back on what was paid; 3 one sale per line, the bigger; 4 a re-ring collects nothing on a
+Black Friday line; 5 `sold_for` is the Black Friday price; 6 guests and members get the same price by rule; 7 a price edit
+re-clips the ThriftBucks to the new tag first.
 
 ## Before shipping any new discount: the arbitrage checks
 

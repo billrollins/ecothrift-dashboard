@@ -4,10 +4,12 @@ import { fetchCatalog, money, type CatalogItem } from '../api'
 import StoreMap from '../components/StoreMap'
 import { useCart } from '../cart'
 import AnnouncementCard from '../components/AnnouncementCard'
+import BlackFridayPanel from '../components/BlackFridayPanel'
 import StoreHoursBlock from '../components/StoreHoursBlock'
 import { ThriftPlusHomeBand } from '../components/ThriftPlusPromo'
 import { useAnnouncements } from '../announcements'
 import { retailMapsDirectionsUrl, STORE, storeJsonLd } from '../data/content'
+import { useBlackFriday } from '../lib/blackFriday'
 import { usePublicHours } from '../lib/storeHours'
 import { useOnlineSalesConfig } from '../onlineSalesConfig'
 import { useJsonLd, useSeo } from '../useSeo'
@@ -77,6 +79,8 @@ export default function HomePage() {
   useSeo({ description: STORE.metaDescription, path: '/' })
   useJsonLd(storeJsonLd(hours))
   const { config, loading: configLoading } = useOnlineSalesConfig()
+  // Black Friday (#220): the home's first screen is the sale and Get directions; the visit block stays below.
+  const blackFriday = useBlackFriday()
   const shopOn = config.online_sales_enabled
   const { add } = useCart()
 
@@ -135,8 +139,9 @@ export default function HomePage() {
     <div className="home">
       {/* The Thrift+ app first, right under the header, on every screen (owner 10-15: "front and center"); only while
           Thrift+ is open. The hero follows unchanged. */}
-      <ThriftPlusHomeBand />
+      {blackFriday ? <BlackFridayPanel /> : <ThriftPlusHomeBand />}
 
+      {blackFriday ? null : (
       <section className="intro">
         <div className={`wrap intro__row${showFeaturedPane ? ' intro__row--split' : ''}`}>
           <div className="intro__copy">
@@ -213,6 +218,7 @@ export default function HomePage() {
           )}
         </div>
       </section>
+      )}
 
       {cardAnnouncements.length > 0 ? (
         <section className="section">

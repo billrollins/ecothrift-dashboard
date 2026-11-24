@@ -17,6 +17,7 @@ import { useState } from 'react';
 import {
   detachThriftCard,
   refreshCart,
+  setThriftBuild,
   setThriftChoice,
   thriftErrorMessage,
   uploadThriftSalePhoto,
@@ -84,6 +85,10 @@ export default function ThriftPlusPanel({ cart, onCart, onOpenCard }: Props) {
   const balanceUseBy = useByText(block.balances?.bucks_use_by);
   const balanceBucks = Number(block.balances?.bucks) || 0;
   const showChoice = collected > 0 || instant;
+  // Black Friday (owner 2026-11-24, #220): one price for everyone; a member may build instead (pay our tag, keep the
+  // ThriftBucks). The Black Friday price is the default; there is no instant redemption.
+  const bf = open && block.black_friday?.on ? block.black_friday : null;
+  const buildBucks = Number(bf?.build_bucks) || 0;
 
   return (
     <Paper variant="outlined" sx={{ p: 1.5, mb: 2, flexShrink: 0, borderColor: 'success.main' }}>
@@ -121,7 +126,32 @@ export default function ThriftPlusPanel({ cart, onCart, onOpenCard }: Props) {
         Check the photo matches the person paying.{onOpenCard ? ' Tap them for their ThriftBucks and credit.' : ''}
       </Typography>
 
-      {open && showChoice ? (
+      {bf && (buildBucks > 0 || bf.builds) ? (
+        <Box sx={{ mt: 1 }} data-testid="thrift-black-friday">
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={bf.builds ? 'build' : 'price'}
+            aria-label="Black Friday price or build"
+            sx={{ flexWrap: 'wrap', '& .MuiToggleButton-root': { textTransform: 'none', lineHeight: 1.25, py: 0.5 } }}
+            onChange={(_, v: 'build' | 'price' | null) => {
+              if (v && (v === 'build') !== bf.builds) void run(() => setThriftBuild(cart.id, v === 'build'));
+            }}
+          >
+            <ToggleButton value="price" disabled={busy}>Black Friday price (Default)</ToggleButton>
+            <ToggleButton value="build" disabled={busy}>
+              {`or build: pay ${formatCurrency(bf.build_more)} more, keep ${tbText(buildBucks)}`}
+            </ToggleButton>
+          </ToggleButtonGroup>
+          {bf.builds && useBy ? (
+            <Typography variant="caption" color="text.secondary" component="div">
+              Kept: usable from tomorrow, use by {useBy}.
+            </Typography>
+          ) : null}
+        </Box>
+      ) : null}
+
+      {open && showChoice && !bf ? (
         <Box sx={{ mt: 1 }}>
           <ToggleButtonGroup
             size="small"

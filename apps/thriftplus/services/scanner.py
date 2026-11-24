@@ -141,9 +141,11 @@ def tag_marks(rows: list[dict]) -> dict[str, dict]:
     return out
 
 
-def item_card(item, *, factor: Decimal | None = None, guide=None) -> dict:
+def item_card(item, *, factor: Decimal | None = None, guide=None, black_friday: bool | None = None) -> dict:
     """``ThriftPlusItemCard`` for one item. ``guide`` (``returns.guide()``) saves reading the return settings per item
-    in a list."""
+    in a list. On Black Friday (#220) ``price`` is the Black Friday price, for everyone, and ``reward`` is 0: its
+    ThriftBucks already came off (``black_friday: true``)."""
+    from apps.pos.services import black_friday as bf
     from apps.thriftplus.models import RestrictedProduct
     from apps.thriftplus.services.returns import closed_note, qualifies
 
@@ -154,10 +156,13 @@ def item_card(item, *, factor: Decimal | None = None, guide=None) -> dict:
         profile.category if profile is not None else '', profile.subcategory if profile is not None else '', product.title,
     ] if x)
     category = category_for(category_text)
-    factor = _sale_factor() if factor is None else factor
+    bf_on = bf.shown() if black_friday is None else black_friday
+    factor = (_sale_factor() if factor is None else factor) if not bf_on else Decimal('1')
     tag = item.price or ZERO
     price = (tag * factor).quantize(CENT, rounding=ROUND_HALF_UP)
     reward = reward_for(item, tag, factor)
+    if bf_on:  # one price for everyone: our tag less its Saturday ThriftBucks (black_friday_price)
+        price, reward = bf.black_friday_price(item), ZERO
     brand = (profile.brand if profile is not None and profile.brand else '') or product.brand or ''
     details = [x for x in [
         f'Brand: {brand}' if brand else '',
@@ -176,6 +181,7 @@ def item_card(item, *, factor: Decimal | None = None, guide=None) -> dict:
         'age_restricted': restricted, 'returnable': (ok := qualifies(item, price=price, reward=reward, rules=guide)),
         'return_note': closed_note() if ok else '',  # closed days in the 3-day window (owner 2026-10-20)
         'available': item.status == 'on_shelf',
+        **({'black_friday': True} if bf_on else {}),
     }
 
 
@@ -211,7 +217,10 @@ def test_tags(per_band: int = 2) -> list[dict]:
     from apps.thriftplus.services.returns import guide
 
     rules_ = guide()
-    cards = [item_card(i, factor=factor, guide=rules_)
+    from apps.pos.services import black_friday as bf
+
+    on = bf.shown()
+    cards = [item_card(i, factor=factor, guide=rules_, black_friday=on)
              for i in Item.objects.select_related('product__profile').filter(pk__in=ids)]
     cards.sort(key=lambda c: -Decimal(c['reward']))
     return [{'sku': c['sku'], 'title': c['title'], 'price': c['price'], 'reward': c['reward']} for c in cards]
@@ -256,7 +265,10 @@ def cart_payload(account) -> dict:
     from apps.thriftplus.services.returns import guide
 
     rules_ = guide()
-    cards = [(line, item_card(line.item, factor=factor, guide=rules_)) for line in lines]
+    from apps.pos.services import black_friday as bf
+
+    on = bf.shown()
+    cards = [(line, item_card(line.item, factor=factor, guide=rules_, black_friday=on)) for line in lines]
     totals = trip.totals(
         [trip.TripLine(key=c['sku'], price=Decimal(c['price']), reward=Decimal(c['reward']), qty=line.qty)
          for line, c in cards if c['available']],

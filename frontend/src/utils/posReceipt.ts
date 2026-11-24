@@ -3,6 +3,12 @@ import type { Cart, CartLine, ThriftPlusCartBlock, ThriftPlusLineMark } from '..
 import { isBucksLine } from './thriftPlusRegister';
 
 export function saleSuffix(line: CartLine): string {
+  // Black Friday (owner 2026-11-24, #220): the retail and the price paid, never the tag. Print server 1.10.1 prints
+  // the name as sent, so the retail rides in it.
+  if (line.sale_label === 'black_friday') {
+    const retail = Number(line.retail);
+    return retail > 0 ? ` (Retail $${retail.toFixed(2)})` : ' (Black Friday)';
+  }
   if (line.sale_display) return ` (${line.sale_display})`;
   if (line.sale_label === 'summer') return ` (${Number(line.sale_percent || 50)}% Summer)`;
   if (line.sale_label === 'labor_day') {
@@ -64,11 +70,13 @@ export function receiptItemsFromCart(cart: Cart) {
       if (!mark) return item;
       const info = block.lines?.[String(line.id)];
       const bucks = num(info?.reward);
+      // A Black Friday line: no ThriftBucks collected or missed, and no "Join for" line (owner 2026-11-24, #220).
+      const blackFriday = line.sale_label === 'black_friday';
       return {
         ...item,
         mark,
-        ...(bucks > 0 ? { bucks } : {}),
-        ...(!block.member && info?.join_mark ? { join_mark: info.join_mark } : {}),
+        ...(bucks > 0 && !blackFriday ? { bucks } : {}),
+        ...(!block.member && info?.join_mark && !blackFriday ? { join_mark: info.join_mark } : {}),
       };
     });
 }

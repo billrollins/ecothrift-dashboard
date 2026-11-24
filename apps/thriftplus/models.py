@@ -390,6 +390,9 @@ class CartMember(models.Model):
     bank_used = models.DecimalField(max_digits=10, decimal_places=2, default=0,
                                     help_text='Kept ThriftBucks used on this sale (a discount line before tax), at completion.')
     rering = models.BooleanField(default=False, help_text='Attached after the sale was completed (re-ring as a member).')
+    # Black Friday (owner 2026-11-24, #220): the member pays our tag and keeps the trip's ThriftBucks instead of the
+    # Black Friday price (the default).
+    builds = models.BooleanField(default=False, help_text='Black Friday: pays the tag and keeps the ThriftBucks.')
     attached_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     attached_at = models.DateTimeField(auto_now_add=True)
     # Guardrail (critic review THR-05, owner 2026-10-21): kept ThriftBucks are spent only for a member who is here.

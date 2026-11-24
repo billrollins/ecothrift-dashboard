@@ -21,7 +21,7 @@ import { bucks } from '../../lib/format'
 import { lookupTag } from '../api'
 import Camera, { CameraHelp, SidewaysGotIt, SidewaysScanPill, TurnUpright } from '../camera'
 import type { TripProps } from '../contracts'
-import { classifyCode, loadDetector, ScanGate, useQrCamera, useSideways, useUprightLock, type ThriftPlusCartLine } from '../core'
+import { classifyCode, loadDetector, money, ScanGate, useQrCamera, useSideways, useUprightLock, type ThriftPlusCartLine } from '../core'
 import { HomeScreenCard } from '../member'
 import { typeOnlyMode } from '../route'
 import { actions, useCart } from '../store'
@@ -38,6 +38,39 @@ const quiet = (p: Promise<unknown>) => void p.catch(() => undefined)
 
 /** The total's words on two short lines beside the number ("ThriftBucks" over "for members"), so a 4-digit total
  *  and "This trip" fit a 360 px phone with nothing cut off (Dash Update #185). One space between, for screen readers. */
+/** Black Friday (#220, owner 2026-11-24: "a small pop up"): one small note at the top for a guest, once a visit; it
+ *  never blocks scanning and never moves anything (it floats), and it goes by itself after a few seconds. */
+function BfJoinNote({ onJoin }: { onJoin: () => void }) {
+  const [open, setOpen] = useState(() => {
+    try {
+      return sessionStorage.getItem('eco_bf_join_note') !== 'closed'
+    } catch {
+      return true
+    }
+  })
+  useEffect(() => {
+    if (!open) return undefined
+    const t = window.setTimeout(close, 9000)
+    return () => window.clearTimeout(t)
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!open) return null
+  function close() {
+    try {
+      sessionStorage.setItem('eco_bf_join_note', 'closed')
+    } catch {
+      /* private mode: closed for this page only */
+    }
+    setOpen(false)
+  }
+  return (
+    <div className="tr-bfnote" role="status" data-testid="bf-join-note">
+      <span>Like to build ThriftBucks? Join Thrift+ free.</span>
+      <button type="button" className="tr-bfnote-join" onClick={onJoin}>Join</button>
+      <button type="button" className="tr-bfnote-x" aria-label="Close" onClick={close}>×</button>
+    </div>
+  )
+}
+
 function TwoLines({ words }: { words: string }) {
   const cut = words.indexOf(' ')
   if (cut < 0) return <span className="tr-sum-l">{words}</span>
@@ -71,6 +104,12 @@ export default function Trip({ session, onJoin }: TripProps) {
   const lines = sortedLines(cart.data?.lines)
   const count = cart.data?.totals.item_count ?? 0
   const total = Number.parseFloat(cart.data?.totals.reward_total ?? '0') || 0
+  // Black Friday (#220): the trip's total in dollars at the Black Friday price, not ThriftBucks.
+  // Once anything says Black Friday (the session for a guest, a line or the tag on top), the trip shows dollars.
+  const sawBf = useRef(session.status === 'guest' && !!session.black_friday)
+  if (lines.some((l) => l.item.black_friday) || (top?.lookup?.status === 'found' && top.lookup.item.black_friday)) sawBf.current = true
+  const bf = sawBf.current
+  const priceTotal = Number.parseFloat(cart.data?.totals.price_total ?? '0') || 0
   const qtyOf = useCallback((sku: string) => cart.data?.lines.find((l) => l.item.sku === sku)?.qty ?? 0, [cart.data])
 
   const handleCodeRef = useRef<(raw: string, from: 'camera' | 'typed' | 'link', format?: string) => void>(() => undefined)
@@ -318,7 +357,9 @@ export default function Trip({ session, onJoin }: TripProps) {
         className={`tr-sum${tripOpen ? ' tr-on' : ''}`}
         onClick={toggleTrip}
         data-testid="trip-summary"
-        aria-label={`This trip: ${count} items, +${bucks(total)} ${word}. ${tripOpen ? 'Back to the scanner' : 'See the trip'}`}
+        aria-label={bf
+          ? `This trip: ${count} items, ${money(priceTotal)} Black Friday. ${tripOpen ? 'Back to the scanner' : 'See the trip'}`
+          : `This trip: ${count} items, +${bucks(total)} ${word}. ${tripOpen ? 'Back to the scanner' : 'See the trip'}`}
         aria-expanded={tripOpen}
       >
         <span className="tr-sum-i">
@@ -327,8 +368,8 @@ export default function Trip({ session, onJoin }: TripProps) {
         </span>
         <span className="tr-sum-w">This trip</span>
         <span className="tr-sum-t tn" data-target="trip-total">
-          <b>{total > 0 ? '+' : ''}{bucks(total)}</b>
-          <TwoLines words={word} />
+          <b>{bf ? money(priceTotal) : `${total > 0 ? '+' : ''}${bucks(total)}`}</b>
+          <TwoLines words={bf ? 'Black Friday' : word} />
         </span>
         {tripOpen ? <IconUp /> : <IconDown />}
       </button>
@@ -337,6 +378,7 @@ export default function Trip({ session, onJoin }: TripProps) {
       {/* Under the scanning screen (members, mobile browsers): it never squeezes the camera or moves the buttons. */}
       {member ? <HomeScreenCard variant="banner" /> : null}
       <UndoToast />
+      {isGuest && bf && onJoin ? <BfJoinNote onJoin={onJoin} /> : null}
 
       {sheet === 'about' ? <AboutSheet onClose={() => setSheet(null)} /> : null}
       {sheet === 'camera' ? <CameraHelp onClose={() => setSheet(null)} onRetry={camera.wake} /> : null}

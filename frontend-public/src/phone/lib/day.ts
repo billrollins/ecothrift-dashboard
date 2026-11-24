@@ -14,7 +14,14 @@ export function dayOf(feed: HomeFeed | null): Day {
 export function applyDay(day: Day) {
   const html = document.documentElement
   if (html.getAttribute('data-day') !== day) html.setAttribute('data-day', day)
+  // The browser bar goes Black Friday too (Dash idea #216): kit.css's --green on that day.
+  const bar = document.querySelector('meta[name="theme-color"]')
+  const color = day === 'bf' ? THEME_BF : THEME_NORMAL
+  if (bar && bar.getAttribute('content') !== color) bar.setAttribute('content', color)
 }
+
+export const THEME_NORMAL = '#1d5424'
+export const THEME_BF = '#10140f'
 
 export function useDay(): Day {
   const day = dayOf(useHome())

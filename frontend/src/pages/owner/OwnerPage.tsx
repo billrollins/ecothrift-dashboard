@@ -61,6 +61,8 @@ const RequestsPage = lazy(() => import('../admin/RequestsPage'));
 const DashFixesPage = lazy(() => import('../dashFixes/DashFixesPage'));
 // Texts (#132): the inbox for our toll-free number; owner only since 2026-11-13 (texts cost money and must stay private).
 const TextsPage = lazy(() => import('../texts/TextsPage'));
+// Testing (owner 2026-11-24): what his own devices see on the website, for 24 hours.
+const OwnerTesting = lazy(() => import('./OwnerTesting'));
 
 /** The Owner page's tabs, one URL each. */
 const OWNER_TABS = [
@@ -69,6 +71,7 @@ const OWNER_TABS = [
   { key: 'approvals', path: '/owner/approvals', label: 'Approvals' },
   { key: 'updates', path: '/owner/updates', label: 'Dash Updates' },
   { key: 'texts', path: '/owner/texts', label: 'Texts' },
+  { key: 'testing', path: '/owner/testing', label: 'Testing' },
 ] as const;
 /** Catalog items that are tabs here now, so the Owner pages list leaves them out. */
 const TAB_ITEMS = new Set(['owner', 'reports', 'superRequests']);
@@ -499,6 +502,7 @@ export default function OwnerPage() {
         {current.key === 'approvals' ? <RequestsPage embedded /> : null}
         {current.key === 'updates' ? <DashFixesPage embedded /> : null}
         {current.key === 'texts' ? <TextsPage /> : null}
+        {current.key === 'testing' ? <OwnerTesting /> : null}
       </Suspense>
     </Box>
   );

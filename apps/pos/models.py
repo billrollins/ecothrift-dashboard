@@ -434,8 +434,11 @@ class Cart(models.Model):
 
     def recalculate(self):
         """Recalculate subtotal, tax, and total from lines."""
+        from apps.pos.services.black_friday import sync_cart as black_friday_prices
         from apps.thriftplus.services.register import after_totals_if_live, sync_if_live
 
+        # Black Friday (owner 2026-11-24, #220): one price for everyone while its window is on; before Thrift+.
+        black_friday_prices(self)
         # Thrift+ member prices; answers False (and does nothing) while Thrift+ is dark at this register.
         live = sync_if_live(self)
         # Query CartLine directly so we never sum a stale prefetch_related cache on `cart.lines`.
@@ -496,6 +499,7 @@ class CartLine(models.Model):
     REGISTER_CATEGORIES = (CATEGORY_DRINKS,)
     SALE_LABEL_LABOR_DAY = 'labor_day'
     SALE_LABEL_SUMMER = 'summer'
+    SALE_LABEL_BLACK_FRIDAY = 'black_friday'  # dollars off in sale_off (services/black_friday.py)
     line_kind = models.CharField(
         max_length=20,
         choices=LINE_KIND_CHOICES,
@@ -506,6 +510,10 @@ class CartLine(models.Model):
     meta = models.JSONField(default=dict, blank=True)
     sale_label = models.CharField(max_length=20, blank=True, default='')
     sale_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0'))
+    sale_off = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0'),
+        help_text='Dollars a store sale takes off this line (Black Friday: tag less the bigger of its ThriftBucks and 10%).',
+    )
     thrift_savings = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal('0'),
         help_text='Thrift+: the member rebate taken off this line today (set by thriftplus.services.register.sync).',
@@ -541,9 +549,26 @@ class CartLine(models.Model):
         pct = self.sale_percent if self.sale_percent is not None else Decimal('0')
         factor = Decimal('1') - (pct / Decimal('100'))
         self.line_total = (self.unit_price * self.quantity * factor).quantize(Decimal('0.01'))
+        if self.sale_off:  # a dollar store sale (Black Friday); never below $0
+            self.line_total = max(Decimal('0.00'), self.line_total - self.sale_off)
         if self.thrift_savings:  # Thrift+ member rebate; 0 unless a live register priced a member
             self.line_total = max(Decimal('0.00'), self.line_total - self.thrift_savings)
         super().save(*args, **kwargs)
+
+
+class BlackFridayPrice(models.Model):
+    """An item's frozen Black Friday number (owner 2026-11-24, Dash Update #220): the ThriftBucks it would show on
+    ``bucks_on`` (Saturday) at ``tag``, worked out once (``services/black_friday.py``) so the ad, the website, the
+    scanners and the register all charge the same price both days. A new tag on the item works it out again."""
+
+    item = models.OneToOneField('inventory.Item', on_delete=models.CASCADE, primary_key=True, related_name='black_friday')
+    tag = models.DecimalField(max_digits=10, decimal_places=2, help_text='The tag the number was worked out at.')
+    bucks = models.DecimalField(max_digits=10, decimal_places=2, help_text="The item's ThriftBucks on bucks_on, one unit.")
+    bucks_on = models.DateField(db_index=True)
+    frozen_at = models.DateTimeField()
+
+    def __str__(self):
+        return f'{self.item_id}: {self.bucks} on {self.bucks_on}'
 
 
 class RegisterApproval(models.Model):

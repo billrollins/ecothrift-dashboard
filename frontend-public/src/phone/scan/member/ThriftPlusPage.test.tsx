@@ -212,11 +212,11 @@ describe('My QR and the ThriftBucks detail (page test :280)', () => {
     }
   })
 
-  it('on Black Friday the band says the ThriftBucks come off today', async () => {
+  it('on Black Friday the band says one price for everyone and how to build (#220)', async () => {
     _setFeed({ ...FEED, day: 'bf' })
     fake.signIn('dana')
     renderPage()
-    expect(await screen.findByTestId('thriftplus-use')).toHaveTextContent('They come off today, in full · Thrift+ members')
+    expect(await screen.findByTestId('thriftplus-use')).toHaveTextContent('Black Friday: one price for everyone · Like to build? Ask at the register')
   })
 })
 

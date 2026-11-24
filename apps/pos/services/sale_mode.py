@@ -33,6 +33,7 @@ DEFAULT_LINE_SALE_NAME = 'Summer'
 ASSEMBLY_PRICE = Decimal('35.00')
 SALE_LABEL_LABOR_DAY = CartLine.SALE_LABEL_LABOR_DAY
 SALE_LABEL_SUMMER = CartLine.SALE_LABEL_SUMMER
+SALE_LABEL_BLACK_FRIDAY = CartLine.SALE_LABEL_BLACK_FRIDAY
 
 
 def labor_day_window(year: int) -> tuple[date, date]:
@@ -193,8 +194,8 @@ def apply_sale_to_line(line: CartLine, mode: dict | None = None) -> CartLine:
             line.sale_percent = Decimal('0')
             line.save()
         return line
-    if line.sale_label == SALE_LABEL_SUMMER:
-        return line
+    if line.sale_label in (SALE_LABEL_SUMMER, SALE_LABEL_BLACK_FRIDAY):
+        return line  # the cashier's line sale; Black Friday belongs to services/black_friday.py
     if mode.get('active'):
         line.sale_label = SALE_LABEL_LABOR_DAY
         line.sale_percent = mode.get('percent') or DEFAULT_PERCENT
@@ -220,16 +221,19 @@ def set_line_sale(line: CartLine, sale: str, mode: dict | None = None) -> CartLi
             raise ValueError('SALE_OFF')
         line.sale_label = SALE_LABEL_SUMMER
         line.sale_percent = current['percent']
+        line.sale_off = Decimal('0')  # Black Friday comes back on the recalculation when it takes more off
         line.save()
         return line
     if sale == SALE_LABEL_LABOR_DAY:
         line.sale_label = SALE_LABEL_LABOR_DAY
         line.sale_percent = mode.get('percent') or DEFAULT_PERCENT
+        line.sale_off = Decimal('0')
         line.save()
         return line
     if sale in ('none', '', None):
         line.sale_label = ''
         line.sale_percent = Decimal('0')
+        line.sale_off = Decimal('0')
         return apply_sale_to_line(line, mode)
     raise ValueError('INVALID_SALE')
 
@@ -243,6 +247,8 @@ def sync_cart_sale(cart) -> None:
 
 def sale_display_label(line) -> str:
     """Customer-facing name for a sale line. New sales: add one branch here."""
+    if line.sale_label == SALE_LABEL_BLACK_FRIDAY:
+        return 'Black Friday'
     pct = line.sale_percent or Decimal('0')
     pct_text = f'{int(pct)}' if pct == pct.to_integral_value() else f'{pct.normalize()}'
     if line.sale_label == SALE_LABEL_LABOR_DAY:
@@ -276,6 +282,9 @@ def cart_savings(cart) -> dict:
                 continue
             reason = str((line.meta or {}).get('reason') or '').strip()
             add('Discount' if reason in ('', 'Other') else reason[:32], -line.line_total)
+            continue
+        if line.sale_label == SALE_LABEL_BLACK_FRIDAY:
+            # Black Friday shows the retail and the price paid, never the tag (owner 2026-11-24): no savings row.
             continue
         if line.sale_label:
             add(sale_display_label(line), line.sale_savings - thrift)

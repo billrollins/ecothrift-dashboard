@@ -83,7 +83,9 @@ export function screenOf(i: ScreenInput): Screen {
   if (i.signingIn || !i.session) return { kind: 'spinner' }
   const s = i.session
   const joinAsked = i.view === 'join'
-  if (s.status === 'signed_out' && !(i.linkGuest && !joinAsked)) {
+  // Black Friday (#220): one price for everyone, so a signed-out phone scans at once (owner: "VERY little interference").
+  const bfGuest = s.status === 'signed_out' && !!s.black_friday
+  if (s.status === 'signed_out' && !((i.linkGuest || bfGuest) && !joinAsked)) {
     return { kind: 'signin', start: joinAsked ? 'join' : 'email', notice: i.linkError }
   }
   if (s.status === 'guest' && joinAsked) return { kind: 'signin', start: 'join', notice: i.linkError }
@@ -95,5 +97,5 @@ export function screenOf(i: ScreenInput): Screen {
     if (show) return { kind: 'handover', to: handoverTo(show) }
     return { kind: 'trip', session: s }
   }
-  return { kind: 'trip', session: { status: 'guest' } }
+  return { kind: 'trip', session: bfGuest ? { status: 'guest', black_friday: true } : { status: 'guest' } }
 }

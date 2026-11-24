@@ -113,7 +113,9 @@ export default function ThriftPlusScannerPage() {
   // A tag's QR link: a phone that isn't signed in sees the item as a guest (not kept: the next visit is signed out again).
   const linkGuest = useRef(false);
   if (pageParams.get('tag') && session.data?.status === 'signed_out') linkGuest.current = true;
-  const asGuest = linkGuest.current && session.data?.status === 'signed_out' && !joinAsked;
+  // Black Friday (#220): everyone scans at once, no sign-in step (owner 2026-11-24: "VERY little interference").
+  const bfGuest = session.data?.status === 'signed_out' && !!session.data.black_friday && !joinAsked;
+  const asGuest = (linkGuest.current || bfGuest) && session.data?.status === 'signed_out' && !joinAsked;
 
   useEffect(() => {
     const prev = document.title;
@@ -183,7 +185,11 @@ export default function ThriftPlusScannerPage() {
             <SignInScreen start={joinAsked ? 'join' : 'email'} notice={linkError} />
           </Box>
         ) : (
-          <TripScanner session={session.data.status === 'signed_out' ? { status: 'guest' } : session.data} />
+          <TripScanner
+            session={session.data.status === 'signed_out'
+              ? (session.data.black_friday ? { status: 'guest', black_friday: true } : { status: 'guest' })
+              : session.data}
+          />
         )}
         {claimNote && <ReceiptClaimNote note={claimNote} onClose={closeClaimNote} />}
       </Box>

@@ -221,7 +221,7 @@ async function isMember(): Promise<boolean> {
 
 /** What one `session/` answer says: who is here, and whether Thrift+ is open to this phone. */
 export function sessionOfAnswer(a: SessionAnswer | null): { session: ThriftPlusSession; open: boolean } {
-  const body = (a?.body ?? null) as { status?: string; member?: ThriftPlusMember; code?: string } | null
+  const body = (a?.body ?? null) as { status?: string; member?: ThriftPlusMember; code?: string; black_friday?: boolean } | null
   // Thrift+ is off for this phone: the server answers 403 THRIFT_PLUS_OFF. Offline counts as open.
   const open = !(a && a.status === 403 && body?.code === 'THRIFT_PLUS_OFF')
   if (a && a.status === 200 && body?.status === 'member' && body.member) {
@@ -230,7 +230,12 @@ export function sessionOfAnswer(a: SessionAnswer | null): { session: ThriftPlusS
   }
   member = null
   // Signed out, an error or offline: what the phone knows.
-  return { session: readJson(LS.guest, false) ? { status: 'guest' } : { status: 'signed_out' }, open }
+  // Black Friday (#220): the server says so, and a signed-out phone scans at once (route.ts).
+  const bf = a?.status === 200 && body?.black_friday === true
+  return {
+    session: readJson(LS.guest, false) ? { status: 'guest' } : bf ? { status: 'signed_out', black_friday: true } : { status: 'signed_out' },
+    open,
+  }
 }
 
 /**

@@ -2122,6 +2122,9 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                                       sx={{ height: 22 }}
                                     />
                                   )}
+                                  {line.sale_label === 'black_friday' && (
+                                    <Chip size="small" label="Black Friday" sx={{ height: 22, bgcolor: '#111', color: '#fff' }} />
+                                  )}
                                   {line.sale_label === 'summer' && (
                                     <Chip
                                       size="small"
@@ -2147,6 +2150,21 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                                   ? 'Kept ThriftBucks, taken off before tax'
                                   : line.line_kind === 'delivery' && line.meta
                                   ? `${line.quantity} × ${formatCurrency(line.unit_price)} · ${String(line.meta.phone ?? '')} · ${String(line.meta.address ?? '')}${line.meta.is_apt ? ` Apt ${String(line.meta.unit ?? '')}` : ''}`
+                                  : line.sale_label === 'black_friday'
+                                    ? (
+                                      // Black Friday (owner 2026-11-24): the retail struck through, then the price.
+                                      // Never the tag, never ThriftBucks.
+                                      <span data-testid={`bf-line-${line.id}`}>
+                                        {line.retail ? (
+                                          <>
+                                            {'Retail '}
+                                            <s>{formatCurrency(line.retail)}</s>
+                                            {' → '}
+                                          </>
+                                        ) : null}
+                                        {`${line.quantity > 1 ? `${line.quantity} × ` : ''}Black Friday ${formatCurrency(Number(line.line_total) / (line.quantity || 1))}`}
+                                      </span>
+                                    )
                                   : Number(line.thrift_savings) > 0
                                     ? `${line.quantity} × ${formatCurrency(line.unit_price)} → ${formatCurrency(line.line_total)} (redeemed instantly −${formatCurrency(line.thrift_savings ?? 0)})`
                                     : Number(line.sale_percent) > 0

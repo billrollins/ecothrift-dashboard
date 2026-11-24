@@ -39,7 +39,18 @@ class LoginThrottle(_Throttle):
 
 
 class ScanThrottle(_Throttle):
+    """Scans a minute for one member, or for one address for everyone not signed in. On Black Friday (#220) nobody signs
+    in and the store's guest Wi-Fi is one address for the whole floor, so the limit is 3,000 a minute while it shows."""
     scope = 'thriftplus_scan'
+    BLACK_FRIDAY_RATE = '3000/minute'
+
+    def get_rate(self):
+        try:
+            if _black_friday():
+                return self.BLACK_FRIDAY_RATE
+        except Exception:  # pragma: no cover - a settings read never blocks a scan
+            pass
+        return super().get_rate()
 
 
 class ClaimThrottle(_Throttle):
@@ -52,10 +63,18 @@ def _error(exc: Exception, code: int = status.HTTP_400_BAD_REQUEST) -> Response:
     return Response({'detail': str(exc), 'code': getattr(exc, 'code', 'ERROR')}, status=code)
 
 
+def _black_friday() -> bool:
+    """Black Friday (#220): one price for everyone, so a signed-out phone scans at once (no sign-in step)."""
+    from apps.pos.services import black_friday
+
+    return black_friday.shown()
+
+
 def _session_payload(request) -> dict:
     user = request.user
     if not isinstance(user, member_auth.Member):
-        return {'status': 'signed_out', 'price_first': members.price_first()}
+        return {'status': 'signed_out', 'price_first': members.price_first(),
+                **({'black_friday': True} if _black_friday() else {})}
     person = user.person
     # Owner 2026-11-03 (J8): a join on their own phone is finished in the app, with no staff step.
     if user.account.status == Account.STATUS_PENDING and members.finish_on_phone(person):
@@ -64,6 +83,7 @@ def _session_payload(request) -> dict:
     balances = ledger.balances(user.account)
     return {
         'status': 'member',
+        **({'black_friday': True} if _black_friday() else {}),
         'price_first': members.price_first(),
         'member': {
             'first_name': person.first_name, 'email': person.email,
@@ -507,7 +527,8 @@ def cart_add(request):
     item, missing = _item_or_404(request.data.get('sku', ''))
     if missing:
         return missing
-    if item.status != 'on_shelf':
+    # Black Friday (owner 2026-11-24): a "sold" status is often a system mistake; the piece is on the floor, so it scans.
+    if item.status != 'on_shelf' and not (item.status == 'sold' and _black_friday()):
         return Response({'detail': 'That item is no longer on the floor.', 'code': 'NOT_AVAILABLE'}, status=status.HTTP_400_BAD_REQUEST)
     return Response(scanner.add(request.user.account, item))
 

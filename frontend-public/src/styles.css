@@ -1906,3 +1906,30 @@ main:has(.home) + .ft { margin-top: 0; }
 .devreport-bad { color: #b3261e; }
 .devreport-none { color: var(--muted); font-weight: 600; }
 .devreport-note { margin: 0; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13.5px; color: #2c3530; line-height: 1.5; }
+
+
+/* Black Friday takes over the desktop home (Dash Update #220): a desktop panel under the site's own header. The first
+   screen is the sale and one button: the panel is as tall as the window less the header. Colours:
+   the Black Friday ad's (cranberry #b4232c shaded #c62a33 to #8e1a22, ink #10140f, lime #e3efbe). */
+.bfd { background: radial-gradient(120% 90% at 18% 8%, #c62a33 0%, #b4232c 45%, #8e1a22 100%); color: #fff;
+       min-height: calc(100vh - var(--hdr-height)); display: flex; align-items: center; }
+.bfd__in { width: 100%; max-width: 1260px; margin: 0 auto; padding: 40px 32px 48px; text-align: center; }
+.bfd__when { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.bfd__title { margin: 10px 0 0; font-family: var(--fbody); font-weight: 800; font-size: min(13vw, 24vh); line-height: .92;
+              letter-spacing: -.03em; text-transform: uppercase; white-space: nowrap; color: #fff; }
+.bfd__title span { color: #10140f; }
+.bfd__say { margin: 22px 0 0; font-size: min(50px, 6.500vh); font-weight: 800; line-height: 1.05; color: #e3efbe; }
+.bfd__sub { margin: 8px 0 0; font-size: min(26px, 3.600vh); font-weight: 700; }
+.bfd__hours { margin: 16px 0 0; font-size: 19px; font-weight: 800; }
+.bfd__btn { display: inline-flex; align-items: center; justify-content: center; margin-top: 28px; min-width: 340px; min-height: 68px;
+            padding: 0 44px; border-radius: 10px; background: #fff; color: #10140f; font-size: 24px; font-weight: 800;
+            box-shadow: 0 10px 24px rgba(16, 20, 15, .28); transition: transform .16s; }
+.bfd__btn:hover { transform: translateY(-2px); }
+.bfd__addr { margin: 16px 0 0; font-size: 17px; font-weight: 600; }
+.bfd__addr a { color: inherit; text-decoration: underline; }
+@media (max-width: 700px) {
+  .bfd__in { padding: 28px 20px 32px; }
+  .bfd__title { white-space: normal; font-size: 22vw; }
+  .bfd__title span { display: block; }
+  .bfd__btn { min-width: 0; width: 100%; }
+}

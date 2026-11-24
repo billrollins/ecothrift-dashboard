@@ -56,6 +56,8 @@ export interface ThriftPlusItemCard {
   return_note?: string;
   /** false = sold or off the floor. It cannot go in the cart. */
   available: boolean;
+  /** Black Friday (#220): `price` is the Black Friday price for everyone and `reward` is 0 (its ThriftBucks came off). */
+  black_friday?: boolean;
 }
 
 export type TagLookup =
@@ -141,9 +143,10 @@ export function readContact(raw: string): Contact | null {
 }
 
 export type ThriftPlusSession =
-  | { status: 'signed_out' }
-  | { status: 'guest' }
-  | { status: 'member'; member: ThriftPlusMember };
+  /** `black_friday` (#220): one price for everyone, so the scanner opens straight to scanning (no sign-in step). */
+  | { status: 'signed_out'; black_friday?: boolean }
+  | { status: 'guest'; black_friday?: boolean }
+  | { status: 'member'; member: ThriftPlusMember; black_friday?: boolean };
 
 /** Which email a link or code came from (owner 2026-10-15, APP D9): `join` confirms the email; `sign_in` signs in. */
 export type SignInPurpose = 'join' | 'sign_in';

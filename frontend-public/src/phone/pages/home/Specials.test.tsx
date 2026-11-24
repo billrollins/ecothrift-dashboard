@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { _setFeed, type HomeFeed } from '../../lib/boot'
 import { _resetMember } from '../../lib/member'
 import { TopBar } from '../../shell/TopBar'
-import Specials from './Specials'
+import Specials, { BOHO_ON } from './Specials'
 
 let session: unknown = { status: 'signed_out' }
 
@@ -45,12 +45,12 @@ function cards(container: HTMLElement) {
 }
 
 describe('home specials, a normal day', () => {
-  it('before Black Friday: Thrift+ first, then Black Friday, BO-HO-GO (starts Nov 27), returns; no count', () => {
+  it('before Black Friday: Thrift+ first, then the Black Friday card, returns; no BO-HO-GO (hidden, BOHO_ON) and no count', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-11-21T18:00:00Z'))
     const { container } = show()
     const all = cards(container)
-    expect(all).toHaveLength(4)
+    expect(all).toHaveLength(3)
     expect(all[0]).toHaveTextContent('No Thrift+?You’re payingway too much.')
     expect(all[0]).toHaveTextContent('ThriftBucks on 94% of our items')
     expect(all[0]).toHaveTextContent('Typically 42% of the tag')
@@ -58,24 +58,19 @@ describe('home specials, a normal day', () => {
     expect(within(all[0] as HTMLElement).getByRole('link', { name: 'Join free' })).toHaveAttribute('href', '/scan?view=join')
     expect(all[0].querySelector('.fine')).toBeNull()
     expect(all[1]).toHaveTextContent('Black Friday')
-    expect(all[2]).toHaveTextContent('Starts Fri Nov 27')
-    expect(all[2]).toHaveTextContent('BO-HO-GO')
-    expect(all[3]).toHaveTextContent('3-day returnsThrift+ members only')
-    expect(container).not.toHaveTextContent(/pieces|35,522/i)
-    expect(container.querySelector('.hc-dots')?.children).toHaveLength(4)
+    expect(all[1]).toHaveTextContent('Fri 6 AM to 6 PM, Sat 9 AM to 6 PM')
+    expect(all[2]).toHaveTextContent('3-day returnsThrift+ members only')
+    expect(container).not.toHaveTextContent(/pieces|35,522|BO-HO-GO/i)
+    expect(container.querySelector('.hc-dots')?.children).toHaveLength(3)
   })
 
-  it('after Black Friday: no teaser, BO-HO-GO runs through Dec 31; after Dec 31 it is gone', () => {
+  it('after Black Friday: no teaser, and no BO-HO-GO while it is hidden', () => {
+    expect(BOHO_ON).toBe(false)  // the register cannot ring it: the owner decides before it comes back
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-12-05T18:00:00Z'))
     const dec = show()
-    expect(cards(dec.container)).toHaveLength(3)
-    expect(cards(dec.container)[1]).toHaveTextContent('Through Dec 31')
-    dec.unmount()
-    vi.setSystemTime(new Date('2027-01-02T18:00:00Z'))
-    const jan = show()
-    expect(cards(jan.container)).toHaveLength(2)
-    expect(jan.container).not.toHaveTextContent('BO-HO-GO')
+    expect(cards(dec.container)).toHaveLength(2)
+    expect(dec.container).not.toHaveTextContent('BO-HO-GO')
   })
 
   it('a member: the button opens My Thrift+', async () => {
@@ -130,5 +125,22 @@ describe('home specials, a normal day', () => {
     const { container } = show('/')
     expect(container.querySelector('.strip')).toBeNull()
     expect(container.firstElementChild?.tagName).toBe('HEADER')
+  })
+})
+
+describe('home on Black Friday: the sale takes over the front page (#220)', () => {
+  it("shows the sale in the owner's words and one button, Scan (a computer never gets this page)", () => {
+    _setFeed({ day: 'bf', shelf: { pieces: 35522 }, bucks: { share: 94, typical: 42 } } as unknown as HomeFeed)
+    const { container } = show()
+    const panel = screen.getByTestId('bf-takeover')
+    expect(panel).toHaveTextContent('Fri & Sat · Nov 27 to 28')
+    expect(panel).toHaveTextContent('All prices reduced.')
+    expect(panel).toHaveTextContent('No need to sign up for Thrift+. Just good deals.')
+    expect(panel).toHaveTextContent('Fri 6 AM to 6 PM · Sat 9 AM to 6 PM')
+    expect(screen.getByTestId('bf-scan')).toHaveAttribute('href', '/scan')
+    expect(screen.queryByTestId('bf-directions')).toBeNull()
+    expect(panel.querySelectorAll('a')).toHaveLength(1)
+    expect(cards(container)).toHaveLength(0)
+    expect(panel).not.toHaveTextContent(/ThriftBucks|BO-HO-GO|Join free|7[58]%/)
   })
 })

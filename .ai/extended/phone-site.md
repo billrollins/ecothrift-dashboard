@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-24 (owner: ONE website, www.ecothrift.us, phones and desktops; the old desktop site and the old scanner are legacy to retire; never "app" to customers; earlier 2026-11-20: storefront.phone_site ON; earlier: owner: home's first card is "Don't shop without Thrift+", no strip above the header, "items" not "pieces") -->
+<!-- Last updated: 2026-11-24 (owner: a desktop page is never a mobile page; #220 Black Friday: phones get the phone takeover, computers the desktop site's own panel, the theme and prices follow pos.black_friday; earlier: owner: ONE website, www.ecothrift.us, phones and desktops; the old desktop site and the old scanner are legacy to retire; never "app" to customers; earlier 2026-11-20: storefront.phone_site ON; earlier: owner: home's first card is "Don't shop without Thrift+", no strip above the header, "items" not "pieces") -->
 # The phone site: the public site and the Thrift+ scanner, rebuilt for phones
 
 **Owner, 2026-11-19:** one fast site and app for phones ("performance and FAST snappyness as a priority"), in the look he
@@ -17,6 +17,14 @@ scanner, Thrift+, the store list and the info pages are all pages of this one si
 - **Desktops: next.** This site gets a desktop layout and desktops get it (behind a switch, like phones), so there is one
   site at every width. Until then desktops still get the old site (`index.html`; checked 11-24 by User-Agent: a desktop gets
   `assets/index-*.js`, an iPhone `assets/phone-*.js`).
+- **A desktop page is never a mobile page** (owner 2026-11-24, on a screenshot of the #220 Black Friday takeover on a
+  computer: a full-width sale panel with the phone bottom bar and the phone header around it): "Tell Mainline to Make this
+  absolutely clear: NEVER NEVER NEVER have the desktop app have Mobile elements or be Mobile view..." In plain words: a
+  desktop page is designed as a desktop page. Never the phone layout widened or centred, never the phone column, never
+  the bottom tab bar (Home / In store / Scan / Thrift+), a hamburger-only menu or the phone header and search row on a
+  computer. No desktop layout yet for something? Desktops keep the desktop site they have and the new piece is built into
+  it; they are never sent to the phone entry (`apps/core/middleware.py`). Check every public-site change at a desktop
+  width, and look for phone parts, not only for the new piece. This overrules "centred is fine" in the #220 brief.
 - **Legacy, to retire (not to improve):** the old desktop site's pages (`frontend-public/src/pages/`, `components/`, incl.
   `/thriftplus`), the old scanner in the Dash frontend (`frontend/src/pages/thriftplus/scanner/`), and every link, menu item
   and word that points at a second customer app. Removed once the desktop layout and the phone scanner are live.
@@ -72,6 +80,22 @@ scanner, Thrift+, the store list and the info pages are all pages of this one si
   Opening it within a week sets the cookie `eco_site` to that key (httpOnly, 30 days): that browser, phone or computer, gets
   the phone site and the phone scanner whatever the switches say. A bare `?site=phone`, a made-up key or a hand-typed cookie
   does nothing. `?site=classic` on any page goes back to the current site (no key needed).
+- **Black Friday** (owner 2026-11-24, #220, rulebook F5): while AppSetting `pos.black_friday` is shown (`show_from`, else
+  `start`, to `end`, store time), `home.json` `day` is `bf` whatever `storefront.day` says (black and cranberry, the browser bar black), the phone
+  site's front page is the sale and one button, Scan (`pages/home/BlackFridayHero`), **a computer keeps the desktop site**
+  (never the phone site: the rule above), whose home is the sale and Get directions on a desktop-built panel
+  (`src/components/BlackFridayPanel.tsx`; the server stamps `<html data-day="bf">` on the desktop site's pages and the panel's first paint on its home,
+  `templates/public/black_friday_shell.html`), prices are the Black Friday price with no ThriftBucks, and `/scan` opens straight to scanning for a signed-out phone (session `black_friday`), with one small
+  join note that goes by itself. The window is read through the same 30-second cache; the feeds follow on their next build
+  (`storefront.snapshot_seconds`, 5 minutes).
+- **The owner's Testing page** (owner 2026-11-24; Dash > Owner > Testing, `apps/core/services/site_testing.py`): the way he
+  looks at any version now. One pick for Mobile (Live | Legacy | New | Black Friday) and one for Desktop (Live | Black
+  Friday), each on for 24 hours and then Live again by itself (AppSetting `owner.site_testing`). Only a browser he linked
+  follows them (the tab's QR or button sets the signed cookie `eco_test`; linking drops `eco_site`, so the 30-day preview
+  cookie can no longer leave a device on a version nobody sees). Legacy = the old site and old scanner, New = the phone
+  site and its scanner, Black Friday = the live site with Black Friday shown for that request only. A linked device
+  with a pick on carries a floating TEST badge. The options are one list (`site_testing.options()`): take Legacy out
+  there when the old phone site and scanner are removed, add a Desktop New when the desktop layout exists.
 - **Rollback:** turn a switch off. New page loads follow within 30 seconds; an open tab reloads onto the current site when
   the visitor comes back to it (`shell/Prompts.tsx`). The current site and the current scanner are untouched code.
 - `/qr`, `/card`, `/join`, `/i/<code>`, the dash-host redirect, the web app manifest (`/scan/manifest.webmanifest`, id `/qr`,
@@ -92,8 +116,9 @@ scanner, Thrift+, the store list and the info pages are all pages of this one si
    sign-in, a text sign-in, a join end to end with a practice number, a tag at arm's length, a practice job application).
 2. `.ai/extended/thrift-plus-surfaces.md`: the phone scanner changes rows C1 to C9 and C15 to C17 for phones. Update each
    row to name both scanners and check it, as that file's rule says, before `storefront.phone_scan` is turned on.
-3. Dated copy: the normal-day Black Friday card ends itself after 2026-11-27; the Black Friday door busters in
-   `pages/home/Specials.tsx` are fixed text. `home.json` `day` comes from AppSetting `storefront.day` (`normal` | `bf`).
+3. Dated copy: the normal-day Black Friday card ends itself after 2026-11-28. `home.json` `day` comes from AppSetting
+   `storefront.day` (`normal` | `bf`), or `bf` while `pos.black_friday` is on (#220; the Black Friday cards are the sale in
+   the owner's words, no door busters).
 
 ## Working on it
 

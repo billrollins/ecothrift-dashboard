@@ -1,9 +1,10 @@
 /**
  * Home 1, the specials (mockup blocks/10-specials.html): cards swiped sideways, the next card's edge showing.
- * Normal days: Don't shop without Thrift+, the Black Friday teaser (to Nov 27), BO-HO-GO (to Dec 31), 3-day returns.
- * The Black Friday set (by useDay()) shares the card shapes and sizes; the dots follow the swipe.
+ * Normal days: Don't shop without Thrift+, the Black Friday teaser (to Nov 28), BO-HO-GO (to Dec 31), 3-day returns.
+ * The Black Friday set (by useDay(), on while the Black Friday window is on, #220) shares the card shapes and sizes.
  */
 import { useRef, useState, type ReactNode } from 'react'
+import BlackFridayHero from './BlackFridayHero'
 import { Link } from 'react-router-dom'
 import { useHome } from '../../lib/boot'
 import { useDay } from '../../lib/day'
@@ -38,9 +39,12 @@ function Rail({ children, n }: { children: ReactNode; n: number }) {
 }
 
 /** Store-time (Omaha, UTC-6 in winter) day boundaries for the dated cards. */
-const BF_TEASER_ENDS = Date.parse('2026-11-28T06:00:00Z') // after Fri Nov 27
+const BF_TEASER_ENDS = Date.parse('2026-11-29T06:00:00Z') // after Sat Nov 28 (the Black Friday set shows from Thu)
 const BOHO_STARTS = Date.parse('2026-11-27T06:00:00Z') // Fri Nov 27
 const BOHO_ENDS = Date.parse('2027-01-01T06:00:00Z') // after Thu Dec 31
+/** BO-HO-GO is hidden until the owner decides (2026-11-24, Dash Update #220): the register cannot ring it, so the site
+ *  must not promise it. Set to true to bring the card back (it still ends itself after Dec 31). */
+export const BOHO_ON = false
 
 /**
  * The first card on every normal day (owner 2026-11-20: "BIGGEST thing is if they do not have Thrift+ they are paying
@@ -139,23 +143,18 @@ function Normal() {
   // Dated cards come and go by themselves: the Black Friday teaser until Nov 27, BO-HO-GO until Dec 31.
   const now = Date.now()
   const teaser = now < BF_TEASER_ENDS
-  const boho = now < BOHO_ENDS
+  const boho = BOHO_ON && now < BOHO_ENDS
   return (
     <Rail n={2 + (teaser ? 1 : 0) + (boho ? 1 : 0)}>
       <Shout />
       {teaser && (
-      <Link className="hc hc-black" to="/thriftplus">
-        <span className="lbl">Fri Nov 27</span>
+      <a className="hc hc-black" href="/scan">
+        <span className="lbl">Fri &amp; Sat, Nov 27 to 28</span>
         <h2 className="disp">
           Black <em>Friday</em>
         </h2>
-        <p className="sub">Thrift+ members: your ThriftBucks come off that day, in full.</p>
-        <div className="hc-sum">
-          <span className="was tn">$100</span>
-          <Tag price={80} cents="auto" deal />
-          <span className="cap">A $100.00 tag with 20.00 ThriftBucks</span>
-        </div>
-      </Link>
+        <p className="sub">Store averages over 78% off retail. One price for everyone. Fri 6 AM to 6 PM, Sat 9 AM to 6 PM.</p>
+      </a>
       )}
       {boho && <Boho when={now < BOHO_STARTS ? 'Starts Fri Nov 27' : 'Through Dec 31'} />}
       <Link className="hc hc-green" to="/returns">
@@ -171,55 +170,13 @@ function Normal() {
   )
 }
 
-/** Door busters as the store wrote them for the day (round-3 content: ECO.deals.bf). */
-const DOOR: Array<[name: string, price: number, note: string]> = [
-  ['Dyson V11 Animal vacuum', 99, 'Retail $650.00'],
-  ['Traeger Pro 34 pellet grill', 149, ''],
-  ['Star Wars 9in Vehicle and Figure', 19.99, ''],
-]
-
-function BlackFriday() {
-  return (
-    <Rail n={3}>
-      <Link className="hc hc-cran" to="/thriftplus">
-        <span className="lbl">Black Friday · Thrift+ members</span>
-        <h2 className="disp">
-          Your
-          <br />
-          ThriftBucks <em>come off today</em>
-        </h2>
-        <div className="hc-sum">
-          <span className="was tn">$100</span>
-          <span className="hc-arrow" aria-hidden="true">→</span>
-          <Tag price={80} cents="auto" deal />
-          <span className="cap">with 20.00 ThriftBucks</span>
-        </div>
-      </Link>
-      <Boho when="Nov 27 to Dec 31" />
-      <Link className="hc hc-door" to="/#visit">
-        <span className="lbl">Door busters · Everyone</span>
-        <h2 className="disp">One of a kind</h2>
-        <div className="hc-rows tn">
-          {DOOR.map(([name, price, note]) => (
-            <div key={name}>
-              <p>
-                {name}
-                {note ? <s>{note}</s> : null}
-              </p>
-              <Tag price={price} cents="auto" deal />
-            </div>
-          ))}
-        </div>
-      </Link>
-    </Rail>
-  )
-}
-
 export default function Specials() {
   const day = useDay()
+  // Black Friday takes over the front page (#220): the sale and one button, nothing else on the first screen.
+  if (day === 'bf') return <BlackFridayHero />
   return (
     <section className="hc-hero" id="top" aria-label="Specials">
-      {day === 'bf' ? <BlackFriday /> : <Normal />}
+      <Normal />
     </section>
   )
 }
