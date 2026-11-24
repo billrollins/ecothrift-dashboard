@@ -1,0 +1,190 @@
+/* The desktop site's look (Dash Update #211). The SAME brand as the phone site: its tokens, its one font and its
+   utilities come from the phone kit (phone/kit.css :root, imported first by main.tsx), so a colour is changed in one
+   place for the whole website. This file only lays them out for a computer: a full header with every section, search
+   in the header, wide grids, hover states, a real footer. Designed at 1440 wide; 1280 to 1920 look intended; it holds
+   down to 1024 (a narrower window scrolls sideways; a tablet draws the 1024 layout, desktop.html's viewport).
+   Owner 2026-11-24: "NEVER NEVER NEVER have the desktop app have Mobile elements or be Mobile view": no phone column, no
+   bottom bar, no hamburger, no phone header here. Nothing appears or goes in a way that moves other content. */
+
+:root {
+  --wrap: 1400px;          /* the content width at 1920; 1344 at 1440, 928 at 1024 */
+  --side: 48px;            /* the page's side margin */
+  --h1: 80px;              /* header row one: logo, search, store, account */
+  --h2: 46px;              /* header row two: every section */
+  --title: var(--sans);    /* the title face: one line to change it */
+  --dk-r: 16px;
+  --shadow: 0 1px 2px rgba(16, 20, 15, .06), 0 8px 24px rgba(16, 20, 15, .08);
+}
+html { scroll-padding-top: calc(var(--h1) + var(--h2) + 16px); }
+body { min-width: 1024px; background: var(--ground); font-size: 16px; line-height: 1.45; }
+:focus-visible { outline: 3px solid var(--leaf); outline-offset: 2px; }
+
+/* The page frame: the header, the page, the footer; the footer stays at the bottom of a short page. */
+.dk { min-height: 100vh; display: flex; flex-direction: column; }
+.dk-main { flex: 1 0 auto; }
+.dk-w { width: min(calc(100% - 2 * var(--side)), var(--wrap)); margin-inline: auto; }
+
+/* ── Type ─────────────────────────────────────────────────────────────────── */
+.dk .disp { font-family: var(--title); }
+.dk-h { font-family: var(--title); font-size: 32px; font-stretch: 80%; font-weight: 800; letter-spacing: -.01em; line-height: 1.05; }
+.dk-kick { font-size: 13px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-2); }
+
+/* A section: its title row (a name left, one link right) and its body. */
+.dk-sec { padding: 56px 0 0; }
+.dk-sec-hd { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
+.dk-sec-hd a { font-size: 16px; font-weight: 800; color: var(--green); white-space: nowrap; }
+.dk-sec-hd a:hover { text-decoration: underline; text-underline-offset: 3px; }
+html[data-day="bf"] .dk-sec-hd a { color: var(--ink); }
+
+/* Buttons (the kit's .btn), a little taller on a computer, with hover states. */
+.dk .btn { min-height: 50px; padding: 0 26px; font-size: 16px; transition: background-color .12s, color .12s, box-shadow .12s; }
+.dk .btn-ink:hover { background: #2a3127; }
+.dk .btn-lime:hover { background: #d4e6a4; }
+.dk .btn-line:hover { background: rgba(16, 20, 15, .06); }
+.dk-btn-green { background: var(--green); color: #fff; }
+.dk-btn-green:hover { background: var(--green-d); }
+
+/* A page's own top (every page but home): a kicker, the headline, one line. */
+.dk-pt { padding: 40px 0 8px; }
+.dk-pt .disp { font-size: 72px; }
+.dk-pt p { margin-top: 12px; font-size: 18px; color: var(--ink-2); max-width: 760px; }
+.dk-crumbs { display: flex; align-items: center; gap: 8px; height: 52px; font-size: 14px; font-weight: 700; color: var(--ink-2); }
+.dk-crumbs a { color: var(--green); }
+.dk-crumbs a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.dk-crumbs .sep { color: #9aa396; }
+html[data-day="bf"] .dk-crumbs a { color: var(--ink); }
+
+/* A white panel on the ground. */
+.dk-card { background: var(--card); border-radius: var(--dk-r); }
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+.dk-head { position: sticky; top: 0; z-index: 50; background: var(--green); color: #fff; }
+.dk-r1 { height: var(--h1); display: grid; grid-template-columns: auto minmax(320px, 1fr) auto auto; align-items: center; column-gap: 32px; }
+.dk-logo { display: block; }
+.dk-logo img { display: block; height: 52px; width: auto; }
+
+/* Search: the field and the search button as one piece (the button in the price tag's colours, as on the phone). */
+.dk-find { display: flex; align-items: center; height: 48px; max-width: 720px; width: 100%; background: #fff; border-radius: 12px;
+           overflow: hidden; color: var(--ink); box-shadow: inset 0 0 0 2px transparent; transition: box-shadow .12s; }
+.dk-find:focus-within { box-shadow: inset 0 0 0 2px var(--lime); }
+.dk-find input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; padding: 0 8px 0 18px;
+                 font: inherit; font-size: 16px; color: var(--ink); }
+.dk-find input::placeholder { color: #6b7468; }
+.dk-find .clr { width: 40px; height: 48px; display: grid; place-items: center; color: var(--ink-2); opacity: 0; pointer-events: none; transition: opacity .1s; }
+.dk-find.has .clr { opacity: 1; pointer-events: auto; }
+.dk-find .clr svg.i { width: 18px; height: 18px; }
+.dk-find .go { align-self: stretch; display: flex; align-items: center; gap: 8px; padding: 0 20px; background: var(--tag-bg); color: var(--tag-num);
+               font-weight: 800; font-size: 15px; transition: background-color .12s; }
+.dk-find .go:hover { background: #2a3127; }
+.dk-find .go svg.i { width: 20px; height: 20px; }
+html[data-day="bf"] .dk-find .go { background: var(--tag-num); color: var(--tag-bg); }
+
+/* The store, open or not: two lines, fixed width (the words change, the box never does). */
+.dk-store { display: flex; align-items: center; gap: 10px; width: 236px; color: #fff; }
+.dk-store svg.i { width: 22px; height: 22px; color: var(--lime); }
+.dk-store > span { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.dk-store b { font-size: 15px; font-weight: 800; white-space: nowrap; display: flex; align-items: center; gap: 7px; }
+.dk-store b i { width: 9px; height: 9px; border-radius: 50%; background: var(--leaf); flex: none; }
+.dk-store b.shut i { background: #ff8a7a; }
+.dk-store small { font-size: 13px; opacity: .85; white-space: nowrap; }
+.dk-store:hover small { text-decoration: underline; text-underline-offset: 3px; opacity: 1; }
+
+/* The account: one slot of one size, signed out, a member's balance, or the moment before we know (invisible). */
+.dk-acct { width: 184px; height: 48px; display: flex; align-items: center; justify-content: center; gap: 10px; border-radius: 999px;
+           font-weight: 800; font-size: 15px; white-space: nowrap; transition: background-color .12s, opacity .12s; }
+.dk-acct.out { border: 2px solid rgba(255, 255, 255, .9); color: #fff; }
+.dk-acct.out:hover { background: rgba(255, 255, 255, .12); }
+.dk-acct.wait { opacity: 0; pointer-events: none; }
+.dk-acct svg.i { width: 20px; height: 20px; }
+.dk-acct.in { background: var(--tag-bg); color: #fff; justify-content: space-between; padding: 0 18px; }
+.dk-acct.in:hover { background: #2a3127; }
+.dk-acct.in small { font-size: 13px; font-weight: 700; color: var(--lime); }
+.dk-acct.in b { font-size: 19px; font-stretch: 70%; font-weight: 900; color: var(--tag-num); }
+.dk-acct.fin { background: var(--lime); color: var(--ink); }
+html[data-day="bf"] .dk-acct.in { background: #fff; color: var(--ink); }
+html[data-day="bf"] .dk-acct.in small { color: var(--cran); }
+html[data-day="bf"] .dk-acct.in b { color: var(--ink); }
+
+/* Row two: every section, always visible (no menu button). The page you are on is underlined in lime. */
+.dk-r2 { background: var(--green-d); }
+.dk-nav { height: var(--h2); display: flex; align-items: stretch; justify-content: space-between; gap: 24px; }
+.dk-nav nav { display: flex; align-items: stretch; gap: 4px; }
+.dk-nav a { display: flex; align-items: center; gap: 7px; padding: 0 12px; font-size: 15px; font-weight: 700; color: rgba(255, 255, 255, .92);
+            box-shadow: inset 0 -3px 0 transparent; transition: box-shadow .12s, color .12s; white-space: nowrap; }
+.dk-nav a:first-child { padding-left: 0; }
+.dk-nav a:hover { color: #fff; box-shadow: inset 0 -3px 0 rgba(227, 239, 190, .5); }
+.dk-nav a.on { color: #fff; box-shadow: inset 0 -3px 0 var(--lime); }
+.dk-nav .scan svg.i { width: 18px; height: 18px; color: var(--lime); }
+.dk-nav .sub a { font-weight: 600; color: rgba(255, 255, 255, .78); font-size: 14px; }
+.dk-nav .sub a:last-child { padding-right: 0; }
+html[data-day="bf"] .dk-r2 { background: #1c1f1b; }
+
+/* ── Footer ───────────────────────────────────────────────────────────────── */
+.dk-foot { margin-top: 72px; background: var(--card); border-top: 1px solid var(--line); }
+.dk-fcols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 40px; padding: 48px 0 40px; }
+.dk-fcols h2 { font-size: 13px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 14px; }
+.dk-fcols ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.dk-fcols a { font-size: 16px; font-weight: 600; color: var(--ink); }
+.dk-fcols a:hover { color: var(--green); text-decoration: underline; text-underline-offset: 3px; }
+.dk-fcols .vis p { font-size: 15px; color: var(--ink-2); line-height: 1.55; }
+.dk-fcols .vis b { color: var(--ink); }
+.dk-fend { display: flex; align-items: center; gap: 24px; height: 56px; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink-2); }
+.dk-fend a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.dk-fend .v { margin-left: auto; font-size: 12px; color: #8a9386; }
+
+/* ── Shared pieces ────────────────────────────────────────────────────────── */
+/* A price tag on a computer: the kit's .tag, sized by the place it sits in. */
+.dk .tag { font-size: 30px; }
+.dk-strike { font-size: 15px; color: var(--ink-2); }
+.dk-strike s { text-decoration-thickness: 1.5px; }
+
+/* The ThriftBucks line of an in-store item: always there, grey at 0.00. */
+.dk-tb { font-size: 14px; font-weight: 800; color: var(--green); }
+.dk-tb.none { color: #8a9386; font-weight: 600; }
+html[data-day="bf"] .dk-tb { color: var(--cran); }
+html[data-day="bf"] .dk-tb.none { color: #8a9386; }
+.dk-tb.bf { color: var(--cran); text-transform: uppercase; letter-spacing: .06em; font-size: 12.5px; }
+
+/* A product card: the picture (or the cream square with the category in small capitals: no stand-in pictures), the
+   name in two lines, then the numbers. Hover: a lift of colour and shadow only, nothing moves. */
+.dk-pc { display: flex; flex-direction: column; background: var(--card); border-radius: var(--dk-r); overflow: hidden;
+         box-shadow: 0 0 0 1px var(--line); transition: box-shadow .12s; }
+.dk-pc:hover { box-shadow: 0 0 0 2px var(--green), var(--shadow); }
+.dk-pc .pic { position: relative; aspect-ratio: 1 / 1; background: var(--cream); overflow: hidden; }
+.dk-pc .pic img { width: 100%; height: 100%; object-fit: cover; }
+.dk-pc .pic.txt { display: flex; align-items: center; justify-content: center; padding: 0 18px; text-align: center; }
+.dk-pc .pic.txt .lbl { color: var(--ink-2); line-height: 1.4; }
+.dk-pc .bd { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 16px; flex: 1; }
+.dk-pc .nm { font-size: 15px; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+             overflow: hidden; min-height: 2.6em; }
+.dk-pc:hover .nm { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.dk-pc .pr { display: flex; align-items: baseline; gap: 10px; margin-top: auto; }
+.dk-pc .tag { font-size: 26px; }
+
+/* A grid of cards: as many columns as the width allows, every card the same width. */
+.dk-grid { display: grid; gap: 24px; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+@media (max-width: 1279px) { .dk-grid { gap: 16px; } .dk-pc .bd { padding: 12px 12px 14px; } .dk-pc .tag { font-size: 22px; } }
+@media (max-width: 1100px) { .dk-grid { gap: 12px; } .dk-pc .nm { font-size: 14px; } .dk-pc .pr { flex-wrap: wrap; gap: 4px 8px; } }
+
+/* A count badge (the kit's .cnt), a touch bigger. */
+.dk .cnt { height: 22px; min-width: 30px; font-size: 12.5px; }
+
+/* Quiet bars where words will be (a direct visit, data on its way). */
+.dk-sk { display: block; height: 14px; border-radius: 6px; background: #e3e6de; }
+
+/* Notes the owner asked for (plain notes, not fine print): "Not held. First come, first served." */
+.dk-note { font-size: 14px; color: var(--ink-2); }
+
+@media (max-width: 1279px) {
+  :root { --side: 40px; }
+  .dk-r1 { column-gap: 24px; }
+  .dk-nav a { padding: 0 9px; font-size: 14.5px; }
+}
+@media (max-width: 1150px) {
+  .dk-logo img { height: 46px; }
+  .dk-store { width: 200px; }
+  .dk-store small { font-size: 12px; }
+  .dk-acct { width: 160px; }
+  .dk-nav a { padding: 0 7px; font-size: 14px; }
+  .dk-nav .sub a { font-size: 13px; }
+}

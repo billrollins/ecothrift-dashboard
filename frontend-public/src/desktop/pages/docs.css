@@ -1,0 +1,27 @@
+/* Reading pages on a computer (Dash Update #211): a policies column, then the document on a white sheet at a reading
+   width. The phone page's own parts are restyled here only (its back row is the header's job on a computer). */
+.dk-doc { display: grid; grid-template-columns: 240px minmax(0, 880px); gap: 48px; justify-content: center; padding-top: 40px; }
+.dk-doc-side { position: sticky; top: calc(var(--h1) + var(--h2) + 32px); align-self: start; }
+.dk-doc-side nav { display: grid; gap: 2px; margin-top: 12px; }
+.dk-doc-side a { padding: 10px 14px; border-radius: 10px; font-size: 16px; font-weight: 700; color: var(--ink); }
+.dk-doc-side a:hover { background: rgba(16, 20, 15, .05); }
+.dk-doc-side a.on { background: var(--ink); color: #fff; }
+
+.dk-doc-body { border-radius: 24px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px var(--line); }
+.dk-doc-body .lg { background: #fff; }
+.dk-doc-body .lg-back { display: none; }
+.dk-doc-body .lg-hd { padding: 40px 56px 36px; }
+.dk-doc-body .lg-hd h1 { font-size: 68px; }
+.dk-doc-body .lg-hd h1.lg-long { font-size: 54px; }
+.dk-doc-body .lg-hd .lg-sub { font-size: 19px; max-width: 40em; }
+.dk-doc-body .lg-hd .lg-date { font-size: 15px; }
+.dk-doc-body .lg-body { padding: 36px 56px 48px; font-size: 17px; line-height: 1.65; }
+.dk-doc-body .lg-body h2 { font-size: 30px; }
+.dk-doc-body .lg-body h3 { font-size: 20px; }
+.dk-doc-body .lg-body .lg-toc ul { grid-template-columns: 1fr 1fr 1fr; }
+.dk-doc-body .lg-gos { max-width: 560px; }
+.dk-doc-body .lg-cr { grid-template-columns: 52px 1fr auto; }
+/* A journal post's own pieces. */
+.dk-doc-body .bl-hero, .dk-doc-body .bl-pic { width: 100%; height: auto; }
+
+@media (max-width: 1150px) { .dk-doc { grid-template-columns: 200px minmax(0, 1fr); gap: 32px; } .dk-doc-body .lg-body { padding: 32px 40px 40px; } }

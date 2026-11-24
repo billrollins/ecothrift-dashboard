@@ -1,0 +1,33 @@
+/* Sign in and Join on a computer (Dash Update #211): Thrift+ on the left, the scanner's steps in a card on the right. */
+.dk-si { display: grid; grid-template-columns: minmax(0, 1fr) 520px; gap: 0; margin-top: 40px; border-radius: 24px; overflow: hidden;
+         background: var(--card); box-shadow: 0 0 0 1px var(--line), var(--shadow); min-height: 640px; }
+.dk-si-side { background: var(--green); color: #fff; padding: 48px 56px; display: flex; flex-direction: column; }
+.dk-si-side img { height: 38px; width: auto; align-self: flex-start; }
+.dk-si-side h1 { margin-top: 26px; font-size: 92px; line-height: .88; max-width: 8em; }
+.dk-si-side ul { list-style: none; margin: 36px 0 0; padding: 0; display: grid; gap: 14px; }
+.dk-si-side li { display: flex; align-items: center; gap: 18px; }
+.dk-si-side li b { width: 96px; font-size: 52px; color: var(--lime); }
+.dk-si-side li span { font-size: 19px; font-weight: 700; }
+.dk-si-alt { margin-top: auto; padding-top: 32px; font-size: 17px; }
+.dk-si-alt a { color: var(--lime); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+
+/* The scanner's sign-in, as it is, inside the card: its green band becomes the card's top. */
+.dk-si-card { display: flex; flex-direction: column; }
+.dk-si-card .si { margin: 0; flex: 1; --gut: 28px; }
+.dk-si-card .si-hd { padding-top: 26px; padding-bottom: 22px; }
+.dk-si-card .si-hd h1 { font-size: 46px; }
+.dk-si-card .si-body { padding-top: 24px; }
+.dk-si-card .si-foot { padding: 0 28px 28px; }
+/* A computer has no camera way in, and nothing to scan without signing in. */
+.dk-si-card .si-store, .dk-si-card .si-nonmember { display: none !important; }
+
+.dk-si-msg { padding: 48px 40px; display: flex; flex-direction: column; gap: 14px; min-height: 420px; }
+.dk-si-msg p { font-size: 17px; color: var(--ink-2); }
+.dk-si-qr { width: 200px; height: 200px; padding: 8px; border-radius: 16px; background: #fff; box-shadow: inset 0 0 0 1px var(--line); }
+.dk-si-fin .btn { align-self: flex-start; margin-top: 8px; }
+
+@media (max-width: 1150px) {
+  .dk-si { grid-template-columns: minmax(0, 1fr) 460px; }
+  .dk-si-side { padding: 40px; }
+  .dk-si-side h1 { font-size: 72px; }
+}

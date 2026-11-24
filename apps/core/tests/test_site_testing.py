@@ -22,6 +22,9 @@ from apps.core.middleware import PublicSiteMiddleware
 from apps.core.models import AppSetting
 from apps.core.services import site_testing
 from apps.core.tests.test_phone_site import CLASSIC_HTML, DESKTOP, IPHONE, PHONE_HTML
+
+# The desktop site's built page (#211): the server stamps the day on it.
+DESKTOP_HTML = '<!doctype html><html data-day="normal"><head><!--ECO_BOOT--></head><body>DESKTOP</body></html>'
 from apps.pos.services import black_friday
 
 
@@ -32,9 +35,11 @@ class _Site(TestCase):
         cls.tmp = Path(tempfile.mkdtemp(prefix='site_testing_'))
         (cls.tmp / 'index.html').write_text(CLASSIC_HTML, encoding='utf-8')
         (cls.tmp / 'phone.html').write_text(PHONE_HTML, encoding='utf-8')
+        (cls.tmp / 'desktop.html').write_text(DESKTOP_HTML, encoding='utf-8')
         cls.hosts = override_settings(
             PUBLIC_SITE_HOSTS=['ecothrift.us'], PUBLIC_SITE_CANONICAL_HOST='ecothrift.us', ALLOWED_HOSTS=['ecothrift.us', 'testserver'],
             PUBLIC_SITE_INDEX=str(cls.tmp / 'index.html'), PUBLIC_SITE_PHONE_INDEX=str(cls.tmp / 'phone.html'),
+            PUBLIC_SITE_DESKTOP_INDEX=str(cls.tmp / 'desktop.html'),
         )
         cls.hosts.enable()
 
@@ -73,7 +78,7 @@ class _Site(TestCase):
     @staticmethod
     def site(response) -> str:
         body = response.content.decode()
-        return 'phone' if 'PHONE' in body else 'classic' if 'CLASSIC' in body else 'django'
+        return 'phone' if 'PHONE' in body else 'desktop' if 'DESKTOP' in body else 'classic' if 'CLASSIC' in body else 'django'
 
 
 class PicksTests(_Site):
@@ -88,8 +93,8 @@ class PicksTests(_Site):
 
     def test_only_versions_that_exist_can_be_picked_and_end_now_ends_it(self):
         self.assertEqual([o['key'] for o in site_testing.options()['mobile']], ['legacy', 'new', 'bf'])
-        self.assertEqual([o['key'] for o in site_testing.options()['desktop']], ['bf'])  # no New desktop yet
-        on = site_testing.save('made-up', 'new')
+        self.assertEqual([o['key'] for o in site_testing.options()['desktop']], ['bf', 'new', 'newbf'])  # #211 adds two
+        on = site_testing.save('made-up', 'made-up')
         self.assertEqual((on['mobile'], on['desktop'], on['until']), ('', '', None))
         site_testing.save('legacy', 'bf')
         self.assertEqual(site_testing.end(), {'mobile': '', 'desktop': '', 'until': None})
@@ -129,7 +134,7 @@ class DeviceTests(_Site):
         site_testing.save('', 'bf')
         home = self.get('/', ua=DESKTOP, linked=True)
         body = home.content.decode()
-        self.assertEqual(self.site(home), 'classic')  # a desktop page, never the phone site
+        self.assertEqual(self.site(home), 'classic')  # the site customers' computers get, never the phone site
         self.assertIn('<html data-day="bf">', body)
         self.assertIn('All prices reduced.', body)
         self.assertFalse(black_friday.forced())  # cleared when the request ends

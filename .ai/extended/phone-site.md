@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-11-24 (owner: a desktop page is never a mobile page; #220 Black Friday: phones get the phone takeover, computers the desktop site's own panel, the theme and prices follow pos.black_friday; earlier: owner: ONE website, www.ecothrift.us, phones and desktops; the old desktop site and the old scanner are legacy to retire; never "app" to customers; earlier 2026-11-20: storefront.phone_site ON; earlier: owner: home's first card is "Don't shop without Thrift+", no strip above the header, "items" not "pieces") -->
+<!-- Last updated: 2026-11-24 (#211 the desktop site, behind storefront.desktop_site, and its Testing picks; earlier: owner: a desktop page is never a mobile page; #220 Black Friday: phones get the phone takeover, computers the desktop site's own panel, the theme and prices follow pos.black_friday; earlier: owner: ONE website, www.ecothrift.us, phones and desktops; the old desktop site and the old scanner are legacy to retire; never "app" to customers; earlier 2026-11-20: storefront.phone_site ON; earlier: owner: home's first card is "Don't shop without Thrift+", no strip above the header, "items" not "pieces") -->
 # The phone site: the public site and the Thrift+ scanner, rebuilt for phones
 
 **Owner, 2026-11-19:** one fast site and app for phones ("performance and FAST snappyness as a priority"), in the look he
@@ -14,9 +14,9 @@ scanner, Thrift+, the store list and the info pages are all pages of this one si
 
 - **Phones:** done (this site, `storefront.phone_site` ON since 11-20). `/scan` on a phone moves to this site's scanner when
   `storefront.phone_scan` goes on (after his real-phone check).
-- **Desktops: next.** This site gets a desktop layout and desktops get it (behind a switch, like phones), so there is one
-  site at every width. Until then desktops still get the old site (`index.html`; checked 11-24 by User-Agent: a desktop gets
-  `assets/index-*.js`, an iPhone `assets/phone-*.js`).
+- **Desktops: built, behind a switch** (Dash Update #211, the night of 11-24; section "The desktop site" below). Until
+  `storefront.desktop_site` goes on, desktops still get the old site (`index.html`; checked 11-24 by User-Agent: a
+  desktop gets `assets/index-*.js`, an iPhone `assets/phone-*.js`).
 - **A desktop page is never a mobile page** (owner 2026-11-24, on a screenshot of the #220 Black Friday takeover on a
   computer: a full-width sale panel with the phone bottom bar and the phone header around it): "Tell Mainline to Make this
   absolutely clear: NEVER NEVER NEVER have the desktop app have Mobile elements or be Mobile view..." In plain words: a
@@ -31,6 +31,42 @@ scanner, Thrift+, the store list and the info pages are all pages of this one si
 - **Words:** customers never read "app" ("Open the app", "the Thrift+ app", "scanner app", "install the app"): say the page
   ("Scan a tag", "Thrift+", "ecothrift.us"). Rulebook V15. Keeping the site on a home screen stays (the install card), in
   words without "app".
+
+## The desktop site (Dash Update #211, built 2026-11-24 night)
+
+- **What:** the same site for computers, designed for a computer first: `frontend-public/desktop.html` + `src/desktop/`,
+  a third build pass (`vite build --mode desktop`; its own `desktop-vendor` chunk). Same addresses, same feeds, same words:
+  it imports the phone site's data hooks and libraries (`phone/lib/*`), its words (`phone/pages/words.ts`, the V12 example
+  `phone/shell/ThriftBucksExample.tsx`, `itemData.ts`), and renders some phone pieces whole inside desktop pages (the Visit
+  block with the drawn map, the scanner's sign-in steps, the member's QR / ThriftBucks / Account, Terms, Privacy, a blog
+  post, the careers apply / interview / offer flows). Only words the phone keeps inline are written again, in
+  `src/desktop/words.ts`, each naming its source.
+- **Look:** the phone kit's tokens and Archivo (`phone/kit.css` is imported first), laid out in `src/desktop/desk.css`: a
+  two-row header (big logo, search, open status, the account slot; then every section as a link, no menu button), wide
+  grids, hover states, a light four-column footer. Designed at 1440; 1280 to 1920 intended; holds to 1024 (a narrower
+  window scrolls sideways; a tablet draws the 1024 layout: `desktop.html`'s viewport is `width=1024`).
+- **Desktop-only pages:** `/visit` is its own page (a phone shows home at #visit); `/scan` on a computer is a tag-number
+  look-up (the scanner's public tag endpoint, asked as a "second look" so it never counts as a scan) with a QR to
+  ecothrift.us/scan; `/account/sign-in` is the desktop sign-in (`?view=join` = Join), the scanner's own steps in a card,
+  without the phone-only "store sign-in QR" and "Scan without signing in". A member with a camera step left (phone
+  number, selfie, terms) is told to finish on the phone or at the register. `/menu` goes home.
+- **Black Friday:** the home's first screen is the sale in the owner's words and one button, Get directions
+  (`pages/home/BlackFriday.tsx`); the header and the rest of home stay. Every page wears the sale's colours; prices are
+  the feed's Black Friday price and the ThriftBucks line reads "Black Friday price". The server stamps
+  `data-day="bf"` on desktop.html while `black_friday_on()` (the live window, or the owner's Testing pick for that request).
+- **Who gets it** (`apps/core/middleware.py` `_wants_desktop`): AppSetting **`storefront.desktop_site`** (`"off"` default
+  | `"on"`, the 30-second cache). On: a computer (no `Mobi`) gets desktop.html on every page the phone site owns and on
+  `/scan`; never a phone; the online store's /shop, /checkout, /hold stay on the old site; `eco_site=classic` keeps the
+  old site and the owner's phone-preview cookie keeps the phone site. Off: nothing changes for anyone.
+- **The owner's Testing picks** (#221, `apps/core/services/site_testing.py`): Desktop **New** (the desktop site on his
+  linked computer whatever the switch says) and Desktop **New + Black Friday** (the desktop site with Black Friday forced
+  for his requests only), beside Desktop **Black Friday** (what customers' computers get that day while the switch is
+  off: the old site and its panel; Mainline for the owner, 11-24). Customers are untouched.
+- **Rollback:** turn `storefront.desktop_site` off; new page loads follow within 30 seconds. (No open-tab re-check on
+  desktop: a reload gets the old site.)
+- **Dev:** `ECO_DEV_SITE=desktop` makes a public Vite server the desktop site (`dev-tools/desktopDev.ts`);
+  `ECO_DEV_STOREFRONT=prod` reads the public storefront feeds from ecothrift.us (real photos); `?__day=bf` and
+  `?__member=1` set the dev cookies. Tests: `src/desktop/Desktop.test.tsx`, `apps/core/tests/test_desktop_site.py`.
 
 ## What it is
 

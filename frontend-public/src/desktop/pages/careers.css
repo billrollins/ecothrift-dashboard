@@ -1,0 +1,56 @@
+/* Careers on a computer (Dash Update #211). */
+.dk-cr-hero { background: var(--green); color: #fff; padding: 48px 0 52px; }
+.dk-cr-hero .dk-kick { color: var(--lime); }
+.dk-cr-h1 { margin-top: 10px; font-size: 120px; line-height: .86; }
+.dk-cr-h1 span { color: var(--lime); }
+.dk-cr-sub { margin-top: 18px; font-size: 20px; font-weight: 700; }
+
+.dk-cr-roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 36px; }
+.dk-cr-role { display: flex; flex-direction: column; gap: 10px; min-height: 220px; padding: 26px 28px; border-radius: 20px; background: var(--card);
+              box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .12s; }
+.dk-cr-role:hover { box-shadow: inset 0 0 0 2px var(--green), var(--shadow); }
+.dk-cr-role .ic { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: var(--lime); color: var(--ink); }
+.dk-cr-role h2 { font-size: 26px; font-weight: 800; }
+.dk-cr-role p { font-size: 17px; color: var(--ink-2); }
+.dk-cr-role em { margin-top: auto; font-style: normal; font-weight: 800; color: var(--green); }
+
+.dk-cr-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 24px; }
+.dk-cr-band { padding: 30px 32px; border-radius: 20px; }
+.dk-cr-band h2 { font-size: 48px; }
+.dk-cr-band p { margin-top: 12px; font-size: 18px; line-height: 1.5; }
+.dk-cr-band .pay { font-weight: 800; }
+.dk-cr-band.ink { background: var(--ink); color: #fff; }
+.dk-cr-band.ink h2 { color: var(--lime); }
+.dk-cr-band.cream { background: var(--cream); box-shadow: inset 0 0 0 1px var(--line); }
+
+.dk-cr-apply { display: flex; align-items: center; gap: 40px; margin-top: 24px; padding: 32px; border-radius: 20px; background: var(--lime); }
+.dk-cr-apply img { width: 480px; height: auto; border-radius: 14px; }
+.dk-cr-apply h2 { font-size: 80px; }
+.dk-cr-apply p { margin: 8px 0 18px; font-size: 19px; }
+.dk-cr-apply .dk-note { margin: 14px 0 0; font-size: 14px; }
+
+/* One role. */
+.dk-cr-role-grid { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 56px; align-items: start; padding-top: 12px; }
+.dk-cr-rh { margin-top: 8px; font-size: 88px; }
+.dk-cr-tag { margin-top: 12px; font-size: 21px; font-weight: 700; color: var(--ink-2); }
+.dk-cr-sec { margin-top: 32px; max-width: 760px; }
+.dk-cr-sec h2 { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
+.dk-cr-sec p, .dk-cr-sec li { font-size: 17px; line-height: 1.6; }
+.dk-cr-sec ul { margin: 0; padding-left: 22px; }
+.dk-cr-panel { position: sticky; top: calc(var(--h1) + var(--h2) + 24px); padding: 26px 28px 28px; border-radius: 20px; background: var(--card);
+               box-shadow: inset 0 0 0 1px var(--line), var(--shadow); display: flex; flex-direction: column; gap: 16px; }
+.dk-cr-panel dl { margin: 0; display: grid; gap: 14px; }
+.dk-cr-panel dt { color: var(--ink-2); }
+.dk-cr-panel dd { margin: 2px 0 0; font-size: 17px; font-weight: 700; }
+
+/* The applicant's steps: the phone's flow in a column, its bar under the form, the steps beside it. */
+.dk-flow-grid { display: grid; grid-template-columns: minmax(0, 720px) 320px; gap: 48px; justify-content: start; align-items: start; }
+.dk-flow-form { border-radius: 24px; overflow: hidden; background: var(--card); box-shadow: 0 0 0 1px var(--line); padding-bottom: 8px; }
+.dk-flow-form .cr-back { display: none; }
+.dk-flow-form .cr-nav { position: static !important; transform: none !important; width: auto !important; box-shadow: none !important;
+                        padding-left: var(--gut); padding-right: var(--gut); }
+.dk-flow-form .cr-has-nav { padding-bottom: 0 !important; }
+.dk-flow-side { position: sticky; top: calc(var(--h1) + var(--h2) + 24px); padding: 26px 28px; border-radius: 20px; background: var(--card);
+                box-shadow: inset 0 0 0 1px var(--line); }
+.dk-flow-side ol { margin: 14px 0 18px; padding-left: 22px; display: grid; gap: 10px; font-size: 18px; font-weight: 700; color: var(--ink-2); }
+.dk-flow-side li.on { color: var(--ink); font-weight: 900; }

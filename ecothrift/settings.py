@@ -362,6 +362,13 @@ PUBLIC_SITE_PHONE_INDEX = (
     if (_frontend_public_dist / 'phone.html').exists()
     else None
 )
+# The desktop site's desktop.html (Dash Update #211; same build, its own pass): PublicSiteMiddleware serves it to
+# computers (never phones) for the same paths and /scan when AppSetting storefront.desktop_site is "on". None = never.
+PUBLIC_SITE_DESKTOP_INDEX = (
+    str(_frontend_public_dist / 'desktop.html')
+    if (_frontend_public_dist / 'desktop.html').exists()
+    else None
+)
 
 STORAGES = {
     'staticfiles': {

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.334.0] -->
-<!-- Last reviewed: 2026-11-24 (2.334.0) -->
+<!-- Line 1 release: ## [2.335.0] -->
+<!-- Last reviewed: 2026-11-24 (2.335.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.335.0] - 2026-11-24
+
+User-facing theme: **The new desktop site, built desktop-first, ready but switched off**
+
+> **For Bill:** The new ecothrift.us for computers (same pages as the phone site, a real desktop layout) and its Black Friday home are live but hidden: customers keep today's site. You see it in Owner > Testing: Desktop: New, or New + Black Friday. It goes on for everyone when you say.
+
+### Added
+- **The desktop site** (Dash Update #211): `frontend-public/desktop.html` + `src/desktop/`, a third build pass (`vite build --mode desktop`). Every page of the phone site at the same address, designed for a computer: Home (the specials as equal boxes, Best finds, Shop by category, On the truck, Visit with the drawn map), the store list (filters and every category with its count on the left, sort, a grid of equal cards), Item (picture left, price, member line, facts, Get directions), Thrift+ (the standard ThriftBucks example beside Join free; a member's balance, QR, ThriftBucks and account side by side), Visit, About, Categories, Questions, Returns, Sign in and Join, Scan a tag (on a computer: type a tag number to see its price, a QR to scan in the store with a phone), Careers and a role, Blog, Terms, Privacy, Not found. Same feeds and words as the phone site (imported, never copied). No phone parts on a computer: no bottom bar, no menu button, no phone column.
+- **Black Friday on the desktop site:** the home's first screen is the sale in the owner's words and one button, Get directions; every page in the sale's colours and the Black Friday price only.
+- **Switch** AppSetting `storefront.desktop_site` (`"off"` default | `"on"`, `apps/core/middleware.py`): on, computers (never phones) get the desktop site on the phone site's pages and `/scan`. Off: nothing changes.
+- **Owner > Testing, Desktop:** two new picks beside Black Friday (the old site and its panel, what customers' computers get): New (the desktop site on his linked computer) and New + Black Friday (the desktop site with Black Friday forced for his requests only).
 
 ## [2.334.0] - 2026-11-24
 

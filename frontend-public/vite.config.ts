@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { phoneDev, phoneFontPreload } from './dev-tools/phoneDev'
+import { desktopDev } from './dev-tools/desktopDev'
 
 const rootDir = fileURLToPath(new URL('.', import.meta.url))
 // The release (the repo's package.json, bumped on every ship): small in the footer (owner 2026-10-20).
@@ -14,6 +15,15 @@ const apiTarget = `http://127.0.0.1:${process.env.ECOTHRIFT_API_PORT || 8000}`
 const publicPort = Number(process.env.ECOTHRIFT_PUBLIC_PORT) || 5174
 // The phone scanner (PLAN-SCANNER.md section 3) imports the live scanner's logic unchanged from ../frontend/src.
 const staffSrc = path.resolve(rootDir, '..', 'frontend', 'src')
+// A worktree links node_modules to the main checkout's (a junction): the dev server may read that real folder too, or
+// the bundled font answers 403 there. In the main checkout this is the same folder as before.
+const nodeModules = (() => {
+  try {
+    return fs.realpathSync(path.resolve(rootDir, 'node_modules'))
+  } catch {
+    return path.resolve(rootDir, 'node_modules')
+  }
+})()
 
 /**
  * Dev only, with ECO_DEV_SITE=phone: /scan is the phone scanner (in production apps/core/middleware.py decides, by the
@@ -53,14 +63,25 @@ function phoneScanDev(): Plugin {
 // (`vite build --mode phone`, after the plain `vite build`): the current site's index.html entry builds exactly as
 // before (no chunk shared between the two) and the phone pass adds its files beside it (emptyOutDir off).
 // In dev, ECO_DEV_SITE=phone makes this server the phone site (dev-tools/phoneDev.ts); without it nothing changes.
+//
+// The desktop site (Dash Update #211) is a third input, desktop.html, built in its own pass the same way
+// (`vite build --mode desktop`, after the phone pass): its own vendor chunk, nothing shared with the other two builds.
+// In dev, ECO_DEV_SITE=desktop makes this server the desktop site (dev-tools/desktopDev.ts).
+const VENDOR_RE = /[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom|cookie|set-cookie-parser)[\\/]/
+
 export default defineConfig(({ command, mode }) => {
   const phone = mode === 'phone'
+  const desktop = mode === 'desktop'
   return {
     base: command === 'build' ? '/static/site/' : '/',
     envDir: path.resolve(rootDir, '..'),
     // Several dev servers on one PC (builders, worktrees) must not share one dependency cache: each sets its own folder.
     ...(process.env.ECOTHRIFT_VITE_CACHE_DIR ? { cacheDir: path.resolve(rootDir, process.env.ECOTHRIFT_VITE_CACHE_DIR) } : {}),
-    plugins: [react(), phoneScanDev(), phoneDev({ rootDir, apiTarget }), ...(phone ? [phoneFontPreload()] : [])],
+    plugins: [
+      react(), phoneScanDev(), phoneDev({ rootDir, apiTarget }), desktopDev({ rootDir, apiTarget }),
+      // The font preload works on any page with the boot marker: both the phone and the desktop pass use it.
+      ...(phone || desktop ? [phoneFontPreload()] : []),
+    ],
     resolve: {
       // The scanner's files under ../frontend/src import react from frontend/node_modules: one React (and one copy of
       // each decoder package) for the whole phone bundle, from this folder's node_modules.
@@ -70,7 +91,7 @@ export default defineConfig(({ command, mode }) => {
     server: {
       port: publicPort,
       // The dev server may read the scanner's shared files in ../frontend/src (and nothing else outside this folder).
-      fs: { allow: [rootDir, staffSrc] },
+      fs: { allow: [rootDir, staffSrc, nodeModules] },
       proxy: {
         '/api': { target: apiTarget, changeOrigin: true },
       },
@@ -85,10 +106,24 @@ export default defineConfig(({ command, mode }) => {
             output: {
               // React and the router in one long-lived chunk; the phone's own code beside it.
               manualChunks(id: string) {
-                if (/[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom|cookie|set-cookie-parser)[\\/]/.test(id)) {
+                if (VENDOR_RE.test(id)) {
                   return 'phone-vendor'
                 }
                 return undefined
+              },
+            },
+          },
+        }
+      : desktop
+      ? {
+          outDir: 'dist',
+          emptyOutDir: false,
+          sourcemap: false,
+          rollupOptions: {
+            input: { desktop: path.resolve(rootDir, 'desktop.html') },
+            output: {
+              manualChunks(id: string) {
+                return VENDOR_RE.test(id) ? 'desktop-vendor' : undefined
               },
             },
           },

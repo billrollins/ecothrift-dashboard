@@ -67,7 +67,12 @@ PICKS: dict[str, tuple[Pick, ...]] = {
         Pick('bf', 'Black Friday', 'The Black Friday page and Black Friday scanner prices.', black_friday=True),
     ),
     'desktop': (
+        # Today's computers on Black Friday (the site customers get, with its Black Friday panel), then #211: the new
+        # desktop site (storefront.desktop_site off or on) and its Black Friday edition (Mainline for the owner, 11-24:
+        # the tab shows what customers actually see, so the old site's Black Friday stays a pick).
         Pick('bf', 'Black Friday', 'The desktop site with the Black Friday page.', black_friday=True),
+        Pick('new', 'New', 'The new desktop site.', site='desktop'),
+        Pick('newbf', 'New + Black Friday', 'The new desktop site with its Black Friday page.', site='desktop', black_friday=True),
     ),
 }
 

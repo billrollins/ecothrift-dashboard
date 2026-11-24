@@ -65,6 +65,11 @@ PHONE_SETTING_SECONDS = 30
 # the eco_site cookie previews or refuses it regardless of both. Everything else of the member app is unchanged: /qr,
 # /card, /join (302s in ecothrift/urls.py), /i/... (apps/core/views.py), the dash-host 302, the manifest and icons.
 PHONE_SCAN_SETTING_KEY = 'storefront.phone_scan'  # AppSetting: "off" (default) | "on"
+# The desktop site (Dash Update #211): the same site laid out for computers (frontend-public/desktop.html). With this
+# switch on, a computer (never a phone) gets it on every page the phone site owns, and on /scan (on a computer the
+# tag-number page). Off: nothing changes for anyone. The eco_site cookie still wins: "classic" keeps the current site,
+# the owner's phone preview keeps the phone site.
+DESKTOP_SETTING_KEY = 'storefront.desktop_site'  # AppSetting: "off" (default) | "on"
 SCAN_PATHS = ('/scan', '/scan/')
 SITE_COOKIE = 'eco_site'                     # "phone" | "classic"
 SITE_COOKIE_SECONDS = 30 * 24 * 3600
@@ -102,6 +107,7 @@ def cookie_choice(request) -> str | None:
 _BOOT_MARKER = '<!--ECO_BOOT-->'
 _phone_setting_cache: tuple[bool, float] | None = None
 _phone_scan_cache: tuple[bool, float] | None = None
+_desktop_setting_cache: tuple[bool, float] | None = None
 _black_friday_cache: tuple[bool, float] | None = None
 _boot_cache: tuple[str, str] | None = None   # (etag, the <script> tag), so a warm page re-escapes nothing
 
@@ -137,6 +143,17 @@ def phone_scan_on() -> bool:
         return _phone_scan_cache[0]
     on = _read_switch(PHONE_SCAN_SETTING_KEY)
     _phone_scan_cache = (on, now + PHONE_SETTING_SECONDS)
+    return on
+
+
+def desktop_site_on() -> bool:
+    """AppSetting ``storefront.desktop_site`` is "on", read at most every 30 seconds per worker (off on any error)."""
+    global _desktop_setting_cache
+    now = time.monotonic()
+    if _desktop_setting_cache is not None and now < _desktop_setting_cache[1]:
+        return _desktop_setting_cache[0]
+    on = _read_switch(DESKTOP_SETTING_KEY)
+    _desktop_setting_cache = (on, now + PHONE_SETTING_SECONDS)
     return on
 
 
@@ -324,6 +341,10 @@ class PublicSiteMiddleware:
         # The phone site's built phone.html (None when that build is absent: the current site answers everything).
         self.phone_index_path = getattr(settings, 'PUBLIC_SITE_PHONE_INDEX', None)
         self._phone_html = None
+        # The desktop site's built desktop.html (Dash Update #211; None when that build is absent: computers keep the
+        # current site).
+        self.desktop_index_path = getattr(settings, 'PUBLIC_SITE_DESKTOP_INDEX', None)
+        self._desktop_html = None
         # The staff dashboard host (dash.ecothrift.us). Local hosts never match, so local dev keeps /scan.
         self.dash_host = (getattr(settings, 'STAFF_DASHBOARD_HOST', '') or '').strip().lower().split(':')[0]
 
@@ -442,6 +463,10 @@ class PublicSiteMiddleware:
                 response = self._phone_page_response(request)
                 if response is not None:
                     return response
+            if self._wants_desktop(request, path):
+                response = self._desktop_page_response(request)
+                if response is not None:
+                    return response
             return None
         if any(path == p or path.startswith(p + '/') for p in _DASHBOARD_SPA_PATHS):
             return None
@@ -465,6 +490,11 @@ class PublicSiteMiddleware:
 
         if self._wants_phone(request, path):
             response = self._phone_page_response(request)
+            if response is not None:
+                return response
+
+        if self._wants_desktop(request, path):
+            response = self._desktop_page_response(request)
             if response is not None:
                 return response
 
@@ -512,6 +542,46 @@ class PublicSiteMiddleware:
         if choice:
             return choice == 'phone'
         return is_phone(request) and phone_site_on() and phone_scan_on()
+
+    # ── The desktop site (Dash Update #211) ───────────────────────────────────
+
+    def _wants_desktop(self, request, path: str) -> bool:
+        """A computer gets the desktop site: never a phone (owner 2026-11-24: a phone never sees a desktop page, a
+        computer never a phone page), only the phone site's pages and /scan, and only while the switch is on. The
+        eco_site cookie wins when set (classic: the current site; the phone preview: the phone site, decided before
+        this). The switch is read only for a computer with no cookie."""
+        if not self.desktop_index_path or is_phone(request):
+            return False
+        if not (phone_owns(path) or path in SCAN_PATHS):
+            return False
+        pick = getattr(request, 'eco_test', None)
+        if pick is not None and pick.site != 'live':  # the owner's Testing page says which site (Desktop: New)
+            return pick.site == 'desktop'
+        if cookie_choice(request):
+            return False
+        return desktop_site_on()
+
+    def _desktop_page_response(self, request):
+        if self._desktop_html is None:
+            try:
+                with open(self.desktop_index_path, encoding='utf-8') as fh:
+                    self._desktop_html = fh.read()
+            except OSError:
+                self._desktop_html = ''
+        if not self._desktop_html:
+            return None
+        html = self._desktop_html
+        if _BOOT_MARKER in html:
+            html = html.replace(_BOOT_MARKER, boot_script(), 1)
+        if black_friday_on():
+            # Black Friday (#220; or the owner's Testing pick, this request only): every page paints in the sale's
+            # colours from the first frame and the home is the sale (frontend-public/src/desktop/lib/day.ts).
+            html = html.replace('data-day="normal"', 'data-day="bf"', 1)
+        response = HttpResponse(html)
+        # The HTML names the hashed files of this release: always ask again, so a deploy is seen on the next visit.
+        response['Cache-Control'] = 'no-cache'
+        response['Vary'] = 'User-Agent, Sec-CH-UA-Mobile, Cookie'
+        return response
 
     def _phone_page_response(self, request):
         if self._phone_html is None:

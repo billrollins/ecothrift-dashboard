@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en" data-day="normal" data-member="unknown" data-site="desktop">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- A computer ignores this; a tablet (no "Mobi" in its User-Agent, so it gets this build) draws the 1024 layout and
+         scales it to its screen, never a squeezed or phone-like one. -->
+    <meta name="viewport" content="width=1024" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <!-- The desktop site (Dash Update #211): the same site as phone.html, laid out for computers. No web app manifest
+         here: a computer is never offered "install" (one website, never an app: rulebook V15). -->
+    <meta name="theme-color" content="#1d5424" />
+    <title>Eco-Thrift</title>
+    <meta name="description" content="Eco-Thrift is a liquidation and thrift store in Omaha, NE. Quality goods at fair prices, with new finds every week." />
+    <!--ECO_BOOT-->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/desktop/main.tsx"></script>
+  </body>
+</html>

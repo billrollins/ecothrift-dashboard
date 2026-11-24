@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && vite build --mode phone",
-    "build:deploy": "vite build && vite build --mode phone",
+    "build": "tsc && vite build && vite build --mode phone && vite build --mode desktop",
+    "build:deploy": "vite build && vite build --mode phone && vite build --mode desktop",
     "preview": "vite preview",
     "test": "vitest run"
   },

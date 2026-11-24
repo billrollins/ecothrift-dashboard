@@ -1,0 +1,129 @@
+/* The desktop home (Dash Update #211): the phone home's blocks, laid out for a computer. Kit tokens only. */
+
+/* 1. The specials: equal boxes in one row, one height. */
+.dk-sp { display: grid; gap: 24px; padding-top: 32px; }
+.dk-sp-c { position: relative; height: 380px; border-radius: 20px; overflow: hidden; padding: 30px 30px 28px; display: flex; flex-direction: column;
+           transition: box-shadow .12s; }
+a.dk-sp-c:hover { box-shadow: var(--shadow); }
+.dk-sp-c .lbl { font-size: 13px; opacity: .85; }
+.dk-sp-c h2 { margin-top: 10px; font-size: 76px; }
+.dk-sp-c .sub { margin-top: 14px; font-size: 19px; font-weight: 700; line-height: 1.3; max-width: 22em; }
+.dk-sp-more { margin-top: auto; font-size: 17px; font-weight: 800; }
+a.dk-sp-c:hover .dk-sp-more { text-decoration: underline; text-underline-offset: 4px; }
+
+/* No Thrift+? You're paying way too much. (V11): cream, the loss in cranberry. */
+.dk-sp-shout { background: var(--cream); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.dk-sp-shout { container-type: inline-size; }
+/* Sized to its card: "YOU'RE PAYING" (the widest line) always fits, 60 px at most. */
+.dk-sp-shout h2 { margin-top: 0; font-size: min(56px, calc((100cqi - 56px) / 6.1)); line-height: .9; }
+.dk-sp-shout h2 span, .dk-sp-shout h2 em { display: block; white-space: nowrap; }
+.dk-sp-shout h2 em { font-style: normal; color: var(--cran); }
+.dk-sp-ok { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; font-size: 18px; font-weight: 600; line-height: 1.25; }
+.dk-sp-ok li { display: flex; align-items: center; gap: 10px; }
+.dk-sp-ok svg.i { flex: none; width: 20px; height: 20px; stroke-width: 3; color: var(--green); }
+.dk-sp-acts { margin-top: auto; padding-top: 18px; display: flex; gap: 12px; }
+.dk-sp-acts .btn { min-height: 52px; font-size: 17px; }
+.dk-sp-acts .dk-btn-green { flex: 1; }
+.dk-sp-ex { background: transparent; color: var(--green); box-shadow: inset 0 0 0 2px var(--green); }
+.dk-sp-ex:hover { background: rgba(29, 84, 36, .08); }
+
+/* The Black Friday teaser: cranberry (gold is never on black). */
+.dk-sp-bf { background: radial-gradient(120% 100% at 15% 0%, #c62a33 0%, #b4232c 50%, #8e1a22 100%); color: #fff; }
+.dk-sp-bf .lbl { opacity: 1; }
+.dk-sp-bf h2 { font-size: 96px; line-height: .84; }
+.dk-sp-bf h2 em { font-style: normal; display: block; color: var(--lime); }
+
+/* BO-HO-GO (while the phone shows it). */
+.dk-sp-boho { background: var(--lime); color: var(--ink); }
+.dk-sp-boho h2 { font-size: 54px; }
+.dk-sp-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+.dk-sp-steps div { background: var(--ink); color: var(--lime); border-radius: 12px; padding: 10px 12px 9px; }
+.dk-sp-steps b { display: block; font-size: 46px; }
+.dk-sp-steps span { display: block; margin-top: 4px; font-size: 13px; font-weight: 700; color: #fff; }
+.dk-sp-pair { margin-top: auto; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.dk-sp-pair ul { list-style: none; margin: 0; padding: 0; font-size: 15px; font-weight: 700; line-height: 1.5; }
+.dk-sp-pair ul s { text-decoration-thickness: 1.5px; }
+.dk-sp-both { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.dk-sp-both .tag { font-size: 56px; }
+.dk-sp-both small { font-size: 13px; font-weight: 800; }
+.dk-sp-when { margin-top: 10px; font-size: 14px; font-weight: 800; }
+
+/* 3-day returns: green, who it is for in the headline, the 80%. */
+.dk-sp-ret { background: var(--green); color: #fff; }
+.dk-sp-ret .lbl { color: var(--lime); opacity: 1; }
+.dk-sp-ret h2 { font-size: 72px; }
+.dk-sp-ret h2 em { font-style: normal; display: block; margin-top: 6px; font-size: 32px; color: var(--lime); }
+.dk-sp-ret .pct { margin-top: auto; font-size: 112px; color: var(--lime); display: flex; align-items: flex-end; gap: 14px; }
+.dk-sp-ret .pct small { font-size: 18px; line-height: 1.15; font-stretch: 100%; font-weight: 700; text-transform: none; color: #fff; letter-spacing: 0;
+                        max-width: 7em; padding-bottom: 12px; }
+
+@media (max-width: 1279px) {
+  .dk-sp-c { height: 360px; padding: 26px 24px 24px; }
+  .dk-sp-ok { font-size: 16px; }
+  .dk-sp-bf h2 { font-size: 80px; }
+  .dk-sp-ret h2 { font-size: 60px; }
+  .dk-sp-ret .pct { font-size: 96px; }
+}
+@media (max-width: 1100px) {
+  .dk-sp-bf h2 { font-size: 68px; }
+  .dk-sp-c .sub { font-size: 17px; }
+  .dk-sp-ret h2 { font-size: 52px; }
+  .dk-sp-ret h2 em { font-size: 26px; }
+  .dk-sp-ret .pct { font-size: 84px; }
+}
+
+/* Black Friday's first screen: the sale and one button, as tall as the window less the header. Colours of the Black
+   Friday ad (ink, cranberry shaded #c62a33 to #8e1a22, lime), as the phone's takeover. */
+.dk-bf { background: radial-gradient(110% 95% at 50% 0%, #c62a33 0%, #b4232c 45%, #8e1a22 100%); color: #fff;
+         min-height: calc(100vh - var(--h1) - var(--h2)); display: flex; align-items: center; }
+.dk-bf-in { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 56px 0 64px; }
+.dk-bf-when { font-size: 22px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.dk-bf h1 { margin-top: 14px; font-size: clamp(150px, 15vw, 240px); line-height: .82; }
+.dk-bf h1 em { font-style: normal; color: var(--ink); }
+.dk-bf-say { margin-top: 28px; font-size: 56px; font-weight: 900; font-stretch: 80%; line-height: 1.05; color: var(--lime); }
+.dk-bf-sub { margin-top: 10px; font-size: 28px; font-weight: 700; line-height: 1.25; }
+.dk-bf-hours { margin-top: 18px; font-size: 22px; font-weight: 800; }
+.dk .dk-bf-btn { margin-top: 34px; min-height: 72px; padding: 0 48px; border-radius: 18px; font-size: 26px; font-weight: 900; gap: 12px;
+                 background: #fff; color: var(--ink); box-shadow: 0 12px 30px rgba(16, 20, 15, .3); }
+.dk .dk-bf-btn:hover { background: var(--lime); }
+.dk-bf-btn svg.i { width: 26px; height: 26px; fill: currentColor; stroke: none; }
+.dk-bf-addr { margin-top: 18px; font-size: 18px; font-weight: 600; opacity: .92; }
+
+/* 2 and 4. The grids' extra bits. */
+.dk-pc .pic.txt.short { aspect-ratio: 16 / 10; }
+.dk-cm-top { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 16px 16px 0; min-height: 78px; }
+.dk-cm-top > .lbl { color: var(--ink-2); line-height: 1.35; }
+.dk-truck { background: var(--cream); color: var(--ink); border-radius: 6px; padding: 4px 8px; font-size: 10.5px; box-shadow: inset 0 0 0 1px var(--line); }
+.dk-rt { margin-top: auto; min-height: 1.4em; font-size: 14px; color: var(--ink-2); }
+.dk-rt b { color: var(--ink); font-weight: 800; }
+.dk-poa { font-size: 13px; font-weight: 700; color: var(--ink-2); }
+
+/* 3. Shop by category: six equal tiles, the picture on cream, the name and the count. */
+.dk-cats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 24px; }
+.dk-cat { position: relative; height: 220px; border-radius: var(--dk-r); background: var(--cream); overflow: hidden; padding: 16px 16px 0;
+          box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .12s; }
+.dk-cat:hover { box-shadow: inset 0 0 0 2px var(--green), var(--shadow); }
+.dk-cat b { position: relative; z-index: 1; display: block; font-size: 17px; font-weight: 800; line-height: 1.2; max-width: calc(100% - 64px); }
+.dk-cat img { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); width: 78%; height: 62%; object-fit: contain; mix-blend-mode: multiply; }
+.dk-cat .cnt { position: absolute; right: 12px; top: 14px; }
+@media (max-width: 1100px) { .dk-cats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* 5. Visit: the phone's Visit block in two columns, the map left, the rest right. */
+.dk-visit-band { margin-top: 56px; background: var(--card); border-block: 1px solid var(--line); }
+.dk-visit .visit { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); grid-template-rows: repeat(7, auto) 1fr; column-gap: 64px;
+                   padding: 48px 0 52px; background: none; }
+.dk-visit .visit > * { grid-column: 2; }
+.dk-visit .visit > .map { grid-column: 1; grid-row: 1 / -1; margin: 0; align-self: start; border-radius: 20px; }
+.dk-visit .visit > .map:hover { box-shadow: var(--shadow); }
+.dk-visit .visit .open { font-size: 19px; height: 30px; }
+.dk-visit .visit h2 { margin-top: 10px; font-size: 76px; }
+.dk-visit .visit .corner { font-size: 20px; margin-top: 10px; }
+.dk-visit .visit .addr { font-size: 17px; }
+.dk-visit .visit .acts { margin-top: 22px; }
+.dk-visit .visit .acts .btn { min-height: 52px; font-size: 17px; }
+.dk-visit .visit .acts .go:hover { background: var(--green-d); border-color: var(--green-d); }
+.dk-visit .hours div { font-size: 16px; min-height: 46px; }
+html[data-day="bf"] .dk-visit .visit .acts .go { background: var(--ink); border-color: var(--ink); }
+
+/* The Visit band closes the home: the footer sits right under it. */
+.dk-main:has(> .dk-visit-band:last-child) + .dk-foot { margin-top: 0; }
