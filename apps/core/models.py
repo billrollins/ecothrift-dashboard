@@ -638,7 +638,11 @@ class PhotoProject(models.Model):
 
 
 class ProjectPhoto(models.Model):
-    """One photo in a photo project: the original, and Grok's edited copy when one was made."""
+    """One photo in a photo project. ``file`` is the Raw photo, never changed; edits are ``ProjectPhotoVersion`` rows.
+
+    Main (the version the project grid shows): ``main_version`` when a person starred one, Raw when they starred Raw
+    (``raw_is_main``), else the newest finished version, else Raw.
+    """
 
     EDIT_CHOICES = [
         ('remove_background', 'Remove background'),
@@ -653,11 +657,17 @@ class ProjectPhoto(models.Model):
     note = models.TextField(blank=True, default='')
     file = models.ForeignKey(S3File, on_delete=models.PROTECT, related_name='+')
     thumbnail = models.ForeignKey(S3File, on_delete=models.PROTECT, related_name='+', null=True, blank=True)
+    # Legacy (v2.332): the one Grok copy per photo. Migration 0020 made each one a version; nothing reads these now.
+    # They are dropped in a later release, so the old code still running during this release's migrate never breaks.
     edited = models.ForeignKey(S3File, on_delete=models.SET_NULL, related_name='+', null=True, blank=True)
     edited_thumbnail = models.ForeignKey(S3File, on_delete=models.SET_NULL, related_name='+', null=True, blank=True)
     edit_kind = models.CharField(max_length=30, blank=True, default='', choices=EDIT_CHOICES)
     edit_status = models.CharField(max_length=10, blank=True, default='', choices=EDIT_STATUS)
     edit_error = models.CharField(max_length=255, blank=True, default='')
+    main_version = models.ForeignKey(
+        'ProjectPhotoVersion', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    raw_is_main = models.BooleanField(default=False)
     width = models.PositiveIntegerField(default=0)
     height = models.PositiveIntegerField(default=0)
     taken_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
@@ -668,3 +678,45 @@ class ProjectPhoto(models.Model):
 
     def __str__(self):
         return f'Project photo {self.pk} ({self.project_id})'
+
+
+class ProjectPhotoVersion(models.Model):
+    """One version of a project photo (Dash #209): an Edit drawn in the browser, or an AI (Grok) run on the server.
+
+    ``made_from`` is the version it started from (empty = Raw). The file is a PNG when ``see_through``, else a JPEG;
+    an AI version has no file while it is working. An AI run still working ``photo_projects.STALE_MINUTES`` after
+    ``started_at`` is marked failed (the thread died with a restart) and can be run again in the same slot.
+    """
+
+    KIND_EDIT = 'edit'
+    KIND_AI = 'ai'
+    KIND_CHOICES = [(KIND_EDIT, 'Edit'), (KIND_AI, 'AI')]
+    STATUS_WORKING = 'working'
+    STATUS_DONE = 'done'
+    STATUS_FAILED = 'failed'
+    STATUS_CHOICES = [(STATUS_WORKING, 'Working'), (STATUS_DONE, 'Done'), (STATUS_FAILED, 'Failed')]
+
+    photo = models.ForeignKey(ProjectPhoto, on_delete=models.CASCADE, related_name='versions')
+    made_from = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+    # AI: remove_background, optimize, studio, room, holiday, clean_up, free. Edit: blank.
+    action = models.CharField(max_length=40, blank=True, default='')
+    caption = models.CharField(max_length=80, blank=True, default='')
+    # AI: the whole prompt sent (Run again sends it as it is). Edit: blank.
+    prompt = models.TextField(blank=True, default='')
+    file = models.ForeignKey(S3File, on_delete=models.PROTECT, related_name='+', null=True, blank=True)
+    thumbnail = models.ForeignKey(S3File, on_delete=models.PROTECT, related_name='+', null=True, blank=True)
+    width = models.PositiveIntegerField(default=0)
+    height = models.PositiveIntegerField(default=0)
+    see_through = models.BooleanField(default=False)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_DONE)
+    error = models.CharField(max_length=255, blank=True, default='')
+    made_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    made_at = models.DateTimeField(default=dj_timezone.now, db_index=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['made_at', 'id']
+
+    def __str__(self):
+        return f'Photo version {self.pk} ({self.photo_id}, {self.kind})'

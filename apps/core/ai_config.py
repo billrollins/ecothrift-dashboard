@@ -27,6 +27,11 @@ PROVIDER_VALUES = ('anthropic', 'openai', 'xai', 'google', 'meta')
 # Purposes whose fallback cannot be the text model in AI_MODEL.
 FALLBACK_MODELS = {
     'LABEL_IMAGE': 'grok-imagine-image-quality',
+    # The photo editor's AI tab (Dash #209): the model the owner picked and tested.
+    'PHOTO_REMOVE_BACKGROUND': 'grok-imagine-image-2.0',
+    'PHOTO_OPTIMIZE': 'grok-imagine-image-2.0',
+    'PHOTO_FILTER': 'grok-imagine-image-2.0',
+    'PHOTO_FREE_EDIT': 'grok-imagine-image-2.0',
 }
 
 

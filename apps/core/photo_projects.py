@@ -1,10 +1,12 @@
-"""Photo projects API (owner 2026-11-24): ``/api/core/photo-projects/`` and ``/api/core/project-photos/``.
+"""Photo projects API (owner 2026-11-24): ``/api/core/photo-projects/``, ``/api/core/project-photos/`` and, for the
+photo editor's versions (Dash #209), ``/api/core/photo-versions/``.
 
 A project is seen by its creator, the people it is shared with, and owner-level logins (``visible_to``); anyone
 else gets a 404. Only the creator or owner level may rename, share or delete a project; anyone who sees it may
-add, edit and delete photos.
+add, edit and delete photos and versions.
 """
 from django.contrib.auth import get_user_model
+from django.db.models import Prefetch
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -14,7 +16,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsStaff
 
 from .files import stream_s3
-from .models import PhotoProject, ProjectPhoto
+from .models import PhotoProject, ProjectPhoto, ProjectPhotoVersion
 from .services import photo_projects as svc
 from .services.photo_drops import MAX_UPLOAD_BYTES
 
@@ -31,16 +33,31 @@ def _name(user) -> str:
     return full or getattr(user, 'email', '') or f'#{user.pk}'
 
 
+class PhotoVersionSerializer(serializers.ModelSerializer):
+    made_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProjectPhotoVersion
+        fields = ['id', 'photo', 'made_from', 'kind', 'action', 'caption', 'width', 'height', 'see_through', 'status',
+                  'error', 'made_by_name', 'made_at']
+        read_only_fields = fields
+
+    def get_made_by_name(self, obj):
+        return _name(obj.made_by)
+
+
 class ProjectPhotoSerializer(serializers.ModelSerializer):
     item_sku = serializers.CharField(source='item.sku', read_only=True, default='')
     item_title = serializers.SerializerMethodField()
     taken_by_name = serializers.SerializerMethodField()
-    has_edit = serializers.SerializerMethodField()
+    versions = PhotoVersionSerializer(many=True, read_only=True)
+    # The version the project grid shows (see ``svc.main_of``); null = Raw.
+    main = serializers.SerializerMethodField()
 
     class Meta:
         model = ProjectPhoto
         fields = ['id', 'project', 'scanned_code', 'item_sku', 'item_title', 'note', 'width', 'height',
-                  'edit_kind', 'edit_status', 'edit_error', 'has_edit', 'taken_by_name', 'created_at']
+                  'versions', 'main', 'taken_by_name', 'created_at']
         read_only_fields = fields
 
     def get_item_title(self, obj):
@@ -49,8 +66,31 @@ class ProjectPhotoSerializer(serializers.ModelSerializer):
     def get_taken_by_name(self, obj):
         return _name(obj.taken_by)
 
-    def get_has_edit(self, obj):
-        return obj.edited_id is not None
+    def get_main(self, obj):
+        main = svc.main_of(obj)
+        return main.pk if main is not None else None
+
+
+def _with_versions(qs):
+    return qs.prefetch_related(Prefetch('versions', queryset=ProjectPhotoVersion.objects.select_related('made_by')))
+
+
+class VersionUploadSerializer(serializers.Serializer):
+    file = serializers.ImageField()
+    made_from = serializers.IntegerField(required=False, allow_null=True, default=None)
+    caption = serializers.CharField(required=False, allow_blank=True, default='', max_length=80)
+
+    def validate_file(self, value):
+        if (getattr(value, 'size', 0) or 0) > MAX_UPLOAD_BYTES:
+            raise serializers.ValidationError('Picture too large (max 20 MB).')
+        return value
+
+
+class AiRunSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(choices=sorted(svc.AI_ACTIONS))
+    made_from = serializers.IntegerField(required=False, allow_null=True, default=None)
+    color = serializers.CharField(required=False, allow_blank=True, default='', max_length=7)
+    words = serializers.CharField(required=False, allow_blank=True, default='', max_length=svc.MAX_WORDS)
 
 
 class PhotoProjectSerializer(serializers.ModelSerializer):
@@ -120,7 +160,8 @@ class PhotoProjectViewSet(viewsets.ModelViewSet):
     def photos(self, request, pk=None):
         project = self.get_object()
         if request.method == 'GET':
-            rows = project.photos.select_related('item__product', 'taken_by')
+            svc.expire_stale(ProjectPhotoVersion.objects.filter(photo__project=project))
+            rows = _with_versions(project.photos.select_related('item__product', 'taken_by'))
             return Response(ProjectPhotoSerializer(rows, many=True).data)
         ser = PhotoUploadSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
@@ -153,11 +194,31 @@ class ProjectPhotoViewSet(viewsets.GenericViewSet):
     parser_classes = [JSONParser]
 
     def get_queryset(self):
-        return ProjectPhoto.objects.filter(project__in=svc.visible_to(self.request.user)) \
-            .select_related('file', 'thumbnail', 'edited', 'edited_thumbnail', 'item', 'taken_by')
+        return _with_versions(ProjectPhoto.objects.filter(project__in=svc.visible_to(self.request.user))
+                              .select_related('file', 'thumbnail', 'edited', 'edited_thumbnail', 'item__product',
+                                              'taken_by'))
+
+    def _fresh(self, photo):
+        """The photo as the editor sees it now (versions re-read after a change)."""
+        return ProjectPhotoSerializer(self.get_queryset().get(pk=photo.pk)).data
+
+    def _source(self, photo, raw_id):
+        """The version a run starts from: None for Raw, else that photo's version (PhotoError when not found)."""
+        if raw_id in (None, ''):
+            return None
+        try:
+            hit = photo.versions.filter(pk=int(raw_id)).first()
+        except (TypeError, ValueError):
+            hit = None
+        if hit is None:
+            raise svc.PhotoError('That version is not there any more.')
+        return hit
 
     def retrieve(self, request, pk=None):
-        return Response(ProjectPhotoSerializer(self.get_object()).data)
+        photo = self.get_object()
+        if svc.expire_stale(photo.versions.all()):
+            return Response(self._fresh(photo))
+        return Response(ProjectPhotoSerializer(photo).data)
 
     def partial_update(self, request, pk=None):
         photo = self.get_object()
@@ -169,13 +230,49 @@ class ProjectPhotoViewSet(viewsets.GenericViewSet):
         svc.delete_photo(self.get_object())
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(detail=True, methods=['post'])
-    def edit(self, request, pk=None):
+    @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser])
+    def versions(self, request, pk=None):
+        """Keep a picture drawn by the Edit tab as a new version (multipart: file, made_from, caption)."""
+        photo = self.get_object()
+        ser = VersionUploadSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        upload = ser.validated_data['file']
+        upload.seek(0)
         try:
-            photo = svc.start_edit(self.get_object(), str(request.data.get('kind', '')))
+            version = svc.save_edit(photo, upload.read(), user=request.user,
+                                    made_from=self._source(photo, ser.validated_data['made_from']),
+                                    caption=ser.validated_data['caption'])
         except svc.PhotoError as exc:
-            return Response({'kind': [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(ProjectPhotoSerializer(photo).data)
+            return Response({'file': [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(PhotoVersionSerializer(version).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def ai(self, request, pk=None):
+        """Start one AI run (action, made_from, color, words); it shows as a working version at once."""
+        photo = self.get_object()
+        ser = AiRunSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        try:
+            version = svc.start_ai(photo, data['action'], user=request.user,
+                                   made_from=self._source(photo, data['made_from']), color=data['color'],
+                                   words=data['words'])
+        except svc.PhotoError as exc:
+            return Response({'action': [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(PhotoVersionSerializer(version).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def main(self, request, pk=None):
+        """Star a version as Main (``version``: its id, or null for Raw)."""
+        photo = self.get_object()
+        try:
+            version = self._source(photo, request.data.get('version'))
+            if version is not None and (version.status != ProjectPhotoVersion.STATUS_DONE or not version.file_id):
+                raise svc.PhotoError('That version has no picture yet.')
+        except svc.PhotoError as exc:
+            return Response({'version': [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
+        svc.set_main(photo, version)
+        return Response(self._fresh(photo))
 
     @action(detail=True, methods=['get'])
     def file(self, request, pk=None):
@@ -186,16 +283,43 @@ class ProjectPhotoViewSet(viewsets.GenericViewSet):
         photo = self.get_object()
         return stream_s3(photo.thumbnail or photo.file)
 
-    @action(detail=True, methods=['get'], url_path='edited')
-    def edited_file(self, request, pk=None):
-        photo = self.get_object()
-        if not photo.edited_id:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        return stream_s3(photo.edited)
 
-    @action(detail=True, methods=['get'], url_path='edited-thumb')
-    def edited_thumb(self, request, pk=None):
-        photo = self.get_object()
-        if not photo.edited_id:
+class PhotoVersionViewSet(viewsets.GenericViewSet):
+    """One version: its picture, delete (files too), Run again for a failed AI run."""
+
+    permission_classes = [IsAuthenticated, IsStaff]
+    serializer_class = PhotoVersionSerializer
+    parser_classes = [JSONParser]
+
+    def get_queryset(self):
+        return ProjectPhotoVersion.objects.filter(photo__project__in=svc.visible_to(self.request.user)) \
+            .select_related('file', 'thumbnail', 'made_by')
+
+    def retrieve(self, request, pk=None):
+        return Response(PhotoVersionSerializer(self.get_object()).data)
+
+    def destroy(self, request, pk=None):
+        svc.delete_version(self.get_object())
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['get'])
+    def file(self, request, pk=None):
+        version = self.get_object()
+        if not version.file_id:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        return stream_s3(photo.edited_thumbnail or photo.edited)
+        return stream_s3(version.file)
+
+    @action(detail=True, methods=['get'])
+    def thumb(self, request, pk=None):
+        version = self.get_object()
+        if not version.file_id:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return stream_s3(version.thumbnail or version.file)
+
+    @action(detail=True, methods=['post'])
+    def again(self, request, pk=None):
+        try:
+            version = svc.run_again(self.get_object())
+        except svc.PhotoError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(PhotoVersionSerializer(version).data)

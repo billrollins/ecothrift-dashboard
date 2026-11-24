@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .design_lab import page_checks as design_lab_page_checks
 from .dash_fixes import DashFixCoderListView, DashFixCoderView, DashFixViewSet
 from .photo_drops import PhotoDropViewSet
-from .photo_projects import PhotoProjectViewSet, ProjectPhotoViewSet
+from .photo_projects import PhotoProjectViewSet, PhotoVersionViewSet, ProjectPhotoViewSet
 from .views import (
     WorkLocationViewSet, AppSettingViewSet, S3FileViewSet,
     AiActionViewSet, AiModelViewSet, AiTierViewSet,
@@ -26,6 +26,7 @@ router.register(r'dash-fixes', DashFixViewSet, basename='dashfix')
 router.register(r'photo-drops', PhotoDropViewSet, basename='photodrop')
 router.register(r'photo-projects', PhotoProjectViewSet, basename='photoproject')
 router.register(r'project-photos', ProjectPhotoViewSet, basename='projectphoto')
+router.register(r'photo-versions', PhotoVersionViewSet, basename='photoversion')
 router.register(r'ai/models', AiModelViewSet, basename='ai-model')
 router.register(r'ai/actions', AiActionViewSet, basename='ai-action')
 router.register(r'ai/tiers', AiTierViewSet, basename='ai-tier')

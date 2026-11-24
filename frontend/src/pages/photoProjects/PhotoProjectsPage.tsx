@@ -1,12 +1,13 @@
 /**
- * Photo projects (owner 2026-11-24). Phone first: open a project, Scan + photo, repeat. On a desk: rename, share,
- * delete, open a photo, run a Grok edit, download. The owner sees every project; the creator picks who else sees it.
+ * Photo projects (owner 2026-11-24). Phone first: open a project, Scan + photo, repeat. Open a photo for the photo
+ * editor (Dash #209: versions, Edit, AI). The grid shows each photo's Main version. The owner sees every project; the
+ * creator picks who else sees it.
  */
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert, Autocomplete, Box, Button, Card, CardActionArea, Chip, CircularProgress, Dialog, DialogActions,
-  DialogContent, DialogTitle, IconButton, TextField, ToggleButton, ToggleButtonGroup, Typography,
+  DialogContent, DialogTitle, IconButton, TextField, Typography,
 } from '@mui/material';
 import AddRounded from '@mui/icons-material/AddRounded';
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
@@ -16,33 +17,13 @@ import QrCodeScannerRounded from '@mui/icons-material/QrCodeScannerRounded';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import {
-  createProject, deletePhoto, deleteProject, editPhoto, getPhotoBlob, getProject, listPeople, listPhotos, listProjects,
-  setPhotoNote, updateProject, type EditKind, type PhotoProjectDTO, type PhotoVariant, type ProjectPhotoDTO,
+  createProject, deleteProject, getProject, listPeople, listPhotos, listProjects, updateProject,
+  type PhotoProjectDTO, type ProjectPhotoDTO,
 } from '../../api/photoProjects.api';
+import { CHECKER } from '../../components/photoEditor/PicturePreview';
+import { PhotoEditor } from './editor/PhotoEditor';
+import { useObjectUrl, usePictureBlob } from './editor/pictures';
 import { PhotoCapture } from './PhotoCapture';
-
-const EDITS: { kind: EditKind; label: string }[] = [
-  { kind: 'remove_background', label: 'Remove background' },
-  { kind: 'clean_up', label: 'Clean up' },
-  { kind: 'square', label: 'Square thumbnail' },
-];
-
-function useBlobUrl(id: number | null, variant: PhotoVariant, version = '') {
-  const q = useQuery({
-    queryKey: ['photoProjects', 'blob', id, variant, version],
-    queryFn: () => getPhotoBlob(id as number, variant),
-    enabled: id != null,
-    staleTime: Infinity,
-  });
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (!q.data) return undefined;
-    const u = URL.createObjectURL(q.data);
-    setUrl(u);
-    return () => URL.revokeObjectURL(u);
-  }, [q.data]);
-  return url;
-}
 
 function errText(err: unknown, fallback: string) {
   const data = (err as { response?: { data?: Record<string, unknown> } })?.response?.data;
@@ -141,108 +122,22 @@ function ProjectList() {
 // ── One photo ──────────────────────────────────────────────────────────────
 
 function PhotoTile({ photo, onOpen }: { photo: ProjectPhotoDTO; onOpen: () => void }) {
-  const edited = useBlobUrl(photo.has_edit ? photo.id : null, 'edited-thumb', `${photo.edit_kind}-${photo.edit_status}`);
-  const original = useBlobUrl(photo.id, 'thumb');
-  const src = edited ?? original;
+  const main = photo.versions.find((v) => v.id === photo.main) ?? null;
+  const src = useObjectUrl(usePictureBlob(photo.id, photo.main, 'thumb').data);
+  const working = photo.versions.some((v) => v.status === 'working');
   return (
-    <Box onClick={onOpen} sx={{ position: 'relative', cursor: 'pointer', aspectRatio: '1', borderRadius: '8px', overflow: 'hidden', bgcolor: '#eee', maxWidth: '100%' }}>
+    <Box
+      onClick={onOpen}
+      sx={{ position: 'relative', cursor: 'pointer', aspectRatio: '1', borderRadius: '8px', overflow: 'hidden', bgcolor: '#eee', background: main?.see_through ? CHECKER : undefined, maxWidth: '100%' }}
+    >
       {src ? <Box component="img" src={src} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : null}
-      {photo.edit_status === 'working' ? (
-        <Chip size="small" label="Grok working" sx={{ position: 'absolute', left: 4, top: 4, bgcolor: '#fff' }} />
+      {working ? (
+        <Chip size="small" icon={<CircularProgress size={12} />} label="AI working" sx={{ position: 'absolute', left: 4, top: 4, bgcolor: '#fff' }} />
       ) : null}
-      {photo.edit_status === 'failed' ? <Chip size="small" color="error" label="Edit failed" sx={{ position: 'absolute', left: 4, top: 4 }} /> : null}
       <Typography noWrap sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, px: 0.75, py: 0.25, fontSize: 11.5, bgcolor: 'rgba(0,0,0,0.55)', color: '#fff' }}>
         {photo.item_sku || photo.scanned_code || 'No tag'}{photo.note ? ` · ${photo.note}` : ''}
       </Typography>
     </Box>
-  );
-}
-
-function PhotoDialog({ photo, onClose }: { photo: ProjectPhotoDTO | null; onClose: () => void }) {
-  const qc = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
-  const [view, setView] = useState<'original' | 'edited'>('edited');
-  const [note, setNote] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  useEffect(() => {
-    setNote(photo?.note ?? '');
-    setView(photo?.has_edit ? 'edited' : 'original');
-    setConfirmDelete(false);
-  }, [photo?.id, photo?.has_edit]); // eslint-disable-line react-hooks/exhaustive-deps
-  const original = useBlobUrl(photo?.id ?? null, 'file');
-  const edited = useBlobUrl(photo?.has_edit ? photo.id : null, 'edited', `${photo?.edit_kind}-${photo?.edit_status}`);
-  const refresh = () => qc.invalidateQueries({ queryKey: ['photoProjects'] });
-  const runEdit = useMutation({
-    mutationFn: (kind: EditKind) => editPhoto(photo!.id, kind),
-    onSuccess: () => { enqueueSnackbar('Grok is working on it (about 20 seconds).', { variant: 'info' }); refresh(); },
-    onError: (e) => enqueueSnackbar(errText(e, 'Could not start the edit.'), { variant: 'error' }),
-  });
-  const saveNote = useMutation({ mutationFn: () => setPhotoNote(photo!.id, note), onSuccess: refresh });
-  const remove = useMutation({
-    mutationFn: () => deletePhoto(photo!.id),
-    onSuccess: () => { refresh(); onClose(); },
-    onError: (e) => enqueueSnackbar(errText(e, 'Could not delete the photo.'), { variant: 'error' }),
-  });
-  if (!photo) return null;
-  const shown = view === 'edited' && edited ? edited : original;
-  const download = () => {
-    if (!shown) return;
-    const a = document.createElement('a');
-    a.href = shown;
-    a.download = `${photo.item_sku || photo.scanned_code || 'photo'}-${photo.id}${view === 'edited' && edited ? '-edited' : ''}.jpg`;
-    a.click();
-  };
-  return (
-    <Dialog open onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle sx={{ pr: 6 }}>
-        {photo.item_title ? `${photo.item_sku} · ${photo.item_title}` : photo.scanned_code || 'No tag'}
-        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{photo.taken_by_name} · {new Date(photo.created_at).toLocaleString()}</Typography>
-      </DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-        {photo.has_edit ? (
-          <ToggleButtonGroup size="small" exclusive value={view} onChange={(_, v) => v && setView(v)}>
-            <ToggleButton value="original">Original</ToggleButton>
-            <ToggleButton value="edited">Edited</ToggleButton>
-          </ToggleButtonGroup>
-        ) : null}
-        <Box sx={{ bgcolor: '#f3f3f3', borderRadius: '8px', minHeight: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {shown ? <Box component="img" src={shown} alt="" sx={{ maxWidth: '100%', maxHeight: '60vh', display: 'block' }} /> : <CircularProgress />}
-        </Box>
-        {photo.edit_status === 'working' ? <Alert severity="info" icon={<CircularProgress size={18} />}>Grok is working on it…</Alert> : null}
-        {photo.edit_status === 'failed' ? <Alert severity="error">{photo.edit_error || 'The edit failed.'} Try again.</Alert> : null}
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          {EDITS.map((e) => (
-            <Button key={e.kind} variant="outlined" disabled={photo.edit_status === 'working' || runEdit.isPending} onClick={() => runEdit.mutate(e.kind)}>
-              {e.label}
-            </Button>
-          ))}
-        </Box>
-        <TextField
-          label="Note"
-          size="small"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          onBlur={() => note !== photo.note && saveNote.mutate()}
-          multiline
-          maxRows={4}
-        />
-      </DialogContent>
-      <DialogActions sx={{ flexWrap: 'wrap' }}>
-        {confirmDelete ? (
-          <>
-            <Typography sx={{ mr: 'auto', fontSize: 14 }}>Delete this photo for good?</Typography>
-            <Button onClick={() => setConfirmDelete(false)}>Keep</Button>
-            <Button color="error" variant="contained" onClick={() => remove.mutate()} disabled={remove.isPending}>Delete</Button>
-          </>
-        ) : (
-          <>
-            <Button color="error" startIcon={<DeleteOutlineRounded />} onClick={() => setConfirmDelete(true)} sx={{ mr: 'auto' }}>Delete</Button>
-            <Button onClick={download} disabled={!shown}>Download</Button>
-            <Button variant="contained" onClick={onClose}>Done</Button>
-          </>
-        )}
-      </DialogActions>
-    </Dialog>
   );
 }
 
@@ -256,7 +151,7 @@ function ProjectView({ id }: { id: number }) {
   const photos = useQuery({
     queryKey: ['photoProjects', 'photos', id],
     queryFn: () => listPhotos(id),
-    refetchInterval: (q) => ((q.state.data ?? []).some((p) => p.edit_status === 'working') ? 4000 : false),
+    refetchInterval: (q) => ((q.state.data ?? []).some((p) => p.versions.some((v) => v.status === 'working')) ? 4000 : false),
   });
   const [capturing, setCapturing] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -296,7 +191,7 @@ function ProjectView({ id }: { id: number }) {
         {(photos.data ?? []).map((ph) => <PhotoTile key={ph.id} photo={ph} onOpen={() => setOpenId(ph.id)} />)}
       </Box>
       {photos.data && !photos.data.length ? <Typography sx={{ color: 'text.secondary', mt: 1 }}>No photos yet.</Typography> : null}
-      <PhotoDialog photo={openPhoto} onClose={() => setOpenId(null)} />
+      {openPhoto ? <PhotoEditor key={openPhoto.id} photo={openPhoto} projectName={p.name} onClose={() => setOpenId(null)} /> : null}
       <ProjectDialog
         open={editing}
         project={p}

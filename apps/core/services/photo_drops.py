@@ -62,10 +62,10 @@ def _read_photo(raw: bytes) -> Image.Image:
     return img.convert('RGB') if img.mode != 'RGB' else img
 
 
-def _store(key: str, data: bytes, *, user, filename: str) -> S3File:
+def _store(key: str, data: bytes, *, user, filename: str, content_type: str = 'image/jpeg') -> S3File:
     saved = default_storage.save(key, ContentFile(data, name=key.rsplit('/', 1)[-1]))
     return S3File.objects.create(
-        key=saved, filename=filename, size=len(data), content_type='image/jpeg', uploaded_by=user,
+        key=saved, filename=filename, size=len(data), content_type=content_type, uploaded_by=user,
     )
 
 

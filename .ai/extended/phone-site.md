@@ -1,10 +1,28 @@
-<!-- Last updated: 2026-11-20 (storefront.phone_site ON; earlier: owner: home's first card is "Don't shop without Thrift+", no strip above the header, "items" not "pieces") -->
+<!-- Last updated: 2026-11-24 (owner: ONE website, www.ecothrift.us, phones and desktops; the old desktop site and the old scanner are legacy to retire; never "app" to customers; earlier 2026-11-20: storefront.phone_site ON; earlier: owner: home's first card is "Don't shop without Thrift+", no strip above the header, "items" not "pieces") -->
 # The phone site: the public site and the Thrift+ scanner, rebuilt for phones
 
 **Owner, 2026-11-19:** one fast site and app for phones ("performance and FAST snappyness as a priority"), in the look he
 approved ("excellent. i like it"), covering everything a customer can reach ("go 100% to the new mobile site/app"), calm
 ("a touch of CALM DOWN ness in the jumping and poping and expanding"), shipped while customers use the current one, and
 seen by him alone until he says go ("i want access and no normal visitors to see it"). Desktops keep the current site.
+
+## One website (owner 2026-11-24)
+
+**Customers have one website, www.ecothrift.us.** Not a website plus a scanner app, not a Thrift+ app, not a guest app: the
+scanner, Thrift+, the store list and the info pages are all pages of this one site. The owner, 11-24:
+"WE do not have a website and a scanner app. (Or a guest/thrift+/or ANY OTHER customer facing app for that matter) WE have a unified app. The WEBSITE app at www.ecothrift.us. this is optimized for mobile (we just did this) and desktop (still to do) ... We need to remove all legacy pages or links/navigation/verbage. We only have our website. (customers do not want to hear "App") AND it needs to be optimized for desktop now".
+
+- **Phones:** done (this site, `storefront.phone_site` ON since 11-20). `/scan` on a phone moves to this site's scanner when
+  `storefront.phone_scan` goes on (after his real-phone check).
+- **Desktops: next.** This site gets a desktop layout and desktops get it (behind a switch, like phones), so there is one
+  site at every width. Until then desktops still get the old site (`index.html`; checked 11-24 by User-Agent: a desktop gets
+  `assets/index-*.js`, an iPhone `assets/phone-*.js`).
+- **Legacy, to retire (not to improve):** the old desktop site's pages (`frontend-public/src/pages/`, `components/`, incl.
+  `/thriftplus`), the old scanner in the Dash frontend (`frontend/src/pages/thriftplus/scanner/`), and every link, menu item
+  and word that points at a second customer app. Removed once the desktop layout and the phone scanner are live.
+- **Words:** customers never read "app" ("Open the app", "the Thrift+ app", "scanner app", "install the app"): say the page
+  ("Scan a tag", "Thrift+", "ecothrift.us"). Rulebook V15. Keeping the site on a home screen stays (the install card), in
+  words without "app".
 
 ## What it is
 

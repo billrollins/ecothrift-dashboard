@@ -37,16 +37,17 @@ class _FakeResp:
 class AiModelResolutionTests(TestCase):
     def test_seed_rows(self):
         # 26 rows seeded by the apps (core 0005 ... storefront 0001) + Dash #195 (core 0018): product standardize at
-        # intake, the hiring reply, the tier review.
-        self.assertEqual(AiAction.objects.count(), 29)
+        # intake, the hiring reply, the tier review + Dash #209 (core 0020): the photo editor's four AI actions.
+        self.assertEqual(AiAction.objects.count(), 33)
         self.assertEqual(AiAction.objects.filter(purpose__in=['THRIFTPLUS_FAMILY', 'QA_TRIAGE']).count(), 2)
         self.assertFalse(AiAction.objects.filter(purpose='SUPERVISOR_BRIEF').exists())
         self.assertEqual(list(AiTier.objects.values_list('key', flat=True)), ['fast', 'standard', 'best', 'image'])
         # Every action is placed (Workspace > Page > Function) and on a tier of its own type.
         self.assertFalse(AiAction.objects.filter(workspace='').exists())
         self.assertFalse(AiAction.objects.filter(page='').exists())
-        self.assertEqual(list(AiAction.objects.filter(tier='image').values_list('purpose', flat=True)), ['LABEL_IMAGE'])
-        self.assertEqual(AiAction.objects.filter(modality='image').count(), 1)
+        self.assertEqual(list(AiAction.objects.filter(tier='image').values_list('purpose', flat=True)), [
+            'LABEL_IMAGE', 'PHOTO_FILTER', 'PHOTO_FREE_EDIT', 'PHOTO_OPTIMIZE', 'PHOTO_REMOVE_BACKGROUND'])
+        self.assertEqual(AiAction.objects.filter(modality='image').count(), 5)
         self.assertTrue(AiAction.objects.filter(purpose='INVENTORY_CLEANUP').exists())
 
     def test_the_migration_keeps_every_action_on_the_model_it_ran_on(self):

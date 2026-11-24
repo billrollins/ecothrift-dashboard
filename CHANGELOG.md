@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.332.1] -->
-<!-- Last reviewed: 2026-11-24 (2.332.1) -->
+<!-- Line 1 release: ## [2.333.0] -->
+<!-- Last reviewed: 2026-11-24 (2.333.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.333.0] - 2026-11-24
+
+User-facing theme: **Photo editor: a strip of versions, an Edit tab (our own tools) and an AI tab (Grok)**
+
+> **For Bill:** Open any photo in Photo projects. Under the picture is a strip: Raw first, then every version. Tap one to look at it; the next edit starts from it. X deletes a version (Undo for 5 seconds); the star makes it Main, the one the project grid shows. **Edit**: crop (Free or a ratio: the frame stays still, you drag and pinch the photo behind it, then Apply), turn, Crop to content, light, color, looks and a new background color or see-through, then Save as new version. **AI**: Remove background (white, black or any color), Optimize, Studio shot, Room scene, Holiday scene, Clean up, or your own words; each run lands in the strip in about 20 seconds, the same shape as the picture it started from. Nothing ever crops by itself. Each photo's one edited copy from before is now its first version.
+
+### Added
+- **Photo editor versions:** `core.ProjectPhotoVersion` (made from, Edit or AI, action, caption, prompt, file + thumbnail, size, see-through, working / done / failed + error, made by / at) and `ProjectPhoto.main_version` + `raw_is_main` (migration `core/0020_photo_versions`, which also turns each v2.332 edited copy into that photo's first version). Main = the starred version, else the newest finished one, else Raw. API: `POST /api/core/project-photos/<id>/versions/` (an Edit picture), `/ai/` (start a run), `/main/` (star); `/api/core/photo-versions/<id>/` (delete, files too), `file/`, `thumb/`, `again/` (Run again).
+- **Edit tab** (`frontend/src/components/photoEditor/`, one shared editor for desk and phone): crop with Free, 1:1, 4:5, 2:3, 3:2, 4:3, 16:9, 9:16 in a fixed frame (drag, pinch, mouse wheel and a zoom slider move the photo; zoom from "whole photo fits" to 5x, the gap shows the background), Free frame corners and edges, turn left / right, Crop to content (a button), Brightness, Contrast, Saturation, Warmth, Hue, Looks (Auto, Vivid, Warm, Cool, B&W), Background (see-through, white, black, lime, any color; a busy photo offers AI Remove background). Our own pixel math (iPhone Safari ignores canvas filters); kept as PNG when see-through, else JPEG.
+- **AI tab:** Remove background (white, black or a picked color), Optimize, Filters (Studio shot, Room scene, Holiday scene, Clean up) and Free edit (the person's words plus the standing "keep the item exactly as it is"). Every run is a new version from the one on screen, shown at once as a working tile in its own slot; a run still working after 5 minutes shows failed with Run again. The answer keeps the source's shape (Grok answers in the shape it is sent, tested for 1:1, 4:5 and 16:9; any few-pixel difference is padded with the backdrop color, never trimmed).
+- **AI image router edit call** (`image_router.edit_image`: xAI `/images/edits`, OpenAI `/images/edits`, Google Nano Banana with the picture as a part): photo editor runs are logged in AI usage at the model's per-image price and run on the model picked in Settings > AI. Four new actions on the Image tier under Processing > Photo projects: `PHOTO_REMOVE_BACKGROUND`, `PHOTO_OPTIMIZE`, `PHOTO_FILTER`, `PHOTO_FREE_EDIT` (Grok Imagine 2.0 by default).
+
+### Changed
+- **Docs:** customers have one website, www.ecothrift.us, and never read "app" (rulebook V15 in `.ai/extended/thrift-plus-decisions.md`; `.ai/extended/phone-site.md` "One website", owner 2026-11-24). Photo projects and its editor are written up in `.ai/extended/photo-projects.md`.
+- Photo projects grid shows each photo's Main version; the old Original / Edited dialog and its Remove background / Clean up / Square thumbnail buttons are replaced by the editor (1:1 + Crop to content does what Square thumbnail did). The old `edited*` / `edit_*` columns are no longer read and are dropped in a later release.
 
 ## [2.332.1] - 2026-11-24
 
