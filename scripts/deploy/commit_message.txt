@@ -1,10 +1,10 @@
-v2.332.0 — Photo projects: scan a tag, take a photo, Grok cleans it up
+v2.332.1 — Photo projects: scanned tags now find the item
 
-User-facing theme: **Photo projects: scan a tag, take a photo, and let Grok clean it up**
+User-facing theme: **Photo projects: scanned tags now find the item**
 
-> **For Bill:** Processing > Photo projects is live. Make a project, tap Scan + photo, scan the tag, take the photo, add a note, Save, repeat. Open any photo for Remove background, Clean up or Square thumbnail (Grok, about 20 seconds); the original is always kept. You see every project; whoever makes one picks who else sees it.
+> **For Bill:** A scanned tag showed "not found" in Photo projects even for real items. Fixed: the item name now shows after the scan. Photos you already saved with a tag were linked to the item anyway.
 
-### Added
-- **Photo projects** (Processing > Photo projects, `/photo-projects`): a phone-first photo app. Make a project (name, optional description, who else can see it); tap **Scan + photo**, scan the tag (or type it, or tap No tag), take the photo, add a note if you like, Save, and it is back to scanning. The owner sees every project; the creator picks who else can. Each photo opens to **Remove background**, **Clean up** (keeps the setting, removes tags and stickers) or **Square thumbnail**, run by Grok Imagine 2.0 in about 20 seconds; the original is always kept beside the edited copy, with Download. Deleting a photo is immediate; a deleted project disappears now and is removed for good after 30 days. New `core.PhotoProject` and `core.ProjectPhoto` (migration `core/0019_photo_projects`), API `/api/core/photo-projects/` and `/api/core/project-photos/`, service `apps/core/services/photo_projects.py`, tests `apps/core/tests/test_photo_projects.py`.
+### Fixed
+- **Photo projects: a scanned tag said "not found"** for real items (ITM0210580). The tag lookup asked for a title field the item does not have and failed; it now reads the product title, and a photo saved with a tag shows that item. Photos already saved with a tag were linked to the item all along. Test added.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

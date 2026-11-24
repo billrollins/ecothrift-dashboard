@@ -85,6 +85,18 @@ class PhotoProjectTests(TestCase):
         self.assertFalse(ProjectPhoto.objects.exists())
         self.assertEqual(S3File.objects.count(), 0)
 
+    def test_scanned_tag_links_the_item_and_lookup_finds_it(self):
+        from apps.inventory.models import Item, Product
+        product = Product.objects.create(title='Boxwood topiary')
+        item = Item.objects.create(sku='ITM0000777', price=5, product=product)
+        res = self.c['ann'].get(f'{P}lookup/', {'code': 'ITM0000777'})
+        self.assertEqual((res.status_code, res.data['found'], res.data['title']), (200, True, 'Boxwood topiary'))
+        pid = self.make()['id']
+        ph = self.add_photo(pid, code='ITM0000777')
+        self.assertEqual(ph['item_sku'], 'ITM0000777')
+        self.assertEqual(self.c['ann'].get(f'{P}{pid}/photos/').data[0]['item_sku'], 'ITM0000777')
+        self.assertEqual(ProjectPhoto.objects.get(pk=ph['id']).item_id, item.pk)
+
     def test_grok_edit_keeps_original_and_stores_the_copy(self):
         pid = self.make()['id']
         ph = self.add_photo(pid)

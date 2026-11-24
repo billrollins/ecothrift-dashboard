@@ -19,6 +19,11 @@ from .services import photo_projects as svc
 from .services.photo_drops import MAX_UPLOAD_BYTES
 
 
+def _item_title(item) -> str:
+    product = getattr(item, 'product', None) if item is not None else None
+    return (getattr(product, 'title', '') or '') if product is not None else ''
+
+
 def _name(user) -> str:
     if user is None:
         return ''
@@ -28,7 +33,7 @@ def _name(user) -> str:
 
 class ProjectPhotoSerializer(serializers.ModelSerializer):
     item_sku = serializers.CharField(source='item.sku', read_only=True, default='')
-    item_title = serializers.CharField(source='item.title', read_only=True, default='')
+    item_title = serializers.SerializerMethodField()
     taken_by_name = serializers.SerializerMethodField()
     has_edit = serializers.SerializerMethodField()
 
@@ -37,6 +42,9 @@ class ProjectPhotoSerializer(serializers.ModelSerializer):
         fields = ['id', 'project', 'scanned_code', 'item_sku', 'item_title', 'note', 'width', 'height',
                   'edit_kind', 'edit_status', 'edit_error', 'has_edit', 'taken_by_name', 'created_at']
         read_only_fields = fields
+
+    def get_item_title(self, obj):
+        return _item_title(obj.item)
 
     def get_taken_by_name(self, obj):
         return _name(obj.taken_by)
@@ -112,7 +120,7 @@ class PhotoProjectViewSet(viewsets.ModelViewSet):
     def photos(self, request, pk=None):
         project = self.get_object()
         if request.method == 'GET':
-            rows = project.photos.select_related('item', 'taken_by')
+            rows = project.photos.select_related('item__product', 'taken_by')
             return Response(ProjectPhotoSerializer(rows, many=True).data)
         ser = PhotoUploadSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
@@ -136,7 +144,7 @@ class PhotoProjectViewSet(viewsets.ModelViewSet):
         item = svc.find_item(request.query_params.get('code', ''))
         if item is None:
             return Response({'found': False})
-        return Response({'found': True, 'sku': item.sku, 'title': item.title})
+        return Response({'found': True, 'sku': item.sku, 'title': _item_title(item)})
 
 
 class ProjectPhotoViewSet(viewsets.GenericViewSet):

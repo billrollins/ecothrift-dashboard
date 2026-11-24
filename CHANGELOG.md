@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.332.0] -->
-<!-- Last reviewed: 2026-11-24 (2.332.0) -->
+<!-- Line 1 release: ## [2.332.1] -->
+<!-- Last reviewed: 2026-11-24 (2.332.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.332.1] - 2026-11-24
+
+User-facing theme: **Photo projects: scanned tags now find the item**
+
+> **For Bill:** A scanned tag showed "not found" in Photo projects even for real items. Fixed: the item name now shows after the scan. Photos you already saved with a tag were linked to the item anyway.
+
+### Fixed
+- **Photo projects: a scanned tag said "not found"** for real items (ITM0210580). The tag lookup asked for a title field the item does not have and failed; it now reads the product title, and a photo saved with a tag shows that item. Photos already saved with a tag were linked to the item all along. Test added.
 
 ## [2.332.0] - 2026-11-24
 
