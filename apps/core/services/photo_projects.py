@@ -26,7 +26,7 @@ from django.core.files.storage import default_storage
 from django.db import close_old_connections, connections, transaction
 from django.db.models import Q
 from django.utils import timezone
-from PIL import Image, ImageOps, ImageStat
+from PIL import Image, ImageChops, ImageDraw, ImageOps, ImageStat
 
 from apps.core.models import PhotoProject, ProjectPhoto, ProjectPhotoVersion
 from apps.core.services.photo_drops import (
@@ -41,10 +41,18 @@ AI_EDGE = 1024  # Grok refuses a large upload; a JPEG of at most 1024 px works (
 STALE_MINUTES = 5
 STALE_ERROR = 'It stopped before it finished.'
 MAX_WORDS = 1000
+# Clean-white pass (Mainline 2026-11-24): Grok's ghost scribbles measured 245-254 with channels within 4. At or above
+# CLEAN_WHITE a pixel turns white; between CLEAN_LOW and CLEAN_WHITE it is lifted part way, so a soft shadow's tail
+# fades out instead of ending in a hard edge.
+CLEAN_LOW = 225
+CLEAN_WHITE = 245
+CLEAN_SPREAD = 12
 
-KEEP_AS_IS = ('Keep the item exactly as it is: same shape, parts, color, angle and proportions; do not redraw, fix '
-              'or add anything.')
-NO_TAGS = 'Remove any price tag, hang tag or sticker.'
+# Owner 2026-11-24: brands and maker's labels stay; only our price tags may go (a run took a pan's brand circle off).
+KEEP_AS_IS = ('Keep the item exactly as it is: same shape, parts, color, angle and proportions, and every brand name, '
+              "logo, maker's label, sticker and marking that came with it; do not redraw, fix or add anything.")
+NO_TAGS = ('Remove only store price tags: the green Eco-Thrift price label and any other price sticker or price hang '
+           'tag. Never remove a brand name, logo or label that came with the item.')
 IN_FRAME = 'Keep the whole item in frame.'
 
 # action: the AI purpose in Settings > AI (Image tier).
@@ -72,10 +80,43 @@ FIXED = {
         'Place the item in a warm Christmas holiday setting, with soft lights and a decorated tree or wrapped gifts '
         'nearby, as a festive catalog photo. ' + NO_TAGS + ' ' + KEEP_AS_IS + ' ' + IN_FRAME)),
     'clean_up': ('Clean up', (
-        'Tidy this product photo but keep its real setting: remove price tags, hang tags, stickers and stray clutter '
-        'around the main item, and even out the light. ' + KEEP_AS_IS + ' ' + IN_FRAME)),
+        'Tidy this product photo but keep its real setting: remove stray clutter around the main item and even out '
+        'the light. ' + NO_TAGS + ' ' + KEEP_AS_IS + ' ' + IN_FRAME)),
 }
 HEX = re.compile(r'^#[0-9a-fA-F]{6}$')
+
+# The prompt writer (owner 2026-11-24): a text model reads the photo with these rules and writes the image model's
+# prompt for that one photo. Settings > AI action PHOTO_PROMPT (Standard tier, like the other photo readers).
+PROMPT_PURPOSE = 'PHOTO_PROMPT'
+PROMPT_RULES = """You write the prompt for an image-editing model (Grok Imagine) that edits product photos for Eco-Thrift, \
+a thrift store. You get one photo and the edit asked for. Look closely at the photo, then write one prompt for this \
+photo only. The image model sees the same photo; it does not see these rules, so everything that matters must be in \
+your prompt.
+
+What the store needs from every edit:
+1. The item must stay exactly as it is: the same shape, parts, color, material, angle, proportions and wear. The \
+picture is used to sell this exact item, so nothing on it may be redrawn, fixed, added or improved.
+2. Brands stay. Every brand name, logo, maker's label, sticker, badge, emblem, printed text or marking that came \
+with the item stays exactly where it is and as it is, even when it is a sticker, a round label in the middle of a \
+pan, a hang tag from the maker or text on a box. If you are not sure whether a label is the maker's or ours, it \
+stays.
+3. Only our own price tags may be removed: the store's green Eco-Thrift price label (a small green rectangle with \
+"Eco-Thrift", a price and a QR code), other price stickers, and price hang tags. Say where each one is (for example \
+"the green price sticker in the middle of the small pan") so nothing else is removed with it. Tape and clear plastic \
+wrap that only holds a set together may stay.
+4. A set stays a set: every piece in the photo that belongs to the item stays, in the same arrangement (three pans \
+nested together stay three pans nested together). Other items, shelves, walls, floor, people and clutter around it \
+are not the item.
+5. Never crop. Keep the whole item in the picture and keep the picture's shape. For a new background, Optimize or \
+Clean up, the item also stays at the same place and size.
+6. Do the edit asked for, in its own words where they are clear: a background color named in it is the one to use, \
+a room or holiday scene named in it is the one to build, and the person's own words in a free edit come first \
+(rules 1 to 3 still hold).
+
+How to write it: plain, direct sentences in English, 50 to 150 words. Start with the edit, name the item as you see \
+it ("a set of three gray ceramic frying pans with steel handles"), then say what must stay that you can see in this \
+photo (name each brand label and where it is), then what to remove that you can see. Do not explain, do not add \
+notes or options, do not use lists or quotes. Answer with the prompt only."""
 
 PhotoError = PhotoDropError
 
@@ -301,8 +342,7 @@ def ai_request(action: str, *, color: str = '', words: str = '') -> tuple[str, s
         caption = {'#ffffff': 'No background', '#000000': 'Black background'}.get(color, 'Color background')
         return caption, (
             f'Isolate the main item in this photo as a clean product photo on {_color_words(color)}. Remove everything '
-            'else: other items, shelves, walls, floor, people, and any price tag, hang tag or sticker. '
-            f'{KEEP_AS_IS} Keep the whole item in frame, where it is, {shadow}.')
+            f'else: other items, shelves, walls, floor and people. {NO_TAGS} {KEEP_AS_IS} Keep the whole item in frame, where it is, {shadow}.')
     if action == 'free':
         words = ' '.join((words or '').split())
         if not words:
@@ -403,16 +443,72 @@ def fit_shape(img: Image.Image, ratio: float) -> Image.Image:
     return out
 
 
+def write_prompt(version: ProjectPhotoVersion, jpeg: bytes) -> str:
+    """The prompt for this one photo (owner 2026-11-24): a text model that reads photos looks at the picture with the
+    house rules (``PROMPT_RULES``) and the edit asked for, and names what must stay (the brand circle, a maker's
+    label) and what may go (our green price tag) in this photo. Any failure falls back to the edit's own prompt, so a
+    run never stops here. The standing keep-as-is line is always added at the end."""
+    from apps.core.ai_config import ai_effort, ai_model
+    from apps.core.services.llm_router import llm_complete
+
+    text = ''
+    try:
+        result = llm_complete(
+            model_id=ai_model(PROMPT_PURPOSE), system=PROMPT_RULES, max_tokens=700, timeout=60.0,
+            effort=ai_effort(PROMPT_PURPOSE), log_source='photo_projects', log_purpose=PROMPT_PURPOSE,
+            log_detail=f'photo {version.photo_id} {version.action}',
+            messages=[{'role': 'user', 'content': [
+                {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg',
+                                             'data': base64.b64encode(jpeg).decode('ascii')}},
+                {'type': 'text', 'text': f'The edit asked for:\n{version.prompt}\n\nWrite the prompt for this photo.'},
+            ]}],
+        )
+        text = ' '.join((result.text or '').split()).strip('"')
+    except Exception:  # noqa: BLE001 - the edit's own prompt still works
+        logger.warning('photo_projects: the prompt writer failed for version %s', version.pk, exc_info=True)
+    if not 40 <= len(text) <= 3000:
+        return version.prompt
+    return f'{text} {KEEP_AS_IS}'
+
+
+def clean_white(img: Image.Image) -> Image.Image:
+    """Clean-white pass after a white Remove background: Grok leaves faint gray scribbles in its white backdrop.
+
+    Only near-white, near-gray pixels (darkest channel at least ``CLEAN_LOW``, channels within ``CLEAN_SPREAD``) that
+    connect to the picture's edge are touched: from ``CLEAN_WHITE`` up they turn white, below it they are lifted part
+    way, so a soft shadow fades out with no hard edge. The darker shadow and the item's own whites (cut off from the
+    edge by the item) stay. Runs only when the edge itself is white. Pillow only: the connection is found on a
+    half-size mask (a flood fill from a white frame), then applied to full-size pixels."""
+    rgb = img.convert('RGB') if img.mode != 'RGB' else img
+    w, h = rgb.size
+    if min(_edge_color(rgb, rows=True) + _edge_color(rgb, rows=False)) < CLEAN_WHITE:
+        return rgb
+    r, g, b = rgb.split()
+    darkest = ImageChops.darker(ImageChops.darker(r, g), b)
+    spread = ImageChops.subtract(ImageChops.lighter(ImageChops.lighter(r, g), b), darkest)
+    grayish = spread.point(lambda v: 255 if v <= CLEAN_SPREAD else 0)
+    near = ImageChops.multiply(darkest.point(lambda v: 255 if v >= CLEAN_LOW else 0), grayish)
+    small = near.resize((max(1, w // 2), max(1, h // 2)), Image.Resampling.NEAREST)
+    framed = ImageOps.expand(small, border=1, fill=255)
+    ImageDraw.floodfill(framed, (0, 0), 128)
+    reach = framed.crop((1, 1, small.width + 1, small.height + 1)).point(lambda v: 255 if v == 128 else 0)
+    span = CLEAN_WHITE - CLEAN_LOW
+    lift = darkest.point(lambda v: 0 if v < CLEAN_LOW else 255 if v >= CLEAN_WHITE else round(255 * (v - CLEAN_LOW) / span))
+    amount = ImageChops.multiply(ImageChops.multiply(lift, grayish), reach.resize((w, h), Image.Resampling.NEAREST))
+    return Image.composite(Image.new('RGB', (w, h), (255, 255, 255)), rgb, amount)
+
+
 def _ask(version: ProjectPhotoVersion, src: Image.Image) -> Image.Image:
     from apps.core.ai_config import ai_model
     from apps.core.services.image_router import ImageError, edit_image
 
     purpose = AI_ACTIONS.get(version.action, 'PHOTO_FREE_EDIT')
     data = _jpeg(_fit(_flat(src), AI_EDGE), 90)
+    prompt = write_prompt(version, data)
     last: Exception | None = None
     for _ in range(2):  # one more try when the service hiccups; a refused request fails at once
         try:
-            out = edit_image(ai_model(purpose), version.prompt, data, log_source='photo_projects', log_purpose=purpose,
+            out = edit_image(ai_model(purpose), prompt, data, log_source='photo_projects', log_purpose=purpose,
                              log_detail=f'photo {version.photo_id} {version.action}', log_user=version.made_by)
             return _read_image(base64.b64decode(out['b64']))
         except ImageError as exc:
@@ -423,13 +519,25 @@ def _ask(version: ProjectPhotoVersion, src: Image.Image) -> Image.Image:
 
 
 def _work(version_id) -> None:
+    from apps.core.services.ai_usage_log import clear_request_user, set_request_user
+
     version = ProjectPhotoVersion.objects.select_related('photo__file', 'made_from__file', 'made_by') \
         .filter(pk=version_id).first()
     if version is None or version.status != ProjectPhotoVersion.STATUS_WORKING:
         return
+    set_request_user(version.made_by)  # this thread's AI calls are logged as the person who ran it
+    try:
+        _deliver(version_id, version)
+    finally:
+        clear_request_user()
+
+
+def _deliver(version_id, version: ProjectPhotoVersion) -> None:
     try:
         src = _source(version)
         out = _fit(fit_shape(_ask(version, src), src.width / src.height), MAX_EDGE)
+        if version.action == 'remove_background':
+            out = clean_white(out)  # a no-op unless the backdrop came back white
         file, thumb = _store_picture(version.photo, out, user=version.made_by,
                                      name=f'ai-{version.action}-{version.photo_id}')
         with transaction.atomic():

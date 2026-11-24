@@ -136,9 +136,31 @@ class PhotoProjectTests(TestCase):
         out = {'b64': base64.b64encode(answer or jpeg_bytes(48, 64)).decode(), 'content_type': 'image/jpeg'}
         side = ImageError(error) if error else None
         with mock.patch.object(svc, '_spawn', side_effect=svc._work), \
+                mock.patch.object(svc, 'write_prompt', side_effect=lambda v, data: v.prompt), \
                 mock.patch('apps.core.services.image_router.edit_image', return_value=out, side_effect=side) as call:
             res = self.c['ann'].post(f'{PH}{photo_id}/ai/', body, format='json')
         return res, call
+
+    def test_the_prompt_writer_reads_the_photo_and_falls_back_when_it_fails(self):
+        from apps.core.services.llm_router import LLMAPIError, LLMResult
+
+        ph = self.add_photo(self.make()['id'])
+        caption, prompt = svc.ai_request('remove_background')
+        version = ProjectPhotoVersion(photo_id=ph['id'], kind='ai', action='remove_background', prompt=prompt)
+        written = ('Put this set of three gray frying pans on pure white. Keep the red round brand label in the small '
+                   'pan; remove the green price sticker on it.')
+        with mock.patch('apps.core.services.llm_router.llm_complete', return_value=LLMResult(text=written, model_used='m')) as call:
+            out = svc.write_prompt(version, jpeg_bytes())
+        self.assertEqual(out, f'{written} {svc.KEEP_AS_IS}')
+        kwargs = call.call_args.kwargs
+        self.assertEqual((kwargs['system'], kwargs['log_purpose']), (svc.PROMPT_RULES, 'PHOTO_PROMPT'))
+        content = kwargs['messages'][0]['content']
+        self.assertEqual(content[0]['type'], 'image')
+        self.assertIn(prompt, content[1]['text'])
+        with mock.patch('apps.core.services.llm_router.llm_complete', side_effect=LLMAPIError('down')):
+            self.assertEqual(svc.write_prompt(version, jpeg_bytes()), prompt)
+        with mock.patch('apps.core.services.llm_router.llm_complete', return_value=LLMResult(text='ok', model_used='m')):
+            self.assertEqual(svc.write_prompt(version, jpeg_bytes()), prompt)  # too short to trust
 
     def test_edit_upload_keeps_see_through_as_png_and_jpeg_as_jpeg(self):
         ph = self.add_photo(self.make()['id'])
@@ -200,6 +222,10 @@ class PhotoProjectTests(TestCase):
         self.assertEqual(model, 'grok-imagine-image-2.0')
         self.assertIn('#000000', prompt)
         self.assertIn(svc.KEEP_AS_IS, prompt)
+        # Owner 2026-11-24: our price tag goes, the brand stays.
+        self.assertIn('Eco-Thrift price label', prompt)
+        self.assertIn('Never remove a brand name', prompt)
+        self.assertNotIn('hang tag or sticker', prompt)
         self.assertEqual(Image.open(io.BytesIO(image)).format, 'JPEG')
         self.assertEqual(call.call_args.kwargs['log_purpose'], 'PHOTO_REMOVE_BACKGROUND')
         self.assertEqual(call.call_args.kwargs['log_user'], self.ann)
@@ -228,6 +254,7 @@ class PhotoProjectTests(TestCase):
         slot = version.made_at
         out = {'b64': base64.b64encode(jpeg_bytes()).decode(), 'content_type': 'image/jpeg'}
         with mock.patch.object(svc, '_spawn', side_effect=svc._work), \
+                mock.patch.object(svc, 'write_prompt', side_effect=lambda v, data: v.prompt), \
                 mock.patch('apps.core.services.image_router.edit_image', return_value=out):
             res = self.c['ann'].post(f'{PV}{version.pk}/again/', format='json')
         self.assertEqual(res.status_code, 200, res.data)
@@ -252,10 +279,29 @@ class PhotoProjectTests(TestCase):
         self.assertEqual(self.c['ann'].delete(f'{PV}{vid}/').status_code, 204)
         out = {'b64': base64.b64encode(jpeg_bytes()).decode(), 'content_type': 'image/jpeg'}
         with mock.patch.object(svc.ProjectPhotoVersion.objects, 'select_related') as rows, \
+                mock.patch.object(svc, 'write_prompt', side_effect=lambda v, data: v.prompt), \
                 mock.patch('apps.core.services.image_router.edit_image', return_value=out):
             rows.return_value.filter.return_value.first.return_value = version  # the thread read it before the X
             svc._work(vid)
         self.assertEqual(S3File.objects.count(), 2)  # Raw and its thumbnail only
+
+    def test_clean_white_clears_ghost_marks_but_not_the_items_whites_or_the_shadow(self):
+        img = Image.new('RGB', (60, 60), (255, 255, 255))
+        img.putpixel((5, 5), (249, 248, 250))  # a ghost mark in the backdrop
+        img.putpixel((10, 5), (235, 235, 235))  # a soft shadow's tail: lifted part way
+        img.putpixel((5, 50), (200, 200, 200))  # the shadow itself
+        for x in range(20, 41):  # a dark ring (the item) around its own white middle
+            for y in range(20, 41):
+                img.putpixel((x, y), (40, 40, 40) if x in (20, 21, 39, 40) or y in (20, 21, 39, 40) else (250, 250, 250))
+        out = svc.clean_white(img)
+        self.assertEqual(out.getpixel((5, 5)), (255, 255, 255))
+        self.assertTrue(235 < out.getpixel((10, 5))[0] < 255)
+        self.assertEqual(out.getpixel((5, 50)), (200, 200, 200))
+        self.assertEqual(out.getpixel((30, 30)), (250, 250, 250))
+        self.assertEqual(out.getpixel((20, 30)), (40, 40, 40))
+        black = Image.new('RGB', (20, 20), (0, 0, 0))
+        black.putpixel((10, 10), (250, 250, 250))
+        self.assertEqual(svc.clean_white(black).getpixel((10, 10)), (250, 250, 250))  # not a white backdrop: untouched
 
     def test_fit_shape_pads_and_never_trims(self):
         grok = Image.new('RGB', (912, 1136), 'white')

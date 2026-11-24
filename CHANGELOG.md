@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.333.0] -->
-<!-- Last reviewed: 2026-11-24 (2.333.0) -->
+<!-- Line 1 release: ## [2.333.1] -->
+<!-- Last reviewed: 2026-11-24 (2.333.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.333.1] - 2026-11-24
+
+User-facing theme: **Photo editor: brands stay, a prompt written for each photo, a clean white background**
+
+> **For Bill:** Remove background (and Studio shot, Room scene, Holiday scene, Clean up) now keeps every brand name, logo and maker label and takes off only our green tag and other price tags. Before each AI run a quick AI looks at the photo and writes the instructions for it (for your pans: keep the red brand circle, remove the green tag). After a white Remove background, the gray marks Grok leaves in the background are cleaned to pure white; the item is never touched.
+
+### Added
+- **Clean white backdrop after Remove background:** Grok's faint gray scribbles in a white backdrop are cleared (only near-white pixels connected to the picture's edge; the shadow fades softly, the item's own whites stay).
+- **Prompt writer for every AI run** (owner's idea, 2026-11-24): before Grok runs, a text model that reads photos looks at the picture with the house rules and writes the prompt for that photo, naming the brand labels to keep and the price tags to remove (Settings > AI `PHOTO_PROMPT`, Standard tier, migration `core/0022_photo_prompt_action`; about a cent and a few seconds; falls back to the plain prompt if it fails).
+
+### Fixed
+- **Photo editor, AI Remove background (and Studio, Room, Holiday, Clean up) kept removing brand marks:** a pan's brand circle went with our green tag. Now every brand name, logo, maker's label and marking stays; only our green Eco-Thrift label and other price tags come off (owner 2026-11-24). Settings > AI wording updated by migration `core/0021_photo_bg_keeps_brands`. Test added.
 
 ## [2.333.0] - 2026-11-24
 

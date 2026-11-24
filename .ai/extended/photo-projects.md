@@ -39,6 +39,20 @@ item whose tag was scanned, and cleaned up with our own tools or with Grok. Firs
   `PHOTO_FREE_EDIT`. Each run is logged in AI usage with the person who ran it. The source is sent as a JPEG of at
   most 1024 px (a see-through one laid on white first); the answer is fitted into the source's shape
   (`fit_shape`: pads with the median edge color, never trims) and kept at most 2048 px.
+- **Prompt writer (owner 2026-11-24, "run a quick ai prompt to develop the specific edit prompt"):** before each Grok
+  run, `services/photo_projects.write_prompt` sends the photo (the same 1024 px JPEG), the edit asked for and the house
+  rules (`PROMPT_RULES`: item as it is, brands and maker's labels stay, only our price tags go, a set stays a set,
+  never crop, the asked-for edit) to a text model that reads photos; it writes that photo's prompt ("keep the red
+  round maker logo in the small pan, remove the green Eco-Thrift price label"). The standing keep-as-is line is always
+  added. Settings > AI action `PHOTO_PROMPT` on the Standard tier (migration `core/0022_photo_prompt_action`; prod
+  runs it on `AI_MODEL`, gemini-3.5-flash-lite, about a cent). If it fails, the edit's own prompt is sent. Tested on
+  the owner's three nested pans: brand circle kept, green tag gone (`workspace/photo-editor-209/`).
+- **Clean-white pass (after a white Remove background):** Grok leaves faint gray scribbles in its white backdrop
+  (measured 245 to 254, channels within 4). `clean_white` touches only near-white, near-gray pixels connected to the
+  picture's edge: from 245 up they turn white, from 225 to 245 they are lifted part way so a soft shadow fades with no
+  hard edge; the darker shadow and the item's own whites (cut off from the edge by the item) stay. It runs only when
+  the backdrop came back white. Pillow only, about a quarter second. Tested on the pans and two bikes
+  (`workspace/photo-editor-209/clean-white-sheet.jpg`, `clean-white-zoom.jpg`).
 - **Frontend:** the shared editor in `frontend/src/components/photoEditor/` (`pixels.ts` color matrix, Looks, keying
   and content box; `editState.ts` turn, crop and full-size render; `usePhotoEdit.ts`; `CropStage.tsx`;
   `EditTools.tsx`), the photo-projects shell in `frontend/src/pages/photoProjects/editor/` (`PhotoEditor.tsx`,
@@ -112,7 +126,7 @@ Pixel math, not `ctx.filter`, so iPhones behave the same as Android.
 
 | Action | What it does |
 |---|---|
-| Remove background | Item alone on White (default), Black or a picked color. Removes tags and stickers. **Never crops by itself** (owner's correction): the result keeps the shape of the version it was made from, so a 1:1 version gives a 1:1 result. Crop to content stays a button in Edit. |
+| Remove background | Item alone on White (default), Black or a picked color. Removes our price tags only; brand names, logos and maker's labels always stay (owner 2026-11-24, after a run took a pan's brand circle off). **Never crops by itself** (owner's correction): the result keeps the shape of the version it was made from, so a 1:1 version gives a 1:1 result. Crop to content stays a button in Edit. |
 | Optimize | Fixes dim or yellow store light, color and sharpness. Same item, same setting, same framing. |
 | Filters | Studio shot (studio light, soft shadow, white seamless) · Room scene (a tidy room or place that suits the item) · Holiday scene (Christmas setting) · Clean up (keeps the real setting, removes tags, stickers, clutter). |
 | Free edit | The user's own words to Grok, plus our standing line to keep the item itself as it is. |
