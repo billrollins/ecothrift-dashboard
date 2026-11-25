@@ -1654,6 +1654,15 @@ class Product(models.Model):
     price_standard = models.CharField(
         max_length=12, choices=PRICE_STANDARD_CHOICES, blank=True, default='', db_default='',
     )
+    # Pack standard (Dash Update #224, the shared contract in processing-night-1124.md): count per unit x units in the
+    # pack, stored as numbers, never parsed back from the title. Written "3 boxes × 100" (a single unit: "100 ct").
+    # Total pieces = unit_count x pack_units. A pack points at its base product (the single unit). Blank = not known.
+    unit_count = models.PositiveIntegerField(null=True, blank=True)
+    unit_name = models.CharField(max_length=40, blank=True, default='', db_default='')
+    pack_units = models.PositiveIntegerField(null=True, blank=True)
+    base_product = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='packs',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

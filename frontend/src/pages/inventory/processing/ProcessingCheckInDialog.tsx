@@ -36,6 +36,8 @@ import {
 import { scaleRowAmountForProductId } from './processingManifestAccounting';
 import { checkInStart, retailDiffersFromRow, type CheckInStart } from './processingCheckInDefaults';
 import { formatCurrency } from '../../../utils/format';
+import { NewPackSizeDialog } from './NewPackSizeDialog';
+import type { NewPackResult } from '../../../api/productPacks.api';
 import { PhotoSheetButton } from '../../../components/photoSheets/PhotoSheetButton';
 import { effectiveRowQty } from './processingQueueCellText';
 import { LargeCheckInConfirmDialog } from './LargeCheckInConfirmDialog';
@@ -180,6 +182,10 @@ export interface ProcessingCheckInDialogProps {
   searchBar?: ReactNode;
   /** One click on the red "differs from the row" line sets the manifest row's retail to this check-in's (#223). */
   onUpdateRowRetail?: (retail: string) => void | Promise<void>;
+  /** "New pack size" made a linked product (#224): the parent attaches it and checks it in next. */
+  onPackMade?: (result: NewPackResult) => void | Promise<void>;
+  /** Values a new check-in starts from instead of the usual rule (a new pack's scaled price and retail). */
+  startOverride?: { price: string; retail: string; from: 'pack' | 'page' } | null;
 }
 
 export function ProcessingCheckInDialog({
@@ -194,7 +200,10 @@ export function ProcessingCheckInDialog({
   onUpdateItemCheckIn,
   searchBar = null,
   onUpdateRowRetail,
+  onPackMade,
+  startOverride = null,
 }: ProcessingCheckInDialogProps) {
+  const [packOpen, setPackOpen] = useState(false);
   const editCheckIn = seed?.itemCheckIn && onUpdateItemCheckIn ? seed.itemCheckIn : null;
   const isEditMode = editCheckIn != null;
   const originalQty = editCheckIn?.quantity ?? 0;
@@ -249,7 +258,7 @@ export function ProcessingCheckInDialog({
     () => checkInStart(row, productId, { retail: scaledRowRetail || '', price: scaledRowPrice || '' }),
     [row, productId, scaledRowRetail, scaledRowPrice],
   );
-  const [startedFrom, setStartedFrom] = useState<CheckInStart['from']>('row');
+  const [startedFrom, setStartedFrom] = useState<CheckInStart['from'] | 'pack' | 'page'>('row');
 
   useEffect(() => {
     if (!open) return;
@@ -263,19 +272,20 @@ export function ProcessingCheckInDialog({
     } else {
       setCondition(normalizeProcessingCondition(start.condition));
       setDispatch(normalizeProcessingDispatch(start.dispatch));
-      setRetail(start.retail);
-      setPrice(start.price);
+      setRetail(startOverride ? startOverride.retail : start.retail);
+      setPrice(startOverride ? startOverride.price : start.price);
     }
-    setStartedFrom(seed ? 'row' : start.from);
+    setStartedFrom(seed ? 'row' : startOverride ? startOverride.from : start.from);
     setNotes(strDefault(defaults.notes) || seed?.item.notes || row.manifestNotes || '');
     setSpecifications(defaults.specifications ?? {});
     setEstimate(requestFromSaved(defaults.restoration_request));
     setVolumeConfirm(null);
-    // Seeded once per opening: a later row refresh never overwrites what the person typed.
+    // Seeded once per opening (and when a new pack takes over): a later row refresh never overwrites what was typed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, seed, editCheckIn]);
+  }, [open, seed, editCheckIn, productId, startOverride]);
 
-  const retailDiff = retailDiffersFromRow(row, productId, retail);
+  const isPack = Boolean(row.attachedProducts?.find((p) => p.id === productId)?.is_pack) || startOverride?.from === 'pack';
+  const retailDiff = retailDiffersFromRow(row, productId, retail, { isPack });
   const [rowRetailSaving, setRowRetailSaving] = useState(false);
 
   useEffect(() => {
@@ -385,7 +395,10 @@ export function ProcessingCheckInDialog({
             {!isEditMode ?
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, fontWeight: 700 }} noWrap>
                 {productLabel(product)} · Row {row.rowNum}
-                {startedFrom === 'last' ? ' · Started from the last check-in' : ''}
+                {startedFrom === 'last' ? ' · Started from the last check-in'
+                : startedFrom === 'pack' ? ' · New pack: price and retail scaled from its base'
+                : startedFrom === 'page' ? ' · Retail from the pasted page'
+                : ''}
               </Typography>
             : (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, fontWeight: 700 }}>
@@ -421,7 +434,21 @@ export function ProcessingCheckInDialog({
           <Stack spacing={0.85}>
             {isEditMode && editCheckIn ?
               <ProcessingCheckInEditStats checkIn={editCheckIn} product={productSummary(product)} />
-            : <ProductSummaryCard product={productSummary(product)} />}
+            : <Box sx={{ display: 'flex', alignItems: 'stretch', gap: 1 }}>
+                <Box sx={{ flex: 1, minWidth: 0 }}><ProductSummaryCard product={productSummary(product)} /></Box>
+                {onPackMade && product ?
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    disabled={busy}
+                    onClick={() => setPackOpen(true)}
+                    data-testid="new-pack-size"
+                    sx={{ flexShrink: 0, fontWeight: 800, whiteSpace: 'nowrap' }}
+                  >
+                    New pack size
+                  </Button>
+                : null}
+              </Box>}
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
@@ -565,6 +592,19 @@ export function ProcessingCheckInDialog({
           void doSubmit(printLabels);
         }}
       />
+      {onPackMade ?
+        <NewPackSizeDialog
+          open={packOpen}
+          product={product ? { id: product.id, title: product.title } : null}
+          basePrice={price}
+          baseRetail={retail}
+          onClose={() => setPackOpen(false)}
+          onMade={async (result) => {
+            setPackOpen(false);
+            await onPackMade(result);
+          }}
+        />
+      : null}
       {ConfirmDialogHost}
     </>
   );

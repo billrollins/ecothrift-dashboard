@@ -64,6 +64,8 @@ import { GoogleItLink } from '../../../components/objects/GoogleItLink';
 import { ProductCategoryLine } from '../../../components/objects/ProductCategoryLine';
 import { parseSearchTagsCsv } from '../processing/processingGoogleQuery';
 import { WorkbenchCopyableChip } from '../workbench/WorkbenchCopyableChip';
+import { packLabel, singular, wholeCount } from '../processing/packWords';
+import { ProductPagePasteBox } from './ProductPagePasteBox';
 import { IconAiAssist as AutoAwesome, IconCopy as ContentCopyOutlinedIcon, IconSave as SaveOutlinedIcon } from '../../../icons/ecoIcons';
 
 interface ProductEditorState extends ProductEditorDraft {
@@ -72,6 +74,18 @@ interface ProductEditorState extends ProductEditorDraft {
   createdAt: string;
   updatedAt: string;
   isActive: boolean;
+  /** Pack standard (#224): count per unit, unit name, units in the pack ("3 boxes × 100"), as typed. */
+  unitCount: string;
+  unitName: string;
+  packUnits: string;
+}
+
+/** What a pasted product page gave the new product (#224): Processing checks it in next with this retail. */
+export interface PageDraftResult {
+  retail: string | null;
+  model: string;
+  took_ms: number;
+  cost_usd: string | null;
 }
 
 export interface ProductManagePanelProps {
@@ -89,6 +103,8 @@ export interface ProductManagePanelProps {
   onStartProductCheckIn?: (productId: number) => void;
   onOpenProductCheckIns?: (productId: number) => void;
   onOpenItemsForProduct?: (productId: number, status?: string) => void;
+  /** New product on a Processing row (#224): a box to paste a vendor's product page; the AI fills the product. */
+  pagePaste?: { processingRowId: number; onDraft?: (result: PageDraftResult) => void };
 }
 
 type SectionTone = 'identity' | 'catalog' | 'tracking';
@@ -117,6 +133,9 @@ const EMPTY_EDITOR: ProductEditorState = {
   specifications: {},
   tagsText: '',
   isActive: true,
+  unitCount: '',
+  unitName: '',
+  packUnits: '',
 };
 
 /** Stable fallback so the categories list keeps one identity while loading. */
@@ -204,6 +223,9 @@ function productToEditor(product: Product): ProductEditorState {
     specifications: normalizeSpecObject(product.specifications),
     tagsText: (product.tags || []).join(', '),
     isActive: product.is_active !== false,
+    unitCount: product.unit_count ? String(product.unit_count) : '',
+    unitName: product.unit_name || '',
+    packUnits: product.pack_units ? String(product.pack_units) : '',
   };
 }
 
@@ -408,6 +430,7 @@ function productStateSignature(state: ProductEditorState): string {
     identifiers: state.identifiers,
     specifications: state.specifications,
     isActive: state.isActive,
+    pack: [state.unitCount.trim(), state.unitName.trim(), state.packUnits.trim()],
   });
 }
 
@@ -434,6 +457,7 @@ export function ProductManagePanel({
   onStartProductCheckIn,
   onOpenProductCheckIns,
   onOpenItemsForProduct,
+  pagePaste,
 }: ProductManagePanelProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -555,6 +579,9 @@ export function ProductManagePanel({
         tags: tagsFromText(tagsVal),
         specifications: specificationsVal,
         is_active: state.isActive,
+        unit_count: wholeCount(state.unitCount),
+        unit_name: singular(state.unitName),
+        pack_units: wholeCount(state.packUnits) ?? (wholeCount(state.unitCount) ? 1 : null),
       };
       if (!payload.title) throw new Error('Title is required.');
       if (!payload.category) throw new Error('Category is required.');
@@ -1126,6 +1153,29 @@ export function ProductManagePanel({
             </span>
           </Tooltip>
         </Stack>
+        {pagePaste && !isEditing ?
+          <ProductPagePasteBox
+            processingRowId={pagePaste.processingRowId}
+            onDraft={(res) => {
+              const d = res.draft;
+              const mapped = d.category ? mapSuggestedCategoryToCategoryRef(d.category, categories) : null;
+              setState((prev) => ({
+                ...prev,
+                title: d.title || prev.title,
+                brand: d.brand || prev.brand,
+                model: d.model || prev.model,
+                categoryRef: mapped?.matched ? mapped.categoryRef : prev.categoryRef,
+                identifiers: { ...prev.identifiers, ...d.identifiers },
+                specifications: { ...prev.specifications, ...d.specifications },
+                tagsText: d.tags.length ? d.tags.join(', ') : prev.tagsText,
+                unitCount: d.unit_count ? String(d.unit_count) : prev.unitCount,
+                unitName: d.unit_name || prev.unitName,
+                packUnits: d.pack_units ? String(d.pack_units) : prev.packUnits,
+              }));
+              pagePaste.onDraft?.({ retail: d.retail, model: res.model, took_ms: res.took_ms, cost_usd: res.cost_usd });
+            }}
+          />
+        : null}
         <Box
           sx={{
             p: 2,
@@ -1192,6 +1242,37 @@ export function ProductManagePanel({
             sx={aiFieldSx('tracking', productSuggestionActive('tagsText', ai))}
             slotProps={{ input: { endAdornment: renderAiAdornment('tagsText') } }}
           />
+          {/* Pack standard (#224): units × count per unit, written "3 boxes × 100". */}
+          <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <TextField
+              size="small"
+              label="Units in pack"
+              value={state.packUnits}
+              onChange={(e) => setState((prev) => ({ ...prev, packUnits: e.target.value.replace(/[^0-9]/g, '') }))}
+              slotProps={{ htmlInput: { inputMode: 'numeric', 'aria-label': 'Units in the pack' } }}
+              sx={{ ...compactField, width: 120 }}
+            />
+            <TextField
+              size="small"
+              label="Unit (box, roll…)"
+              value={state.unitName}
+              onChange={(e) => setState((prev) => ({ ...prev, unitName: e.target.value.slice(0, 40) }))}
+              slotProps={{ htmlInput: { 'aria-label': 'Unit name' } }}
+              sx={{ ...compactField, width: 150 }}
+            />
+            <Typography sx={{ fontWeight: 800 }}>×</Typography>
+            <TextField
+              size="small"
+              label="Count each"
+              value={state.unitCount}
+              onChange={(e) => setState((prev) => ({ ...prev, unitCount: e.target.value.replace(/[^0-9]/g, '') }))}
+              slotProps={{ htmlInput: { inputMode: 'numeric', 'aria-label': 'Count per unit' } }}
+              sx={{ ...compactField, width: 110 }}
+            />
+            <Typography variant="caption" sx={{ fontWeight: 800, color: processingTokens.textSoft }} data-testid="pack-label">
+              {packLabel(wholeCount(state.unitCount), singular(state.unitName), wholeCount(state.packUnits) ?? 1) || 'Pack not known'}
+            </Typography>
+          </Box>
           <KeyValueJsonField
             compact
             label="Identifiers"

@@ -38,6 +38,7 @@ import { printProcessingLabelsAndMarkPrinted } from './printProcessingLabel';
 import { checkInPrintActionLabel } from './checkedInPrintedAggregate';
 import { apiErrorDetail } from '../../../hooks/useProductSearch';
 import { ProcessingLikelyProducts, ProcessingProductSearch } from './ProcessingProductFinder';
+import type { NewPackResult } from '../../../api/productPacks.api';
 import {
   openRowSearchTabs,
   readAutoOpenRowSearch,
@@ -981,6 +982,8 @@ interface AttachedRowProduct {
   specs?: Record<string, unknown>;
   checkedInQty: number;
   linkConfig: ProcessingProductLinkConfig;
+  /** Pack standard (#224): "3 boxes × 100". */
+  packLabel?: string;
 }
 
 function productToProcessingSnapshot(product: Product): ProcessingWorkspaceProductDTO {
@@ -1216,7 +1219,7 @@ function AttachedProductCard({
   onRemove?: () => void;
   hideManifestAccounting?: boolean;
 }) {
-  const line2 = [product.brand, product.category].filter(Boolean).join(' · ');
+  const line2 = [product.packLabel, product.brand, product.category].filter(Boolean).join(' · ');
   const titleLine = [product.productNumber, product.title].filter(Boolean).join(' · ');
   const manifestUnitsNumeric =
     product.checkedInQty > 0 ?
@@ -1521,6 +1524,7 @@ export function ProcessingActiveCard({
         category: p.category,
         checkedInQty: qtyByProductId.get(p.id) ?? p.checkedInQty ?? 0,
         linkConfig: normalizeProductLink(links[String(p.id)]),
+        packLabel: p.pack_label || '',
       }));
     }
     // List/patch payloads without detail hydration - fall back to matched product + check-ins.
@@ -1641,6 +1645,7 @@ export function ProcessingActiveCard({
   function openDetailedCheckIn(productId?: number | null) {
     setCheckInProductId(productId ?? null);
     setCheckInSeed(null);
+    setCheckInStartOverride(null);
     setCheckInOpen(true);
   }
 
@@ -1648,7 +1653,24 @@ export function ProcessingActiveCard({
     setCheckInOpen(false);
     setCheckInSeed(null);
     setCheckInProductId(null);
+    setCheckInStartOverride(null);
     onCheckInClosed?.();
+  }
+
+  // "New pack size" (#224): the new product joins the row's attached products and is checked in next, starting from
+  // the price and retail scaled from its base. Nothing else on the row changes.
+  const [checkInStartOverride, setCheckInStartOverride] = useState<{ price: string; retail: string; from: 'pack' | 'page' } | null>(null);
+  async function handlePackMade(result: NewPackResult) {
+    const ok = await handleSaveProductDecision({ product_mode: 'existing', product_id: result.product.id });
+    if (!ok) return;
+    enqueueSnackbar(
+      `Made ${result.product.title}${result.base.fixed ? ` and fixed ${result.base.title}` : ''}.`,
+      { variant: 'success' },
+    );
+    setCheckInSeed(null);
+    setCheckInStartOverride({ price: result.price ?? '', retail: result.retail ?? '', from: 'pack' });
+    setCheckInProductId(result.product.id);
+    setCheckInOpen(true);
   }
 
   // A scan from the check-in window opened another row: this row's check-in window closes with it.
@@ -1689,7 +1711,11 @@ export function ProcessingActiveCard({
     openSearchTabs();
   }, [autoOpenSearch, shownRowId, searchTabs.length, openSearchTabs]);
 
+  // The retail a pasted product page gave a new product (#224); its first check-in starts from it.
+  const [pageRetail, setPageRetail] = useState<string | null>(null);
+
   function openProductEditor(productId: number | null) {
+    setPageRetail(null);
     setProductEditorProductId(productId);
     setProductEditorOpen(true);
   }
@@ -2529,6 +2555,8 @@ export function ProcessingActiveCard({
         onSubmit={onCheckIn}
         onUpdateItemCheckIn={handleUpdateItemCheckIn}
         onUpdateRowRetail={(retail) => patchRow({ unit_retail: retail })}
+        onPackMade={handlePackMade}
+        startOverride={checkInStartOverride}
         searchBar={checkInSearchBar}
       />
       {productEditorOpen && (productEditorProductId == null || productEditorQuery.data) ?
@@ -2538,10 +2566,33 @@ export function ProcessingActiveCard({
           rowDetailsSeed={productEditorProductId == null ? newProductEditorSeed : undefined}
           rowDetailsSeedKey={productEditorProductId == null ? row.processing_row_id : undefined}
           onClose={closeProductEditor}
+          pagePaste={
+            productEditorProductId == null ?
+              { processingRowId: row.processing_row_id, onDraft: (r) => setPageRetail(r.retail) }
+            : undefined
+          }
           onProductSaved={(savedProduct: Product, ctx) => {
             refreshSavedProductInRow(savedProduct);
             if (ctx.created) {
-              void handleAttachExistingProduct(savedProduct.id);
+              void (async () => {
+                await handleAttachExistingProduct(savedProduct.id);
+                // A product filled from a pasted page (#224) is checked in next, from the page's retail; the price
+                // keeps the row's price-to-retail share. Free to change.
+                if (pageRetail) {
+                  const r = Number.parseFloat(row.unitRetail ?? '');
+                  const p = Number.parseFloat(row.price ?? '');
+                  const share = r > 0 && p > 0 ? p / r : null;
+                  setCheckInSeed(null);
+                  setCheckInStartOverride({
+                    retail: pageRetail,
+                    price: share ? (Math.round(Number.parseFloat(pageRetail) * share * 100) / 100).toFixed(2) : '',
+                    from: 'page',
+                  });
+                  setCheckInProductId(savedProduct.id);
+                  setCheckInOpen(true);
+                }
+                setPageRetail(null);
+              })();
             }
             closeProductEditor();
           }}

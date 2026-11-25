@@ -748,9 +748,20 @@ class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True, default=None)
     upc = serializers.SerializerMethodField()
     catalog_display_label = serializers.CharField(read_only=True)
+    # The pack standard (#224): "3 boxes × 100"; is_pack = made from a base product or more than one unit.
+    pack_label = serializers.SerializerMethodField()
+    is_pack = serializers.SerializerMethodField()
 
     def get_upc(self, obj):
         return obj.primary_upc
+
+    def get_pack_label(self, obj):
+        from apps.inventory.services.product_packs import pack_label
+
+        return pack_label(obj.unit_count, obj.unit_name, obj.pack_units)
+
+    def get_is_pack(self, obj):
+        return bool(obj.base_product_id) or (obj.pack_units or 1) > 1
 
     class Meta:
         model = Product
@@ -758,8 +769,12 @@ class ProductSerializer(serializers.ModelSerializer):
             'id', 'product_number', 'title', 'brand', 'model', 'category',
             'category_name', 'specifications', 'identifiers', 'tags', 'upc',
             'catalog_display_label', 'is_active', 'created_at', 'updated_at',
+            'unit_count', 'unit_name', 'pack_units', 'base_product', 'pack_label', 'is_pack',
         ]
-        read_only_fields = ['id', 'product_number', 'upc', 'catalog_display_label', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'product_number', 'upc', 'catalog_display_label', 'created_at', 'updated_at', 'base_product',
+            'pack_label', 'is_pack',
+        ]
         extra_kwargs = {
             'category': {'required': False},
         }

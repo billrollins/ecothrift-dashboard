@@ -38,8 +38,8 @@ class AiModelResolutionTests(TestCase):
     def test_seed_rows(self):
         # 26 rows seeded by the apps (core 0005 ... storefront 0001) + Dash #195 (core 0018): product standardize at
         # intake, the hiring reply, the tier review + Dash #209 (core 0020, 0022): the photo editor's four AI actions
-        # and its prompt writer.
-        self.assertEqual(AiAction.objects.count(), 34)
+        # and its prompt writer + Dash #224 (core 0023): a new product from a pasted page.
+        self.assertEqual(AiAction.objects.count(), 35)
         self.assertEqual(AiAction.objects.filter(purpose__in=['THRIFTPLUS_FAMILY', 'QA_TRIAGE']).count(), 2)
         self.assertFalse(AiAction.objects.filter(purpose='SUPERVISOR_BRIEF').exists())
         self.assertEqual(list(AiTier.objects.values_list('key', flat=True)), ['fast', 'standard', 'best', 'image'])

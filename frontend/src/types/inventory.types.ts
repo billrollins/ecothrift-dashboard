@@ -433,6 +433,14 @@ export interface Product {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  /** Pack standard (#224): count per unit, unit name, units in the pack, the base product it was made from. */
+  unit_count?: number | null;
+  unit_name?: string;
+  pack_units?: number | null;
+  base_product?: number | null;
+  /** "3 boxes × 100" or "100 ct"; "" when not known. */
+  pack_label?: string;
+  is_pack?: boolean;
 }
 
 /** One scope block from GET /inventory/items/stats/ */
@@ -518,6 +526,9 @@ export interface ProcessingWorkspaceProductDTO {
 /** Row detail: catalog product linked for check-in on this processing row. */
 export interface ProcessingAttachedProductDTO extends ProcessingWorkspaceProductDTO {
   checkedInQty: number;
+  /** Pack standard (#224): "3 boxes × 100"; a pack is never flagged for a retail unlike the row's. */
+  pack_label?: string;
+  is_pack?: boolean;
 }
 
 export type ProcessingItemDisputeType =

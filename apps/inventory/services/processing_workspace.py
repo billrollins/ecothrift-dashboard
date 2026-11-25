@@ -1014,7 +1014,15 @@ def build_attached_products_payload(
         ser = _serialize_product(prod)
         if ser is None:
             continue
-        out.append({**ser, 'checkedInQty': int(qty_by_pid.get(pid, 0))})
+        from apps.inventory.services.product_packs import pack_label
+
+        out.append({
+            **ser,
+            'checkedInQty': int(qty_by_pid.get(pid, 0)),
+            # The pack standard (#224): "3 boxes × 100"; a pack is never flagged for a retail unlike the row's.
+            'pack_label': pack_label(prod.unit_count, prod.unit_name, prod.pack_units),
+            'is_pack': bool(prod.base_product_id) or (prod.pack_units or 1) > 1,
+        })
     return out
 
 

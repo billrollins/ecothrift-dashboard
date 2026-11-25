@@ -44,6 +44,7 @@ SOURCE_PURPOSE = {
     'intake_standard': 'PRODUCT_STANDARDIZE',
     'ai_suggest_finalization': 'SUGGEST_FINALIZATION',
     'suggest_product': 'SUGGEST_PRODUCT',
+    'inventory.product_from_page': 'PRODUCT_FROM_PAGE',
     'suggest_item': 'SUGGEST_ITEM',
     'label_ai_structure': 'LABEL_STRUCTURE',
     'qa_triage': 'QA_TRIAGE',

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.336.0] -->
-<!-- Last reviewed: 2026-11-24 (2.336.0) -->
+<!-- Line 1 release: ## [2.337.0] -->
+<!-- Last reviewed: 2026-11-24 (2.337.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.337.0] - 2026-11-24
+
+User-facing theme: **Processing: New pack size at check-in, and a new product from a pasted vendor page**
+
+> **For Bill:** In the check-in window, New pack size makes a linked product for a different pack (for example 3 boxes × 100) with price and retail scaled from the base, and nothing else changes. New product on a row has a paste box: paste the vendor page and the AI fills the product for you to review.
+
+### Added
+- **Pack sizes** (Dash Update #224, owner 11-24; takes in #207): one standard on Product (count per unit, unit name, units in the pack, base product; written "3 boxes × 100" / "100 ct"; migration `inventory/0136_product_pack_fields`). "New pack size" in the check-in window: opens with the product's own count (asks Yes / No to fix the product when you correct it), you say the new pack, price and retail scale from the base, "Another base" picks any product as the base, and "Make it and check in" makes the linked product, attaches it to the row and opens its check-in. Nothing else changes; a pack never shows the retail-differs line. Endpoints `products/<id>/pack/`, `products/<id>/new-pack/`.
+- **New product from a pasted page:** New product on a row has a paste box; paste the vendor page's text and the AI drafts title, brand, model, category, retail, pack, identifiers, specs and tags for review, with the model, seconds and cost shown; nothing is saved until Save. Settings > AI action "New product from a pasted page" (`core/0023_product_from_page_action`, Fast tier). Endpoint `products/from-page/`.
 
 ## [2.336.0] - 2026-11-24
 

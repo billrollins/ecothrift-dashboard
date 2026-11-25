@@ -1,10 +1,11 @@
-v2.336.0 — Processing quick wins: whole-order search, check-in defaults, three product areas
+v2.337.0 — Processing: New pack size, new product from a pasted page
 
-User-facing theme: **Processing quick wins: search that sees every line, check-in defaults that stay put, products in three clear areas**
+User-facing theme: **Processing: New pack size at check-in, and a new product from a pasted vendor page**
 
-> **For Bill:** Search now looks at the whole order and tells you when matches sit outside your filter; Enter shows them. The manifest row sets only the first check-in; later check-ins of that product copy the last one, and a red line offers to update the row when retail differs. Likely products fold into one line (Is this / Like this with a %, X for not this). A button opens the vendor site and Google for the row.
+> **For Bill:** In the check-in window, New pack size makes a linked product for a different pack (for example 3 boxes × 100) with price and retail scaled from the base, and nothing else changes. New product on a row has a paste box: paste the vendor page and the AI fills the product for you to review.
 
-### Changed
-- **Processing quick wins 1** (Dash Update #223, owner 11-24): search looks at every line of the order and says how many matches sit outside the filter ("2 more outside the filter · Show them"); Enter shows the results from a row page; queue search pause 450 to 200 ms with stale requests cancelled. The manifest row's retail and price start only the first check-in of a product on the row; later check-ins start from the last check-in of that product, and a check-in no longer writes its price onto the row. One red line when a plain product's retail differs from the row, with "Update the row". Three product areas: Attached, Search (floating results with photo, keyboard), Likely (one folded line: "Is this" or "Like this" with a %, X for "not this product" saved on the row, "Open all likely"); new `ProcessingRow.not_product_ids` (migration `inventory/0135`). Row header: "Search Walmart + Google" and a per-person switch "Search every row I open".
+### Added
+- **Pack sizes** (Dash Update #224, owner 11-24; takes in #207): one standard on Product (count per unit, unit name, units in the pack, base product; written "3 boxes × 100" / "100 ct"; migration `inventory/0136_product_pack_fields`). "New pack size" in the check-in window: opens with the product's own count (asks Yes / No to fix the product when you correct it), you say the new pack, price and retail scale from the base, "Another base" picks any product as the base, and "Make it and check in" makes the linked product, attaches it to the row and opens its check-in. Nothing else changes; a pack never shows the retail-differs line. Endpoints `products/<id>/pack/`, `products/<id>/new-pack/`.
+- **New product from a pasted page:** New product on a row has a paste box; paste the vendor page's text and the AI drafts title, brand, model, category, retail, pack, identifiers, specs and tags for review, with the model, seconds and cost shown; nothing is saved until Save. Settings > AI action "New product from a pasted page" (`core/0023_product_from_page_action`, Fast tier). Endpoint `products/from-page/`.
 
 Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>

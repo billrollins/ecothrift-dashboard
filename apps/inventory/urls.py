@@ -23,6 +23,7 @@ from .api_inventory_search import (
 )
 from .api_item_card import item_card_view, order_card_view, product_card_view, restoration_card_view
 from .api_product_similar import similar_products_view
+from .api_product_packs import product_from_page_view, product_new_pack_view, product_pack_view
 from .api_product_find import (
     processing_row_likely_products_view, processing_row_not_product_view, product_find_view,
 )
@@ -73,6 +74,9 @@ urlpatterns = [
          name='processing-row-likely-products'),
     path('processing-rows/<int:row_id>/not-product/', processing_row_not_product_view,
          name='processing-row-not-product'),
+    path('products/from-page/', product_from_page_view, name='product-from-page'),
+    path('products/<int:product_id>/pack/', product_pack_view, name='product-pack'),
+    path('products/<int:product_id>/new-pack/', product_new_pack_view, name='product-new-pack'),
     path('search/', inventory_search_view, name='inventory-search'),
     path('search/items/', inventory_search_items_view, name='inventory-search-items'),
     path('search/similar/', inventory_search_similar_view, name='inventory-search-similar'),
