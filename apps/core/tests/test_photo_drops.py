@@ -100,6 +100,45 @@ class PhotoDropTests(TestCase):
         row = PhotoDrop.objects.get(pk=theirs)
         self.assertIsNone(row.used_at)
 
+    # -- the owner picks from anyone's drawer (2026-11-25) -----------------------
+    def boss(self):
+        user = get_user_model().objects.create_superuser(email='boss@example.com', password='pw', first_name='Bill', last_name='Boss')
+        user.groups.add(Group.objects.get_or_create(name='Admin')[0])
+        client = APIClient()
+        client.force_authenticate(user)
+        return client
+
+    def test_a_superuser_can_list_and_pick_from_another_drawer(self):
+        theirs = self.drop(self.c_bob)['id']
+        boss = self.boss()
+        self.assertEqual(boss.get(BASE).data, [])
+        self.assertEqual([row['id'] for row in boss.get(BASE, {'owner': self.bob.pk}).data], [theirs])
+        self.assertEqual(boss.get(f'{BASE}{theirs}/file/').status_code, 200)
+        self.assertEqual(boss.get(f'{BASE}{theirs}/thumb/').status_code, 200)
+        self.assertEqual(boss.post(f'{BASE}{theirs}/used/', {'where': 'Receiving'}).status_code, 200)
+        self.assertEqual(PhotoDrop.objects.get(pk=theirs).used_where, 'Receiving')
+
+    def test_a_superuser_cannot_delete_or_replace_in_another_drawer(self):
+        theirs = self.drop(self.c_bob)['id']
+        boss = self.boss()
+        self.assertEqual(boss.delete(f'{BASE}{theirs}/').status_code, 404)
+        res = boss.post(BASE, {'photo': photo(), 'replaces': theirs}, format='multipart')
+        self.assertEqual(res.status_code, 400)
+        self.assertTrue(PhotoDrop.objects.filter(pk=theirs, owner=self.bob).exists())
+
+    def test_whose_drawers_hold_photos_is_for_the_superuser_only(self):
+        self.drop(self.c_bob)
+        self.drop(self.c_bob)
+        self.drop()
+        boss = self.boss()
+        self.assertEqual(boss.get(f'{BASE}owners/').data, [
+            {'id': self.bob.pk, 'name': 'Bob Dock', 'photos': 2},
+            {'id': self.ann.pk, 'name': 'Ann Bench', 'photos': 1},
+        ])
+        self.assertEqual(self.c_ann.get(f'{BASE}owners/').status_code, 403)
+        self.assertEqual(self.c_ann.get(BASE, {'owner': self.bob.pk}).status_code, 403)
+        self.assertEqual(len(self.c_ann.get(BASE, {'owner': self.ann.pk}).data), 1)
+
     def test_the_owner_of_a_drop_can_open_the_photo_and_its_thumbnail(self):
         mine = self.drop(width=1200, height=900)['id']
         full = self.c_ann.get(f'{BASE}{mine}/file/')

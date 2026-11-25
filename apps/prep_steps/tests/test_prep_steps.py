@@ -317,6 +317,92 @@ class ApiTests(TestCase):
         r = self.c.post(f"/api/prep-steps/actions/{action['id']}/undo/")
         self.assertEqual(r.json()['lines'][0]['category'], '')
 
+    # -- Send for real (Dash #233, owner 2026-11-25: "I need Prep A to WORK") --------------------------------------
+    def _prepped(self):
+        base = f'/api/prep-steps/orders/{self.po.pk}'
+        self.c.post(f'{base}/start/')
+        for _ in range(7):
+            self.c.post(f'{base}/step/', {'to': 'next'}, format='json')
+        return base
+
+    def test_send_hands_the_truck_to_processing_the_normal_way(self):
+        from apps.inventory.models import ProcessingRow
+
+        base = self._prepped()
+        before = self.c.get(f'{base}/send/').json()
+        self.assertIsNone(before['sent_at'])
+        self.assertEqual(before['why_not'], '')
+
+        r = self.c.post(f'{base}/send/')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.json()['written'], 3)
+        self.po.refresh_from_db()
+        self.assertEqual(self.po.preprocess_status, 'finalized')
+        self.assertIsNotNone(self.po.finalized_at)
+
+        rows = {row.row_number: row for row in ProcessingRow.objects.filter(purchase_order=self.po)}
+        self.assertEqual(sorted(rows), [1, 2, 3])
+        for x in PrepLine.objects.filter(run__purchase_order=self.po):
+            row = rows[x.row_number]
+            self.assertEqual(row.quantity, (x.qty or 1) * max(1, x.pieces or 1))
+            self.assertTrue(row.title)
+            self.assertEqual(row.category, x.category)
+            self.assertEqual(row.brand, x.brand)
+            self.assertIsNotNone(row.final_price)
+            self.assertEqual(row.shelf_price, row.final_price)
+            if x.price is not None:
+                self.assertEqual(row.final_price, x.price)
+                self.assertEqual(row.pricing_stage, 'final')
+            self.assertEqual(row.preprocessing_row_id, x.preprocessing_row_id)
+            # Linked to a manifest row, as after old Preprocessing (never a "bookmark only" truck).
+            self.assertIsNotNone(row.manifest_row_id)
+            self.assertEqual(row.manifest_row.title, row.title)
+            self.assertEqual(row.manifest_row.final_price, row.final_price)
+            self.assertEqual(row.manifest_row.quantity, row.quantity)
+        self.assertEqual(ManifestRow.objects.filter(purchase_order=self.po).count(), 3)
+        self.assertEqual(rows[1].identifiers.get('upc'), '36000216066')
+        self.assertEqual(rows[1].identifiers.get('item_number'), '567608843')
+        self.assertTrue(rows[1].search_tags)
+
+        after = self.c.get(f'{base}/send/').json()
+        self.assertIsNotNone(after['sent_at'])
+
+    def test_a_truck_is_sent_once(self):
+        from apps.inventory.models import ProcessingRow
+
+        base = self._prepped()
+        self.assertEqual(self.c.post(f'{base}/send/').status_code, 200)
+        again = self.c.post(f'{base}/send/')
+        self.assertEqual(again.status_code, 409)
+        self.assertIn('already sent', again.json()['detail'])
+        self.assertEqual(ProcessingRow.objects.filter(purchase_order=self.po).count(), 3)
+
+    def test_a_line_with_no_price_and_no_retail_still_goes_over(self):
+        from apps.inventory.models import ProcessingRow
+
+        base = self._prepped()
+        PrepLine.objects.filter(run__purchase_order=self.po, row_number=3).update(price=None, retail=None, src_retail=None)
+        PrepLine.objects.filter(run__purchase_order=self.po, row_number=2).update(price=None)
+        self.assertEqual(self.c.get(f'{base}/send/').json()['no_price'], 1)
+        r = self.c.post(f'{base}/send/')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.json()['no_price'], 1)
+        bare = ProcessingRow.objects.get(purchase_order=self.po, row_number=3)
+        self.assertEqual(bare.final_price, D('0.00'))
+        self.assertIn('Set the price at check-in', bare.pricing_notes)
+        ruled = ProcessingRow.objects.get(purchase_order=self.po, row_number=2)
+        self.assertGreater(ruled.final_price, D('0'))
+        self.assertIn('truck rule', ruled.pricing_notes)
+
+    def test_send_refuses_when_the_manifest_changed_since_load(self):
+        base = self._prepped()
+        PreprocessingRow.objects.create(purchase_order=self.po, row_number=4, raw_row=RAW[0])
+        r = self.c.post(f'{base}/send/')
+        self.assertEqual(r.status_code, 409)
+        self.assertIn('Load again', r.json()['detail'])
+        self.po.refresh_from_db()
+        self.assertIsNone(self.po.finalized_at)
+
     def test_staff_only(self):
         anon = APIClient()
         self.assertIn(anon.get('/api/prep-steps/orders/').status_code, (401, 403))

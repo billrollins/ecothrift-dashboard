@@ -220,7 +220,20 @@ export interface SendDryRun {
   like: number;
   drafts: number;
   priced: number;
+  /** Lines with no price and no retail: they go over at $0 and are priced at check-in. */
+  no_price: number;
   written: number;
+  /** When this truck was sent to Processing (null = not yet). */
+  sent_at: string | null;
+  /** Why Send cannot run now, in plain words ('' = it can). */
+  why_not: string;
+}
+
+export interface SendResult {
+  written: number;
+  matched: number;
+  no_price: number;
+  sent_at: string;
 }
 
 export interface LineChange {
@@ -264,4 +277,6 @@ export const prepStepsApi = {
   line: (orderId: number, lineId: number) =>
     api.get<{ line: PrepLine; history: LineHistory[] }>(`${base}/orders/${orderId}/lines/${lineId}/`).then((r) => r.data),
   send: (orderId: number) => api.get<SendDryRun>(`${base}/orders/${orderId}/send/`).then((r) => r.data),
+  /** Hand the truck to Processing for real (Dash #233). A truck is sent once. */
+  sendNow: (orderId: number) => api.post<SendResult>(`${base}/orders/${orderId}/send/`).then((r) => r.data),
 };

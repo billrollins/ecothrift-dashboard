@@ -294,7 +294,16 @@ def line_view(request, order_id: int, line_id: int):
     return Response({'line': row, 'history': history})
 
 
-@api_view(['GET'])
+@api_view(['GET', 'POST'])
 @permission_classes(STAFF)
 def send_view(request, order_id: int):
-    return Response(S.send_dry_run(_run(order_id)))
+    """GET: what Send will write, and whether this truck was sent. POST: send it to Processing for real (#233)."""
+    run = _run(order_id)
+    if request.method == 'POST':
+        from apps.prep_steps.services import send as SEND
+
+        try:
+            return Response(SEND.send(run, user=request.user))
+        except SEND.SendRefused as exc:
+            return _bad(str(exc), 409)
+    return Response(S.send_dry_run(run))

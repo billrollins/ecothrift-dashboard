@@ -13,12 +13,38 @@ export const photoDropsKey = ['photoDrops'] as const;
 /** A photo taken on the phone shows on the computer within this long. */
 export const PHOTO_DRAWER_REFRESH_MS = 4_000;
 
-/** My photo drawer, newest first. `live` keeps it fresh while a drawer is on screen. */
-export function usePhotoDrops(options: { enabled?: boolean; live?: boolean } = {}) {
-  const { enabled = true, live = false } = options;
+/** Whose drawer the owner last picked from, kept on this computer (owner 2026-11-25: "have memory"). */
+const WHOSE_KEY = 'photoDrawer.whose';
+
+export function readDrawerWhose(): number | null {
+  try {
+    const raw = window.localStorage.getItem(WHOSE_KEY);
+    const id = raw ? Number(raw) : NaN;
+    return Number.isInteger(id) && id > 0 ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeDrawerWhose(id: number | null) {
+  try {
+    if (id == null) window.localStorage.removeItem(WHOSE_KEY);
+    else window.localStorage.setItem(WHOSE_KEY, String(id));
+  } catch {
+    // A private window: the pick just is not remembered.
+  }
+}
+
+/**
+ * My photo drawer, newest first. `live` keeps it fresh while a drawer is on screen.
+ * `owner`: another person's drawer (superuser only); it has its own cache line under the same key, so every
+ * "refresh the drawer" call refreshes it too.
+ */
+export function usePhotoDrops(options: { enabled?: boolean; live?: boolean; owner?: number | null } = {}) {
+  const { enabled = true, live = false, owner = null } = options;
   return useQuery({
-    queryKey: photoDropsKey,
-    queryFn: async () => (await getPhotoDrops()).data,
+    queryKey: owner != null ? [...photoDropsKey, 'owner', owner] : photoDropsKey,
+    queryFn: async () => (owner != null ? await getPhotoDrops(owner) : await getPhotoDrops()).data,
     enabled,
     refetchInterval: live ? PHOTO_DRAWER_REFRESH_MS : false,
   });

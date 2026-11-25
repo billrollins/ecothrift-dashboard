@@ -100,7 +100,7 @@ export const STEP_INFO: Record<StepKey, { title: string; does: string; rules: To
   },
   send: {
     title: 'Send',
-    does: 'What Processing would get (dry run)',
+    does: 'What Processing gets',
     rules: [{ name: 'search_tags', label: 'Search words' }],
     ai: [{ name: 'tags_ai', label: 'AI: search words' }],
     set: [],

@@ -1,8 +1,14 @@
-import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Link, Typography } from '@mui/material';
+import {
+  Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Link, MenuItem, TextField,
+  Typography,
+} from '@mui/material';
 import { useEffect, useState } from 'react';
-import { getPhotoDropFile, markPhotoDropUsed, type PhotoDropDTO } from '../../api/photoDrops.api';
-import { photoDropsKey, usePhotoDrops, useSteadyDrops } from '../../hooks/usePhotoDrops';
-import { useQueryClient } from '@tanstack/react-query';
+import { getPhotoDrawerOwners, getPhotoDropFile, markPhotoDropUsed, type PhotoDropDTO } from '../../api/photoDrops.api';
+import { useAuthUser } from '../../contexts/AuthContext';
+import {
+  photoDropsKey, readDrawerWhose, usePhotoDrops, useSteadyDrops, writeDrawerWhose,
+} from '../../hooks/usePhotoDrops';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { t } from '../../i18n/routines';
 import { useLanguage } from '../../i18n/useLanguage';
 import { PhotoDropTile } from './PhotoDropTile';
@@ -29,6 +35,9 @@ export interface PhotoDrawerDialogProps {
 /**
  * Pick from my photo drawer. While it is open the list refreshes every few seconds, so a photo taken on the phone
  * a moment ago shows up without touching anything.
+ *
+ * The owner (a superuser) also gets "Whose drawer" (owner 2026-11-25): Mine, or anyone whose drawer holds photos.
+ * The last pick is remembered on this computer. Everyone else sees only their own drawer, as before.
  */
 export function PhotoDrawerDialog({
   open, onClose, onPhotos, multiple = false, max, usedWhere = '', usedOn = 'pick',
@@ -36,7 +45,18 @@ export function PhotoDrawerDialog({
   const lang = useLanguage();
   const isPhone = useIsPhoneDevice();
   const client = useQueryClient();
-  const { data: allDrops = [], isLoading, isError } = usePhotoDrops({ enabled: open, live: open });
+  const canPickWhose = Boolean(useAuthUser()?.is_superuser);
+  const [whose, setWhose] = useState<number | null>(() => (canPickWhose ? readDrawerWhose() : null));
+  const ownersQ = useQuery({
+    queryKey: ['photoDrawerOwners'],
+    queryFn: async () => (await getPhotoDrawerOwners()).data,
+    enabled: open && canPickWhose,
+    staleTime: 30_000,
+  });
+  const owners = ownersQ.data ?? [];
+  // A remembered person whose drawer is empty now (or who is gone) reads as Mine.
+  const owner = canPickWhose && whose != null && (!ownersQ.data || owners.some((row) => row.id === whose)) ? whose : null;
+  const { data: allDrops = [], isLoading, isError } = usePhotoDrops({ enabled: open, live: open, owner });
   const { drops, holdProps } = useSteadyDrops(allDrops);
   const [picked, setPicked] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
@@ -94,8 +114,32 @@ export function PhotoDrawerDialog({
       fullScreen={isPhone}
       data-testid="photo-drawer-dialog"
     >
-      <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 2 }}>
-        {t('phMyDrawer', lang)}
+      <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+        {canPickWhose ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+            {t('phDrawer', lang)}
+            <TextField
+              select
+              size="small"
+              label={t('phWhoseDrawer', lang)}
+              value={owner ?? 'mine'}
+              disabled={busy}
+              onChange={(event) => {
+                const next = event.target.value === 'mine' ? null : Number(event.target.value);
+                setWhose(next);
+                writeDrawerWhose(next);
+                setPicked([]);
+              }}
+              sx={{ minWidth: 190 }}
+              slotProps={{ htmlInput: { 'data-testid': 'photo-drawer-whose' } }}
+            >
+              <MenuItem value="mine">{t('phMine', lang)}</MenuItem>
+              {owners.map((row) => (
+                <MenuItem key={row.id} value={row.id}>{row.name} ({row.photos})</MenuItem>
+              ))}
+            </TextField>
+          </Box>
+        ) : t('phMyDrawer', lang)}
         {/* Every drop, used or not (2026-11-13: Photo drops left the avatar menu). A new tab keeps this form open. */}
         <Link href="/photo-drops" target="_blank" rel="noopener" underline="hover" sx={{ fontSize: 14, fontWeight: 600 }}>
           {t('phSeeAll', lang)}
@@ -108,8 +152,8 @@ export function PhotoDrawerDialog({
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
         ) : drops.length === 0 ? (
           <Box data-testid="photo-drawer-empty" sx={{ py: 4, textAlign: 'center' }}>
-            <Typography sx={{ fontWeight: 700, mb: 0.5 }}>{t('phDrawerEmpty', lang)}</Typography>
-            <Typography sx={{ color: 'text.secondary' }}>{t('phDrawerHow', lang)}</Typography>
+            <Typography sx={{ fontWeight: 700, mb: 0.5 }}>{t(owner != null ? 'phDrawerEmptyTheirs' : 'phDrawerEmpty', lang)}</Typography>
+            {owner == null ? <Typography sx={{ color: 'text.secondary' }}>{t('phDrawerHow', lang)}</Typography> : null}
           </Box>
         ) : (
           <>

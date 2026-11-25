@@ -193,6 +193,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+/** The signed-in user where there may be no provider (a shared control drawn in a bare test or a public page). */
+export function useAuthUser(): AuthContextValue['user'] | null {
+  return useContext(AuthContext)?.user ?? null;
+}
+
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
   if (!context) {

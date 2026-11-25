@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Box, CircularProgress, Paper, Typography } from '@mui/material';
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import { pushSearchHistory, readSearchHistory } from '../../../utils/searchHistory';
@@ -30,6 +30,8 @@ export interface ProcessingScanBarProps {
   autoFocusOnMount?: boolean;
   /** One short line in a fixed spot on the bar ("Nothing found ..."); the bar keeps its size with or without it. */
   status?: { text: string; tone?: 'info' | 'warning' } | null;
+  /** The page's own buttons at the right end of the row (Queue, Refresh, Undo, Redo). */
+  trailing?: ReactNode;
 }
 
 /**
@@ -52,6 +54,7 @@ export function ProcessingScanBar({
   scope = 'page',
   autoFocusOnMount = true,
   status = null,
+  trailing,
 }: ProcessingScanBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
@@ -398,6 +401,7 @@ export function ProcessingScanBar({
       >
         {status?.text ?? (inDetail && onEscapeEmpty ? 'Esc returns to queue' : '')}
       </Typography>
+      {trailing}
     </Box>
   );
 }

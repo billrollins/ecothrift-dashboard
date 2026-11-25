@@ -284,7 +284,7 @@ def _categories() -> dict[str, list[str]]:
     return _canon()
 
 
-# -- Send: the dry run ------------------------------------------------------------------------------------------------
+# -- Send: what each line hands over (services/send.py writes it for real) ---------------------------------------------
 
 def handoff(x: PrepLine, stats: dict[int, dict]) -> dict:
     """What Truck Prep would hand to Processing for one manifest line (processing-night-1124.md contract)."""
@@ -328,5 +328,14 @@ def send_dry_run(run: PrepRun) -> dict:
         'like': sum(1 for r in rows if r['product_match'] and r['product_match']['kind'] == 'like'),
         'drafts': sum(1 for r in rows if r['product_draft']),
         'priced': sum(1 for r in rows if r['price']),
+        # Lines with no price and no retail: they go over at $0 and are priced at check-in.
+        'no_price': sum(1 for x in lines if x.price is None and not (x.retail or x.src_retail)),
         'written': 0,
+        **_send_status(run),
     }
+
+
+def _send_status(run: PrepRun) -> dict:
+    from apps.prep_steps.services import send as SEND
+
+    return SEND.status(run)

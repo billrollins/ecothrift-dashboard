@@ -5,7 +5,6 @@ import {
   Button,
   Card,
   Chip,
-  CircularProgress,
   IconButton,
   MenuItem,
   Paper,
@@ -135,7 +134,7 @@ import {
   PROCESSING_ROW_VALUE_FONT_WEIGHT,
   processingRowLabelSx,
 } from './processingRowFieldTokens';
-import { IconAdd as Add, IconBack as ArrowBack, IconClose as Close, IconConfirm as Check, IconDelete as DeleteOutline, IconRefresh as Refresh, IconUndo } from '../../../icons/ecoIcons';
+import { IconAdd as Add, IconClose as Close, IconConfirm as Check, IconDelete as DeleteOutline } from '../../../icons/ecoIcons';
 
 /**
  * The row screen's fixed heights (#229, Bill 2026-11-25: "Checkin Area gets WAY too much space (4 lines with vert
@@ -249,82 +248,18 @@ export function RowEditActions({ count, busy, onApply, onCancel }: {
 }
 
 /**
- * Undo and Redo with their keys said on them (#230, Bill 2026-11-25: "a hot key hint so processors know they can
- * undo"). Always the same size at the right end of the row's header; greyed when there is nothing to undo.
+ * The row's progress, in the Row details heading line (Bill 2026-11-25: "move x/n checked in, complete, disputed,
+ * x check-ins down to the Row details header. This removes a header and saves room"): "2 / 9 checked in", a small
+ * bar, and "7 left" / "Complete" / "2 over". Each part has a kept width, so what follows it on the line starts at
+ * the same place on every row.
  */
-function UndoRedoButtons() {
-  const undo = useProcessingUndo();
-  if (!undo) return null;
-  const buttonSx = {
-    minWidth: 0,
-    height: 22,
-    px: 0.7,
-    py: 0,
-    gap: 0.4,
-    fontSize: '0.625rem',
-    fontWeight: 800,
-    whiteSpace: 'nowrap',
-    textTransform: 'none',
-    color: processingTokens.rowStatusHeaderText,
-    borderColor: 'rgba(27, 94, 32, 0.35)',
-    bgcolor: 'rgba(255, 255, 255, 0.55)',
-    '& .MuiButton-startIcon': { mr: 0.1, ml: 0 },
-    '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.9)', borderColor: processingTokens.primaryDark },
-  } as const;
-  const keySx = { fontFamily: processingTokens.monoFontFamily, fontWeight: 700, opacity: 0.75 } as const;
-  return (
-    <Box data-testid="undo-redo" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, flexShrink: 0 }}>
-      <Tooltip title={undo.undoLabel ? `Undo: ${undo.undoLabel}` : 'Nothing to undo'} enterDelay={300} disableInteractive>
-        <span>
-          <Button
-            size="small"
-            variant="outlined"
-            disabled={!undo.undoLabel || undo.busy}
-            onClick={() => void undo.undo()}
-            startIcon={<IconUndo sx={{ fontSize: 13 }} />}
-            aria-label="Undo (Ctrl+Z)"
-            sx={buttonSx}
-          >
-            Undo
-            <Box component="span" sx={keySx}>Ctrl+Z</Box>
-          </Button>
-        </span>
-      </Tooltip>
-      <Tooltip title={undo.redoLabel ? `Redo: ${undo.redoLabel}` : 'Nothing to redo'} enterDelay={300} disableInteractive>
-        <span>
-          <Button
-            size="small"
-            variant="outlined"
-            disabled={!undo.redoLabel || undo.busy}
-            onClick={() => void undo.redo()}
-            startIcon={<IconUndo sx={{ fontSize: 13, transform: 'scaleX(-1)' }} />}
-            aria-label="Redo (Ctrl+Y)"
-            sx={buttonSx}
-          >
-            Redo
-            <Box component="span" sx={keySx}>Ctrl+Y</Box>
-          </Button>
-        </span>
-      </Tooltip>
-    </Box>
-  );
-}
-
-function ProcessingRowHeader({
+function RowProgress({
   qtyCheckedIn,
   qtyExpected,
   qtyRemaining,
   qtyOverage,
   itemCount,
   usesManifestAccounting,
-  distinctProducts,
-  itemCheckInCount,
-  disputedCount,
-  productsChipLabel,
-  groupChipLabel,
-  onBackToQueue,
-  onRefreshDetail,
-  detailRefreshing = false,
 }: {
   qtyCheckedIn: number;
   qtyExpected: number;
@@ -332,15 +267,6 @@ function ProcessingRowHeader({
   qtyOverage: number;
   itemCount: number;
   usesManifestAccounting: boolean;
-  distinctProducts: number;
-  itemCheckInCount: number;
-  disputedCount: number;
-  productsChipLabel?: string | null;
-  /** P7 collapse: "⊟ Rows 1, 2, 3 as one" - tiles show COMBINED group numbers. */
-  groupChipLabel?: string | null;
-  onBackToQueue: () => void;
-  onRefreshDetail?: () => void;
-  detailRefreshing?: boolean;
 }) {
   const progressPct = qtyExpected > 0 ? Math.min(100, Math.round((qtyCheckedIn / qtyExpected) * 100)) : 0;
   const progressLabel = usesManifestAccounting ?
@@ -358,224 +284,73 @@ function ProcessingRowHeader({
   const remainingColor =
     qtyOverage > 0 ? processingTokens.accentRed
     : isComplete ? processingTokens.primaryDark
-    : processingTokens.rowStatusHeaderText;
+    : processingTokens.cardHeaderRowDetailText;
 
   return (
-    <Box
-      sx={{
-        flexShrink: 0,
-        px: { xs: 1.25, md: 1.5 },
-        py: 0.55,
-        borderBottom: 1,
-        borderColor: processingTokens.rowStatusHeaderBorder,
-        bgcolor: processingTokens.rowStatusHeaderBg,
-        color: processingTokens.rowStatusHeaderText,
-      }}
-    >
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: {
-            xs: 'auto 1fr',
-            md: 'auto minmax(108px, 168px) minmax(280px, 520px) minmax(88px, 1fr)',
-          },
-          alignItems: 'center',
-          columnGap: { xs: 1, md: 1.5 },
-          rowGap: 0.45,
-        }}
-      >
-        <Button
-          size="small"
-          startIcon={<ArrowBack sx={{ fontSize: 15 }} />}
-          onClick={onBackToQueue}
+    <Tooltip title={progressTooltip} enterDelay={350} disableInteractive>
+      <Box data-testid="row-progress" sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 0.75, ml: 1 }}>
+        <Typography
+          noWrap
           sx={{
-            minHeight: 28,
-            py: 0,
-            px: 0.65,
-            fontSize: '0.72rem',
-            color: processingTokens.rowStatusHeaderText,
-            justifySelf: { xs: 'start', md: 'start' },
-            gridColumn: { xs: '1', md: '1' },
-            gridRow: { xs: '1', md: '1' },
+            width: 126,
+            textAlign: 'right',
+            fontFamily: processingTokens.monoFontFamily,
+            fontSize: '0.6875rem',
+            fontWeight: 800,
+            lineHeight: 1.1,
+            color: processingTokens.cardHeaderRowDetailText,
           }}
         >
-          Queue
-        </Button>
-
-        {onRefreshDetail ?
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              gridColumn: { xs: '1 / -1', md: '2' },
-              gridRow: { xs: '2', md: '1' },
-              px: { xs: 0, md: 0.5 },
-            }}
-          >
-            <Button
-              size="small"
-              disabled={detailRefreshing}
-              onClick={onRefreshDetail}
-              endIcon={
-                detailRefreshing ?
-                  <CircularProgress size={14} color="inherit" />
-                : <Refresh sx={{ fontSize: 16 }} />
-              }
-              aria-label="Refresh page"
-              sx={{
-                minHeight: 28,
-                py: 0,
-                px: 0.75,
-                fontSize: '0.625rem',
-                fontWeight: 800,
-                letterSpacing: 0.55,
-                textTransform: 'uppercase',
-                whiteSpace: 'nowrap',
-                color: processingTokens.rowStatusHeaderText,
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },
-                '& .MuiButton-endIcon': { ml: 0.35 },
-              }}
-            >
-              Refresh page
-            </Button>
-          </Box>
-        : null}
-
+          {progressLabel}
+        </Typography>
         <Box
           sx={{
-            minWidth: 0,
-            width: '100%',
-            justifySelf: 'center',
-            gridColumn: { xs: '1 / -1', md: '3' },
-            gridRow: { xs: onRefreshDetail ? '3' : '2', md: '1' },
-            px: { xs: 0.25, md: 0 },
+            width: 96,
+            height: 7,
+            borderRadius: 99,
+            bgcolor: 'rgba(27, 94, 32, 0.22)',
+            overflow: 'hidden',
+            boxShadow: 'inset 0 1px 2px rgba(15, 23, 42, 0.08)',
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 1.35 }, minWidth: 0 }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              {progressTooltip ?
-                <Tooltip title={progressTooltip} enterDelay={350}>
-                  <Typography
-                    sx={{
-                      display: 'block',
-                      minWidth: 0,
-                      mb: 0.35,
-                      textAlign: 'center',
-                      fontFamily: processingTokens.monoFontFamily,
-                      fontSize: '0.72rem',
-                      fontWeight: 800,
-                      lineHeight: 1.1,
-                      color: processingTokens.rowStatusHeaderText,
-                      opacity: 0.9,
-                    }}
-                    noWrap
-                  >
-                    {progressLabel}
-                  </Typography>
-                </Tooltip>
-              : (
-                <Typography
-                  sx={{
-                    display: 'block',
-                    minWidth: 0,
-                    mb: 0.35,
-                    textAlign: 'center',
-                    fontFamily: processingTokens.monoFontFamily,
-                    fontSize: '0.72rem',
-                    fontWeight: 800,
-                    lineHeight: 1.1,
-                    color: processingTokens.rowStatusHeaderText,
-                    opacity: 0.9,
-                  }}
-                  noWrap
-                >
-                  {progressLabel}
-                </Typography>
-              )}
-              <Box
-                sx={{
-                  height: 7,
-                  borderRadius: 99,
-                  bgcolor: 'rgba(27, 94, 32, 0.22)',
-                  overflow: 'hidden',
-                  boxShadow: 'inset 0 1px 2px rgba(15, 23, 42, 0.08)',
-                }}
-              >
-                <Box
-                  sx={{
-                    width: `${progressPct}%`,
-                    height: '100%',
-                    borderRadius: 99,
-                    bgcolor: qtyOverage > 0 ? processingTokens.accentRed : isComplete ? processingTokens.primaryDark : processingTokens.primary,
-                    transition: 'width 200ms ease',
-                  }}
-                />
-              </Box>
-            </Box>
-            <Typography
-              sx={{
-                flexShrink: 0,
-                minWidth: { xs: 72, md: 90 },
-                textAlign: 'right',
-                fontFamily: processingTokens.monoFontFamily,
-                fontSize: { xs: '1.05rem', md: '1.22rem' },
-                fontWeight: 900,
-                lineHeight: 1,
-                color: remainingColor,
-              }}
-            >
-              {remainingHeadline}
-            </Typography>
-          </Box>
+          <Box
+            sx={{
+              width: `${progressPct}%`,
+              height: '100%',
+              borderRadius: 99,
+              bgcolor: qtyOverage > 0 ? processingTokens.accentRed : isComplete ? processingTokens.primaryDark : processingTokens.primary,
+              transition: 'width 200ms ease',
+            }}
+          />
         </Box>
-
-        <Stack
-          direction="row"
-          spacing={0.65}
-          useFlexGap
-          alignItems="center"
-          justifyContent={{ xs: 'flex-start', md: 'flex-end' }}
+        <Typography
+          noWrap
           sx={{
-            justifySelf: { xs: 'start', md: 'end' },
-            gridColumn: { xs: '2', md: '4' },
-            gridRow: { xs: '1', md: '1' },
-            minWidth: 0,
-            maxWidth: '100%',
-            // One line on a computer: more chips never make the header taller (they are cut at the left instead).
-            flexWrap: { xs: 'wrap', md: 'nowrap' },
-            overflow: { md: 'hidden' },
+            width: 82,
+            fontFamily: processingTokens.monoFontFamily,
+            fontSize: '0.95rem',
+            fontWeight: 900,
+            lineHeight: 1,
+            color: remainingColor,
           }}
         >
-          {groupChipLabel ?
-            <Chip
-              size="small"
-              label={groupChipLabel}
-              sx={{
-                height: 20,
-                fontSize: '0.625rem',
-                fontWeight: 800,
-                bgcolor: 'rgba(255,255,255,0.16)',
-                color: 'inherit',
-              }}
-            />
-          : null}
-          {qtyOverage > 0 ? <Chip size="small" color="error" label={`+${qtyOverage} over`} sx={{ height: 20, fontSize: '0.625rem', fontWeight: 800 }} /> : null}
-          {disputedCount > 0 ? <Chip size="small" color="warning" label={`${disputedCount} disputed`} sx={{ height: 20, fontSize: '0.625rem', fontWeight: 800 }} /> : null}
-          {distinctProducts >= 2 ? <Chip size="small" label={`${distinctProducts} products`} sx={{ height: 20, fontSize: '0.625rem', fontWeight: 800 }} /> : null}
-          {itemCheckInCount > 0 ? <Chip size="small" label={`${itemCheckInCount} check-ins`} sx={{ height: 20, fontSize: '0.625rem', fontWeight: 800 }} /> : null}
-          {distinctProducts >= 2 && productsChipLabel ?
-            <Chip
-              size="small"
-              label={productsChipLabel}
-              sx={{ height: 20, fontSize: '0.625rem', fontWeight: 700 }}
-            />
-          : null}
-          {/* Last, so they keep their place at the right end whatever chips the row has. */}
-          <UndoRedoButtons />
-        </Stack>
+          {remainingHeadline}
+        </Typography>
       </Box>
-    </Box>
+    </Tooltip>
+  );
+}
+
+/** A count of the row as a small chip in the Row details heading line ("3 check-ins", "2 disputed"). */
+function RowCountChip({ label, color }: { label: string; color?: 'error' | 'warning' }) {
+  return (
+    <Chip
+      size="small"
+      color={color}
+      label={label}
+      data-testid="row-count-chip"
+      sx={{ flexShrink: 0, height: 20, fontSize: '0.625rem', fontWeight: 800, ...(color ? {} : { bgcolor: '#fff', border: 1, borderColor: processingTokens.border }) }}
+    />
   );
 }
 
@@ -1453,9 +1228,6 @@ export interface ProcessingActiveCardProps {
   /** Scroll detail to prior check-ins (N-products chip from queue). */
   scrollToHistory?: boolean;
   onScrollToHistoryDone?: () => void;
-  /** Refetch workspace + row detail without leaving the page. */
-  onRefreshDetail?: () => void;
-  detailRefreshing?: boolean;
   onRestorationCreated?: (jobId: number) => void;
 }
 
@@ -1477,8 +1249,6 @@ export function ProcessingActiveCard({
   onAddItem,
   scrollToHistory,
   onScrollToHistoryDone,
-  onRefreshDetail,
-  detailRefreshing,
   onRestorationCreated,
 }: ProcessingActiveCardProps) {
   const { enqueueSnackbar } = useSnackbar();
@@ -2373,10 +2143,24 @@ export function ProcessingActiveCard({
         : null}
         {/* What is special about this row, as chips in a kept place: a note here never moves the page (#229,
             Bill 2026-11-25: "NO notifications that cause content to shift"). */}
+        <RowProgress
+          qtyCheckedIn={qtyCheckedIn}
+          qtyExpected={qtyExpected}
+          qtyRemaining={qtyRemaining}
+          qtyOverage={qtyOverage}
+          itemCount={manifestProgress.itemCount}
+          usesManifestAccounting={manifestProgress.usesManifestAccounting}
+        />
         <Box
           data-testid="row-notes"
           sx={{ flex: '1 1 0', minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.5, ml: 0.75, overflow: 'hidden' }}
         >
+          {collapseGroupLabel ? <RowCountChip label={collapseGroupLabel} /> : null}
+          {qtyOverage > 0 ? <RowCountChip color="error" label={`+${qtyOverage} over`} /> : null}
+          {disputedCount > 0 ? <RowCountChip color="warning" label={`${disputedCount} disputed`} /> : null}
+          {distinctProducts >= 2 ? <RowCountChip label={`${distinctProducts} products`} /> : null}
+          {checkInCount > 0 ? <RowCountChip label={`${checkInCount} check-in${checkInCount === 1 ? '' : 's'}`} /> : null}
+          {distinctProducts >= 2 && productsChipLabel ? <RowCountChip label={productsChipLabel} /> : null}
           {row.splitParentId != null ?
             <RowNoteChip
               label={`Sub row${row.splitParentRowNumber != null && row.splitSeq != null ? ` #${row.splitParentRowNumber}.${row.splitSeq}` : ''}`}
@@ -2595,22 +2379,6 @@ export function ProcessingActiveCard({
 
   return (
     <Card variant="outlined" sx={{ height: '100%', width: '100%', maxWidth: '100%', minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', borderRadius: 0 }}>
-      <ProcessingRowHeader
-        qtyCheckedIn={qtyCheckedIn}
-        qtyExpected={qtyExpected}
-        qtyRemaining={qtyRemaining}
-        qtyOverage={qtyOverage}
-        itemCount={manifestProgress.itemCount}
-        usesManifestAccounting={manifestProgress.usesManifestAccounting}
-        distinctProducts={distinctProducts}
-        itemCheckInCount={checkInCount}
-        disputedCount={disputedCount}
-        productsChipLabel={productsChipLabel}
-        groupChipLabel={collapseGroupLabel}
-        onBackToQueue={onBackToQueue}
-        onRefreshDetail={onRefreshDetail}
-        detailRefreshing={detailRefreshing}
-      />
 
       <Box
         sx={{

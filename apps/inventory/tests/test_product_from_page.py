@@ -72,7 +72,16 @@ class ProductFromPageTests(TestCase):
         self.assertIn('cost_usd', r.data)
 
     def test_the_action_is_in_settings_ai(self):
-        self.assertTrue(AiAction.objects.filter(purpose='PRODUCT_FROM_PAGE', workspace='Processing').exists())
+        # Core migration 0023 seeds the row. Its seeding is run again here (it is safe to repeat), so the test proves
+        # what the migration puts in Settings > AI without leaning on what an earlier run left in a shared test
+        # database (2026-11-25: it failed once in a mixed side-by-side run and passed alone).
+        import importlib
+
+        from django.apps import apps as django_apps
+
+        importlib.import_module('apps.core.migrations.0023_product_from_page_action').seed(django_apps, None)
+        row = AiAction.objects.get(purpose='PRODUCT_FROM_PAGE')
+        self.assertEqual((row.workspace, row.tier, row.label), ('Processing', 'fast', 'New product from a pasted page'))
 
     def test_no_price_on_the_page_keeps_the_rows_retail(self):
         r, _ = self._post({'text': PAGE, 'row': self.row.id}, answer={**ANSWER, 'retail_estimate': 0})

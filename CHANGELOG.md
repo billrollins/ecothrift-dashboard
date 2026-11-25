@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.341.0] -->
-<!-- Last reviewed: 2026-11-25 (2.341.0) -->
+<!-- Line 1 release: ## [2.342.0] -->
+<!-- Last reviewed: 2026-11-25 (2.342.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.342.0] - 2026-11-25
+
+User-facing theme: **Prep Truck now sends a truck to Processing for real**
+
+> **For Bill:** The Send step in Prep Truck is no longer a preview. Press Send to Processing, confirm once, and the truck is ready in Processing with the titles, categories, retail and prices you set. A truck is sent once. Also in this release: the Processing row screen lost a header (buttons moved to the search row), the Photo drawer lets you pick whose drawer, and a pallet side in Receiving takes up to 4 photos in one pick.
+
+### Changed
+- **Prep Truck: Send hands the truck to Processing for real** (Dash Update #233, owner 11-25: "WTF would it not send to processing ... normal. I need Prep A to WORK"). The Send step's button is "Send to Processing". One confirm shows how many lines go over, how many are matched to a product, how many are new products, and how many have no price or retail. Send writes every line (title, brand, model, category, quantity, retail, price, condition, UPC and item number, search words, a matched product) into the truck's own staging and manifest rows and finalizes it through the same code old Preprocessing uses, so Processing opens the truck exactly as before. A line with no price gets the truck rule's price; a line with no price and no retail goes over at $0 with a note to price it at check-in. After Send the bar reads "Sent to Processing" with an "Open in Processing" button. A truck is sent once; sending again and an Undo send button are the next pieces.
+- **Processing row screen: one header less** (Dash Update #235, owner 11-25: "move buttons to search row in manifest details like Quen undoo, redo refres. move x/n checked in complete disputed x checkins down to the Row details header. this removes a header and saves room"). Queue, Refresh, Undo and Redo sit at the right end of the scan and search row. The progress and the count chips moved into the Row details heading, and the green row header is gone.
+- **Receiving on a computer: up to 4 pallet photos in one pick** (Dash Update #234, owner 11-25: "On pallet photos on desktop when selecting files or drawer allow me to select up to 4"). Clicking an empty side of a pallet takes as many photos as that pallet has empty sides, from files, from the drawer or dropped in. The first photo goes on the side clicked, the rest on the pallet's other empty sides in order. A filled side is never written over; Replace still takes one photo.
+
+### Added
+- **Photo drawer: the owner picks whose drawer** (Dash Update #234, owner 11-25: "As owener/super when i choose from drawer. Allow me to select what drawer (what user drawer) i want. So: whos drawer[] Mine and have memory so last drawer i had open is what i use"). A superuser's Photo drawer window has "Whose drawer": Mine, or anyone whose drawer holds photos (with the count). The last drawer picked is remembered on that computer. Only looking and using: adding, replacing and deleting stay the drawer owner's own. Everyone else sees only their own drawer, as before.
 
 ## [2.341.0] - 2026-11-25
 

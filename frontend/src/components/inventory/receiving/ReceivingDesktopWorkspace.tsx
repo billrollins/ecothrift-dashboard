@@ -1,4 +1,5 @@
 import { AddPhotoTrigger, useAddPhoto } from '../../photos/AddPhoto';
+import { sidesForPick } from './palletPick';
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import BoltIcon from '@mui/icons-material/Bolt';
@@ -78,7 +79,7 @@ interface Props {
   onIssuesBlur: () => void;
   onBolTruckPick: (kind: Exclude<PendingPhotoKind, 'pallet_side'>, fileList: FileList | File[] | null) => void;
   onBulkPalletPhotos: (files: File[]) => void | Promise<void>;
-  onPalletPick: (pallet: number, side: PalletSideId, fileList: FileList | File[] | null) => void;
+  onPalletPick: (pallet: number, side: PalletSideId, fileList: FileList | File[] | null) => void | Promise<void>;
   onDamaged: (palletNumber: number, damaged: boolean) => void;
   onOpenIntakeDisputeForPallet?: (palletNumber: number, subjectPalletId: number | null) => void;
   /** Open complete dialog (photos may be missing - dialog collects overrides). */
@@ -329,6 +330,7 @@ function DropZoneBox({
   sublabel,
   small,
   pickMultiple = false,
+  pickMax,
 }: {
   onDropFiles: (files: File[]) => void;
   children?: React.ReactNode;
@@ -336,14 +338,17 @@ function DropZoneBox({
   label?: string;
   sublabel?: string;
   small?: boolean;
-  /** When true, file picker accepts multiple images (Quick Fill banner only) */
+  /** When true, the pick takes several photos (the Quick Fill banner; a pallet side takes up to its pallet's empty sides). */
   pickMultiple?: boolean;
+  /** Most photos one pick or drop gives. */
+  pickMax?: number;
 }) {
   const [over, setOver] = useState(false);
   // A click opens the shared Add photo choices (#82); dragging files in still works.
   const picker = useAddPhoto({
     onPhotos: (files) => onDropFiles(!pickMultiple && small ? files.slice(0, 1) : files),
     multiple: pickMultiple,
+    max: pickMax,
     usedWhere: 'Receiving',
   });
   const handleDrop = useCallback(
@@ -351,9 +356,9 @@ function DropZoneBox({
       e.preventDefault();
       setOver(false);
       const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'));
-      if (files.length) onDropFiles(files);
+      if (files.length) onDropFiles(pickMax ? files.slice(0, pickMax) : files);
     },
-    [onDropFiles],
+    [onDropFiles, pickMax],
   );
 
   if (hasContent) {
@@ -456,7 +461,7 @@ function PalletCard({
   palletDbId: number | null;
   rec: ReceivingDetailDTO;
   uploadingKey: string | null;
-  onPhotoAdd: (side: PalletSideId, files: FileList | File[] | null) => void;
+  onPhotoAdd: (side: PalletSideId, files: FileList | File[] | null) => void | Promise<void>;
   onViewPhoto: (att: ReceivingAttachmentDTO, title: string) => void;
   onToggleDamage: () => void;
   onOpenIntakeDispute?: () => void;
@@ -466,6 +471,15 @@ function PalletCard({
   const { enqueueSnackbar } = useSnackbar();
   const filled = PALLET_SIDES.filter((side) => palletAttachment(rec, palletNumber, side)).length;
   const done = PALLET_SIDES.every((side) => Boolean(palletAttachment(rec, palletNumber, side)));
+  const emptySides = PALLET_SIDES.filter((side) => !palletAttachment(rec, palletNumber, side));
+  // Owner 2026-11-25: "when selecting files or drawer allow me to select up to 4". One pick fills this pallet: the
+  // first photo goes on the side that was clicked, the rest on its other empty sides in order, one upload at a time.
+  const addToSides = async (first: PalletSideId, files: File[]) => {
+    const sides = sidesForPick(first, emptySides, files.length);
+    for (let i = 0; i < sides.length; i += 1) {
+      await onPhotoAdd(sides[i], filesToInput([files[i]]));
+    }
+  };
   const progressTone =
     filled <= 0 ? TOKENS.muted : filled >= 4 ? RCV_BRAND : rcvText.moss;
 
@@ -656,8 +670,9 @@ function PalletCard({
                   small
                   hasContent={false}
                   label={SIDE_UI[side]}
-                  pickMultiple={false}
-                  onDropFiles={(files) => onPhotoAdd(side, filesToInput(files.slice(0, 1)))}
+                  pickMultiple={emptySides.length > 1}
+                  pickMax={emptySides.length}
+                  onDropFiles={(files) => void addToSides(side, files)}
                 />
               )}
               {uploading ? (
@@ -1682,9 +1697,7 @@ export default function ReceivingDesktopWorkspace({
                     rec={m}
                     uploadingKey={uploadingKey}
                     disabled={!!m.completed_at || disabled}
-                    onPhotoAdd={(side, files) =>
-                      void onPalletPick(palletNumber, side, files ?? null)
-                    }
+                    onPhotoAdd={(side, files) => onPalletPick(palletNumber, side, files ?? null)}
                     onViewPhoto={openAttachment}
                     onToggleDamage={() =>
                       onDamaged(

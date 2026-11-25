@@ -79,6 +79,7 @@ import { apiErrorDetail } from '../../../hooks/useProductSearch';
 import { skuFromScan } from '../../../utils/scanCode';
 import { RowDisputeDialog } from './RowDisputeDialog';
 import { ProcessingUndoProvider } from './processingUndo';
+import { ProcessingPageButtons } from './ProcessingPageButtons';
 
 /** The Processing page for one order, with its undo list around it (Ctrl+Z / Ctrl+Y, #230). */
 export default function ProcessingWorkspacePage() {
@@ -1051,6 +1052,14 @@ function ProcessingWorkspacePageInner() {
           mode={detailProcessingRowId == null ? 'queue' : 'detail'}
           onEscapeEmpty={detailProcessingRowId == null ? undefined : backToQueue}
           status={scanBarStatus}
+          // The page's buttons live on this row (Bill 2026-11-25), so the open row needs no header of its own.
+          trailing={
+            <ProcessingPageButtons
+              onBackToQueue={detailProcessingRowId == null ? undefined : backToQueue}
+              onRefresh={detailProcessingRowId == null ? undefined : () => void handleRefreshDetail()}
+              refreshing={detailRefreshPending}
+            />
+          }
         />
         {detailProcessingRowId == null ? (
           <ProcessingRecentRowsBar
@@ -1140,8 +1149,6 @@ function ProcessingWorkspacePageInner() {
                   ariaLabel="Scan or search processing queue from the check-in window"
                 />
               }
-              onRefreshDetail={() => void handleRefreshDetail()}
-              detailRefreshing={detailRefreshPending}
               onCheckIn={handleCheckIn}
               onRestorationCreated={setQuickGradeJobId}
               checkInLoading={rowCheckIn.isPending}

@@ -15,7 +15,19 @@ export interface PhotoDropDTO {
 
 const BASE = '/core/photo-drops';
 
-export const getPhotoDrops = () => api.get<PhotoDropDTO[]>(`${BASE}/`);
+/** My drawer; with `owner`, that person's drawer (superuser only, owner 2026-11-25). */
+export const getPhotoDrops = (owner?: number) =>
+  (owner != null ? api.get<PhotoDropDTO[]>(`${BASE}/`, { params: { owner } }) : api.get<PhotoDropDTO[]>(`${BASE}/`));
+
+/** A person whose drawer holds photos now. */
+export interface PhotoDrawerOwnerDTO {
+  id: number;
+  name: string;
+  photos: number;
+}
+
+/** Whose drawers hold photos (superuser only); mine is left out. */
+export const getPhotoDrawerOwners = () => api.get<PhotoDrawerOwnerDTO[]>(`${BASE}/owners/`);
 
 /** Save a photo to my drawer. `replaces`: a turned or cropped copy of that drop takes its place and keeps its time. */
 export function addPhotoDrop(photo: Blob, replaces?: number) {

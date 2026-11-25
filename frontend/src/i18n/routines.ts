@@ -345,6 +345,9 @@ export const STRINGS: Record<string, { en: string; es: string }> = {
     es: 'En tu telefono, abre Fotos rapidas y toma una foto. Aparece aqui en unos segundos.',
   },
   phMyDrawer: { en: 'My photo drawer', es: 'Mi cajon de fotos' },
+  phWhoseDrawer: { en: 'Whose drawer', es: 'De quien es el cajon' },
+  phMine: { en: 'Mine', es: 'Mio' },
+  phDrawerEmptyTheirs: { en: 'No photos in this drawer.', es: 'Este cajon esta vacio.' },
   phDrawerEmpty: { en: 'No photos in your drawer yet.', es: 'Tu cajon de fotos esta vacio.' },
   phDrawerHow: {
     en: 'On your phone, open Photo drops and take a photo. It shows up here in a few seconds.',
