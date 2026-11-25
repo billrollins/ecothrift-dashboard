@@ -18,11 +18,16 @@ export interface FoundProductDTO {
   why: string;
   /** Already attached to this row (search results only). */
   on_this_row?: boolean;
-  /** One picture for choosing it at a glance (photo-sheet photos only), or null. */
+  /** One picture for choosing it at a glance (the product's own photo, else a photo-sheet photo), or null. */
   photo?: string | null;
   /** Likely products only (#223): it IS this product, or is only LIKE it, and how sure (0 to 100). */
   kind?: 'is' | 'like';
   confidence?: number;
+  /**
+   * Likely products only (#229): the colour. `yes` = the same code, or the same words AND the same sizes and counts;
+   * `maybe` = 60%+, or alike in words but another size; `no` = probably not.
+   */
+  band?: 'yes' | 'maybe' | 'no';
 }
 
 export interface FoundProductsDTO {

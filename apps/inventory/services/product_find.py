@@ -225,10 +225,11 @@ def _money(v) -> str | None:
     return None if v is None else f'{v:.2f}'
 
 
-# Product search could also show the product's own thumbnail (the Add item photo): staff-only, the same purpose
-# (telling products apart), never public. OFF: it bends Bill's 2026-11-19 rule (never reuse internal photos), so he
-# turns it on himself (open question, owner-qa-log 11-24). Until then only photo-sheet photos show.
-SEARCH_SHOWS_PRODUCT_THUMB = False
+# Product search also shows the product's own thumbnail (the Add item photo): staff-only, the same purpose (telling
+# products apart), never public. ON: Bill turned it on 2026-11-25 ("turn on the product photo in search; i dont
+# care"), an exception of his own to his 2026-11-19 rule (never reuse internal photos). Photo-sheet photos fill in
+# for products with no thumbnail.
+SEARCH_SHOWS_PRODUCT_THUMB = True
 
 
 def photo_urls(ids: Iterable[int]) -> dict[int, str]:
@@ -281,7 +282,8 @@ def describe(ordered: list[tuple[int, str]], attached: set[int] | None = None,
              match: dict[int, tuple[str, int]] | None = None) -> list[dict[str, Any]]:
     """Enough on each product to choose it: names, codes, category, a photo, and how it has gone in the store.
 
-    ``match`` (likely products only): product id -> (``is`` or ``like``, confidence 0 to 100).
+    ``match`` (likely products only): product id -> (``is`` or ``like``, confidence 0 to 100); each result then
+    also says its ``band``: ``yes``, ``maybe`` or ``no``.
     """
     attached = attached or set()
     match = match or {}
@@ -322,7 +324,8 @@ def describe(ordered: list[tuple[int, str]], attached: set[int] | None = None,
             'why': why,
             'on_this_row': pk in attached,
             'photo': photos.get(pk),
-            **({'kind': match[pk][0], 'confidence': match[pk][1]} if pk in match else {}),
+            **({'kind': match[pk][0], 'confidence': match[pk][1], 'band': match_band(match[pk][1])}
+               if pk in match else {}),
         })
     return out
 
@@ -402,6 +405,73 @@ def match_kind(confidence: int) -> str:
     return KIND_IS if confidence >= IS_FROM else KIND_LIKE
 
 
+# The three colours of a likely product (Bill 2026-11-25: "green YES this is it; yellow maybe; or grey probably not").
+BAND_YES = 'yes'
+BAND_MAYBE = 'maybe'
+BAND_NO = 'no'
+MAYBE_FROM = 60           # confidence from which a match reads "maybe" rather than "probably not"
+
+
+def match_band(confidence: int) -> str:
+    if confidence >= IS_FROM:
+        return BAND_YES
+    return BAND_MAYBE if confidence >= MAYBE_FROM else BAND_NO
+
+
+_THOUSANDS = re.compile(r'(?<=\d),(?=\d{3}(?!\d))')
+_NUMBER = re.compile(r'\d+(?:\.\d+)?')
+_TOKEN = re.compile(r'[a-z0-9]+')
+# A size said in letters: a different one is a different product ("AAA" is not "AA", "XL" is not "Large").
+SIZE_WORDS = frozenset({'aa', 'aaa', 'aaaa', 'xs', 'xl', 'xxl', 'xxxl', 'small', 'medium', 'large', 'twin', 'queen', 'king'})
+
+
+def size_marks(text: str) -> frozenset[str]:
+    """What tells one size or count of a product from another: every number a line states and its size words.
+
+    "Pampers Swaddlers Size 5 26-Count" -> {"5", "26"}; "AAA Batteries 8-Pack" -> {"aaa", "8"}; "12.50 oz" -> {"12.5"}.
+    """
+    low = _THOUSANDS.sub('', (text or '').lower())
+    marks = set()
+    for n in _NUMBER.findall(low):
+        whole, _, part = n.partition('.')
+        part = part.rstrip('0')
+        marks.add((whole.lstrip('0') or '0') + (f'.{part}' if part else ''))
+    marks.update(w for w in _TOKEN.findall(low) if w in SIZE_WORDS)
+    return frozenset(marks)
+
+
+def sizes_agree(row_title: str, row_model: str, title: str, model: str) -> bool:
+    """Do the row and the product state the same sizes and counts? Pure, so it is tested on its own.
+
+    Every number or size word in one title must be on the other side, in its title or its model (a product often
+    keeps the model number out of its title); two stated models must match. A size only one side states is not
+    agreement: the row may be any size of it.
+    """
+    row_t, row_m = size_marks(row_title), size_marks(row_model)
+    prod_t, prod_m = size_marks(title), size_marks(model)
+    if row_m and prod_m and row_m != prod_m:
+        return False
+    return row_t <= (prod_t | prod_m) and prod_t <= (row_t | row_m)
+
+
+_NOT_A_BRAND = frozenset({'', 'generic', 'unbranded', 'unknown', 'none', 'na', 'nobrand', 'various', 'assorted'})
+_LETTERS_DIGITS = re.compile(r'[^a-z0-9]+')
+
+
+def brand_agrees(row_brand: str, row_title: str, brand: str) -> bool:
+    """Does the row name the product's brand? A product with no real brand has nothing to disagree with.
+
+    "Ultra Dish Soap 90oz" does not say Ajax, so "Ajax Ultra Lime Dish Soap 90 oz" is not a sure match for it.
+    The brand's first word is enough ("Dove" for "Dove Men+Care"): a brand is written many ways.
+    """
+    if _LETTERS_DIGITS.sub('', (brand or '').lower()) in _NOT_A_BRAND:
+        return True
+    lead = next((w for w in _TOKEN.findall((brand or '').lower()) if w not in STOP_WORDS), '')
+    if not lead:
+        return True
+    return lead in _LETTERS_DIGITS.sub('', f'{row_brand or ""} {row_title or ""}'.lower())
+
+
 def not_product_ids(row: ProcessingRow) -> set[int]:
     """Products a person said this row is not (the X on a likely product), remembered on the row."""
     return {int(v) for v in (getattr(row, 'not_product_ids', None) or []) if str(v).isdigit()}
@@ -455,20 +525,29 @@ def likely(row: ProcessingRow, *, limit: int = LIKELY_LIMIT) -> dict[str, Any]:
         found.sort(key=lambda r: -score(words, r[1], r[2], r[3]))
         _add(ordered, [pk for pk, *_ in found], WHY_MOST, skip, limit)
     # Is it the product, or only like it, and how sure (Bill 11-24: "AI thinks its this product (98%; 80%)").
-    texts = dict((pk, (t, x)) for pk, t, x in
-                 Product.objects.filter(pk__in=[pk for pk, _ in ordered]).values_list('pk', 'title', 'search_text'))
+    texts = dict((pk, (t, x, m, b)) for pk, t, x, m, b in Product.objects.filter(pk__in=[pk for pk, _ in ordered])
+                 .values_list('pk', 'title', 'search_text', 'model', 'brand'))
     code_set = set(by_code)
     match: dict[int, tuple[str, int]] = {}
     for pk, why in ordered:
+        title, text, model, brand = texts.get(pk, ('', '', '', ''))
         if pk in code_set:
             conf = CODE_CONFIDENCE
-        elif why == WHY_NEAR and pk in near_sim:
-            conf = min(99, round(near_sim[pk] * 100))
-            # Close in meaning is "like" unless the words say it is the same product too.
-            words_conf = word_confidence(words, *texts.get(pk, ('', '')))
-            conf = conf if words_conf >= IS_FROM else min(conf, IS_FROM - 1)
         else:
-            conf = word_confidence(words, *texts.get(pk, ('', '')))
+            if why == WHY_NEAR and pk in near_sim:
+                conf = min(99, round(near_sim[pk] * 100))
+                # Close in meaning is "like" unless the words say it is the same product too.
+                conf = conf if word_confidence(words, title, text) >= IS_FROM else min(conf, IS_FROM - 1)
+            else:
+                conf = word_confidence(words, title, text)
+            # "Yes" also needs the same size and count, and the product's brand named on the row: "Size 5" is not
+            # "Size 4" however alike the words. On 200 real rows 18 of 38 matches at 85% or more named another size
+            # or count (2026-11-25), so they read "maybe".
+            if conf >= IS_FROM and not (
+                sizes_agree(row.title or '', row.model or '', title or '', model or '')
+                and brand_agrees(row.brand or '', row.title or '', brand or '')
+            ):
+                conf = IS_FROM - 1
         match[pk] = (match_kind(conf), conf)
     # Most sure first, so the line that matters sits on top when the list is folded.
     ordered.sort(key=lambda kv: -match[kv[0]][1])

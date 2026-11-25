@@ -1,7 +1,6 @@
 import LinearScale from '@mui/icons-material/LinearScale';
 import JoinFull from '@mui/icons-material/JoinFull';
 import {
-  Alert,
   Box,
   Button,
   Card,
@@ -38,6 +37,10 @@ import { printProcessingLabelsAndMarkPrinted } from './printProcessingLabel';
 import { checkInPrintActionLabel } from './checkedInPrintedAggregate';
 import { apiErrorDetail } from '../../../hooks/useProductSearch';
 import { ProcessingLikelyProducts, ProcessingProductSearch } from './ProcessingProductFinder';
+import { PaneNote, PaneStat, ProductPane } from './ProcessingProductPane';
+import { lastCheckInForProduct } from './processingCheckInDefaults';
+import { attachedStatusLine, attachedTotals } from './processingAttachedStats';
+import { PROCESSING_QUEUE_TABLE_HEAD_HEIGHT, PROCESSING_QUEUE_TABLE_ROW_HEIGHT } from './processingQueueLayout';
 import type { NewPackResult } from '../../../api/productPacks.api';
 import {
   openRowSearchTabs,
@@ -121,6 +124,23 @@ import {
   processingRowLabelSx,
 } from './processingRowFieldTokens';
 import { IconAdd as Add, IconBack as ArrowBack, IconClose as Close, IconConfirm as Check, IconDelete as DeleteOutline, IconRefresh as Refresh } from '../../../icons/ecoIcons';
+
+/**
+ * The row screen's fixed heights (#229, Bill 2026-11-25: "Checkin Area gets WAY too much space (4 lines with vert
+ * scroll when needed is plenty)"; the two product lists "are static so if empty they still hold a fixed height").
+ */
+export const CHECK_INS_VISIBLE_LINES = 4;
+/** The check-ins table: its heading line and four lines; more scroll inside. */
+export const CHECK_INS_TABLE_PX = PROCESSING_QUEUE_TABLE_HEAD_HEIGHT + CHECK_INS_VISIBLE_LINES * PROCESSING_QUEUE_TABLE_ROW_HEIGHT + 2;
+/**
+ * The least height of the two product lists on a computer (their heading and three lines); they take all the height
+ * that is left above it. A 1366 x 768 laptop gives them 139 px with no scrolling; a shorter screen scrolls.
+ */
+export const PRODUCT_PANES_MIN_PX = 130;
+/** On a phone the two lists stack, each at this height. */
+export const PRODUCT_PANE_PHONE_PX = 212;
+/** The Row details heading line: fixed, so a note chip or the Restart button in it moves nothing. */
+const ROW_DETAILS_HEADER_PX = 32;
 
 const manifestToolbarFieldSx = { flex: '1 1 102px', minWidth: 98, maxWidth: 260 };
 const manifestToolbarEditablePillSlotSx = {
@@ -969,7 +989,7 @@ function ManifestField({
   );
 }
 
-interface AttachedRowProduct {
+export interface AttachedRowProduct {
   key: string;
   productId: number | null;
   productNumber?: string | null;
@@ -1204,8 +1224,27 @@ function ProductLinkAccountingControl({
   );
 }
 
-function AttachedProductCard({
+/** A row note as a chip in the Row details heading line: it says what an Alert used to, without moving the page. */
+function RowNoteChip({ label, title, color = 'info' }: { label: string; title?: string; color?: 'info' | 'error' }) {
+  const chip = (
+    <Chip
+      size="small"
+      color={color}
+      variant="outlined"
+      label={label}
+      data-testid="row-note"
+      sx={{ flexShrink: 1, minWidth: 0, height: 20, fontSize: '0.6875rem', fontWeight: 800, bgcolor: '#fff', '& .MuiChip-label': { px: 0.75 } }}
+    />
+  );
+  return title ? <Tooltip title={title} enterDelay={300} disableInteractive>{chip}</Tooltip> : chip;
+}
+
+/** One attached product: Check in, what it is, its counts on this row, and a badge when other rows hold it too. */
+export function AttachedProductCard({
   product,
+  lastPrice,
+  sameRows,
+  onCheckInTogether,
   onCheckIn,
   onEditProduct,
   onLinkConfigChange,
@@ -1213,6 +1252,11 @@ function AttachedProductCard({
   hideManifestAccounting = false,
 }: {
   product: AttachedRowProduct;
+  /** Price of this product's last check-in on this row. */
+  lastPrice?: string | null;
+  /** Other rows of the order with this same product: a badge on the line, never a note that moves the page. */
+  sameRows?: number[];
+  onCheckInTogether?: () => void;
   onCheckIn: () => void;
   onEditProduct: () => void;
   onLinkConfigChange: (config: ProcessingProductLinkConfig) => void;
@@ -1221,33 +1265,22 @@ function AttachedProductCard({
 }) {
   const line2 = [product.packLabel, product.brand, product.category].filter(Boolean).join(' · ');
   const titleLine = [product.productNumber, product.title].filter(Boolean).join(' · ');
-  const manifestUnitsNumeric =
-    product.checkedInQty > 0 ?
-      (product.checkedInQty * product.linkConfig.manifestUnits) / product.linkConfig.checkIns
-    : 0;
-  const manifestUnitsCheckedIn = product.checkedInQty > 0 ? formatManifestUnits(manifestUnitsNumeric) : null;
-  const showManifestUnitsInStatus =
-    product.checkedInQty > 0 && productLinkUsesManifestAccounting(product.linkConfig);
-  const statusLine =
-    product.checkedInQty ?
-      `${product.checkedInQty} item${product.checkedInQty === 1 ? '' : 's'}${
-        showManifestUnitsInStatus && manifestUnitsCheckedIn != null ?
-          ` (${manifestUnitsCheckedIn} row${Math.abs(manifestUnitsNumeric - 1) < 0.05 ? '' : 's'})`
-        : ''
-      }`
-    : 'none yet';
+  const statusLine = attachedStatusLine(product, lastPrice);
+  const sameRowsText = sameRows?.length ? `row${sameRows.length === 1 ? '' : 's'} ${sameRows.join(', ')}` : '';
   return (
-    <Paper
-      variant="outlined"
+    <Box
+      role="listitem"
+      data-testid="attached-row"
       sx={{
         display: 'flex',
         alignItems: 'center',
         gap: 0.5,
         px: 0.6,
         py: 0.4,
-        borderColor: processingTokens.border,
-        bgcolor: processingTokens.surfaceRaised,
         minWidth: 0,
+        bgcolor: processingTokens.surfaceRaised,
+        borderBottom: '1px solid',
+        borderBottomColor: processingTokens.border,
       }}
     >
       <Box sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', mr: 1 }}>
@@ -1275,7 +1308,7 @@ function AttachedProductCard({
           '&:focus-visible': { outline: 'none', boxShadow: processingTokens.focusRing },
         }}
       >
-        <Typography sx={{ minWidth: 0, fontSize: '0.78rem', fontWeight: 800, lineHeight: 1.2 }} noWrap>
+        <Typography title={titleLine} sx={{ minWidth: 0, fontSize: '0.78rem', fontWeight: 800, lineHeight: 1.2 }} noWrap>
           {product.productNumber ?
             <>
               <Box component="span" sx={{ fontFamily: processingTokens.monoFontFamily, color: 'text.secondary', mr: 0.5 }}>
@@ -1285,12 +1318,29 @@ function AttachedProductCard({
             </>
           : titleLine || '-'}
         </Typography>
-        {line2 ?
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.05, fontWeight: 600, fontSize: '0.625rem', lineHeight: 1.2 }} noWrap>
-            {line2}
-          </Typography>
-        : null}
+        {/* The second line is always there (a space when empty), so every attached line is the same height. */}
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.05, fontWeight: 600, fontSize: '0.625rem', lineHeight: 1.2 }} noWrap>
+          {line2 || ' '}
+        </Typography>
       </Box>
+      {sameRowsText ?
+        <Tooltip
+          title={`Same product as ${sameRowsText}${onCheckInTogether ? '. Click to check them in together.' : ''}`}
+          enterDelay={300}
+          disableInteractive
+        >
+          <Chip
+            size="small"
+            color="info"
+            variant="outlined"
+            icon={<JoinFull sx={{ fontSize: 14 }} />}
+            label={`Also ${sameRowsText}`}
+            onClick={onCheckInTogether ? (e) => { e.stopPropagation(); onCheckInTogether(); } : undefined}
+            data-testid="same-product-rows"
+            sx={{ flexShrink: 0, height: 20, maxWidth: 170, fontSize: '0.6875rem', fontWeight: 800, '& .MuiChip-label': { px: 0.6 } }}
+          />
+        </Tooltip>
+      : null}
       <Box sx={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
         <ProcessingGoogleSearchButton
           brand={product.brand}
@@ -1303,7 +1353,11 @@ function AttachedProductCard({
         <PhotoSheetButton product={product.productId} compact data-testid="row-photo-sheet" />
       </Box>
       <Box sx={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: 0.1, pl: 0.25 }}>
-        <Typography color="text.secondary" sx={{ fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.625rem', lineHeight: 1.15 }}>
+        <Typography
+          color={product.checkedInQty ? 'text.primary' : 'text.secondary'}
+          data-testid="attached-status"
+          sx={{ fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.6875rem', lineHeight: 1.15 }}
+        >
           {statusLine}
         </Typography>
         {product.productId != null && !hideManifestAccounting ?
@@ -1332,7 +1386,7 @@ function AttachedProductCard({
           </IconButton>
         </Tooltip>
       : null}
-    </Paper>
+    </Box>
   );
 }
 
@@ -1580,6 +1634,21 @@ export function ProcessingActiveCard({
     () => new Set(attachedProducts.map((p) => p.productId).filter((id): id is number => id != null)),
     [attachedProducts],
   );
+  // Counts on top of the attached products, and each line's last price on this row (#229).
+  const attachedCounts = useMemo(() => attachedTotals(attachedProducts), [attachedProducts]);
+  const lastPriceByProductId = useMemo(() => {
+    const out = new Map<number, string>();
+    for (const p of attachedProducts) {
+      if (p.productId == null) continue;
+      const price = lastCheckInForProduct(row.itemCheckIns, p.productId)?.defaults?.price;
+      if (price != null && String(price) !== '') out.set(p.productId, String(price));
+    }
+    return out;
+  }, [attachedProducts, row.itemCheckIns]);
+  // "Same product as row 65" is a badge on that product's line (the row's matched product), never a note.
+  const sameProductRows = row.sameProductRowNumbers ?? [];
+  const sameProductLineId =
+    sameProductRows.length && product?.id != null && attachedProductIds.has(product.id) ? product.id : null;
   const attachedProductOptions = useMemo((): CheckInAttachedProductOption[] => {
     return attachedProducts
       .filter((p): p is AttachedRowProduct & { productId: number } => p.productId != null)
@@ -1982,15 +2051,18 @@ export function ProcessingActiveCard({
       <Box
         sx={{
           px: 0.75,
-          pt: 0.5,
-          pb: 0.25,
+          py: { xs: 0.35, md: 0 },
+          // One kept line on a computer: a note chip or the Restart button in it changes no height (#229).
+          minHeight: ROW_DETAILS_HEADER_PX,
+          height: { md: ROW_DETAILS_HEADER_PX },
+          overflow: 'hidden',
           bgcolor: processingTokens.cardHeaderRowDetailBg,
           borderBottom: 1,
           borderColor: alpha(processingTokens.primary, 0.16),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-start',
-          flexWrap: 'wrap',
+          flexWrap: { xs: 'wrap', md: 'nowrap' },
           gap: 0.25,
         }}
       >
@@ -2029,7 +2101,45 @@ export function ProcessingActiveCard({
             </Button>
           </Tooltip>
         : null}
-        <Box component="label" sx={{ ml: 'auto', display: 'inline-flex', alignItems: 'center', gap: 0.25, cursor: 'pointer', flexShrink: 0 }}>
+        {/* What is special about this row, as chips in a kept place: a note here never moves the page (#229,
+            Bill 2026-11-25: "NO notifications that cause content to shift"). */}
+        <Box
+          data-testid="row-notes"
+          sx={{ flex: '1 1 0', minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.5, ml: 0.75, overflow: 'hidden' }}
+        >
+          {row.splitParentId != null ?
+            <RowNoteChip
+              label={`Sub row${row.splitParentRowNumber != null && row.splitSeq != null ? ` #${row.splitParentRowNumber}.${row.splitSeq}` : ''}`}
+              title={`Created by Break apart / Make set on row ${row.splitParentRowNumber ?? row.splitFamily?.rootRowNumber ?? ''}.`}
+            />
+          : null}
+          {row.splitFamily && row.splitParentId == null ?
+            <RowNoteChip
+              label={
+                row.splitFamily.children.length ?
+                  `Split into ${row.splitFamily.children
+                    .map((c) => `#${row.splitFamily!.rootRowNumber}.${c.splitSeq ?? '?'} (${c.qty.toLocaleString()})`)
+                    .join(', ')}`
+                : 'Converted by Break apart / Make set'
+              }
+              title={row.splitFamily.children.length ? 'The remainder stays on this row.' : undefined}
+            />
+          : null}
+          {terminalDisputed ? <RowNoteChip color="error" label={`Terminal dispute (${activeStatus})`} /> : null}
+          {canRestart ?
+            <Button
+              size="small"
+              color="warning"
+              variant="outlined"
+              disabled={restartRow.isPending}
+              onClick={() => void openRestartConfirm()}
+              sx={{ flexShrink: 0, minHeight: 22, py: 0, px: 0.75, fontSize: '0.6875rem', fontWeight: 800, whiteSpace: 'nowrap', bgcolor: '#fff' }}
+            >
+              Restart row…
+            </Button>
+          : null}
+        </Box>
+        <Box component="label" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, cursor: 'pointer', flexShrink: 0 }}>
           <Switch
             size="small"
             checked={autoOpenSearch}
@@ -2270,7 +2380,9 @@ export function ProcessingActiveCard({
           flex: 1,
           minHeight: 0,
           minWidth: 0,
-          overflow: 'hidden',
+          // A screen too short for the kept heights below scrolls; nothing is cut off and nothing is squeezed.
+          overflowX: 'hidden',
+          overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
           px: { xs: 1, md: 1.5 },
@@ -2278,161 +2390,88 @@ export function ProcessingActiveCard({
           bgcolor: processingTokens.cardDeckBg,
         }}
       >
-        <Box sx={{ flexShrink: 0, minWidth: 0, width: '100%' }}>
-          {rowDetailsBand}
+        {rowDetailsBand}
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.65 }}>
-            {canRestart ?
-              <Button
-                size="small"
-                color="warning"
-                variant="outlined"
-                disabled={restartRow.isPending}
-                onClick={() => void openRestartConfirm()}
-                sx={{ fontSize: '0.6875rem', py: 0.2 }}
-              >
-                Restart row…
-              </Button>
-            : null}
+        {/* #229 (Bill 2026-11-25): the search across the top; under it Attached (left) and Likely (right), each a
+            list that is always open at a kept height; the check-ins at the bottom, four lines. None of them is
+            sized by what is in it, so nothing moves when a list fills or empties. */}
+        <Box
+          key={`search:${row.processing_row_id}`}
+          sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 0.6, mb: 0.6, minWidth: 0 }}
+        >
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <ProcessingProductSearch
+              processingRowId={row.processing_row_id}
+              attachedProductIds={attachedProductIds}
+              onUse={(productId) => void handleAttachExistingProduct(productId)}
+            />
           </Box>
-
-          <Stack spacing={0.55} sx={{ mb: 0.75 }}>
-            {(row.sameProductRowNumbers?.length ?? 0) > 0 ?
-              <Alert
-                severity="info"
-                icon={<JoinFull sx={{ fontSize: 18 }} />}
-                sx={{ mt: 0.75, py: 0.25, alignItems: 'center', '& .MuiAlert-message': { py: 0.4 } }}
-                action={
-                  onOpenCheckInTogether ?
-                    <Button size="small" color="inherit" variant="outlined" onClick={onOpenCheckInTogether} sx={{ whiteSpace: 'nowrap' }}>
-                      Check in together…
-                    </Button>
-                  : undefined
-                }
-              >
-                Same product as row{(row.sameProductRowNumbers?.length ?? 0) === 1 ? '' : 's'}{' '}
-                {(row.sameProductRowNumbers ?? []).join(', ')}
-              </Alert>
-            : null}
-            {row.splitParentId != null ?
-              <Alert severity="info" sx={{ mt: 0.75, py: 0.25, '& .MuiAlert-message': { py: 0.4 } }}>
-                Sub row {row.splitParentRowNumber != null && row.splitSeq != null ? `#${row.splitParentRowNumber}.${row.splitSeq}` : ''} -
-                created by Break apart / Make set on row {row.splitParentRowNumber ?? row.splitFamily?.rootRowNumber}.
-              </Alert>
-            : null}
-            {row.splitFamily && row.splitParentId == null ?
-              <Alert
-                severity="info"
-                sx={{ mt: 0.75, py: 0.25, alignItems: 'center', '& .MuiAlert-message': { py: 0.4 } }}
-                action={
-                  canRestart ?
-                    <Button
-                      size="small"
-                      color="inherit"
-                      variant="outlined"
-                      disabled={restartRow.isPending}
-                      onClick={() => void openRestartConfirm()}
-                      sx={{ whiteSpace: 'nowrap' }}
-                    >
-                      Restart row…
-                    </Button>
-                  : undefined
-                }
-              >
-                {row.splitFamily.children.length ?
-                  `Split into ${row.splitFamily.children
-                    .map((c) => `#${row.splitFamily!.rootRowNumber}.${c.splitSeq ?? '?'} (${c.qty.toLocaleString()})`)
-                    .join(', ')} - remainder stays here.`
-                : 'This row was converted by Break apart / Make set.'}
-              </Alert>
-            : null}
-          </Stack>
-
-          <Paper
+          <Button
+            size="small"
             variant="outlined"
-            sx={{
-              flex: '0 1 auto',
-              minHeight: 0,
-              width: '100%',
-              maxWidth: '100%',
-              maxHeight: { xs: 280, md: '34vh' },
-              mb: 0.65,
-              p: 0.65,
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              borderColor: processingTokens.cardboardBrownBorder,
-              borderLeft: 3,
-              borderLeftColor: processingTokens.cardboardBrown,
-              bgcolor: '#fbfaf8',
-              boxShadow: '0 1px 4px rgba(26, 27, 24, 0.05)',
-            }}
+            startIcon={<Add sx={{ fontSize: 14 }} />}
+            onClick={() => openProductEditor(null)}
+            sx={{ flexShrink: 0, height: 32, fontSize: '0.75rem', whiteSpace: 'nowrap', bgcolor: 'background.paper' }}
           >
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.75,
-                mx: -0.65,
-                mt: -0.65,
-                mb: 0.5,
-                px: 0.75,
-                py: 0.5,
-                minWidth: 0,
-                bgcolor: processingTokens.cardboardBrownSoft,
-                borderBottom: 1,
-                borderColor: processingTokens.cardboardBrownBorder,
-              }}
-            >
-              <Typography
-                variant="caption"
-                sx={{
-                  fontWeight: 900,
-                  letterSpacing: 0.7,
-                  fontSize: '0.625rem',
-                  textTransform: 'uppercase',
-                  color: processingTokens.cardboardBrownDark,
-                }}
-              >
-                Attached products ({attachedProducts.length})
-              </Typography>
-              <Box sx={{ flex: 1, minWidth: 8 }} />
-              <Button size="small" variant="outlined" sx={{ fontSize: '0.6875rem', py: 0.2 }} startIcon={<Add sx={{ fontSize: 14 }} />} onClick={() => openProductEditor(null)}>
-                New product
-              </Button>
-            </Box>
-            <Stack spacing={0.45} sx={{ flex: '1 1 auto', minHeight: 0, overflow: 'hidden' }}>
-              {/* #223: Search and Likely sit side by side at fixed heights; their lists float over the page, so
-                  neither moves the attached products below nor each other. */}
-              <Box
-                key={row.processing_row_id}
-                sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1.1fr) minmax(0, 1fr)' }, gap: 0.6, flexShrink: 0 }}
-              >
-                <ProcessingProductSearch
-                  processingRowId={row.processing_row_id}
-                  attachedProductIds={attachedProductIds}
-                  onUse={(productId) => void handleAttachExistingProduct(productId)}
+            New product
+          </Button>
+        </Box>
+
+        <Box
+          data-testid="product-panes"
+          sx={{
+            flex: { xs: '0 0 auto', md: '1 1 0' },
+            minHeight: { md: PRODUCT_PANES_MIN_PX },
+            minWidth: 0,
+            display: 'grid',
+            gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1fr) minmax(0, 1fr)' },
+            gridTemplateRows: { xs: `${PRODUCT_PANE_PHONE_PX}px ${PRODUCT_PANE_PHONE_PX}px`, md: 'minmax(0, 1fr)' },
+            gap: 0.6,
+            mb: 0.6,
+          }}
+        >
+          <ProductPane
+            title="Attached products"
+            testId="attached-pane"
+            accent={processingTokens.cardboardBrown}
+            headerBg={processingTokens.cardboardBrownSoft}
+            titleColor={processingTokens.cardboardBrownDark}
+            stats={
+              <PaneStat>
+                <span data-testid="attached-count">
+                  {attachedCounts.products} product{attachedCounts.products === 1 ? '' : 's'}
+                </span>
+                {' · '}
+                <span data-testid="attached-checked-in">{attachedCounts.checkedIn.toLocaleString()} checked in</span>
+              </PaneStat>
+            }
+            trailing={
+              // The matched product is not in the list (it should be): the badge still has a kept place.
+              sameProductRows.length && sameProductLineId == null ?
+                <Chip
+                  size="small"
+                  color="info"
+                  variant="outlined"
+                  icon={<JoinFull sx={{ fontSize: 14 }} />}
+                  label={`Also row${sameProductRows.length === 1 ? '' : 's'} ${sameProductRows.join(', ')}`}
+                  onClick={onOpenCheckInTogether}
+                  data-testid="same-product-rows"
+                  sx={{ flexShrink: 0, height: 20, fontSize: '0.6875rem', fontWeight: 800 }}
                 />
-                <ProcessingLikelyProducts
-                  processingRowId={row.processing_row_id}
-                  attachedProductIds={attachedProductIds}
-                  onUse={(productId) => void handleAttachExistingProduct(productId)}
-                />
-              </Box>
-              <Stack
-                spacing={0.45}
-                sx={{
-                  flex: '1 1 auto',
-                  minHeight: 0,
-                  overflowY: 'auto',
-                  overscrollBehavior: 'contain',
-                  pr: 0.25,
-                }}
-              >
+              : null
+            }
+          >
+            {attachedProducts.length ?
+              <Box role="list" aria-label="Attached products">
                 {attachedProducts.map((attached) => (
                   <AttachedProductCard
                     key={attached.key}
                     product={attached}
+                    lastPrice={attached.productId != null ? lastPriceByProductId.get(attached.productId) : undefined}
+                    sameRows={
+                      attached.productId != null && attached.productId === sameProductLineId ? sameProductRows : undefined
+                    }
+                    onCheckInTogether={onOpenCheckInTogether}
                     hideManifestAccounting={isAddedRow}
                     onCheckIn={() => openDetailedCheckIn(attached.productId)}
                     onEditProduct={() => {
@@ -2448,26 +2487,27 @@ export function ProcessingActiveCard({
                     }
                   />
                 ))}
-              </Stack>
-            </Stack>
-          </Paper>
-
-          {terminalDisputed ?
-            <Alert severity="error" variant="outlined" sx={{ py: 0.25, mb: 1 }}>
-              Terminal dispute ({activeStatus}).
-            </Alert>
-          : null}
+              </Box>
+            : <PaneNote>No product attached yet.</PaneNote>}
+          </ProductPane>
+          <ProcessingLikelyProducts
+            key={row.processing_row_id}
+            processingRowId={row.processing_row_id}
+            attachedProductIds={attachedProductIds}
+            onUse={(productId) => void handleAttachExistingProduct(productId)}
+          />
         </Box>
 
-        <Box
-          ref={priorCheckInsRef}
-          sx={{ flex: '1 1 0', minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}
-        >
+        <Box ref={priorCheckInsRef} sx={{ flexShrink: 0, minWidth: 0 }}>
           <ProcessingRowSection
-            title="Prior check-ins"
-            note="Select a row to review or edit it."
+            title="Check-ins"
+            trailing={
+              <PaneStat testId="check-in-counts">
+                {historyRows.length.toLocaleString()} check-in{historyRows.length === 1 ? '' : 's'} ·{' '}
+                {priorCheckIns.length.toLocaleString()} item{priorCheckIns.length === 1 ? '' : 's'}
+              </PaneStat>
+            }
             surface="priorCheckIns"
-            fill
             sx={{
               mb: 0,
               minWidth: 0,
@@ -2477,48 +2517,32 @@ export function ProcessingActiveCard({
               borderLeftColor: processingTokens.accentBlue,
               boxShadow: '0 1px 4px rgba(26, 27, 24, 0.05)',
             }}
-            bodySx={{ p: 0, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+            // Four lines and their heading, always: more check-ins scroll inside, fewer leave the space empty.
+            bodySx={{ px: 0, py: 0, height: CHECK_INS_TABLE_PX, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
           >
-            <Paper
-              variant="outlined"
-              sx={{
-                flex: 1,
-                minHeight: 0,
-                minWidth: 0,
-                p: 0,
-                mb: 0,
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                borderColor: processingTokens.border,
-                bgcolor: processingTokens.surfaceRaised,
-              }}
-            >
-              <CheckedInItemsTable
-                rows={historyRows}
-                fallbackProduct={product}
-                attachedProductOptions={attachedProductOptions}
-                activeItemId={activeItem?.id ?? null}
-                onSelectItemId={handleSelectPriorCheckIn}
-                onReprintCheckIn={onReprintItems ? (historyRow) => void handleReprintCheckIn(historyRow) : undefined}
-                onDeleteItemCheckIn={handleUndoItemCheckIn}
-                onDisputeCheckIn={setDisputeTarget}
-                onSetCheckInProduct={
-                  attachedProductOptions.length > 0 ?
-                    (historyRow, productId) => void handleSetCheckInProduct(historyRow, productId)
-                  : undefined
-                }
-                onSetCheckInCondition={(historyRow, value) => void handleSetCheckInField(historyRow, 'condition', value)}
-                onSetCheckInDispatch={(historyRow, value) => void handleSetCheckInField(historyRow, 'dispatch', value)}
-                onSetCheckInPrice={(historyRow, value) => void handleSetCheckInPrice(historyRow, value)}
-                onEditCheckInProduct={(productId) => openProductEditor(productId)}
-                showDeleteCheckInAction
-                scrollable
-              />
-            </Paper>
+            <CheckedInItemsTable
+              rows={historyRows}
+              fallbackProduct={product}
+              attachedProductOptions={attachedProductOptions}
+              activeItemId={activeItem?.id ?? null}
+              onSelectItemId={handleSelectPriorCheckIn}
+              onReprintCheckIn={onReprintItems ? (historyRow) => void handleReprintCheckIn(historyRow) : undefined}
+              onDeleteItemCheckIn={handleUndoItemCheckIn}
+              onDisputeCheckIn={setDisputeTarget}
+              onSetCheckInProduct={
+                attachedProductOptions.length > 0 ?
+                  (historyRow, productId) => void handleSetCheckInProduct(historyRow, productId)
+                : undefined
+              }
+              onSetCheckInCondition={(historyRow, value) => void handleSetCheckInField(historyRow, 'condition', value)}
+              onSetCheckInDispatch={(historyRow, value) => void handleSetCheckInField(historyRow, 'dispatch', value)}
+              onSetCheckInPrice={(historyRow, value) => void handleSetCheckInPrice(historyRow, value)}
+              onEditCheckInProduct={(productId) => openProductEditor(productId)}
+              showDeleteCheckInAction
+              scrollable
+            />
           </ProcessingRowSection>
         </Box>
-
       </Box>
 
       {/* Dash Update #102: one dispute record. Mark as disputed opens the queue's Dispute window for these items. */}

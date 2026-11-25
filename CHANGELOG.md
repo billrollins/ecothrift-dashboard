@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.338.0] -->
-<!-- Last reviewed: 2026-11-25 (2.338.0) -->
+<!-- Line 1 release: ## [2.339.0] -->
+<!-- Last reviewed: 2026-11-25 (2.339.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.339.0] - 2026-11-25
+
+User-facing theme: **Processing: likely products always open, colour coded, beside the attached products**
+
+> **For Bill:** On a manifest row, likely products now show without a click, to the right of the attached products. Green means yes, yellow maybe, grey probably not. Check-ins take four lines, each list shows its counts, and the blue notes no longer move the page. Product search also shows the product's own photo.
+
+### Changed
+- **Processing row screen: likely products always open beside the attached products** (Dash Update #229, owner 11-25 after talking with the processors: "Product likli is an extra click. They dont like that"; "Checkin Area gerts WAY too much space"). Product search runs across the top and its results float over the lists. Attached products (left) and Likely products (right) sit side by side at a fixed height, open without a click. Likely products are colour coded: green yes, yellow maybe, grey probably not. Green means the same code, or 85%+ on the words with the same sizes and counts and the brand named on the row. Each list shows its counts, each attached product shows how many were checked in and the last price, and check-ins take four lines with a scroll. The blue notes ("Same product as row 65", split rows) are now chips in a fixed place, so opening a row never moves the page.
+- **Processing product search shows the product's own photo** (owner 11-25: "turn on the product photo in search; i dont care"). Staff screen only; a photo-sheet photo shows when a product has no photo of its own.
 
 ## [2.338.0] - 2026-11-25
 

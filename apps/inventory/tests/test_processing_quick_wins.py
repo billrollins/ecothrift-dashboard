@@ -155,6 +155,41 @@ class LikelyProductsTests(Base):
         r = self.client.post(f'/api/inventory/processing-rows/{pr.id}/not-product/', {}, format='json')
         self.assertEqual(r.status_code, 400)
 
+    def test_green_needs_the_same_size_another_size_is_only_maybe(self):
+        """Bill 2026-11-25: green = "YES this is it". The same words in another size or count are yellow."""
+        from apps.inventory.services.inventory_search import rebuild_search_text
+
+        size5 = Product.objects.create(title='Pampers Swaddlers Diapers Size 5', brand='Pampers')
+        size4 = Product.objects.create(title='Pampers Swaddlers Diapers Size 4', brand='Pampers')
+        other = Product.objects.create(title='Pampers Baby Wipes Sensitive 72 Count Tub', brand='Pampers')
+        rebuild_search_text([size5.id, size4.id, other.id])
+        pr = self.row(1, 'Pampers Swaddlers Diapers Size 5')
+        pr.brand = 'Pampers'
+        pr.save()
+
+        r = self.client.get(f'/api/inventory/processing-rows/{pr.id}/likely-products/')
+        by_id = {p['id']: p for p in r.data['results']}
+        self.assertEqual((by_id[size5.id]['band'], by_id[size5.id]['kind']), ('yes', 'is'))
+        self.assertEqual((by_id[size4.id]['band'], by_id[size4.id]['kind']), ('maybe', 'like'))
+        self.assertEqual(by_id[size4.id]['confidence'], product_find.IS_FROM - 1)
+        self.assertEqual(r.data['results'][0]['id'], size5.id)
+        if other.id in by_id:
+            self.assertEqual(by_id[other.id]['band'], 'no')
+
+    def test_the_same_code_is_green_whatever_the_titles_say(self):
+        from apps.inventory.services.inventory_search import rebuild_search_text
+
+        coded = Product.objects.create(title='Great Value Ultra Dish Liquid', brand='Great Value',
+                                       identifiers={'upc': '078742370345'})
+        rebuild_search_text([coded.id])
+        pr = self.row(1, 'Ultra Dish Soap 90oz')
+        pr.identifiers = {'upc': '078742370345'}
+        pr.save()
+
+        r = self.client.get(f'/api/inventory/processing-rows/{pr.id}/likely-products/')
+        by_id = {p['id']: p for p in r.data['results']}
+        self.assertEqual((by_id[coded.id]['band'], by_id[coded.id]['confidence']), ('yes', product_find.CODE_CONFIDENCE))
+
 
 class SearchPhotoTests(TestCase):
     def test_the_add_item_photo_shows_only_when_the_switch_is_on(self):
@@ -162,11 +197,11 @@ class SearchPhotoTests(TestCase):
 
         p = Product.objects.create(title='Lamp', brand='Acme', photo_thumb='inventory/products/lamp_thumb.jpg')
         with mock.patch('django.core.files.storage.default_storage.url', side_effect=lambda k: f'https://cdn.test/{k}'):
-            self.assertFalse(product_find.SEARCH_SHOWS_PRODUCT_THUMB)       # off until Bill turns it on
-            self.assertEqual(product_find.photo_urls([p.id]), {})
-            with mock.patch.object(product_find, 'SEARCH_SHOWS_PRODUCT_THUMB', True):
-                self.assertEqual(product_find.photo_urls([p.id]),
-                                 {p.id: 'https://cdn.test/inventory/products/lamp_thumb.jpg'})
+            self.assertTrue(product_find.SEARCH_SHOWS_PRODUCT_THUMB)        # Bill turned it on 2026-11-25
+            self.assertEqual(product_find.photo_urls([p.id]),
+                             {p.id: 'https://cdn.test/inventory/products/lamp_thumb.jpg'})
+            with mock.patch.object(product_find, 'SEARCH_SHOWS_PRODUCT_THUMB', False):
+                self.assertEqual(product_find.photo_urls([p.id]), {})
 
 
 class WordConfidenceTests(SimpleTestCase):
@@ -181,3 +216,42 @@ class WordConfidenceTests(SimpleTestCase):
         self.assertEqual(product_find.match_kind(same), 'is')
         self.assertEqual(product_find.match_kind(other), 'like')
         self.assertEqual(product_find.word_confidence([], 'x', ''), 0)
+
+    def test_the_three_bands(self):
+        self.assertEqual([product_find.match_band(c) for c in (97, 85, 84, 60, 59, 0)],
+                         ['yes', 'yes', 'maybe', 'maybe', 'no', 'no'])
+
+    def test_size_marks_are_the_numbers_and_the_size_words(self):
+        marks = product_find.size_marks
+        self.assertEqual(marks('Pampers Swaddlers Diapers Size 5 26-Count'), {'5', '26'})
+        self.assertEqual(marks('Duracell AAA Batteries 8-Pack'), {'aaa', '8'})
+        self.assertEqual(marks('Shampoo 12.50 oz'), marks('Shampoo 12.5oz'))
+        self.assertEqual(marks('1,000 Sheets'), {'1000'})
+        self.assertEqual(marks("Men's X-Large Tee"), {'large'})
+        self.assertEqual(marks('Memory Foam Pillow'), set())
+
+    def test_sizes_agree_only_when_both_sides_state_the_same(self):
+        agree = product_find.sizes_agree
+        self.assertFalse(agree('Pampers Swaddlers Diapers Size 5', '', 'Pampers Swaddlers Diapers Size 4', ''))
+        self.assertFalse(agree('Duracell Alkaline AAA Batteries 8-Pack', '', 'AA Alkaline Batteries', ''))
+        self.assertTrue(agree('Dove Men Body Wash 18oz', '', 'Dove Men+Care Body Wash 18 oz', ''))
+        self.assertTrue(agree('Memory Foam Pillow', '', 'Memory Foam Travel Pillow', ''))
+        # A size only the product states is not agreement: the row may be any size of it.
+        self.assertFalse(agree('Cocoa Butter Shea Body Wash', '', 'Cocoa & Shea Butter Body Wash - 20oz', ''))
+        # The model number kept out of the product's title still counts.
+        self.assertTrue(agree('Extended Performance Oil Filter M1-108A', '', 'Extended Performance Oil Filter', 'M1-108A'))
+        self.assertFalse(agree('Oil Filter', 'M1-108A', 'Oil Filter', 'M1-110A'))
+
+    def test_the_row_must_name_the_products_brand(self):
+        agree = product_find.brand_agrees
+        self.assertFalse(agree('', 'Ultra Dish Soap 90oz', 'Ajax'))
+        self.assertTrue(agree('', 'Dove Men Body Wash 18oz', 'Dove'))
+        self.assertTrue(agree('Great Value', 'Ultra Dish Liquid', 'Great Value'))
+        self.assertTrue(agree('', "Mrs Meyers Clean Day Hand Soap", "Mrs. Meyer's"))
+        # A brand is written many ways: its first word is enough.
+        self.assertTrue(agree('Dove', 'Dove Men Body Wash 18oz', 'Dove Men+Care'))
+        self.assertTrue(agree('', 'Honest Baby Wipes 72 Count', 'The Honest Company'))
+        self.assertFalse(agree('', 'Ultra Dish Liquid', 'Great Value'))
+        # No real brand on the product: nothing to disagree with.
+        self.assertTrue(agree('', 'Memory Foam Pillow', ''))
+        self.assertTrue(agree('', 'Memory Foam Pillow', 'Generic'))

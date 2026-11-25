@@ -1,11 +1,11 @@
-v2.338.0 — Black Friday on phones: just Home, Scan and Thrift+
+v2.339.0 — Processing: likely products always open, colour coded, beside the attached products
 
-User-facing theme: **Black Friday on phones: just Home, Scan and Thrift+**
+User-facing theme: **Processing: likely products always open, colour coded, beside the attached products**
 
-> **For Bill:** While Black Friday is on, the phone site's bottom bar shows only Home, Scan and Thrift+. The menu keeps Visit and every help and info page. In store, On the truck and Categories are out of the way until the sale ends. The desktop site is not changed by this release.
+> **For Bill:** On a manifest row, likely products now show without a click, to the right of the attached products. Green means yes, yellow maybe, grey probably not. Check-ins take four lines, each list shows its counts, and the blue notes no longer move the page. Product search also shows the product's own photo.
 
 ### Changed
-- **Black Friday on phones: only Home, Scan and Thrift+** (Dash Update #228, owner 11-24: "No in store tab Just Home Scan Thrift+ ... You can have visit"; "all help an info are still there too"). While the Black Friday day is on, the phone site's bottom bar is three even tabs (Home, Scan, Thrift+), the menu keeps Home, Scan a tag, Thrift+, Visit and every Help and info row, and home offers no way into In store, On the truck or Categories (no Shop by category, no On the truck block, no Best finds "See all"). Their addresses still answer when typed. Other days unchanged; the desktop site unchanged.
-- **Processing product search: a switch for the product's own thumbnail** (`product_find.SEARCH_SHOWS_PRODUCT_THUMB`, off in this release). With it off, search shows photo-sheet photos only, as before.
+- **Processing row screen: likely products always open beside the attached products** (Dash Update #229, owner 11-25 after talking with the processors: "Product likli is an extra click. They dont like that"; "Checkin Area gerts WAY too much space"). Product search runs across the top and its results float over the lists. Attached products (left) and Likely products (right) sit side by side at a fixed height, open without a click. Likely products are colour coded: green yes, yellow maybe, grey probably not. Green means the same code, or 85%+ on the words with the same sizes and counts and the brand named on the row. Each list shows its counts, each attached product shows how many were checked in and the last price, and check-ins take four lines with a scroll. The blue notes ("Same product as row 65", split rows) are now chips in a fixed place, so opening a row never moves the page.
+- **Processing product search shows the product's own photo** (owner 11-25: "turn on the product photo in search; i dont care"). Staff screen only; a photo-sheet photo shows when a product has no photo of its own.
 
 Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>

@@ -128,3 +128,86 @@ lines), 464, 465 (Wayfair, 66 lines), 421.
 
 1. #223 ships tonight, then #224. 2. The three Truck Prep versions build all night, local. 3. Morning: Bill tests the
 three, picks; the winner is wired into Processing and the overnight Heroku run is planned around it.
+
+## 2026-11-25 morning: what the processors want fixed (Bill, to the #223 session)
+
+His words, whole:
+
+> turn on the product photo in search; i dont care.
+>
+> NExt i talked with processors here is what they do not like nad need fixed ASAP. this needs build/ship deploy FAST.
+>
+> 1. Product likli is an extra click. They dont like that
+> 2. Checkin Area gerts WAY too much space (4-lins with vert scroll when needed is plenty)
+>
+> SO condense the bottom check in area and have LEFT/RIGHT areas devodted to attached produces (left) and likeli
+> products on the right. Each with as many visible lines as fit and they are static so if empty they still hold a
+> fixed height.
+>
+> the search can be at the top across both and is fine as is.(with a pop over result set)
+> Also stats per list or per check in are good
+>
+> top of attached product (left) # products, Total Number checked in
+> per check in line. # checked in etc
+>
+> top of liklely Color coded green YES this is it; Yello MAybe.... Or grey Probably not.
+>
+> 3. Create product details: "Fill in the product details below, then save to create. Enter saves · Esc cancels."
+> move the Paste the Product page below the Product details, this is optional or secondary.
+> Also need EASY ways to clear Product details or the Product page (clear buttons)
+> Also Product page buttons are: Clear, Fill, Clear then fill (on enter; when focus is in product page box)
+> AI buttons would be all together (include Duplicate)
+> AI request should be a box that does AI suggest with a user prompt from the box.
+> and Duplicate can be duplicate with AI that uses the AI box for duplicate instrecutions.
+>
+> 4. "Same product as row 65" is a blue note I get. Our rule of NO NOTifications that cause content to shift needs to
+> be in force here. if you want you can star/badge/notficy on the attached product row something like that.
+>
+> 5. on manifest row details fields tab goes from left to right. enter ALSO does but confirms the update the
+> cancel/approve buttons need to NOT shift the fields left/right but changing field dim (so you need to make fields
+> wide enough to accomidate them) in general you should adopt a use the space rule and stretch Notes or other fields
+> if screen is big enough to fill space.
+> 6. a Tab after a change leave the field highlighted and a button at from or end of row says Apply changes or Cancle
+> all changes
+>
+> In general a cntr z (undo last action) would be nice on this parge (and also a redo if accidental) can have a hot
+> key hint so processors know they can undo.
+>
+> before build. sus out details and let me know if it all makes sensee and is doable
+
+### What I found in the code and the data (11-25, nothing built yet but the photo switch)
+
+- **Photo:** `product_find.SEARCH_SHOWS_PRODUCT_THUMB` is now True (his own exception to his 11-19 photo rule; staff
+  screen only).
+- **The row screen today** (`ProcessingActiveCard.tsx`): row header, Row details, a stack of blue notes (same
+  product / sub row / split), Attached products (search and the folded Likely line inside it, 34% of the height at
+  most), then Prior check-ins taking ALL the height that is left. That is his points 1, 2 and 4.
+- **Likely colours need a stricter "yes".** On 200 real rows of order 428 (`workspace/p223/likely_bands.py`,
+  `likely_green.py`; figures from the fresh production copy of 11-25 noon, the older copy gave 17 of 38): 7.7 likely
+  products a row; the top line is 85%+ on 26 rows, 60 to 84% on 115, lower on 55, none on 4. Of the 38 different
+  85%+ pairs, 18 name a different size or count ("Pampers Swaddlers Size 5" against
+  "Size 4" at 99%, "AAA 8-Pack" against "AA" at 90%), because one-character words and numbers are not compared.
+  Green must mean: the same code, or the same words AND the same numbers.
+- **Row fields** (`ManifestField`): the box grows when it opens for editing (it adds the X and the tick), which
+  moves the fields beside it; Tab already saves at once and opens the next field; Enter saves and stays. Tab from
+  Price opens the Identifiers window. The row does not fill a wide screen (fixed widths).
+- **Product window** (`ProductManageDrawer.tsx`): Duplicate (a plain copy, no AI) and Suggest (AI, no words from
+  the person) sit apart at the top; the page box sits above the details. `POST /api/inventory/products/suggest/`
+  takes `fields` and `context`; a request in the person's words is one more key in its JSON.
+- **Undo:** `processing_row_patch` writes each field plainly, so putting the old values back is the same call. A
+  check-in has its own Undo window (it asks move or delete, and says what blocks it). No new server code is needed.
+
+### The plan (11-25; Bill: "Yes, build it" to "Build it this way, A then B, each shipped and deployed when tested?")
+
+Dash rows: #229 = Release A, #230 = Release B. What Release A became is in `inventory-pipeline.md` (Item Processor
+workspace, "The processors' fixes"). One change made while building it: green also needs the product's brand named on
+the row (a different brand with the same words and size reads "Maybe · 84%").
+
+Release A (the screen): search across the top; Attached (left) and Likely (right) side by side, fixed height,
+always open; check-ins at 4 lines; counts on top of each list and per product line; green / yellow / grey with the
+stricter green; every blue note becomes a chip in a fixed place; the photo.
+Release B (keys and the product window): row fields on a grid that fills the width and never changes size; Tab
+moves on and leaves a change highlighted, Enter saves, "Apply changes" / "Cancel all" in a kept slot; the product
+window reordered with Clear buttons, the page's Clear / Fill / Clear then fill, one AI block with a request box
+(Suggest and Duplicate use it); Ctrl+Z / Ctrl+Y with a hint.
+My reads where his words left room are in `.ai/reference/owner-qa-log.md` (11-25 rows).
