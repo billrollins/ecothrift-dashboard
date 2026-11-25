@@ -41,3 +41,18 @@ def processing_row_likely_products_view(request, row_id: int):
     if row is None:
         return Response({'detail': 'No such row.'}, status=status.HTTP_404_NOT_FOUND)
     return Response(product_find.likely(row))
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsStaff])
+def processing_row_not_product_view(request, row_id: int):
+    """The X on a likely product: this row is not that product (``{"product_id": 5}``; ``"undo": true`` takes it
+    back). Remembered on the row for everyone; it only changes the likely list."""
+    row = ProcessingRow.objects.filter(pk=row_id).first()
+    if row is None:
+        return Response({'detail': 'No such row.'}, status=status.HTTP_404_NOT_FOUND)
+    raw = request.data.get('product_id')
+    if not str(raw or '').isdigit():
+        return Response({'detail': 'product_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    ids = product_find.set_not_product(row, int(raw), on=not bool(request.data.get('undo')))
+    return Response({'not_product_ids': ids})

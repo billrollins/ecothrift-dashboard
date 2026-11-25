@@ -138,8 +138,9 @@ export default function ProcessingWorkspacePage() {
   const [addUnmanifestedOpen, setAddUnmanifestedOpen] = useState(false);
   const [palletsOpen, setPalletsOpen] = useState(false);
 
+  // A short pause, then search (#223: was 450 ms); a newer search cancels the older request.
   useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedSearch(search), 450);
+    const t = window.setTimeout(() => setDebouncedSearch(search), 200);
     return () => window.clearTimeout(t);
   }, [search]);
 
@@ -268,6 +269,14 @@ export default function ProcessingWorkspacePage() {
 
   const poLineCount = workspace?.row_count_total_po ?? workspace?.rows.length ?? 0;
   const filteredRowCount = workspace?.row_count_filtered ?? workspace?.rows.length ?? 0;
+  // A search looks at the whole order (#223): lines that match the words but sit outside the filter.
+  const searchWholeCount = workspace?.row_count_search_all ?? filteredRowCount;
+  const searchOutsideCount = debouncedSearch.trim() ? Math.max(0, searchWholeCount - filteredRowCount) : 0;
+  const showWholeOrder = useCallback(() => {
+    setQueueFilters(DEFAULT_QUEUE_FILTER_STATE);
+    setProductFilterProductId(null);
+    setProductFilterTitle(undefined);
+  }, []);
 
   const detailQueryEnabled =
     orderId != null &&
@@ -536,17 +545,44 @@ export default function ProcessingWorkspacePage() {
     const q = skuFromScan(search);
     if (!orderId || !q) return;
     const inDetail = detailProcessingRowId != null;
-    if (isSingleScanToken(q)) {
-      const onPage = rowsMatchingExactScan(workspace?.rows ?? [], q);
-      const onPageSole = soleRowId(onPage);
+    const scan = isSingleScanToken(q);
+    const filtersOn = !queueFilters.allMode || productFilterProductId != null;
+    if (scan) {
+      const onPageSole = soleRowId(rowsMatchingExactScan(workspace?.rows ?? [], q));
       if (onPageSole != null) {
         openScanMatch(onPageSole);
         return;
       }
-      try {
-        // Enough rows to see a group of rows checked in as one (it shows as one row and opens as one).
-        const { data } = await getProcessingWorkspace(orderId, {
-          limit: 50,
+    }
+    // A scan or a search looks at every line of the order, whatever filter is on (#223).
+    let wholeCount: number | null = null;
+    let inFilterCount: number | null = null;
+    try {
+      // Enough rows to see a group of rows checked in as one (it shows as one row and opens as one).
+      const { data } = await getProcessingWorkspace(orderId, {
+        limit: 50,
+        offset: 0,
+        segment: 'all',
+        search: q,
+        hide_checked_in: false,
+      });
+      wholeCount = data.row_count_filtered ?? data.rows.length;
+      if (scan) {
+        const sole = wholeCount <= data.rows.length ? soleRowId(data.rows) : null;
+        if (sole != null && rowsMatchingExactScan(data.rows, q).length > 0) {
+          openScanMatch(sole);
+          return;
+        }
+      }
+      if (wholeCount === 0) {
+        // Nothing on this truck: say so where the eye already is, and keep the cursor ready for the next scan.
+        setScanNote({ text: `Nothing on this truck matches ${q}.`, tone: 'warning' });
+        bumpSearchFocus();
+        return;
+      }
+      if (filtersOn) {
+        const { data: inFilter } = await getProcessingWorkspace(orderId, {
+          limit: 1,
           offset: 0,
           segment: 'all',
           segments: queueFiltersToSegmentsParam(queueFilters),
@@ -554,30 +590,31 @@ export default function ProcessingWorkspacePage() {
           search: q,
           hide_checked_in: false,
         });
-        const found = data.row_count_filtered ?? data.rows.length;
-        const sole = found <= data.rows.length ? soleRowId(data.rows) : null;
-        if (sole != null && rowsMatchingExactScan(data.rows, q).length > 0) {
-          openScanMatch(sole);
-          return;
-        }
-        if (data.row_count_filtered === 0 && onPage.length === 0) {
-          // Nothing on this truck: say so where the eye already is, and keep the cursor ready for the next scan.
-          setScanNote({ text: `Nothing on this truck matches ${q}.`, tone: 'warning' });
-          bumpSearchFocus();
-          return;
-        }
-      } catch {
-        /* ignore scan helper failures */
+        inFilterCount = inFilter.row_count_filtered ?? 0;
       }
+    } catch {
+      /* ignore scan helper failures: the list below still searches */
     }
-    // No exact scan match - treat as a text search. From detail mode this
-    // returns to the queue with results shown (search persists).
+    // Enter shows the results list, at once (#223). When every match sits outside the filter, the filter steps aside
+    // so the list is never empty while matches exist.
+    if (inFilterCount === 0 && (wholeCount ?? 0) > 0) showWholeOrder();
+    setDebouncedSearch(q);
+    setScanNote(null);
     if (inDetail) {
       setDetailProcessingRowId(null);
       setSelectedItemId(null);
-      setDebouncedSearch(q);
     }
-  }, [search, orderId, detailProcessingRowId, workspace?.rows, queueFilters, productFilterProductId, openScanMatch, bumpSearchFocus]);
+  }, [search, orderId, detailProcessingRowId, workspace?.rows, queueFilters, productFilterProductId, openScanMatch, bumpSearchFocus, showWholeOrder]);
+
+  // While a row is open, typing says at once how many lines of the order match; Enter shows them (#223).
+  const typedMatchNote = useMemo((): { text: string; tone?: 'info' | 'warning' } | null => {
+    if (detailProcessingRowId == null || !workspace) return null;
+    const typed = search.trim();
+    if (!typed || typed !== debouncedSearch.trim() || isFetching) return null;
+    if (searchWholeCount === 0) return { text: `Nothing on this truck matches ${typed}.`, tone: 'warning' };
+    return { text: `${searchWholeCount.toLocaleString()} line${searchWholeCount === 1 ? '' : 's'} match. Enter shows them.` };
+  }, [detailProcessingRowId, workspace, search, debouncedSearch, isFetching, searchWholeCount]);
+  const scanBarStatus = scanNote ?? typedMatchNote;
 
   const handleCheckIn = useCallback(
     async (payload: ProcessingCheckInPayload, options?: { printLabels?: boolean }) => {
@@ -1002,7 +1039,7 @@ export default function ProcessingWorkspacePage() {
           isFetching={isFetching && !isLoading}
           mode={detailProcessingRowId == null ? 'queue' : 'detail'}
           onEscapeEmpty={detailProcessingRowId == null ? undefined : backToQueue}
-          status={scanNote}
+          status={scanBarStatus}
         />
         {detailProcessingRowId == null ? (
           <ProcessingRecentRowsBar
@@ -1025,6 +1062,8 @@ export default function ProcessingWorkspacePage() {
             }}
             totalRowCount={workspace ? poLineCount : undefined}
             filteredRowCount={workspace ? filteredRowCount : undefined}
+            searchOutsideCount={searchOutsideCount}
+            onShowWholeOrder={showWholeOrder}
           />
         </Box>
       ) : null}
@@ -1071,6 +1110,8 @@ export default function ProcessingWorkspacePage() {
             <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <ProcessingActiveCard
               orderId={workspace.order.id}
+              vendorName={workspace.order.vendor}
+              vendorCode={workspace.order.vendor_code}
               row={selectedRow}
               activeItem={activeItem}
               onSelectItemId={setSelectedItemId}
@@ -1134,6 +1175,8 @@ export default function ProcessingWorkspacePage() {
                     preprocessingFinalizedAt={workspace.preprocessing_finalized_at}
                     preprocessingBookmarkOnly={workspace.processingBookmarkOnly}
                     totalWorkspaceRowCount={poLineCount}
+                    searchOutsideCount={searchOutsideCount}
+                    onShowWholeOrder={showWholeOrder}
                     orderId={workspace.order.id}
                     orderStatus={workspace.order.status}
                     detailProcessingRowId={detailProcessingRowId}

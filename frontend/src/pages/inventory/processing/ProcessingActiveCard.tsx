@@ -12,6 +12,7 @@ import {
   Paper,
   Popover,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -36,7 +37,13 @@ import {
 import { printProcessingLabelsAndMarkPrinted } from './printProcessingLabel';
 import { checkInPrintActionLabel } from './checkedInPrintedAggregate';
 import { apiErrorDetail } from '../../../hooks/useProductSearch';
-import { ProcessingProductFinder } from './ProcessingProductFinder';
+import { ProcessingLikelyProducts, ProcessingProductSearch } from './ProcessingProductFinder';
+import {
+  openRowSearchTabs,
+  readAutoOpenRowSearch,
+  rowSearchTabs,
+  writeAutoOpenRowSearch,
+} from './processingVendorSearch';
 import {
   getProduct,
   type ProcessingCheckInPayload,
@@ -1328,6 +1335,9 @@ function AttachedProductCard({
 
 export interface ProcessingActiveCardProps {
   orderId: number;
+  /** The order's vendor: its site search opens beside Google (#223). */
+  vendorName?: string;
+  vendorCode?: string;
   row: ProcessingWorkspaceRowDTO;
   activeItem: ProcessingWorkspaceItemDTO | null;
   onSelectItemId: (itemId: number) => void;
@@ -1357,6 +1367,8 @@ export interface ProcessingActiveCardProps {
 
 export function ProcessingActiveCard({
   orderId,
+  vendorName,
+  vendorCode,
   row,
   activeItem,
   onSelectItemId,
@@ -1647,6 +1659,36 @@ export function ProcessingActiveCard({
     setCheckInProductId(null);
   }, [shownRowId]);
 
+  // Vendor + Google search for the row, in new tabs; optionally on every row opened (#223), remembered per person.
+  const searchTabs = useMemo(
+    () => rowSearchTabs(
+      {
+        brand: rowBookmark.brand || product?.brand,
+        model: rowBookmark.model || product?.model,
+        title: displayTitle,
+        searchTags: parseSearchTagsCsv(row.tags || ''),
+      },
+      { name: vendorName, code: vendorCode },
+    ),
+    [rowBookmark.brand, rowBookmark.model, product?.brand, product?.model, displayTitle, row.tags, vendorName, vendorCode],
+  );
+  const [autoOpenSearch, setAutoOpenSearch] = useState(() => readAutoOpenRowSearch(user?.id));
+  useEffect(() => setAutoOpenSearch(readAutoOpenRowSearch(user?.id)), [user?.id]);
+  const openSearchTabs = useCallback(() => {
+    const blocked = openRowSearchTabs(searchTabs);
+    if (blocked > 0) {
+      enqueueSnackbar('The browser blocked a tab. Allow pop-ups for Dash to open the vendor and Google searches together.', {
+        variant: 'warning',
+      });
+    }
+  }, [searchTabs, enqueueSnackbar]);
+  const autoOpenedRowRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!autoOpenSearch || autoOpenedRowRef.current === shownRowId || !searchTabs.length) return;
+    autoOpenedRowRef.current = shownRowId;
+    openSearchTabs();
+  }, [autoOpenSearch, shownRowId, searchTabs.length, openSearchTabs]);
+
   function openProductEditor(productId: number | null) {
     setProductEditorProductId(productId);
     setProductEditorOpen(true);
@@ -1922,6 +1964,7 @@ export function ProcessingActiveCard({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-start',
+          flexWrap: 'wrap',
           gap: 0.25,
         }}
       >
@@ -1934,6 +1977,7 @@ export function ProcessingActiveCard({
             textTransform: 'uppercase',
             color: processingTokens.cardHeaderRowDetailText,
             lineHeight: 1.2,
+            whiteSpace: 'nowrap',
           }}
         >
           Row details
@@ -1946,6 +1990,34 @@ export function ProcessingActiveCard({
           color={processingTokens.cardHeaderRowDetailText}
           sx={{ ml: -0.15 }}
         />
+        {searchTabs.length ?
+          <Tooltip title={`Opens ${searchTabs.map((t) => t.label).join(' and ')} in new tabs`} enterDelay={300} disableInteractive>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={openSearchTabs}
+              data-testid="row-search-tabs"
+              sx={{ ml: 0.5, minHeight: 22, py: 0, px: 0.75, fontSize: '0.6875rem', fontWeight: 800, whiteSpace: 'nowrap' }}
+            >
+              Search {searchTabs.map((t) => t.label).join(' + ')}
+            </Button>
+          </Tooltip>
+        : null}
+        <Box component="label" sx={{ ml: 'auto', display: 'inline-flex', alignItems: 'center', gap: 0.25, cursor: 'pointer', flexShrink: 0 }}>
+          <Switch
+            size="small"
+            checked={autoOpenSearch}
+            onChange={(e) => {
+              const on = e.target.checked;
+              writeAutoOpenRowSearch(user?.id, on);
+              setAutoOpenSearch(on);
+            }}
+            slotProps={{ input: { 'aria-label': 'Open the search on every row I open' } }}
+          />
+          <Typography sx={{ fontSize: '0.6875rem', fontWeight: 700, color: processingTokens.cardHeaderRowDetailText, whiteSpace: 'nowrap' }}>
+            Search every row I open
+          </Typography>
+        </Box>
       </Box>
       <Box sx={{ minWidth: 0, px: 0.75, pb: 0.55 }}>
         <ManifestFieldNavProvider>
@@ -2304,13 +2376,23 @@ export function ProcessingActiveCard({
               </Button>
             </Box>
             <Stack spacing={0.45} sx={{ flex: '1 1 auto', minHeight: 0, overflow: 'hidden' }}>
-              {/* #98: likely products the moment the row opens, and one smart search (ProcessingProductFinder). */}
-              <ProcessingProductFinder
+              {/* #223: Search and Likely sit side by side at fixed heights; their lists float over the page, so
+                  neither moves the attached products below nor each other. */}
+              <Box
                 key={row.processing_row_id}
-                processingRowId={row.processing_row_id}
-                attachedProductIds={attachedProductIds}
-                onUse={(productId) => void handleAttachExistingProduct(productId)}
-              />
+                sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1.1fr) minmax(0, 1fr)' }, gap: 0.6, flexShrink: 0 }}
+              >
+                <ProcessingProductSearch
+                  processingRowId={row.processing_row_id}
+                  attachedProductIds={attachedProductIds}
+                  onUse={(productId) => void handleAttachExistingProduct(productId)}
+                />
+                <ProcessingLikelyProducts
+                  processingRowId={row.processing_row_id}
+                  attachedProductIds={attachedProductIds}
+                  onUse={(productId) => void handleAttachExistingProduct(productId)}
+                />
+              </Box>
               <Stack
                 spacing={0.45}
                 sx={{
@@ -2446,6 +2528,7 @@ export function ProcessingActiveCard({
         onClose={closeDetailedCheckIn}
         onSubmit={onCheckIn}
         onUpdateItemCheckIn={handleUpdateItemCheckIn}
+        onUpdateRowRetail={(retail) => patchRow({ unit_retail: retail })}
         searchBar={checkInSearchBar}
       />
       {productEditorOpen && (productEditorProductId == null || productEditorQuery.data) ?

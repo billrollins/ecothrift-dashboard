@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.335.0] -->
-<!-- Last reviewed: 2026-11-24 (2.335.0) -->
+<!-- Line 1 release: ## [2.336.0] -->
+<!-- Last reviewed: 2026-11-24 (2.336.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.336.0] - 2026-11-24
+
+User-facing theme: **Processing quick wins: search that sees every line, check-in defaults that stay put, products in three clear areas**
+
+> **For Bill:** Search now looks at the whole order and tells you when matches sit outside your filter; Enter shows them. The manifest row sets only the first check-in; later check-ins of that product copy the last one, and a red line offers to update the row when retail differs. Likely products fold into one line (Is this / Like this with a %, X for not this). A button opens the vendor site and Google for the row.
+
+### Changed
+- **Processing quick wins 1** (Dash Update #223, owner 11-24): search looks at every line of the order and says how many matches sit outside the filter ("2 more outside the filter · Show them"); Enter shows the results from a row page; queue search pause 450 to 200 ms with stale requests cancelled. The manifest row's retail and price start only the first check-in of a product on the row; later check-ins start from the last check-in of that product, and a check-in no longer writes its price onto the row. One red line when a plain product's retail differs from the row, with "Update the row". Three product areas: Attached, Search (floating results with photo, keyboard), Likely (one folded line: "Is this" or "Like this" with a %, X for "not this product" saved on the row, "Open all likely"); new `ProcessingRow.not_product_ids` (migration `inventory/0135`). Row header: "Search Walmart + Google" and a per-person switch "Search every row I open".
 
 ## [2.335.0] - 2026-11-24
 

@@ -857,6 +857,8 @@ export interface ProcessingWorkspaceDTO {
   rows: ProcessingWorkspaceRowDTO[];
   /** After server-side filtering; pagination applies on top */
   row_count_filtered?: number;
+  /** Lines matching the search in the whole order, filters ignored (#223); equals row_count_filtered without one. */
+  row_count_search_all?: number;
   /** ProcessingRow count for this PO (ignores filters) */
   row_count_total_po?: number;
   manifest_qty_dispositioned_total?: number;

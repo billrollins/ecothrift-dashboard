@@ -1549,6 +1549,15 @@ def build_processing_workspace(
     )
 
     row_count_filtered = filtered_qs.count()
+    # A search looks at every line of the order (Dash Update #223): with a status or product filter on, say how many
+    # lines match the words in the whole order, so "nothing here" never hides matches the filter leaves out.
+    row_count_search_all = row_count_filtered
+    if (search or '').strip() and (
+        _parse_workspace_segments(segments=segments, segment=segment) or product_id is not None
+    ):
+        row_count_search_all = _apply_workspace_list_filters(
+            base_qs, segment='all', segments=None, product_id=None, search=search, hide_checked_in=False,
+        ).count()
     slice_qs = filtered_qs[safe_offset : safe_offset + safe_limit]
 
     raw_rows = list(slice_qs.values(*PROCESSING_WORKSPACE_ROW_VALUE_FIELDS))
@@ -1601,6 +1610,7 @@ def build_processing_workspace(
         'order': _order_payload(order, vendor, manifest_total_qty),
         'rows': out_rows,
         'row_count_filtered': row_count_filtered,
+        'row_count_search_all': row_count_search_all,
         'row_count_total_po': row_count_total_po,
         'manifest_qty_dispositioned_total': manifest_disp_qty,
         'workspace_limit': safe_limit,

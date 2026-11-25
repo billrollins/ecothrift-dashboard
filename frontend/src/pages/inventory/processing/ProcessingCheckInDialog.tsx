@@ -34,6 +34,8 @@ import {
   PROCESSING_ITEM_DEFAULT_CONDITION,
 } from './processingItemFormOptions';
 import { scaleRowAmountForProductId } from './processingManifestAccounting';
+import { checkInStart, retailDiffersFromRow, type CheckInStart } from './processingCheckInDefaults';
+import { formatCurrency } from '../../../utils/format';
 import { PhotoSheetButton } from '../../../components/photoSheets/PhotoSheetButton';
 import { effectiveRowQty } from './processingQueueCellText';
 import { LargeCheckInConfirmDialog } from './LargeCheckInConfirmDialog';
@@ -176,6 +178,8 @@ export interface ProcessingCheckInDialogProps {
   ) => Promise<boolean>;
   /** The Processing search, the same as on the page (#97): a scan here goes to the next item. */
   searchBar?: ReactNode;
+  /** One click on the red "differs from the row" line sets the manifest row's retail to this check-in's (#223). */
+  onUpdateRowRetail?: (retail: string) => void | Promise<void>;
 }
 
 export function ProcessingCheckInDialog({
@@ -189,6 +193,7 @@ export function ProcessingCheckInDialog({
   onSubmit,
   onUpdateItemCheckIn,
   searchBar = null,
+  onUpdateRowRetail,
 }: ProcessingCheckInDialogProps) {
   const editCheckIn = seed?.itemCheckIn && onUpdateItemCheckIn ? seed.itemCheckIn : null;
   const isEditMode = editCheckIn != null;
@@ -238,19 +243,40 @@ export function ProcessingCheckInDialog({
     ...(alreadyRestoration ? [] : estimateIssues),
   ];
 
+  // A new check-in starts from the row the first time this product is checked in on it, and from the last check-in
+  // of this product on this row after that (#223). Edits start from the check-in being edited.
+  const start = useMemo(
+    () => checkInStart(row, productId, { retail: scaledRowRetail || '', price: scaledRowPrice || '' }),
+    [row, productId, scaledRowRetail, scaledRowPrice],
+  );
+  const [startedFrom, setStartedFrom] = useState<CheckInStart['from']>('row');
+
   useEffect(() => {
     if (!open) return;
     const defaults = seed?.itemCheckIn?.defaults ?? {};
     setQuantity(editCheckIn ? String(editCheckIn.quantity) : '1');
-    setCondition(normalizeProcessingCondition(seed?.item.condition || seed?.item.condition_label || row.condition));
-    setDispatch(seed?.item.dispatch || strDefault(defaults.dispatch) || row.dispatch || 'on_shelf');
-    setRetail(seed?.item.retail ?? (strDefault(defaults.retail) || scaledRowRetail || ''));
-    setPrice(seed?.item.price ?? (strDefault(defaults.price) || scaledRowPrice || ''));
+    if (seed) {
+      setCondition(normalizeProcessingCondition(seed.item.condition || seed.item.condition_label || row.condition));
+      setDispatch(seed.item.dispatch || strDefault(defaults.dispatch) || row.dispatch || 'on_shelf');
+      setRetail(seed.item.retail ?? (strDefault(defaults.retail) || scaledRowRetail || ''));
+      setPrice(seed.item.price ?? (strDefault(defaults.price) || scaledRowPrice || ''));
+    } else {
+      setCondition(normalizeProcessingCondition(start.condition));
+      setDispatch(normalizeProcessingDispatch(start.dispatch));
+      setRetail(start.retail);
+      setPrice(start.price);
+    }
+    setStartedFrom(seed ? 'row' : start.from);
     setNotes(strDefault(defaults.notes) || seed?.item.notes || row.manifestNotes || '');
     setSpecifications(defaults.specifications ?? {});
     setEstimate(requestFromSaved(defaults.restoration_request));
     setVolumeConfirm(null);
-  }, [open, seed, editCheckIn, row, scaledRowRetail, scaledRowPrice]);
+    // Seeded once per opening: a later row refresh never overwrites what the person typed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, seed, editCheckIn]);
+
+  const retailDiff = retailDiffersFromRow(row, productId, retail);
+  const [rowRetailSaving, setRowRetailSaving] = useState(false);
 
   useEffect(() => {
     if (salvageLocked) setDispatch('salvage');
@@ -359,6 +385,7 @@ export function ProcessingCheckInDialog({
             {!isEditMode ?
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, fontWeight: 700 }} noWrap>
                 {productLabel(product)} · Row {row.rowNum}
+                {startedFrom === 'last' ? ' · Started from the last check-in' : ''}
               </Typography>
             : (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, fontWeight: 700 }}>
@@ -444,6 +471,38 @@ export function ProcessingCheckInDialog({
               highlightRequired={!isEditMode}
               belowPrice={
                 <>
+                  {/* #223: one short red line when this retail differs from the manifest row (not for a set, part or
+                      pack), with the fix right there. The line's room is always held, so nothing moves. */}
+                  <Box sx={{ gridColumn: '1 / -1', minHeight: 26, display: 'flex', alignItems: 'center', gap: 1, mt: -0.5 }}>
+                    {retailDiff ?
+                      <>
+                        <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 800 }} data-testid="retail-differs">
+                          {retailDiff.rowRetail ?
+                            `Retail differs from the row (${formatCurrency(retailDiff.rowRetail)}).`
+                          : 'The row has no retail.'}
+                        </Typography>
+                        {onUpdateRowRetail ?
+                          <Button
+                            size="small"
+                            color="error"
+                            variant="outlined"
+                            disabled={busy || rowRetailSaving}
+                            onClick={async () => {
+                              setRowRetailSaving(true);
+                              try {
+                                await onUpdateRowRetail(retail);
+                              } finally {
+                                setRowRetailSaving(false);
+                              }
+                            }}
+                            sx={{ py: 0, minHeight: 22, fontSize: 11.5, fontWeight: 800, whiteSpace: 'nowrap' }}
+                          >
+                            Update the row to {formatCurrency(retail)}
+                          </Button>
+                        : null}
+                      </>
+                    : null}
+                  </Box>
                   {/* Room is held for every helper from the start, so the Price box never moves when they load.
                       The commodity standard (#180) first: when it applies it is the price. Then the coach (this
                       product's own record); the rule of thumb after. */}

@@ -776,6 +776,9 @@ class ProcessingRow(models.Model):
             'X check-ins account for Y manifest row units (display only; each check-in still creates one Item).'
         ),
     )
+    # Products a person said this row is NOT (the X on a likely product, Dash Update #223). Only the likely list
+    # reads it; search and the attached products never do.
+    not_product_ids = models.JSONField(default=list, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

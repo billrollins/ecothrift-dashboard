@@ -94,7 +94,8 @@ export function mergeProcessingWorkspacePatch(
 export function useProcessingWorkspace(orderId: number | null, listParams: ProcessingWorkspaceListParams | null) {
   return useQuery({
     queryKey: ['processing-workspace', orderId, listParams],
-    queryFn: async () => {
+    // A newer search cancels the one still on its way (#223), so the list never shows an older answer.
+    queryFn: async ({ signal }) => {
       const p = listParams!;
       const { data } = await getProcessingWorkspace(orderId!, {
         limit: p.limit,
@@ -104,7 +105,7 @@ export function useProcessingWorkspace(orderId: number | null, listParams: Proce
         product_id: p.product_id,
         search: p.search.trim() ? p.search.trim() : undefined,
         hide_checked_in: p.hide_checked_in,
-      });
+      }, signal);
       return data;
     },
     enabled: orderId != null && listParams != null,

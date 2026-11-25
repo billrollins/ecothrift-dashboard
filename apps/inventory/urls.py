@@ -23,7 +23,9 @@ from .api_inventory_search import (
 )
 from .api_item_card import item_card_view, order_card_view, product_card_view, restoration_card_view
 from .api_product_similar import similar_products_view
-from .api_product_find import processing_row_likely_products_view, product_find_view
+from .api_product_find import (
+    processing_row_likely_products_view, processing_row_not_product_view, product_find_view,
+)
 from .api_reentry import (
     reentry_back_to_shelf_view, reentry_find_view, reentry_list_view, reentry_price_again_view,
     reentry_scrap_view, reentry_send_to_restoration_view,
@@ -69,6 +71,8 @@ urlpatterns = [
     path('product-find/', product_find_view, name='product-find'),
     path('processing-rows/<int:row_id>/likely-products/', processing_row_likely_products_view,
          name='processing-row-likely-products'),
+    path('processing-rows/<int:row_id>/not-product/', processing_row_not_product_view,
+         name='processing-row-not-product'),
     path('search/', inventory_search_view, name='inventory-search'),
     path('search/items/', inventory_search_items_view, name='inventory-search-items'),
     path('search/similar/', inventory_search_similar_view, name='inventory-search-similar'),

@@ -291,6 +291,24 @@ def _latest_check_in_product_for_row(row: ProcessingRow) -> Product | None:
     return batch.product
 
 
+def last_check_in_defaults(row: ProcessingRow, product_id: int | None) -> dict:
+    """The values of the last check-in of this product on this row ({} when it is the first one).
+
+    Bill, 2026-11-24 (Dash Update #223): the row's retail and price are the defaults for the FIRST check-in of a
+    product on the row only; every later check-in of that product on that row starts from the last check-in's
+    values. A check-in never writes its values back onto the row.
+    """
+    if product_id is None or row.pk is None:
+        return {}
+    snap = (
+        ItemCheckIn.objects.filter(processing_row=row, product_id=product_id)
+        .order_by('-created_at', '-id')
+        .values_list('defaults_snapshot', flat=True)
+        .first()
+    )
+    return snap if isinstance(snap, dict) else {}
+
+
 def _implicit_check_in_product_reuse(data: dict) -> bool:
     """True when check-in would silently reuse latest batch / bookmark product."""
     product_mode = str(data.get('product_mode') or '').strip().lower()
@@ -537,22 +555,26 @@ def _check_in_processing_row(
 
     on_check_in(product.id, row.preprocessing_row_id)
 
+    # The first check-in of this product on the row starts from the row; a later one from the last check-in (#223).
+    last = last_check_in_defaults(row, product.id)
+    last_price = parse_decimal(last.get('price'))
+    last_retail = parse_decimal(last.get('retail'))
     row_shelf = effective_row_shelf_price(row)
     if price is not None:
         item_price = price
+    elif last_price is not None:
+        item_price = last_price
     else:
         scaled_price = scale_row_amount_for_product_link(row_shelf, product.id, row)
         item_price = scaled_price if scaled_price is not None else Decimal('0.00')
-    if retail is not None:
-        item_retail = retail
-    else:
-        item_retail = scale_row_amount_for_product_link(effective_row_unit_retail(row), product.id, row)
+    row_default_retail = scale_row_amount_for_product_link(effective_row_unit_retail(row), product.id, row)
+    default_retail = last_retail if last_retail is not None else row_default_retail
+    item_retail = retail if retail is not None else default_retail
     # Retail check before the tag prints (retail_tags_and_social Phase 1): a flagged retail needs an answer.
     from apps.inventory.services import tag_retail
 
     manifest_unit = row.manifest_row.unit_retail if row.manifest_row_id and row.manifest_row else None
     manifest_retail = scale_row_amount_for_product_link(manifest_unit, product.id, row)
-    default_retail = scale_row_amount_for_product_link(effective_row_unit_retail(row), product.id, row)
     retail_found = tag_retail.assess(
         product.id, item_retail, item_price, manifest_retail=manifest_retail,
         # An added (unmanifested) row's retail was typed by the person who added it, unless the caller says it
@@ -643,8 +665,8 @@ def _check_in_processing_row(
     ]
     if histories:
         ItemHistory.objects.bulk_create(histories)
-    if item_price is not None and row.manifest_row_id is not None:
-        push_shelf_price_to_bookmark(order.id, row.manifest_row_id, item_price, processing_row_id=row.pk)
+    # A check-in's price stays on its own items: it no longer becomes the row's price (#223, "changing them on one
+    # check-in changes nothing else"). The next check-in of this product starts from this one instead.
     if dispatch == 'restoration':
         from apps.inventory.services.restoration import create_restoration_job_from_check_in
 
@@ -1837,14 +1859,7 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
 
         if histories:
             ItemHistory.objects.bulk_create(histories)
-        manifest_row_id = row.manifest_row_id if row else check_in.manifest_row_id
-        if updates.get('price') is not None and manifest_row_id:
-            push_shelf_price_to_bookmark(
-                order.id,
-                manifest_row_id,
-                updates['price'],
-                processing_row_id=row.pk if row else None,
-            )
+        # Editing a check-in changes that check-in only, never the row's price (#223).
 
     touched_row_ids = [row.pk] if row is not None else []
     if touched_row_ids:
@@ -2703,10 +2718,7 @@ def processing_patch_item(user, item: Item, data: dict) -> dict:
 
     histories = []
     with transaction.atomic():
-        if updates.get('price') is not None and item.manifest_row_id:
-            push_shelf_price_to_bookmark(
-                item.purchase_order_id, item.manifest_row_id, updates['price'], item_id=item.pk,
-            )
+        # An item's new price stays on the item; the row's price is the row's own (#223).
         changed = apply_item_updates(item, updates)
         item.save()
         for field, old_value, new_value in changed:

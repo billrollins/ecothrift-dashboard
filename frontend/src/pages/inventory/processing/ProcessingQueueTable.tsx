@@ -8,6 +8,7 @@ import {
   Chip,
   IconButton,
   Link,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -74,6 +75,9 @@ export interface ProcessingQueueTableProps {
   preprocessingFinalizedAt?: string | null;
   preprocessingBookmarkOnly?: boolean;
   totalWorkspaceRowCount: number;
+  /** Lines that match the search but sit outside the filter (#223): the empty list says so, with one click. */
+  searchOutsideCount?: number;
+  onShowWholeOrder?: () => void;
   orderId: number;
   orderStatus: PurchaseOrderStatus;
   detailProcessingRowId: number | null;
@@ -502,6 +506,8 @@ export function ProcessingQueueTable({
   preprocessingFinalizedAt,
   preprocessingBookmarkOnly,
   totalWorkspaceRowCount,
+  searchOutsideCount = 0,
+  onShowWholeOrder,
   orderId,
   orderStatus,
   detailProcessingRowId,
@@ -709,6 +715,18 @@ export function ProcessingQueueTable({
             </Box>
           </Box>
         </>
+      ) : searchOutsideCount > 0 ? (
+        <Stack spacing={1.25} alignItems="center">
+          <Typography color="text.secondary">
+            None in this filter. {searchOutsideCount.toLocaleString()} line{searchOutsideCount === 1 ? '' : 's'} in the
+            order match.
+          </Typography>
+          {onShowWholeOrder ?
+            <Button variant="contained" size="small" onClick={onShowWholeOrder}>
+              Show {searchOutsideCount === 1 ? 'it' : `all ${searchOutsideCount.toLocaleString()}`}
+            </Button>
+          : null}
+        </Stack>
       ) : filteredZeroButWorkspaceHasRows ? (
         <Typography color="text.secondary">
           No rows match filters. Clear search, set Queue to All, or turn off &quot;Hide dispositioned&quot; to see more rows.

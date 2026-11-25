@@ -272,7 +272,8 @@ class SplitAttributionTests(ProcessingTransformTestBase):
         again = self._check_in(order, pr.id, 1)
         self.assertEqual(again.status_code, 200, again.data)
 
-    def test_check_in_price_push_stays_on_own_row(self):
+    def test_check_in_price_changes_neither_row(self):
+        # Dash Update #223 (Bill 2026-11-24): a check-in's price stays on its items; no row's price moves.
         order, _mr, pr = self._order_with_row(qty=12000, shelf_price='0.50')
         resp = self._make_set(order, {
             'processing_row_id': pr.id, 'set_size': 500, 'num_sets': 4, 'shelf_price': '150.00',
@@ -282,7 +283,7 @@ class SplitAttributionTests(ProcessingTransformTestBase):
         self.assertEqual(check.status_code, 200, check.data)
         pr.refresh_from_db()
         sub.refresh_from_db()
-        self.assertEqual(sub.shelf_price, Decimal('160.00'))
+        self.assertEqual(sub.shelf_price, Decimal('150.00'))
         self.assertEqual(pr.shelf_price, Decimal('0.50'))
 
 

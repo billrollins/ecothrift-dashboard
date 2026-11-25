@@ -1199,8 +1199,10 @@ export function markOrderComplete(orderId: number): Promise<{ data: Order }> {
 export function getProcessingWorkspace(
   orderId: number,
   params?: Record<string, string | number | boolean | undefined>,
+  signal?: AbortSignal,
 ): Promise<{ data: ProcessingWorkspaceDTO }> {
   return api.get<ProcessingWorkspaceDTO>(`/inventory/orders/${orderId}/processing-workspace/`, {
+    signal,
     params: params
       ?
         Object.fromEntries(

@@ -1,4 +1,4 @@
-import { Box, Chip, Typography } from '@mui/material';
+import { Box, Chip, Link, Typography } from '@mui/material';
 import {
   clickProcessingQueueFilter,
   isProcessingQueueFilterChipActive,
@@ -19,6 +19,10 @@ export interface ProcessingFilterRowProps {
   totalRowCount?: number;
   /** Lines matching segment, search, and other filters. */
   filteredRowCount?: number;
+  /** Lines that match the search but sit outside the filter (#223). */
+  searchOutsideCount?: number;
+  /** Clear the filters so every match shows. */
+  onShowWholeOrder?: () => void;
 }
 
 export function ProcessingFilterRow({
@@ -29,6 +33,8 @@ export function ProcessingFilterRow({
   onClearProductFilter,
   totalRowCount,
   filteredRowCount,
+  searchOutsideCount = 0,
+  onShowWholeOrder,
 }: ProcessingFilterRowProps) {
   function handleChipClick(id: ProcessingQueueFilterId | 'all') {
     onFiltersChange(clickProcessingQueueFilter(filters, id));
@@ -110,6 +116,25 @@ export function ProcessingFilterRow({
           {filteredRowCount != null ?
             `${filteredRowCount.toLocaleString()} matching`
           : '- matching'}
+          {searchOutsideCount > 0 ?
+            <>
+              {' · '}
+              <Box component="span" sx={{ color: processingTokens.accentRed, fontWeight: 800 }}>
+                {searchOutsideCount.toLocaleString()} more outside the filter
+              </Box>{' '}
+              {onShowWholeOrder ?
+                <Link
+                  component="button"
+                  type="button"
+                  underline="always"
+                  onClick={onShowWholeOrder}
+                  sx={{ fontSize: 'inherit', fontWeight: 800, verticalAlign: 'baseline' }}
+                >
+                  Show them
+                </Link>
+              : null}
+            </>
+          : null}
           {' · '}
           {totalRowCount != null ?
             `${totalRowCount.toLocaleString()} on order`

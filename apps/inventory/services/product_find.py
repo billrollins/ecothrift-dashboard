@@ -183,6 +183,12 @@ def _model_ready() -> bool:
 
 def near_hits(*, product_id: int | None = None, text: str | None = None, count: int = NEAR_COUNT) -> list[int]:
     """Products close in meaning: from a product's stored vector (fast), or from text when the model is loaded."""
+    return [pid for pid, _ in near_hits_scored(product_id=product_id, text=text, count=count)]
+
+
+def near_hits_scored(*, product_id: int | None = None, text: str | None = None,
+                     count: int = NEAR_COUNT) -> list[tuple[int, float]]:
+    """``near_hits`` with how close each one is (0 to 1)."""
     try:
         from pgvector.django import CosineDistance
 
@@ -200,10 +206,10 @@ def near_hits(*, product_id: int | None = None, text: str | None = None, count: 
         # The bare nearest-first query walks the HNSW index; the model name is checked on what comes back.
         rows = (ProductVector.objects.annotate(distance=CosineDistance('embedding', vec))
                 .order_by('distance').values_list('product_id', 'model_name', 'distance')[:count + 10])
-        ids = [pid for pid, model, d in rows
-               if model == MODEL_NAME and pid != product_id and 1 - float(d) >= NEAR_FLOOR]
-        active = set(_active().filter(pk__in=ids).values_list('pk', flat=True))
-        return [pid for pid in ids if pid in active][:count]
+        scored = [(pid, 1 - float(d)) for pid, model, d in rows
+                  if model == MODEL_NAME and pid != product_id and 1 - float(d) >= NEAR_FLOOR]
+        active = set(_active().filter(pk__in=[pid for pid, _ in scored]).values_list('pk', flat=True))
+        return [(pid, sim) for pid, sim in scored if pid in active][:count]
     except Exception:  # no vectors or no pgvector: nothing close in meaning
         return []
 
@@ -219,13 +225,55 @@ def _money(v) -> str | None:
     return None if v is None else f'{v:.2f}'
 
 
-def describe(ordered: list[tuple[int, str]], attached: set[int] | None = None) -> list[dict[str, Any]]:
-    """Enough on each product to choose it: names, codes, category, and how it has gone in the store."""
+def photo_urls(ids: Iterable[int]) -> dict[int, str]:
+    """One picture per product, for choosing it at a glance (Dash Update #223).
+
+    Only photo-sheet photos: pictures pulled or taken for the product's printed sheet, which Bill allows anywhere
+    (2026-11-19). The Add item photo (``Product.photo``) is not reused here unless Bill says so.
+    """
+    ids = list(ids)
+    if not ids:
+        return {}
+    from django.core.files.storage import default_storage
+
+    from apps.core.models import S3File
+    from apps.inventory.models import PhotoSheet
+
+    first_file: dict[int, int] = {}
+    for pid, photos in (PhotoSheet.objects.filter(product_id__in=ids).order_by('-updated_at')
+                        .values_list('product_id', 'photos')):
+        if pid in first_file or not isinstance(photos, list) or not photos:
+            continue
+        file_id = photos[0].get('file') if isinstance(photos[0], dict) else None
+        if isinstance(file_id, int):
+            first_file[pid] = file_id
+    keys = dict(S3File.objects.filter(pk__in=first_file.values(), key__startswith='photo-sheets/')
+                .values_list('pk', 'key'))
+    out: dict[int, str] = {}
+    for pid, file_id in first_file.items():
+        key = keys.get(file_id)
+        if not key:
+            continue
+        try:
+            out[pid] = default_storage.url(key)
+        except Exception:  # noqa: BLE001 - storage without URLs (tests)
+            continue
+    return out
+
+
+def describe(ordered: list[tuple[int, str]], attached: set[int] | None = None,
+             match: dict[int, tuple[str, int]] | None = None) -> list[dict[str, Any]]:
+    """Enough on each product to choose it: names, codes, category, a photo, and how it has gone in the store.
+
+    ``match`` (likely products only): product id -> (``is`` or ``like``, confidence 0 to 100).
+    """
     attached = attached or set()
+    match = match or {}
     ids = [pk for pk, _ in ordered]
     if not ids:
         return []
     products = Product.objects.select_related('category').in_bulk(ids)
+    photos = photo_urls(ids)
     stats = {
         r['product_id']: r for r in Item.objects.filter(product_id__in=ids).values('product_id').annotate(
             items=Count('pk'),
@@ -257,6 +305,8 @@ def describe(ordered: list[tuple[int, str]], attached: set[int] | None = None) -
             'last_price': _money(s.get('last_price')),
             'why': why,
             'on_this_row': pk in attached,
+            'photo': photos.get(pk),
+            **({'kind': match[pk][0], 'confidence': match[pk][1]} if pk in match else {}),
         })
     return out
 
@@ -310,10 +360,55 @@ def row_words(row: ProcessingRow) -> list[str]:
     return (brand_words + title_words)[:6]
 
 
+KIND_IS = 'is'
+KIND_LIKE = 'like'
+IS_FROM = 85              # confidence from which a match reads "is this product" rather than "like it"
+CODE_CONFIDENCE = 97
+
+
+def word_confidence(row_words_: list[str], title: str, search_text: str) -> int:
+    """How sure a word match is, 0 to 100. Pure, so it is tested on its own.
+
+    Half from how many of the row's words the product holds, half from how much of the product's title the row
+    names; a product that says much more than the row (a different size, a bundle) scores lower.
+    """
+    if not row_words_:
+        return 0
+    flat = ((search_text or '') + (title or '')).lower().replace(' ', '')
+    row_cover = sum(1 for w in row_words_ if w in flat) / len(row_words_)
+    title_words = words_of(title or '')
+    row_flat = ''.join(row_words_)
+    title_cover = (sum(1 for w in title_words if w in row_flat) / len(title_words)) if title_words else 0.0
+    return max(0, min(99, round(100 * (0.5 * row_cover + 0.5 * title_cover))))
+
+
+def match_kind(confidence: int) -> str:
+    return KIND_IS if confidence >= IS_FROM else KIND_LIKE
+
+
+def not_product_ids(row: ProcessingRow) -> set[int]:
+    """Products a person said this row is not (the X on a likely product), remembered on the row."""
+    return {int(v) for v in (getattr(row, 'not_product_ids', None) or []) if str(v).isdigit()}
+
+
+def set_not_product(row: ProcessingRow, product_id: int, *, on: bool = True) -> list[int]:
+    """Say (or take back) that this row is not that product. Only the likely list reads it."""
+    ids = not_product_ids(row)
+    if on:
+        ids.add(int(product_id))
+    else:
+        ids.discard(int(product_id))
+    row.not_product_ids = sorted(ids)
+    row.save(update_fields=['not_product_ids', 'updated_at'])
+    return row.not_product_ids
+
+
 def likely(row: ProcessingRow, *, limit: int = LIKELY_LIMIT) -> dict[str, Any]:
-    """The products this row most likely is, closest first. Products already on the row are left out."""
+    """The products this row most likely is, closest first, each with ``kind`` (``is`` the product or only ``like``
+    it) and a confidence. Products already on the row, and products a person said it is not, are left out."""
     started = time.perf_counter()
-    skip = {int(k) for k in (row.product_links or {}).keys() if str(k).isdigit()}
+    dismissed = not_product_ids(row)
+    skip = {int(k) for k in (row.product_links or {}).keys() if str(k).isdigit()} | dismissed
     ordered: list[tuple[int, str]] = []
     codes = [str(v) for v in (row.identifiers or {}).values() if v not in (None, '')]
     by_code = code_hits(codes)
@@ -326,19 +421,43 @@ def likely(row: ProcessingRow, *, limit: int = LIKELY_LIMIT) -> dict[str, Any]:
     # Close in meaning to the best match, even when that product is already on the row; the first that has a vector.
     seeds = [row.matched_product_id] + by_code + [pk for pk, _ in hits[:3]]
     tried: set[int] = set()
+    near_sim: dict[int, float] = {}
     for seed in seeds:
         if len(ordered) >= limit:
             break
         if seed is None or seed in tried:
             continue
         tried.add(seed)
-        near = near_hits(product_id=seed)
+        near = near_hits_scored(product_id=seed)
         if near:
-            _add(ordered, near, WHY_NEAR, skip, limit)
+            near_sim = dict(near)
+            _add(ordered, [pid for pid, _ in near], WHY_NEAR, skip, limit)
             break
     # Still short: the row's first words (the brand, mostly), ranked by all the row's words.
     if len(ordered) < limit and len(words) > 2:
         found = [(pk, t, b, x) for pk, t, b, x in _candidates(words[:2], CANDIDATES)]
         found.sort(key=lambda r: -score(words, r[1], r[2], r[3]))
         _add(ordered, [pk for pk, *_ in found], WHY_MOST, skip, limit)
-    return {'results': describe(ordered), 'took_ms': round((time.perf_counter() - started) * 1000)}
+    # Is it the product, or only like it, and how sure (Bill 11-24: "AI thinks its this product (98%; 80%)").
+    texts = dict((pk, (t, x)) for pk, t, x in
+                 Product.objects.filter(pk__in=[pk for pk, _ in ordered]).values_list('pk', 'title', 'search_text'))
+    code_set = set(by_code)
+    match: dict[int, tuple[str, int]] = {}
+    for pk, why in ordered:
+        if pk in code_set:
+            conf = CODE_CONFIDENCE
+        elif why == WHY_NEAR and pk in near_sim:
+            conf = min(99, round(near_sim[pk] * 100))
+            # Close in meaning is "like" unless the words say it is the same product too.
+            words_conf = word_confidence(words, *texts.get(pk, ('', '')))
+            conf = conf if words_conf >= IS_FROM else min(conf, IS_FROM - 1)
+        else:
+            conf = word_confidence(words, *texts.get(pk, ('', '')))
+        match[pk] = (match_kind(conf), conf)
+    # Most sure first, so the line that matters sits on top when the list is folded.
+    ordered.sort(key=lambda kv: -match[kv[0]][1])
+    return {
+        'results': describe(ordered, match=match),
+        'not_product_ids': sorted(dismissed),
+        'took_ms': round((time.perf_counter() - started) * 1000),
+    }
