@@ -74,6 +74,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Preprocessing',
     icon: 'manifest',
   },
+  prepSteps: {
+    id: 'prepSteps',
+    path: '/prep/steps',
+    label: 'Prep A: Steps',
+    icon: 'manifest',
+    keywords: 'truck prep steps preprocessing',
+  },
   receiving: {
     id: 'receiving',
     path: '/inventory/receiving',

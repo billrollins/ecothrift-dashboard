@@ -85,6 +85,7 @@ const OrderListPage = lazy(() => import('./pages/inventory/OrderListPage'));
 const ReceivingEntryRedirect = lazy(() => import('./pages/inventory/ReceivingEntryRedirect'));
 const ReceivingOrderPage = lazy(() => import('./pages/inventory/ReceivingOrderPage'));
 const PreprocessingPage = lazy(() => import('./pages/inventory/PreprocessingPage'));
+const PrepStepsPage = lazy(() => import('./pages/prep/PrepStepsPage'));
 const ProcessingEntryRedirect = lazy(() => import('./pages/inventory/ProcessingEntryRedirect'));
 const ProcessingWorkspacePage = lazy(() => import('./pages/inventory/processing/ProcessingWorkspacePage'));
 const ProcessingCommandCenterPage = lazy(() => import('./pages/inventory/processing/ProcessingCommandCenterPage'));
@@ -396,6 +397,8 @@ function AppRoutes() {
         <Route path="/inventory/receiving/:id" element={<ReceivingOrderPage />} />
         <Route path="/inventory/preprocessing" element={<PreprocessingPage />} />
         <Route path="/inventory/preprocessing/:id" element={<PreprocessingPage />} />
+        <Route path="/prep/steps" element={<PrepStepsPage />} />
+        <Route path="/prep/steps/:orderId" element={<PrepStepsPage />} />
         <Route path="/inventory/processing" element={<ProcessingEntryRedirect />} />
         <Route path="/inventory/processing/:id" element={<ProcessingWorkspacePage />} />
         <Route

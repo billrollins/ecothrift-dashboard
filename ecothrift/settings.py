@@ -128,6 +128,7 @@ INSTALLED_APPS = [
     'apps.supplies',
     'apps.signage',  # store signs: list, print PDFs, pins on the store map (#106)
     'apps.storefront',  # the phone site's read-only store feeds (snapshot in memory, gzip, ETag)
+    'apps.prep_steps',  # Truck Prep A: Steps (#225; live since v2.340.0, Send is still a dry run)
     'apps.esign',  # shared e-sign app, vendored from {master}/packages/esign (D22); host seam: apps/core/esign_host.py
 ]
 

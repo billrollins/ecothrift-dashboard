@@ -94,7 +94,7 @@ const TEMPLATE: Record<string, PageTemplate> = {
   photoDrops: 'list-detail',
   photoProjects: 'list-detail',
   // Buying
-  auctions: 'data-table', estimateProfit: 'form', vendors: 'list-detail', orders: 'data-table', preprocessing: 'command-center',
+  auctions: 'data-table', estimateProfit: 'form', vendors: 'list-detail', orders: 'data-table', preprocessing: 'command-center', prepSteps: 'data-table',
   wishlist: 'list-detail', auctionsOld: 'list-detail', watchlist: 'list-detail', reportCards: 'report',
   assumptions: 'settings',
   // Processing

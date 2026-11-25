@@ -211,3 +211,9 @@ moves on and leaves a change highlighted, Enter saves, "Apply changes" / "Cancel
 window reordered with Clear buttons, the page's Clear / Fill / Clear then fill, one AI block with a request box
 (Suggest and Duplicate use it); Ctrl+Z / Ctrl+Y with a hint.
 My reads where his words left room are in `.ai/reference/owner-qa-log.md` (11-25 rows).
+
+## 2026-11-25: Bill picked A to start
+
+"ship and deploy 229; then you can ship and delpoly Truck Prep A. I will start with that. Prep Wayfair in Prod and dev
+from there." Truck Prep A (Steps) is live from v2.340.0 at `/prep/steps` (Buying > Prep A: Steps). Send is still a dry
+run; wiring Send into Processing is the next piece. B (Grid) and C (Target) stay local in their worktrees.

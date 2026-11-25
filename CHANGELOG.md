@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.339.0] -->
-<!-- Last reviewed: 2026-11-25 (2.339.0) -->
+<!-- Line 1 release: ## [2.340.0] -->
+<!-- Last reviewed: 2026-11-25 (2.340.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.340.0] - 2026-11-25
+
+User-facing theme: **Truck Prep A (Steps) is live: prep a truck in 8 steps**
+
+> **For Bill:** Buying > Prep A: Steps takes a truck through Load, Clean, Match products, Category, Retail, Price, Packs and Send, one full table per step. Fixes and AI jobs run on the lines you select, and every AI job shows its changes before you apply them. Send is still a dry run: it shows what Processing would get and changes nothing yet.
+
+### Added
+- **Truck Prep A: Steps** (Dash Update #225; owner 11-25: "you can ship and delpoly Truck Prep A. I will start with that. Prep Wayfair in Prod and dev from there."). Buying > Prep A: Steps (`/prep/steps`). A truck goes through 8 steps in order: Load, Clean, Match products, Category, Retail, Price, Packs, Send. Each step is one full table with the manifest beside the result, a header that says what ran (code or which AI model, lines changed, time, cost) and an Undo. Standard fixes and AI jobs run on the selected lines; every AI job previews its changes before anything is applied. Price has a truck target (55% of retail to start) with outliers in red and "Scale to hit target". Click a row number to see one line from manifest to result.
+- **Send is still a dry run.** It shows what each line would hand to Processing (search words, product match, product draft, price, retail, pieces) and writes nothing to the manifest. Truck Prep keeps its work in its own tables (`apps/prep_steps`).
+- **A manifest nobody has opened yet is read on Load.** If a truck has an uploaded manifest and no lines, Load reads the file the standard way first (the same step opening Preprocessing does).
+- AI models: bulk jobs use the Fast model (Spark Contributor), retail checks and the strong custom prompt use Sonnet 5.5. Each job is its own row in Settings > AI (`PREP_STEPS_*`, made on first use).
 
 ## [2.339.0] - 2026-11-25
 

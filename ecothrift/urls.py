@@ -69,6 +69,7 @@ urlpatterns = [
     path('api/supplies/', include('apps.supplies.urls')),  # supply lists, weekly count, the order
     path('api/signage/', include('apps.signage.urls')),  # store signs and their print PDFs (#106)
     path('api/storefront/', include('apps.storefront.urls')),  # the phone site's store feeds
+    path('api/prep-steps/', include('apps.prep_steps.urls')),  # Truck Prep A: Steps (#225)
 ]
 
 # Serve the React SPA for all non-API routes in production

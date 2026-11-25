@@ -1,11 +1,13 @@
-v2.339.0 — Processing: likely products always open, colour coded, beside the attached products
+v2.340.0 — Truck Prep A (Steps) is live: prep a truck in 8 steps
 
-User-facing theme: **Processing: likely products always open, colour coded, beside the attached products**
+User-facing theme: **Truck Prep A (Steps) is live: prep a truck in 8 steps**
 
-> **For Bill:** On a manifest row, likely products now show without a click, to the right of the attached products. Green means yes, yellow maybe, grey probably not. Check-ins take four lines, each list shows its counts, and the blue notes no longer move the page. Product search also shows the product's own photo.
+> **For Bill:** Buying > Prep A: Steps takes a truck through Load, Clean, Match products, Category, Retail, Price, Packs and Send, one full table per step. Fixes and AI jobs run on the lines you select, and every AI job shows its changes before you apply them. Send is still a dry run: it shows what Processing would get and changes nothing yet.
 
-### Changed
-- **Processing row screen: likely products always open beside the attached products** (Dash Update #229, owner 11-25 after talking with the processors: "Product likli is an extra click. They dont like that"; "Checkin Area gerts WAY too much space"). Product search runs across the top and its results float over the lists. Attached products (left) and Likely products (right) sit side by side at a fixed height, open without a click. Likely products are colour coded: green yes, yellow maybe, grey probably not. Green means the same code, or 85%+ on the words with the same sizes and counts and the brand named on the row. Each list shows its counts, each attached product shows how many were checked in and the last price, and check-ins take four lines with a scroll. The blue notes ("Same product as row 65", split rows) are now chips in a fixed place, so opening a row never moves the page.
-- **Processing product search shows the product's own photo** (owner 11-25: "turn on the product photo in search; i dont care"). Staff screen only; a photo-sheet photo shows when a product has no photo of its own.
+### Added
+- **Truck Prep A: Steps** (Dash Update #225; owner 11-25: "you can ship and delpoly Truck Prep A. I will start with that. Prep Wayfair in Prod and dev from there."). Buying > Prep A: Steps (`/prep/steps`). A truck goes through 8 steps in order: Load, Clean, Match products, Category, Retail, Price, Packs, Send. Each step is one full table with the manifest beside the result, a header that says what ran (code or which AI model, lines changed, time, cost) and an Undo. Standard fixes and AI jobs run on the selected lines; every AI job previews its changes before anything is applied. Price has a truck target (55% of retail to start) with outliers in red and "Scale to hit target". Click a row number to see one line from manifest to result.
+- **Send is still a dry run.** It shows what each line would hand to Processing (search words, product match, product draft, price, retail, pieces) and writes nothing to the manifest. Truck Prep keeps its work in its own tables (`apps/prep_steps`).
+- **A manifest nobody has opened yet is read on Load.** If a truck has an uploaded manifest and no lines, Load reads the file the standard way first (the same step opening Preprocessing does).
+- AI models: bulk jobs use the Fast model (Spark Contributor), retail checks and the strong custom prompt use Sonnet 5.5. Each job is its own row in Settings > AI (`PREP_STEPS_*`, made on first use).
 
 Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
