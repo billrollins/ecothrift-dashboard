@@ -225,11 +225,17 @@ def _money(v) -> str | None:
     return None if v is None else f'{v:.2f}'
 
 
+# Product search could also show the product's own thumbnail (the Add item photo): staff-only, the same purpose
+# (telling products apart), never public. OFF: it bends Bill's 2026-11-19 rule (never reuse internal photos), so he
+# turns it on himself (open question, owner-qa-log 11-24). Until then only photo-sheet photos show.
+SEARCH_SHOWS_PRODUCT_THUMB = False
+
+
 def photo_urls(ids: Iterable[int]) -> dict[int, str]:
     """One picture per product, for choosing it at a glance (Dash Update #223).
 
-    Only photo-sheet photos: pictures pulled or taken for the product's printed sheet, which Bill allows anywhere
-    (2026-11-19). The Add item photo (``Product.photo``) is not reused here unless Bill says so.
+    The product's own thumbnail first (``SEARCH_SHOWS_PRODUCT_THUMB``), else a photo-sheet photo (pictures pulled or
+    taken for the product's printed sheet, which Bill allows anywhere, 2026-11-19).
     """
     ids = list(ids)
     if not ids:
@@ -239,8 +245,19 @@ def photo_urls(ids: Iterable[int]) -> dict[int, str]:
     from apps.core.models import S3File
     from apps.inventory.models import PhotoSheet
 
+    out: dict[int, str] = {}
+    if SEARCH_SHOWS_PRODUCT_THUMB:
+        for pid, thumb in Product.objects.filter(pk__in=ids).exclude(photo_thumb='').values_list('pk', 'photo_thumb'):
+            try:
+                out[pid] = default_storage.url(thumb)
+            except Exception:  # noqa: BLE001 - storage without URLs (tests)
+                continue
+    missing = [pid for pid in ids if pid not in out]
+    if not missing:
+        return out
+
     first_file: dict[int, int] = {}
-    for pid, photos in (PhotoSheet.objects.filter(product_id__in=ids).order_by('-updated_at')
+    for pid, photos in (PhotoSheet.objects.filter(product_id__in=missing).order_by('-updated_at')
                         .values_list('product_id', 'photos')):
         if pid in first_file or not isinstance(photos, list) or not photos:
             continue
@@ -249,7 +266,6 @@ def photo_urls(ids: Iterable[int]) -> dict[int, str]:
             first_file[pid] = file_id
     keys = dict(S3File.objects.filter(pk__in=first_file.values(), key__startswith='photo-sheets/')
                 .values_list('pk', 'key'))
-    out: dict[int, str] = {}
     for pid, file_id in first_file.items():
         key = keys.get(file_id)
         if not key:

@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useHome, type Find } from '../../lib/boot'
+import { useDay } from '../../lib/day'
 import { bucks, money } from '../../lib/format'
 import { Tag } from '../../shell/Tag'
 import './Finds.css'
@@ -64,6 +65,7 @@ function Blank() {
 
 export default function Finds() {
   const feed = useHome()
+  const day = useDay()
   // Pieces whose photo failed to load are left out; when none is left, so is the section (never an empty band).
   const [failed, setFailed] = useState<ReadonlySet<number>>(() => new Set())
   const onFail = (pid: number) => setFailed((prev) => new Set(prev).add(pid))
@@ -73,7 +75,8 @@ export default function Finds() {
     <section className="fd" id="finds">
       <div className="sh">
         <h2>Best finds</h2>
-        <Link to="/store">See all</Link>
+        {/* Black Friday (#228): no way into the store list from home that day. */}
+        {day === 'bf' ? null : <Link to="/store">See all</Link>}
       </div>
       <div className="rail fd-rail">
         {feed ? spread(shown).map((f) => <Card key={f.pid} f={f} onFail={onFail} />) : [0, 1, 2].map((k) => <Blank key={k} />)}

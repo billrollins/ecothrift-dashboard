@@ -156,6 +156,19 @@ class LikelyProductsTests(Base):
         self.assertEqual(r.status_code, 400)
 
 
+class SearchPhotoTests(TestCase):
+    def test_the_add_item_photo_shows_only_when_the_switch_is_on(self):
+        from unittest import mock
+
+        p = Product.objects.create(title='Lamp', brand='Acme', photo_thumb='inventory/products/lamp_thumb.jpg')
+        with mock.patch('django.core.files.storage.default_storage.url', side_effect=lambda k: f'https://cdn.test/{k}'):
+            self.assertFalse(product_find.SEARCH_SHOWS_PRODUCT_THUMB)       # off until Bill turns it on
+            self.assertEqual(product_find.photo_urls([p.id]), {})
+            with mock.patch.object(product_find, 'SEARCH_SHOWS_PRODUCT_THUMB', True):
+                self.assertEqual(product_find.photo_urls([p.id]),
+                                 {p.id: 'https://cdn.test/inventory/products/lamp_thumb.jpg'})
+
+
 class WordConfidenceTests(SimpleTestCase):
     def test_the_same_product_scores_high_a_bigger_or_other_product_lower(self):
         words = product_find.words_of('Energizer 2032 Batteries 2-Pack')

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.337.0] -->
-<!-- Last reviewed: 2026-11-24 (2.337.0) -->
+<!-- Line 1 release: ## [2.338.0] -->
+<!-- Last reviewed: 2026-11-25 (2.338.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.338.0] - 2026-11-25
+
+User-facing theme: **Black Friday on phones: just Home, Scan and Thrift+**
+
+> **For Bill:** While Black Friday is on, the phone site's bottom bar shows only Home, Scan and Thrift+. The menu keeps Visit and every help and info page. In store, On the truck and Categories are out of the way until the sale ends. The desktop site is not changed by this release.
+
+### Changed
+- **Black Friday on phones: only Home, Scan and Thrift+** (Dash Update #228, owner 11-24: "No in store tab Just Home Scan Thrift+ ... You can have visit"; "all help an info are still there too"). While the Black Friday day is on, the phone site's bottom bar is three even tabs (Home, Scan, Thrift+), the menu keeps Home, Scan a tag, Thrift+, Visit and every Help and info row, and home offers no way into In store, On the truck or Categories (no Shop by category, no On the truck block, no Best finds "See all"). Their addresses still answer when typed. Other days unchanged; the desktop site unchanged.
+- **Processing product search: a switch for the product's own thumbnail** (`product_find.SEARCH_SHOWS_PRODUCT_THUMB`, off in this release). With it off, search shows photo-sheet photos only, as before.
 
 ## [2.337.0] - 2026-11-24
 
