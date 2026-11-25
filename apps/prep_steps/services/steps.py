@@ -269,7 +269,14 @@ def summary(run: PrepRun, lines: list[PrepLine] | None = None, stats: dict | Non
         },
         'actions': [_action_row(a) for a in actions],
         'load_info': run.load_info, 'flag_text': FLAG_TEXT, 'categories': _categories(), 'ai_jobs': _jobs(),
+        'send': _send_state(run),
     }
+
+
+def _send_state(run: PrepRun) -> dict:
+    from apps.prep_steps.services.send import state
+
+    return state(run)
 
 
 def _jobs() -> dict[str, dict]:
@@ -284,10 +291,18 @@ def _categories() -> dict[str, list[str]]:
     return _canon()
 
 
-# -- Send: what each line hands over (services/send.py writes it for real) ---------------------------------------------
+# -- Send: what each line hands to Processing (the preview; ``services/send.py`` does the real write) ----------------
+
+def title_with_pack(title: str, pack: str) -> str:
+    """The pack standard is written in the title (processing-night-1124.md): "Facial Tissue, 48 boxes x 125"."""
+    title = str(title or '').strip()
+    if pack and pack.lower() not in title.lower():
+        title = f'{title}, {pack}' if title else pack
+    return title[:300]
+
 
 def handoff(x: PrepLine, stats: dict[int, dict]) -> dict:
-    """What Truck Prep would hand to Processing for one manifest line (processing-night-1124.md contract)."""
+    """What Truck Prep hands to Processing for one manifest line (processing-night-1124.md contract)."""
     r = x.reasons or {}
     match = None
     if x.match_product_id and x.match_kind in ('is', 'like'):
@@ -296,11 +311,8 @@ def handoff(x: PrepLine, stats: dict[int, dict]) -> dict:
                  'confidence': x.match_confidence, 'reason': r.get('match_kind') or r.get('match_product_id', '')}
     draft = None
     if x.match_kind != 'is':
-        pack = R.pack_words(x.unit_count, x.unit_name, x.pack_units)
-        title = x.title
-        if pack and pack.lower() not in title.lower():
-            title = f'{title}, {pack}'  # the pack standard is written in the title (processing-night-1124.md)
-        draft = {'title': title[:300], 'brand': x.brand or 'Generic', 'model': x.model, 'category': x.category,
+        title = title_with_pack(x.title, R.pack_words(x.unit_count, x.unit_name, x.pack_units))
+        draft = {'title': title, 'brand': x.brand or 'Generic', 'model': x.model, 'category': x.category,
                  'subcategory': x.subcategory, 'retail': _f(x.retail), 'unit_count': x.unit_count,
                  'unit_name': x.unit_name, 'pack_units': x.pack_units,
                  'pack': R.pack_words(x.unit_count, x.unit_name, x.pack_units), 'photo_url': x.image_url,
@@ -318,9 +330,10 @@ def handoff(x: PrepLine, stats: dict[int, dict]) -> dict:
     }
 
 
-def send_dry_run(run: PrepRun) -> dict:
-    lines = list(run.lines.all())
-    stats = stats_for(lines)
+def send_dry_run(run: PrepRun, lines: list[PrepLine] | None = None, stats: dict | None = None) -> dict:
+    """The hand-off, line by line, without writing anything (``written`` is always 0 here)."""
+    lines = lines if lines is not None else list(run.lines.all())
+    stats = stats if stats is not None else stats_for(lines)
     rows = [handoff(x, stats) for x in lines]
     return {
         'lines': rows, 'would_write': len(rows),
@@ -328,14 +341,5 @@ def send_dry_run(run: PrepRun) -> dict:
         'like': sum(1 for r in rows if r['product_match'] and r['product_match']['kind'] == 'like'),
         'drafts': sum(1 for r in rows if r['product_draft']),
         'priced': sum(1 for r in rows if r['price']),
-        # Lines with no price and no retail: they go over at $0 and are priced at check-in.
-        'no_price': sum(1 for x in lines if x.price is None and not (x.retail or x.src_retail)),
         'written': 0,
-        **_send_status(run),
     }
-
-
-def _send_status(run: PrepRun) -> dict:
-    from apps.prep_steps.services import send as SEND
-
-    return SEND.status(run)

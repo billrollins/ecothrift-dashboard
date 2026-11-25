@@ -106,8 +106,9 @@ any selection of lines. A programmatic fix is used wherever a rule does the job.
 ## Truck Prep: the three versions
 
 Same engine, same trucks, three ways of working. Each is its own Django app with its own tables and its own page, so
-all three can be tested on the same truck without touching each other or the real manifest rows. Nothing ships;
-"Send to Processing" is a dry run that shows what it would write.
+all three can be tested on the same truck without touching each other or the real manifest rows. Bill picked **A**
+(11-25, live as Prep Truck since v2.340.0); B and C are kept in `workspace/prep-compare/code-kept`. A's Send is real
+since v2.342.0: see "Prep Truck: Send, for real" below.
 
 - **A. Steps** (#225, app `prep_steps`, page `/prep/steps`): Load → Clean → Match products → Category → Retail → Price →
   Packs → Send. One full-width sortable table per step, before and after side by side, a header that says what ran (code
@@ -123,6 +124,44 @@ Useful code to read, not to depend on: the parked #189 work on branch `claude/he
 (`apps/concierge/`, report `.ai/reference/reports/2026-11-24-truck-prep-parked.md` on that branch: Bill's nine review
 points, the per-step time and cost of his Walmart run). Test trucks in `local_shared`: orders 461 (Walmart, 1,155
 lines), 464, 465 (Wayfair, 66 lines), 421.
+
+## Prep Truck: Send, for real (#233, Bill 11-25: "I need Prep A to WORK")
+
+`apps/prep_steps/services/send.py`. Send does not run a second pipeline: it writes what old Preprocessing writes,
+through the same code, so the truck arrives in Processing as a normal finalized truck.
+
+1. **The manifest rows** (`ManifestRow`, the "spine"): what the manifest said (the seller's title, brand, model,
+   quantity, retail, condition, identifiers, the seller's own taxonomy, lot / pallet / LPN), built with standardize's
+   own function and the truck's own column formulas. Written only when the truck has no spine of its own: old
+   standardize stamps `standardized_at`, Send never does, so a spine without the stamp is one Send made.
+2. **Prep Truck's values** on the staging rows' final layer (`PreprocessingRow.final_*`, where finalize reads them):
+   title (with the pack words), brand, model, category, quantity, retail, price, condition, UPC and item number,
+   search words, and the product when the match is "is".
+3. **`finalize_preprocessing_to_bookmarks`**: the finalize old Preprocessing runs. It makes the Processing rows and
+   marks the order finalized.
+4. **A line sold by the unit** (pieces above 1) goes through Processing's own Break apart, so its row counts tags and
+   prices one tag, with the audit memo and Restart row.
+
+All in one transaction. The rules:
+
+- **Preview, then one confirm.** The window shows the counts and the first 25 lines exactly as they will be written.
+- **Open lines never block.** No product = a new product at Processing. No price = the truck rule's price (its retail
+  from the manifest first, when it has none); both are normal rule passes in the Retail and Price ledgers. No retail
+  and no price = $0.00, priced at check-in.
+- **Send again** replaces the Processing rows (the manifest rows keep their ids) while nothing is checked in.
+- **Undo send** is old Preprocessing's own undo (finalize, then standardize when Send made the spine): the truck is an
+  uploaded manifest again and the prep is untouched.
+- **Closed at the first check-in** (or item, disputed row, unfulfilled line): Send and Undo send both refuse and the
+  bar says why. A check-in that lands while Send runs rolls the whole send back.
+- A manifest that changed after Load is refused: load it again.
+
+What a Processing row has no column for, and where it goes instead: pack numbers (the pack words in the title; never
+in specifications, which are copied onto every item at check-in), the subcategory (`taxonomy.path`, the hover on
+Category), the photo and page links (still on the staging row's raw line), a "like" product (the Likely list finds its
+own; Prep Truck's pick is kept in the staging row's `match_candidates`).
+
+Trucks sent by the first cut (v2.342.0: sent once, Prep Truck's words on the manifest rows too) work with all of the
+above: Send again rewrites them the way described here.
 
 ## Order of work
 

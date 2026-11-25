@@ -16,6 +16,7 @@ from .models import STEPS, PrepAction, PrepLine, PrepRun
 from .services import ai
 from .services import changes as ch
 from .services import load as L
+from .services import send as SEND
 from .services import steps as S
 
 STAFF = [IsAuthenticated, IsStaff]
@@ -272,6 +273,8 @@ def discard_view(request, action_id: int):
 @permission_classes(STAFF)
 def undo_view(request, action_id: int):
     action = get_object_or_404(PrepAction.objects.select_related('run'), pk=action_id)
+    if action.name == SEND.ACTION_NAME:
+        return _bad('A send is undone with Undo send, on the Send step.')
     try:
         result = ch.undo(action)
     except ch.ChangeError as exc:
@@ -297,13 +300,26 @@ def line_view(request, order_id: int, line_id: int):
 @api_view(['GET', 'POST'])
 @permission_classes(STAFF)
 def send_view(request, order_id: int):
-    """GET: what Send will write, and whether this truck was sent. POST: send it to Processing for real (#233)."""
+    """GET: what Send would write, the open lines and where the truck stands (nothing written). POST: send it."""
     run = _run(order_id)
-    if request.method == 'POST':
-        from apps.prep_steps.services import send as SEND
+    if request.method == 'GET':
+        return Response(SEND.preview(run))
+    try:
+        result = SEND.send(run, user=request.user)
+    except SEND.SendRefused as exc:
+        return _bad(str(exc), 409)
+    except (ch.ChangeError, InvalidOperation) as exc:
+        return _bad(str(exc) or 'Send could not run.')
+    return Response({**_state(_run(order_id), all_lines=True), 'send': result})
 
-        try:
-            return Response(SEND.send(run, user=request.user))
-        except SEND.SendRefused as exc:
-            return _bad(str(exc), 409)
-    return Response(S.send_dry_run(run))
+
+@api_view(['POST'])
+@permission_classes(STAFF)
+def send_undo_view(request, order_id: int):
+    """Undo send: the truck leaves Processing (only while nothing on it is checked in)."""
+    run = _run(order_id)
+    try:
+        result = SEND.undo(run, user=request.user)
+    except SEND.SendRefused as exc:
+        return _bad(str(exc), 409)
+    return Response({**_state(_run(order_id)), 'undo_send': result})

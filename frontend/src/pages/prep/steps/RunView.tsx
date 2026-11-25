@@ -104,7 +104,7 @@ function ActionRow({ a, onOpen, onUndo, busy }: { a: PrepAction; onOpen: (a: Pre
             Review {a.preview_count}
           </Button>
         )}
-        {a.status === 'applied' && a.name !== 'load' && (
+        {a.status === 'applied' && a.name !== 'load' && a.name !== 'send' && (
           <>
             {a.model && <Button size="small" sx={{ height: 22, fontSize: 12, minWidth: 0 }} onClick={() => onOpen(a)}>See</Button>}
             <Button size="small" startIcon={<UndoIcon sx={{ fontSize: 14 }} />} sx={{ height: 22, fontSize: 12 }} disabled={busy} onClick={() => onUndo(a)}>
@@ -350,16 +350,19 @@ export default function RunView({ run, lines }: { run: PrepRun; lines: PrepLine[
           <Button variant="outlined" startIcon={<ArrowBackIcon />} disabled={busy || i === 0} onClick={() => go(() => prepStepsApi.step(orderId, 'back'))}>
             Back
           </Button>
-          <Button
-            variant="contained"
-            endIcon={i < STEP_KEYS.length - 1 ? <ArrowForwardIcon /> : undefined}
-            disabled={busy || (i === STEP_KEYS.length - 1 && stepState.state === 'done')}
-            onClick={() => go(() => prepStepsApi.step(orderId, 'next'))}
-            data-testid="next-step"
-          >
-            {i < STEP_KEYS.length - 1 ? `Next: ${STEP_INFO[STEP_KEYS[i + 1]].title}` : stepState.state === 'done' ? 'Done' : 'Finish'}
-            {stepState.open ? ` (${stepState.open.toLocaleString()} open)` : ''}
-          </Button>
+          {/* The last step has no Next: its one action is Send to Processing, on the bar below (#233). */}
+          {i < STEP_KEYS.length - 1 && (
+            <Button
+              variant="contained"
+              endIcon={<ArrowForwardIcon />}
+              disabled={busy}
+              onClick={() => go(() => prepStepsApi.step(orderId, 'next'))}
+              data-testid="next-step"
+            >
+              Next: {STEP_INFO[STEP_KEYS[i + 1]].title}
+              {stepState.open ? ` (${stepState.open.toLocaleString()} open)` : ''}
+            </Button>
+          )}
         </Box>
         <Box sx={{ height: 3 * 28 + 2, overflow: 'auto', mt: 0.5, borderTop: `1px solid ${tone.lineSoft}` }} data-testid="ledger">
           {stepActions.length === 0 && <Box sx={{ fontSize: 13, color: tone.inkFaint, py: 0.75 }}>Nothing has run on this step yet.</Box>}
@@ -378,7 +381,7 @@ export default function RunView({ run, lines }: { run: PrepRun; lines: PrepLine[
           onReprice={() => go(() => prepStepsApi.rule(orderId, 'price_rule', null), 'Priced to the target')}
         />
       )}
-      {step === 'send' && <SendBar orderId={orderId} orderNumber={run.order_number} />}
+      {step === 'send' && <SendBar run={run} onState={absorb} />}
       {step === 'load' && (
         <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', alignItems: 'center', minHeight: 32, fontSize: 13 }}>
           <Box sx={{ fontWeight: 800 }}>Columns found:</Box>

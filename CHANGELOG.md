@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.342.0] -->
-<!-- Last reviewed: 2026-11-25 (2.342.0) -->
+<!-- Line 1 release: ## [2.343.0] -->
+<!-- Last reviewed: 2026-11-25 (2.343.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.343.0] - 2026-11-25
+
+User-facing theme: **Prep Truck: Undo send and Send again**
+
+> **For Bill:** A truck sent from Prep Truck can now be taken back (Undo send) or sent again after changes, as long as nothing on it has been checked in. The Send window also shows the lines exactly as they will go to Processing before you confirm. Once the first item is checked in, the truck stays in Processing and the bar says so.
+
+### Added
+- **Prep Truck: Undo send and Send again** (Dash Update #233, the rest). While nothing on the truck is checked in, a sent truck can be taken back out of Processing (Undo send; the prep stays as it is) or sent again after changes (the Processing rows are replaced, the manifest rows keep their ids). At the first check-in (also an item, a disputed row or an unfulfilled line) both close and the bar says why. A check-in that lands in the middle of a send rolls the send back.
+
+### Changed
+- **Prep Truck: the Send window shows what will be written.** Before the confirm it lists the counts (lines, matched products, new products, priced by the truck rule, priced at check-in, still open in a step) and the first 25 lines as they will go over.
+- **Prep Truck: the manifest rows keep the seller's words.** Send writes the manifest rows from the seller's own columns (as old Preprocessing does) and puts Prep Truck's values on top as the final layer, so Processing still shows "manifest said" beside the final value. Pallet and lot ids land on the manifest rows. A line sold by the unit goes over whole and is split with Processing's own Break apart. Trucks sent by v2.342.0 keep working.
 
 ## [2.342.0] - 2026-11-25
 

@@ -148,6 +148,7 @@ export interface PrepRun {
   flag_text: Record<string, string>;
   categories?: Record<string, string[]>;
   ai_jobs?: Record<string, { model: string; effort: string; per_line: number }>;
+  send?: SendState;
 }
 
 export interface LineHistory {
@@ -213,27 +214,34 @@ export interface Handoff {
   subcategory: string;
 }
 
-export interface SendDryRun {
-  lines: Handoff[];
+/** Where the truck stands: in Processing or not, and why Send and Undo send are closed ('' while they are open). */
+export interface SendState {
+  sent: boolean;
+  sent_at: string | null;
+  rows: number;
+  blocked: string;
+  processing_url: string;
+}
+
+/** What Send would write (nothing is written by the preview), the open lines, and where the truck stands. */
+export interface SendPreview {
+  lines: (Handoff & { title: string; qty: number })[];
   would_write: number;
   matched: number;
   like: number;
   drafts: number;
   priced: number;
-  /** Lines with no price and no retail: they go over at $0 and are priced at check-in. */
-  no_price: number;
   written: number;
-  /** When this truck was sent to Processing (null = not yet). */
-  sent_at: string | null;
-  /** Why Send cannot run now, in plain words ('' = it can). */
-  why_not: string;
+  open: { lines: number; no_product: number; no_price: number; no_retail: number };
+  state: SendState;
 }
 
 export interface SendResult {
   written: number;
-  matched: number;
-  no_price: number;
-  sent_at: string;
+  again: boolean;
+  priced_by_rule: number;
+  by_unit: number;
+  products: number;
 }
 
 export interface LineChange {
@@ -276,7 +284,11 @@ export const prepStepsApi = {
   undo: (actionId: number) => api.post<PrepState>(`${base}/actions/${actionId}/undo/`).then((r) => r.data),
   line: (orderId: number, lineId: number) =>
     api.get<{ line: PrepLine; history: LineHistory[] }>(`${base}/orders/${orderId}/lines/${lineId}/`).then((r) => r.data),
-  send: (orderId: number) => api.get<SendDryRun>(`${base}/orders/${orderId}/send/`).then((r) => r.data),
-  /** Hand the truck to Processing for real (Dash #233). A truck is sent once. */
-  sendNow: (orderId: number) => api.post<SendResult>(`${base}/orders/${orderId}/send/`).then((r) => r.data),
+  /** What Send would write. Writes nothing. */
+  send: (orderId: number) => api.get<SendPreview>(`${base}/orders/${orderId}/send/`).then((r) => r.data),
+  /** Hand the truck to Processing (or hand it again). Refused with 409 once anything is checked in. */
+  sendNow: (orderId: number) =>
+    api.post<PrepState & { send: SendResult }>(`${base}/orders/${orderId}/send/`).then((r) => r.data),
+  undoSend: (orderId: number) =>
+    api.post<PrepState & { undo_send: { removed: number } }>(`${base}/orders/${orderId}/send/undo/`).then((r) => r.data),
 };
