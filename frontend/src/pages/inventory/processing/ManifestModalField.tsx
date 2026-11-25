@@ -23,6 +23,8 @@ export interface ManifestModalFieldProps {
   children: ReactNode;
   minWidth?: number;
   maxWidth?: number;
+  /** Take the whole width of its place (a grid cell) instead of a set least and most width. */
+  fill?: boolean;
   valueFontSize?: string;
   valueFontWeight?: number;
 }
@@ -40,6 +42,7 @@ export function ManifestModalField({
   children,
   minWidth = 96,
   maxWidth = 148,
+  fill = false,
   valueFontSize,
   valueFontWeight,
 }: ManifestModalFieldProps) {
@@ -65,7 +68,7 @@ export function ManifestModalField({
         onClick={onOpen}
         valueFontSize={valueFontSize}
         valueFontWeight={valueFontWeight}
-        sx={{ flexShrink: 0, minWidth, maxWidth }}
+        sx={fill ? { minWidth: 0, width: '100%' } : { flexShrink: 0, minWidth, maxWidth }}
       />
 
       <Dialog open={open} onClose={handleDialogClose} fullWidth maxWidth="sm">

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.340.0] -->
-<!-- Last reviewed: 2026-11-25 (2.340.0) -->
+<!-- Line 1 release: ## [2.341.0] -->
+<!-- Last reviewed: 2026-11-25 (2.341.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.341.0] - 2026-11-25
+
+User-facing theme: **Processing keys and undo, Prep Truck in the menu, and Thrift+ explains Black Friday**
+
+> **For Bill:** Processing: row fields keep their size, Tab highlights a change, Enter saves them all, and Ctrl+Z undoes the last action. The New product window has details first and one AI box. Prep A is now called Prep Truck, with a button on each order; old Preprocessing moved under Legacy until Prep Truck's Send hands a truck to Processing. During Black Friday the Thrift+ page tells members that all ThriftBucks are applied instantly and that they still get 3-day returns.
+
+### Changed
+- **Processing row keys, the product window and undo** (Dash Update #230, owner 11-25 after talking with the processors). The row's fields keep their size when you edit and fill the width. Tab moves on and leaves the change highlighted; Enter saves every highlighted change; "Apply changes" and "Cancel all" sit at the end of the line. New product window: product details first with a Clear button, one AI line (a request box that Suggest and Duplicate both use), then the optional product page with Clear, Fill and Clear then fill. Ctrl+Z undoes the last action on the page and Ctrl+Y does it again, with a hint in the row header.
+- **Prep A is now "Prep Truck", and old Preprocessing moved under Legacy** (Dash Update #232, owner 11-25: "why is preprocessing still there? Prep A... should be call PreProcessing or Prep Truck. and should be a button on the Purchase orders page if needed."). Buying menu: Prep Truck sits after Orders; the old page is "Preprocessing (old)" under Legacy. The order card has a **Prep Truck** button that opens that truck in Prep Truck, with "Preprocessing (old)" beside it. The old page stays reachable because it is still the one that hands a truck to Processing: Prep Truck's Send is a dry run until it is wired in (#233).
+- **Thrift+ page says what Black Friday means for members** (Dash Update #231, owner 11-25: "During Black Friday all thriftbucks are applied instantly. As a member you still get 3-day returns."). While the Black Friday day is on, the Thrift+ page on phones and computers, signed out and signed in, carries a Black Friday card under the band with those two lines. Other days unchanged.
 
 ## [2.340.0] - 2026-11-25
 

@@ -1709,6 +1709,30 @@ def _suggest_item_parse_suggestions_from_text(
     return out, parsed
 
 
+# The "AI request" box of the product window (Dash Update #230, Bill 2026-11-25: "AI request should be a box that
+# does AI suggest with a user prompt from the box. And Duplicate can be duplicate with AI that uses the AI box for
+# duplicate instructions").
+SUGGEST_PRODUCT_REQUEST_MAX = 600
+SUGGEST_PRODUCT_REQUEST_RULE = (
+    '\n\nThe user message may hold "staff_request": what the staff member asks for, in their own words. '
+    'Follow it. It outranks the draft and the store examples. Change what it asks for and keep every other '
+    'field of the draft as it is.'
+)
+SUGGEST_PRODUCT_DUPLICATE_RULE = (
+    '\n\nmode "duplicate": the draft is a COPY of an existing product, made to create a different product '
+    'from it. staff_request says how the new product differs (another size, colour, count or model). Rewrite '
+    'the title, model, tags and specifications to say that difference and leave the rest as it is. Return '
+    'identifiers only when staff_request gives one: the copy is another product, with its own codes.'
+)
+
+
+def suggest_product_request_rules(staff_request: str, duplicate: bool) -> str:
+    """The lines added to the suggest prompt for a typed request: none without one, the copy rule only with one."""
+    if not (staff_request or '').strip():
+        return ''
+    return SUGGEST_PRODUCT_REQUEST_RULE + (SUGGEST_PRODUCT_DUPLICATE_RULE if duplicate else '')
+
+
 def _suggest_product_parse_suggestions_from_text(
     content_text: str,
     fields: list,
@@ -6925,6 +6949,10 @@ class ProductViewSet(viewsets.ModelViewSet):
             brand = (context.get('brand') or '')[:200]
             category = (context.get('category') or '')[:200]
             model_ctx = (context.get('model') or '')[:200]
+            # What the staff member typed in the "AI request" box; with ``duplicate`` the draft is a copy of an
+            # existing product and the request says how the copy differs (#230).
+            staff_request = str(request.data.get('instruction') or '').strip()[:SUGGEST_PRODUCT_REQUEST_MAX]
+            duplicate = bool(request.data.get('duplicate')) and bool(staff_request)
 
             category_options = context.get('category_options') or []
             if not isinstance(category_options, list):
@@ -6946,6 +6974,10 @@ class ProductViewSet(viewsets.ModelViewSet):
                 'allowed_categories': sorted(category_option_set),
                 'store_examples': store_examples,
             }
+            if staff_request:
+                user_payload['staff_request'] = staff_request
+            if duplicate:
+                user_payload['mode'] = 'duplicate'
 
             category_lines = '\n'.join(f'- {name}' for name in sorted(category_option_set))
             system_prompt = (
@@ -6960,6 +6992,7 @@ class ProductViewSet(viewsets.ModelViewSet):
                 + '\n\n'
                 + 'The user message is JSON with requested_fields, draft, allowed_categories, and store_examples. '
                 'store_examples are for style only; do not copy SKUs/prices as facts about the draft product.'
+                + suggest_product_request_rules(staff_request, duplicate)
             )
 
             user_message_json = json_lib.dumps(user_payload)

@@ -71,13 +71,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   preprocessing: {
     id: 'preprocessing',
     path: '/inventory/preprocessing',
-    label: 'Preprocessing',
+    label: 'Preprocessing (old)',
     icon: 'manifest',
   },
   prepSteps: {
     id: 'prepSteps',
     path: '/prep/steps',
-    label: 'Prep A: Steps',
+    label: 'Prep Truck',
     icon: 'manifest',
     keywords: 'truck prep steps preprocessing',
   },

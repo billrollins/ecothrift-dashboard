@@ -40,6 +40,20 @@ import { ProcessingLikelyProducts, ProcessingProductSearch } from './ProcessingP
 import { PaneNote, PaneStat, ProductPane } from './ProcessingProductPane';
 import { lastCheckInForProduct } from './processingCheckInDefaults';
 import { attachedStatusLine, attachedTotals } from './processingAttachedStats';
+import {
+  fieldsPhrase,
+  patchFor,
+  pendingFields,
+  revertField,
+  sameFieldValue,
+  savedValuesOf,
+  shownValues,
+  stageValue,
+  type RowEditField,
+  type RowEditValues,
+  type RowPending,
+} from './processingRowEdits';
+import { useProcessingUndo } from './processingUndo';
 import { PROCESSING_QUEUE_TABLE_HEAD_HEIGHT, PROCESSING_QUEUE_TABLE_ROW_HEIGHT } from './processingQueueLayout';
 import type { NewPackResult } from '../../../api/productPacks.api';
 import {
@@ -67,7 +81,7 @@ import {
   useRetailPriceLock,
 } from '../workbench/RetailPriceLockControls';
 import { formatCurrency } from '../../../utils/format';
-import { moneyValuesEqual, preventWheelChangeNumber, sanitizeDecimalPaste } from '../../../utils/formInputs';
+import { preventWheelChangeNumber, sanitizeDecimalPaste } from '../../../utils/formInputs';
 import { isTaxonomyV1CategoryName, TAXONOMY_V1_CATEGORY_NAMES } from '../../../constants/taxonomyV1';
 import { ProcessingGoogleSearchButton } from './ProcessingGoogleSearchButton';
 import { PhotoSheetButton } from '../../../components/photoSheets/PhotoSheetButton';
@@ -77,7 +91,7 @@ import { RowDisputeDialog } from './RowDisputeDialog';
 import { RestorationRequestDialog } from '../restorationRequest/RestorationRequestDialog';
 import { ProcessingRowSection } from './ProcessingRowSection';
 import { processingTokens } from './processingTokens';
-import { ManifestFieldNavContext, ManifestFieldNavProvider, type ManifestFieldId } from './manifestFieldNav';
+import { ManifestFieldNavContext, ManifestFieldNavProvider } from './manifestFieldNav';
 import { ManifestIdentifiersField } from './ManifestIdentifiersField';
 import { ManifestTagsField } from './manifestTagsField';
 import { CheckedInItemsTable, type CheckInAttachedProductOption } from './CheckedInItemsTable';
@@ -104,7 +118,6 @@ import {
   type ProcessingProductLinkRole,
 } from './processingManifestAccounting';
 import { ProcessingRestartRowDialog } from './ProcessingTransformDialogs';
-import { processingRowManifestToolbarRowSx } from './processingRowToolbarLayout';
 import { ManifestModalField } from './ManifestModalField';
 import { ManifestModalNavBridge } from './ManifestModalNavBridge';
 import { ManifestNotesField } from './ManifestNotesField';
@@ -116,14 +129,13 @@ import {
   PROCESSING_ROW_EDIT_ICON_SIZE,
   PROCESSING_ROW_EDIT_SEGMENT_WIDTH,
   PROCESSING_ROW_FIELD_HEIGHT,
-  PROCESSING_ROW_PILL_EDIT_MIN_WIDTH,
   PROCESSING_ROW_VALUE_FONT,
   PROCESSING_ROW_VALUE_FONT_COMPACT,
   PROCESSING_ROW_VALUE_FONT_EMPHASIZED,
   PROCESSING_ROW_VALUE_FONT_WEIGHT,
   processingRowLabelSx,
 } from './processingRowFieldTokens';
-import { IconAdd as Add, IconBack as ArrowBack, IconClose as Close, IconConfirm as Check, IconDelete as DeleteOutline, IconRefresh as Refresh } from '../../../icons/ecoIcons';
+import { IconAdd as Add, IconBack as ArrowBack, IconClose as Close, IconConfirm as Check, IconDelete as DeleteOutline, IconRefresh as Refresh, IconUndo } from '../../../icons/ecoIcons';
 
 /**
  * The row screen's fixed heights (#229, Bill 2026-11-25: "Checkin Area gets WAY too much space (4 lines with vert
@@ -142,26 +154,160 @@ export const PRODUCT_PANE_PHONE_PX = 212;
 /** The Row details heading line: fixed, so a note chip or the Restart button in it moves nothing. */
 const ROW_DETAILS_HEADER_PX = 32;
 
-const manifestToolbarFieldSx = { flex: '1 1 102px', minWidth: 98, maxWidth: 260 };
-const manifestToolbarEditablePillSlotSx = {
-  flex: '0 0 auto',
-  minWidth: PROCESSING_ROW_PILL_EDIT_MIN_WIDTH,
-  maxWidth: 'none',
-};
-const manifestToolbarCompactFieldSx = manifestToolbarEditablePillSlotSx;
-const manifestToolbarTitleSx = {
-  flex: '1.2 1 140px',
-  minWidth: PROCESSING_ROW_PILL_EDIT_MIN_WIDTH,
-  maxWidth: 320,
-};
-const manifestToolbarMoneyFieldSx = manifestToolbarEditablePillSlotSx;
 const manifestToolbarEmphasisFieldSx = {
   valueFontSize: PROCESSING_ROW_VALUE_FONT_EMPHASIZED,
   valueFontWeight: PROCESSING_ROW_VALUE_FONT_WEIGHT,
 } as const;
 
-function ManifestToolbarSlot({ children, sx }: { children: ReactNode; sx?: object }) {
-  return <Box sx={{ ...manifestToolbarFieldSx, ...sx }}>{children}</Box>;
+/** No change typed on the row: one object, so a row with nothing pending never re-renders for it. */
+const NO_PENDING: RowPending = {};
+
+/**
+ * The manifest row's fields, one kept line (#230, Bill 2026-11-25: fields "wide enough" that the X and the tick
+ * never move the fields beside them, and "use the space ... stretch Notes or other fields if screen is big enough").
+ *
+ * A grid: each column has a least width that holds its text with the two buttons inside, and takes its share of
+ * any room left. Title, Brand, Model, Category, Retail, the lock, Price, the percent, Identifiers, Tags, Notes,
+ * then "Apply changes" / "Cancel all". A screen too narrow for the least widths scrolls the line sideways, and the
+ * two buttons stay in view at its right edge.
+ */
+const ROW_FIELDS_GRID_COLUMNS = [
+  'minmax(150px, 2.4fr)', // Title
+  'minmax(108px, 1fr)', // Brand
+  'minmax(108px, 1fr)', // Model
+  'minmax(132px, 1.4fr)', // Category
+  'minmax(100px, 0.8fr)', // Retail
+  'auto', // lock
+  'minmax(100px, 0.8fr)', // Price
+  'auto', // percent
+  'minmax(118px, 1.3fr)', // Identifiers
+  'minmax(86px, 1fr)', // Tags
+  'minmax(90px, 2fr)', // Notes
+  'auto', // Apply changes / Cancel all
+].join(' ');
+
+/**
+ * "Apply changes" and "Cancel all" at the end of the row (#230). Always there, greyed until a field is highlighted,
+ * so they never push the fields. After the last field, Tab lands on "Apply changes".
+ */
+export function RowEditActions({ count, busy, onApply, onCancel }: {
+  count: number;
+  busy: boolean;
+  onApply: () => void;
+  onCancel: () => void;
+}) {
+  const nav = useContext(ManifestFieldNavContext);
+  const applyRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => nav?.registerEnd(() => applyRef.current?.focus()), [nav]);
+  const idle = count === 0 || busy;
+  const what = count === 1 ? '1 change' : `${count} changes`;
+  return (
+    <Box
+      data-testid="row-edit-actions"
+      sx={{
+        position: 'sticky',
+        right: 0,
+        zIndex: 1,
+        alignSelf: 'stretch',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+        gap: '2px',
+        pl: 0.75,
+        py: 0.35,
+        bgcolor: processingTokens.surfaceRaised,
+        boxShadow: '-8px 0 6px -6px rgba(255, 255, 255, 0.95)',
+      }}
+    >
+      <Tooltip title={count ? `Save ${what} (Enter in a field does the same)` : ''} enterDelay={400} disableInteractive>
+        <span style={{ display: 'block', lineHeight: 0 }}>
+          <Button
+            ref={applyRef}
+            size="small"
+            variant="contained"
+            disabled={idle}
+            onClick={onApply}
+            aria-label={count ? `Apply ${what}` : 'Apply changes'}
+            sx={{ width: '100%', height: 19, minHeight: 19, py: 0, px: 0.9, fontSize: '0.6875rem', fontWeight: 800, whiteSpace: 'nowrap', lineHeight: 1 }}
+          >
+            Apply changes
+          </Button>
+        </span>
+      </Tooltip>
+      <Button
+        size="small"
+        color="inherit"
+        variant="outlined"
+        disabled={idle}
+        onClick={onCancel}
+        sx={{ height: 17, minHeight: 17, py: 0, px: 0.9, fontSize: '0.6875rem', fontWeight: 700, whiteSpace: 'nowrap', lineHeight: 1, borderColor: processingTokens.border }}
+      >
+        Cancel all
+      </Button>
+    </Box>
+  );
+}
+
+/**
+ * Undo and Redo with their keys said on them (#230, Bill 2026-11-25: "a hot key hint so processors know they can
+ * undo"). Always the same size at the right end of the row's header; greyed when there is nothing to undo.
+ */
+function UndoRedoButtons() {
+  const undo = useProcessingUndo();
+  if (!undo) return null;
+  const buttonSx = {
+    minWidth: 0,
+    height: 22,
+    px: 0.7,
+    py: 0,
+    gap: 0.4,
+    fontSize: '0.625rem',
+    fontWeight: 800,
+    whiteSpace: 'nowrap',
+    textTransform: 'none',
+    color: processingTokens.rowStatusHeaderText,
+    borderColor: 'rgba(27, 94, 32, 0.35)',
+    bgcolor: 'rgba(255, 255, 255, 0.55)',
+    '& .MuiButton-startIcon': { mr: 0.1, ml: 0 },
+    '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.9)', borderColor: processingTokens.primaryDark },
+  } as const;
+  const keySx = { fontFamily: processingTokens.monoFontFamily, fontWeight: 700, opacity: 0.75 } as const;
+  return (
+    <Box data-testid="undo-redo" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, flexShrink: 0 }}>
+      <Tooltip title={undo.undoLabel ? `Undo: ${undo.undoLabel}` : 'Nothing to undo'} enterDelay={300} disableInteractive>
+        <span>
+          <Button
+            size="small"
+            variant="outlined"
+            disabled={!undo.undoLabel || undo.busy}
+            onClick={() => void undo.undo()}
+            startIcon={<IconUndo sx={{ fontSize: 13 }} />}
+            aria-label="Undo (Ctrl+Z)"
+            sx={buttonSx}
+          >
+            Undo
+            <Box component="span" sx={keySx}>Ctrl+Z</Box>
+          </Button>
+        </span>
+      </Tooltip>
+      <Tooltip title={undo.redoLabel ? `Redo: ${undo.redoLabel}` : 'Nothing to redo'} enterDelay={300} disableInteractive>
+        <span>
+          <Button
+            size="small"
+            variant="outlined"
+            disabled={!undo.redoLabel || undo.busy}
+            onClick={() => void undo.redo()}
+            startIcon={<IconUndo sx={{ fontSize: 13, transform: 'scaleX(-1)' }} />}
+            aria-label="Redo (Ctrl+Y)"
+            sx={buttonSx}
+          >
+            Redo
+            <Box component="span" sx={keySx}>Ctrl+Y</Box>
+          </Button>
+        </span>
+      </Tooltip>
+    </Box>
+  );
 }
 
 function ProcessingRowHeader({
@@ -387,7 +533,6 @@ function ProcessingRowHeader({
         <Stack
           direction="row"
           spacing={0.65}
-          flexWrap="wrap"
           useFlexGap
           alignItems="center"
           justifyContent={{ xs: 'flex-start', md: 'flex-end' }}
@@ -396,6 +541,10 @@ function ProcessingRowHeader({
             gridColumn: { xs: '2', md: '4' },
             gridRow: { xs: '1', md: '1' },
             minWidth: 0,
+            maxWidth: '100%',
+            // One line on a computer: more chips never make the header taller (they are cut at the left instead).
+            flexWrap: { xs: 'wrap', md: 'nowrap' },
+            overflow: { md: 'hidden' },
           }}
         >
           {groupChipLabel ?
@@ -422,13 +571,13 @@ function ProcessingRowHeader({
               sx={{ height: 20, fontSize: '0.625rem', fontWeight: 700 }}
             />
           : null}
+          {/* Last, so they keep their place at the right end whatever chips the row has. */}
+          <UndoRedoButtons />
         </Stack>
       </Box>
     </Box>
   );
 }
-
-type ManifestFieldVariant = 'hero' | 'block' | 'stat' | 'pill';
 
 function resolveSelectOptions(
   options: readonly string[],
@@ -440,32 +589,15 @@ function resolveSelectOptions(
   return [...options];
 }
 
-function manifestFieldLayout(
-  variant: ManifestFieldVariant,
-  multiline: boolean,
-  emphasis: 'compact' | 'normal' | 'emphasized' = 'normal',
-) {
-  if (multiline) {
-    return { shellMinHeight: 52, valueFontSize: '0.8125rem', valueFontWeight: 600, showLabel: true };
-  }
-  if (variant === 'hero') {
-    return { shellMinHeight: 32, valueFontSize: '1rem', valueFontWeight: 700, showLabel: false };
-  }
-  if (variant === 'pill') {
-    const valueFontSize =
-      emphasis === 'compact' ? PROCESSING_ROW_VALUE_FONT_COMPACT
-      : emphasis === 'emphasized' ? PROCESSING_ROW_VALUE_FONT_EMPHASIZED
-      : PROCESSING_ROW_VALUE_FONT;
-    return {
-      shellMinHeight: PROCESSING_ROW_FIELD_HEIGHT,
-      valueFontSize,
-      valueFontWeight: PROCESSING_ROW_VALUE_FONT_WEIGHT,
-      showLabel: true,
-    };
-  }
-  return { shellMinHeight: 28, valueFontSize: '0.8125rem', valueFontWeight: 600, showLabel: true };
+function manifestFieldValueFont(emphasis: 'compact' | 'normal' | 'emphasized' = 'normal'): string {
+  return (
+    emphasis === 'compact' ? PROCESSING_ROW_VALUE_FONT_COMPACT
+    : emphasis === 'emphasized' ? PROCESSING_ROW_VALUE_FONT_EMPHASIZED
+    : PROCESSING_ROW_VALUE_FONT
+  );
 }
 
+/** One of the two small buttons inside a field that is being typed in: the tick saves, the X puts the field back. */
 function FieldEditSegment({
   kind,
   onClick,
@@ -483,6 +615,7 @@ function FieldEditSegment({
     <Box
       component="button"
       type="button"
+      tabIndex={-1}
       aria-label={ariaLabel}
       disabled={disabled}
       onMouseDown={(e) => {
@@ -541,87 +674,81 @@ const manifestInputSx = {
   '&::placeholder': { color: processingTokens.textMute, opacity: 1 },
 } as const;
 
-function ManifestField({
+/** The look of a field whose change is typed but not yet saved (#230: "leaves the field highlighted"). */
+const CHANGED_FIELD_BORDER = '#d39a1b';
+const CHANGED_FIELD_BG = '#fff6dc';
+
+/**
+ * One field of the manifest row, typed in place (#230, Bill 2026-11-25).
+ *
+ * - The field never changes size: the X and the tick sit inside its own width while it is being typed in, so the
+ *   fields beside it do not move.
+ * - Tab moves on (Shift+Tab back) and leaves a change **highlighted**, not saved. Clicking away does the same.
+ * - Enter saves every highlighted change on the row and moves on; the tick saves and stays.
+ * - The X puts this one field back to what is saved; Esc only stops the typing.
+ *
+ * The pending values live in the row card (`processingRowEdits.ts`); `value` is what the row shows now.
+ */
+export function ManifestField({
   fieldId,
   label,
   value,
-  displayValue,
   layerSources,
   currency = false,
-  multiline = false,
-  variant = 'block',
   selectOptions,
   emphasis = 'normal',
-  trailingAdornment,
-  onSave,
+  changed = false,
+  onStage,
+  onApply,
+  onRevert,
 }: {
-  fieldId?: ManifestFieldId;
+  fieldId: RowEditField;
   label: string;
+  /** What the row shows now: the pending value where there is one, else the saved one. */
   value: string;
-  displayValue?: string;
   /** Manifest vs AI source values for hover tooltip. Pass `{}` to always show layer lines. */
   layerSources?: { manifest?: string; ai?: string; final?: string };
   currency?: boolean;
-  multiline?: boolean;
-  variant?: ManifestFieldVariant;
   selectOptions?: readonly string[];
   emphasis?: 'compact' | 'normal' | 'emphasized';
-  /** Rendered after the value / currency input (e.g. % of retail badge on Price). */
-  trailingAdornment?: ReactNode;
-  onSave: (value: string) => void | Promise<void>;
+  /** This field holds a change that is not saved yet. */
+  changed?: boolean;
+  /** Keep the typed value as a highlighted change (Tab, or clicking away). */
+  onStage: (value: string) => void;
+  /** Keep the typed value and save every highlighted change (Enter, or the tick). */
+  onApply: (value: string) => void | Promise<unknown>;
+  /** Put this field back to what is saved (the X). */
+  onRevert: () => void;
 }) {
   const nav = useContext(ManifestFieldNavContext);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
-  const [optimisticValue, setOptimisticValue] = useState<string | null>(null);
   const [selectMenuOpen, setSelectMenuOpen] = useState(false);
   const editContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(null);
   const suppressBlurRef = useRef(false);
-  /** Prop value at the moment we set optimistic - used to detect external updates. */
-  const optimisticBaselineRef = useRef<string | null>(null);
-  const layout = manifestFieldLayout(variant, multiline, emphasis);
-  const rawValue = optimisticValue ?? value;
-  const effectiveRaw = currency ? rawValue : (optimisticValue ?? displayValue ?? value);
-  const trimmed = effectiveRaw?.trim() ?? '';
+  const valueFontSize = manifestFieldValueFont(emphasis);
+  const trimmed = value?.trim() ?? '';
   const isEmpty = !trimmed;
-  const shown = currency ? (isEmpty ? '-' : formatCurrency(rawValue)) : (trimmed || '-');
+  const shown = currency ? (isEmpty ? '-' : formatCurrency(value)) : (trimmed || '-');
   const pillPlaceholder = `Add ${label.toLowerCase()}`;
   const resolvedSelectOptions = useMemo(
-    () => (selectOptions ? resolveSelectOptions(selectOptions, draft || rawValue, isTaxonomyV1CategoryName) : []),
-    [selectOptions, draft, rawValue],
+    () => (selectOptions ? resolveSelectOptions(selectOptions, draft || value, isTaxonomyV1CategoryName) : []),
+    [selectOptions, draft, value],
   );
 
   useEffect(() => {
-    setDraft(value);
-    if (optimisticValue == null) return;
-    // Server echoes money as "30.00" while the pill may have saved "30" - compare numerically.
-    const matches = currency ? moneyValuesEqual(value, optimisticValue) : value === optimisticValue;
-    if (matches) {
-      setOptimisticValue(null);
-      optimisticBaselineRef.current = null;
-      return;
-    }
-    // Prop left the baseline we saved over → external update (lock / % badge) wins.
-    const baseline = optimisticBaselineRef.current;
-    if (
-      baseline != null &&
-      !(currency ? moneyValuesEqual(value, baseline) : value === baseline)
-    ) {
-      setOptimisticValue(null);
-      optimisticBaselineRef.current = null;
-    }
-  }, [value, optimisticValue, currency]);
+    if (!editing) setDraft(value);
+  }, [value, editing]);
 
   const beginEdit = useCallback(() => {
-    const nextDraft = selectOptions ? (optimisticValue ?? value) : (currency ? rawValue : effectiveRaw);
-    setDraft(nextDraft);
+    setDraft(value);
     setEditing(true);
     if (selectOptions) setSelectMenuOpen(true);
-  }, [selectOptions, optimisticValue, value, currency, rawValue, effectiveRaw]);
+  }, [selectOptions, value]);
 
   useEffect(() => {
-    if (!fieldId || !nav) return;
+    if (!nav) return;
     return nav.registerOpener(fieldId, beginEdit);
   }, [fieldId, nav, beginEdit]);
 
@@ -633,87 +760,74 @@ function ManifestField({
     }
   }, [editing, selectMenuOpen]);
 
-  function armSuppressBlur() {
+  function closeEditor() {
     suppressBlurRef.current = true;
-  }
-
-  function releaseSuppressBlur() {
+    setSelectMenuOpen(false);
+    setEditing(false);
     window.setTimeout(() => {
       suppressBlurRef.current = false;
     }, 0);
   }
 
-  function cancelEdit() {
-    armSuppressBlur();
-    setDraft(selectOptions ? (optimisticValue ?? value) : (currency ? rawValue : effectiveRaw));
-    setSelectMenuOpen(false);
-    setEditing(false);
-    releaseSuppressBlur();
+  function typed(raw: string = draft): string {
+    return currency ? sanitizeDecimalPaste(raw.trim()) : raw;
   }
 
-  function confirmEdit(nextValue: string = draft, tabDirection?: 1 | -1) {
-    const normalized = currency ? sanitizeDecimalPaste(nextValue.trim()) : nextValue;
-    armSuppressBlur();
-    optimisticBaselineRef.current = value;
-    setOptimisticValue(normalized);
-    setDraft(normalized);
-    setSelectMenuOpen(false);
-    setEditing(false);
-    window.setTimeout(() => {
-      releaseSuppressBlur();
-      void Promise.resolve(onSave(normalized)).catch(() => {
-        setOptimisticValue(null);
-        optimisticBaselineRef.current = null;
-      });
-      if (fieldId && nav && tabDirection) {
-        nav.focusAdjacent(fieldId, tabDirection);
-      }
-    }, 0);
+  /** Tab, or clicking away: the change stays, highlighted. */
+  function stageAndClose(direction?: 1 | -1, raw?: string) {
+    const next = typed(raw);
+    closeEditor();
+    onStage(next);
+    if (direction) nav?.focusAdjacent(fieldId, direction);
+  }
+
+  /** Enter (moves on) or the tick (stays): save everything highlighted. */
+  function applyAndClose(move: boolean) {
+    const next = typed();
+    closeEditor();
+    void onApply(next);
+    if (move) nav?.focusAdjacent(fieldId, 1);
+  }
+
+  /** Esc: stop typing; what was highlighted before stays as it was. */
+  function cancelEdit() {
+    closeEditor();
+    setDraft(value);
+  }
+
+  /** The X: this field goes back to what is saved. */
+  function revertAndClose() {
+    closeEditor();
+    onRevert();
   }
 
   function handleBlur(e: FocusEvent) {
-    if (selectOptions) return;
     if (suppressBlurRef.current) return;
-    const related = e.relatedTarget as Node | null;
+    const related = e.relatedTarget as HTMLElement | null;
     if (editContainerRef.current?.contains(related)) return;
-    cancelEdit();
+    // The category list opens in its own layer: focus there is still this field.
+    if (related?.closest('.MuiPopover-root, .MuiMenu-root')) return;
+    if (selectOptions && selectMenuOpen) return;
+    stageAndClose();
   }
 
-  function handleCancelClick() {
-    cancelEdit();
-  }
-
-  function handleSaveClick() {
-    confirmEdit(draft);
-  }
-
-  function handleEditorKeyDown(e: KeyboardEvent, allowTabNavigate: boolean) {
+  function handleEditorKeyDown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       cancelEdit();
       return;
     }
-    if (e.key === 'Tab' && allowTabNavigate) {
+    if (e.key === 'Tab') {
       e.preventDefault();
-      confirmEdit(draft, e.shiftKey ? -1 : 1);
+      stageAndClose(e.shiftKey ? -1 : 1);
       return;
     }
-    if (e.key === 'Enter' && !multiline) {
+    if (e.key === 'Enter') {
       e.preventDefault();
-      confirmEdit(draft);
-      return;
-    }
-    if (e.key === 'Enter' && multiline && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      confirmEdit(draft);
+      applyAndClose(true);
     }
   }
-
-  const shellBorderColor =
-    editing || variant === 'pill' ?
-      editing ? processingTokens.borderStrong
-      : processingTokens.border
-    : 'transparent';
 
   const hoverTooltip =
     editing || layerSources === undefined ?
@@ -724,259 +838,181 @@ function ManifestField({
       );
 
   const fieldShell = (
-      <Box
-        ref={editContainerRef}
-        onClick={!editing ? beginEdit : undefined}
-        sx={{
-          display: 'flex',
-          alignItems: 'stretch',
-          width: variant === 'pill' ? '100%' : undefined,
-          minHeight: layout.shellMinHeight,
-          ...(editing && variant === 'pill' ?
-            { minWidth: PROCESSING_ROW_PILL_EDIT_MIN_WIDTH, flexShrink: 0 }
-          : {}),
-          borderRadius: 1,
-          border: '1px solid',
-          borderColor: shellBorderColor,
-          bgcolor: editing ? processingTokens.surfaceTint : variant === 'pill' ? (t) => alpha(t.palette.background.default, 0.4) : 'transparent',
-          overflow: 'hidden',
-          cursor: editing ? 'default' : 'pointer',
-          transition: (theme) =>
-            theme.transitions.create(['background-color', 'border-color', 'box-shadow', 'opacity'], { duration: 120 }),
-          boxShadow: editing && variant !== 'pill' ? processingTokens.focusRing : 'none',
-          ...(!editing ?
-            {
-              '&:hover': {
-                bgcolor: 'action.hover',
-                borderColor: variant === 'pill' ? processingTokens.borderStrong : processingTokens.border,
-              },
-            }
-          : {}),
-        }}
-      >
-        {editing ?
-          <>
-            {selectOptions ?
-              <TextField
-                select
-                variant="standard"
-                size="small"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => handleEditorKeyDown(e as KeyboardEvent, true)}
-                slotProps={{
-                  select: {
-                    open: selectMenuOpen,
-                    onOpen: () => setSelectMenuOpen(true),
-                    onClose: () => setSelectMenuOpen(false),
-                    inputRef,
-                  },
-                  input: {
-                    sx: {
-                      fontSize: layout.valueFontSize,
-                      fontWeight: layout.valueFontWeight,
-                      px: 1,
-                      py: 0.25,
-                      '&:before, &:after': { display: 'none' },
-                    },
-                  },
-                }}
-                sx={{
-                  flex: 1,
-                  minWidth: 0,
-                  m: 0,
-                  ...(variant === 'pill' ? { height: PROCESSING_ROW_FIELD_HEIGHT } : {}),
-                  '& .MuiInput-root': { alignItems: 'center', ...(variant === 'pill' ? { height: '100%' } : {}) },
-                  '& .MuiSelect-select': {
-                    display: 'flex',
-                    alignItems: 'center',
-                    minHeight: 'unset',
+    <Box
+      ref={editContainerRef}
+      onClick={!editing ? beginEdit : undefined}
+      data-testid={`row-field-${fieldId}`}
+      data-changed={changed ? 'true' : undefined}
+      data-editing={editing ? 'true' : undefined}
+      sx={{
+        display: 'flex',
+        alignItems: 'stretch',
+        width: '100%',
+        minWidth: 0,
+        height: PROCESSING_ROW_FIELD_HEIGHT,
+        borderRadius: 1,
+        border: '1px solid',
+        borderColor:
+          changed ? CHANGED_FIELD_BORDER
+          : editing ? processingTokens.borderStrong
+          : processingTokens.border,
+        bgcolor:
+          editing ? processingTokens.surfaceTint
+          : changed ? CHANGED_FIELD_BG
+          : (t) => alpha(t.palette.background.default, 0.4),
+        overflow: 'hidden',
+        cursor: editing ? 'default' : 'pointer',
+        transition: (theme) => theme.transitions.create(['background-color', 'border-color'], { duration: 120 }),
+        ...(!editing ?
+          {
+            '&:hover': {
+              bgcolor: changed ? CHANGED_FIELD_BG : 'action.hover',
+              borderColor: changed ? CHANGED_FIELD_BORDER : processingTokens.borderStrong,
+            },
+          }
+        : {}),
+      }}
+    >
+      {editing ?
+        <>
+          {selectOptions ?
+            <TextField
+              select
+              variant="standard"
+              size="small"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => handleEditorKeyDown(e as KeyboardEvent)}
+              onBlur={(e) => handleBlur(e as FocusEvent)}
+              slotProps={{
+                select: {
+                  open: selectMenuOpen,
+                  onOpen: () => setSelectMenuOpen(true),
+                  onClose: () => setSelectMenuOpen(false),
+                  inputRef,
+                },
+                input: {
+                  sx: {
+                    fontSize: valueFontSize,
+                    fontWeight: PROCESSING_ROW_VALUE_FONT_WEIGHT,
+                    px: 1,
                     py: 0.25,
+                    '&:before, &:after': { display: 'none' },
                   },
-                }}
-              >
-                <MenuItem value="">
-                  <em>-</em>
-                </MenuItem>
-                {resolvedSelectOptions.map((opt) => (
-                  <MenuItem key={opt} value={opt} dense>
-                    {opt}
-                    {!isTaxonomyV1CategoryName(opt) ? ' (legacy)' : ''}
-                  </MenuItem>
-                ))}
-              </TextField>
-            : multiline ?
-              <Box
-                component="textarea"
-                ref={inputRef}
-                value={draft}
-                rows={2}
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={handleBlur}
-                onKeyDown={(e) => handleEditorKeyDown(e, true)}
-                sx={{
-                  ...manifestInputSx,
-                  fontSize: layout.valueFontSize,
-                  fontWeight: layout.valueFontWeight,
-                  resize: 'none',
-                  lineHeight: 1.25,
-                  py: 0.5,
-                  alignSelf: 'stretch',
-                }}
-              />
-            : currency
-              ? <Box
-                  sx={{
-                    flex: 1,
-                    minWidth: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.25,
-                    pl: 1,
-                  }}
-                >
-                  <Typography
-                    component="span"
-                    sx={{
-                      color: 'text.secondary',
-                      fontWeight: 600,
-                      fontSize: layout.valueFontSize,
-                      lineHeight: 1,
-                      flexShrink: 0,
-                    }}
-                  >
-                    $
-                  </Typography>
-                  <Box
-                    component="input"
-                    ref={inputRef}
-                    value={draft}
-                    inputMode="decimal"
-                    onChange={(e) => setDraft(sanitizeDecimalPaste(e.target.value))}
-                    onBlur={handleBlur}
-                    onKeyDown={(e) => handleEditorKeyDown(e, true)}
-                    onWheel={preventWheelChangeNumber}
-                    onPaste={(e) => {
-                      e.preventDefault();
-                      setDraft(sanitizeDecimalPaste(e.clipboardData.getData('text')));
-                    }}
-                    sx={{
-                      ...manifestInputSx,
-                      flex: 1,
-                      minWidth: 0,
-                      px: 0,
-                      fontSize: layout.valueFontSize,
-                      fontWeight: layout.valueFontWeight,
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  />
-                  {trailingAdornment ?
-                    <Box
-                      sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', pr: 0.35 }}
-                      onPointerDown={() => {
-                        armSuppressBlur();
-                        confirmEdit(draft);
-                      }}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {trailingAdornment}
-                    </Box>
-                  : null}
-                </Box>
-              : <Box
-                  component="input"
-                  ref={inputRef}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onBlur={handleBlur}
-                  onKeyDown={(e) => handleEditorKeyDown(e, true)}
-                  sx={{
-                    ...manifestInputSx,
-                    fontSize: layout.valueFontSize,
-                    fontWeight: layout.valueFontWeight,
-                  }}
-                />
-            }
-            <FieldEditSegment
-              kind="cancel"
-              ariaLabel={`Cancel ${label}`}
-              onPointerDown={armSuppressBlur}
-              onClick={handleCancelClick}
-            />
-            <FieldEditSegment
-              kind="save"
-              ariaLabel={`Save ${label}`}
-              onPointerDown={armSuppressBlur}
-              onClick={handleSaveClick}
-            />
-          </>
-        : <Box
-            sx={{
-              flex: 1,
-              minWidth: 0,
-              display: 'flex',
-              alignItems: multiline ? 'flex-start' : 'center',
-              px: 0.75,
-              py: multiline ? 0.5 : 0,
-              gap: 0.5,
-            }}
-          >
-            <Typography
+                },
+              }}
               sx={{
                 flex: 1,
                 minWidth: 0,
-                fontSize: layout.valueFontSize,
-                fontWeight: layout.valueFontWeight,
-                lineHeight: 1.25,
-                wordBreak: 'break-word',
-                color: isEmpty ? 'text.disabled' : 'text.primary',
-                fontStyle: isEmpty && variant === 'pill' ? 'italic' : 'normal',
-                ...(multiline ?
-                  {
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                  }
-                : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: multiline ? 'normal' : 'nowrap' }),
+                m: 0,
+                height: '100%',
+                '& .MuiInput-root': { alignItems: 'center', height: '100%' },
+                '& .MuiSelect-select': {
+                  display: 'flex',
+                  alignItems: 'center',
+                  minHeight: 'unset',
+                  py: 0.25,
+                },
               }}
             >
-              {variant === 'pill' && isEmpty ? pillPlaceholder : shown}
-            </Typography>
-            {trailingAdornment ?
-              <Box
-                sx={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={(e) => e.stopPropagation()}
+              <MenuItem value="">
+                <em>-</em>
+              </MenuItem>
+              {resolvedSelectOptions.map((opt) => (
+                <MenuItem key={opt} value={opt} dense>
+                  {opt}
+                  {!isTaxonomyV1CategoryName(opt) ? ' (legacy)' : ''}
+                </MenuItem>
+              ))}
+            </TextField>
+          : currency ?
+            <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.25, pl: 1 }}>
+              <Typography
+                component="span"
+                sx={{ color: 'text.secondary', fontWeight: 600, fontSize: valueFontSize, lineHeight: 1, flexShrink: 0 }}
               >
-                {trailingAdornment}
-              </Box>
-            : null}
-          </Box>
-        }
-      </Box>
+                $
+              </Typography>
+              <Box
+                component="input"
+                ref={inputRef}
+                value={draft}
+                inputMode="decimal"
+                aria-label={label}
+                onChange={(e) => setDraft(sanitizeDecimalPaste(e.target.value))}
+                onBlur={handleBlur}
+                onKeyDown={handleEditorKeyDown}
+                onWheel={preventWheelChangeNumber}
+                onPaste={(e) => {
+                  e.preventDefault();
+                  setDraft(sanitizeDecimalPaste(e.clipboardData.getData('text')));
+                }}
+                sx={{
+                  ...manifestInputSx,
+                  flex: 1,
+                  minWidth: 0,
+                  px: 0,
+                  fontSize: valueFontSize,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              />
+            </Box>
+          : <Box
+              component="input"
+              ref={inputRef}
+              value={draft}
+              aria-label={label}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={handleBlur}
+              onKeyDown={handleEditorKeyDown}
+              sx={{ ...manifestInputSx, fontSize: valueFontSize }}
+            />
+          }
+          <FieldEditSegment
+            kind="cancel"
+            ariaLabel={`Put ${label} back`}
+            onPointerDown={() => {
+              suppressBlurRef.current = true;
+            }}
+            onClick={revertAndClose}
+          />
+          <FieldEditSegment
+            kind="save"
+            ariaLabel={`Save ${label}`}
+            onPointerDown={() => {
+              suppressBlurRef.current = true;
+            }}
+            onClick={() => applyAndClose(false)}
+          />
+        </>
+      : <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', px: 0.75, gap: 0.5 }}>
+          <Typography
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              fontSize: valueFontSize,
+              fontWeight: PROCESSING_ROW_VALUE_FONT_WEIGHT,
+              lineHeight: 1.25,
+              color: isEmpty ? 'text.disabled' : 'text.primary',
+              fontStyle: isEmpty ? 'italic' : 'normal',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {isEmpty ? pillPlaceholder : shown}
+          </Typography>
+        </Box>
+      }
+    </Box>
   );
 
   return (
-    <Box
-      sx={{
-        minWidth: editing && variant === 'pill' ? PROCESSING_ROW_PILL_EDIT_MIN_WIDTH : 0,
-        width: variant === 'pill' ? '100%' : undefined,
-        py: variant === 'hero' ? 0.25 : 0.35,
-        px: variant === 'pill' ? 0 : 0.75,
-      }}
-    >
-      {layout.showLabel ?
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          fontWeight={editing ? 600 : 400}
-          sx={processingRowLabelSx}
-        >
-          {label}
-        </Typography>
-      : null}
+    // The same box whether the field is read or typed in: nothing beside it moves.
+    <Box sx={{ minWidth: 0, width: '100%', py: 0.35 }}>
+      <Typography variant="caption" color="text.secondary" fontWeight={editing ? 600 : 400} sx={processingRowLabelSx}>
+        {label}
+      </Typography>
 
       {layerSources !== undefined && !editing ?
         <Tooltip title={<span style={{ whiteSpace: 'pre-line' }}>{hoverTooltip}</span>} enterDelay={350} disableInteractive>
@@ -1408,7 +1444,8 @@ export interface ProcessingActiveCardProps {
   onPatchCheckedIn: (payload: Record<string, unknown>) => void;
   patchLoading: boolean;
   onReprintItems?: (items: ProcessingWorkspaceItemDTO[]) => Promise<void>;
-  onPatchRowDefaults?: (payload: Record<string, unknown>) => void | Promise<void>;
+  /** Saves fields of a row. Answers `false` when it could not save (the page says why). */
+  onPatchRowDefaults?: (payload: Record<string, unknown>) => void | boolean | Promise<void | boolean>;
   /** Opens Check in together pre-seeded with this row's same-product peers (P5). */
   onOpenCheckInTogether?: () => void;
   /** Opens the Add item dialog (added-row CTA). */
@@ -1448,28 +1485,9 @@ export function ProcessingActiveCard({
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialogHost } = useWorkbenchConfirmDialog();
   const retailPriceLock = useRetailPriceLock();
-  /**
-   * Instant retail/price overlay (check-in parity). Manifest pills commit on save, but lock/%
-   * must update the sibling field immediately - not after the PATCH round-trip.
-   */
-  const [moneyOverlay, setMoneyOverlay] = useState<{ retail?: string; price?: string } | null>(null);
+  /** The page's undo list (#230): what is done on this row can be put back with Ctrl+Z. */
+  const undo = useProcessingUndo();
   const priorCheckInsRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    setMoneyOverlay(null);
-  }, [row.processing_row_id]);
-
-  useEffect(() => {
-    if (!moneyOverlay) return;
-    const retailCaughtUp =
-      moneyOverlay.retail == null || moneyValuesEqual(row.unitRetail ?? '', moneyOverlay.retail);
-    const priceCaughtUp =
-      moneyOverlay.price == null || moneyValuesEqual(row.price ?? '', moneyOverlay.price);
-    if (retailCaughtUp && priceCaughtUp) setMoneyOverlay(null);
-  }, [row.unitRetail, row.price, moneyOverlay]);
-
-  const displayRetail = moneyOverlay?.retail ?? row.unitRetail ?? '';
-  const displayPrice = moneyOverlay?.price ?? row.price ?? '';
   const { user } = useAuth();
   const isManager = canAccess(user, ['processing:manage']);
   const setRowProduct = useProcessingSetRowProduct(orderId);
@@ -1529,6 +1547,143 @@ export function ProcessingActiveCard({
   }, []);
   const product = row.product;
   const rowBookmark = useMemo(() => processingRowBookmark(row), [row]);
+
+  // ── Changes typed on the row but not saved yet (#230) ────────────────────────────────────────────────────────
+  // Tab leaves a change highlighted; Enter, the tick or "Apply changes" saves every highlighted field in one
+  // request. They are kept with the row they belong to, so another row never shows them or saves them.
+  const rowId = row.processing_row_id;
+  const [pendingState, setPendingState] = useState<{ rowId: number; values: RowPending }>({ rowId, values: NO_PENDING });
+  const pending = pendingState.rowId === rowId ? pendingState.values : NO_PENDING;
+  const rowSaved = useMemo<RowEditValues>(
+    () => ({
+      title: rowBookmark.title ?? '',
+      brand: rowBookmark.brand ?? '',
+      model: rowBookmark.model ?? '',
+      category: rowBookmark.category ?? '',
+      unitRetail: row.unitRetail ?? '',
+      price: row.price ?? '',
+    }),
+    [rowBookmark, row.unitRetail, row.price],
+  );
+  /** What the row shows: a highlighted change where there is one, else what is saved. */
+  const rowValues = useMemo(() => shownValues(rowSaved, pending), [rowSaved, pending]);
+  const displayRetail = rowValues.unitRetail;
+  const displayPrice = rowValues.price;
+  const pendingList = useMemo(() => pendingFields(pending), [pending]);
+  const [applyingEdits, setApplyingEdits] = useState(false);
+  /** The newest values, for handlers that run after this render (a save that comes back, a key press). */
+  const editsRef = useRef({ rowId, pending, rowSaved, rowNum: row.rowNum });
+  editsRef.current = { rowId, pending, rowSaved, rowNum: row.rowNum };
+
+  function setPending(values: RowPending) {
+    editsRef.current = { ...editsRef.current, pending: values };
+    setPendingState({ rowId: editsRef.current.rowId, values });
+  }
+
+  /** Keep one typed value as a highlighted change. With the lock on, a new retail moves the price with it. */
+  function stageField(field: RowEditField, value: string): RowPending {
+    const { pending: current, rowSaved: saved } = editsRef.current;
+    const shownNow = shownValues(saved, current);
+    let next = stageValue(current, saved, field, value);
+    if (field === 'unitRetail' && !sameFieldValue('unitRetail', value, shownNow.unitRetail)) {
+      const nextPrice = retailPriceLock.priceForRetail(value, { retail: shownNow.unitRetail, price: shownNow.price });
+      if (nextPrice) {
+        retailPriceLock.syncPctFromPrice(value, nextPrice);
+        next = stageValue(next, saved, 'price', nextPrice);
+      }
+    } else if (field === 'price') {
+      retailPriceLock.syncPctFromPrice(shownNow.unitRetail, value);
+    }
+    setPending(next);
+    return next;
+  }
+
+  /**
+   * Save highlighted changes in one request (Enter, the tick, "Apply changes"). A save that fails leaves them
+   * highlighted, to try again. A field typed while the save was on its way stays highlighted.
+   */
+  async function applyPending(values: RowPending = editsRef.current.pending): Promise<boolean> {
+    const fields = pendingFields(values);
+    if (!fields.length) return true;
+    const target = editsRef.current.rowId;
+    const rowNum = editsRef.current.rowNum;
+    const before = savedValuesOf(values, editsRef.current.rowSaved);
+    setApplyingEdits(true);
+    let ok = false;
+    try {
+      ok = await patchRowById(target, patchFor(values));
+    } finally {
+      setApplyingEdits(false);
+    }
+    if (!ok) return false;
+    if (editsRef.current.rowId === target) {
+      const still = { ...editsRef.current.pending };
+      for (const f of fields) if (still[f] === values[f]) delete still[f];
+      setPending(still);
+    }
+    undo?.record({
+      label: `${fieldsPhrase(fields)} on row ${rowNum}`,
+      undo: () => patchRowById(target, patchFor(before)),
+      redo: () => patchRowById(target, patchFor(values)),
+    });
+    return true;
+  }
+
+  // Leaving the row with highlighted changes saves them, as Tab alone used to: nothing a processor typed is lost
+  // (and Ctrl+Z puts them back). Kept per row, so the save goes to the row that was left.
+  const leftPendingRef = useRef(new Map<number, { pending: RowPending; saved: RowEditValues; rowNum: number }>());
+  useEffect(() => {
+    leftPendingRef.current.set(rowId, { pending, saved: rowSaved, rowNum: row.rowNum });
+  }, [rowId, pending, rowSaved, row.rowNum]);
+  const leaveToolsRef = useRef({ patch: onPatchRowDefaults, undo });
+  leaveToolsRef.current = { patch: onPatchRowDefaults, undo };
+  useEffect(() => {
+    const leaving = rowId;
+    const kept = leftPendingRef.current;
+    return () => {
+      const left = kept.get(leaving);
+      kept.delete(leaving);
+      const fields = left ? pendingFields(left.pending) : [];
+      if (!left || !fields.length) return;
+      const { patch, undo: undoList } = leaveToolsRef.current;
+      const save = (values: RowPending) =>
+        Promise.resolve(patch?.({ processing_row_id: leaving, ...patchFor(values) })).then((r) => r !== false, () => false);
+      const before = savedValuesOf(left.pending, left.saved);
+      void save(left.pending).then((ok) => {
+        if (ok) {
+          undoList?.record({
+            label: `${fieldsPhrase(fields)} on row ${left.rowNum}`,
+            undo: () => save(before),
+            redo: () => save(left.pending),
+          });
+        }
+      });
+    };
+  }, [rowId]);
+
+  /** What each field of the row needs to be typed in place: its highlight, and what Tab, Enter and the X do. */
+  function fieldHandlers(field: RowEditField) {
+    return {
+      changed: field in pending,
+      onStage: (value: string) => {
+        stageField(field, value);
+      },
+      onApply: (value: string) => applyPending(stageField(field, value)),
+      onRevert: () => setPending(revertField(editsRef.current.pending, field)),
+    };
+  }
+
+  /** Identifiers, Tags and Notes are saved from their own window; Ctrl+Z puts the old value back. */
+  async function saveRowExtra(label: string, payload: Record<string, unknown>, before: Record<string, unknown>) {
+    const target = editsRef.current.rowId;
+    const rowNum = editsRef.current.rowNum;
+    if (!(await patchRowById(target, payload))) return;
+    undo?.record({
+      label: `${label} on row ${rowNum}`,
+      undo: () => patchRowById(target, before),
+      redo: () => patchRowById(target, payload),
+    });
+  }
   const newProductEditorSeed = useMemo(
     () =>
       rowDetailsToProductEditorDraft({
@@ -1697,8 +1852,18 @@ export function ProcessingActiveCard({
   const activeStatus = activeItem?.status ?? 'intake';
   const terminalDisputed = activeStatus === 'scrapped' || activeStatus === 'lost';
 
-  async function patchRow(payload: Record<string, unknown>) {
-    await Promise.resolve(onPatchRowDefaults?.({ processing_row_id: row.processing_row_id, ...payload }));
+  /** Save fields of a row by its id. True when it saved (the page says what went wrong when it did not). */
+  async function patchRowById(processingRowId: number, payload: Record<string, unknown>): Promise<boolean> {
+    try {
+      const result = await Promise.resolve(onPatchRowDefaults?.({ processing_row_id: processingRowId, ...payload }));
+      return result !== false;
+    } catch {
+      return false;
+    }
+  }
+
+  function patchRow(payload: Record<string, unknown>): Promise<boolean> {
+    return patchRowById(row.processing_row_id, payload);
   }
 
   function handleSelectPriorCheckIn(itemId: number) {
@@ -1711,7 +1876,9 @@ export function ProcessingActiveCard({
     setCheckInOpen(true);
   }
 
-  function openDetailedCheckIn(productId?: number | null) {
+  async function openDetailedCheckIn(productId?: number | null) {
+    // A check-in starts from the row's price and retail: highlighted changes are saved first (#230).
+    if (pendingFields(editsRef.current.pending).length && !(await applyPending())) return;
     setCheckInProductId(productId ?? null);
     setCheckInSeed(null);
     setCheckInStartOverride(null);
@@ -1843,12 +2010,43 @@ export function ProcessingActiveCard({
     });
     if (ok) {
       enqueueSnackbar('Product attached.', { variant: 'success' });
+      const target = row.processing_row_id;
+      undo?.record({
+        label: `Product attached on row ${row.rowNum}`,
+        undo: () => patchRowById(target, { product_links: buildProductLinksRemove(linksOfRow(target), productId) }),
+        redo: () => attachProductToRow(target, productId),
+      });
+    }
+  }
+
+  /** The row's product links as they are now (the saved row, not this render): an undo runs later. */
+  function linksOfRow(processingRowId: number) {
+    const cached = queryClient.getQueryData<ProcessingWorkspaceRowDTO>(['processing-row-detail', orderId, processingRowId]);
+    return cached?.productLinks ?? (processingRowId === row.processing_row_id ? row.productLinks : undefined);
+  }
+
+  async function attachProductToRow(processingRowId: number, productId: number): Promise<boolean> {
+    try {
+      await setRowProduct.mutateAsync({ processing_row_id: processingRowId, product_mode: 'existing', product_id: productId });
+      return true;
+    } catch {
+      return false;
     }
   }
 
   async function handleProductLinkConfigChange(productId: number, config: ProcessingProductLinkConfig) {
-    await patchRow({
+    const target = row.processing_row_id;
+    const before = normalizeProductLink(row.productLinks?.[String(productId)]);
+    const ok = await patchRow({
       product_links: buildProductLinksPatch(row.productLinks, productId, config),
+    });
+    if (!ok) return;
+    const setRatio = (to: ProcessingProductLinkConfig) =>
+      patchRowById(target, { product_links: buildProductLinksPatch(linksOfRow(target), productId, to) });
+    undo?.record({
+      label: `Row unit ratio on row ${row.rowNum}`,
+      undo: () => setRatio(before),
+      redo: () => setRatio(config),
     });
   }
 
@@ -1862,13 +2060,20 @@ export function ProcessingActiveCard({
       severity: 'warning',
     });
     if (!ok) return;
-    try {
-      await patchRow({
-        product_links: buildProductLinksRemove(row.productLinks, productId),
-      });
-    } catch {
-      // Parent patch handler shows error snackbar.
-    }
+    const target = row.processing_row_id;
+    const before = normalizeProductLink(row.productLinks?.[String(productId)]);
+    const removed = await patchRow({
+      product_links: buildProductLinksRemove(row.productLinks, productId),
+    });
+    if (!removed) return;
+    undo?.record({
+      label: `Product removed from row ${row.rowNum}`,
+      // Back on the row, with the ratio it had.
+      undo: async () =>
+        (await attachProductToRow(target, productId))
+        && patchRowById(target, { product_links: buildProductLinksPatch(linksOfRow(target), productId, before) }),
+      redo: () => patchRowById(target, { product_links: buildProductLinksRemove(linksOfRow(target), productId) }),
+    });
   }
 
   async function handleReprintCheckIn(historyRow: CheckedInHistoryRow) {
@@ -1883,6 +2088,31 @@ export function ProcessingActiveCard({
     });
     if (!ok) return;
     await onReprintItems(historyRow.items);
+  }
+
+  // A check-in printed tags, so Ctrl+Z does not delete it by itself: it opens the Undo check-in window for the
+  // newest check-in of that row, where the person chooses (move or delete) and sees what blocks it. No redo.
+  const cardMountedRef = useRef(true);
+  useEffect(() => {
+    cardMountedRef.current = true;
+    return () => {
+      cardMountedRef.current = false;
+    };
+  }, []);
+  function recordCheckInUndo() {
+    const target = row.processing_row_id;
+    undo?.record({
+      label: `Check-in on row ${row.rowNum}`,
+      quiet: true,
+      undo: () => {
+        if (!cardMountedRef.current) return false;
+        const cached = queryClient.getQueryData<ProcessingWorkspaceRowDTO>(['processing-row-detail', orderId, target]);
+        const newest = Math.max(0, ...(cached?.itemCheckIns ?? []).map((c) => c.id));
+        if (!newest) return false;
+        setUndoTarget({ orderId, itemCheckInId: newest });
+        return true;
+      },
+    });
   }
 
   function handleUndoItemCheckIn(historyRow: CheckedInHistoryRow) {
@@ -1948,6 +2178,23 @@ export function ProcessingActiveCard({
           + (skipped > 0 ? ` - ${skipped} skipped (not on shelf).` : '.'),
         { variant: skipped > 0 ? 'warning' : 'success' },
       );
+      // Ctrl+Z puts each item back to what it was (never to Restoration: that needs its own request).
+      const before = editable.map((it) => ({ id: it.id, was: field === 'dispatch' ? it.dispatch : it.condition }));
+      if (editable.length && before.every((b) => b.was && b.was !== 'restoration')) {
+        const setAll = async (valueOf: (id: number) => string) => {
+          try {
+            for (const b of before) await patchItem.mutateAsync({ itemId: b.id, payload: { [field]: valueOf(b.id) } });
+            return true;
+          } catch {
+            return false;
+          }
+        };
+        undo?.record({
+          label: `${field === 'dispatch' ? 'Goes to' : 'Condition'} on a check-in, row ${row.rowNum}`,
+          undo: () => setAll((id) => before.find((b) => b.id === id)!.was),
+          redo: () => setAll(() => value),
+        });
+      }
     } catch (err) {
       enqueueSnackbar(apiErrorDetail(err, 'Could not update check-in'), { variant: 'error' });
     }
@@ -1960,11 +2207,22 @@ export function ProcessingActiveCard({
     }
     try {
       if (target.itemCheckInId != null) {
+        const checkInId = target.itemCheckInId;
+        const was = target.items.find((it) => it.price)?.price ?? '';
         await updateItemCheckIn.mutateAsync({
-          itemCheckInId: target.itemCheckInId,
+          itemCheckInId: checkInId,
           payload: { price: value },
         });
         enqueueSnackbar('Price updated for this check-in.', { variant: 'success' });
+        if (was && target.items.every((it) => it.price === was)) {
+          const setPrice = (price: string) =>
+            updateItemCheckIn.mutateAsync({ itemCheckInId: checkInId, payload: { price } }).then(() => true, () => false);
+          undo?.record({
+            label: `Price on a check-in, row ${row.rowNum}`,
+            undo: () => setPrice(was),
+            redo: () => setPrice(value),
+          });
+        }
         return;
       }
       const editable = target.items.filter((it) => it.status === 'on_shelf');
@@ -1992,11 +2250,23 @@ export function ProcessingActiveCard({
       return;
     }
     try {
+      const checkInId = target.itemCheckInId;
       await remapItemCheckInProduct.mutateAsync({
-        itemCheckInId: target.itemCheckInId,
+        itemCheckInId: checkInId,
         payload: { product_mode: 'existing', product_id: productId },
       });
       enqueueSnackbar('Check-in product updated.', { variant: 'success' });
+      if (currentId != null) {
+        const remap = (to: number) =>
+          remapItemCheckInProduct
+            .mutateAsync({ itemCheckInId: checkInId, payload: { product_mode: 'existing', product_id: to } })
+            .then(() => true, () => false);
+        undo?.record({
+          label: `Product of a check-in, row ${row.rowNum}`,
+          undo: () => remap(currentId),
+          redo: () => remap(productId),
+        });
+      }
     } catch (err) {
       enqueueSnackbar(apiErrorDetail(err, 'Could not update check-in product'), { variant: 'error' });
     }
@@ -2162,131 +2432,95 @@ export function ProcessingActiveCard({
             onOpenTags={() => setTagsModalOpen(true)}
             onOpenNotes={() => setNotesModalOpen(true)}
           />
-          <Box sx={{ ...processingRowManifestToolbarRowSx, gap: 0.45, flexWrap: 'nowrap', overflowX: 'auto', pb: 0.15 }}>
-            <ManifestToolbarSlot sx={manifestToolbarTitleSx}>
-              <ManifestField fieldId="title" label="Title" value={rowBookmark.title} layerSources={row.rowLayerSources?.title ?? {}} variant="pill" onSave={(v) => patchRow({ title: v.trim() })} />
-            </ManifestToolbarSlot>
-            <ManifestToolbarSlot sx={manifestToolbarCompactFieldSx}>
-              <ManifestField fieldId="brand" label="Brand" value={rowBookmark.brand} layerSources={row.rowLayerSources?.brand ?? {}} variant="pill" onSave={(v) => patchRow({ brand: v })} />
-            </ManifestToolbarSlot>
-            <ManifestToolbarSlot sx={manifestToolbarCompactFieldSx}>
-              <ManifestField fieldId="model" label="Model" value={rowBookmark.model} layerSources={row.rowLayerSources?.model ?? {}} variant="pill" onSave={(v) => patchRow({ model: v })} />
-            </ManifestToolbarSlot>
-            <ManifestToolbarSlot sx={manifestToolbarEditablePillSlotSx}>
-              <ManifestField
-                fieldId="category"
-                label="Category"
-                value={rowBookmark.category}
-                layerSources={row.rowLayerSources?.category ?? {}}
-                variant="pill"
-                selectOptions={TAXONOMY_V1_CATEGORY_NAMES}
-                onSave={(v) => patchRow({ category: v })}
-              />
-            </ManifestToolbarSlot>
-            <ManifestToolbarSlot sx={manifestToolbarMoneyFieldSx}>
-              <ManifestField
-                fieldId="unitRetail"
-                label="Retail"
-                currency
-                value={displayRetail}
-                layerSources={row.rowLayerSources?.unitRetail ?? {}}
-                variant="pill"
-                onSave={(v) => {
-                  const nextPrice = retailPriceLock.priceForRetail(v, {
-                    retail: displayRetail,
-                    price: displayPrice,
-                  });
-                  if (nextPrice) retailPriceLock.syncPctFromPrice(v, nextPrice);
-                  setMoneyOverlay({
-                    retail: v,
-                    price: nextPrice ?? displayPrice,
-                  });
-                  void patchRow({
-                    unit_retail: v || undefined,
-                    ...(nextPrice ? { shelf_price: nextPrice } : {}),
-                  });
-                }}
-              />
-            </ManifestToolbarSlot>
-            {/* Spacer matches ManifestField label so lock sits mid-pill, not mid-label+pill. */}
+          {/* One kept line that fills the width (#230): no field changes size when it is typed in, and the two
+              buttons at the end are always there. */}
+          <Box
+            data-testid="row-fields"
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: ROW_FIELDS_GRID_COLUMNS,
+              columnGap: 0.45,
+              alignItems: 'end',
+              overflowX: 'auto',
+              // A narrow screen slides the line sideways (Tab brings each field into view) without a scroll bar
+              // under it, which would make the line taller and push the lists down.
+              scrollbarWidth: 'none',
+              '&::-webkit-scrollbar': { display: 'none' },
+              pb: 0.15,
+            }}
+          >
+            <ManifestField
+              fieldId="title"
+              label="Title"
+              value={rowValues.title}
+              layerSources={row.rowLayerSources?.title ?? {}}
+              {...fieldHandlers('title')}
+            />
+            <ManifestField
+              fieldId="brand"
+              label="Brand"
+              value={rowValues.brand}
+              layerSources={row.rowLayerSources?.brand ?? {}}
+              {...fieldHandlers('brand')}
+            />
+            <ManifestField
+              fieldId="model"
+              label="Model"
+              value={rowValues.model}
+              layerSources={row.rowLayerSources?.model ?? {}}
+              {...fieldHandlers('model')}
+            />
+            <ManifestField
+              fieldId="category"
+              label="Category"
+              value={rowValues.category}
+              layerSources={row.rowLayerSources?.category ?? {}}
+              selectOptions={TAXONOMY_V1_CATEGORY_NAMES}
+              {...fieldHandlers('category')}
+            />
+            <ManifestField
+              fieldId="unitRetail"
+              label="Retail"
+              currency
+              value={rowValues.unitRetail}
+              layerSources={row.rowLayerSources?.unitRetail ?? {}}
+              {...fieldHandlers('unitRetail')}
+            />
+            {/* The lock sits level with the fields, not with their labels. */}
             <Box
-              sx={{
-                flex: '0 0 auto',
-                display: 'flex',
-                flexDirection: 'column',
-                py: 0.35,
-                px: 0.15,
-              }}
+              sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: PROCESSING_ROW_FIELD_HEIGHT, mb: 0.35, px: 0.15 }}
             >
-              <Box sx={{ ...processingRowLabelSx, visibility: 'hidden', userSelect: 'none' }} aria-hidden>
-                &nbsp;
-              </Box>
-              <Box
-                sx={{
-                  height: PROCESSING_ROW_FIELD_HEIGHT,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <RetailPriceLockToggle
-                  locked={retailPriceLock.locked}
-                  pct={retailPriceLock.effectivePct(displayRetail, displayPrice)}
-                  size="small"
-                  onToggle={() => retailPriceLock.toggleLock(displayRetail, displayPrice)}
-                />
-              </Box>
+              <RetailPriceLockToggle
+                locked={retailPriceLock.locked}
+                pct={retailPriceLock.effectivePct(displayRetail, displayPrice)}
+                size="small"
+                onToggle={() => retailPriceLock.toggleLock(displayRetail, displayPrice)}
+              />
             </Box>
-            <ManifestToolbarSlot sx={manifestToolbarMoneyFieldSx}>
-              <ManifestField
-                fieldId="price"
-                label="Price"
-                currency
-                value={displayPrice}
-                layerSources={row.rowLayerSources?.price ?? {}}
-                variant="pill"
-                onSave={(v) => {
-                  retailPriceLock.syncPctFromPrice(displayRetail, v);
-                  setMoneyOverlay({ retail: displayRetail, price: v });
-                  void patchRow({ shelf_price: v || undefined });
+            <ManifestField
+              fieldId="price"
+              label="Price"
+              currency
+              value={rowValues.price}
+              layerSources={row.rowLayerSources?.price ?? {}}
+              {...fieldHandlers('price')}
+            />
+            {/* The percent is a button of its own: choosing one saves that price at once. */}
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: PROCESSING_ROW_FIELD_HEIGHT, mb: 0.35, pl: 0.15, pr: 0.35 }}
+            >
+              <RetailPricePctButton
+                retail={displayRetail}
+                price={displayPrice}
+                pct={retailPriceLock.effectivePct(displayRetail, displayPrice)}
+                isFallback={retailPriceLock.isPctFallback(displayRetail, displayPrice)}
+                size="small"
+                onCommitPct={(nextPct, nextPrice) => {
+                  retailPriceLock.setPct(nextPct);
+                  setPending(stageValue(editsRef.current.pending, editsRef.current.rowSaved, 'price', nextPrice));
+                  void applyPending({ price: nextPrice });
                 }}
               />
-            </ManifestToolbarSlot>
-            {/* % badge outside ManifestField so click/Enter don't fight pill edit + tooltip. */}
-            <Box
-              sx={{
-                flex: '0 0 auto',
-                display: 'flex',
-                flexDirection: 'column',
-                py: 0.35,
-                pl: 0.15,
-                pr: 0.35,
-              }}
-            >
-              <Box sx={{ ...processingRowLabelSx, visibility: 'hidden', userSelect: 'none' }} aria-hidden>
-                &nbsp;
-              </Box>
-              <Box
-                sx={{
-                  height: PROCESSING_ROW_FIELD_HEIGHT,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <RetailPricePctButton
-                  retail={displayRetail}
-                  price={displayPrice}
-                  pct={retailPriceLock.effectivePct(displayRetail, displayPrice)}
-                  isFallback={retailPriceLock.isPctFallback(displayRetail, displayPrice)}
-                  size="small"
-                  onCommitPct={(nextPct, nextPrice) => {
-                    retailPriceLock.setPct(nextPct);
-                    setMoneyOverlay({ retail: displayRetail, price: nextPrice });
-                    void patchRow({ shelf_price: nextPrice });
-                  }}
-                />
-              </Box>
             </Box>
             <ManifestModalField
               label="Identifiers"
@@ -2297,8 +2531,7 @@ export function ProcessingActiveCard({
               onCancel={closeIdentifiersModal}
               onConfirm={confirmIdentifiersModal}
               editorRef={identifiersEditorRef}
-              minWidth={132}
-              maxWidth={260}
+              fill
               valueFontSize={manifestToolbarEmphasisFieldSx.valueFontSize}
               valueFontWeight={manifestToolbarEmphasisFieldSx.valueFontWeight}
             >
@@ -2306,7 +2539,7 @@ export function ProcessingActiveCard({
                 ref={identifiersEditorRef}
                 presentation="modal"
                 value={rowBookmark.identifiers}
-                onSave={(identifiers) => patchRow({ identifiers })}
+                onSave={(identifiers) => saveRowExtra('Identifiers', { identifiers }, { identifiers: rowBookmark.identifiers ?? {} })}
               />
             </ManifestModalField>
             <ManifestModalField
@@ -2318,8 +2551,7 @@ export function ProcessingActiveCard({
               onCancel={closeTagsModal}
               onConfirm={confirmTagsModal}
               editorRef={tagsEditorRef}
-              minWidth={116}
-              maxWidth={220}
+              fill
               valueFontSize={manifestToolbarEmphasisFieldSx.valueFontSize}
               valueFontWeight={manifestToolbarEmphasisFieldSx.valueFontWeight}
             >
@@ -2327,7 +2559,7 @@ export function ProcessingActiveCard({
                 ref={tagsEditorRef}
                 presentation="modal"
                 value={row.tags || ''}
-                onSave={(tags) => patchRow({ search_tags: tags })}
+                onSave={(tags) => saveRowExtra('Tags', { search_tags: tags }, { search_tags: row.tags || '' })}
               />
             </ManifestModalField>
             <ManifestModalField
@@ -2339,17 +2571,22 @@ export function ProcessingActiveCard({
               onCancel={closeNotesModal}
               onConfirm={confirmNotesModal}
               editorRef={notesEditorRef}
-              minWidth={116}
-              maxWidth={220}
+              fill
               valueFontSize={manifestToolbarEmphasisFieldSx.valueFontSize}
               valueFontWeight={manifestToolbarEmphasisFieldSx.valueFontWeight}
             >
               <ManifestNotesField
                 ref={notesEditorRef}
                 value={row.manifestNotes || ''}
-                onSave={(v) => patchRow({ notes: v })}
+                onSave={(v) => saveRowExtra('Notes', { notes: v }, { notes: row.manifestNotes || '' })}
               />
             </ManifestModalField>
+            <RowEditActions
+              count={pendingList.length}
+              busy={applyingEdits}
+              onApply={() => void applyPending()}
+              onCancel={() => setPending(NO_PENDING)}
+            />
           </Box>
         </ManifestFieldNavProvider>
       </Box>
@@ -2576,9 +2813,13 @@ export function ProcessingActiveCard({
         loading={checkInLoading || updateItemCheckIn.isPending}
         seed={checkInSeed}
         onClose={closeDetailedCheckIn}
-        onSubmit={onCheckIn}
+        onSubmit={async (payload, options) => {
+          const ok = await onCheckIn(payload, options);
+          if (ok) recordCheckInUndo();
+          return ok;
+        }}
         onUpdateItemCheckIn={handleUpdateItemCheckIn}
-        onUpdateRowRetail={(retail) => patchRow({ unit_retail: retail })}
+        onUpdateRowRetail={(retail) => saveRowExtra('Retail', { unit_retail: retail }, { unit_retail: row.unitRetail ?? '' })}
         onPackMade={handlePackMade}
         startOverride={checkInStartOverride}
         searchBar={checkInSearchBar}

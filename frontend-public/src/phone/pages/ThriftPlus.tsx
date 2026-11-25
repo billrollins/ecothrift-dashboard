@@ -27,6 +27,7 @@ import { actions, useAction, useCart, useMyCard, useScanSession } from '../scan/
 import { TripList } from '../scan/trip'
 import { leaveGuest, scanIsRoute } from '../scan/switch'
 import { asset, Tag } from '../shell/Tag'
+import { TP_BLACK_FRIDAY } from './words'
 import './ThriftPlus.css'
 
 /** The website's own sign-in hint (src/auth.tsx): the server ends that session on sign out; the hint goes too. */
@@ -134,6 +135,7 @@ function SignedOut({ guest }: { guest: boolean }) {
           </ScanLink>
         </div>
       </section>
+      <BlackFridayNote />
       <section className="ac-three">
         <div>
           <b className="disp tn">30</b>
@@ -150,6 +152,22 @@ function SignedOut({ guest }: { guest: boolean }) {
       </section>
       {guest ? <GuestTrip /> : null}
     </div>
+  )
+}
+
+/** Black Friday's two lines (owner 2026-11-25), for members and everyone else, under the band. The day is known at the
+ *  first paint (the stamped feed), so the card never appears or goes later. */
+function BlackFridayNote() {
+  if (useDay() !== 'bf') return null
+  return (
+    <section className="ac-bf" data-testid="thriftplus-bf">
+      <div>
+        <h2 className="disp">{TP_BLACK_FRIDAY.head}</h2>
+        {TP_BLACK_FRIDAY.lines.map((l) => (
+          <p key={l}>{l}</p>
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -205,6 +223,8 @@ function MemberMain({ member }: { member: ThriftPlusMember }) {
           <Wallet member={member} />
         </div>
       </section>
+
+      <BlackFridayNote />
 
       <nav className="ac-go" aria-label="Thrift+">
         <Link to="/thriftplus?show=bucks" data-testid="go-bucks">

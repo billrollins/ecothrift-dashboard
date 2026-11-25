@@ -156,6 +156,21 @@ describe('the home', () => {
   })
 })
 
+describe('Thrift+', () => {
+  it('Black Friday\'s two lines (owner 11-25) show under the band that day, never on a normal day', async () => {
+    const normal = show('/thriftplus')
+    await screen.findByTestId('thriftplus-out')
+    expect(screen.queryByTestId('thriftplus-bf')).toBeNull()
+    normal.unmount()
+    _setFeed({ ...FEED, day: 'bf' } as HomeFeed)
+    show('/thriftplus')
+    await screen.findByTestId('thriftplus-out')
+    const bf = screen.getByTestId('thriftplus-bf')
+    expect(within(bf).getByRole('heading', { name: 'Black Friday' })).toBeInTheDocument()
+    expect(bf).toHaveTextContent('All ThriftBucks are applied instantly.As a member, you still get 3-day returns.')
+  })
+})
+
 describe('the routes', () => {
   it('the phone site\'s pages answer at the same addresses', async () => {
     for (const [path, text] of [

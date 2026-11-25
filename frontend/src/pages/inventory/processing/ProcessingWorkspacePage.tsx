@@ -78,8 +78,19 @@ import { useWorkbenchConfirmDialog } from '../workbench/useWorkbenchConfirmDialo
 import { apiErrorDetail } from '../../../hooks/useProductSearch';
 import { skuFromScan } from '../../../utils/scanCode';
 import { RowDisputeDialog } from './RowDisputeDialog';
+import { ProcessingUndoProvider } from './processingUndo';
 
+/** The Processing page for one order, with its undo list around it (Ctrl+Z / Ctrl+Y, #230). */
 export default function ProcessingWorkspacePage() {
+  const { id } = useParams<{ id: string }>();
+  return (
+    <ProcessingUndoProvider scopeKey={id ?? null}>
+      <ProcessingWorkspacePageInner />
+    </ProcessingUndoProvider>
+  );
+}
+
+function ProcessingWorkspacePageInner() {
   const { id: idParam } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
@@ -1145,12 +1156,15 @@ export default function ProcessingWorkspacePage() {
                 try {
                   await rowPatch.mutateAsync(payload);
                   enqueueSnackbar('Row defaults saved.', { variant: 'success' });
+                  return true;
                 } catch (e: unknown) {
                   const detail =
                     e && typeof e === 'object' && 'response' in e
                       ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
                       : undefined;
                   enqueueSnackbar(detail || 'Could not save row defaults', { variant: 'error' });
+                  // The row card keeps the change highlighted, to try again (#230).
+                  return false;
                 }
               }}
               scrollToHistory={detailScrollToHistory}

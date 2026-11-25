@@ -26,6 +26,12 @@
 .ac-three b { display: block; font-size: 34px; color: var(--green); }
 .ac-three span { display: block; margin-top: 4px; font-size: 12px; font-weight: 700; line-height: 1.2; }
 
+/* Black Friday's two lines (owner 11-25), a card under the band. */
+.ac-bf { background: var(--card); padding: 16px var(--gut) 0; }
+.ac-bf div { background: var(--ground); border-radius: 12px; padding: 14px 14px 13px; }
+.ac-bf h2 { font-size: 22px; }
+.ac-bf p { margin-top: 4px; font-size: 15px; font-weight: 700; line-height: 1.3; }
+
 /* Black Friday paints the bands black: give the black tag an edge so it still reads as a tag. */
 html[data-day="bf"] .ac-hero .tag { box-shadow: 0 0 0 1.5px var(--lime); }
 

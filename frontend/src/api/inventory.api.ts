@@ -1901,6 +1901,10 @@ export interface SuggestProductRequest {
   fields: string[];
   context: Record<string, unknown>;
   model?: string;
+  /** What the person typed in the "AI request" box (#230): the AI follows it over the draft. */
+  instruction?: string;
+  /** With an instruction: the draft is a copy of an existing product and the instruction says how it differs. */
+  duplicate?: boolean;
 }
 
 export interface SuggestProductResponse {

@@ -440,7 +440,10 @@ describe('Buying legacy pages (Bill 2026-11-06)', () => {
     const buying = SLOT_C_NAV_GROUPS.find((g) => g.id === 'buying')!;
     expect(buying.itemIds.slice(0, 2)).toEqual(['auctions', 'estimateProfit']);
     expect(buying.setupLabel).toBe('Legacy');
-    expect(buying.setupItemIds).toEqual(['wishlist', 'auctionsOld', 'watchlist', 'reportCards']);
+    // Bill 2026-11-25: Prep Truck is the new preprocessing; the old page waits under Legacy until Prep Truck's Send is wired in.
+    expect(buying.itemIds).toContain('prepSteps');
+    expect(buying.itemIds).not.toContain('preprocessing');
+    expect(buying.setupItemIds).toEqual(['wishlist', 'auctionsOld', 'watchlist', 'reportCards', 'preprocessing']);
   });
 });
 

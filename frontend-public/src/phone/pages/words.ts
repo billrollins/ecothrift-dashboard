@@ -50,6 +50,13 @@ export const RETURNS = {
   non: 'Sold AS IS. All sales final.',
 }
 
+/** Black Friday on the Thrift+ page, phones and computers (owner 2026-11-25: "During Black Friday all thriftbucks are
+ *  applied instantly. As a member you still get 3-day returns."). Shown only while the day is bf (rulebook F5). */
+export const TP_BLACK_FRIDAY = {
+  head: 'Black Friday',
+  lines: ['All ThriftBucks are applied instantly.', 'As a member, you still get 3-day returns.'],
+}
+
 /** `to` empty: the line says it all (no legal page to open). */
 export type Policy = { head: string; line: string; to: string }
 

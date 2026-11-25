@@ -353,21 +353,21 @@ def job_menu() -> dict[str, dict]:
 # test build adds nothing to the core tables through a migration.
 # purpose: (label, description, tier, model slug or '' = the tier's, effort or '' = the tier's)
 ACTIONS = {
-    'PREP_STEPS_CLEAN': ('Prep A: clean titles and brands', 'Short clean titles, brands and models. Bulk, cheap.',
+    'PREP_STEPS_CLEAN': ('Prep Truck: clean titles and brands', 'Short clean titles, brands and models. Bulk, cheap.',
                          'fast', '', ''),
-    'PREP_STEPS_MATCH': ('Prep A: judge product matches', 'Same product, like it, or new, from the top candidates.',
+    'PREP_STEPS_MATCH': ('Prep Truck: judge product matches', 'Same product, like it, or new, from the top candidates.',
                          'fast', '', ''),
-    'PREP_STEPS_CATEGORY': ('Prep A: set category', 'Our category and subcategory from the taxonomy.', 'fast', '', ''),
-    'PREP_STEPS_RETAIL': ('Prep A: check retail', 'Checks the manifest retail of one unit; a better model pays here.',
+    'PREP_STEPS_CATEGORY': ('Prep Truck: set category', 'Our category and subcategory from the taxonomy.', 'fast', '', ''),
+    'PREP_STEPS_RETAIL': ('Prep Truck: check retail', 'Checks the manifest retail of one unit; a better model pays here.',
                           'best', 'claude-sonnet-5-5', 'medium'),
-    'PREP_STEPS_PRICE': ('Prep A: pick price class', 'The price class of a line (commodity, Christmas, toys...).',
+    'PREP_STEPS_PRICE': ('Prep Truck: pick price class', 'The price class of a line (commodity, Christmas, toys...).',
                          'fast', '', ''),
-    'PREP_STEPS_PACKS': ('Prep A: read packs', 'Count per unit, units in the pack, sell whole or by unit.',
+    'PREP_STEPS_PACKS': ('Prep Truck: read packs', 'Count per unit, units in the pack, sell whole or by unit.',
                          'fast', '', ''),
-    'PREP_STEPS_TAGS': ('Prep A: search words', 'The words to search a store site or Google with.', 'fast', '', ''),
-    'PREP_STEPS_CUSTOM': ('Prep A: custom prompt (fast)', "The owner's own instruction on a selection. Cheap.",
+    'PREP_STEPS_TAGS': ('Prep Truck: search words', 'The words to search a store site or Google with.', 'fast', '', ''),
+    'PREP_STEPS_CUSTOM': ('Prep Truck: custom prompt (fast)', "The owner's own instruction on a selection. Cheap.",
                           'fast', '', ''),
-    'PREP_STEPS_CUSTOM_STRONG': ('Prep A: custom prompt (strong)', "The owner's own instruction, the better model.",
+    'PREP_STEPS_CUSTOM_STRONG': ('Prep Truck: custom prompt (strong)', "The owner's own instruction, the better model.",
                                  'best', 'claude-sonnet-5-5', 'medium'),
 }
 _ensured = False
@@ -388,7 +388,7 @@ def ensure_actions() -> None:
             model = AiModel.objects.filter(slug=slug, status='active').first() if slug else None
             AiAction.objects.get_or_create(purpose=purpose, defaults={
                 'label': label, 'modality': 'text', 'tier': tier, 'model': model, 'effort': effort if model else '',
-                'workspace': 'Buying', 'page': 'Prep A: Steps', 'description': description,
+                'workspace': 'Buying', 'page': 'Prep Truck', 'description': description,
             })
         _ensured = True
     except Exception:  # noqa: BLE001 - the defaults below still run the job

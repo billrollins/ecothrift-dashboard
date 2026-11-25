@@ -97,7 +97,8 @@ describe('Order and Vendor windows (Dash Updates #12, #13)', () => {
     expect(within(manifest).getByText('7')).toBeInTheDocument();
     expect(within(manifest).getByText('$10,440')).toBeInTheDocument();
     // The edit view's step buttons work from the window.
-    expect(within(dialog).getByRole('button', { name: 'Start Preprocessing' })).toBeEnabled();
+    expect(within(dialog).getByRole('button', { name: 'Prep Truck' })).toBeEnabled();
+    expect(within(dialog).getByRole('button', { name: 'Preprocessing (old)' })).toBeEnabled();
     expect(within(dialog).getByRole('button', { name: 'Finish truck' })).toBeEnabled();
     // The intake drawer and its undo/delete are gone (Bill, 2026-11-20); staff read, never edit.
     expect(within(dialog).queryByRole('button', { name: 'Delete' })).toBeNull();
@@ -116,7 +117,8 @@ describe('Order and Vendor windows (Dash Updates #12, #13)', () => {
     const dialog = await screen.findByRole('dialog');
     expect(await within(dialog).findByText('No manifest yet.')).toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Upload manifest' })).toBeNull();
-    expect(within(dialog).getByRole('button', { name: 'Start Preprocessing' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Prep Truck' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Preprocessing (old)' })).toBeDisabled();
     expect(within(dialog).getByRole('button', { name: 'Start Processing' })).toBeDisabled();
     expect(within(dialog).getByText('Paid', { selector: 'p' }).textContent).toContain('Current');
   });

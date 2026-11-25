@@ -1,4 +1,4 @@
-// Truck Prep A: Steps (Dash #225, local test build). /prep/steps lists trucks; /prep/steps/:orderId preps one.
+// Prep Truck (Truck Prep A: Steps, Dash #225). /prep/steps lists trucks; /prep/steps/:orderId preps one.
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -18,7 +18,7 @@ function Picker() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Box sx={{ fontSize: 22, fontWeight: 800 }}>Truck Prep A: Steps</Box>
+        <Box sx={{ fontSize: 22, fontWeight: 800 }}>Prep Truck</Box>
         <TextField size="small" placeholder="Search trucks" value={q} onChange={(e) => setQ(e.target.value)} sx={{ width: 280 }} />
       </Box>
       <Box sx={{ border: `1px solid ${tone.line}`, borderRadius: 1, bgcolor: '#fff' }}>

@@ -9,4 +9,4 @@ class PrepStepsConfig(AppConfig):
 
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'apps.prep_steps'
-    verbose_name = 'Truck Prep A: Steps'
+    verbose_name = 'Prep Truck'

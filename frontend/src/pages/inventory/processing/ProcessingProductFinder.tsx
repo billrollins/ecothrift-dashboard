@@ -35,6 +35,7 @@ import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { IconClose as Close, IconSearch as SearchIcon } from '../../../icons/ecoIcons';
 import { PaneNote, ProductPane } from './ProcessingProductPane';
 import { processingTokens } from './processingTokens';
+import { useProcessingUndo } from './processingUndo';
 
 export const likelyProductsKey = (rowId: number) => ['likely-products', rowId] as const;
 
@@ -395,6 +396,7 @@ export function ProcessingLikelyProducts({ processingRowId, attachedProductIds, 
 }) {
   const qc = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
+  const undoList = useProcessingUndo();
   const key = likelyProductsKey(processingRowId);
   const likely = useQuery({
     queryKey: key,
@@ -423,6 +425,16 @@ export function ProcessingLikelyProducts({ processingRowId, attachedProductIds, 
         <Button color="inherit" size="small" onClick={() => notThis.mutate({ id: p.id, undo: true })}>Undo</Button>
       ),
     });
+    // Ctrl+Z takes it back too (#230), also after the message is gone.
+    const mark = (off: boolean) =>
+      setNotProduct(processingRowId, p.id, off).then(
+        () => {
+          void qc.invalidateQueries({ queryKey: key });
+          return true;
+        },
+        () => false,
+      );
+    undoList?.record({ label: `Not this product: ${p.title}`, undo: () => mark(true), redo: () => mark(false) });
   }
 
   return (

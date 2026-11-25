@@ -32,9 +32,11 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'buying',
     label: 'Buying',
     // Bill 2026-11-06: every buying page not yet fully rebuilt sits under a "Legacy" caption until its rebuild
-    // ships. Vendors, Orders and Preprocessing are intake tools (not part of the auctions rebuild) and stay on top.
-    itemIds: ['auctions', 'estimateProfit', 'vendors', 'orders', 'preprocessing', 'prepSteps'],
-    setupItemIds: ['wishlist', 'auctionsOld', 'watchlist', 'reportCards'],
+    // ships. Vendors and Orders are intake tools (not part of the auctions rebuild) and stay on top.
+    // Bill 2026-11-25: Prep Truck (apps/prep_steps) is the new preprocessing. The old Preprocessing page sits under
+    // Legacy until Prep Truck's Send writes to Processing (it is still the page that hands a truck over).
+    itemIds: ['auctions', 'estimateProfit', 'vendors', 'orders', 'prepSteps'],
+    setupItemIds: ['wishlist', 'auctionsOld', 'watchlist', 'reportCards', 'preprocessing'],
     setupLabel: 'Legacy',
   },
   {

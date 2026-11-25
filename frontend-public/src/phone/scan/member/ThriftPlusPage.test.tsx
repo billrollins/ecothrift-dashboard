@@ -217,6 +217,20 @@ describe('My QR and the ThriftBucks detail (page test :280)', () => {
     fake.signIn('dana')
     renderPage()
     expect(await screen.findByTestId('thriftplus-use')).toHaveTextContent('Black Friday: one price for everyone · Like to build? Ask at the register')
+    expect(screen.getByTestId('thriftplus-bf')).toHaveTextContent('All ThriftBucks are applied instantly.As a member, you still get 3-day returns.')
+  })
+
+  it('Black Friday\'s two lines (owner 11-25) show signed out too, and never on a normal day', async () => {
+    _setFeed({ ...FEED, day: 'bf' })
+    const bf = renderPage()
+    const page = await screen.findByTestId('thriftplus-out')
+    expect(within(page).getByRole('heading', { name: 'Black Friday' })).toBeInTheDocument()
+    expect(within(page).getByTestId('thriftplus-bf')).toHaveTextContent('All ThriftBucks are applied instantly.As a member, you still get 3-day returns.')
+    bf.unmount()
+    _setFeed(FEED)
+    renderPage()
+    await screen.findByTestId('thriftplus-out')
+    expect(screen.queryByTestId('thriftplus-bf')).toBeNull()
   })
 })
 

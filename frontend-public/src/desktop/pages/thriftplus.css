@@ -39,6 +39,14 @@
 
 html[data-day="bf"] .dk-tp-hero, html[data-day="bf"] .dk-tp-wait { background: var(--ink); }
 
+/* Black Friday's two lines (owner 11-25): one card the width of the page, under the band. */
+.dk-tp-bf { padding-top: 40px; }
+.dk-tp-bf > div { display: flex; align-items: center; gap: 40px; padding: 28px 32px; border-radius: 20px; background: var(--card);
+                  box-shadow: inset 0 0 0 1px var(--line); }
+.dk-tp-bf h2 { flex: none; font-size: 48px; line-height: 1; }
+.dk-tp-bf p { font-size: 20px; font-weight: 700; line-height: 1.35; }
+.dk-tp-bf + .dk-tp-three, .dk-tp-bf + .dk-tp-two { padding-top: 24px; }
+
 @media (max-width: 1279px) {
   .dk-tp-in { grid-template-columns: minmax(0, 1fr) 500px; gap: 40px; }
   .dk-tp-say h1 { font-size: 96px; }

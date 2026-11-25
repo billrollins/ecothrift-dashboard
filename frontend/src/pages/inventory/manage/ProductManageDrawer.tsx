@@ -469,6 +469,8 @@ export function ProductManagePanel({
   const [checkInProduct, setCheckInProduct] = useState<Product | null>(null);
   const [ai, dispatchAi] = useReducer(productAiReducer, undefined, initialProductAIState);
   const suggestMutation = useAISuggestProduct();
+  /** The "AI request" box (#230): what the person asks the AI for, in their own words. Suggest and Duplicate use it. */
+  const [aiRequest, setAiRequest] = useState('');
   const hydratedEditorKeyRef = useRef<string | null>(null);
   const appliedCategorySeedRef = useRef<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -495,6 +497,7 @@ export function ProductManagePanel({
     setConfirmLeaveOpen(false);
     setCheckInOpen(false);
     setCheckInProduct(null);
+    setAiRequest('');
     dispatchAi({ type: 'reset' });
   }, [open, initialProduct?.id, initialProduct, rowDetailsSeed, rowDetailsSeedKey]);
 
@@ -634,6 +637,30 @@ export function ProductManagePanel({
     dispatchAi({ type: 'reset' });
   };
 
+  /** "Clear" on the product details (#230): every box empty, to start over. Nothing is saved until Save. */
+  const clearDetails = () => {
+    setState((prev) => ({
+      ...EMPTY_EDITOR,
+      brand: '',
+      productId: prev.productId,
+      productNumber: prev.productNumber,
+      createdAt: prev.createdAt,
+      updatedAt: prev.updatedAt,
+      isActive: prev.isActive,
+    }));
+    dispatchAi({ type: 'reset' });
+  };
+
+  /**
+   * Duplicate (#230): a copy of this product as a new one. With words in the AI request box the AI changes the copy
+   * by them ("the 12-pack in blue") and shows its changes for review, like Suggest; with an empty box it is the
+   * plain copy.
+   */
+  const handleDuplicate = () => {
+    handleCopy();
+    if (aiRequest.trim()) void runSuggest({ duplicate: true });
+  };
+
   const forceClose = () => {
     setConfirmLeaveOpen(false);
     onClose();
@@ -684,6 +711,7 @@ export function ProductManagePanel({
       if (confirmLeaveOpen) return;
       if (target.tagName === 'TEXTAREA') return;
       if (target.closest('button')) return;
+      if (target.closest('[data-own-enter]')) return;
 
       const nestedDialog = target.closest('.MuiDialog-root');
       if (nestedDialog && !panelRef.current.contains(nestedDialog)) return;
@@ -720,12 +748,15 @@ export function ProductManagePanel({
     }
   };
 
-  const runSuggest = async () => {
+  const runSuggest = async (opts: { duplicate?: boolean } = {}) => {
     dispatchAi({ type: 'snapshot', draft });
+    const instruction = aiRequest.trim();
     try {
       const result = await suggestMutation.mutateAsync({
         fields: productAiFieldsToApiFields(PRODUCT_AI_FIELDS),
         context: productDraftToAiContext(draft, categories),
+        ...(instruction ? { instruction } : {}),
+        ...(instruction && opts.duplicate ? { duplicate: true } : {}),
       });
       dispatchAi({ type: 'receive', suggestions: result.suggestions });
 
@@ -1069,116 +1100,19 @@ export function ProductManagePanel({
           pt: 0,
           pb: 1.75,
           px: 2.75,
-          overflow: 'hidden',
+          overflowX: 'hidden',
+          overflowY: 'auto',
           bgcolor: editorSurface,
           '&.MuiDialogContent-root': {
             paddingTop: '18px',
           },
         }}
       >
-        <Stack
-          direction="row"
-          spacing={0.75}
-          alignItems="center"
-          flexWrap="wrap"
-          useFlexGap
-          sx={{ mb: 1.25 }}
-        >
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<ContentCopyOutlinedIcon />}
-            onClick={handleCopy}
-            disabled={!state.title.trim() && !state.productId}
-            sx={{
-              borderColor: `${processingTokens.ecoBrown}88`,
-              color: processingTokens.ecoBrownDark,
-              bgcolor: '#fff',
-              flexShrink: 0,
-              '&:hover': { borderColor: processingTokens.ecoBrown, bgcolor: processingTokens.ecoBrownSoft },
-            }}
-          >
-            Duplicate
-          </Button>
-          <Box sx={{ flex: 1, minWidth: 8 }} />
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={loadingAi ? <CircularProgress size={14} /> : <AutoAwesome sx={{ fontSize: 16 }} />}
-            disabled={suggestDisabled}
-            onClick={() => void runSuggest()}
-            sx={{
-              minWidth: 108,
-              borderColor: `${processingTokens.primary}66`,
-              color: processingTokens.primaryDark,
-              bgcolor: processingTokens.primarySoft,
-              fontWeight: 700,
-              '&:hover': { borderColor: processingTokens.primary, bgcolor: processingTokens.primarySoftStrong },
-            }}
-          >
-            Suggest
-          </Button>
-          <Tooltip title="Show original values for all suggested fields">
-            <span>
-              <Button
-                size="small"
-                variant="outlined"
-                color="inherit"
-                disabled={!canFlipAiSuggestions}
-                onClick={() => dispatchAi({ type: 'viewAll', viewing: 'original' })}
-                sx={{ minWidth: 0, px: 1.1, borderColor: borderSubtle, bgcolor: '#fff', color: processingTokens.textSoft }}
-              >
-                Original
-              </Button>
-            </span>
-          </Tooltip>
-          <Tooltip title="Show AI values for all suggested fields">
-            <span>
-              <Button
-                size="small"
-                variant="outlined"
-                disabled={!canFlipAiSuggestions}
-                onClick={() => dispatchAi({ type: 'viewAll', viewing: 'suggestion' })}
-                sx={{
-                  minWidth: 0,
-                  px: 1.1,
-                  borderColor: `${processingTokens.primary}66`,
-                  color: processingTokens.primaryDark,
-                  bgcolor: '#fff',
-                  '&:hover': { borderColor: processingTokens.primary, bgcolor: processingTokens.primarySoftStrong },
-                }}
-              >
-                AI values
-              </Button>
-            </span>
-          </Tooltip>
-        </Stack>
-        {pagePaste && !isEditing ?
-          <ProductPagePasteBox
-            processingRowId={pagePaste.processingRowId}
-            onDraft={(res) => {
-              const d = res.draft;
-              const mapped = d.category ? mapSuggestedCategoryToCategoryRef(d.category, categories) : null;
-              setState((prev) => ({
-                ...prev,
-                title: d.title || prev.title,
-                brand: d.brand || prev.brand,
-                model: d.model || prev.model,
-                categoryRef: mapped?.matched ? mapped.categoryRef : prev.categoryRef,
-                identifiers: { ...prev.identifiers, ...d.identifiers },
-                specifications: { ...prev.specifications, ...d.specifications },
-                tagsText: d.tags.length ? d.tags.join(', ') : prev.tagsText,
-                unitCount: d.unit_count ? String(d.unit_count) : prev.unitCount,
-                unitName: d.unit_name || prev.unitName,
-                packUnits: d.pack_units ? String(d.pack_units) : prev.packUnits,
-              }));
-              pagePaste.onDraft?.({ retail: d.retail, model: res.model, took_ms: res.took_ms, cost_usd: res.cost_usd });
-            }}
-          />
-        : null}
         <Box
+          data-testid="product-details"
           sx={{
             p: 2,
+            pt: 1,
             border: 1,
             borderColor: borderSubtle,
             borderRadius: 2,
@@ -1186,6 +1120,24 @@ export function ProductManagePanel({
             boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
           }}
         >
+          {/* The details come first (#230): they are the product; the AI and the pasted page below are help. */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.1, minHeight: 30 }}>
+            <Typography sx={{ flex: 1, fontSize: '0.625rem', fontWeight: 900, letterSpacing: 0.7, textTransform: 'uppercase', color: processingTokens.textSoft }}>
+              Product details
+            </Typography>
+            {!isEditing ?
+              <Button
+                size="small"
+                variant="outlined"
+                color="inherit"
+                onClick={clearDetails}
+                aria-label="Clear the product details"
+                sx={{ minWidth: 0, px: 1.1, borderColor: borderSubtle, bgcolor: '#fff', color: processingTokens.textSoft }}
+              >
+                Clear
+              </Button>
+            : null}
+          </Box>
           <Box sx={formGridSx}>
           <TextField
             size="small"
@@ -1299,6 +1251,150 @@ export function ProductManagePanel({
           />
           </Box>
         </Box>
+
+        {/* One AI block (#230, Bill 2026-11-25: "AI buttons would be all together (include Duplicate). AI request
+            should be a box that does AI suggest with a user prompt from the box"). */}
+        <Box
+          data-testid="product-ai-block"
+          sx={{
+            mt: 1.25,
+            p: 1.25,
+            border: 1,
+            borderColor: `${processingTokens.primary}55`,
+            borderRadius: 2,
+            bgcolor: processingTokens.primarySoft,
+          }}
+        >
+          <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Typography sx={{ flexShrink: 0, fontSize: '0.625rem', fontWeight: 900, letterSpacing: 0.7, textTransform: 'uppercase', color: processingTokens.primaryDark }}>
+              AI
+            </Typography>
+            <TextField
+              size="small"
+              value={aiRequest}
+              onChange={(e) => setAiRequest(e.target.value.slice(0, 600))}
+              onKeyDown={(e) => {
+                // Enter here asks the AI; the window's own Enter (save the product) stays out of this box.
+                if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+                e.preventDefault();
+                e.stopPropagation();
+                if (!suggestDisabled) void runSuggest();
+              }}
+              placeholder="AI request (optional): the 12-pack in blue, fix the title, add the UPC 0123..."
+              slotProps={{ htmlInput: { 'aria-label': 'AI request', 'data-own-enter': 'true' } }}
+              sx={{ flex: '1 1 260px', minWidth: 200, '& .MuiInputBase-root': { bgcolor: '#fff', fontSize: '0.8125rem' } }}
+            />
+            <Tooltip title={aiRequest.trim() ? 'The AI fills the details, following your request' : 'The AI fills the details from what is there'}>
+              <span>
+                <Button
+                  size="small"
+                  variant="contained"
+                  startIcon={loadingAi ? <CircularProgress size={14} color="inherit" /> : <AutoAwesome sx={{ fontSize: 16 }} />}
+                  disabled={suggestDisabled}
+                  onClick={() => void runSuggest()}
+                  sx={{ minWidth: 104, fontWeight: 700 }}
+                >
+                  Suggest
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip
+              title={
+                aiRequest.trim() ?
+                  'A copy as a new product; the AI changes the copy by your request'
+                : 'A copy as a new product (type an AI request to have the AI change the copy)'
+              }
+            >
+              <span>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<ContentCopyOutlinedIcon />}
+                  onClick={handleDuplicate}
+                  disabled={suggestDisabled || (!state.title.trim() && !state.productId)}
+                  sx={{
+                    borderColor: `${processingTokens.ecoBrown}88`,
+                    color: processingTokens.ecoBrownDark,
+                    bgcolor: '#fff',
+                    flexShrink: 0,
+                    '&:hover': { borderColor: processingTokens.ecoBrown, bgcolor: processingTokens.ecoBrownSoft },
+                  }}
+                >
+                  Duplicate
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip title="Show original values for all suggested fields">
+              <span>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="inherit"
+                  disabled={!canFlipAiSuggestions}
+                  onClick={() => dispatchAi({ type: 'viewAll', viewing: 'original' })}
+                  sx={{ minWidth: 0, px: 1.1, borderColor: borderSubtle, bgcolor: '#fff', color: processingTokens.textSoft }}
+                >
+                  Original
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip title="Show AI values for all suggested fields">
+              <span>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={!canFlipAiSuggestions}
+                  onClick={() => dispatchAi({ type: 'viewAll', viewing: 'suggestion' })}
+                  sx={{
+                    minWidth: 0,
+                    px: 1.1,
+                    borderColor: `${processingTokens.primary}66`,
+                    color: processingTokens.primaryDark,
+                    bgcolor: '#fff',
+                    '&:hover': { borderColor: processingTokens.primary, bgcolor: processingTokens.primarySoftStrong },
+                  }}
+                >
+                  AI values
+                </Button>
+              </span>
+            </Tooltip>
+          </Stack>
+        </Box>
+
+        {pagePaste && !isEditing ?
+          <Box sx={{ mt: 1.25 }}>
+            <ProductPagePasteBox
+              processingRowId={pagePaste.processingRowId}
+              onDraft={(res, mode) => {
+                const d = res.draft;
+                const mapped = d.category ? mapSuggestedCategoryToCategoryRef(d.category, categories) : null;
+                // "Fill" goes over what is there (the page wins where it says something); "Clear then fill"
+                // starts from empty boxes, so only the page speaks.
+                setState((prev) => {
+                  const base: ProductEditorState =
+                    mode === 'clear-then-fill' ?
+                      { ...EMPTY_EDITOR, brand: '', productId: prev.productId, productNumber: prev.productNumber, createdAt: prev.createdAt, updatedAt: prev.updatedAt, isActive: prev.isActive }
+                    : prev;
+                  return {
+                    ...base,
+                    title: d.title || base.title,
+                    brand: d.brand || base.brand,
+                    model: d.model || base.model,
+                    categoryRef: mapped?.matched ? mapped.categoryRef : base.categoryRef,
+                    identifiers: { ...base.identifiers, ...d.identifiers },
+                    specifications: { ...base.specifications, ...d.specifications },
+                    tagsText: d.tags.length ? d.tags.join(', ') : base.tagsText,
+                    unitCount: d.unit_count ? String(d.unit_count) : base.unitCount,
+                    unitName: d.unit_name || base.unitName,
+                    packUnits: d.pack_units ? String(d.pack_units) : base.packUnits,
+                  };
+                });
+                if (mode === 'clear-then-fill') dispatchAi({ type: 'reset' });
+                pagePaste.onDraft?.({ retail: d.retail, model: res.model, took_ms: res.took_ms, cost_usd: res.cost_usd });
+              }}
+            />
+          </Box>
+        : null}
       </DialogContent>
 
       <Divider />

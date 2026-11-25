@@ -17,6 +17,7 @@ import { Account, Balance, Wallet, qrLine } from '../../phone/scan/member'
 import { actions, useAction, useCart, useMyCard, useScanSession } from '../../phone/scan/store'
 import { ThriftBucksExampleBody } from '../../phone/shell/ThriftBucksExample'
 import { asset } from '../../phone/shell/Tag'
+import { TP_BLACK_FRIDAY } from '../../phone/pages/words'
 import { useSeo } from '../../useSeo'
 import { useDeskDay } from '../lib/day'
 import { JOIN_HREF, SIGN_IN_HREF, THRIFT_PLUS } from '../words'
@@ -61,6 +62,7 @@ function SignedOut() {
           </div>
         </div>
       </section>
+      <BlackFridayNote />
       <section className="dk-w dk-tp-three">
         {THRIFT_PLUS.three.map(([n, line]) => (
           <div key={n}>
@@ -74,6 +76,24 @@ function SignedOut() {
         <Link to="/terms">Thrift+ terms ›</Link>
       </p>
     </div>
+  )
+}
+
+/** Black Friday's two lines (owner 2026-11-25, the phone's words), for members and everyone else, under the band. The
+ *  day is stamped in the page, so the card is there from the first paint. */
+function BlackFridayNote() {
+  if (useDeskDay() !== 'bf') return null
+  return (
+    <section className="dk-w dk-tp-bf" data-testid="thriftplus-bf">
+      <div>
+        <h2 className="disp">{TP_BLACK_FRIDAY.head}</h2>
+        <div>
+          {TP_BLACK_FRIDAY.lines.map((l) => (
+            <p key={l}>{l}</p>
+          ))}
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -131,6 +151,7 @@ function MemberPage({ member }: { member: ThriftPlusMember }) {
           </div>
         </div>
       </section>
+      <BlackFridayNote />
       <div className="dk-w dk-tp-two">
         <section className="dk-card dk-tp-panel" aria-labelledby="dk-tp-b">
           <h2 className="dk-h" id="dk-tp-b">Your ThriftBucks</h2>

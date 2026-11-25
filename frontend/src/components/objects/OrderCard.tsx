@@ -249,7 +249,8 @@ function CardView({ c, o, canEdit }: { c: OrderCardData; o: PurchaseOrderDetailS
           <Stat label="Recovered" value={c.money.recovered_pct != null ? `${c.money.recovered_pct}%` : '-'} muted />
         </Stack>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ pt: 1 }}>
-          <Button variant="contained" disabled={!gates.preprocessing} onClick={() => go(`/inventory/preprocessing/${c.id}`)}>Start Preprocessing</Button>
+          <Button variant="contained" disabled={!gates.preprocessing} onClick={() => go(`/prep/steps/${c.id}`)}>Prep Truck</Button>
+          <Button variant="outlined" disabled={!gates.preprocessing} onClick={() => go(`/inventory/preprocessing/${c.id}`)}>Preprocessing (old)</Button>
           <Button variant="outlined" disabled={!gates.receiving} onClick={() => go(`/inventory/receiving/${c.id}`)}>Receiving</Button>
           <Button variant="outlined" disabled={!gates.processing} onClick={() => go(`/inventory/processing/${c.id}`)}>Start Processing</Button>
           <Button variant="outlined" disabled={!gates.processing} onClick={() => go(`/inventory/orders/${c.id}/truck`)}>
