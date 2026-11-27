@@ -347,6 +347,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                                          body=str(request.data.get('body') or ''))
         return Response(ApplicationDetailSerializer(self._fresh(application)).data)
 
+    @action(detail=True, methods=['post'], url_path='text-send')
+    def text_send(self, request, pk=None):
+        """Send the first text, the reminder or the offer from our own number (#218), and record it."""
+        from apps.hiring import outreach
+
+        application = outreach.text_send(self.get_object(), str(request.data.get('which') or ''), by=request.user)
+        return Response(ApplicationDetailSerializer(self._fresh(application)).data)
+
     @action(detail=True, methods=['post'], url_path='offer-preview')
     def offer_preview(self, request, pk=None):
         """The letter as it would be sent with these terms (nothing saved)."""

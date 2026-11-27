@@ -83,6 +83,33 @@ class OutreachTests(_Applied):
         Application.objects.filter(pk=self.app.pk).update(invite_texted_at=timezone.now() - timedelta(days=1, minutes=1))
         self.assertTrue(self.row()['outreach']['text_reminder']['due'])
 
+    def test_send_text_goes_from_our_number_and_is_recorded(self):
+        """#218 (owner 2026-11-27): "needs to be sent from our number NOT a copy paste"."""
+        from unittest import mock
+
+        from apps.texting import service as texting
+        from apps.texting.models import TextMessage
+
+        with mock.patch.object(texting, 'staff_waiting_on', return_value=[]),                 mock.patch.object(texting, '_deliver', return_value=(True, 'SM1', '')) as deliver:
+            sent = self.staff.post(f'/api/hiring/applications/{self.app.pk}/text-send/', {'which': 'initial'}, format='json')
+        self.assertEqual(sent.status_code, 200, sent.data)
+        self.assertTrue(deliver.call_args.args[1].startswith(texting.SENDER))
+        self.assertIn('/i/', deliver.call_args.args[1])
+        message = TextMessage.objects.get(key='applicant_initial')
+        self.assertEqual((message.status, message.kind), (TextMessage.STATUS_SENT, 'job'))
+        self.app.refresh_from_db()
+        self.assertIsNotNone(self.app.invite_texted_at)
+        self.assertEqual(self.app.stage, 'contacted')
+        self.assertEqual(self.app.events.get(kind='text').data['status'], 'sent')
+
+    def test_a_text_that_did_not_leave_is_not_recorded_as_sent(self):
+        held = self.staff.post(f'/api/hiring/applications/{self.app.pk}/text-send/', {'which': 'initial'}, format='json')
+        self.assertEqual(held.status_code, 400)  # a test run never texts: held, and says why
+        self.assertIn('Not sent', str(held.data['detail']))
+        self.app.refresh_from_db()
+        self.assertIsNone(self.app.invite_texted_at)
+        self.assertFalse(self.app.events.filter(kind='text').exists())
+
     def test_no_text_to_a_number_that_asked_to_stop(self):
         from apps.texting import service as texting
 
@@ -197,7 +224,7 @@ class ShortLinkTests(_Applied):
         code = self.app.booking_code
         self.assertEqual(len(code), 7)
         self.assertIn(f'/i/{code} (or reply with a good time)', body)
-        self.assertTrue(body.startswith(f"Hi {self.app.first_name}, it's Eco-Thrift! Book your Retail Associate interview:"))
+        self.assertTrue(body.startswith(f"Eco-Thrift: Hi {self.app.first_name}! Book your Retail Associate interview:"))
         response = self.client.get(f'/i/{code}')
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response['Location'].endswith(f'/careers/interview?t={self.app.booking_token}'))

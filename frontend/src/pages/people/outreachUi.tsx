@@ -19,7 +19,7 @@ import {
 import { useEffect, useState } from 'react';
 import {
   getTextDraft,
-  markTextSent,
+  sendText,
   type ApplicationDetail,
   type ApplicationRow,
   type OutreachStep,
@@ -185,7 +185,8 @@ export function OutreachCard({
   );
 }
 
-/** Copy the number, copy the words, send it from your phone, then "Text sent". */
+/** The first text, the reminder or the offer, sent from our own number with one press (#218, owner 2026-11-27:
+ * "needs to be sent from our number NOT a copy paste"). Shows the number and the words exactly as they go. */
 export function TextDialog({
   app,
   which,
@@ -197,106 +198,77 @@ export function TextDialog({
   onClose: () => void;
   onSent: (fresh: ApplicationDetail) => void;
 }) {
-  const [draft, setDraft] = useState<{ phone: string; body: string } | null>(null);
+  const [draft, setDraft] = useState<{ phone: string; sends: string } | null>(null);
   const [error, setError] = useState('');
-  const [copied, setCopied] = useState<'phone' | 'body' | null>(null);
-  const [saving, setSaving] = useState(false);
-  const phone = onPhone();
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (!which) return;
     setDraft(null);
     setError('');
-    setCopied(null);
     getTextDraft(app.id, which)
-      .then(({ data }) => setDraft({ phone: data.phone, body: data.body }))
-      .catch(() => setError('Could not make the text.'));
+      .then(({ data }) => setDraft({ phone: data.phone, sends: data.sends || data.body }))
+      .catch((err) => setError(apiDetail(err) || 'Could not make the text.'));
   }, [app.id, which]);
 
-  const copyPart = async (part: 'phone' | 'body') => {
-    if (!draft) return;
-    if (await copy(part === 'phone' ? draft.phone : draft.body)) setCopied(part);
+  const send = async () => {
+    if (!which) return;
+    setSending(true);
+    setError('');
+    try {
+      const { data } = await sendText(app.id, which);
+      onSent(data);
+      onClose();
+    } catch (err) {
+      setError(apiDetail(err) || 'The text did not go. Nothing was recorded. Try again.');
+    } finally {
+      setSending(false);
+    }
   };
 
-  const box = (part: 'phone' | 'body', title: string, value: string) => (
-    <ButtonBase
-      onClick={() => void copyPart(part)}
-      data-testid={`copy-${part}`}
-      sx={{
-        width: '100%', display: 'block', textAlign: 'left', p: 1.5, mt: 1, borderRadius: ccTokens.rSm,
-        border: `1px solid ${copied === part ? ccTokens.good : ccTokens.line}`, bgcolor: copied === part ? ccTokens.goodTint : '#fff',
-      }}
-    >
-      <Typography sx={{ fontSize: 12, fontWeight: 700, color: copied === part ? ccTokens.goodText : ccTokens.ink2 }}>
-        {copied === part ? `${title} · Copied` : `${title} · tap to copy`}
-      </Typography>
-      <Typography sx={{ fontSize: part === 'phone' ? 20 : 15, fontWeight: part === 'phone' ? 700 : 400, whiteSpace: 'pre-wrap' }}>
-        {value}
-      </Typography>
-    </ButtonBase>
-  );
-
   return (
-    <Dialog open={which !== null} onClose={onClose} fullWidth maxWidth="xs">
+    <Dialog open={which !== null} onClose={sending ? undefined : onClose} fullWidth maxWidth="xs">
       <DialogTitle>
         {which === 'reminder' ? 'Reminder text' : which === 'offer' ? 'Offer text' : 'Initial text'} to {app.first_name}
       </DialogTitle>
       <DialogContent>
-        {error && <Typography color="error">{error}</Typography>}
         {!draft && !error && <CircularProgress size={24} />}
         {draft && (
           <>
-            {/* Owner 2026-10-12: on a phone, one tap opens Messages with the number and the words in it. */}
-            {phone && (
-              <Button
-                component="a"
-                href={smsHref(draft.phone, draft.body)}
-                variant="contained"
-                fullWidth
-                startIcon={<SmsOutlined />}
-                data-testid="open-sms"
-                sx={{ mt: 0.5, mb: 1, py: 1.25, fontSize: 16 }}
-              >
-                Open text message
-              </Button>
-            )}
-            {phone && (
-              <Typography variant="body2" sx={{ color: ccTokens.ink2 }}>
-                Or copy each part:
-              </Typography>
-            )}
-            {box('phone', 'Phone', draft.phone)}
-            {box('body', 'Message', draft.body)}
-            <Typography variant="body2" sx={{ mt: 1.5, color: ccTokens.ink2 }}>
-              {phone ? 'Send it, then press Text sent.' : 'Send it from your phone, then press Text sent.'}
-            </Typography>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: ccTokens.ink2 }}>To</Typography>
+            <Typography sx={{ fontSize: 20, fontWeight: 700, mb: 1.5 }}>{draft.phone}</Typography>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: ccTokens.ink2 }}>Message</Typography>
+            <Box
+              data-testid="text-sends"
+              sx={{ p: 1.5, mt: 0.5, borderRadius: ccTokens.rSm, border: `1px solid ${ccTokens.line}`, whiteSpace: 'pre-wrap', fontSize: 15 }}
+            >
+              {draft.sends}
+            </Box>
           </>
         )}
+        <Typography role="alert" color="error" sx={{ minHeight: 24, mt: 1, fontSize: 14, fontWeight: 600 }}>
+          {error}
+        </Typography>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose} disabled={sending}>Cancel</Button>
         <Button
           variant="contained"
-          disabled={!draft || saving}
-          onClick={async () => {
-            if (!draft || !which) return;
-            setSaving(true);
-            try {
-              const { data } = await markTextSent(app.id, which, draft.body);
-              onSent(data);
-              onClose();
-            } catch {
-              setError('Could not record it.');
-            } finally {
-              setSaving(false);
-            }
-          }}
+          disabled={!draft || sending}
+          onClick={() => void send()}
+          startIcon={sending ? <CircularProgress size={16} color="inherit" /> : <SmsOutlined />}
+          data-testid="send-text"
         >
-          Text sent
+          Send text
         </Button>
       </DialogActions>
     </Dialog>
   );
+}
+
+function apiDetail(err: unknown): string {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  return typeof detail === 'string' ? detail : '';
 }
 
 // ── The list: at a glance, under each name ──────────────────────────────────

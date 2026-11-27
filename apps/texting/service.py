@@ -343,6 +343,17 @@ def send_staff_text(*, phone: str, key: str, body: str, ref: str = '', by=None) 
                         ref=ref, by=by, held=held)
 
 
+def send_applicant_text(*, phone: str, which: str, body: str, ref: str = '', by=None) -> TextMessage:
+    """A text to someone who applied, about their application: the first text, the reminder or the offer (#218, owner
+    2026-11-24 and 11-27: "needs to be sent from our number NOT a copy paste"). Not marketing: no consent row, only no
+    STOP. Goes out on the staff texts switch, like a set-password link; recorded either way."""
+    text = shape(body)
+    missing = staff_waiting_on()
+    held = ('Texts from our number are not on yet. Waiting on: ' + '; '.join(missing) + '.') if missing else ''
+    return _send_direct(number=digits(phone), kind=TextConsent.KIND_JOB, key=f'applicant_{which}'[:40], text=text,
+                        kept=hide_tokens(text), ref=ref, by=by, held=held)
+
+
 # ── Inbound: every text kept (#132) ─────────────────────────────────────────
 
 

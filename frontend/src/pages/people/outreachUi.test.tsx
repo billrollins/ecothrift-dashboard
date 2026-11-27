@@ -6,8 +6,13 @@ import { CandidateMarks, OutreachCard, onPhone, smsHref } from './outreachUi';
 
 vi.mock('../../api/hiring.api', async (orig) => ({
   ...(await orig<typeof import('../../api/hiring.api')>()),
-  getTextDraft: vi.fn(async () => ({ data: { which: 'initial', phone: '(402) 555-0101', body: 'Hi Ana, it\'s Eco-Thrift. Pick a time: https://x/t' } })),
-  markTextSent: vi.fn(async () => ({ data: { id: 1 } })),
+  getTextDraft: vi.fn(async () => ({
+    data: {
+      which: 'initial', phone: '(402) 555-0101', body: 'Hi Ana. Pick a time: https://x/t',
+      sends: 'Eco-Thrift: Hi Ana. Pick a time: https://x/t Reply STOP to opt out.',
+    },
+  })),
+  sendText: vi.fn(async () => ({ data: { id: 1 } })),
 }));
 
 const step = (at: string | null, due: boolean, extra = {}) => ({ at, due, ...extra });
@@ -60,7 +65,7 @@ describe('candidate marks (owner 2026-10-12)', () => {
 });
 
 describe('reach them (owner 2026-10-12)', () => {
-  it('lists the four steps; the text opens copy boxes and Text sent records it', async () => {
+  it('lists the four steps; the text shows what goes and Send text sends it from our number (#218)', async () => {
     const user = userEvent.setup();
     const onChanged = vi.fn();
     const app = { ...row(), outreach: outreach({ email_reminder: step(null, false, { auto_at: null }) }) } as unknown as ApplicationDetail;
@@ -70,9 +75,10 @@ describe('reach them (owner 2026-10-12)', () => {
     expect(screen.getByRole('button', { name: 'Send Initial Email' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Send Reminder Text' })).not.toBeInTheDocument(); // after the first text
     await user.click(screen.getByRole('button', { name: 'Send Initial Text' }));
-    expect(await screen.findByTestId('copy-phone')).toHaveTextContent('(402) 555-0101');
-    expect(screen.getByTestId('copy-body')).toHaveTextContent("Hi Ana, it's Eco-Thrift.");
-    await user.click(screen.getByRole('button', { name: 'Text sent' }));
+    expect(await screen.findByTestId('text-sends')).toHaveTextContent('Eco-Thrift: Hi Ana. Pick a time');
+    expect(screen.getByText('(402) 555-0101')).toBeInTheDocument();
+    expect(screen.queryByText(/tap to copy/)).not.toBeInTheDocument();
+    await user.click(screen.getByTestId('send-text'));
     expect(onChanged).toHaveBeenCalled();
   });
 
@@ -94,18 +100,5 @@ describe('text from a phone (owner 2026-10-12)', () => {
     expect(onPhone(IPHONE, 5)).toBe(true);
     expect(onPhone(ANDROID, 5)).toBe(true);
     expect(onPhone(WINDOWS, 0)).toBe(false);
-  });
-
-  it('on a phone the dialog opens Messages, and copying each part still works', async () => {
-    const ua = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(ANDROID);
-    const user = userEvent.setup();
-    const app = { ...row(), outreach: outreach({ email_reminder: step(null, false, { auto_at: null }) }) } as unknown as ApplicationDetail;
-    render(<OutreachCard app={app} busy={false} onSendEmail={vi.fn()} onSendReminder={vi.fn()} onChanged={vi.fn()} />);
-    await user.click(screen.getByRole('button', { name: 'Send Initial Text' }));
-    const open = await screen.findByTestId('open-sms');
-    expect(open).toHaveAttribute('href', expect.stringMatching(/^sms:4025550101\?body=Hi%20Ana/));
-    expect(screen.getByTestId('copy-phone')).toBeInTheDocument();
-    expect(screen.getByTestId('copy-body')).toBeInTheDocument();
-    ua.mockRestore();
   });
 });

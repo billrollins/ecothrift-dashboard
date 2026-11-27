@@ -37,18 +37,18 @@ ACTIVE_STAGES = (Application.STAGE_NEW, Application.STAGE_REVIEWED, Application.
 # (a reply also turns links on in a text from an unknown number).
 SMS_LIMIT = 160
 HAND_TEXTS = {
-    'initial': "Hi {first_name}, it's Eco-Thrift! Book your {role} interview: {link} (or reply with a good time)",
+    'initial': "Eco-Thrift: Hi {first_name}! Book your {role} interview: {link} (or reply with a good time)",
     'reminder': (
-        "Hi {first_name}, Eco-Thrift again. Don't miss out, book your {role} interview: {link} "
+        "Eco-Thrift: Hi {first_name}, don't miss out, book your {role} interview: {link} "
         '(or reply with a good time)'
     ),
 }
 # The offer (owner 2026-10-19: "the same text option as the interview"): its private link, read and signed on the phone.
-OFFER_TEXT = "Hi {first_name}, it's Eco-Thrift! Your {role} job offer is ready. Read and sign it here: {link}"
-SHORT_OFFER_TEXT = "Hi {first_name}, it's Eco-Thrift! Your job offer is ready. Read and sign it here: {link}"
+OFFER_TEXT = "Eco-Thrift: Hi {first_name}! Your {role} job offer is ready. Read and sign it here: {link}"
+SHORT_OFFER_TEXT = "Eco-Thrift: Hi {first_name}! Your job offer is ready. Read and sign it here: {link}"
 SHORT_TEXTS = {
-    'initial': "Hi {first_name}, it's Eco-Thrift! Book your interview: {link} (or reply with a good time)",
-    'reminder': "Hi {first_name}, Eco-Thrift again. Don't miss out, book your interview: {link} (or reply with a good time)",
+    'initial': "Eco-Thrift: Hi {first_name}! Book your interview: {link} (or reply with a good time)",
+    'reminder': "Eco-Thrift: Hi {first_name}, don't miss out, book your interview: {link} (or reply with a good time)",
 }
 TEXT_LABELS = {'initial': 'Interview link text', 'reminder': 'Reminder text', 'offer': 'Offer text'}
 TEXT_FIELDS = {'initial': 'invite_texted_at', 'reminder': 'reminder_texted_at'}
@@ -153,28 +153,51 @@ def text_draft(application, which: str) -> dict:
         offer = _open_offer(application)
         first = (application.first_name or '').strip() or 'there'
         body = offer_text(first_name=first, role=offer.position, link=public_link(offer.token))
-        return {'which': which, 'phone': application.phone, 'body': body}
+        return _draft(which, application.phone, body)
     link = ensure_short_link(application)
     first = (application.first_name or '').strip() or 'there'
     body = hand_text(which, first_name=first, role=_role(application), link=link)
-    return {'which': which, 'phone': application.phone, 'body': body}
+    return _draft(which, application.phone, body)
+
+
+def _draft(which: str, phone: str, body: str) -> dict:
+    from apps.texting.service import shape
+
+    # ``sends``: the words exactly as they leave our number (our name first, the way to stop last).
+    return {'which': which, 'phone': phone, 'body': body, 'sends': shape(body)}
+
+
+def text_send(application, which: str, *, by) -> Application:
+    """Send the first text, the reminder or the offer from our own number (#218, owner 2026-11-27), then record it like
+    "Text sent". Nothing is recorded as sent unless it left: a held, stopped or failed text answers with why."""
+    from apps.texting.models import TextMessage
+    from apps.texting.service import send_applicant_text
+
+    draft = text_draft(application, which)
+    message = send_applicant_text(phone=draft['phone'], which=which, body=draft['body'],
+                                  ref=f'hiring.application:{application.pk}', by=by)
+    if message.status != TextMessage.STATUS_SENT:
+        raise ValidationError({'detail': f'Not sent: {message.reason or message.get_status_display()}'})
+    return text_sent(application, which, by=by, body=message.body, ours=True)
 
 
 @transaction.atomic
-def text_sent(application, which: str, *, by, body: str = '') -> Application:
-    """"Text sent": record it on the history (with its words) and stop showing it as due."""
+def text_sent(application, which: str, *, by, body: str = '', ours: bool = False) -> Application:
+    """"Text sent": record it on the history (with its words) and stop showing it as due. ``ours``: it went from our
+    own number (``text_send``), not by hand."""
     from apps.hiring.interviews import _move_stage
 
     if which not in HAND_TEXTS and which != 'offer':
         raise ValidationError({'detail': 'Pick the first text, the reminder, or the offer.'})
     body = (body or text_draft(application, which)['body']).strip()
+    how, status = ('from our number', 'sent') if ours else ('by hand', 'sent_by_hand')
     if which == 'offer':
         # The offer's own steps (opened, signed) show on its card; the text only goes on the history.
         _open_offer(application)
         ApplicationEvent.objects.create(
             application=application, kind=ApplicationEvent.KIND_TEXT, by=by,
-            text=f'Offer text sent by hand to {application.phone}',
-            data={'text': 'hand_offer', 'status': 'sent_by_hand', 'body': body},
+            text=f'Offer text sent {how} to {application.phone}',
+            data={'text': 'hand_offer', 'status': status, 'body': body},
         )
         return application
     now = timezone.now()
@@ -187,8 +210,8 @@ def text_sent(application, which: str, *, by, body: str = '') -> Application:
     application.save(update_fields=fields)
     ApplicationEvent.objects.create(
         application=application, kind=ApplicationEvent.KIND_TEXT, by=by,
-        text=f'{TEXT_LABELS[which]} sent by hand to {application.phone}',
-        data={'text': f'hand_{which}', 'status': 'sent_by_hand', 'body': body},
+        text=f'{TEXT_LABELS[which]} sent {how} to {application.phone}',
+        data={'text': f'hand_{which}', 'status': status, 'body': body},
     )
     if application.stage in (Application.STAGE_NEW, Application.STAGE_REVIEWED):
         _move_stage(application, Application.STAGE_CONTACTED, by=by, text='')

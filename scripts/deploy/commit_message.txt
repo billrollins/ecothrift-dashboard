@@ -1,10 +1,10 @@
-v2.344.0 — Register: special items in the Pink tag window
+v2.345.0 — Applicants: texts go from our own number
 
-User-facing theme: **Register: special items in the Pink tag window**
+User-facing theme: **Applicants: texts go from our own number**
 
-> **For Bill:** Pink tag now opens with one-tap buttons for special items, $1.99 Flannels and $0.99 Non-flannel clothing, at exactly their price, never discounted. The free-form line below gains a Taxable switch. Sales count toward the order the goods came from; nothing is marked sold.
+> **For Bill:** Send Initial Text (and the reminder and offer texts) now sends straight from the store's (888) number with one press. No more copy and paste into your phone.
 
-### Added
-- **Register: special items in the Pink tag window** (Dash Update #237). Pink tag opens with one big button per special item, then the free-form Description and Price as before, plus a Taxable switch (on unless turned off). A tap adds the line at exactly its set price (no Black Friday or other sale), marks nothing sold and carries its order, so the order's card counts those sales in "sold for". First two: $1.99 Flannels (WLMRT-O99-8G11) and $0.99 Non-flannel clothing (WLMRT-O8T-R7L5, best guess). New ones are added in the admin (Special items) when the owner asks.
+### Changed
+- **Applicants: texts go from our own number** (Dash Update #218). Send Initial Text, the reminder text and the offer text now show the number and the words exactly as they go, and one press sends them from the store's (888) number (the same sender as Thrift+ codes and staff texts). No more copying into a phone. A number that replied STOP is never texted, and a text that did not leave says why and is not marked sent. The texts start "Eco-Thrift: Hi <name>!" so our name is not said twice.
 
-Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

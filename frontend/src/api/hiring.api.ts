@@ -546,7 +546,13 @@ export interface InterviewSettings {
 
 /** The first text or the reminder, to copy and send from a phone (owner 2026-10-12): the words and the number. */
 export const getTextDraft = (id: number, which: TextWhich) =>
-  api.post<{ which: TextWhich; phone: string; body: string }>(`/hiring/applications/${id}/text-draft/`, { which });
+  api.post<{ which: TextWhich; phone: string; body: string; sends: string }>(`/hiring/applications/${id}/text-draft/`, {
+    which,
+  });
+
+/** Sends the first text, the reminder or the offer from our own number (#218), then records it. */
+export const sendText = (id: number, which: TextWhich) =>
+  api.post<ApplicationDetail>(`/hiring/applications/${id}/text-send/`, { which });
 
 /** "Text sent": records the hand-sent text with its words. */
 export const markTextSent = (id: number, which: TextWhich, body: string) =>

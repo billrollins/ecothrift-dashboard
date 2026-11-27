@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.344.0] -->
-<!-- Last reviewed: 2026-11-27 (2.344.0) -->
+<!-- Line 1 release: ## [2.345.0] -->
+<!-- Last reviewed: 2026-11-27 (2.345.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.345.0] - 2026-11-27
+
+User-facing theme: **Applicants: texts go from our own number**
+
+> **For Bill:** Send Initial Text (and the reminder and offer texts) now sends straight from the store's (888) number with one press. No more copy and paste into your phone.
+
+### Changed
+- **Applicants: texts go from our own number** (Dash Update #218). Send Initial Text, the reminder text and the offer text now show the number and the words exactly as they go, and one press sends them from the store's (888) number (the same sender as Thrift+ codes and staff texts). No more copying into a phone. A number that replied STOP is never texted, and a text that did not leave says why and is not marked sent. The texts start "Eco-Thrift: Hi <name>!" so our name is not said twice.
 
 ## [2.344.0] - 2026-11-27
 
