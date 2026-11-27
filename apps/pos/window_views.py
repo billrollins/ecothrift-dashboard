@@ -9,7 +9,7 @@ from apps.accounts.permissions import IsEmployee
 
 from . import drawer_card, register_card, sale_card
 from .services.drawer_life import sees_running_cash
-from .models import Cart, Drawer, Register
+from .models import Cart, Drawer, Register, SpecialItem
 
 
 @api_view(['GET'])
@@ -42,3 +42,11 @@ def sale_card_view(request, pk: int):
     cart = get_object_or_404(Cart.objects.select_related('drawer__register', 'cashier', 'voided_by', 'card_type_fixed_by'),
                              pk=pk)
     return Response(sale_card.card(cart))
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsEmployee])
+def special_items_view(request):
+    """The one-tap buttons in the Pink tag window (active special items, in order)."""
+    rows = SpecialItem.objects.filter(active=True).order_by('sort', 'id')
+    return Response([{'id': r.pk, 'name': r.name, 'price': str(r.price), 'taxable': r.taxable} for r in rows])

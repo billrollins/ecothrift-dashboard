@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.343.0] -->
-<!-- Last reviewed: 2026-11-25 (2.343.0) -->
+<!-- Line 1 release: ## [2.344.0] -->
+<!-- Last reviewed: 2026-11-27 (2.344.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.344.0] - 2026-11-27
+
+User-facing theme: **Register: special items in the Pink tag window**
+
+> **For Bill:** Pink tag now opens with one-tap buttons for special items, $1.99 Flannels and $0.99 Non-flannel clothing, at exactly their price, never discounted. The free-form line below gains a Taxable switch. Sales count toward the order the goods came from; nothing is marked sold.
+
+### Added
+- **Register: special items in the Pink tag window** (Dash Update #237). Pink tag opens with one big button per special item, then the free-form Description and Price as before, plus a Taxable switch (on unless turned off). A tap adds the line at exactly its set price (no Black Friday or other sale), marks nothing sold and carries its order, so the order's card counts those sales in "sold for". First two: $1.99 Flannels (WLMRT-O99-8G11) and $0.99 Non-flannel clothing (WLMRT-O8T-R7L5, best guess). New ones are added in the admin (Special items) when the owner asks.
 
 ## [2.343.0] - 2026-11-25
 

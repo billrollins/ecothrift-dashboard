@@ -166,10 +166,30 @@ export function addItemToCart(cartId: number, sku: string): Promise<{ data: Cart
 
 export function addManualLineToCart(
   cartId: number,
-  // category 'drinks': never taxed (Bill, 2026-11-03).
-  body: { description: string; unit_price?: number | string; quantity?: number; category?: 'drinks' },
+  // category 'drinks': never taxed (Bill, 2026-11-03). taxable false: the Pink tag window's "Taxable" switch off.
+  // special_item: a one-tap special item; the server uses its own name, price and tax (owner 2026-11-27).
+  body: {
+    description: string;
+    unit_price?: number | string;
+    quantity?: number;
+    category?: 'drinks';
+    taxable?: boolean;
+    special_item?: number;
+  },
 ): Promise<{ data: Cart }> {
   return api.post<Cart>(`/pos/carts/${cartId}/add-manual-line/`, body);
+}
+
+/** A one-tap pink tag (e.g. $1.99 Flannels): sold by the piece, never tagged. */
+export interface SpecialItem {
+  id: number;
+  name: string;
+  price: string;
+  taxable: boolean;
+}
+
+export function getSpecialItems(): Promise<{ data: SpecialItem[] }> {
+  return api.get<SpecialItem[]>('/pos/special-items/');
 }
 
 export function addAssemblyToCart(

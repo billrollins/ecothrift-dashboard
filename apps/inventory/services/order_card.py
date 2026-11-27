@@ -69,6 +69,15 @@ def order_card(order_id: int) -> dict | None:
         sold_for=Sum('sold_for', filter=sold),
         shelf_value=Sum('price', filter=Q(status='on_shelf')),
     )
+    # Special items (one-tap pink tags, e.g. $1.99 flannels) sold from this order: no Item behind them, so they are
+    # added to "sold for" from the completed sales' lines.
+    from apps.pos.models import CartLine
+
+    special = (
+        CartLine.objects.filter(cart__status='completed', line_kind=CartLine.LINE_KIND_MANUAL, meta__order_id=po.pk)
+        .exclude(meta__special_item=None).aggregate(units=Sum('quantity'), amount=Sum('line_total'))
+    )
+    sold_for = (stats['sold_for'] or Decimal('0')) + (special['amount'] or Decimal('0'))
     manifest = ManifestRow.objects.filter(purchase_order=po).aggregate(lines=Count('id'), units=Sum('quantity'))
     claim = BStockDispute.objects.filter(purchase_order=po).order_by('-created_at').first()
     disputes = list(Dispute.objects.filter(purchase_order=po).order_by('-id').values('kind', 'status', 'title')[:5])
@@ -100,13 +109,14 @@ def order_card(order_id: int) -> dict | None:
         'money': {
             'purchase': _money(po.purchase_cost), 'shipping': _money(po.shipping_cost), 'fees': _money(po.fees),
             'total': _money(po.total_cost), 'retail': _money(po.retail_value), 'est_shrink': _money(po.est_shrink),
-            'sold_for': _money(stats['sold_for']), 'shelf_value': _money(stats['shelf_value']),
+            'sold_for': _money(sold_for), 'special_sold_for': _money(special['amount']), 'shelf_value': _money(stats['shelf_value']),
             'cost_pct_of_retail': _pct(po.total_cost, po.retail_value),
-            'recovered_pct': _pct(stats['sold_for'] or 0, po.total_cost),
+            'recovered_pct': _pct(sold_for, po.total_cost),
         },
         'units': {
             'manifest_lines': manifest['lines'] or 0, 'manifest_units': manifest['units'] or 0,
             'items': stats['total'], 'pending': stats['pending'], 'on_shelf': stats['on_shelf'], 'sold': stats['sold'],
+            'special_sold': special['units'] or 0,
             'returned': stats['returned'], 'gone': stats['gone'], 'disputed': stats['disputed'],
             'pallets': po.pallet_count,
         },

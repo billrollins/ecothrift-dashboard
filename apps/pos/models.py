@@ -530,8 +530,13 @@ class CartLine(models.Model):
     def is_drink(self):
         return (self.meta or {}).get('category') == self.CATEGORY_DRINKS
 
+    @property
+    def is_special(self):
+        return bool((self.meta or {}).get('special_item'))
+
     def is_sale_eligible(self):
-        return self.line_kind in (self.LINE_KIND_ITEM, self.LINE_KIND_MANUAL)
+        # A special item rings at exactly its set price: no store sale, no Black Friday (owner 2026-11-27).
+        return self.line_kind in (self.LINE_KIND_ITEM, self.LINE_KIND_MANUAL) and not self.is_special
 
     @property
     def list_total(self):
@@ -554,6 +559,29 @@ class CartLine(models.Model):
         if self.thrift_savings:  # Thrift+ member rebate; 0 unless a live register priced a member
             self.line_total = max(Decimal('0.00'), self.line_total - self.thrift_savings)
         super().save(*args, **kwargs)
+
+
+class SpecialItem(models.Model):
+    """A one-tap pink tag (owner 2026-11-25/27): goods sold by the piece at one price without tagging each one, e.g.
+    1,500 Walmart flannels at $1.99. The Pink tag window shows one button per active row; a tap adds a pink tag line at
+    exactly this price (no sale, no Black Friday) with the row and its order in the line's meta. No Item is touched or
+    marked sold. Added by Mainline when the owner asks; cashiers don't make these."""
+    name = models.CharField(max_length=80)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    taxable = models.BooleanField(default=True)
+    purchase_order = models.ForeignKey(
+        'inventory.PurchaseOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='special_items',
+        help_text='The order these goods came from (best guess is fine); its sales count toward that order.',
+    )
+    active = models.BooleanField(default=True)
+    sort = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['sort', 'id']
+
+    def __str__(self):
+        return f'{self.name} ${self.price}'
 
 
 class BlackFridayPrice(models.Model):

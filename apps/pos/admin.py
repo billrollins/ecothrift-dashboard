@@ -4,7 +4,15 @@ from .models import (
     SupplementalDrawer, SupplementalTransaction, BankTransaction,
     Cart, CartLine, Receipt, RevenueGoal,
     DeliveryDay, DeliveryJob, DeliveryTestDataset, RegisterApproval, RegisterEvent, DrawerCover,
+    SpecialItem,
 )
+
+
+@admin.register(SpecialItem)
+class SpecialItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'price', 'taxable', 'purchase_order', 'active', 'sort')
+    list_editable = ('active', 'sort')
+    raw_id_fields = ('purchase_order',)
 
 
 @admin.register(DrawerCover)

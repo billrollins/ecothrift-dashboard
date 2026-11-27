@@ -1,14 +1,10 @@
-v2.343.0 — Prep Truck: Undo send and Send again
+v2.344.0 — Register: special items in the Pink tag window
 
-User-facing theme: **Prep Truck: Undo send and Send again**
+User-facing theme: **Register: special items in the Pink tag window**
 
-> **For Bill:** A truck sent from Prep Truck can now be taken back (Undo send) or sent again after changes, as long as nothing on it has been checked in. The Send window also shows the lines exactly as they will go to Processing before you confirm. Once the first item is checked in, the truck stays in Processing and the bar says so.
+> **For Bill:** Pink tag now opens with one-tap buttons for special items, $1.99 Flannels and $0.99 Non-flannel clothing, at exactly their price, never discounted. The free-form line below gains a Taxable switch. Sales count toward the order the goods came from; nothing is marked sold.
 
 ### Added
-- **Prep Truck: Undo send and Send again** (Dash Update #233, the rest). While nothing on the truck is checked in, a sent truck can be taken back out of Processing (Undo send; the prep stays as it is) or sent again after changes (the Processing rows are replaced, the manifest rows keep their ids). At the first check-in (also an item, a disputed row or an unfulfilled line) both close and the bar says why. A check-in that lands in the middle of a send rolls the send back.
-
-### Changed
-- **Prep Truck: the Send window shows what will be written.** Before the confirm it lists the counts (lines, matched products, new products, priced by the truck rule, priced at check-in, still open in a step) and the first 25 lines as they will go over.
-- **Prep Truck: the manifest rows keep the seller's words.** Send writes the manifest rows from the seller's own columns (as old Preprocessing does) and puts Prep Truck's values on top as the final layer, so Processing still shows "manifest said" beside the final value. Pallet and lot ids land on the manifest rows. A line sold by the unit goes over whole and is split with Processing's own Break apart. Trucks sent by v2.342.0 keep working.
+- **Register: special items in the Pink tag window** (Dash Update #237). Pink tag opens with one big button per special item, then the free-form Description and Price as before, plus a Taxable switch (on unless turned off). A tap adds the line at exactly its set price (no Black Friday or other sale), marks nothing sold and carries its order, so the order's card counts those sales in "sold for". First two: $1.99 Flannels (WLMRT-O99-8G11) and $0.99 Non-flannel clothing (WLMRT-O8T-R7L5, best guess). New ones are added in the admin (Special items) when the owner asks.
 
 Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>

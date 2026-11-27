@@ -26,6 +26,7 @@ from .models import (
     DashboardDepartmentGoal,
     DeliveryAvailability, DeliveryDay, DeliveryJob, DeliveryJobItem,
     DeliveryRun, DeliveryRunStop, DeliveryAttachment, RegisterApproval, RegisterEvent, CashMovement, DrawerCover,
+    SpecialItem,
 )
 from .serializers import thrift_earned_on
 from .serializers import (
@@ -1580,6 +1581,21 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
+        special_id = request.data.get('special_item')
+        if special_id:  # a one-tap special item: its own name, price and tax; nothing is marked sold
+            special = SpecialItem.objects.filter(pk=special_id, active=True).first()
+            if special is None:
+                return Response({'detail': 'That special item is not on the list.', 'code': 'SPECIAL_NOT_FOUND'},
+                                status=400)
+            CartLine.objects.create(
+                cart=cart, item=None, description=special.name, quantity=1, unit_price=special.price,
+                line_kind=CartLine.LINE_KIND_MANUAL, tax_exempt=not special.taxable,
+                meta={'special_item': special.pk, 'order_id': special.purchase_order_id},
+            )
+            cart.recalculate()
+            cart = self.get_queryset().get(pk=cart.pk)
+            return Response(CartSerializer(cart).data)
+
         description = (request.data.get('description') or '').strip()
         if not description:
             return Response(
@@ -1628,6 +1644,8 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
+        # "Taxable" switch in the Pink tag window (owner 2026-11-27); missing = taxed, as before.
+        taxable = request.data.get('taxable', True) not in (False, 'false', '0', 0)
         line = CartLine.objects.create(
             cart=cart,
             item=None,
@@ -1636,7 +1654,7 @@ class CartViewSet(viewsets.ModelViewSet):
             unit_price=unit_price,
             line_kind=CartLine.LINE_KIND_MANUAL,
             meta={'category': category} if category else {},
-            tax_exempt=category == CartLine.CATEGORY_DRINKS,
+            tax_exempt=category == CartLine.CATEGORY_DRINKS or not taxable,
         )
         apply_sale_to_line(line)
 

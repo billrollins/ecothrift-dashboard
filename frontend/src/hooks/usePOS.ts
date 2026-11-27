@@ -14,6 +14,7 @@ import {
   createCart,
   addItemToCart,
   addManualLineToCart,
+  getSpecialItems,
   addAssemblyToCart,
   addDiscountToCart,
   listGoogleReviewUsernames,
@@ -241,6 +242,15 @@ export function useAddItemToCart() {
   });
 }
 
+/** The Pink tag window's one-tap buttons; loaded with the register so the window never grows when it opens. */
+export function useSpecialItems() {
+  return useQuery({
+    queryKey: ['pos', 'special-items'],
+    queryFn: async () => (await getSpecialItems()).data,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useAddManualLineToCart() {
   const queryClient = useQueryClient();
 
@@ -251,18 +261,24 @@ export function useAddManualLineToCart() {
       unit_price,
       quantity,
       category,
+      taxable,
+      special_item,
     }: {
       cartId: number;
       description: string;
       unit_price?: number | string;
       quantity?: number;
       category?: 'drinks';
+      taxable?: boolean;
+      special_item?: number;
     }) => {
       const { data } = await addManualLineToCart(cartId, {
         description,
         ...(unit_price !== undefined ? { unit_price } : {}),
         ...(quantity !== undefined ? { quantity } : {}),
         ...(category ? { category } : {}),
+        ...(taxable === false ? { taxable: false } : {}),
+        ...(special_item ? { special_item } : {}),
       });
       return data;
     },

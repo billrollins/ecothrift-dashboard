@@ -28,6 +28,7 @@ import {
   RadioGroup,
   Select,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -73,6 +74,7 @@ import {
   useCreateCart,
   useAddItemToCart,
   useAddManualLineToCart,
+  useSpecialItems,
   useAddAssemblyToCart,
   useAddDiscountToCart,
   useAddDeliveryToCart,
@@ -325,6 +327,8 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   const [manualUnitPrice, setManualUnitPrice] = useState(DEFAULT_MANUAL_LINE_PRICE);
   // Drinks are never taxed (Bill, 2026-11-03): the same hand-rung line, in the Drinks category.
   const [manualIsDrink, setManualIsDrink] = useState(false);
+  // Pink tag window: "Taxable" switch for the free-form line (owner 2026-11-27); on unless turned off.
+  const [manualTaxable, setManualTaxable] = useState(true);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
   const [deliveryTier, setDeliveryTier] = useState<'5mi' | '10mi'>('5mi');
@@ -447,6 +451,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
   const createCartMutation = useCreateCart();
   const addItemMutation = useAddItemToCart();
   const addManualLineMutation = useAddManualLineToCart();
+  const { data: specialItems = [] } = useSpecialItems();
   const addAssemblyMutation = useAddAssemblyToCart();
   const setLineSaleMutation = useSetCartLineSale();
   const syncCartSaleMutation = useSyncCartSale();
@@ -693,6 +698,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
 
   const handleOpenUnscannableDialog = useCallback(() => {
     setManualIsDrink(false);
+    setManualTaxable(true);
     setManualDescription(DEFAULT_MANUAL_LINE_TITLE);
     setManualUnitPrice(DEFAULT_MANUAL_LINE_PRICE);
     setUnscannableDialogOpen(true);
@@ -755,25 +761,15 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
     [cart, setLineSaleMutation, commitCart, enqueueSnackbar, saleMode?.line_sale?.name],
   );
 
-  const handleSubmitManualLine = useCallback(
-    async (e: FormEvent) => {
-      e.preventDefault();
-      const desc = manualDescription.trim();
-      if (!desc) {
-        enqueueSnackbar('Description is required.', { variant: 'warning' });
-        return;
-      }
-      const priceStr = manualUnitPrice.trim();
-      if (manualIsDrink && priceStr === '') {
-        enqueueSnackbar('Enter the price of the drink.', { variant: 'warning' });
-        return;
-      }
-      const unitPrice = priceStr === '' ? 0.5 : parseFloat(priceStr);
-      if (Number.isNaN(unitPrice) || unitPrice < 0) {
-        enqueueSnackbar('Enter a valid price.', { variant: 'error' });
-        return;
-      }
-
+  // Adds a pink tag line (free-form or a one-tap special item), starting a sale first when none is open.
+  const addPinkTagLine = useCallback(
+    async (body: {
+      description: string;
+      unit_price?: number;
+      category?: 'drinks';
+      taxable?: boolean;
+      special_item?: number;
+    }) => {
       let activeCart = cart;
       if (!activeCart) {
         const liveDrawer = todayDrawerRef.current;
@@ -797,12 +793,7 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
       }
 
       try {
-        const updated = await addManualLineMutation.mutateAsync({
-          cartId: activeCart.id,
-          description: desc,
-          unit_price: unitPrice,
-          ...(manualIsDrink ? { category: 'drinks' as const } : {}),
-        });
+        const updated = await addManualLineMutation.mutateAsync({ cartId: activeCart.id, ...body });
         commitCart(updated as unknown as Cart);
         setUnscannableDialogOpen(false);
         setManualDescription(DEFAULT_MANUAL_LINE_TITLE);
@@ -812,19 +803,34 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         enqueueSnackbar('Failed to add line', { variant: 'error' });
       }
     },
-    [
-      cart,
-      manualDescription,
-      manualUnitPrice,
-      manualIsDrink,
-      isRegister,
-      managerDrawerId,
-      startCart,
-      addManualLineMutation,
-      commitCart,
-      enqueueSnackbar,
-      markRegisterActivity,
-    ],
+    [cart, isRegister, managerDrawerId, startCart, addManualLineMutation, commitCart, enqueueSnackbar, markRegisterActivity],
+  );
+
+  const handleSubmitManualLine = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+      const desc = manualDescription.trim();
+      if (!desc) {
+        enqueueSnackbar('Description is required.', { variant: 'warning' });
+        return;
+      }
+      const priceStr = manualUnitPrice.trim();
+      if (manualIsDrink && priceStr === '') {
+        enqueueSnackbar('Enter the price of the drink.', { variant: 'warning' });
+        return;
+      }
+      const unitPrice = priceStr === '' ? 0.5 : parseFloat(priceStr);
+      if (Number.isNaN(unitPrice) || unitPrice < 0) {
+        enqueueSnackbar('Enter a valid price.', { variant: 'error' });
+        return;
+      }
+      await addPinkTagLine({
+        description: desc,
+        unit_price: unitPrice,
+        ...(manualIsDrink ? { category: 'drinks' as const } : manualTaxable ? {} : { taxable: false }),
+      });
+    },
+    [manualDescription, manualUnitPrice, manualIsDrink, manualTaxable, enqueueSnackbar, addPinkTagLine],
   );
 
   const ensureOpenCart = useCallback(async (): Promise<Cart | null> => {
@@ -2857,8 +2863,40 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
         fullWidth
       >
         <form onSubmit={handleSubmitManualLine}>
-          <DialogTitle>{manualIsDrink ? 'Drink (no tax)' : 'Unscannable item'}</DialogTitle>
+          <DialogTitle>{manualIsDrink ? 'Drink (no tax)' : 'Pink tag'}</DialogTitle>
           <DialogContent>
+            {/* One-tap special items (owner 2026-11-27): exactly their set price, no sale; nothing is marked sold. */}
+            {!manualIsDrink && specialItems.length > 0 && (
+              <Box
+                sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mt: 1, mb: 2 }}
+                data-testid="special-items"
+              >
+                {specialItems.map((s) => (
+                  <Button
+                    key={s.id}
+                    type="button"
+                    variant="contained"
+                    disabled={addManualLineMutation.isPending || createCartMutation.isPending}
+                    onClick={() => void addPinkTagLine({ description: s.name, special_item: s.id })}
+                    data-testid={`special-item-${s.id}`}
+                    sx={{
+                      minHeight: 72,
+                      flexDirection: 'column',
+                      textTransform: 'none',
+                      bgcolor: '#e91e63',
+                      '&:hover': { bgcolor: '#c2185b' },
+                    }}
+                  >
+                    <Box component="span" sx={{ fontSize: 22, fontWeight: 800, lineHeight: 1.1 }}>
+                      ${Number(s.price).toFixed(2)}
+                    </Box>
+                    <Box component="span" sx={{ fontSize: 14, fontWeight: 600, lineHeight: 1.2 }}>
+                      {s.name}
+                    </Box>
+                  </Button>
+                ))}
+              </Box>
+            )}
             <Stack spacing={2} sx={{ mt: 1 }}>
               <TextField
                 inputRef={manualDescriptionInputRef}
@@ -2877,6 +2915,18 @@ export default function TerminalPage({ testRegister }: { testRegister?: Register
                 onChange={(e) => setManualUnitPrice(e.target.value)}
                 slotProps={{ input: { inputProps: { min: 0, step: 0.01 } } }}
               />
+              {!manualIsDrink && (
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={manualTaxable}
+                      onChange={(e) => setManualTaxable(e.target.checked)}
+                      data-testid="pink-tag-taxable"
+                    />
+                  }
+                  label="Taxable"
+                />
+              )}
             </Stack>
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2 }}>

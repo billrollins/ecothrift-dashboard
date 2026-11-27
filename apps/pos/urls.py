@@ -46,6 +46,7 @@ router.register(r'deliveries', DeliveryViewSet, basename='delivery')
 urlpatterns = [
     path('registers/<int:pk>/card/', window_views.register_card_view, name='register-card'),
     path('carts/<int:pk>/card/', window_views.sale_card_view, name='sale-card'),
+    path('special-items/', window_views.special_items_view, name='special-items'),
     path('drawers/<int:pk>/card/', window_views.drawer_card_view, name='drawer-card'),
     path('safe/', safe_views.safe_view, name='safe'),
     path('safe/swap/', safe_views.safe_swap_view, name='safe-swap'),
